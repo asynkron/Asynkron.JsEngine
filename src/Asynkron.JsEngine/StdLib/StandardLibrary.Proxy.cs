@@ -20,7 +20,7 @@ public static partial class StandardLibrary
             var target = args[0];
             var handler = args[1];
 
-            if (target is not IJsObjectLike)
+            if (target is not IJsObjectLike targetObject)
             {
                 var error = realm.TypeErrorConstructor is IJsCallable ctor
                     ? ctor.Invoke(["Proxy target must be an object"], null)
@@ -36,7 +36,7 @@ public static partial class StandardLibrary
                 throw new ThrowSignal(error);
             }
 
-            var proxy = new JsProxy(target!, handlerObj);
+            var proxy = new JsProxy(targetObject, handlerObj);
             if (proxyPrototype is not null)
             {
                 proxy.SetPrototype(proxyPrototype);
@@ -78,7 +78,7 @@ public static partial class StandardLibrary
             var target = args[0];
             var handler = args[1];
 
-            if (target is not IJsObjectLike)
+            if (target is not IJsObjectLike targetObject)
             {
                 var error = realm.TypeErrorConstructor is IJsCallable ctor2
                     ? ctor2.Invoke(["Proxy target must be an object"], null)
@@ -94,7 +94,7 @@ public static partial class StandardLibrary
                 throw new ThrowSignal(error);
             }
 
-            var proxy = new JsProxy(target!, handlerObj);
+            var proxy = new JsProxy(targetObject, handlerObj);
             if (proxyPrototype is not null)
             {
                 proxy.SetPrototype(proxyPrototype);

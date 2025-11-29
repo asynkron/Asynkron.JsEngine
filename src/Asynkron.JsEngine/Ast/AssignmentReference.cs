@@ -35,8 +35,15 @@ internal static class AssignmentReferenceResolver
                 "Assignment to eval or arguments is not allowed in strict mode.", context, context.RealmState));
         }
 
+        if (environment.TryResolveWithBinding(identifier.Name, context, out var withBinding))
+        {
+            return new AssignmentReference(
+                () => JsEnvironment.GetWithBindingValue(withBinding),
+                newValue => JsEnvironment.SetWithBindingValue(withBinding, newValue));
+        }
+
         return new AssignmentReference(
-            () => environment.Get(identifier.Name),
+            () => environment.GetDeclarative(identifier.Name),
             value => environment.Assign(identifier.Name, value));
     }
 

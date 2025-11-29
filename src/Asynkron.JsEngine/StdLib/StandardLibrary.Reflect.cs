@@ -114,61 +114,9 @@ public static partial class StandardLibrary
         }
 
         var propertyKey = JsOps.ToPropertyName(args[1]) ?? string.Empty;
-        if (args[2] is not JsObject descriptorObj)
-        {
-            throw new Exception("Reflect.defineProperty: descriptor must be an object.");
-        }
+        var descriptor = ToPropertyDescriptor(args[2], realm);
 
-        var descriptor = new PropertyDescriptor();
-        if (descriptorObj.TryGetProperty("value", out var value))
-        {
-            descriptor.Value = value;
-        }
-
-        if (descriptorObj.TryGetProperty("writable", out var writable))
-        {
-            descriptor.Writable = writable is bool b ? b : ToBoolean(writable);
-        }
-
-        if (descriptorObj.TryGetProperty("enumerable", out var enumerable))
-        {
-            descriptor.Enumerable = enumerable is bool b ? b : ToBoolean(enumerable);
-        }
-
-        if (descriptorObj.TryGetProperty("configurable", out var configurable))
-        {
-            descriptor.Configurable = configurable is bool b ? b : ToBoolean(configurable);
-        }
-
-        if (descriptorObj.TryGetProperty("get", out var getter) && getter is IJsCallable getterFn)
-        {
-            descriptor.Get = getterFn;
-        }
-
-        if (descriptorObj.TryGetProperty("set", out var setter) && setter is IJsCallable setterFn)
-        {
-            descriptor.Set = setterFn;
-        }
-
-        if (target is JsArray jsArray && string.Equals(propertyKey, "length", StringComparison.Ordinal))
-        {
-            return jsArray.DefineLength(descriptor, null, false);
-        }
-
-        if (target is JsObject jsObject)
-        {
-            return jsObject.TryDefineProperty(propertyKey, descriptor);
-        }
-
-        try
-        {
-            target.DefineProperty(propertyKey, descriptor);
-            return true;
-        }
-        catch (ThrowSignal)
-        {
-            return false;
-        }
+        return TryDefinePropertyOnTarget(target, propertyKey, descriptor, realm, throwOnFailure: false);
     }
 
     private static object? ReflectDeleteProperty(object? _, IReadOnlyList<object?> args, RealmState? realm)
@@ -233,30 +181,8 @@ public static partial class StandardLibrary
 
         var propertyKey = JsOps.ToPropertyName(args[1]) ?? string.Empty;
         var descriptor = target.GetOwnPropertyDescriptor(propertyKey);
-        if (descriptor is null)
-        {
-            return null;
-        }
-
-        var descObj = new JsObject
-        {
-            ["value"] = descriptor.Value,
-            ["writable"] = descriptor.Writable,
-            ["enumerable"] = descriptor.Enumerable,
-            ["configurable"] = descriptor.Configurable
-        };
-
-        if (descriptor.Get is not null)
-        {
-            descObj["get"] = descriptor.Get;
-        }
-
-        if (descriptor.Set is not null)
-        {
-            descObj["set"] = descriptor.Set;
-        }
-
-        return descObj;
+        var result = FromPropertyDescriptor(descriptor, realm);
+        return result ?? (object)Symbol.Undefined;
     }
 
     private static object? ReflectGetPrototypeOf(object? _, IReadOnlyList<object?> args, RealmState? realm)
@@ -312,7 +238,7 @@ public static partial class StandardLibrary
             throw new Exception("Reflect.isExtensible: target must be an object.");
         }
 
-        return !target.IsSealed;
+        return IsTargetExtensible(target);
     }
 
     private static object? ReflectOwnKeys(object? _, IReadOnlyList<object?> args, RealmState? realm)
@@ -351,7 +277,7 @@ public static partial class StandardLibrary
             throw new Exception("Reflect.preventExtensions: target must be an object.");
         }
 
-        target.Seal();
+        PreventExtensionsOnTarget(target);
         return true;
     }
 

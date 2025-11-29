@@ -5,7 +5,8 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     Behaves like a callable object with ordinary property storage so
 ///     test262 harness helpers can hang Symbol.* hooks off of it.
 /// </summary>
-public sealed class HtmlDdaValue : IIsHtmlDda, IJsCallable, IJsObjectLike
+public sealed class HtmlDdaValue : IIsHtmlDda, IJsCallable, IJsObjectLike, IPropertyDefinitionHost,
+    IExtensibilityControl
 {
     private readonly JsObject _backing = new();
 
@@ -51,6 +52,7 @@ public sealed class HtmlDdaValue : IIsHtmlDda, IJsCallable, IJsObjectLike
 
     public JsObject? Prototype => _backing.Prototype;
     public bool IsSealed => _backing.IsSealed;
+    public bool IsExtensible => _backing.IsExtensible;
     public IEnumerable<string> Keys => _backing.Keys;
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
@@ -58,9 +60,19 @@ public sealed class HtmlDdaValue : IIsHtmlDda, IJsCallable, IJsObjectLike
         _backing.DefineProperty(name, descriptor);
     }
 
+    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        return _backing.TryDefineProperty(name, descriptor);
+    }
+
     public void SetPrototype(object? candidate)
     {
         _backing.SetPrototype(candidate);
+    }
+
+    public void PreventExtensions()
+    {
+        _backing.PreventExtensions();
     }
 
     public void Seal()

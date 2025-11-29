@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.JsTypes;
 /// <summary>
 ///     Minimal JavaScript-like array that tracks indexed elements and behaves like an object for property access.
 /// </summary>
-public sealed class JsArray : IJsObjectLike
+public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl
 {
     private const uint DenseIndexLimit = 1_000_000;
 
@@ -85,6 +85,7 @@ public sealed class JsArray : IJsObjectLike
     }
 
     public bool IsSealed => _properties.IsSealed;
+    public bool IsExtensible => _properties.IsExtensible;
     public IEnumerable<string> Keys => _properties.Keys;
 
     public bool TryGetProperty(string name, out object? value)
@@ -139,30 +140,31 @@ public sealed class JsArray : IJsObjectLike
         _properties.SetProperty(name, value, receiver ?? this);
     }
 
-    public void DefineProperty(string name, PropertyDescriptor descriptor)
+    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
     {
         if (string.Equals(name, "length", StringComparison.Ordinal))
         {
-            DefineLength(descriptor, null, true);
-            return;
+            return DefineLength(descriptor, null, false);
         }
 
         if (TryParseArrayIndex(name, out var index))
         {
             if (!descriptor.IsAccessorDescriptor)
             {
-                // Keep the indexed storage in sync with defined data properties.
-                SetElement(index, descriptor.Value);
+                SetElement(index, descriptor.HasValue ? descriptor.Value : Symbol.Undefined);
             }
             else
             {
-                // Accessor descriptors on indexed properties still advance the length
-                // so later iterations observe the new high-water mark.
                 BumpLength(index + 1);
             }
         }
 
-        _properties.DefineProperty(name, descriptor);
+        return _properties.TryDefineProperty(name, descriptor);
+    }
+
+    public void DefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        TryDefineProperty(name, descriptor);
     }
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
@@ -184,6 +186,11 @@ public sealed class JsArray : IJsObjectLike
     public IEnumerable<string> GetOwnPropertyNames()
     {
         return _properties.GetOwnPropertyNames();
+    }
+
+    public void PreventExtensions()
+    {
+        _properties.PreventExtensions();
     }
 
     public void Seal()

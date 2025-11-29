@@ -5,7 +5,7 @@ using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.JsTypes;
 
-internal sealed class JsArgumentsObject : IJsObjectLike
+internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl
 {
     private readonly JsObject _backing = new();
     private readonly JsEnvironment _environment;
@@ -134,17 +134,28 @@ internal sealed class JsArgumentsObject : IJsObjectLike
     }
 
     public bool IsSealed => _backing.IsSealed;
+    public bool IsExtensible => _backing.IsExtensible;
 
     public IEnumerable<string> Keys => _backing.Keys;
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        DefinePropertyInternal(name, descriptor, throwOnError: true);
+    }
+
+    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        return DefinePropertyInternal(name, descriptor, throwOnError: false);
+    }
+
+    private bool DefinePropertyInternal(string name, PropertyDescriptor descriptor, bool throwOnError)
     {
         var existingDescriptor = GetTrackedDescriptor(name);
         var normalized = NormalizeDescriptor(name, descriptor, existingDescriptor);
 
         if (existingDescriptor is not null && !IsDescriptorCompatible(existingDescriptor, descriptor))
         {
-            throw CreateDefineTypeError();
+            return FailDefine(throwOnError);
         }
 
         if (TryResolveIndex(name, out var index) &&
@@ -158,8 +169,9 @@ internal sealed class JsArgumentsObject : IJsObjectLike
             var success = _backing.TryDefineProperty(name, normalized);
             if (!success)
             {
-                throw CreateDefineTypeError();
+                return FailDefine(throwOnError);
             }
+
             TrackDescriptor(name, normalized);
 
             if (descriptor.HasValue)
@@ -173,20 +185,26 @@ internal sealed class JsArgumentsObject : IJsObjectLike
                 _mappedParameters[index] = null;
             }
 
-            return;
+            return true;
         }
 
         if (!_backing.TryDefineProperty(name, normalized))
         {
-            throw CreateDefineTypeError();
+            return FailDefine(throwOnError);
         }
 
         TrackDescriptor(name, normalized);
+        return true;
     }
 
     public void SetPrototype(object? candidate)
     {
         _backing.SetPrototype(candidate);
+    }
+
+    public void PreventExtensions()
+    {
+        _backing.PreventExtensions();
     }
 
     public void Seal()
@@ -369,6 +387,16 @@ internal sealed class JsArgumentsObject : IJsObjectLike
 
         var existing = _backing.GetOwnPropertyDescriptor(name);
         return existing is null ? null : CloneDescriptor(existing);
+    }
+
+    private bool FailDefine(bool throwOnError)
+    {
+        if (throwOnError)
+        {
+            throw CreateDefineTypeError();
+        }
+
+        return false;
     }
 
     private ThrowSignal CreateDefineTypeError()

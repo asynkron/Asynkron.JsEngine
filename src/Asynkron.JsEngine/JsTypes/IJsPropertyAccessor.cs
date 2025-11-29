@@ -84,3 +84,14 @@ public interface IJsObjectLike : IJsPropertyAccessor
     void Seal();
     bool Delete(string name);
 }
+
+public interface IPropertyDefinitionHost
+{
+    bool TryDefineProperty(string name, PropertyDescriptor descriptor);
+}
+
+public interface IExtensibilityControl
+{
+    bool IsExtensible { get; }
+    void PreventExtensions();
+}

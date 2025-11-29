@@ -6,7 +6,8 @@ namespace Asynkron.JsEngine.JsTypes;
 /// <summary>
 ///     Represents a host function that can be called from JavaScript.
 /// </summary>
-public sealed class HostFunction : IJsObjectLike, IJsEnvironmentAwareCallable
+public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl,
+    IJsEnvironmentAwareCallable
 {
     private readonly Func<object?, IReadOnlyList<object?>, object?> _handler;
 
@@ -175,6 +176,11 @@ public sealed class HostFunction : IJsObjectLike, IJsEnvironmentAwareCallable
         Properties.DefineProperty(name, descriptor);
     }
 
+    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        return Properties.TryDefineProperty(name, descriptor);
+    }
+
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
     {
         return Properties.GetOwnPropertyDescriptor(name);
@@ -195,12 +201,18 @@ public sealed class HostFunction : IJsObjectLike, IJsEnvironmentAwareCallable
     }
 
     public bool IsSealed => Properties.IsSealed;
+    public bool IsExtensible => Properties.IsExtensible;
 
     public IEnumerable<string> Keys => Properties.Keys;
 
     public void SetPrototype(object? candidate)
     {
         Properties.SetPrototype(candidate);
+    }
+
+    public void PreventExtensions()
+    {
+        Properties.PreventExtensions();
     }
 
     public void Seal()

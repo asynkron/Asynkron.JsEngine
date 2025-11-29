@@ -113,6 +113,16 @@ public sealed class EvaluationContext(
     /// </summary>
     public bool IsYield => CurrentSignal is YieldSignal;
 
+    /// <summary>
+    ///     Returns true if the current signal is Break.
+    /// </summary>
+    public bool IsBreak => CurrentSignal is BreakSignal;
+
+    /// <summary>
+    ///     Returns true if the current signal is Continue.
+    /// </summary>
+    public bool IsContinue => CurrentSignal is ContinueSignal;
+
     public ScopeFrame CurrentScope => _scopeStack.Count > 0 ? _scopeStack.Peek() : ScopeFrame.Default;
 
     public IDisposable PushScope(

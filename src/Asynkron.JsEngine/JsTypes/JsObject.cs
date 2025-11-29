@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
@@ -9,62 +10,144 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public sealed class PropertyDescriptor
 {
+    private object? _value;
+    private bool _writable = true;
+    private bool _enumerable = true;
+    private bool _configurable = true;
+    private IJsCallable? _get;
+    private IJsCallable? _set;
+
     public object? Value
     {
-        get;
+        get => _value;
         set
         {
-            field = value;
+            _value = value;
             HasValue = true;
         }
     }
 
     public bool Writable
     {
-        get;
+        get => _writable;
         set
         {
-            field = value;
+            _writable = value;
             HasWritable = true;
         }
-    } = true;
+    }
 
     public bool Enumerable
     {
-        get;
+        get => _enumerable;
         set
         {
-            field = value;
+            _enumerable = value;
             HasEnumerable = true;
         }
-    } = true;
+    }
 
     public bool Configurable
     {
-        get;
+        get => _configurable;
         set
         {
-            field = value;
+            _configurable = value;
             HasConfigurable = true;
         }
-    } = true;
+    }
 
     public bool HasValue { get; set; }
     public bool HasWritable { get; set; }
     public bool HasEnumerable { get; set; }
     public bool HasConfigurable { get; set; }
 
-    public IJsCallable? Get { get; set; }
-    public IJsCallable? Set { get; set; }
+    public bool HasGet { get; private set; }
+    public bool HasSet { get; private set; }
 
-    public bool IsAccessorDescriptor => Get != null || Set != null;
-    public bool IsDataDescriptor => !IsAccessorDescriptor;
+    public IJsCallable? Get
+    {
+        get => _get;
+        set
+        {
+            _get = value;
+            HasGet = true;
+        }
+    }
+
+    public IJsCallable? Set
+    {
+        get => _set;
+        set
+        {
+            _set = value;
+            HasSet = true;
+        }
+    }
+
+    public bool IsAccessorDescriptor => HasGet || HasSet;
+    public bool IsDataDescriptor => HasValue || HasWritable;
+    public bool IsGenericDescriptor => !IsAccessorDescriptor && !IsDataDescriptor;
+    public bool IsEmpty => !HasValue && !HasWritable && !HasEnumerable && !HasConfigurable && !HasGet && !HasSet;
+
+    public PropertyDescriptor Clone()
+    {
+        var clone = new PropertyDescriptor();
+        if (HasValue)
+        {
+            clone.Value = Value;
+        }
+
+        if (HasWritable)
+        {
+            clone.Writable = Writable;
+        }
+
+        if (HasEnumerable)
+        {
+            clone.Enumerable = Enumerable;
+        }
+
+        if (HasConfigurable)
+        {
+            clone.Configurable = Configurable;
+        }
+
+        if (HasGet)
+        {
+            clone.Get = Get;
+        }
+
+        if (HasSet)
+        {
+            clone.Set = Set;
+        }
+
+        return clone;
+    }
+
+    public void ClearDataAttributes()
+    {
+        _value = null;
+        HasValue = false;
+        _writable = true;
+        HasWritable = false;
+    }
+
+    public void ClearAccessorAttributes()
+    {
+        _get = null;
+        HasGet = false;
+        _set = null;
+        HasSet = false;
+    }
 }
 
 /// <summary>
 ///     Simple JavaScript-like object that supports prototype chaining for property lookups.
 /// </summary>
-public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordinal), IJsObjectLike, IPrivateBrandHolder
+public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordinal), IJsObjectLike, IPrivateBrandHolder,
+    IPropertyDefinitionHost, IExtensibilityControl
 {
     private const string PrototypeKey = "__proto__";
     private const string GetterPrefix = "__getter__";
@@ -76,6 +159,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
     private readonly Dictionary<string, object?> _privateFields = new(StringComparer.Ordinal);
     private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
     private IVirtualPropertyProvider? _virtualPropertyProvider;
+    private bool _isExtensible = true;
 
     public bool IsFrozen { get; private set; }
 
@@ -84,6 +168,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
     public JsObject? Prototype { get; private set; }
 
     public bool IsSealed { get; private set; }
+    public bool IsExtensible => _isExtensible;
 
     IEnumerable<string> IJsObjectLike.Keys => Keys;
 
@@ -135,162 +220,301 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
             return true;
         }
 
-        var propertyExists = _descriptors.ContainsKey(name) || ContainsKey(name);
-        var existingDesc = _descriptors.TryGetValue(name, out var found) ? found : null;
-        if (existingDesc is null && TryGetValue(name, out var existingValue))
+        var hadStoredDescriptor = _descriptors.TryGetValue(name, out var storedDescriptor);
+        var hadDataSlot = ContainsKey(name);
+        var currentDescriptor = storedDescriptor;
+
+        if (!hadStoredDescriptor && TryGetValue(name, out var existingValue))
         {
-            existingDesc = new PropertyDescriptor
-            {
-                Value = existingValue,
-                Writable = true,
-                Enumerable = true,
-                Configurable = true
-            };
-            existingDesc.HasValue = true;
-            existingDesc.HasWritable = true;
-            existingDesc.HasEnumerable = true;
-            existingDesc.HasConfigurable = true;
+            currentDescriptor = CreateDataDescriptorFromExistingValue(existingValue);
         }
 
-        if (existingDesc is not null &&
-            !existingDesc.Configurable)
+        if (currentDescriptor is null)
         {
-            var typeChange =
-                existingDesc.IsAccessorDescriptor != descriptor.IsAccessorDescriptor &&
-                (descriptor.HasValue || descriptor.HasWritable || descriptor.Get != null || descriptor.Set != null);
-
-            if (typeChange)
+            if (!_isExtensible)
             {
                 return false;
             }
 
-            if (descriptor.HasConfigurable && descriptor.Configurable != existingDesc.Configurable)
-            {
-                return false;
-            }
-
-            if (descriptor.HasEnumerable && descriptor.Enumerable != existingDesc.Enumerable)
-            {
-                return false;
-            }
-
-            if (existingDesc.IsAccessorDescriptor)
-            {
-                if (descriptor.Get is not null && !ReferenceEquals(descriptor.Get, existingDesc.Get))
-                {
-                    return false;
-                }
-
-                if (descriptor.Set is not null && !ReferenceEquals(descriptor.Set, existingDesc.Set))
-                {
-                    return false;
-                }
-            }
-            else if (!existingDesc.Writable)
-            {
-                if (descriptor.HasWritable && descriptor.Writable)
-                {
-                    return false;
-                }
-
-                if (descriptor.HasValue && !Equals(descriptor.Value, existingDesc.Value))
-                {
-                    return false;
-                }
-            }
-        }
-
-        // Merge with existing descriptor when configurable so unspecified attributes are preserved.
-        if (existingDesc is not null)
-        {
-            if (descriptor.IsAccessorDescriptor && existingDesc.IsAccessorDescriptor)
-            {
-                descriptor.Get ??= existingDesc.Get;
-                descriptor.Set ??= existingDesc.Set;
-            }
-
-            if (!descriptor.HasEnumerable && existingDesc.HasEnumerable)
-            {
-                descriptor.Enumerable = existingDesc.Enumerable;
-            }
-
-            if (!descriptor.HasConfigurable && existingDesc.HasConfigurable)
-            {
-                descriptor.Configurable = existingDesc.Configurable;
-            }
-
-            if (descriptor.IsDataDescriptor && existingDesc.IsDataDescriptor)
-            {
-                if (!descriptor.HasWritable && existingDesc.HasWritable)
-                {
-                    descriptor.Writable = existingDesc.Writable;
-                }
-
-                if (!descriptor.HasValue && existingDesc.HasValue)
-                {
-                    descriptor.Value = existingDesc.Value;
-                }
-            }
-        }
-        else
-        {
-            var configurableExplicitFalse = descriptor.HasConfigurable && descriptor.Configurable == false;
-
-            if (!descriptor.HasEnumerable)
-            {
-                descriptor.Enumerable = false;
-            }
-
-            if (!descriptor.HasConfigurable)
-            {
-                descriptor.Configurable = false;
-            }
-
-            if (!descriptor.IsAccessorDescriptor && !descriptor.HasWritable)
-            {
-                descriptor.Writable = configurableExplicitFalse ? false : true;
-            }
-        }
-
-        // Sealed/frozen objects cannot have new properties added
-        if ((IsSealed || IsFrozen) && !propertyExists)
-        {
-            return false;
-        }
-
-        // Frozen objects cannot have properties modified
-        if (IsFrozen && propertyExists)
-        {
-            return false;
-        }
-
-        if (!propertyExists)
-        {
+            var newDescriptor = descriptor.Clone();
+            CompleteDescriptorForNewProperty(newDescriptor);
+            _descriptors[name] = newDescriptor;
             TrackPropertyInsertion(name);
+            AssignDescriptorStorage(name, newDescriptor);
+            return true;
         }
 
-        _descriptors[name] = descriptor;
-
-        if (descriptor.IsAccessorDescriptor)
+        if (!ValidateDescriptorChange(descriptor, currentDescriptor))
         {
-            // Store getter/setter
-            if (descriptor.Get != null)
+            return false;
+        }
+
+        ApplyDescriptorChange(descriptor, currentDescriptor);
+
+        if (!hadStoredDescriptor)
+        {
+            _descriptors[name] = currentDescriptor;
+            if (!hadDataSlot)
             {
-                this[GetterPrefix + name] = descriptor.Get;
+                TrackPropertyInsertion(name);
+            }
+        }
+
+        AssignDescriptorStorage(name, currentDescriptor);
+        return true;
+    }
+
+    private static PropertyDescriptor CreateDataDescriptorFromExistingValue(object? value)
+    {
+        return new PropertyDescriptor
+        {
+            Value = value,
+            Writable = true,
+            Enumerable = true,
+            Configurable = true
+        };
+    }
+
+    private static void CompleteDescriptorForNewProperty(PropertyDescriptor descriptor)
+    {
+        if (descriptor.IsGenericDescriptor || descriptor.IsDataDescriptor)
+        {
+            if (!descriptor.HasValue)
+            {
+                descriptor.Value = Symbol.Undefined;
             }
 
-            if (descriptor.Set != null)
+            if (!descriptor.HasWritable)
             {
-                this[SetterPrefix + name] = descriptor.Set;
+                descriptor.Writable = true;
             }
         }
         else
         {
-            // Store data value
-            this[name] = descriptor.Value;
+            if (!descriptor.HasGet)
+            {
+                descriptor.Get = null;
+            }
+
+            if (!descriptor.HasSet)
+            {
+                descriptor.Set = null;
+            }
+        }
+
+        if (!descriptor.HasEnumerable)
+        {
+            descriptor.Enumerable = false;
+        }
+
+        if (!descriptor.HasConfigurable)
+        {
+            descriptor.Configurable = false;
+        }
+    }
+
+    private static bool ValidateDescriptorChange(PropertyDescriptor candidate, PropertyDescriptor current)
+    {
+        if (candidate.IsEmpty)
+        {
+            return true;
+        }
+
+        if (!current.Configurable)
+        {
+            if (candidate.HasConfigurable && candidate.Configurable)
+            {
+                return false;
+            }
+
+            if (candidate.HasEnumerable && candidate.Enumerable != current.Enumerable)
+            {
+                return false;
+            }
+        }
+
+        if (candidate.IsGenericDescriptor)
+        {
+            return true;
+        }
+
+        var currentIsData = current.IsDataDescriptor;
+        if (candidate.IsAccessorDescriptor != currentIsData)
+        {
+            return current.Configurable;
+        }
+
+        if (currentIsData && candidate.IsDataDescriptor)
+        {
+            if (!current.Configurable && !current.Writable)
+            {
+                if (candidate.HasWritable && candidate.Writable)
+                {
+                    return false;
+                }
+
+                if (candidate.HasValue && !SameValue(candidate.Value, current.Value))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        if (!current.Configurable)
+        {
+            if (candidate.HasGet && !ReferenceEquals(candidate.Get, current.Get))
+            {
+                return false;
+            }
+
+            if (candidate.HasSet && !ReferenceEquals(candidate.Set, current.Set))
+            {
+                return false;
+            }
         }
 
         return true;
+    }
+
+    private static void ApplyDescriptorChange(PropertyDescriptor source, PropertyDescriptor target)
+    {
+        if (source.IsEmpty)
+        {
+            return;
+        }
+
+        var sourceIsGeneric = source.IsGenericDescriptor;
+        var sourceIsData = source.IsDataDescriptor;
+        var sourceIsAccessor = source.IsAccessorDescriptor;
+        var targetIsData = target.IsDataDescriptor;
+
+        if (!sourceIsGeneric && sourceIsAccessor && targetIsData)
+        {
+            target.ClearDataAttributes();
+        }
+
+        if (!sourceIsGeneric && sourceIsData && !targetIsData)
+        {
+            target.ClearAccessorAttributes();
+        }
+
+        if (sourceIsData || sourceIsGeneric)
+        {
+            if (source.HasValue)
+            {
+                target.Value = source.Value;
+            }
+            else if (!target.IsAccessorDescriptor && !target.HasValue)
+            {
+                target.Value = Symbol.Undefined;
+            }
+
+            if (source.HasWritable)
+            {
+                target.Writable = source.Writable;
+            }
+            else if (!target.IsAccessorDescriptor && !target.HasWritable)
+            {
+                target.Writable = false;
+            }
+        }
+
+        if (sourceIsAccessor || sourceIsGeneric)
+        {
+            if (source.HasGet)
+            {
+                target.Get = source.Get;
+            }
+
+            if (source.HasSet)
+            {
+                target.Set = source.Set;
+            }
+        }
+
+        if (source.HasEnumerable)
+        {
+            target.Enumerable = source.Enumerable;
+        }
+
+        if (source.HasConfigurable)
+        {
+            target.Configurable = source.Configurable;
+        }
+    }
+
+    private void AssignDescriptorStorage(string name, PropertyDescriptor descriptor)
+    {
+        if (descriptor.IsAccessorDescriptor)
+        {
+            if (descriptor.HasGet && descriptor.Get is not null)
+            {
+                this[GetterPrefix + name] = descriptor.Get;
+            }
+            else
+            {
+                Remove(GetterPrefix + name);
+            }
+
+            if (descriptor.HasSet && descriptor.Set is not null)
+            {
+                this[SetterPrefix + name] = descriptor.Set;
+            }
+            else
+            {
+                Remove(SetterPrefix + name);
+            }
+
+            Remove(name);
+        }
+        else
+        {
+            this[name] = descriptor.HasValue ? descriptor.Value : Symbol.Undefined;
+            Remove(GetterPrefix + name);
+            Remove(SetterPrefix + name);
+        }
+    }
+
+    private static bool SameValue(object? left, object? right)
+    {
+        if (left is double ld && right is double rd)
+        {
+            if (double.IsNaN(ld) && double.IsNaN(rd))
+            {
+                return true;
+            }
+
+            if (ld == 0.0 && rd == 0.0)
+            {
+                return BitConverter.DoubleToInt64Bits(ld) == BitConverter.DoubleToInt64Bits(rd);
+            }
+
+            return ld.Equals(rd);
+        }
+
+        if (left is float lf && right is float rf)
+        {
+            if (float.IsNaN(lf) && float.IsNaN(rf))
+            {
+                return true;
+            }
+
+            if (lf == 0f && rf == 0f)
+            {
+                return BitConverter.SingleToInt32Bits(lf) == BitConverter.SingleToInt32Bits(rf);
+            }
+
+            return lf.Equals(rf);
+        }
+
+        if (left is JsBigInt lbi && right is JsBigInt rbi)
+        {
+            return lbi == rbi;
+        }
+
+        return Equals(left, right);
     }
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
@@ -318,11 +542,48 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         {
             return new PropertyDescriptor
             {
-                Value = this[name], Writable = !IsFrozen, Enumerable = true, Configurable = !IsSealed && !IsFrozen
+                Value = this[name], Writable = true, Enumerable = true, Configurable = true
             };
         }
 
         return null;
+    }
+
+    public bool HasProperty(string name)
+    {
+        if (IsPrivateName(name))
+        {
+            return false;
+        }
+
+        return HasPropertyCore(this, name, new HashSet<JsObject>(ReferenceEqualityComparer<JsObject>.Instance));
+    }
+
+    private static bool HasPropertyCore(JsObject current, string name, HashSet<JsObject> visited)
+    {
+        while (current is not null && visited.Add(current))
+        {
+            if (current.GetOwnPropertyDescriptor(name) is not null)
+            {
+                return true;
+            }
+
+            var prototype = current._prototypeAccessor;
+            if (prototype is null)
+            {
+                return false;
+            }
+
+            if (prototype is JsObject jsObject)
+            {
+                current = jsObject;
+                continue;
+            }
+
+            return prototype.TryGetProperty(name, out _);
+        }
+
+        return false;
     }
 
     public void SetProperty(string name, object? value)
@@ -439,8 +700,8 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
             return; // Silently ignore in non-strict mode
         }
 
-        // Sealed objects cannot have new properties added
-        if (IsSealed && !ContainsKey(name))
+        // Non-extensible objects cannot have new properties added
+        if (!_isExtensible && !propertyExists)
         {
             return; // Silently ignore in non-strict mode
         }
@@ -452,8 +713,14 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
         }
     }
 
+    public void PreventExtensions()
+    {
+        _isExtensible = false;
+    }
+
     public void Seal()
     {
+        PreventExtensions();
         IsSealed = true;
 
         // Update all existing descriptors to be non-configurable
@@ -590,6 +857,7 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
     public void Freeze()
     {
+        PreventExtensions();
         IsFrozen = true;
         IsSealed = true; // Frozen implies sealed
 

@@ -10,7 +10,7 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     Provides shared logic for property access so the evaluator
 ///     can treat typed arrays like regular <see cref="IJsObjectLike" /> instances.
 /// </summary>
-public abstract class TypedArrayBase : IJsObjectLike
+public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl
 {
     protected readonly JsArrayBuffer _buffer;
     protected readonly int _byteOffset;
@@ -159,6 +159,7 @@ public abstract class TypedArrayBase : IJsObjectLike
     public JsObject? Prototype => _properties.Prototype;
 
     public bool IsSealed => _properties.IsSealed;
+    public bool IsExtensible => _properties.IsExtensible;
 
     public IEnumerable<string> Keys => _properties.Keys;
 
@@ -567,9 +568,19 @@ public abstract class TypedArrayBase : IJsObjectLike
         _properties.SetPrototype(candidate);
     }
 
+    public void PreventExtensions()
+    {
+        _properties.PreventExtensions();
+    }
+
     public void DefineProperty(string name, PropertyDescriptor descriptor)
     {
         _properties.DefineProperty(name, descriptor);
+    }
+
+    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        return _properties.TryDefineProperty(name, descriptor);
     }
 
     public void Seal()

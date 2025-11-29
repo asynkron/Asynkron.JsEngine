@@ -6,6 +6,165 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
+    private static PropertyDescriptor ToPropertyDescriptor(object? candidate, RealmState realm)
+    {
+        if (candidate is not JsObject descriptorObject)
+        {
+            throw ThrowTypeError("Property description must be an object", realm: realm);
+        }
+
+        var descriptor = new PropertyDescriptor();
+
+        if (descriptorObject.TryGetProperty("enumerable", out var enumerableValue))
+        {
+            descriptor.Enumerable = JsOps.ToBoolean(enumerableValue);
+        }
+
+        if (descriptorObject.TryGetProperty("configurable", out var configurableValue))
+        {
+            descriptor.Configurable = JsOps.ToBoolean(configurableValue);
+        }
+
+        if (descriptorObject.TryGetProperty("value", out var valueValue))
+        {
+            descriptor.Value = valueValue;
+        }
+
+        if (descriptorObject.TryGetProperty("writable", out var writableValue))
+        {
+            descriptor.Writable = JsOps.ToBoolean(writableValue);
+        }
+
+        if (descriptorObject.TryGetProperty("get", out var getterValue))
+        {
+            if (!ReferenceEquals(getterValue, Symbol.Undefined) && getterValue is not IJsCallable)
+            {
+                throw ThrowTypeError("Getter must be a function", realm: realm);
+            }
+
+            descriptor.Get = ReferenceEquals(getterValue, Symbol.Undefined)
+                ? null
+                : getterValue as IJsCallable;
+        }
+
+        if (descriptorObject.TryGetProperty("set", out var setterValue))
+        {
+            if (!ReferenceEquals(setterValue, Symbol.Undefined) && setterValue is not IJsCallable)
+            {
+                throw ThrowTypeError("Setter must be a function", realm: realm);
+            }
+
+            descriptor.Set = ReferenceEquals(setterValue, Symbol.Undefined)
+                ? null
+                : setterValue as IJsCallable;
+        }
+
+        if (descriptor.IsAccessorDescriptor && descriptor.IsDataDescriptor)
+        {
+            throw ThrowTypeError("Invalid property descriptor. Cannot both specify accessors and a value or writable attribute",
+                realm: realm);
+        }
+
+        return descriptor;
+    }
+
+    private static JsObject? FromPropertyDescriptor(PropertyDescriptor? descriptor, RealmState realm)
+    {
+        if (descriptor is null)
+        {
+            return null;
+        }
+
+        var result = new JsObject();
+        if (realm.ObjectPrototype is not null)
+        {
+            result.SetPrototype(realm.ObjectPrototype);
+        }
+
+        if (descriptor.IsAccessorDescriptor)
+        {
+            result.SetProperty("get",
+                descriptor.HasGet && descriptor.Get is not null ? descriptor.Get : Symbol.Undefined);
+            result.SetProperty("set",
+                descriptor.HasSet && descriptor.Set is not null ? descriptor.Set : Symbol.Undefined);
+        }
+        else
+        {
+            result.SetProperty("value", descriptor.HasValue ? descriptor.Value : Symbol.Undefined);
+            result.SetProperty("writable", descriptor.HasWritable ? descriptor.Writable : false);
+        }
+
+        result.SetProperty("enumerable", descriptor.HasEnumerable ? descriptor.Enumerable : false);
+        result.SetProperty("configurable", descriptor.HasConfigurable ? descriptor.Configurable : false);
+        return result;
+    }
+
+    private static bool TryDefinePropertyOnTarget(
+        IJsObjectLike target,
+        string propertyKey,
+        PropertyDescriptor descriptor,
+        RealmState realm,
+        bool throwOnFailure)
+    {
+        if (target is JsArray jsArray && string.Equals(propertyKey, "length", StringComparison.Ordinal))
+        {
+            var success = jsArray.DefineLength(descriptor, null, throwOnFailure);
+            if (!success && throwOnFailure)
+            {
+                throw ThrowTypeError("Cannot redefine property", realm: realm);
+            }
+
+            return success;
+        }
+
+        if (target is IPropertyDefinitionHost definitionHost)
+        {
+            var success = definitionHost.TryDefineProperty(propertyKey, descriptor);
+            if (!success && throwOnFailure)
+            {
+                throw ThrowTypeError("Cannot redefine property", realm: realm);
+            }
+
+            return success;
+        }
+
+        try
+        {
+            target.DefineProperty(propertyKey, descriptor);
+            return true;
+        }
+        catch (ThrowSignal)
+        {
+            if (throwOnFailure)
+            {
+                throw;
+            }
+
+            return false;
+        }
+    }
+
+    private static void PreventExtensionsOnTarget(IJsObjectLike target)
+    {
+        if (target is IExtensibilityControl extensibilityControl)
+        {
+            extensibilityControl.PreventExtensions();
+            return;
+        }
+
+        target.Seal();
+    }
+
+    private static bool IsTargetExtensible(IJsObjectLike target)
+    {
+        if (target is IExtensibilityControl extensibilityControl)
+        {
+            return extensibilityControl.IsExtensible;
+        }
+
+        return !target.IsSealed;
+    }
+
     public static HostFunction CreateObjectConstructor(RealmState realm)
     {
         var objectConstructor = new HostFunction(ObjectConstructor);
@@ -91,6 +250,7 @@ public static partial class StandardLibrary
         objectConstructor.SetHostedProperty("getOwnPropertyNames", ObjectGetOwnPropertyNames);
 
         objectConstructor.SetHostedProperty("getOwnPropertyDescriptor", ObjectGetOwnPropertyDescriptor);
+        objectConstructor.SetHostedProperty("getOwnPropertyDescriptors", ObjectGetOwnPropertyDescriptors);
 
         objectConstructor.SetHostedProperty("getPrototypeOf", ObjectGetPrototypeOf);
 
@@ -264,98 +424,31 @@ public static partial class StandardLibrary
         {
             if (args.Count < 2)
             {
-                return args.Count > 0 ? args[0] : Symbol.Undefined;
+                throw ThrowTypeError("Object.defineProperties requires both target and descriptors", realm: realm);
             }
 
-            var target = args[0];
-            var propsValue = args[1];
-
-            if (target is not IJsPropertyAccessor accessor || propsValue is not JsObject props)
+            if (!TryGetObject(args[0]!, realm, out var target))
             {
-                return args[0];
+                throw ThrowTypeError("Object.defineProperties called on non-object", realm: realm);
             }
 
-            PropertyDescriptor BuildDescriptor(JsObject descObj)
+            if (args[1] is not JsObject props)
             {
-                var descriptor = new PropertyDescriptor
-                {
-                    Writable = false,
-                    Enumerable = false,
-                    Configurable = false,
-                    HasWritable = false,
-                    HasEnumerable = false,
-                    HasConfigurable = false,
-                    HasValue = false
-                };
-
-                if (descObj.TryGetProperty("enumerable", out var enumerableVal))
-                {
-                    descriptor.Enumerable = JsOps.ToBoolean(enumerableVal);
-                }
-
-                if (descObj.TryGetProperty("configurable", out var configurableVal))
-                {
-                    descriptor.Configurable = JsOps.ToBoolean(configurableVal);
-                }
-
-                if (descObj.TryGetProperty("writable", out var writableVal))
-                {
-                    descriptor.Writable = JsOps.ToBoolean(writableVal);
-                }
-
-                if (descObj.TryGetProperty("value", out var valueVal))
-                {
-                    descriptor.Value = valueVal;
-                }
-
-                if (descObj.TryGetProperty("get", out var getterVal))
-                {
-                    if (!ReferenceEquals(getterVal, Symbol.Undefined) && getterVal is not IJsCallable)
-                    {
-                        throw ThrowTypeError("Getter must be a function", realm: realm);
-                    }
-
-                    descriptor.Get = getterVal as IJsCallable;
-                }
-
-                if (descObj.TryGetProperty("set", out var setterVal))
-                {
-                    if (!ReferenceEquals(setterVal, Symbol.Undefined) && setterVal is not IJsCallable)
-                    {
-                        throw ThrowTypeError("Setter must be a function", realm: realm);
-                    }
-
-                    descriptor.Set = setterVal as IJsCallable;
-                }
-
-                return descriptor;
+                throw ThrowTypeError("Property description must be an object", realm: realm);
             }
 
             foreach (var key in props.GetOwnPropertyNames())
             {
-                if (!props.TryGetProperty(key, out var descriptorValue) || descriptorValue is not JsObject descObj)
+                if (!props.TryGetProperty(key, out var descriptorValue))
                 {
                     continue;
                 }
 
-                var descriptor = BuildDescriptor(descObj);
-
-                if (accessor is IJsObjectLike objectLike)
-                {
-                    objectLike.DefineProperty(key, descriptor);
-                }
-                else if (descriptor.IsAccessorDescriptor)
-                {
-                    // Best-effort for accessors on non-object targets: no-op.
-                    continue;
-                }
-                else
-                {
-                    accessor.SetProperty(key, descriptor.HasValue ? descriptor.Value : Symbol.Undefined);
-                }
+                var descriptor = ToPropertyDescriptor(descriptorValue, realm);
+                TryDefinePropertyOnTarget(target, key, descriptor, realm, throwOnFailure: true);
             }
 
-            return args[0];
+            return target;
         }
 
         object? ObjectSetPrototypeOf(object? _, IReadOnlyList<object?> args)
@@ -388,26 +481,23 @@ public static partial class StandardLibrary
 
         object? ObjectPreventExtensions(IReadOnlyList<object?> args)
         {
-            if (args.Count == 0 || args[0] is not IJsObjectLike target)
+            if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var target))
             {
-                var error = realm.TypeErrorConstructor is IJsCallable ctor
-                    ? ctor.Invoke(["Object.preventExtensions requires an object"], null)
-                    : new InvalidOperationException("Object.preventExtensions requires an object.");
-                throw new ThrowSignal(error);
+                throw ThrowTypeError("Object.preventExtensions requires an object", realm: realm);
             }
 
-            target.Seal();
+            PreventExtensionsOnTarget(target);
             return target;
         }
 
         object? ObjectIsExtensible(IReadOnlyList<object?> args)
         {
-            if (args.Count == 0 || args[0] is not IJsObjectLike target)
+            if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var target))
             {
                 return false;
             }
 
-            return !target.IsSealed;
+            return IsTargetExtensible(target);
         }
 
         object? ObjectGetOwnPropertySymbols(IReadOnlyList<object?> args)
@@ -717,60 +807,13 @@ public static partial class StandardLibrary
 
             foreach (var propName in propsObj.GetOwnPropertyNames())
             {
-                if (!propsObj.TryGetValue(propName, out var descriptorObj) || descriptorObj is not JsObject descObj)
+                if (!propsObj.TryGetProperty(propName, out var descriptorValue))
                 {
                     continue;
                 }
 
-                var descriptor = new PropertyDescriptor();
-
-                var hasGet = descObj.TryGetValue("get", out var getVal);
-                var hasSet = descObj.TryGetValue("set", out var setVal);
-
-                if (hasGet || hasSet)
-                {
-                    if (hasGet && getVal is IJsCallable getter)
-                    {
-                        descriptor.Get = getter;
-                    }
-
-                    if (hasSet && setVal is IJsCallable setter)
-                    {
-                        descriptor.Set = setter;
-                    }
-                }
-                else
-                {
-                    if (descObj.TryGetValue("value", out var value))
-                    {
-                        descriptor.Value = value;
-                    }
-
-                    if (descObj.TryGetValue("writable", out var writableVal))
-                    {
-                        descriptor.Writable = writableVal is bool b ? b : ToBoolean(writableVal);
-                    }
-                }
-
-                if (descObj.TryGetValue("enumerable", out var enumerableVal))
-                {
-                    descriptor.Enumerable = enumerableVal is bool b ? b : ToBoolean(enumerableVal);
-                }
-                else
-                {
-                    descriptor.Enumerable = false;
-                }
-
-                if (descObj.TryGetValue("configurable", out var configurableVal))
-                {
-                    descriptor.Configurable = configurableVal is bool b ? b : ToBoolean(configurableVal);
-                }
-                else
-                {
-                    descriptor.Configurable = false;
-                }
-
-                obj.DefineProperty(propName, descriptor);
+                var descriptor = ToPropertyDescriptor(descriptorValue, realm);
+                TryDefinePropertyOnTarget(obj, propName, descriptor, realm, throwOnFailure: true);
             }
 
             return obj;
@@ -800,20 +843,36 @@ public static partial class StandardLibrary
             return names;
         }
 
+        object? ObjectGetOwnPropertyDescriptors(IReadOnlyList<object?> args)
+        {
+            if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var obj))
+            {
+                throw ThrowTypeError("Object.getOwnPropertyDescriptors requires an object", realm: realm);
+            }
+
+            var descriptors = new JsObject();
+            if (realm.ObjectPrototype is not null)
+            {
+                descriptors.SetPrototype(realm.ObjectPrototype);
+            }
+
+            foreach (var key in obj.GetOwnPropertyNames())
+            {
+                var descriptor = obj.GetOwnPropertyDescriptor(key);
+                if (descriptor is null)
+                {
+                    continue;
+                }
+
+                descriptors.SetProperty(key, FromPropertyDescriptor(descriptor, realm) ?? new JsObject());
+            }
+
+            return descriptors;
+        }
+
         object? ObjectGetOwnPropertyDescriptor(IReadOnlyList<object?> args)
         {
-            if (args.Count < 2)
-            {
-                return Symbol.Undefined;
-            }
-
-            var obj = args[0] as IJsPropertyAccessor;
-            if (obj is null && TryGetObject(args[0]!, realm, out var coerced))
-            {
-                obj = coerced;
-            }
-
-            if (obj is null)
+            if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var obj))
             {
                 return Symbol.Undefined;
             }
@@ -821,43 +880,20 @@ public static partial class StandardLibrary
             var propName = JsOps.GetRequiredPropertyName(args[1]);
 
             var desc = obj.GetOwnPropertyDescriptor(propName);
-            if (desc == null)
+            if (desc is null)
             {
                 return Symbol.Undefined;
             }
 
+            PropertyDescriptor descriptorForResult = desc;
             if (string.Equals(propName, "name", StringComparison.Ordinal) && args[0] is IJsCallable)
             {
-                desc.Configurable = true;
+                descriptorForResult = desc.Clone();
+                descriptorForResult.Configurable = true;
             }
 
-            var resultDesc = new JsObject();
-            if (realm.ObjectPrototype is not null)
-            {
-                resultDesc.SetPrototype(realm.ObjectPrototype);
-            }
-            if (desc.IsAccessorDescriptor)
-            {
-                if (desc.Get != null)
-                {
-                    resultDesc["get"] = desc.Get;
-                }
-
-                if (desc.Set != null)
-                {
-                    resultDesc["set"] = desc.Set;
-                }
-            }
-            else
-            {
-                resultDesc["value"] = desc.Value;
-                resultDesc["writable"] = desc.Writable;
-            }
-
-            resultDesc["enumerable"] = desc.Enumerable;
-            resultDesc["configurable"] = desc.Configurable;
-
-            return resultDesc;
+            var result = FromPropertyDescriptor(descriptorForResult, realm);
+            return result ?? (object)Symbol.Undefined;
         }
 
         object? ObjectGetPrototypeOf(IReadOnlyList<object?> args)
@@ -888,75 +924,21 @@ public static partial class StandardLibrary
 
         object? ObjectDefineProperty(IReadOnlyList<object?> args)
         {
-            if (args.Count < 3 || !TryGetObject(args[0]!, realm, out var obj))
+            if (args.Count < 3)
             {
-                return args.Count > 0 ? args[0] : null;
+                throw ThrowTypeError("Object.defineProperty requires a property descriptor", realm: realm);
+            }
+
+            if (!TryGetObject(args[0]!, realm, out var obj))
+            {
+                throw ThrowTypeError("Object.defineProperty called on non-object", realm: realm);
             }
 
             var propName = JsOps.ToPropertyName(args[1]) ?? string.Empty;
+            var descriptor = ToPropertyDescriptor(args[2], realm);
 
-            if (args[2] is not JsObject descriptorObj)
-            {
-                return args[0];
-            }
-
-            var descriptor = new PropertyDescriptor();
-
-            var hasGet = descriptorObj.TryGetValue("get", out var getVal);
-            var hasSet = descriptorObj.TryGetValue("set", out var setVal);
-
-            if (hasGet || hasSet)
-            {
-                if (hasGet && getVal is IJsCallable getter)
-                {
-                    descriptor.Get = getter;
-                }
-
-                if (hasSet && setVal is IJsCallable setter)
-                {
-                    descriptor.Set = setter;
-                }
-            }
-            else
-            {
-                if (descriptorObj.TryGetValue("value", out var value))
-                {
-                    descriptor.Value = value;
-                }
-
-                if (descriptorObj.TryGetValue("writable", out var writableVal))
-                {
-                    descriptor.Writable = writableVal is bool b ? b : ToBoolean(writableVal);
-                }
-            }
-
-            if (descriptorObj.TryGetValue("enumerable", out var enumerableVal))
-            {
-                descriptor.Enumerable = enumerableVal is bool b ? b : ToBoolean(enumerableVal);
-            }
-
-            if (descriptorObj.TryGetValue("configurable", out var configurableVal))
-            {
-                descriptor.Configurable = configurableVal is bool b ? b : ToBoolean(configurableVal);
-            }
-
-            if (obj is JsArray jsArray && string.Equals(propName, "length", StringComparison.Ordinal))
-            {
-                jsArray.DefineLength(descriptor, null, true);
-            }
-            else if (obj is JsObject jsObject)
-            {
-                if (!jsObject.TryDefineProperty(propName, descriptor))
-                {
-                    throw ThrowTypeError("Cannot redefine property", realm: realm);
-                }
-            }
-            else
-            {
-                obj.DefineProperty(propName, descriptor);
-            }
-
-            return args[0];
+            TryDefinePropertyOnTarget(obj, propName, descriptor, realm, throwOnFailure: true);
+            return obj;
         }
     }
 }

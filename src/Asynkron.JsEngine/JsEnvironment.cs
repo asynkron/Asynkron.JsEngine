@@ -18,7 +18,7 @@ public sealed class JsEnvironment
     private readonly bool _isParameterEnvironment;
     private HashSet<Symbol>? _bodyLexicalNames;
     private readonly bool _isBodyEnvironment;
-    private readonly JsObject? _withObject;
+    private readonly IJsObjectLike? _withObject;
     private HashSet<Symbol>? _simpleCatchParameters;
 
     private readonly Dictionary<Symbol, Binding> _values = new();
@@ -30,7 +30,7 @@ public sealed class JsEnvironment
         bool isStrict = false,
         SourceReference? creatingSource = null,
         string? description = null,
-        JsObject? withObject = null,
+        IJsObjectLike? withObject = null,
         bool isParameterEnvironment = false,
         bool isBodyEnvironment = false)
     {
@@ -271,6 +271,44 @@ public sealed class JsEnvironment
         throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
     }
 
+    internal object? GetDeclarative(Symbol name)
+    {
+        var current = this;
+        var hops = 0;
+        const int maxLookupDepth = 10_000;
+
+        while (current is not null && hops++ < maxLookupDepth)
+        {
+            if (current._values.TryGetValue(name, out var binding))
+            {
+                if (ReferenceEquals(binding.Value, Uninitialized))
+                {
+                    throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+                }
+
+                if (current._enclosing is null &&
+                    current._values.TryGetValue(Symbol.This, out var thisBinding) &&
+                    thisBinding.Value is JsObject globalObject &&
+                    globalObject.TryGetProperty(name.Name, out var globalValue))
+                {
+                    return globalValue;
+                }
+
+                return binding.Value;
+            }
+
+            current = current._enclosing;
+        }
+
+        var rootGlobal = GetRootGlobalObject();
+        if (rootGlobal is not null && rootGlobal.TryGetProperty(name.Name, out var propertyValue))
+        {
+            return propertyValue;
+        }
+
+        throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+    }
+
     internal bool IsConstBinding(Symbol name)
     {
         if (_values.TryGetValue(name, out var binding))
@@ -278,7 +316,7 @@ public sealed class JsEnvironment
             return binding.IsConst || binding.IsGlobalConstant;
         }
 
-        if (_withObject is not null && TryGetFromWith(_withObject, name, out _))
+        if (_withObject is not null && HasVisibleWithBinding(_withObject, name))
         {
             return false;
         }
@@ -293,7 +331,7 @@ public sealed class JsEnvironment
             return true;
         }
 
-        if (_withObject is not null && TryGetFromWith(_withObject, name, out _))
+        if (_withObject is not null && HasVisibleWithBinding(_withObject, name))
         {
             return true;
         }
@@ -329,7 +367,7 @@ public sealed class JsEnvironment
                 return true;
             }
 
-            if (current._withObject is not null && TryGetFromWith(current._withObject, name, out _))
+            if (current._withObject is not null && HasVisibleWithBinding(current._withObject, name))
             {
                 break;
             }
@@ -337,6 +375,37 @@ public sealed class JsEnvironment
             current = current._enclosing;
         }
 
+        return false;
+    }
+
+    internal bool TryResolveWithBinding(
+        Symbol name,
+        EvaluationContext context,
+        out ObjectEnvironmentBinding binding)
+    {
+        var current = this;
+        var hops = 0;
+        const int maxLookupDepth = 10_000;
+        var isStrictReference = context.CurrentScope.IsStrict;
+
+        while (current is not null && hops++ < maxLookupDepth)
+        {
+            if (current._values.ContainsKey(name))
+            {
+                break;
+            }
+
+            if (current._withObject is not null &&
+                TryResolveObjectBinding(current._withObject, name, out var propertyName))
+            {
+                binding = new ObjectEnvironmentBinding(current._withObject, propertyName, isStrictReference);
+                return true;
+            }
+
+            current = current._enclosing;
+        }
+
+        binding = default;
         return false;
     }
 
@@ -549,8 +618,7 @@ public sealed class JsEnvironment
             return;
         }
 
-        if (_withObject is not null && !IsUnscopable(_withObject, name.Name) &&
-            _withObject.TryGetProperty(name.Name, out _))
+        if (_withObject is not null && HasVisibleWithBinding(_withObject, name))
         {
             _withObject.SetProperty(name.Name, value);
             return;
@@ -585,7 +653,105 @@ public sealed class JsEnvironment
         }
     }
 
-    private static bool IsUnscopable(JsObject target, string name)
+    internal DeleteBindingResult DeleteBinding(Symbol name)
+    {
+        var current = this;
+        var hops = 0;
+        const int maxLookupDepth = 10_000;
+
+        while (current is not null && hops++ < maxLookupDepth)
+        {
+            if (current._withObject is not null && HasVisibleWithBinding(current._withObject, name))
+            {
+                return current._withObject.Delete(name.Name)
+                    ? DeleteBindingResult.Deleted
+                    : DeleteBindingResult.NotDeletable;
+            }
+
+            if (current._values.TryGetValue(name, out var binding))
+            {
+                return current.TryDeleteDeclarativeBinding(name, binding)
+                    ? DeleteBindingResult.Deleted
+                    : DeleteBindingResult.NotDeletable;
+            }
+
+            current = current._enclosing;
+        }
+
+        var globalObject = GetRootGlobalObject();
+        if (globalObject is not null)
+        {
+            var descriptor = globalObject.GetOwnPropertyDescriptor(name.Name);
+            if (descriptor is not null)
+            {
+                if (!descriptor.Configurable)
+                {
+                    return DeleteBindingResult.NotDeletable;
+                }
+
+                globalObject.Delete(name.Name);
+                return DeleteBindingResult.Deleted;
+            }
+        }
+
+        return DeleteBindingResult.NotFound;
+    }
+
+    private bool TryDeleteDeclarativeBinding(Symbol name, Binding binding)
+    {
+        if (binding.IsLexical || binding.IsConst || binding.IsGlobalConstant || binding.BlocksFunctionScopeOverride)
+        {
+            return false;
+        }
+
+        if (_isFunctionScope)
+        {
+            if (_enclosing is not null)
+            {
+                // Function scopes (including parameters) cannot remove declarative bindings.
+                return false;
+            }
+
+            var globalObject = GetRootGlobalObject();
+            if (globalObject is null)
+            {
+                return false;
+            }
+
+            var descriptor = globalObject.GetOwnPropertyDescriptor(name.Name);
+            if (descriptor is not null && !descriptor.Configurable)
+            {
+                return false;
+            }
+
+            globalObject.Delete(name.Name);
+            _values.Remove(name);
+            return true;
+        }
+
+        return false;
+    }
+
+    private JsObject? GetRootGlobalObject()
+    {
+        var current = this;
+        var hops = 0;
+        const int maxDepth = 10_000;
+        while (current._enclosing is not null && hops++ < maxDepth)
+        {
+            current = current._enclosing;
+        }
+
+        if (current._values.TryGetValue(Symbol.This, out var thisBinding) &&
+            thisBinding.Value is JsObject globalObject)
+        {
+            return globalObject;
+        }
+
+        return null;
+    }
+
+    private static bool IsBlockedByUnscopables(IJsObjectLike target, string name)
     {
         var unscopablesSymbol = TypedAstSymbol.For("Symbol.unscopables");
         var key = $"@@symbol:{unscopablesSymbol.GetHashCode()}";
@@ -598,22 +764,121 @@ public sealed class JsEnvironment
         return false;
     }
 
-    private static bool TryGetFromWith(JsObject target, Symbol name, out object? value)
+    private static bool TryGetFromWith(IJsObjectLike target, Symbol name, out object? value)
     {
-        if (IsUnscopable(target, name.Name))
+        var propertyName = name.Name;
+        if (string.IsNullOrEmpty(propertyName))
         {
             value = null;
             return false;
         }
 
-        if (target.TryGetProperty(name.Name, out var propertyValue))
+        if (!HasProperty(target, propertyName))
+        {
+            value = null;
+            return false;
+        }
+
+        if (IsBlockedByUnscopables(target, propertyName))
+        {
+            value = null;
+            return false;
+        }
+
+        if (target.TryGetProperty(propertyName, out var propertyValue))
         {
             value = propertyValue;
             return true;
         }
 
-        value = null;
-        return false;
+        return target.TryGetProperty(propertyName, target, out value);
+    }
+
+    private static bool HasVisibleWithBinding(IJsObjectLike target, Symbol name)
+    {
+        return TryResolveObjectBinding(target, name, out _);
+    }
+
+    private static bool TryResolveObjectBinding(IJsObjectLike target, Symbol name, out string propertyName)
+    {
+        propertyName = name.Name;
+        if (string.IsNullOrEmpty(propertyName))
+        {
+            return false;
+        }
+
+        if (!HasProperty(target, propertyName))
+        {
+            return false;
+        }
+
+        if (IsBlockedByUnscopables(target, propertyName))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool HasProperty(IJsObjectLike target, string name)
+    {
+        if (target is JsProxy proxy)
+        {
+            return proxy.HasProperty(name);
+        }
+
+        if (target is JsObject jsObject && jsObject.HasProperty(name))
+        {
+            return true;
+        }
+
+        if (target.GetOwnPropertyDescriptor(name) is not null)
+        {
+            return true;
+        }
+
+        var prototype = target.Prototype;
+        while (prototype is not null)
+        {
+            if (prototype.HasProperty(name))
+            {
+                return true;
+            }
+
+            prototype = prototype.Prototype;
+        }
+
+        return target.TryGetProperty(name, out _);
+    }
+
+    internal static object? GetWithBindingValue(in ObjectEnvironmentBinding binding)
+    {
+        var propertyName = binding.PropertyName;
+        if (!HasProperty(binding.BindingObject, propertyName))
+        {
+            if (binding.IsStrictReference)
+            {
+                throw new InvalidOperationException($"ReferenceError: {propertyName} is not defined");
+            }
+
+            return Symbol.Undefined;
+        }
+
+        return JsOps.TryGetPropertyValue(binding.BindingObject, propertyName, out var value)
+            ? value
+            : Symbol.Undefined;
+    }
+
+    internal static void SetWithBindingValue(in ObjectEnvironmentBinding binding, object? value)
+    {
+        var propertyName = binding.PropertyName;
+        var stillExists = HasProperty(binding.BindingObject, propertyName);
+        if (!stillExists && binding.IsStrictReference)
+        {
+            throw new InvalidOperationException($"ReferenceError: {propertyName} is not defined");
+        }
+
+        JsOps.AssignPropertyValueByName(binding.BindingObject, propertyName, value);
     }
 
     internal void AddBindingObserver(Symbol symbol, Action<object?> observer)
@@ -771,3 +1036,15 @@ public sealed class JsEnvironment
         }
     }
 }
+
+internal enum DeleteBindingResult
+{
+    NotFound,
+    Deleted,
+    NotDeletable
+}
+
+internal readonly record struct ObjectEnvironmentBinding(
+    IJsObjectLike BindingObject,
+    string PropertyName,
+    bool IsStrictReference);

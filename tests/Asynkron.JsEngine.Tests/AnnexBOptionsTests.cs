@@ -234,4 +234,34 @@ typeof nestedEvalFn;
         var strictResult = await strictEngine.Evaluate(Script);
         Assert.Equal("undefined", strictResult);
     }
+
+    [Fact]
+    public async Task WithStatementBlocksAnnexBLeakWhenDisabled()
+    {
+        const string Script = """
+var obj = {
+    inner() {
+        if (true) {
+            function withFn() { return 1; }
+        }
+        return typeof withFn;
+    }
+};
+
+var innerType;
+with (obj) {
+    innerType = inner();
+}
+
+innerType + ":" + typeof withFn;
+""";
+
+        await using var annexBEngine = new JsEngine();
+        var annexBResult = await annexBEngine.Evaluate(Script);
+        Assert.Equal("function:undefined", annexBResult);
+
+        await using var strictEngine = new JsEngine(new JsEngineOptions { EnableAnnexBFunctionExtensions = false });
+        var strictResult = await strictEngine.Evaluate(Script);
+        Assert.Equal("undefined:undefined", strictResult);
+    }
 }

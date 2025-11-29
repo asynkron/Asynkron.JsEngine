@@ -196,12 +196,22 @@ public static class TypedAstEvaluator
         {
             context.ThrowIfCancellationRequested();
             var completion = EvaluateStatement(statement, scope, context);
-            if (!ReferenceEquals(completion, EmptyCompletion))
+            var shouldStop = context.ShouldStopEvaluation;
+            var shouldCapture =
+                !ReferenceEquals(completion, EmptyCompletion) &&
+                (!shouldStop ||
+                 context.IsReturn ||
+                 context.IsThrow ||
+                 context.IsYield ||
+                 context.IsBreak ||
+                 context.IsContinue);
+
+            if (shouldCapture)
             {
                 result = completion;
             }
 
-            if (context.ShouldStopEvaluation)
+            if (shouldStop)
             {
                 break;
             }
@@ -365,27 +375,68 @@ public static class TypedAstEvaluator
             return objValue;
         }
 
-        var withObject = ToObjectForDestructuring(objValue, context);
-        if (context.IsThrow)
+        if (!TryConvertToWithBindingObject(objValue, context, out var withObject))
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return Symbol.Undefined;
         }
 
         var withEnv = new JsEnvironment(environment, false, context.CurrentScope.IsStrict, statement.Source, "with",
             withObject);
-        return EvaluateStatement(statement.Body, withEnv, context);
+        var completion = EvaluateStatement(statement.Body, withEnv, context);
+
+        if (ReferenceEquals(completion, EmptyCompletion))
+        {
+            return Symbol.Undefined;
+        }
+
+        return completion;
     }
 
     private static object? EvaluateBreak(BreakStatement statement, EvaluationContext context)
     {
         context.SetBreak(statement.Label);
-        return Symbol.Undefined;
+        return EmptyCompletion;
     }
 
     private static object? EvaluateContinue(ContinueStatement statement, EvaluationContext context)
     {
         context.SetContinue(statement.Label);
-        return Symbol.Undefined;
+        return EmptyCompletion;
+    }
+
+    private static bool TryConvertToWithBindingObject(
+        object? value,
+        EvaluationContext context,
+        out IJsObjectLike? bindingObject)
+    {
+        switch (value)
+        {
+            case IJsObjectLike objectLike:
+                bindingObject = objectLike;
+                return true;
+            case null:
+            case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
+            case IIsHtmlDda:
+            {
+                var error = StandardLibrary.CreateTypeError("Cannot convert undefined or null to object", context,
+                    context.RealmState);
+                context.SetThrow(error);
+                bindingObject = null;
+                return false;
+            }
+            default:
+            {
+                var converted = ToObjectForDestructuring(value, context);
+                if (context.IsThrow)
+                {
+                    bindingObject = null;
+                    return false;
+                }
+
+                bindingObject = converted;
+                return true;
+            }
+        }
     }
 
     private static object? EvaluateIf(IfStatement statement, JsEnvironment environment, EvaluationContext context)
@@ -532,7 +583,7 @@ public static class TypedAstEvaluator
             }
         }
 
-        return lastValue;
+        return ReferenceEquals(lastValue, EmptyCompletion) ? Symbol.Undefined : lastValue;
     }
 
     private static object? EvaluateForAwaitOf(ForEachStatement statement, JsEnvironment environment,
@@ -1090,7 +1141,7 @@ public static class TypedAstEvaluator
                 lastValue = EvaluateStatement(statement, environment, context, loopLabel);
                 if (context.ShouldStopEvaluation)
                 {
-                    return lastValue;
+                    return NormalizeLoopCompletion(lastValue);
                 }
             }
         }
@@ -1152,7 +1203,7 @@ public static class TypedAstEvaluator
             }
         }
 
-        return lastValue;
+        return NormalizeLoopCompletion(lastValue);
     }
 
     private static bool ExecuteCondition(LoopPlan plan, JsEnvironment environment, EvaluationContext context)
@@ -1198,6 +1249,11 @@ public static class TypedAstEvaluator
         return true;
     }
 
+    private static object? NormalizeLoopCompletion(object? completion)
+    {
+        return ReferenceEquals(completion, EmptyCompletion) ? Symbol.Undefined : completion;
+    }
+
     private static bool IsStrictBlock(StatementNode statement)
     {
         return statement is BlockStatement { IsStrict: true };
@@ -1212,6 +1268,7 @@ public static class TypedAstEvaluator
     private static object? CreateClassValue(ClassDefinition definition, JsEnvironment environment,
         EvaluationContext context)
     {
+        using var classScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict, skipAnnexBInstantiation: true);
         var (superConstructor, superPrototype) = ResolveSuperclass(definition.Extends, environment, context);
         if (context.ShouldStopEvaluation)
         {
@@ -1477,6 +1534,7 @@ public static class TypedAstEvaluator
         IJsPropertyAccessor constructorAccessor,
         JsEnvironment environment, EvaluationContext context, PrivateNameScope? privateNameScope)
     {
+        using var staticFieldScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict, skipAnnexBInstantiation: true);
         foreach (var field in fields)
         {
             var propertyName = field.Name;
@@ -1696,6 +1754,18 @@ public static class TypedAstEvaluator
     {
         var reference = AssignmentReferenceResolver.Resolve(
             new IdentifierExpression(expression.Source, expression.Target), environment, context, EvaluateExpression);
+
+        if (TryEvaluateCompoundAssignmentValue(expression, reference, environment, context, out var compoundValue))
+        {
+            if (context.ShouldStopEvaluation)
+            {
+                return compoundValue;
+            }
+
+            reference.SetValue(compoundValue);
+            return compoundValue;
+        }
+
         var targetValue = EvaluateExpression(expression.Value, environment, context);
         if (context.ShouldStopEvaluation)
         {
@@ -1725,12 +1795,104 @@ public static class TypedAstEvaluator
         }
     }
 
+    private static bool TryEvaluateCompoundAssignmentValue(
+        AssignmentExpression assignment,
+        AssignmentReference reference,
+        JsEnvironment environment,
+        EvaluationContext context,
+        out object? value)
+    {
+        if (assignment.Value is not BinaryExpression binary ||
+            binary.Left is not IdentifierExpression identifier ||
+            !ReferenceEquals(identifier.Name, assignment.Target))
+        {
+            value = null;
+            return false;
+        }
+
+        var leftValue = reference.GetValue();
+        if (context.ShouldStopEvaluation)
+        {
+            value = Symbol.Undefined;
+            return true;
+        }
+
+        switch (binary.Operator)
+        {
+            case "&&":
+                if (!IsTruthy(leftValue))
+                {
+                    value = leftValue;
+                    return true;
+                }
+
+                value = EvaluateExpression(binary.Right, environment, context);
+                return true;
+            case "||":
+                if (IsTruthy(leftValue))
+                {
+                    value = leftValue;
+                    return true;
+                }
+
+                value = EvaluateExpression(binary.Right, environment, context);
+                return true;
+            case "??":
+                if (!IsNullish(leftValue))
+                {
+                    value = leftValue;
+                    return true;
+                }
+
+                value = EvaluateExpression(binary.Right, environment, context);
+                return true;
+        }
+
+        var rightValue = EvaluateExpression(binary.Right, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            value = Symbol.Undefined;
+            return true;
+        }
+
+        value = binary.Operator switch
+        {
+            "+" => Add(leftValue, rightValue, context),
+            "-" => Subtract(leftValue, rightValue, context),
+            "*" => Multiply(leftValue, rightValue, context),
+            "/" => Divide(leftValue, rightValue, context),
+            "%" => Modulo(leftValue, rightValue, context),
+            "**" => Power(leftValue, rightValue, context),
+            "==" => LooseEquals(leftValue, rightValue, context),
+            "!=" => !LooseEquals(leftValue, rightValue, context),
+            "===" => StrictEquals(leftValue, rightValue),
+            "!==" => !StrictEquals(leftValue, rightValue),
+            "<" => JsOps.LessThan(leftValue, rightValue, context),
+            "<=" => JsOps.LessThanOrEqual(leftValue, rightValue, context),
+            ">" => JsOps.GreaterThan(leftValue, rightValue, context),
+            ">=" => JsOps.GreaterThanOrEqual(leftValue, rightValue, context),
+            "&" => BitwiseAnd(leftValue, rightValue, context),
+            "|" => BitwiseOr(leftValue, rightValue, context),
+            "^" => BitwiseXor(leftValue, rightValue, context),
+            "<<" => LeftShift(leftValue, rightValue, context),
+            ">>" => RightShift(leftValue, rightValue, context),
+            ">>>" => UnsignedRightShift(leftValue, rightValue, context),
+            "in" => InOperator(leftValue, rightValue, context),
+            "instanceof" => InstanceofOperator(leftValue, rightValue, context),
+            _ => throw new NotSupportedException(
+                $"Compound assignment operator '{binary.Operator}' is not supported yet.")
+        };
+
+        return true;
+    }
+
     private static object? EvaluateIdentifier(IdentifierExpression identifier, JsEnvironment environment,
         EvaluationContext context)
     {
+        var reference = AssignmentReferenceResolver.Resolve(identifier, environment, context, EvaluateExpression);
         try
         {
-            return environment.Get(identifier.Name);
+            return reference.GetValue();
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
@@ -2937,8 +3099,22 @@ public static class TypedAstEvaluator
             return deleted;
         }
 
-        // Deleting identifiers is a no-op in strict mode; return false to indicate failure.
-        return false;
+        if (operand is IdentifierExpression identifier)
+        {
+            if (context.CurrentScope.IsStrict)
+            {
+                throw StandardLibrary.ThrowSyntaxError(
+                    "Delete of an unqualified identifier is not allowed in strict mode.",
+                    context,
+                    context.RealmState);
+            }
+
+            var outcome = environment.DeleteBinding(identifier.Name);
+            return outcome is DeleteBindingResult.Deleted or DeleteBindingResult.NotFound;
+        }
+
+        _ = EvaluateExpression(operand, environment, context);
+        return true;
     }
 
     private static object? EvaluateNew(NewExpression expression, JsEnvironment environment, EvaluationContext context)
@@ -4656,11 +4832,18 @@ public static class TypedAstEvaluator
                 environment.Define(identifier.Name, value, true, blocksFunctionScopeOverride: true);
                 break;
             case BindingMode.DefineVar:
-                if (!environment.TryAssignBlockedBinding(identifier.Name, value))
+            {
+                var assignedBlockedBinding = environment.TryAssignBlockedBinding(identifier.Name, value);
+
+                EnsureFunctionScopedVarBinding(environment, identifier.Name, context);
+
+                if (hasInitializer && !assignedBlockedBinding)
                 {
-                    environment.DefineFunctionScoped(identifier.Name, value, hasInitializer, context: context);
+                    environment.Assign(identifier.Name, value);
                 }
+
                 break;
+            }
             case BindingMode.DefineParameter:
                 // Parameters are created before defaults run (see the pre-pass in BindFunctionParameters),
                 // so by the time we bind the value the slot should already exist and still be
@@ -4679,6 +4862,17 @@ public static class TypedAstEvaluator
             default:
                 throw new ArgumentOutOfRangeException(nameof(mode), mode, null);
         }
+    }
+
+    private static void EnsureFunctionScopedVarBinding(JsEnvironment environment, Symbol name,
+        EvaluationContext context)
+    {
+        if (environment.HasFunctionScopedBinding(name))
+        {
+            return;
+        }
+
+        environment.DefineFunctionScoped(name, Symbol.Undefined, hasInitializer: false, context: context);
     }
 
     private static bool IsAnonymousFunctionDefinition(ExpressionNode expression)
@@ -5978,7 +6172,8 @@ public static class TypedAstEvaluator
             blocksFunctionScopeOverride: true);
     }
 
-    private sealed class TypedGeneratorFactory : IJsCallable, IJsObjectLike, IFunctionNameTarget
+    private sealed class TypedGeneratorFactory : IJsCallable, IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl,
+        IFunctionNameTarget
     {
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
@@ -6071,6 +6266,7 @@ public static class TypedAstEvaluator
         public JsObject? Prototype => _properties.Prototype;
 
         public bool IsSealed => _properties.IsSealed;
+        public bool IsExtensible => _properties.IsExtensible;
 
         public IEnumerable<string> Keys => _properties.Keys;
 
@@ -6079,9 +6275,19 @@ public static class TypedAstEvaluator
             _properties.DefineProperty(name, descriptor);
         }
 
+        public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+        {
+            return _properties.TryDefineProperty(name, descriptor);
+        }
+
         public void SetPrototype(object? candidate)
         {
             _properties.SetPrototype(candidate);
+        }
+
+        public void PreventExtensions()
+        {
+            _properties.PreventExtensions();
         }
 
         public void Seal()
@@ -6266,7 +6472,8 @@ public static class TypedAstEvaluator
         }
     }
 
-    private sealed class AsyncGeneratorFactory : IJsCallable, IJsObjectLike, IFunctionNameTarget
+    private sealed class AsyncGeneratorFactory : IJsCallable, IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl,
+        IFunctionNameTarget
     {
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
@@ -6358,6 +6565,7 @@ public static class TypedAstEvaluator
         public JsObject? Prototype => _properties.Prototype;
 
         public bool IsSealed => _properties.IsSealed;
+        public bool IsExtensible => _properties.IsExtensible;
 
         public IEnumerable<string> Keys => _properties.Keys;
 
@@ -6366,9 +6574,19 @@ public static class TypedAstEvaluator
             _properties.DefineProperty(name, descriptor);
         }
 
+        public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+        {
+            return _properties.TryDefineProperty(name, descriptor);
+        }
+
         public void SetPrototype(object? candidate)
         {
             _properties.SetPrototype(candidate);
+        }
+
+        public void PreventExtensions()
+        {
+            _properties.PreventExtensions();
         }
 
         public void Seal()
@@ -8153,7 +8371,7 @@ public static class TypedAstEvaluator
     }
 
     private sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor, IJsObjectLike,
-        ICallableMetadata, IFunctionNameTarget, IPrivateBrandHolder
+        ICallableMetadata, IFunctionNameTarget, IPrivateBrandHolder, IPropertyDefinitionHost, IExtensibilityControl
     {
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
@@ -8517,6 +8735,7 @@ public static class TypedAstEvaluator
         public JsObject? Prototype => _properties.Prototype;
 
         public bool IsSealed => _properties.IsSealed;
+        public bool IsExtensible => _properties.IsExtensible;
 
         public IEnumerable<string> Keys => _properties.Keys;
 
@@ -8525,9 +8744,19 @@ public static class TypedAstEvaluator
             _properties.DefineProperty(name, descriptor);
         }
 
+        public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+        {
+            return _properties.TryDefineProperty(name, descriptor);
+        }
+
         public void SetPrototype(object? candidate)
         {
             _properties.SetPrototype(candidate);
+        }
+
+        public void PreventExtensions()
+        {
+            _properties.PreventExtensions();
         }
 
         public void Seal()
@@ -8759,10 +8988,11 @@ public static class TypedAstEvaluator
             }
 
             using var _ = _privateNameScope is not null ? context.EnterPrivateNameScope(_privateNameScope) : null;
+            using var instanceFieldScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict, skipAnnexBInstantiation: true);
 
             foreach (var field in _instanceFields)
             {
-                var initEnv = new JsEnvironment(environment);
+                var initEnv = new JsEnvironment(environment, isStrict: true);
                 initEnv.Define(Symbol.This, instance);
 
                 var propertyName = field.Name;

@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     WeakSets store unique objects where values are held weakly.
 ///     Unlike Set, WeakSet does not prevent garbage collection of values and does not support iteration.
 /// </summary>
-public sealed class JsWeakSet : IJsObjectLike
+public sealed class JsWeakSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl
 {
     private readonly JsObject _properties = new();
 
@@ -39,6 +39,7 @@ public sealed class JsWeakSet : IJsObjectLike
     public JsObject? Prototype => _properties.Prototype;
 
     public bool IsSealed => _properties.IsSealed;
+    public bool IsExtensible => _properties.IsExtensible;
 
     public IEnumerable<string> Keys => _properties.Keys;
 
@@ -47,9 +48,19 @@ public sealed class JsWeakSet : IJsObjectLike
         _properties.DefineProperty(name, descriptor);
     }
 
+    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        return _properties.TryDefineProperty(name, descriptor);
+    }
+
     public void SetPrototype(object? candidate)
     {
         _properties.SetPrototype(candidate);
+    }
+
+    public void PreventExtensions()
+    {
+        _properties.PreventExtensions();
     }
 
     public void Seal()

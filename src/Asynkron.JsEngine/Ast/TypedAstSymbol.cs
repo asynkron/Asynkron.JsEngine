@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
 
@@ -12,6 +13,7 @@ namespace Asynkron.JsEngine.Ast;
 public sealed class TypedAstSymbol : IJsPropertyAccessor
 {
     private static readonly ConcurrentDictionary<string, TypedAstSymbol> GlobalRegistry = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<int, TypedAstSymbol> IdRegistry = new();
     private static int NextId;
     private static readonly HostFunction SymbolToStringFunction = new((thisValue, _) =>
     {
@@ -34,6 +36,7 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
         Description = description;
         _key = key;
         _id = id;
+        IdRegistry[_id] = this;
     }
 
     /// <summary>
@@ -80,6 +83,23 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
     public override int GetHashCode()
     {
         return _id;
+    }
+
+    internal static bool TryGetByInternalKey(string propertyName, out TypedAstSymbol symbol)
+    {
+        symbol = null!;
+        if (!propertyName.StartsWith("@@symbol:", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var span = propertyName.AsSpan(9);
+        if (!int.TryParse(span, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id))
+        {
+            return false;
+        }
+
+        return IdRegistry.TryGetValue(id, out symbol);
     }
 
     public bool TryGetProperty(string name, out object? value)

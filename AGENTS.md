@@ -53,3 +53,7 @@ If anything needs to be passed around, it must be passed explicitly as a paramet
 ## Unsupported features
 
 When you encounter an unsupported language/runtime feature or AST shape, fail fast by throwing a `NotSupportedException` (with a clear reason) instead of silently degrading behaviour or falling back to partial implementations. All such unsupported paths should be explicit so issues surface upfront and can be fixed properly.
+
+## Generated code
+
+- Never edit files with `.generated.` in their names. They are produced by tooling and will be regenerated, so any manual change will be lost (and may break future syncs). Always apply fixes by editing the non-generated partials/helpers instead.

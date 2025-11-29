@@ -5,6 +5,7 @@ using Test262Harness;
 
 namespace Asynkron.JsEngine.Tests.Test262;
 
+[Test262ActivityTrace]
 public abstract partial class Test262Test
 {
 

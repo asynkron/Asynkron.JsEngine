@@ -20,6 +20,8 @@ public sealed class EvaluatorActivityRecorder : IDisposable
         RootActivity = rootActivity ?? throw new ArgumentNullException(nameof(rootActivity));
         _ownsRoot = ownsRoot;
 
+        var traceId = rootActivity.TraceId;
+
         _listener = new ActivityListener
         {
             ShouldListenTo = source => string.Equals(source.Name, TypedAstEvaluator.ActivitySourceName,
@@ -32,7 +34,10 @@ public sealed class EvaluatorActivityRecorder : IDisposable
             {
                 lock (_gate)
                 {
-                    _activities.Add(activity);
+                    if (activity.TraceId == traceId)
+                    {
+                        _activities.Add(activity);
+                    }
                 }
             }
         };

@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
+using System.Text;
 using Asynkron.JsEngine.Tracing;
 using NUnit.Framework;
 using NUnit.Framework.Interfaces;
@@ -11,6 +12,7 @@ namespace Asynkron.JsEngine.Tests.Test262;
 internal sealed class Test262ActivityTraceAttribute : Attribute, ITestAction
 {
     private static readonly ConditionalWeakTable<ITest, RecorderHandle> RecorderHandles = new();
+    private static readonly object LogGate = new();
 
     public ActionTargets Targets => ActionTargets.Test;
 
@@ -63,9 +65,14 @@ internal sealed class Test262ActivityTraceAttribute : Attribute, ITestAction
 
             if (!string.IsNullOrWhiteSpace(timeline))
             {
-                TestContext.Progress.WriteLine(FormattableString.Invariant(
-                    $"Activity timeline for {test.FullName}:"));
-                TestContext.Progress.WriteLine(timeline);
+                var output = new StringBuilder();
+                output.AppendLine(FormattableString.Invariant($"Activity timeline for {test.FullName}:"));
+                output.AppendLine(timeline);
+
+                lock (LogGate)
+                {
+                    TestContext.Progress.Write(output.ToString());
+                }
             }
         }
     }

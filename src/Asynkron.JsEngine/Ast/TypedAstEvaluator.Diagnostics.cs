@@ -7,7 +7,8 @@ public static partial class TypedAstEvaluator
 {
     private static readonly ActivitySource EvaluatorActivitySource = new("Asynkron.JsEngine.TypedAstEvaluator");
 
-    private static Activity? StartEvaluatorActivity(string name,
+    private static Activity? StartEvaluatorActivity(this Activity parent,
+        string name,
         EvaluationContext context,
         SourceReference? source)
     {
@@ -16,7 +17,7 @@ public static partial class TypedAstEvaluator
             return null;
         }
 
-        var activity = EvaluatorActivitySource.StartActivity(name, ActivityKind.Internal);
+        var activity = EvaluatorActivitySource.StartActivity(name, ActivityKind.Internal, parent.Context);
         if (activity is null)
         {
             return null;
@@ -25,13 +26,15 @@ public static partial class TypedAstEvaluator
         activity.SetTag("js.execution.kind", context.ExecutionKind.ToString());
         activity.SetTag("js.scope.mode", context.CurrentScope.Mode.ToString());
 
-        if (source is not null)
+        if (source is null)
         {
-            activity.SetTag("code.lineno", source.StartLine);
-            activity.SetTag("code.column", source.StartColumn);
-            activity.SetTag("code.span",
-                $"{source.StartLine}:{source.StartColumn}-{source.EndLine}:{source.EndColumn}");
+            return activity;
         }
+
+        activity.SetTag("code.lineno", source.StartLine);
+        activity.SetTag("code.column", source.StartColumn);
+        activity.SetTag("code.span",
+            $"{source.StartLine}:{source.StartColumn}-{source.EndLine}:{source.EndColumn}");
 
         return activity;
     }

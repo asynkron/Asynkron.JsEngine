@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -48,8 +49,8 @@ public static partial class TypedAstEvaluator
             EvaluationContext context)
         {
             context.SourceReference = expression.Source;
-            using var expressionActivity =
-                StartEvaluatorActivity($"Expression:{expression.GetType().Name}", context, expression.Source);
+            using var expressionActivity = Activity.Current?
+                .StartEvaluatorActivity($"Expression:{expression.GetType().Name}", context, expression.Source);
 
             return expression switch
             {

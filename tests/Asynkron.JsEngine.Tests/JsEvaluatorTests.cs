@@ -295,8 +295,10 @@ public class JsEvaluatorTests
                      """;
 
         var outcome = Assert.IsType<JsObject>(await engine.Evaluate(source));
-        Assert.True(JsOps.TryGetPropertyValue(outcome, "executed", out var executedValue) && JsOps.ToBoolean(executedValue));
-        Assert.Equal(1d, JsOps.ToNumber(JsOps.GetRequiredPropertyValue(outcome, "result", null)));
+        Assert.True(outcome.TryGetProperty("executed", out var executedValue));
+        Assert.True(JsOps.ToBoolean(executedValue));
+        Assert.True(outcome.TryGetProperty("result", out var resultValue));
+        Assert.Equal(1d, JsOps.ToNumber(resultValue));
     }
 
     [Fact(Timeout = 2000)]

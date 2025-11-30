@@ -1605,8 +1605,13 @@ public static partial class StandardLibrary
         arrayFromAsync.Properties.Delete("prototype");
         DefineFunctionProperty(arrayConstructor, "fromAsync", arrayFromAsync);
 
-        // Array.of(...elements)
-        arrayConstructor.SetHostedProperty("of", ArrayOf, realm);
+        HostFunction arrayOf = null!;
+        arrayOf = new HostFunction((thisValue, args) => ArrayOf(arrayOf, thisValue, args, realm), realm)
+        {
+            IsConstructor = false
+        };
+        AttachBuiltinMetadata(arrayOf, "of", 0d);
+        DefineFunctionProperty(arrayConstructor, "of", arrayOf);
 
         // Expose core Array prototype methods (such as slice) on
         // Array.prototype so patterns like `Array.prototype.slice.call`
@@ -1655,8 +1660,9 @@ public static partial class StandardLibrary
         return arrayConstructor;
     }
 
-    private static object? ArrayOf(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    private static object? ArrayOf(HostFunction host, object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
+        const string MethodName = "Array.of";
         var len = args.Count;
         IJsObjectLike result;
 
@@ -1673,10 +1679,11 @@ public static partial class StandardLibrary
 
         for (var k = 0; k < len; k++)
         {
-            result.SetProperty(ToIndexString(k), args[k]);
+            var key = ToIndexString(k);
+            CreateDataPropertyOrThrow(result, key, args[k], realm, MethodName);
         }
 
-        result.SetProperty("length", (double)len);
+        SetArrayLikeLength(result, len);
         return result;
 
         static IJsObjectLike CreateDefaultArrayInstance(int length, RealmState? realm)

@@ -145,7 +145,7 @@ public sealed class PropertyDescriptor
 /// <summary>
 ///     Simple JavaScript-like object that supports prototype chaining for property lookups.
 /// </summary>
-public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordinal), IJsObjectLike,
+public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
     IPrivateBrandHolder,
     IPropertyDefinitionHost, IExtensibilityControl
 {
@@ -163,6 +163,14 @@ public sealed class JsObject() : Dictionary<string, object?>(StringComparer.Ordi
 
     public bool IsFrozen { get; private set; }
     public bool IsExtensible { get; private set; } = true;
+
+    public JsObject(object? prototype = null) : base(StringComparer.Ordinal)
+    {
+        if (prototype is not null)
+        {
+            SetPrototype(prototype);
+        }
+    }
 
     public void PreventExtensions()
     {

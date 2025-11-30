@@ -11,11 +11,7 @@ public static partial class StandardLibrary
     {
         if (realm.TypedArrayPrototype is null)
         {
-            var proto = new JsObject();
-            if (realm.ObjectPrototype is not null)
-            {
-                proto.SetPrototype(realm.ObjectPrototype);
-            }
+            var proto = new JsObject(realm.ObjectPrototype);
 
             var tagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
             proto.DefineProperty(tagKey,
@@ -68,11 +64,7 @@ public static partial class StandardLibrary
 
     public static HostFunction CreateArrayBufferConstructor(RealmState realm)
     {
-        var prototype = new JsObject();
-        if (realm.ObjectPrototype is not null)
-        {
-            prototype.SetPrototype(realm.ObjectPrototype);
-        }
+        var prototype = new JsObject(realm.ObjectPrototype);
 
         var tagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
         prototype.DefineProperty(tagKey,

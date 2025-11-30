@@ -9,11 +9,7 @@ public static partial class StandardLibrary
 {
     public static JsObject CreateIntlObject(RealmState realm)
     {
-        var intl = new JsObject();
-        if (realm.ObjectPrototype is not null)
-        {
-            intl.SetPrototype(realm.ObjectPrototype);
-        }
+        var intl = new JsObject(realm.ObjectPrototype);
 
         var toStringTagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
         intl.DefineProperty(toStringTagKey,
@@ -111,11 +107,7 @@ public static partial class StandardLibrary
     public static JsObject CreateTemporalObject(RealmState realm)
     {
         var temporal = new JsObject();
-        var durationPrototype = new JsObject();
-        if (realm.ObjectPrototype is not null)
-        {
-            durationPrototype.SetPrototype(realm.ObjectPrototype);
-        }
+        var durationPrototype = new JsObject(realm.ObjectPrototype);
 
         var durationCtor = new HostFunction((thisValue, args) =>
         {

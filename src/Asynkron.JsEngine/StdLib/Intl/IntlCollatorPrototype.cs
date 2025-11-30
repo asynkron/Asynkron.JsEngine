@@ -1,6 +1,4 @@
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
@@ -38,8 +36,7 @@ public sealed partial class IntlCollatorPrototype
     public JsObject ResolvedOptions(object? thisValue, IReadOnlyList<object?> _)
     {
         var collator = ValidateCollatorReceiver(thisValue);
-        var options = new JsObject();
-        options.SetPrototype(Realm.ObjectPrototype);
+        var options = new JsObject(Realm.ObjectPrototype);
         options.SetProperty("locale", collator.TryGetProperty("__locale__", out var locale) ? locale ?? "en" : "en");
         options.SetProperty("usage", collator.TryGetProperty("__usage__", out var usage) ? usage ?? "sort" : "sort");
         options.SetProperty("sensitivity",

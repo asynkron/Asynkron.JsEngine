@@ -73,11 +73,7 @@ public static partial class TypedAstEvaluator
                 return prototype;
             }
 
-            var created = new JsObject();
-            if (realm.ObjectPrototype is not null)
-            {
-                created.SetPrototype(realm.ObjectPrototype);
-            }
+            var created = new JsObject(realm.ObjectPrototype);
 
             constructor.SetProperty("prototype", created);
             return created;

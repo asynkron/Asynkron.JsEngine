@@ -67,8 +67,7 @@ public sealed partial class IntlDateTimeFormatPrototype
     public JsObject ResolvedOptions(object? thisValue, IReadOnlyList<object?> _unused)
     {
         var slots = ValidateReceiver(thisValue, out _);
-        var obj = new JsObject();
-        obj.SetPrototype(Realm.ObjectPrototype);
+        var obj = new JsObject(Realm.ObjectPrototype);
         obj.SetProperty("locale", slots.Locale);
         obj.SetProperty("calendar", slots.Calendar);
         obj.SetProperty("numberingSystem", slots.NumberingSystem);

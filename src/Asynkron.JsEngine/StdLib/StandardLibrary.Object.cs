@@ -76,11 +76,7 @@ public static partial class StandardLibrary
             return null;
         }
 
-        var result = new JsObject();
-        if (realm.ObjectPrototype is not null)
-        {
-            result.SetPrototype(realm.ObjectPrototype);
-        }
+        var result = new JsObject(realm.ObjectPrototype);
 
         if (descriptor.IsAccessorDescriptor)
         {
@@ -865,11 +861,7 @@ public static partial class StandardLibrary
                 throw ThrowTypeError("Object.getOwnPropertyDescriptors requires an object", realm: realm);
             }
 
-            var descriptors = new JsObject();
-            if (realm.ObjectPrototype is not null)
-            {
-                descriptors.SetPrototype(realm.ObjectPrototype);
-            }
+            var descriptors = new JsObject(realm.ObjectPrototype);
 
             foreach (var key in obj.GetOwnPropertyNames())
             {

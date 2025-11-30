@@ -98,8 +98,7 @@ public sealed partial class IntlNumberFormatPrototype
 
     private JsObject CreateNumberFormatResolvedOptions(JsObject nf)
     {
-        var obj = new JsObject();
-        obj.SetPrototype(Realm.ObjectPrototype);
+        var obj = new JsObject(Realm.ObjectPrototype);
         obj.SetProperty("locale", nf.TryGetProperty("__locale__", out var loc) ? loc ?? "en" : "en");
         obj.SetProperty("roundingMode",
             nf.TryGetProperty("__roundingMode__", out var rm) && rm is not null ? rm : "halfExpand");

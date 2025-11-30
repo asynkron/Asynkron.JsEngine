@@ -566,11 +566,7 @@ public static partial class StandardLibrary
             dateConstructor.Properties.SetPrototype(realm.FunctionPrototype);
         }
 
-        datePrototype = new JsObject();
-        if (realm.ObjectPrototype is not null)
-        {
-            datePrototype.SetPrototype(realm.ObjectPrototype);
-        }
+        datePrototype = new JsObject(realm.ObjectPrototype);
 
         dateConstructor.SetProperty("prototype", datePrototype);
         realm.DatePrototype ??= datePrototype;

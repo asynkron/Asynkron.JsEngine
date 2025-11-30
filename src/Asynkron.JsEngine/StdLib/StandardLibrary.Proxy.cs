@@ -51,11 +51,7 @@ public static partial class StandardLibrary
             proxyConstructor.Properties.SetPrototype(realm.FunctionPrototype);
         }
 
-        proxyPrototype = new JsObject();
-        if (realm.ObjectPrototype is not null)
-        {
-            proxyPrototype.SetPrototype(realm.ObjectPrototype);
-        }
+        proxyPrototype = new JsObject(realm.ObjectPrototype);
 
         proxyConstructor.SetProperty("prototype", proxyPrototype);
 

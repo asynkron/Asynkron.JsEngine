@@ -23,6 +23,12 @@ public static partial class TypedAstEvaluator
                 return (null, null);
             }
 
+            if (!JsOps.IsConstructor(baseValue))
+            {
+                throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                    "Class extends value is not a constructor or null", context, context.RealmState));
+            }
+
             if (baseValue is not IJsEnvironmentAwareCallable callable ||
                 baseValue is not IJsPropertyAccessor accessor)
             {

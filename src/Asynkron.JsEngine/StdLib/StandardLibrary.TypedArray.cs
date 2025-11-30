@@ -31,6 +31,7 @@ public static partial class StandardLibrary
                 (thisValue, reduceArgs, realmState) =>
                     ReduceLike(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduceRight", true), realm);
             DefineTypedArrayFunction(proto, "map", 1d, TypedArrayMap, realm);
+            DefineTypedArrayFunction(proto, "every", 1d, TypedArrayEvery, realm);
             DefineTypedArrayFunction(proto, "fill", 1d, TypedArrayFill, realm);
             DefineTypedArrayFunction(proto, "copyWithin", 2d, TypedArrayCopyWithin, realm);
             DefineTypedArrayFunction(proto, "reverse", 0d, TypedArrayReverse, realm);
@@ -631,6 +632,49 @@ public static partial class StandardLibrary
         }
 
         return result;
+    }
+
+    private static object? TypedArrayEvery(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (thisValue is not TypedArrayBase typedArray)
+        {
+            throw ThrowTypeError("TypedArray.prototype.every called on incompatible receiver", realm: realm);
+        }
+
+        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            throw ThrowTypeError("TypedArray.prototype.every expects a callable callback", realm: realm);
+        }
+
+        var thisArg = args.Count > 1 ? args[1] : Symbol.Undefined;
+
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            throw typedArray.CreateOutOfBoundsTypeError();
+        }
+
+        var length = typedArray.Length;
+        for (var k = 0; k < length; k++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            if (k >= typedArray.Length)
+            {
+                break;
+            }
+
+            var value = typedArray.GetValueForIndex(k);
+            var result = callback.Invoke([value, (double)k, typedArray], thisArg);
+            if (!IsTruthy(result))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static object? TypedArrayFill(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)

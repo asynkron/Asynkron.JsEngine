@@ -719,6 +719,44 @@ public class TypedArrayTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task TypedArray_Every_AppliesCallback()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+                                                       const calls = [];
+                                                       const arr = new Uint8Array([1, 2, 3]);
+                                                       const outcome = arr.every(function(value, index, ta) {
+                                                         calls.push({value, index, same: ta === arr});
+                                                         return value < 3;
+                                                       });
+                                                       return {outcome, calls};
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(false, obj["outcome"]);
+        var calls = Assert.IsType<JsArray>(obj["calls"]);
+        Assert.Equal(3d, calls.Length);
+        var first = Assert.IsType<JsObject>(calls.GetElement(0));
+        Assert.Equal(1d, first["value"]);
+        Assert.Equal(0d, first["index"]);
+        Assert.Equal(true, first["same"]);
+        var third = Assert.IsType<JsObject>(calls.GetElement(2));
+        Assert.Equal(3d, third["value"]);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_Every_UsesThisArg()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+                                                       const ctx = { touched: 0 };
+                                                       const arr = new Int16Array([1]);
+                                                       arr.every(function() { this.touched++; return true; }, ctx);
+                                                       return ctx.touched;
+                                           """);
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task TypedArray_Reverse_InPlace()
     {
         await using var engine = new JsEngine();

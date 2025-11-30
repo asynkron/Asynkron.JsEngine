@@ -15,6 +15,7 @@
 - `Array.prototype.fill`, `Array.prototype.copyWithin`, and `Array.prototype.toSpliced` (plus `%TypedArray%.prototype.toSpliced`) now honor the spec-required default arguments and deletion semantics, so proxies observe the correct `has`/`delete` ordering and explicit `undefined` delete counts consume the tail. Regression tests pin the new behaviors.
 - `%TypedArray%.prototype.fill` and `%TypedArray%.prototype.copyWithin` now exist on the shared typed-array prototype and mirror the array semantics (argument trimming, overlapping copies, and repeated detach/out-of-bounds checks). New regression tests cover default arguments, overlapping ranges, and the `undefined`-to-zero conversions for unsigned views.
 - `%TypedArray%.prototype.reverse` swaps elements in place with the same detachment safeguards as the array version, and BigInt views reuse the typed array coercions so the new regression tests cover both numeric and BigInt flavors.
+- `%TypedArray%.prototype.every` landed alongside regression tests for callback invocation order and `thisArg` binding, completing another chunk of the typed-array loop helpers.
 
 ## Next Iteration Plan
 1. **Triage the remaining generator IR gaps** – revisit the `cpn-class-expr-*-yield` buckets (fields/accessors/static/private) and Annex B “contains supercall” shapes to nail down which AST patterns the current plan builder still rejects, then craft focused regression tests before extending the IR.

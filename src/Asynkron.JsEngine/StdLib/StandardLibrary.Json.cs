@@ -11,6 +11,15 @@ public static partial class StandardLibrary
     public static JsObject CreateJsonObject(RealmState realm)
     {
         var json = new JsObject();
+        var tagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
+        json.DefineProperty(tagKey,
+            new PropertyDescriptor
+            {
+                Value = "JSON",
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
 
         // JSON.parse()
         json["parse"] = new HostFunction((_, args, realmState) =>

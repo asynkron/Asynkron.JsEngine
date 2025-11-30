@@ -32,7 +32,7 @@ public static partial class StandardLibrary
         array.SetHostedProperty("forEach", ArrayForEach);
         array.SetHostedProperty("find", ArrayFind);
         array.SetHostedProperty("findIndex", ArrayFindIndex);
-        array.SetHostedProperty("some", ArraySome);
+        array.SetHostedProperty("some", ArraySome, realm);
         array.SetHostedProperty("every", ArrayEvery);
         array.SetHostedProperty("join", ArrayJoin);
         array.SetHostedProperty("toString", (thisValue, _) => ArrayToString(thisValue, array));
@@ -363,24 +363,9 @@ public static partial class StandardLibrary
         return -1d;
     }
 
-    private static object? ArraySome(object? thisValue, IReadOnlyList<object?> args)
+    private static object? ArraySome(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray || args.Count == 0 || args[0] is not IJsCallable callback)
-        {
-            return false;
-        }
-
-        for (var i = 0; i < jsArray.Items.Count; i++)
-        {
-            var element = jsArray.Items[i];
-            var result = callback.Invoke([element, (double)i, jsArray], null);
-            if (IsTruthy(result))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return SomeLike(thisValue, args, realm, "Array.prototype.some");
     }
 
     private static object? ArrayEvery(object? thisValue, IReadOnlyList<object?> args)
@@ -1821,6 +1806,63 @@ public static partial class StandardLibrary
         }
 
         return accumulatorGeneric;
+    }
+
+    internal static object? SomeLike(object? thisValue, IReadOnlyList<object?> args, RealmState? realm,
+        string methodName)
+    {
+        var accessor = EnsureArrayLikeReceiver(thisValue, methodName, realm);
+        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            throw ThrowTypeError($"{methodName} expects a callable callback", realm: realm);
+        }
+
+        var thisArg = args.Count > 1 ? args[1] : Symbol.Undefined;
+
+        if (accessor is TypedArrayBase typed)
+        {
+            if (typed.IsDetachedOrOutOfBounds())
+            {
+                throw typed.CreateOutOfBoundsTypeError();
+            }
+
+            var length = typed.Length;
+            for (var i = 0; i < length; i++)
+            {
+                if (typed.IsDetachedOrOutOfBounds())
+                {
+                    throw typed.CreateOutOfBoundsTypeError();
+                }
+
+                var value = typed.GetValueForIndex(i);
+                var testResult = callback.Invoke([value, (double)i, typed], thisArg);
+                if (IsTruthy(testResult))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var objectLength = (long)ToLengthOrZero(lengthValue);
+        for (long i = 0; i < objectLength; i++)
+        {
+            var key = i.ToString(CultureInfo.InvariantCulture);
+            if (!accessor.TryGetProperty(key, out var value))
+            {
+                continue;
+            }
+
+            var testResult = callback.Invoke([value, (double)i, accessor], thisArg);
+            if (IsTruthy(testResult))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool SameValueZero(object? x, object? y)

@@ -33,6 +33,9 @@ public static partial class StandardLibrary
             proto.SetHostedProperty("indexOf", TypedArrayIndexOf, realm);
             proto.SetHostedProperty("lastIndexOf", TypedArrayLastIndexOf, realm);
             proto.SetHostedProperty("includes", TypedArrayIncludes, realm);
+            proto.SetHostedProperty("some",
+                (thisValue, someArgs, realmState) =>
+                    SomeLike(thisValue, someArgs, realmState, "%TypedArray%.prototype.some"), realm);
 
             realm.TypedArrayPrototype = proto;
         }

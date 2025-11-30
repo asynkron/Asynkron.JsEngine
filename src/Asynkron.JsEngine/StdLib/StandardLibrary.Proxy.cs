@@ -36,7 +36,7 @@ public static partial class StandardLibrary
                 throw new ThrowSignal(error);
             }
 
-            var proxy = new JsProxy(targetObject, handlerObj);
+            var proxy = new JsProxy(targetObject, handlerObj, realm);
             if (proxyPrototype is not null)
             {
                 proxy.SetPrototype(proxyPrototype);
@@ -94,7 +94,7 @@ public static partial class StandardLibrary
                 throw new ThrowSignal(error);
             }
 
-            var proxy = new JsProxy(targetObject, handlerObj);
+            var proxy = new JsProxy(targetObject, handlerObj, realm);
             if (proxyPrototype is not null)
             {
                 proxy.SetPrototype(proxyPrototype);

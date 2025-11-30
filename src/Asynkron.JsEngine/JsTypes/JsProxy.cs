@@ -12,11 +12,13 @@ namespace Asynkron.JsEngine.JsTypes;
 public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl
 {
     private readonly JsObject _meta = new();
+    private readonly RealmState? _realm;
 
-    public JsProxy(IJsObjectLike target, IJsObjectLike handler)
+    public JsProxy(IJsObjectLike target, IJsObjectLike handler, RealmState? realm = null)
     {
         Target = target ?? throw new ArgumentNullException(nameof(target));
         Handler = handler ?? throw new ArgumentNullException(nameof(handler));
+        _realm = realm;
         if (Target is JsObject { Prototype: not null } jsObject)
         {
             _meta.SetPrototype(jsObject.Prototype);
@@ -71,7 +73,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             var result = trap.Invoke(args, Handler);
             if (!JsOps.ToBoolean(result))
             {
-                throw StandardLibrary.ThrowTypeError("Proxy 'set' trap returned a falsy value");
+                throw StandardLibrary.ThrowTypeError("Proxy 'set' trap returned a falsy value", realm: _realm);
             }
 
             return;
@@ -94,7 +96,8 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             var result = trap.Invoke(args, Handler);
             if (!JsOps.ToBoolean(result))
             {
-                throw StandardLibrary.ThrowTypeError("Proxy 'defineProperty' trap returned a falsy value");
+                throw StandardLibrary.ThrowTypeError("Proxy 'defineProperty' trap returned a falsy value",
+                    realm: _realm);
             }
 
             return;
@@ -109,7 +112,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         {
             var args = new[] { Target, DecodePropertyKey(name) };
             var result = trap.Invoke(args, Handler);
-            return ConvertPropertyDescriptor(result);
+            return ConvertPropertyDescriptor(result, _realm);
         }
 
         return Target.GetOwnPropertyDescriptor(name);
@@ -200,7 +203,8 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     private bool TryGetTrap(string trapName, out IJsCallable callable)
     {
         callable = null!;
-        var handler = Handler ?? throw StandardLibrary.ThrowTypeError("Cannot perform operation on a revoked Proxy");
+        var handler = Handler ?? throw StandardLibrary.ThrowTypeError("Cannot perform operation on a revoked Proxy",
+            realm: _realm);
 
         if (!handler.TryGetProperty(trapName, out var trapValue) ||
             ReferenceEquals(trapValue, Symbol.Undefined) ||
@@ -211,7 +215,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (trapValue is not IJsCallable callableTrap)
         {
-            throw StandardLibrary.ThrowTypeError($"Proxy handler's '{trapName}' trap is not callable");
+            throw StandardLibrary.ThrowTypeError($"Proxy handler's '{trapName}' trap is not callable", realm: _realm);
         }
 
         callable = callableTrap;
@@ -225,7 +229,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             : propertyName;
     }
 
-    private static PropertyDescriptor? ConvertPropertyDescriptor(object? candidate)
+    private static PropertyDescriptor? ConvertPropertyDescriptor(object? candidate, RealmState? realm)
     {
         if (candidate is null || ReferenceEquals(candidate, Symbol.Undefined))
         {
@@ -235,7 +239,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         if (candidate is not JsObject descriptorObject)
         {
             throw StandardLibrary.ThrowTypeError(
-                "Proxy getOwnPropertyDescriptor trap must return an object or undefined");
+                "Proxy getOwnPropertyDescriptor trap must return an object or undefined", realm: realm);
         }
 
         var descriptor = new PropertyDescriptor();
@@ -264,7 +268,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         {
             if (!ReferenceEquals(getterValue, Symbol.Undefined) && getterValue is not IJsCallable)
             {
-                throw StandardLibrary.ThrowTypeError("Getter must be a function");
+                throw StandardLibrary.ThrowTypeError("Getter must be a function", realm: realm);
             }
 
             descriptor.Get = ReferenceEquals(getterValue, Symbol.Undefined) ? null : (IJsCallable?)getterValue;
@@ -274,7 +278,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         {
             if (!ReferenceEquals(setterValue, Symbol.Undefined) && setterValue is not IJsCallable)
             {
-                throw StandardLibrary.ThrowTypeError("Setter must be a function");
+                throw StandardLibrary.ThrowTypeError("Setter must be a function", realm: realm);
             }
 
             descriptor.Set = ReferenceEquals(setterValue, Symbol.Undefined) ? null : (IJsCallable?)setterValue;
@@ -283,7 +287,8 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         if (descriptor is { IsAccessorDescriptor: true, IsDataDescriptor: true })
         {
             throw StandardLibrary.ThrowTypeError(
-                "Invalid property descriptor. Cannot both specify accessors and a value or writable attribute");
+                "Invalid property descriptor. Cannot both specify accessors and a value or writable attribute",
+                realm: realm);
         }
 
         return descriptor;

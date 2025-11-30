@@ -2394,20 +2394,29 @@ public static partial class StandardLibrary
             return arr;
         }
 
-        if (realm is null || original is not JsArray jsArray)
+        if (realm is null)
+        {
+            return CreateDefaultArray();
+        }
+
+        if (original is not IJsPropertyAccessor accessor)
+        {
+            return CreateDefaultArray();
+        }
+
+        if (!IsArrayObject(original, realm, "array species creation"))
         {
             return CreateDefaultArray();
         }
 
         var useDefaultConstructor = false;
-        if (!jsArray.TryGetProperty("constructor", out var constructorValue) ||
+        if (!accessor.TryGetProperty("constructor", out var constructorValue) ||
             ReferenceEquals(constructorValue, Symbol.Undefined))
         {
             useDefaultConstructor = true;
         }
 
         if (!useDefaultConstructor &&
-            realm is not null &&
             constructorValue is HostFunction hostCtor &&
             hostCtor.RealmState is { } ctorRealm &&
             !ReferenceEquals(ctorRealm, realm) &&
@@ -2629,6 +2638,12 @@ public static partial class StandardLibrary
         while (inspected is not null)
         {
             if (inspected is JsArray)
+            {
+                return true;
+            }
+
+            if (inspected is JsObject obj && realm?.ArrayPrototype is not null &&
+                ReferenceEquals(obj, realm.ArrayPrototype))
             {
                 return true;
             }

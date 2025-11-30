@@ -13,6 +13,8 @@ namespace Asynkron.JsEngine.Ast;
 public interface ICallableMetadata
 {
     bool IsArrowFunction { get; }
+
+    RealmState RealmState { get; }
 }
 
 /// <summary>

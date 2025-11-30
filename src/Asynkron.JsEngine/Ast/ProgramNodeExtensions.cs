@@ -29,11 +29,13 @@ public static partial class TypedAstEvaluator
                 Activity.Current?.StartEvaluatorActivity("Program", context, program.Source);
             programActivity?.SetTag("js.program.strict", program.IsStrict);
             var executionEnvironment = program.IsStrict && createStrictEnvironment
-                ? new JsEnvironment(environment, true, true)
+                ? new JsEnvironment(environment, true, true,
+                    treatAsGlobalFunctionScope: environment.IsGlobalFunctionScope)
                 : environment;
             if (program.IsStrict && !executionEnvironment.IsStrict)
             {
-                executionEnvironment = new JsEnvironment(executionEnvironment, true, true);
+                executionEnvironment = new JsEnvironment(executionEnvironment, true, true,
+                    treatAsGlobalFunctionScope: executionEnvironment.IsGlobalFunctionScope);
             }
 
             var programMode = executionEnvironment.IsStrict

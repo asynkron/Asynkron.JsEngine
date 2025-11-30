@@ -114,6 +114,7 @@ public static partial class TypedAstEvaluator
         public PrivateNameScope? PrivateNameScope { get; private set; }
 
         public bool IsArrowFunction { get; }
+        public RealmState RealmState => _realmState;
 
         public bool IsExtensible => _properties.IsExtensible;
 

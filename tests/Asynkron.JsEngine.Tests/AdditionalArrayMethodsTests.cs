@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.JsTypes;
+
 namespace Asynkron.JsEngine.Tests;
 
 public class AdditionalArrayMethodsTests
@@ -196,6 +198,30 @@ public class AdditionalArrayMethodsTests
         Assert.Equal(true, result);
     }
 
+    [Fact(Timeout = 2000)]
+    public async Task Array_ReflectConstruct_UsesNewTargetRealmPrototype()
+    {
+        await using var engine = new JsEngine();
+        await using var otherRealm = new JsEngine();
+
+        var foreignCtor = await otherRealm.Evaluate("""
+                                                       (function() {
+                                                         function Foreign() {}
+                                                         return Foreign;
+                                                       })();
+                                           """);
+        var foreignArrayPrototype = await otherRealm.Evaluate("Array.prototype");
+        engine.SetGlobalValue("foreignCtor", foreignCtor);
+        engine.SetGlobalValue("foreignArrayPrototype", foreignArrayPrototype);
+
+        var result = await engine.Evaluate("""
+                                                       foreignCtor.prototype = undefined;
+                                                       const arr = Reflect.construct(Array, [1], foreignCtor);
+                                                       Object.getPrototypeOf(arr) === foreignArrayPrototype;
+                                           """);
+        Assert.Equal(true, result);
+    }
+
     // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.
     // The feature is implemented correctly and the test passes when run individually.
     [Fact(Timeout = 2000)]
@@ -259,6 +285,35 @@ public class AdditionalArrayMethodsTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Array_From_StopsWhenSourceShrinks()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let source = [0, 1, -2, 4, -8, 16];
+                                                       let seen = [];
+                                                       const output = Array.from(source, function(value, index) {
+                                                         seen.push({ value, index });
+                                                         source.pop();
+                                                         return 127;
+                                                       });
+                                                       return {
+                                                         outLength: output.length,
+                                                         seenCount: seen.length,
+                                                         entries: output
+                                                       };
+
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(3d, obj["outLength"]);
+        Assert.Equal(3d, obj["seenCount"]);
+        var entries = Assert.IsType<JsArray>(obj["entries"]);
+        Assert.Equal(127d, entries.GetElement(0));
+        Assert.Equal(127d, entries.GetElement(1));
+        Assert.Equal(127d, entries.GetElement(2));
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Array_From_RespectsConstructor()
     {
         await using var engine = new JsEngine();
@@ -275,6 +330,110 @@ public class AdditionalArrayMethodsTests
 
                                            """);
         Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Array_From_MapFunctionMustBeCallable()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       const inputs = [null, {}, "string", true, 42];
+                                                       return inputs.every(value => {
+                                                         try {
+                                                           Array.from([], value);
+                                                           return false;
+                                                         } catch (err) {
+                                                           return err instanceof TypeError;
+                                                         }
+                                                       });
+
+                                           """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Array_From_ConstructorsRunBeforeIterator()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let iteratorCalled = false;
+                                                       const items = {
+                                                         get [Symbol.iterator]() {
+                                                           return function() {
+                                                             iteratorCalled = true;
+                                                             return {
+                                                               next() { return { done: true }; }
+                                                             };
+                                                           };
+                                                         }
+                                                       };
+                                                       function CustomArray() {
+                                                         throw new Error("ctor");
+                                                       }
+                                                       try {
+                                                         Array.from.call(CustomArray, items);
+                                                         return { threw: false, iteratorCalled };
+                                                       } catch (err) {
+                                                         return {
+                                                           threw: err.message,
+                                                           iteratorCalled
+                                                         };
+                                                       }
+
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal("ctor", obj["threw"]);
+        Assert.Equal(false, obj["iteratorCalled"]);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Array_From_IteratorCloseIgnoresNonObjectReturnValues()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let closed = 0;
+                                                       const iterable = {
+                                                         [Symbol.iterator]() {
+                                                           return {
+                                                             next() { return { value: 1, done: false }; },
+                                                             return() { closed++; return 0; }
+                                                           };
+                                                         }
+                                                       };
+                                                       try {
+                                                         Array.from(iterable, () => { throw new Error("fail"); });
+                                                       } catch (err) {
+                                                         return { error: err.message, closed };
+                                                       }
+
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal("fail", obj["error"]);
+        Assert.Equal(1d, obj["closed"]);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task StrictGlobalVar_BindsToGlobalObject()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       "use strict";
+                                                       var marker = 42;
+                                                       ({
+                                                         thisIsGlobal: this === globalThis,
+                                                         globalMarker: globalThis.marker,
+                                                         thisMarker: this.marker
+                                                       });
+
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(true, obj["thisIsGlobal"]);
+        Assert.Equal(42d, obj["globalMarker"]);
+        Assert.Equal(42d, obj["thisMarker"]);
     }
 
     [Fact(Timeout = 2000)]

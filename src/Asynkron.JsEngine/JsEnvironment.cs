@@ -12,6 +12,7 @@ public sealed class JsEnvironment
     internal static readonly object Uninitialized = new();
     private readonly SourceReference? _creatingSource;
     private readonly string? _description;
+    private readonly bool _treatAsGlobalFunctionScope;
 
     private readonly Dictionary<Symbol, Binding> _values = new();
     private readonly IJsObjectLike? _withObject;
@@ -30,7 +31,8 @@ public sealed class JsEnvironment
         string? description = null,
         IJsObjectLike? withObject = null,
         bool isParameterEnvironment = false,
-        bool isBodyEnvironment = false)
+        bool isBodyEnvironment = false,
+        bool treatAsGlobalFunctionScope = false)
     {
         Enclosing = enclosing;
         IsFunctionScope = isFunctionScope;
@@ -40,6 +42,7 @@ public sealed class JsEnvironment
         _withObject = withObject;
         IsParameterEnvironment = isParameterEnvironment;
         IsBodyEnvironment = isBodyEnvironment;
+        _treatAsGlobalFunctionScope = treatAsGlobalFunctionScope;
         RealmState = enclosing?.RealmState;
 
         Depth = (Enclosing?.Depth ?? -1) + 1;
@@ -77,7 +80,7 @@ public sealed class JsEnvironment
         RealmState = realmState;
     }
 
-    internal bool IsGlobalFunctionScope => IsFunctionScope && Enclosing is null;
+    internal bool IsGlobalFunctionScope => _treatAsGlobalFunctionScope || (IsFunctionScope && Enclosing is null);
 
     public void Define(
         Symbol name,
@@ -134,7 +137,7 @@ public sealed class JsEnvironment
     {
         // `var` declarations are hoisted to the nearest function/global scope, so we skip block environments here.
         var scope = GetFunctionScope();
-        var isGlobalScope = scope.Enclosing is null;
+        var isGlobalScope = scope.IsGlobalFunctionScope;
         var wasTrackedAnnexBFunction = scope._annexBFunctionNames?.Contains(name) == true;
         JsObject? globalThis = null;
         PropertyDescriptor? existingDescriptor = null;
@@ -309,13 +312,15 @@ public sealed class JsEnvironment
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
                 }
 
-                if (current.Enclosing is null &&
-                    !binding.IsLexical &&
-                    current._values.TryGetValue(Symbol.This, out var thisBinding) &&
-                    thisBinding.Value is JsObject globalObject &&
-                    globalObject.TryGetProperty(name.Name, out var globalValue))
+                if (current.IsGlobalFunctionScope &&
+                    !binding.IsLexical)
                 {
-                    return globalValue;
+                    var globalObject = current.GetRootGlobalObject();
+                    if (globalObject is not null &&
+                        globalObject.TryGetProperty(name.Name, out var globalValue))
+                    {
+                        return globalValue;
+                    }
                 }
 
                 return binding.Value;
@@ -329,11 +334,13 @@ public sealed class JsEnvironment
             current = current.Enclosing;
         }
 
-        if (_values.TryGetValue(Symbol.This, out var rootThis) &&
-            rootThis.Value is JsObject rootGlobal &&
-            rootGlobal.TryGetProperty(name.Name, out var propertyValue))
+        if (IsGlobalFunctionScope)
         {
-            return propertyValue;
+            var rootGlobal = GetRootGlobalObject();
+            if (rootGlobal is not null && rootGlobal.TryGetProperty(name.Name, out var propertyValue))
+            {
+                return propertyValue;
+            }
         }
 
         throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
@@ -354,13 +361,15 @@ public sealed class JsEnvironment
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
                 }
 
-                if (current.Enclosing is null &&
-                    !binding.IsLexical &&
-                    current._values.TryGetValue(Symbol.This, out var thisBinding) &&
-                    thisBinding.Value is JsObject globalObject &&
-                    globalObject.TryGetProperty(name.Name, out var globalValue))
+                if (current.IsGlobalFunctionScope &&
+                    !binding.IsLexical)
                 {
-                    return globalValue;
+                    var globalObject = current.GetRootGlobalObject();
+                    if (globalObject is not null &&
+                        globalObject.TryGetProperty(name.Name, out var globalValue))
+                    {
+                        return globalValue;
+                    }
                 }
 
                 return binding.Value;
@@ -427,11 +436,13 @@ public sealed class JsEnvironment
             {
                 binding.Value = value;
                 current.NotifyBindingObservers(name, value);
-                if (current.Enclosing is null &&
-                    current._values.TryGetValue(Symbol.This, out var thisBinding) &&
-                    thisBinding.Value is JsObject globalObject)
+                if (current.IsGlobalFunctionScope)
                 {
-                    globalObject.SetProperty(name.Name, value);
+                    var globalObject = current.GetRootGlobalObject();
+                    if (globalObject is not null)
+                    {
+                        globalObject.SetProperty(name.Name, value);
+                    }
                 }
 
                 return true;
@@ -593,13 +604,15 @@ public sealed class JsEnvironment
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
                 }
 
-                if (current.Enclosing is null &&
-                    current._values.TryGetValue(Symbol.This, out var thisBinding) &&
-                    thisBinding.Value is JsObject globalObject &&
-                    globalObject.TryGetProperty(name.Name, out var globalValue))
+                if (current.IsGlobalFunctionScope)
                 {
-                    value = globalValue;
-                    return true;
+                    var globalObject = current.GetRootGlobalObject();
+                    if (globalObject is not null &&
+                        globalObject.TryGetProperty(name.Name, out var globalValue))
+                    {
+                        value = globalValue;
+                        return true;
+                    }
                 }
 
                 value = binding.Value;
@@ -614,12 +627,14 @@ public sealed class JsEnvironment
             current = current.Enclosing;
         }
 
-        if (_values.TryGetValue(Symbol.This, out var rootThis) &&
-            rootThis.Value is JsObject rootGlobal &&
-            rootGlobal.TryGetProperty(name.Name, out var propertyValue))
+        if (IsGlobalFunctionScope)
         {
-            value = propertyValue;
-            return true;
+            var rootGlobal = GetRootGlobalObject();
+            if (rootGlobal is not null && rootGlobal.TryGetProperty(name.Name, out var propertyValue))
+            {
+                value = propertyValue;
+                return true;
+            }
         }
 
         value = null;
@@ -664,10 +679,9 @@ public sealed class JsEnvironment
     private void AssignInternal(Symbol name, object? value, bool isStrictContext)
     {
         JsObject? globalObject = null;
-        if (Enclosing is null && _values.TryGetValue(Symbol.This, out var thisBinding) &&
-            thisBinding.Value is JsObject global)
+        if (IsGlobalFunctionScope)
         {
-            globalObject = global;
+            globalObject = GetRootGlobalObject();
         }
         var realm = RealmState ?? Enclosing?.RealmState;
 

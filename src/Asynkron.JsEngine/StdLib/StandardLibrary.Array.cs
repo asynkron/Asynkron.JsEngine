@@ -1691,7 +1691,7 @@ public static partial class StandardLibrary
         var mapperCandidate = args.Count > 1 ? args[1] : Symbol.Undefined;
         var thisArg = args.Count > 2 ? args[2] : Symbol.Undefined;
 
-        var mapping = mapperCandidate is not null && !ReferenceEquals(mapperCandidate, Symbol.Undefined);
+        var mapping = !ReferenceEquals(mapperCandidate, Symbol.Undefined);
         IJsCallable? mapper = null;
         if (mapping)
         {
@@ -1709,21 +1709,35 @@ public static partial class StandardLibrary
         }
 
         var arrayLike = ToPropertyAccessor(items, MethodName, realm);
-        var lengthValue = arrayLike.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-        var length = (long)ToLengthOrZero(lengthValue);
-        var result = CreateArrayFromResult(thisValue, realm, length, true);
+        var initialLengthValue = arrayLike.TryGetProperty("length", out var initialLenVal) ? initialLenVal : 0d;
+        var initialLength = (long)ToLengthOrZero(initialLengthValue);
+        var result = CreateArrayFromResult(thisValue, realm, initialLength, true);
 
-        for (long k = 0; k < length; k++)
+        long k = 0;
+        while (true)
         {
+            var lengthValue = arrayLike.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+            var dynamicLength = (long)ToLengthOrZero(lengthValue);
+            if (k >= dynamicLength)
+            {
+                break;
+            }
+
+            if (k >= MaxArrayLength)
+            {
+                throw ThrowTypeError("Array.from result exceeds 2^53 - 1 elements", realm: realm);
+            }
+
             var key = ToIndexString(k);
             var value = GetElementOrUndefined(arrayLike, key);
             var mapped = mapping && mapper is not null
                 ? InvokeArrayFromMapper(mapper, host, thisArg, value, k)
                 : value;
             CreateDataPropertyOrThrow(result, key, mapped, realm, MethodName);
+            k++;
         }
 
-        SetArrayLikeLength(result, length);
+        SetArrayLikeLength(result, k);
         return result;
     }
 
@@ -1731,6 +1745,7 @@ public static partial class StandardLibrary
         IJsCallable iteratorMethod, IJsCallable? mapper, bool mapping, object? thisArg, RealmState? realm)
     {
         const string MethodName = "Array.from";
+        var result = CreateArrayFromResult(thisValue, realm, 0, false);
         var iteratorValue = iteratorMethod.Invoke([], items);
         if (iteratorValue is not IJsPropertyAccessor iterator)
         {
@@ -1741,8 +1756,6 @@ public static partial class StandardLibrary
         {
             throw ThrowTypeError("Array.from iterator does not expose a callable next()", realm: realm);
         }
-
-        var result = CreateArrayFromResult(thisValue, realm, 0, false);
         long k = 0;
 
         while (true)
@@ -2572,11 +2585,7 @@ public static partial class StandardLibrary
             throw ThrowTypeError($"{operation} iterator.return is not callable", realm: realm);
         }
 
-        var completion = returnFn.Invoke([], iterator);
-        if (completion is not IJsPropertyAccessor && completion is not JsObject)
-        {
-            throw ThrowTypeError($"{operation} iterator.return did not return an object", realm: realm);
-        }
+        _ = returnFn.Invoke([], iterator);
     }
 
     private static void CreateDataPropertyOrThrow(IJsObjectLike target, string propertyKey, object? value,

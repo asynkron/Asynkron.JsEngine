@@ -346,16 +346,18 @@ public static partial class StandardLibrary
             return protoObj;
         }
 
+        TryGetRealmInfo(newTarget, out var newTargetRealmState, out var newTargetRealmObject);
+
         // Step 2: try realm default for Array (handles cross-realm Array subclassing)
         if ((realmState.ArrayConstructor is not null && ReferenceEquals(target, realmState.ArrayConstructor)) ||
             (realmState.ArrayConstructor is not null && ReferenceEquals(newTarget, realmState.ArrayConstructor)))
         {
-            if (newTarget is HostFunction { RealmState.ArrayPrototype: JsObject realmArrayProtoFromState })
+            if (newTargetRealmState?.ArrayPrototype is JsObject realmArrayProtoFromState)
             {
                 return realmArrayProtoFromState;
             }
 
-            if (newTarget is HostFunction { Realm: JsObject realmObj } &&
+            if (newTargetRealmObject is JsObject realmObj &&
                 realmObj.TryGetProperty("Array", out var realmArrayCtor) &&
                 TryGetPrototype(realmArrayCtor!, out var realmArrayProto))
             {
@@ -388,7 +390,7 @@ public static partial class StandardLibrary
     private static bool TryResolveRealmDefaultPrototype(object newTarget, IJsCallable target, out JsObject? prototype)
     {
         prototype = null;
-        if (newTarget is not HostFunction hostFunction)
+        if (!TryGetRealmInfo(newTarget, out var realmState, out var realmObject))
         {
             return false;
         }
@@ -400,20 +402,20 @@ public static partial class StandardLibrary
             return false;
         }
 
-        if (hostFunction.RealmState is RealmState realmState &&
+        if (realmState is not null &&
             TryGetPrototypeFromRealmState(ctorName, realmState, out prototype))
         {
             return true;
         }
 
-        if (hostFunction.RealmState is RealmState { ObjectPrototype: not null } realmDefaults)
+        if (realmState is { ObjectPrototype: not null })
         {
-            prototype = realmDefaults.ObjectPrototype;
+            prototype = realmState.ObjectPrototype;
             return true;
         }
 
-        if (hostFunction.Realm is JsObject realmObj &&
-            realmObj.TryGetProperty(ctorName, out var realmCtor) &&
+        if (realmObject is not null &&
+            realmObject.TryGetProperty(ctorName, out var realmCtor) &&
             realmCtor is not null &&
             TryGetPrototype(realmCtor, out var realmProto))
         {
@@ -421,8 +423,8 @@ public static partial class StandardLibrary
             return true;
         }
 
-        if (hostFunction.Realm is JsObject fallbackRealm &&
-            fallbackRealm.TryGetProperty("Object", out var objectCtor) &&
+        if (realmObject is not null &&
+            realmObject.TryGetProperty("Object", out var objectCtor) &&
             objectCtor is not null &&
             TryGetPrototype(objectCtor, out var objectProto))
         {
@@ -443,6 +445,25 @@ public static partial class StandardLibrary
         };
 
         return prototype is not null;
+    }
+
+    private static bool TryGetRealmInfo(object candidate, out RealmState? realmState, out JsObject? realmObject)
+    {
+        switch (candidate)
+        {
+            case HostFunction hostFunction:
+                realmState = hostFunction.RealmState;
+                realmObject = hostFunction.Realm;
+                return realmState is not null || realmObject is not null;
+            case ICallableMetadata metadata:
+                realmState = metadata.RealmState;
+                realmObject = null;
+                return realmState is not null;
+            default:
+                realmState = null;
+                realmObject = null;
+                return false;
+        }
     }
 
     private static bool TryGetPrototype(object candidate, out JsObject? prototype)

@@ -6,11 +6,9 @@ using Asynkron.JsEngine.Runtime.Prototypes;
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
-[JsPrototype("Intl.DurationFormat")]
+[JsPrototype("Intl.DurationFormat", ToStringTag = "Intl.DurationFormat")]
 public sealed partial class IntlDurationFormatPrototype : JsPrototype
 {
-    private static readonly string ToStringTagKey =
-        $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
 
     public IntlDurationFormatPrototype(JsObject prototype, RealmState realm)
         : base(prototype, realm)
@@ -63,15 +61,4 @@ public sealed partial class IntlDurationFormatPrototype : JsPrototype
         return obj;
     }
 
-    protected override void ConfigurePrototype()
-    {
-        Prototype.DefineProperty(ToStringTagKey,
-            new PropertyDescriptor
-            {
-                Value = "Intl.DurationFormat",
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
-    }
 }

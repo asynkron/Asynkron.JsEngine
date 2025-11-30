@@ -6,13 +6,10 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
-[JsPrototype("Intl.Collator")]
+[JsPrototype("Intl.Collator", ToStringTag = "Intl.Collator")]
 public sealed partial class IntlCollatorPrototype : JsPrototype
 {
     private const string CollatorBrand = "__collator__";
-
-    private static readonly string ToStringTagKey =
-        $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
 
     public IntlCollatorPrototype(JsObject prototype, RealmState realm)
         : base(prototype, realm)
@@ -72,12 +69,4 @@ public sealed partial class IntlCollatorPrototype : JsPrototype
         throw ThrowTypeError("Intl.Collator method called on incompatible receiver", realm: Realm);
     }
 
-    protected override void ConfigurePrototype()
-    {
-        Prototype.DefineProperty(ToStringTagKey,
-            new PropertyDescriptor
-            {
-                Value = "Intl.Collator", Writable = false, Enumerable = false, Configurable = true
-            });
-    }
 }

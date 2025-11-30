@@ -52,12 +52,13 @@ public sealed partial class IntlNumberFormatConstructor(JsObject prototype, Real
             return result;
         }
 
-        if (locales is JsArray array && array.Items.Count > 0 && array.Items[0] is string firstLocale)
+        if (locales is not JsArray { Items.Count: > 0 } array || array.Items[0] is not string firstLocale)
         {
-            result.Push(firstLocale);
             return result;
         }
 
+        result.Push(firstLocale);
         return result;
+
     }
 }

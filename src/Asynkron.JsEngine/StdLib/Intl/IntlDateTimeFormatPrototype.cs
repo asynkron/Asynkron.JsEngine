@@ -6,14 +6,11 @@ using Asynkron.JsEngine.Runtime.Prototypes;
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
-[JsPrototype("Intl.DateTimeFormat")]
+[JsPrototype("Intl.DateTimeFormat", ToStringTag = "Intl.DateTimeFormat")]
 public sealed partial class IntlDateTimeFormatPrototype : JsPrototype
 {
     private const string BrandKey = "__dateTimeFormat__";
     private const string SlotsKey = "__dateTimeFormatSlots__";
-
-    private static readonly string ToStringTagKey =
-        $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
 
     public IntlDateTimeFormatPrototype(JsObject prototype, RealmState realm)
         : base(prototype, realm)
@@ -101,15 +98,19 @@ public sealed partial class IntlDateTimeFormatPrototype : JsPrototype
 
     private DateTimeFormatInternalSlots ValidateReceiver(object? thisValue, out JsObject instance)
     {
-        if (thisValue is JsObject obj &&
-            obj.TryGetProperty(BrandKey, out var marker) && marker is true &&
-            obj.TryGetProperty(SlotsKey, out var slotValue) && slotValue is DateTimeFormatInternalSlots slots)
+        if (thisValue is not JsObject obj ||
+            !obj.TryGetProperty(BrandKey, out var marker) ||
+            marker is not true ||
+            !obj.TryGetProperty(SlotsKey, out var slotValue) ||
+            slotValue is not DateTimeFormatInternalSlots slots)
         {
-            instance = obj;
-            return slots;
+            throw StandardLibrary.ThrowTypeError("Intl.DateTimeFormat method called on incompatible receiver",
+                realm: Realm);
         }
 
-        throw StandardLibrary.ThrowTypeError("Intl.DateTimeFormat method called on incompatible receiver", realm: Realm);
+        instance = obj;
+        return slots;
+
     }
 
     private static JsObject CreateRangePart(string type, string value)
@@ -166,14 +167,6 @@ public sealed partial class IntlDateTimeFormatPrototype : JsPrototype
         }
     }
 
-    protected override void ConfigurePrototype()
-    {
-        Prototype.DefineProperty(ToStringTagKey,
-            new PropertyDescriptor
-            {
-                Value = "Intl.DateTimeFormat", Writable = false, Enumerable = false, Configurable = true
-            });
-    }
 }
 
 internal sealed class DateTimeFormatInternalSlots

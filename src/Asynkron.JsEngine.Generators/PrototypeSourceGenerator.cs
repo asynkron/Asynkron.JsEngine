@@ -93,7 +93,8 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             }
         }
 
-        return new PrototypeInfo(typeSymbol, getters.ToImmutable(), methods.ToImmutable());
+        var toStringTag = GetNamedValue(prototypeAttr, "ToStringTag");
+        return new PrototypeInfo(typeSymbol, getters.ToImmutable(), methods.ToImmutable(), toStringTag);
     }
 
     private static ConstructorInfo? TransformConstructor(GeneratorSyntaxContext context)
@@ -204,6 +205,16 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(", Enumerable = ").Append(method.Enumerable ? "true" : "false")
                 .Append(", Configurable = ").Append(method.Configurable ? "true" : "false")
                 .Append(" });").AppendLine();
+        }
+
+        if (!string.IsNullOrEmpty(info.ToStringTag))
+        {
+            source.AppendLine("        prototype.DefineProperty($\"@@symbol:{TypedAstSymbol.For(\"Symbol.toStringTag\").GetHashCode()}\",");
+            source.AppendLine("            new PropertyDescriptor");
+            source.AppendLine("            {");
+            source.Append("                Value = \"").Append(info.ToStringTag.Replace("\"", "\\\""))
+                .AppendLine("\", Writable = false, Enumerable = false, Configurable = true");
+            source.AppendLine("            });");
         }
 
         source.AppendLine("        typed.ConfigurePrototype();");
@@ -335,7 +346,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
     }
 
     private sealed record PrototypeInfo(INamedTypeSymbol Symbol, ImmutableArray<GetterInfo> Getters,
-        ImmutableArray<MethodInfo> Methods);
+        ImmutableArray<MethodInfo> Methods, string? ToStringTag);
 
     private sealed record GetterInfo(IMethodSymbol MethodSymbol, string PropertyName, string DisplayName, bool Enumerable,
         bool Configurable);

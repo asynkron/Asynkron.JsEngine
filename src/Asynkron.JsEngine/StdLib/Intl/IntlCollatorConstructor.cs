@@ -34,7 +34,7 @@ public sealed partial class IntlCollatorConstructor(JsObject prototype, RealmSta
             });
     }
 
-    private object? SupportedLocalesOf(IReadOnlyList<object?> args)
+    private JsArray SupportedLocalesOf(IReadOnlyList<object?> args)
     {
         var result = new JsArray(Realm);
         if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))

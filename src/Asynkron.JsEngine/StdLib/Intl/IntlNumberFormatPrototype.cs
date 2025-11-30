@@ -7,13 +7,10 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
-[JsPrototype("Intl.NumberFormat")]
+[JsPrototype("Intl.NumberFormat", ToStringTag = "Intl.NumberFormat")]
 public sealed partial class IntlNumberFormatPrototype : JsPrototype
 {
     private const string NumberFormatBrand = "__numberFormat__";
-
-    private static readonly string ToStringTagKey =
-        $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
 
     public IntlNumberFormatPrototype(JsObject prototype, RealmState realm)
         : base(prototype, realm)
@@ -135,12 +132,4 @@ public sealed partial class IntlNumberFormatPrototype : JsPrototype
         return obj;
     }
 
-    protected override void ConfigurePrototype()
-    {
-        Prototype.DefineProperty(ToStringTagKey,
-            new PropertyDescriptor
-            {
-                Value = "Intl.NumberFormat", Writable = false, Enumerable = false, Configurable = true
-            });
-    }
 }

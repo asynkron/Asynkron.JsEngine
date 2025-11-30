@@ -7,6 +7,12 @@ public sealed class JsPrototypeAttribute(string intrinsicName) : Attribute
     ///     Friendly name for diagnostics (e.g. "Intl.Locale").
     /// </summary>
     public string IntrinsicName { get; } = intrinsicName;
+
+    /// <summary>
+    ///     Optional value for %prototype%[@@toStringTag]; when specified the source generator
+    ///     emits the descriptor automatically.
+    /// </summary>
+    public string? ToStringTag { get; set; }
 }
 
 [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = true)]

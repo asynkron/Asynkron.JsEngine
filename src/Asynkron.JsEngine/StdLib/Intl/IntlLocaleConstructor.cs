@@ -5,9 +5,12 @@ using Asynkron.JsEngine.Runtime.Prototypes;
 namespace Asynkron.JsEngine.StdLib.Intl;
 
 [JsConstructor("Intl.Locale", PrototypeType = typeof(IntlLocalePrototype), Length = 1d, DisplayName = "Locale")]
-public sealed partial class IntlLocaleConstructor(JsObject prototype, RealmState realm)
-    : JsConstructor(prototype, realm)
+public sealed partial class IntlLocaleConstructor : JsConstructor
 {
+    public IntlLocaleConstructor(JsObject prototype, RealmState realm) : base(prototype, realm)
+    {
+    }
+
     protected override JsObject ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
     {
         var instance = PrepareThisObject(thisValue);

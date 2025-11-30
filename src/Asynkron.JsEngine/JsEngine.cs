@@ -49,6 +49,7 @@ public sealed class JsEngine : IAsyncDisposable
         Options = options ?? JsEngineOptions.Default;
         _asyncIteratorTracingEnabled = false;
         RealmState.Options = Options;
+        GlobalEnvironment.SetRealmState(RealmState);
         // Bind the global `this` value to a dedicated JS object so that
         // top-level `this` behaves like the global object (e.g. for UMD
         // wrappers such as babel-standalone).

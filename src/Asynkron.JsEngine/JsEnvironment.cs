@@ -20,6 +20,8 @@ public sealed class JsEnvironment
     private HashSet<Symbol>? _simpleCatchParameters;
     private HashSet<Symbol>? _annexBFunctionNames;
 
+    internal RealmState? RealmState { get; private set; }
+
     public JsEnvironment(
         JsEnvironment? enclosing = null,
         bool isFunctionScope = false,
@@ -38,6 +40,7 @@ public sealed class JsEnvironment
         _withObject = withObject;
         IsParameterEnvironment = isParameterEnvironment;
         IsBodyEnvironment = isBodyEnvironment;
+        RealmState = enclosing?.RealmState;
 
         Depth = (Enclosing?.Depth ?? -1) + 1;
         if (Depth > MaxDepth)
@@ -68,6 +71,11 @@ public sealed class JsEnvironment
     internal bool IsFunctionScope { get; }
 
     internal JsEnvironment? Enclosing { get; }
+
+    internal void SetRealmState(RealmState realmState)
+    {
+        RealmState = realmState;
+    }
 
     internal bool IsGlobalFunctionScope => IsFunctionScope && Enclosing is null;
 
@@ -661,12 +669,14 @@ public sealed class JsEnvironment
         {
             globalObject = global;
         }
+        var realm = RealmState ?? Enclosing?.RealmState;
 
         if (_values.TryGetValue(name, out var binding))
         {
             if (binding.IsConst)
             {
-                throw new ThrowSignal(StandardLibrary.CreateTypeError($"Cannot reassign constant '{name.Name}'."));
+                throw new ThrowSignal(StandardLibrary.CreateTypeError($"Cannot reassign constant '{name.Name}'.",
+                    realm: realm));
             }
 
             if (binding.IsGlobalConstant)
@@ -674,7 +684,8 @@ public sealed class JsEnvironment
                 if (isStrictContext)
                 {
                     throw new ThrowSignal(
-                        StandardLibrary.CreateTypeError($"ReferenceError: {name.Name} is not writable"));
+                        StandardLibrary.CreateTypeError($"ReferenceError: {name.Name} is not writable",
+                            realm: realm));
                 }
 
                 return;

@@ -71,6 +71,65 @@ value === undefined ? 'undefined' : (typeof value + ':' + value);"),
                     'threw: ' + err;
                 }
                 + ' | C1 keys: ' + Object.getOwnPropertyNames(C1).join(',') + ' | C2 keys: ' + Object.getOwnPropertyNames(C2).join(',')
+            "),
+            ("class scope open no heritage", @"
+                try {
+                    var probeBefore = function() { return C; };
+                    var C = 'outside';
+
+                    var cls = class C {
+                      probe() {
+                        return C;
+                      }
+                      modify() {
+                        C = null;
+                      }
+                    };
+
+                    return JSON.stringify({
+                        typeofCls: typeof cls,
+                        probeBefore: probeBefore(),
+                        probeResultType: typeof cls.prototype.probe,
+                        probeInvoke: cls.prototype.probe(),
+                        modifyThrows: (function(){
+                            try { cls.prototype.modify(); return 'no throw'; }
+                            catch (err) { return err?.name || err; }
+                        })(),
+                        probeAfterModify: cls.prototype.probe()
+                    });
+                } catch (err) {
+                    return 'threw: ' + err + ' stack: ' + err.stack;
+                }
+            "),
+            ("class scope open heritage raw", @"
+                try {
+                    'use strict';
+                    var probeBefore = function() { return C; };
+                    var C = 'outside';
+
+                    var cls = class C {
+                      probe() { return C; }
+                      modify() { C = null; }
+                    };
+
+                    var result1 = cls.prototype.probe();
+                    var afterThrows;
+                    try {
+                        cls.prototype.modify();
+                        afterThrows = 'no throw';
+                    } catch (err) {
+                        afterThrows = err?.name || err;
+                    }
+                    return JSON.stringify({
+                        typeofCls: typeof cls,
+                        resultType: typeof result1,
+                        equalsCls: result1 === cls,
+                        afterThrows,
+                        afterProbe: typeof cls.prototype.probe()
+                    });
+                } catch (err) {
+                    return 'threw: ' + err + ' stack: ' + err.stack;
+                }
             ")
         };
 

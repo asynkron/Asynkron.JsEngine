@@ -1,4 +1,6 @@
+using System;
 using System.Diagnostics;
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -89,7 +91,7 @@ public static partial class TypedAstEvaluator
                     EvaluateTaggedTemplate(taggedTemplate, environment, context),
                 AwaitExpression awaitExpression => EvaluateAwait(awaitExpression, environment, context),
                 YieldExpression yieldExpression => EvaluateYield(yieldExpression, environment, context),
-                ThisExpression => environment.Get(Symbol.This),
+                ThisExpression => ResolveThisValue(environment, context),
                 SuperExpression => throw new InvalidOperationException(
                     $"Super is not available in this context.{GetSourceInfo(context, expression.Source)}"),
                 _ => throw new NotSupportedException(
@@ -212,6 +214,7 @@ public static partial class TypedAstEvaluator
                 }
             }
         }
+
     }
 
     extension(ExpressionNode callee)
@@ -343,6 +346,20 @@ public static partial class TypedAstEvaluator
                 IdentifierExpression id => id.Name.Name,
                 _ => property.GetType().Name
             };
+        }
+    }
+
+    private static object? ResolveThisValue(JsEnvironment environment, EvaluationContext context)
+    {
+        try
+        {
+            return environment.Get(Symbol.This);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
+                     StringComparison.Ordinal))
+        {
+            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
+            throw new ThrowSignal(errorObject);
         }
     }
 }

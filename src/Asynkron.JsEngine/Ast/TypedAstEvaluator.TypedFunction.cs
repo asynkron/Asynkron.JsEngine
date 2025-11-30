@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -13,6 +14,7 @@ public static partial class TypedAstEvaluator
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
         private readonly bool _hasHoistableDeclarations;
+        private readonly JsEnvironment? _lexicalThisEnvironment;
         private readonly object? _lexicalThis;
         private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
         private readonly JsObject _properties = new();
@@ -41,13 +43,25 @@ public static partial class TypedAstEvaluator
             IsArrowFunction = function.IsArrow;
             _bodyLexicalNames = CollectLexicalNames(function.Body).ToArray();
             _hasHoistableDeclarations = HasHoistableDeclarations(function.Body);
-            if (IsArrowFunction && _closure.TryGet(Symbol.This, out var capturedThis))
+            if (IsArrowFunction)
             {
-                _lexicalThis = capturedThis;
-            }
-            else if (IsArrowFunction)
-            {
-                _lexicalThis = Symbol.Undefined;
+                try
+                {
+                    if (_closure.TryGet(Symbol.This, out var capturedThis))
+                    {
+                        _lexicalThis = capturedThis;
+                    }
+                    else
+                    {
+                        _lexicalThis = Symbol.Undefined;
+                    }
+                }
+                catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
+                             StringComparison.Ordinal))
+                {
+                    _lexicalThis = JsEnvironment.Uninitialized;
+                    _lexicalThisEnvironment = _closure;
+                }
             }
 
             var paramCount = GetExpectedParameterCount(function.Parameters);
@@ -390,7 +404,23 @@ public static partial class TypedAstEvaluator
             var boundThis = thisValue;
             if (IsArrowFunction)
             {
-                boundThis = _lexicalThis ?? Symbol.Undefined;
+                var lexicalThis = _lexicalThis;
+                if (_lexicalThisEnvironment is not null)
+                {
+                    try
+                    {
+                        lexicalThis = _lexicalThisEnvironment.Get(Symbol.This);
+                    }
+                    catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
+                                 StringComparison.Ordinal))
+                    {
+                        var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context,
+                            context.RealmState);
+                        throw new ThrowSignal(errorObject);
+                    }
+                }
+
+                boundThis = lexicalThis ?? Symbol.Undefined;
                 context.MarkThisInitialized();
                 functionEnvironment.Define(Symbol.This, boundThis);
 
@@ -443,19 +473,22 @@ public static partial class TypedAstEvaluator
                     boundThis = ToObjectForDestructuring(boundThis, context);
                 }
 
+                object? initialThisValue;
                 if (_isDerivedClassConstructor && _superConstructor is not null)
                 {
                     context.MarkThisUninitialized();
+                    initialThisValue = JsEnvironment.Uninitialized;
                 }
                 else
                 {
                     context.MarkThisInitialized();
+                    var resolvedThis = boundThis ?? new JsObject();
+                    initialThisValue = resolvedThis;
+                    boundThis = resolvedThis;
                 }
 
                 SetThisInitializationStatus(functionEnvironment, context.IsThisInitialized);
-                var resolvedThis = boundThis ?? new JsObject();
-                functionEnvironment.Define(Symbol.This, resolvedThis);
-                boundThis = resolvedThis;
+                functionEnvironment.Define(Symbol.This, initialThisValue);
 
                 var prototypeForSuper = _superPrototype;
                 if (prototypeForSuper is null && _homeObject is not null)

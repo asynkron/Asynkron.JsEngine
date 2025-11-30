@@ -10,16 +10,22 @@ public static partial class TypedAstEvaluator
     extension(ClassDefinition definition)
     {
         private object? CreateClassValue(JsEnvironment environment,
-            EvaluationContext context)
+            EvaluationContext context,
+            Symbol? className)
         {
             using var classScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict, true);
-            var (superConstructor, superPrototype) = ResolveSuperclass(definition.Extends, environment, context);
+            var (evaluationEnvironment, classScopeEnvironment) = CreateClassScopeIfNeeded(
+                environment,
+                className,
+                definition.Source);
+
+            var (superConstructor, superPrototype) = ResolveSuperclass(definition.Extends, evaluationEnvironment, context);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
             }
 
-            var constructorValue = EvaluateExpression(definition.Constructor, environment, context);
+            var constructorValue = EvaluateExpression(definition.Constructor, evaluationEnvironment, context);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
@@ -69,14 +75,24 @@ public static partial class TypedAstEvaluator
             prototype.SetProperty("constructor", constructorValue);
 
             AssignClassMembers(definition.Members, constructorAccessor, prototype, superConstructor, superPrototype,
-                environment, context, privateNameScope);
+                evaluationEnvironment, context, privateNameScope);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
             }
 
-            InitializeStaticElements(definition, constructorAccessor, environment, context, privateNameScope);
-            return context.ShouldStopEvaluation ? Symbol.Undefined : constructorValue;
+            InitializeStaticElements(definition, constructorAccessor, evaluationEnvironment, context, privateNameScope);
+            if (context.ShouldStopEvaluation)
+            {
+                return Symbol.Undefined;
+            }
+
+            if (classScopeEnvironment is not null && className is not null)
+            {
+                classScopeEnvironment.TryAssignBlockedBinding(className, constructorValue);
+            }
+
+            return constructorValue;
         }
 
         private PrivateNameScope? CreatePrivateNameScope()
@@ -87,19 +103,19 @@ public static partial class TypedAstEvaluator
         }
     }
 
-    private static JsEnvironment CreateClassScopeEnvironment(
-        JsEnvironment parentEnvironment,
-        Symbol className,
+    private static (JsEnvironment EvaluationEnvironment, JsEnvironment? ClassScope) CreateClassScopeIfNeeded(
+        JsEnvironment environment,
+        Symbol? className,
         SourceReference? source)
     {
-        var classEnvironment = new JsEnvironment(parentEnvironment, false, true, source, "class scope");
-        classEnvironment.Define(
-            className,
-            JsEnvironment.Uninitialized,
-            isConst: true,
-            isLexical: true,
-            blocksFunctionScopeOverride: true);
-        return classEnvironment;
+        if (className is null)
+        {
+            return (environment, null);
+        }
+
+        var classScope = new JsEnvironment(environment, isStrict: true, creatingSource: source, description: "class scope");
+        classScope.Define(className, JsEnvironment.Uninitialized, isConst: true, blocksFunctionScopeOverride: true);
+        return (classScope, classScope);
     }
 
     private static void InitializeStaticElements(

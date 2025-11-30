@@ -18,6 +18,7 @@ public static partial class TypedAstEvaluator
         private readonly YieldResumeContext _resumeContext = new();
         private readonly object? _thisValue;
         private readonly Stack<TryFrame> _tryStack = new();
+        private HashSet<Symbol>? _blockedFunctionVarNames;
         private bool _asyncStepMode;
         private EvaluationContext? _context;
         private int _currentInstructionIndex;
@@ -154,26 +155,86 @@ public static partial class TypedAstEvaluator
             var description = _function.Name is { } name
                 ? $"function* {name.Name}"
                 : "generator function";
-            var environment = new JsEnvironment(_closure, true, _function.Body.IsStrict, _function.Source, description);
-            environment.Define(Symbol.This, _thisValue ?? new JsObject());
-            environment.Define(Symbol.YieldResumeContextSymbol, _resumeContext);
-            environment.Define(Symbol.GeneratorInstanceSymbol, this);
 
-            var argumentsObject = CreateArgumentsObject(_function, _arguments, environment, _realmState, _callable);
-            environment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
+            var hasParameterExpressions = HasParameterExpressions(_function);
+            var lexicalNamesRaw = CollectLexicalNames(_function.Body);
+            var lexicalNames = lexicalNamesRaw.Count == 0
+                ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
+                : new HashSet<Symbol>(lexicalNamesRaw, ReferenceEqualityComparer<Symbol>.Instance);
+            var catchParameterNamesRaw = CollectCatchParameterNames(_function.Body);
+            var catchParameterNames = catchParameterNamesRaw.Count == 0
+                ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
+                : new HashSet<Symbol>(catchParameterNamesRaw, ReferenceEqualityComparer<Symbol>.Instance);
+            var simpleCatchParameterNamesRaw = CollectSimpleCatchParameterNames(_function.Body);
+            var simpleCatchParameterNames = simpleCatchParameterNamesRaw.Count == 0
+                ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
+                : new HashSet<Symbol>(simpleCatchParameterNamesRaw, ReferenceEqualityComparer<Symbol>.Instance);
+            var bodyLexicalNames = lexicalNames.Count == 0
+                ? lexicalNames
+                : new HashSet<Symbol>(lexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
+            bodyLexicalNames.ExceptWith(simpleCatchParameterNames);
+
+            var parameterNames = new List<Symbol>();
+            CollectParameterNamesFromFunction(_function, parameterNames);
+            var blockedFunctionVarNames = bodyLexicalNames.Count == 0
+                ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
+                : new HashSet<Symbol>(bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
+            foreach (var parameterName in parameterNames)
+            {
+                blockedFunctionVarNames.Add(parameterName);
+            }
+
+            JsEnvironment parameterEnvironment;
+            JsEnvironment functionEnvironment;
+            if (hasParameterExpressions)
+            {
+                parameterEnvironment = new JsEnvironment(_closure, false, _function.Body.IsStrict, _function.Source,
+                    description, isParameterEnvironment: true);
+                parameterEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+                functionEnvironment = new JsEnvironment(parameterEnvironment, true, _function.Body.IsStrict,
+                    _function.Source, description);
+                functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+            }
+            else
+            {
+                functionEnvironment = new JsEnvironment(_closure, true, _function.Body.IsStrict, _function.Source,
+                    description);
+                functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+                parameterEnvironment = functionEnvironment;
+            }
+
+            var executionEnvironment = new JsEnvironment(functionEnvironment, false, _function.Body.IsStrict,
+                _function.Source, description, isBodyEnvironment: true);
+            executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+
+            functionEnvironment.Define(Symbol.This, _thisValue ?? new JsObject());
+            functionEnvironment.Define(Symbol.YieldResumeContextSymbol, _resumeContext);
+            functionEnvironment.Define(Symbol.GeneratorInstanceSymbol, this);
+
+            var argumentsObject =
+                CreateArgumentsObject(_function, _arguments, parameterEnvironment, _realmState, _callable);
+            parameterEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
+            if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
+            {
+                functionEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
+            }
 
             if (_function.Name is { } functionName)
             {
-                environment.Define(functionName, _callable);
+                parameterEnvironment.Define(functionName, _callable);
             }
 
             var generatorContext = _realmState.CreateContext(
                 ScopeKind.Function,
                 DetermineGeneratorScopeMode(),
                 true);
-            HoistVarDeclarations(_function.Body, environment, generatorContext);
+            generatorContext.BlockedFunctionVarNames = blockedFunctionVarNames;
+            HoistVarDeclarations(_function.Body, executionEnvironment, generatorContext,
+                lexicalNames: lexicalNames,
+                catchParameterNames: catchParameterNames,
+                simpleCatchParameterNames: simpleCatchParameterNames);
 
-            BindFunctionParameters(_function, _arguments, environment, generatorContext);
+            BindFunctionParameters(_function, _arguments, parameterEnvironment, generatorContext);
             if (generatorContext.IsThrow)
             {
                 var thrown = generatorContext.FlowValue;
@@ -186,7 +247,8 @@ public static partial class TypedAstEvaluator
                 generatorContext.ClearReturn();
             }
 
-            return environment;
+            _blockedFunctionVarNames = blockedFunctionVarNames;
+            return executionEnvironment;
         }
 
         private static JsObject CreateIteratorResult(object? value, bool done)
@@ -1054,6 +1116,9 @@ public static partial class TypedAstEvaluator
             {
                 _context.Clear();
             }
+
+            _context.BlockedFunctionVarNames = _blockedFunctionVarNames ??
+                                               new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
 
             return _context;
         }

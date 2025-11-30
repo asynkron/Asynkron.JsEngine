@@ -50,6 +50,7 @@ public static partial class TypedAstEvaluator
             var errorMessage = propertyName.Length > 0
                 ? $"Cannot read property '{propertyName}' of null or undefined"
                 : "Cannot read properties of null or undefined";
+            System.Console.WriteLine($"[ReadPropertyValue] Null target for property '{propertyName}'");
             var error = StandardLibrary.CreateTypeError(
                 errorMessage,
                 context,

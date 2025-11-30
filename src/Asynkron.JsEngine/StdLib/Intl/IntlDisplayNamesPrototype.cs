@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Text.RegularExpressions;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -23,11 +22,6 @@ public sealed partial class IntlDisplayNamesPrototype
         "era", "year", "quarter", "month", "weekOfYear", "weekday", "day",
         "dayPeriod", "hour", "minute", "second", "relative"
     };
-
-    private static readonly Regex LanguageTagRegex =
-        new(@"^(?<language>[A-Za-z]{2,3}|[A-Za-z]{5,8})(-(?<script>[A-Za-z]{4}))?(-(?
-<region>[A-Za-z]{2}|[0-9]{3}))?(?<variants>(-(?:[0-9][A-Za-z0-9]{3}|[A-Za-z0-9]{5,8}))*)$",
-            RegexOptions.Compiled);
 
     internal static void InitializeInternalSlots(JsObject instance, string locale, string style, string type,
         string fallback, string languageDisplay)
@@ -66,18 +60,23 @@ public sealed partial class IntlDisplayNamesPrototype
     {
         var instance = ValidateReceiver(thisValue);
         var obj = new JsObject(Realm.ObjectPrototype);
-        obj.SetProperty("locale",
-            instance.TryGetProperty(LocaleSlot, out var locale) ? locale ?? "en" : "en");
-        obj.SetProperty("style",
-            instance.TryGetProperty(StyleSlot, out var style) ? style ?? "long" : "long");
-        obj.SetProperty("type",
-            instance.TryGetProperty(TypeSlot, out var type) ? type ?? "language" : "language");
-        obj.SetProperty("fallback",
-            instance.TryGetProperty(FallbackSlot, out var fallback) ? fallback ?? "code" : "code");
-        obj.SetProperty("languageDisplay",
-            instance.TryGetProperty(LanguageDisplaySlot, out var languageDisplay)
-                ? languageDisplay ?? "dialect"
-                : "dialect");
+        const string operation = "Intl.DisplayNames.prototype.resolvedOptions";
+        var localeValue = instance.TryGetProperty(LocaleSlot, out var locale) ? locale ?? "en" : "en";
+        CreateDataPropertyOrThrow(obj, "locale", localeValue, Realm, operation);
+
+        var styleValue = instance.TryGetProperty(StyleSlot, out var style) ? style ?? "long" : "long";
+        CreateDataPropertyOrThrow(obj, "style", styleValue, Realm, operation);
+
+        var typeValue = instance.TryGetProperty(TypeSlot, out var type) ? type ?? "language" : "language";
+        CreateDataPropertyOrThrow(obj, "type", typeValue, Realm, operation);
+
+        var fallbackValue = instance.TryGetProperty(FallbackSlot, out var fallback) ? fallback ?? "code" : "code";
+        CreateDataPropertyOrThrow(obj, "fallback", fallbackValue, Realm, operation);
+
+        var languageDisplayValue = instance.TryGetProperty(LanguageDisplaySlot, out var languageDisplay)
+            ? languageDisplay ?? "dialect"
+            : "dialect";
+        CreateDataPropertyOrThrow(obj, "languageDisplay", languageDisplayValue, Realm, operation);
         return obj;
     }
 
@@ -157,39 +156,17 @@ public sealed partial class IntlDisplayNamesPrototype
             throw ThrowRangeError("Invalid language tag 'root'", realm: Realm);
         }
 
-        var match = LanguageTagRegex.Match(code);
-        if (!match.Success)
+        var canonical = IntlUtilities.CanonicalizeLocale(code, Realm);
+        var subtags = canonical.Split('-', StringSplitOptions.RemoveEmptyEntries);
+        for (var i = 1; i < subtags.Length; i++)
         {
-            throw ThrowRangeError($"Invalid language tag '{code}'", realm: Realm);
+            if (subtags[i].Length == 1)
+            {
+                throw ThrowRangeError($"Invalid language tag '{code}'", realm: Realm);
+            }
         }
 
-        var language = match.Groups["language"].Value.ToLowerInvariant();
-        var script = match.Groups["script"].Success
-            ? match.Groups["script"].Value
-            : null;
-        var region = match.Groups["region"].Success
-            ? match.Groups["region"].Value
-            : null;
-        var variantsGroup = match.Groups["variants"];
-
-        var builder = new List<string> { language };
-        if (script is not null)
-        {
-            builder.Add(char.ToUpperInvariant(script[0]) + script[1..].ToLowerInvariant());
-        }
-
-        if (region is not null)
-        {
-            builder.Add(region.Length == 2 ? region.ToUpperInvariant() : region);
-        }
-
-        if (variantsGroup.Success && variantsGroup.Value.Length > 0)
-        {
-            var variants = variantsGroup.Value.Split('-', StringSplitOptions.RemoveEmptyEntries);
-            builder.AddRange(variants.Select(v => v.ToLowerInvariant()));
-        }
-
-        return string.Join('-', builder);
+        return canonical;
     }
 
     private string? CanonicalizeDateTimeField(string code)

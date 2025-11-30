@@ -3109,7 +3109,7 @@ public static partial class StandardLibrary
         _ = returnFn.Invoke([], iterator);
     }
 
-    private static void CreateDataPropertyOrThrow(IJsObjectLike target, string propertyKey, object? value,
+    internal static void CreateDataPropertyOrThrow(IJsObjectLike target, string propertyKey, object? value,
         RealmState? realm, string operation)
     {
         try

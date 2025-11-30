@@ -20,7 +20,17 @@ public abstract class JsConstructor(JsObject prototype, RealmState realm)
     /// </summary>
     protected JsObject PrepareThisObject(object? thisValue, bool assignPrototype = true)
     {
-        var instance = thisValue as JsObject ?? new JsObject();
+        if (thisValue is JsObject existing)
+        {
+            if (assignPrototype && existing.Prototype is null && Prototype is not null)
+            {
+                existing.SetPrototype(Prototype);
+            }
+
+            return existing;
+        }
+
+        var instance = new JsObject();
         if (assignPrototype)
         {
             instance.SetPrototype(Prototype);

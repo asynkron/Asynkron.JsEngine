@@ -55,7 +55,24 @@ public static partial class StandardLibrary
         }
 
         var argList = args[1] is JsArray arr ? arr.Items.ToArray() : [];
-        var newTarget = args.Count > 2 && args[2] is IJsCallable ctor ? ctor : target;
+        IJsCallable newTarget;
+        if (args.Count > 2)
+        {
+            if (args[2] is not IJsCallable ctor)
+            {
+                var message = "newTarget is not a constructor";
+                var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
+                    ? typeErrorCtor.Invoke([message], null)
+                    : new InvalidOperationException(message);
+                throw new ThrowSignal(error);
+            }
+
+            newTarget = ctor;
+        }
+        else
+        {
+            newTarget = target;
+        }
 
         if (target is HostFunction hostTarget &&
             (!hostTarget.IsConstructor || hostTarget.DisallowConstruct))
@@ -258,9 +275,21 @@ public static partial class StandardLibrary
             return new JsArray(moduleNamespace.OwnKeys(), realm);
         }
 
+        if (target is JsObject jsObject)
+        {
+            var ordered = new JsArray(realm);
+            foreach (var key in jsObject.GetOwnPropertyNames())
+            {
+                ordered.Push(key);
+            }
+
+            return ordered;
+        }
+
         var keys = target.Keys
             .Where(k => !k.StartsWith("__getter__", StringComparison.Ordinal) &&
-                        !k.StartsWith("__setter__", StringComparison.Ordinal))
+                        !k.StartsWith("__setter__", StringComparison.Ordinal) &&
+                        !string.Equals(k, "__proto__", StringComparison.Ordinal))
             .ToArray();
         return new JsArray(keys, realm);
     }
@@ -408,6 +437,11 @@ public static partial class StandardLibrary
             return true;
         }
 
+        if (TryGetIntlPrototype(ctorName, realmState, realmObject, out prototype))
+        {
+            return true;
+        }
+
         if (realmState is { ObjectPrototype: not null })
         {
             prototype = realmState.ObjectPrototype;
@@ -445,6 +479,54 @@ public static partial class StandardLibrary
         };
 
         return prototype is not null;
+    }
+
+    private static bool TryGetIntlPrototype(string ctorName, RealmState? realmState, JsObject? realmObject,
+        out JsObject? prototype)
+    {
+        prototype = null;
+        if (!IsIntlConstructor(ctorName))
+        {
+            return false;
+        }
+
+        var intl = ResolveRealmIntlObject(realmState, realmObject);
+        if (intl is null)
+        {
+            return false;
+        }
+
+        if (!intl.TryGetProperty(ctorName, out var ctorValue))
+        {
+            return false;
+        }
+
+        return TryGetPrototype(ctorValue!, out prototype);
+    }
+
+    private static bool IsIntlConstructor(string ctorName)
+    {
+        return ctorName is "Locale" or "DurationFormat" or "Collator" or "DateTimeFormat" or "NumberFormat" or
+            "RelativeTimeFormat" or "DisplayNames";
+    }
+
+    private static JsObject? ResolveRealmIntlObject(RealmState? realmState, JsObject? realmObject)
+    {
+        if (realmObject is not null &&
+            realmObject.TryGetProperty("Intl", out var intlValue) &&
+            intlValue is JsObject intlObj)
+        {
+            return intlObj;
+        }
+
+        var engine = realmState?.Engine;
+        if (engine?.GlobalObject.TryGetProperty("Intl", out var globalIntl) == true &&
+            globalIntl is JsObject globalIntlObj)
+        {
+            return globalIntlObj;
+        }
+
+        return null;
     }
 
     private static bool TryGetRealmInfo(object candidate, out RealmState? realmState, out JsObject? realmObject)

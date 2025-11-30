@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    public static HostFunction CreateSymbolConstructor()
+    public static HostFunction CreateSymbolConstructor(RealmState realm)
     {
         var symbolConstructor = new HostFunction(SymbolConstructor);
 
@@ -29,6 +29,12 @@ public static partial class StandardLibrary
         symbolConstructor.SetProperty("split", TypedAstSymbol.For("Symbol.split"));
         symbolConstructor.SetProperty("species", TypedAstSymbol.For("Symbol.species"));
         symbolConstructor.SetProperty("isConcatSpreadable", TypedAstSymbol.For("Symbol.isConcatSpreadable"));
+
+        if (symbolConstructor.TryGetProperty("prototype", out var protoValue) && protoValue is JsObject prototype)
+        {
+            prototype.SetPrototype(realm.ObjectPrototype);
+            realm.SymbolPrototype = prototype;
+        }
 
         return symbolConstructor;
 
@@ -68,7 +74,8 @@ public static partial class StandardLibrary
     {
         var wrapper = new JsObject { ["__value__"] = symbol };
 
-        var proto = context?.RealmState?.ObjectPrototype ?? realm?.ObjectPrototype;
+        var proto = context?.RealmState?.SymbolPrototype ?? realm?.SymbolPrototype
+                    ?? context?.RealmState?.ObjectPrototype ?? realm?.ObjectPrototype;
         if (proto is not null)
         {
             wrapper.SetPrototype(proto);

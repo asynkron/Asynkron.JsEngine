@@ -24,25 +24,50 @@ public static partial class StandardLibrary
             });
 
         var localeCtor = IntlLocaleConstructor.CreateConstructor(realm);
-        intl.SetProperty("Locale", localeCtor);
+        intl.DefineProperty("Locale",
+            new PropertyDescriptor
+            {
+                Value = localeCtor, Writable = true, Enumerable = false, Configurable = true
+            });
 
         var durationFormatCtor = IntlDurationFormatConstructor.CreateConstructor(realm);
-        intl.SetProperty("DurationFormat", durationFormatCtor);
+        intl.DefineProperty("DurationFormat",
+            new PropertyDescriptor
+            {
+                Value = durationFormatCtor, Writable = true, Enumerable = false, Configurable = true
+            });
 
         var collatorCtor = IntlCollatorConstructor.CreateConstructor(realm);
-        intl.SetProperty("Collator", collatorCtor);
+        intl.DefineProperty("Collator",
+            new PropertyDescriptor { Value = collatorCtor, Writable = true, Enumerable = false, Configurable = true });
 
         var dateTimeFormatCtor = IntlDateTimeFormatConstructor.CreateConstructor(realm);
-        intl.SetProperty("DateTimeFormat", dateTimeFormatCtor);
+        intl.DefineProperty("DateTimeFormat",
+            new PropertyDescriptor
+            {
+                Value = dateTimeFormatCtor, Writable = true, Enumerable = false, Configurable = true
+            });
 
         var numberFormatCtor = IntlNumberFormatConstructor.CreateConstructor(realm);
-        intl.SetProperty("NumberFormat", numberFormatCtor);
+        intl.DefineProperty("NumberFormat",
+            new PropertyDescriptor
+            {
+                Value = numberFormatCtor, Writable = true, Enumerable = false, Configurable = true
+            });
 
         var relativeTimeFormatCtor = IntlRelativeTimeFormatConstructor.CreateConstructor(realm);
-        intl.SetProperty("RelativeTimeFormat", relativeTimeFormatCtor);
+        intl.DefineProperty("RelativeTimeFormat",
+            new PropertyDescriptor
+            {
+                Value = relativeTimeFormatCtor, Writable = true, Enumerable = false, Configurable = true
+            });
 
         var displayNamesCtor = IntlDisplayNamesConstructor.CreateConstructor(realm);
-        intl.SetProperty("DisplayNames", displayNamesCtor);
+        intl.DefineProperty("DisplayNames",
+            new PropertyDescriptor
+            {
+                Value = displayNamesCtor, Writable = true, Enumerable = false, Configurable = true
+            });
 
         var getCanonicalLocales = new HostFunction(args => CreateCanonicalLocalesResult(args), realm,
             isConstructor: false);

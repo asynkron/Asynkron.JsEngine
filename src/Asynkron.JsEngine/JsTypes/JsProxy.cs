@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -9,7 +10,7 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     Only the traps required by the current test surface (has/get/set/defineProperty/getOwnPropertyDescriptor/delete)
 ///     are implemented for now; other operations fall back to the underlying target.
 /// </summary>
-public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl
+public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IJsCallable
 {
     private readonly JsObject _meta = new();
     private readonly RealmState? _realm;
@@ -198,6 +199,19 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
 
         return Target.TryGetProperty(name, out _);
+    }
+
+    public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
+    {
+        _ = Handler ?? throw StandardLibrary.ThrowTypeError("Cannot perform operation on a revoked Proxy",
+            realm: _realm);
+
+        if (Target is not IJsCallable callableTarget)
+        {
+            throw StandardLibrary.ThrowTypeError("Proxy target is not callable", realm: _realm);
+        }
+
+        return callableTarget.Invoke(arguments, thisValue);
     }
 
     private bool TryGetTrap(string trapName, out IJsCallable callable)

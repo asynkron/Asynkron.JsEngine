@@ -141,7 +141,7 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("Promise", StandardLibrary.CreatePromiseConstructor(this));
 
         // Register Symbol constructor
-        SetGlobal("Symbol", StandardLibrary.CreateSymbolConstructor());
+        SetGlobal("Symbol", StandardLibrary.CreateSymbolConstructor(RealmState));
 
         // Register Map constructor
         SetGlobal("Map", StandardLibrary.CreateMapConstructor());

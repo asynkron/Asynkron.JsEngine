@@ -27,6 +27,7 @@ public sealed class RealmState
     public JsObject? NumberPrototype { get; set; }
     public JsObject? StringPrototype { get; set; }
     public JsObject? BigIntPrototype { get; set; }
+    public JsObject? SymbolPrototype { get; set; }
     public HostFunction? ArrayConstructor { get; set; }
     public JsObject? TypedArrayPrototype { get; set; }
     public HostFunction? TypedArrayConstructor { get; set; }

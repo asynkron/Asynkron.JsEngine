@@ -6,7 +6,7 @@ using Asynkron.JsEngine.Runtime.Prototypes;
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
-[JsConstructor("Intl.DisplayNames", PrototypeType = typeof(IntlDisplayNamesPrototype), Length = 1d,
+[JsConstructor("Intl.DisplayNames", PrototypeType = typeof(IntlDisplayNamesPrototype), Length = 2d,
     DisplayName = "DisplayNames")]
 public sealed partial class IntlDisplayNamesConstructor(JsObject prototype, RealmState realm)
     : JsConstructor(prototype, realm)
@@ -22,12 +22,13 @@ public sealed partial class IntlDisplayNamesConstructor(JsObject prototype, Real
         var (_, resolvedLocale) = StandardLibrary.ResolveIntlLocales(localesArg, Realm);
 
         var options = NormalizeOptions(optionsArg);
-        var type = ReadStringOption(options, "type", SupportedTypes, null)
-                   ?? throw StandardLibrary.ThrowTypeError(
-                       "Intl.DisplayNames requires a type option", realm: Realm);
-        var style = ReadStringOption(options, "style", ["long", "short", "narrow"], "long")!;
-        var fallback = ReadStringOption(options, "fallback", ["code", "none"], "code")!;
-        var languageDisplay = ReadStringOption(options, "languageDisplay", ["dialect", "standard"], "dialect")!;
+        var localeMatcher = ReadStringOption(options, "localeMatcher", ["lookup", "best fit"], "best fit");
+        var style = ReadStringOption(options, "style", ["long", "short", "narrow"], "long");
+        var type = ReadStringOption(options, "type", SupportedTypes, null, requireValue: true);
+        var fallback = ReadStringOption(options, "fallback", ["code", "none"], "code");
+        var languageDisplay = ReadStringOption(options, "languageDisplay", ["dialect", "standard"], "dialect");
+
+        _ = localeMatcher;
 
         var instance = PrepareThisObject(thisValue);
         IntlDisplayNamesPrototype.InitializeInternalSlots(
@@ -60,6 +61,9 @@ public sealed partial class IntlDisplayNamesConstructor(JsObject prototype, Real
             {
                 Value = supportedLocalesOf, Writable = true, Enumerable = false, Configurable = true
             });
+
+        supportedLocalesOf.SetPrototype(constructor.Prototype);
+        supportedLocalesOf.Delete("prototype");
     }
 
     private JsObject? NormalizeOptions(object? optionsArg)
@@ -82,23 +86,25 @@ public sealed partial class IntlDisplayNamesConstructor(JsObject prototype, Real
         throw StandardLibrary.ThrowTypeError("Intl.DisplayNames options must be an object", realm: Realm);
     }
 
-    private string? ReadStringOption(JsObject? options, string propertyName, IReadOnlyList<string> allowed,
-        string? defaultValue)
+    private string ReadStringOption(JsObject? options, string propertyName, IReadOnlyList<string> allowed,
+        string? defaultValue, bool requireValue = false)
     {
         if (options is null ||
             !options.TryGetProperty(propertyName, out var value) ||
-            value is null || ReferenceEquals(value, Symbol.Undefined))
+            ReferenceEquals(value, Symbol.Undefined))
         {
-            return defaultValue;
+            if (requireValue)
+            {
+                throw StandardLibrary.ThrowTypeError(
+                    $"Intl.DisplayNames requires a {propertyName} option", realm: Realm);
+            }
+
+            return defaultValue ?? string.Empty;
         }
 
-        if (value is not string str)
-        {
-            throw StandardLibrary.ThrowTypeError(
-                $"Intl.DisplayNames {propertyName} option must be a string", realm: Realm);
-        }
+        var str = StandardLibrary.JsValueToString(value, Realm);
 
-        if (!allowed.Contains(str, StringComparer.Ordinal))
+        if (allowed is not null && !allowed.Contains(str, StringComparer.Ordinal))
         {
             throw StandardLibrary.ThrowRangeError(
                 $"Intl.DisplayNames {propertyName} option '{str}' is not supported", realm: Realm);

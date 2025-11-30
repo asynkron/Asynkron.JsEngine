@@ -1154,7 +1154,19 @@ public static partial class StandardLibrary
             }
 
             obj.SetProperty("__value__", str);
-            obj.SetProperty("length", (double)str.Length);
+            obj.DefineProperty("length",
+                new PropertyDescriptor
+                {
+                    Value = (double)str.Length,
+                    Writable = false,
+                    Enumerable = false,
+                    Configurable = false,
+                    HasValue = true,
+                    HasWritable = true,
+                    HasEnumerable = true,
+                    HasConfigurable = true
+                });
+            obj.SetVirtualPropertyProvider(new StringVirtualPropertyProvider(str));
             if (realm.StringPrototype is not null)
             {
                 obj.SetPrototype(realm.StringPrototype);

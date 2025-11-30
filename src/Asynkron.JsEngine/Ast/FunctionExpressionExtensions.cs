@@ -29,9 +29,16 @@ public static partial class TypedAstEvaluator
                     .Select(p => p.Name!)
                     .ToArray();
 
-                for (var i = 0; i < mappedParameters.Length && i < parameterSymbols.Length; i++)
+                var seen = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+                for (var i = Math.Min(mappedParameters.Length, parameterSymbols.Length) - 1; i >= 0; i--)
                 {
-                    mappedParameters[i] = parameterSymbols[i];
+                    var symbol = parameterSymbols[i];
+                    if (symbol is null || !seen.Add(symbol))
+                    {
+                        continue;
+                    }
+
+                    mappedParameters[i] = symbol;
                 }
             }
 

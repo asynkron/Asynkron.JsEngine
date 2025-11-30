@@ -2399,16 +2399,26 @@ public static partial class StandardLibrary
             return CreateDefaultArray();
         }
 
+        var useDefaultConstructor = false;
         if (!jsArray.TryGetProperty("constructor", out var constructorValue) ||
-            constructorValue is null ||
             ReferenceEquals(constructorValue, Symbol.Undefined))
         {
-            return CreateDefaultArray();
+            useDefaultConstructor = true;
+        }
+
+        if (!useDefaultConstructor &&
+            realm is not null &&
+            constructorValue is HostFunction hostCtor &&
+            hostCtor.RealmState is { } ctorRealm &&
+            !ReferenceEquals(ctorRealm, realm) &&
+            ReferenceEquals(hostCtor, ctorRealm.ArrayConstructor))
+        {
+            useDefaultConstructor = true;
         }
 
         object? constructor = constructorValue;
 
-        if (constructor is IJsPropertyAccessor ctorAccessor)
+        if (!useDefaultConstructor && constructor is IJsPropertyAccessor ctorAccessor)
         {
             object? species = null;
             if (ctorAccessor.TryGetProperty(SymbolSpeciesKey, out var speciesValue))
@@ -2418,19 +2428,15 @@ public static partial class StandardLibrary
 
             if (species is null || ReferenceEquals(species, Symbol.Undefined))
             {
-                constructor = null;
+                useDefaultConstructor = true;
             }
             else
             {
                 constructor = species;
             }
         }
-        else
-        {
-            constructor = null;
-        }
 
-        if (constructor is null)
+        if (useDefaultConstructor)
         {
             return CreateDefaultArray();
         }

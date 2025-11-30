@@ -19,7 +19,7 @@ public sealed partial class IntlNumberFormatConstructor(JsObject prototype, Real
 
     protected override void ConfigureConstructor(HostFunction constructor)
     {
-        var supportedLocalesOf = new HostFunction(SupportedLocalesOf) { IsConstructor = false };
+        var supportedLocalesOf = new HostFunction(SupportedLocalesOf, isConstructor: false);
         supportedLocalesOf.DefineProperty("length",
             new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
         supportedLocalesOf.DefineProperty("name",

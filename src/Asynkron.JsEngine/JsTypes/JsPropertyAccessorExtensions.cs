@@ -10,28 +10,28 @@ public static class JsPropertyAccessorExtensions
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
         Func<IReadOnlyList<object?>, object?> handler)
     {
-        var fn = new HostFunction(handler) { IsConstructor = false };
+        var fn = new HostFunction(handler, isConstructor: false);
         accessor.SetProperty(name, fn);
     }
 
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
         Func<IReadOnlyList<object?>, RealmState?, object?> handler, RealmState? realmState)
     {
-        var fn = new HostFunction(args => handler(args, realmState), realmState) { IsConstructor = false };
+        var fn = new HostFunction(args => handler(args, realmState), realmState, isConstructor: false);
         accessor.SetProperty(name, fn);
     }
 
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
         Func<object?, IReadOnlyList<object?>, object?> handler)
     {
-        var fn = new HostFunction(handler) { IsConstructor = false };
+        var fn = new HostFunction(handler, isConstructor: false);
         accessor.SetProperty(name, fn);
     }
 
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
         Func<object?, IReadOnlyList<object?>, RealmState?, object?> handler, RealmState? realmState)
     {
-        var fn = new HostFunction(handler, realmState) { IsConstructor = false };
+        var fn = new HostFunction(handler, realmState, isConstructor: false);
         accessor.SetProperty(name, fn);
     }
 

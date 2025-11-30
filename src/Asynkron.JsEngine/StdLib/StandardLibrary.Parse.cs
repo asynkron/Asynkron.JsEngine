@@ -69,10 +69,7 @@ public static partial class StandardLibrary
             }
 
             return hasDigits ? result * sign : double.NaN;
-        })
-        {
-            IsConstructor = false
-        };
+        }, isConstructor: false);
         fn.Properties.Delete("prototype");
         return fn;
     }
@@ -166,10 +163,7 @@ public static partial class StandardLibrary
             }
 
             return double.NaN;
-        })
-        {
-            IsConstructor = false
-        };
+        }, isConstructor: false);
         fn.Properties.Delete("prototype");
         return fn;
     }

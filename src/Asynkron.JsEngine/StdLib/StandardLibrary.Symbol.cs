@@ -74,23 +74,18 @@ public static partial class StandardLibrary
             wrapper.SetPrototype(proto);
         }
 
-        var valueOf = new HostFunction((thisValue, _) => UnboxSymbol(thisValue, context, realm))
-        {
-            IsConstructor = false
-        };
+        var valueOf = new HostFunction((thisValue, _) => UnboxSymbol(thisValue, context, realm), isConstructor: false);
 
         var toString =
-            new HostFunction((thisValue, _) => UnboxSymbol(thisValue, context, realm).ToString())
-            {
-                IsConstructor = false
-            };
+            new HostFunction((thisValue, _) => UnboxSymbol(thisValue, context, realm).ToString(),
+                isConstructor: false);
 
         wrapper.SetHostedProperty("valueOf", valueOf);
         wrapper.SetHostedProperty("toString", toString);
 
         var toPrimitiveKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toPrimitive").GetHashCode()}";
         wrapper.SetProperty(toPrimitiveKey,
-            new HostFunction((thisValue, _) => UnboxSymbol(thisValue, context, realm)) { IsConstructor = false });
+            new HostFunction((thisValue, _) => UnboxSymbol(thisValue, context, realm), isConstructor: false));
 
         var toStringTagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
         wrapper.SetProperty(toStringTagKey, "Symbol");

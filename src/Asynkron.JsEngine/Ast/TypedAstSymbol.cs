@@ -24,7 +24,7 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
         }
 
         return "Symbol()";
-    }) { IsConstructor = false };
+    }, isConstructor: false);
 
     private readonly int _id;
     private readonly string? _key; // null for non-global symbols, non-null for global symbols
@@ -52,14 +52,14 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
 
         if (string.Equals(name, "valueOf", StringComparison.Ordinal))
         {
-            value = new HostFunction((thisValue, _) => Unbox(thisValue)) { IsConstructor = false };
+            value = new HostFunction((thisValue, _) => Unbox(thisValue), isConstructor: false);
             return true;
         }
 
         var toPrimitiveKey = $"@@symbol:{For("Symbol.toPrimitive").GetHashCode()}";
         if (string.Equals(name, toPrimitiveKey, StringComparison.Ordinal))
         {
-            value = new HostFunction((thisValue, _) => Unbox(thisValue)) { IsConstructor = false };
+            value = new HostFunction((thisValue, _) => Unbox(thisValue), isConstructor: false);
             return true;
         }
 

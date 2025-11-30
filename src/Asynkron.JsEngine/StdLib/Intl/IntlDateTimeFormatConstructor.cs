@@ -216,12 +216,8 @@ public sealed partial class IntlDateTimeFormatConstructor(JsObject prototype, Re
             {
                 result.Push(locale);
             }
-
             return result;
-        })
-        {
-            IsConstructor = false
-        };
+        }, isConstructor: false);
 
         supportedLocales.DefineProperty("length",
             new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });

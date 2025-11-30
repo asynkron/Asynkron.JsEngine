@@ -33,10 +33,7 @@ public sealed partial class IntlNumberFormatPrototype
         {
             var value = formatArgs.Count > 0 ? formatArgs[0] : Symbol.Undefined;
             return FormatNumberValue(value);
-        }, Realm)
-        {
-            IsConstructor = false
-        };
+        }, Realm, isConstructor: false);
     }
 
     [JsHostMethod("formatToParts", Length = 0d)]

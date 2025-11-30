@@ -534,7 +534,7 @@ public static partial class StandardLibrary
                         }
 
                         return getter(resolved);
-                    }) { IsConstructor = false },
+                    }, isConstructor: false),
                     Enumerable = false,
                     Configurable = true
                 };
@@ -601,7 +601,7 @@ public static partial class StandardLibrary
                     {
                         var statics = EnsureRegExpReceiver(thisValue);
                         return getter(statics);
-                    }) { IsConstructor = false },
+                    }, isConstructor: false),
                     Set = null,
                     Enumerable = false,
                     Configurable = true
@@ -619,14 +619,14 @@ public static partial class StandardLibrary
                 {
                     var statics = EnsureRegExpReceiver(thisValue);
                     return statics.Input;
-                }) { IsConstructor = false },
+                }, isConstructor: false),
                 Set = new HostFunction((thisValue, args) =>
                 {
                     var statics = EnsureRegExpReceiver(thisValue);
                     var value = args.Count > 0 ? args[0] : Symbol.Undefined;
                     statics.Input = value?.ToString() ?? string.Empty;
                     return null;
-                }) { IsConstructor = false },
+                }, isConstructor: false),
                 Enumerable = false,
                 Configurable = true
             };
@@ -660,7 +660,7 @@ public static partial class StandardLibrary
                 Get = new HostFunction((thisValue, _) =>
                     !ReferenceEquals(thisValue, realm.RegExpConstructor)
                         ? throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm)
-                        : false) { IsConstructor = false },
+                        : false, isConstructor: false),
                 Set = null,
                 Enumerable = false,
                 Configurable = true

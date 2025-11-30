@@ -80,17 +80,17 @@ public static partial class StandardLibrary
         stringObj.SetHostedProperty("lastIndexOf", LastIndexOf);
         stringObj.SetHostedProperty("substring", Substring);
         stringObj.SetHostedProperty("slice", Slice);
-        var substrFn = new HostFunction(Substr) { IsConstructor = false };
+        var substrFn = new HostFunction(Substr, isConstructor: false);
         DefineBuiltinFunction(stringObj, "substr", substrFn, 2);
         stringObj.SetHostedProperty("concat", Concat);
         stringObj.SetHostedProperty("toLowerCase", ToLowerCase);
         stringObj.SetHostedProperty("toUpperCase", ToUpperCase);
-        var trimStartFn = new HostFunction(TrimStart) { IsConstructor = false };
+        var trimStartFn = new HostFunction(TrimStart, isConstructor: false);
         DefineBuiltinFunction(stringObj, "trimStart", trimStartFn, 0);
         stringObj.DefineProperty("trimLeft",
             new PropertyDescriptor { Value = trimStartFn, Writable = true, Enumerable = false, Configurable = true });
 
-        var trimEndFn = new HostFunction(TrimEnd) { IsConstructor = false };
+        var trimEndFn = new HostFunction(TrimEnd, isConstructor: false);
         DefineBuiltinFunction(stringObj, "trimEnd", trimEndFn, 0);
         stringObj.DefineProperty("trimRight",
             new PropertyDescriptor { Value = trimEndFn, Writable = true, Enumerable = false, Configurable = true });

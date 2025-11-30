@@ -37,7 +37,7 @@ public static partial class StandardLibrary
             }
 
             return builder.ToString();
-        }) { IsConstructor = false };
+        }, isConstructor: false);
 
         escapeFn.DefineProperty("length",
             new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
@@ -88,9 +88,8 @@ public static partial class StandardLibrary
 
                 builder.Append(ch);
             }
-
             return builder.ToString();
-        }) { IsConstructor = false };
+        }, isConstructor: false);
 
         unescapeFn.DefineProperty("length",
             new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });

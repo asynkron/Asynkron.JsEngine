@@ -22,10 +22,9 @@ public sealed partial class IntlDateTimeFormatPrototype
     public object GetFormat(object? thisValue)
     {
         var slotData = ValidateReceiver(thisValue, out _);
-        return new HostFunction((_, args) => FormatInternal(args.Count > 0 ? args[0] : Symbol.Undefined, slotData), Realm)
-        {
-            IsConstructor = false
-        };
+        return new HostFunction(
+            (_, args) => FormatInternal(args.Count > 0 ? args[0] : Symbol.Undefined, slotData), Realm,
+            isConstructor: false);
     }
 
     [JsHostMethod("formatToParts", Length = 1d)]

@@ -189,7 +189,7 @@ public static partial class StandardLibrary
         constructor.DefineProperty("of",
             new PropertyDescriptor
             {
-                Value = new HostFunction(TypedArrayOf) { IsConstructor = false },
+                Value = new HostFunction(TypedArrayOf, isConstructor: false),
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -197,7 +197,7 @@ public static partial class StandardLibrary
         constructor.DefineProperty("from",
             new PropertyDescriptor
             {
-                Value = new HostFunction(TypedArrayFrom) { IsConstructor = false },
+                Value = new HostFunction(TypedArrayFrom, isConstructor: false),
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -1031,7 +1031,7 @@ public static partial class StandardLibrary
     private static void DefineTypedArrayFunction(JsObject target, string name, double length,
         Func<object?, IReadOnlyList<object?>, RealmState?, object?> handler, RealmState realm)
     {
-        var fn = new HostFunction(handler, realm) { IsConstructor = false };
+        var fn = new HostFunction(handler, realm, isConstructor: false);
         fn.DefineProperty("name",
             new PropertyDescriptor { Value = name, Writable = false, Enumerable = false, Configurable = true });
         fn.DefineProperty("length",

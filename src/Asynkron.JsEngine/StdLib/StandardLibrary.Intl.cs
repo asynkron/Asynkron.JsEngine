@@ -36,10 +36,8 @@ public static partial class StandardLibrary
         var numberFormatCtor = IntlNumberFormatConstructor.CreateConstructor(realm);
         intl.SetProperty("NumberFormat", numberFormatCtor);
 
-        var getCanonicalLocales = new HostFunction(args => CreateCanonicalLocalesResult(args), realm)
-        {
-            IsConstructor = false
-        };
+        var getCanonicalLocales = new HostFunction(args => CreateCanonicalLocalesResult(args), realm,
+            isConstructor: false);
         getCanonicalLocales.DefineProperty("length",
             new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
         getCanonicalLocales.DefineProperty("name",
@@ -55,10 +53,8 @@ public static partial class StandardLibrary
                 Value = getCanonicalLocales, Writable = true, Enumerable = false, Configurable = true
             });
 
-        var supportedValuesOf = new HostFunction(args => CreateSupportedValuesResult(args), realm)
-        {
-            IsConstructor = false
-        };
+        var supportedValuesOf =
+            new HostFunction(args => CreateSupportedValuesResult(args), realm, isConstructor: false);
         supportedValuesOf.DefineProperty("length",
             new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
         supportedValuesOf.DefineProperty("name",
@@ -132,12 +128,12 @@ public static partial class StandardLibrary
             var instance = durationCtor.Invoke([input], null) as JsObject ?? new JsObject();
             instance.SetPrototype(durationPrototype);
             return instance;
-        }) { IsConstructor = false };
+        }, isConstructor: false);
 
         durationCtor.DefineProperty("from",
             new PropertyDescriptor { Value = durationFrom, Writable = true, Enumerable = false, Configurable = true });
 
-        var durationToLocaleString = new HostFunction(DurationToLocaleString) { IsConstructor = false };
+        var durationToLocaleString = new HostFunction(DurationToLocaleString, isConstructor: false);
         durationPrototype.SetProperty("toLocaleString", durationToLocaleString);
 
         durationCtor.DefineProperty("prototype",

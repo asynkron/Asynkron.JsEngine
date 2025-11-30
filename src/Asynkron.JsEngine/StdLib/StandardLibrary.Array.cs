@@ -43,10 +43,7 @@ public static partial class StandardLibrary
         array.SetHostedProperty("includes", ArrayIncludes, realm);
         array.SetHostedProperty("indexOf", ArrayIndexOf, realm);
         var lastIndexOf =
-            new HostFunction((thisValue, args) => ArrayLastIndexOf(thisValue, args, realm), realm)
-            {
-                IsConstructor = false
-            };
+            new HostFunction((thisValue, args) => ArrayLastIndexOf(thisValue, args, realm), realm, isConstructor: false);
         lastIndexOf.DefineProperty("name",
             new PropertyDescriptor
             {
@@ -198,7 +195,7 @@ public static partial class StandardLibrary
 
                 var projector = projectorFactory(accessor, thisValue);
                 return CreateArrayIterator(thisValue, accessor, projector);
-            }) { IsConstructor = false };
+            }, isConstructor: false);
 
             fn.DefineProperty("name",
                 new PropertyDescriptor { Value = name, Writable = false, Enumerable = false, Configurable = true });
@@ -1574,41 +1571,33 @@ public static partial class StandardLibrary
             }
 
             return false;
-        });
+        }, isConstructor: false);
 
         isArrayFn.DefineProperty("name",
             new PropertyDescriptor { Value = "isArray", Writable = false, Enumerable = false, Configurable = true });
 
         isArrayFn.DefineProperty("length",
             new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
-        isArrayFn.IsConstructor = false;
 
         arrayConstructor.DefineProperty("isArray",
             new PropertyDescriptor { Value = isArrayFn, Writable = true, Enumerable = false, Configurable = true });
 
         HostFunction arrayFrom = null!;
-        arrayFrom = new HostFunction((thisValue, args) => ArrayFrom(arrayFrom, thisValue, args, realm), realm)
-        {
-            IsConstructor = false
-        };
+        arrayFrom = new HostFunction((thisValue, args) => ArrayFrom(arrayFrom, thisValue, args, realm), realm,
+            isConstructor: false);
         AttachBuiltinMetadata(arrayFrom, "from", 1d);
         DefineFunctionProperty(arrayConstructor, "from", arrayFrom);
 
         HostFunction arrayFromAsync = null!;
-        arrayFromAsync = new HostFunction((thisValue, args) => ArrayFromAsync(arrayFromAsync, thisValue, args, realm),
-            realm)
-        {
-            IsConstructor = false
-        };
+        arrayFromAsync = new HostFunction(
+            (thisValue, args) => ArrayFromAsync(arrayFromAsync, thisValue, args, realm), realm, isConstructor: false);
         AttachBuiltinMetadata(arrayFromAsync, "fromAsync", 1d);
         arrayFromAsync.Properties.Delete("prototype");
         DefineFunctionProperty(arrayConstructor, "fromAsync", arrayFromAsync);
 
         HostFunction arrayOf = null!;
-        arrayOf = new HostFunction((thisValue, args) => ArrayOf(arrayOf, thisValue, args, realm), realm)
-        {
-            IsConstructor = false
-        };
+        arrayOf = new HostFunction((thisValue, args) => ArrayOf(arrayOf, thisValue, args, realm), realm,
+            isConstructor: false);
         AttachBuiltinMetadata(arrayOf, "of", 0d);
         DefineFunctionProperty(arrayConstructor, "of", arrayOf);
 
@@ -1997,7 +1986,7 @@ public static partial class StandardLibrary
     private static void DefineArrayFunction(IJsPropertyAccessor target, string name, double length,
         Func<object?, IReadOnlyList<object?>, RealmState?, object?> handler, RealmState? realm)
     {
-        var fn = new HostFunction(handler, realm) { IsConstructor = false };
+        var fn = new HostFunction(handler, realm, isConstructor: false);
         fn.Properties.Delete("prototype");
         AttachBuiltinMetadata(fn, name, length);
         DefineFunctionProperty(target, name, fn);

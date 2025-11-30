@@ -50,10 +50,7 @@ public sealed partial class IntlDurationFormatConstructor(JsObject prototype, Re
             }
 
             throw ThrowTypeError("Invalid locales argument", realm: Realm);
-        })
-        {
-            IsConstructor = false
-        };
+        }, isConstructor: false);
 
         supportedLocales.DefineProperty("length",
             new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });

@@ -100,11 +100,9 @@ public static partial class StandardLibrary
         functionPrototype.SetProperty("constructor", functionConstructor);
         functionPrototype.SetHostedProperty("toString", FunctionPrototypeToString);
         functionPrototype.SetHostedProperty("valueOf", (thisValue, _) => thisValue);
-        var thrower = new HostFunction((_, _) => throw ThrowTypeError(
-            "Access to caller or arguments is not allowed", realm: realm))
-        {
-            IsConstructor = false, RealmState = realm
-        };
+        var thrower = new HostFunction((_, _) =>
+            throw ThrowTypeError("Access to caller or arguments is not allowed", realm: realm), realm,
+            isConstructor: false);
         var poisonDescriptor = new PropertyDescriptor
         {
             Get = thrower, Set = thrower, Enumerable = false, Configurable = false

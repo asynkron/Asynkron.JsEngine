@@ -11,35 +11,30 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
 {
     private readonly Func<object?, IReadOnlyList<object?>, object?> _handler;
 
-    public HostFunction(Func<IReadOnlyList<object?>, object?> handler)
+    public HostFunction(Func<IReadOnlyList<object?>, object?> handler, RealmState? realmState = null,
+        bool isConstructor = true)
     {
         ArgumentNullException.ThrowIfNull(handler);
 
         _handler = (_, args) => handler(args);
+        RealmState = realmState;
+        IsConstructor = isConstructor;
         InitializePrototype();
     }
 
-    public HostFunction(Func<IReadOnlyList<object?>, object?> handler, RealmState? realmState)
-        : this(handler)
-    {
-        RealmState = realmState;
-    }
-
-    public HostFunction(Func<object?, IReadOnlyList<object?>, object?> handler)
+    public HostFunction(Func<object?, IReadOnlyList<object?>, object?> handler, RealmState? realmState = null,
+        bool isConstructor = true)
     {
         _handler = handler ?? throw new ArgumentNullException(nameof(handler));
-        InitializePrototype();
-    }
-
-    public HostFunction(Func<object?, IReadOnlyList<object?>, object?> handler, RealmState? realmState)
-        : this(handler)
-    {
         RealmState = realmState;
+        IsConstructor = isConstructor;
+        InitializePrototype();
     }
 
     public HostFunction(
         Func<object?, IReadOnlyList<object?>, RealmState?, object?> handler,
-        RealmState? realmState)
+        RealmState? realmState,
+        bool isConstructor = true)
     {
         if (handler is null)
         {
@@ -47,6 +42,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
         }
 
         RealmState = realmState;
+        IsConstructor = isConstructor;
         _handler = (thisValue, args) => handler(thisValue, args, realmState);
         InitializePrototype();
     }
@@ -118,7 +114,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
                     var thisArg = args.Count > 0 ? args[0] : Symbol.Undefined;
                     var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
                     return jsCallable.Invoke(callArgs, thisArg);
-                });
+                }, isConstructor: false);
                 return true;
 
             case "apply":
@@ -134,7 +130,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
                     argList.AddRange(jsArray.Items);
 
                     return jsCallable.Invoke(argList.ToArray(), thisArg);
-                });
+                }, isConstructor: false);
                 return true;
 
             case "bind":
@@ -143,6 +139,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
                     var boundThis = args.Count > 0 ? args[0] : Symbol.Undefined;
                     var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
 
+                    var targetIsConstructor = JsOps.IsConstructor(jsCallable);
                     var boundFunction = new HostFunction((_, innerArgs) =>
                     {
                         var finalArgs = new object?[boundArgs.Length + innerArgs.Count];
@@ -153,10 +150,8 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
                         }
 
                         return jsCallable.Invoke(finalArgs, boundThis);
-                    });
+                    }, isConstructor: targetIsConstructor);
 
-                    var targetIsConstructor = JsOps.IsConstructor(jsCallable);
-                    boundFunction.IsConstructor = targetIsConstructor;
                     if (!targetIsConstructor)
                     {
                         boundFunction.PropertiesObject.DeleteOwnProperty("prototype");
@@ -173,10 +168,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
                     }
 
                     return boundFunction;
-                })
-                {
-                    IsConstructor = false
-                };
+                }, isConstructor: false);
                 return true;
         }
 

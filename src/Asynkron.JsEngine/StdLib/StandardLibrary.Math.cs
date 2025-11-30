@@ -382,7 +382,7 @@ public static partial class StandardLibrary
             }
 
             return hasNaN ? double.NaN : Math.Sqrt(sumOfSquares);
-        }) { IsConstructor = false };
+        }, isConstructor: false);
         hypot.Properties.DeleteOwnProperty("prototype");
         hypot.DefineProperty("name",
             new PropertyDescriptor { Value = "hypot", Writable = false, Enumerable = false, Configurable = true });

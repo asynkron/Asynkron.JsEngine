@@ -108,8 +108,7 @@ public static partial class StandardLibrary
                 proxy.Handler = null;
                 return Symbol.Undefined;
             }
-        });
-        revocableFn.IsConstructor = false;
+        }, isConstructor: false);
         proxyConstructor.DefineProperty("revocable",
             new PropertyDescriptor { Value = revocableFn, Writable = true, Enumerable = false, Configurable = true });
 

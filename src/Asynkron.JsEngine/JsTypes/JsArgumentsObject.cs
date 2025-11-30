@@ -79,10 +79,8 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             {
                 var thrower = new HostFunction((_, _) =>
                     throw new ThrowSignal(StandardLibrary.CreateTypeError(
-                        "Access to callee is not allowed in strict mode.", realm.CreateContext(), realm)))
-                {
-                    IsConstructor = false
-                };
+                        "Access to callee is not allowed in strict mode.", realm.CreateContext(), realm)),
+                    isConstructor: false);
 
                 _calleeDescriptor = new PropertyDescriptor
                 {

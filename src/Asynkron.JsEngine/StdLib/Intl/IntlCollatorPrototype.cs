@@ -22,8 +22,8 @@ public sealed partial class IntlCollatorPrototype
     private double Compare(object? thisValue, IReadOnlyList<object?> args)
     {
         ValidateCollatorReceiver(thisValue);
-        var first = args.Count > 0 ? JsValueToString(args[0]) : string.Empty;
-        var second = args.Count > 1 ? JsValueToString(args[1]) : string.Empty;
+        var first = args.Count > 0 ? JsValueToString(args[0], Realm) : string.Empty;
+        var second = args.Count > 1 ? JsValueToString(args[1], Realm) : string.Empty;
         return string.CompareOrdinal(first, second) switch
         {
             < 0 => -1d,

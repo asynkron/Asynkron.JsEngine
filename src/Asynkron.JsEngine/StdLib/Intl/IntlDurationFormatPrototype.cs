@@ -7,19 +7,19 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 public sealed partial class IntlDurationFormatPrototype
 {
     [JsHostMethod("format", Length = 0d)]
-    public string Format(object? thisValue, IReadOnlyList<object?> args)
+    private string Format(object? thisValue, IReadOnlyList<object?> args)
     {
         return "PT0S";
     }
 
     [JsHostMethod("formatToParts", Length = 0d)]
-    public JsArray FormatToParts(object? thisValue, IReadOnlyList<object?> args)
+    private JsArray FormatToParts(object? thisValue, IReadOnlyList<object?> args)
     {
         return new JsArray(Realm);
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    public JsObject ResolvedOptions(object? thisValue, IReadOnlyList<object?> args)
+    private JsObject ResolvedOptions(object? thisValue, IReadOnlyList<object?> args)
     {
         var obj = new JsObject();
         obj.SetProperty("numberingSystem", "latn");

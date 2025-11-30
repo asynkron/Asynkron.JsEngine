@@ -80,7 +80,7 @@ internal static class JsValueExtensions
             };
         }
 
-        public string ToJsString(EvaluationContext? context = null)
+        public string ToJsString(EvaluationContext? context = null, RealmState? realm = null)
         {
             // Fast-path common primitives/wrappers before general object coercion.
             if (value is null)
@@ -98,14 +98,16 @@ internal static class JsValueExtensions
                 return "undefined";
             }
 
+            var realmState = realm ?? context?.RealmState;
+
             if (value is Symbol symVal)
             {
-                return symVal.Name;
+                throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context, realmState);
             }
 
             if (value is TypedAstSymbol typedSym)
             {
-                return typedSym.ToString();
+                throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context, realmState);
             }
 
             if (value is bool b)
@@ -126,7 +128,7 @@ internal static class JsValueExtensions
             if (value is IJsPropertyAccessor accessor)
             {
                 var primitive = JsOps.ToPrimitive(accessor, "string", context);
-                return primitive is IJsPropertyAccessor ? "[object Object]" : primitive.ToJsString(context);
+                return primitive is IJsPropertyAccessor ? "[object Object]" : primitive.ToJsString(context, realmState);
             }
 
             return value switch
@@ -149,14 +151,14 @@ internal static class JsValueExtensions
             };
         }
 
-        public string ToJsStringForArray(EvaluationContext? context = null)
+        public string ToJsStringForArray(EvaluationContext? context = null, RealmState? realm = null)
         {
             if (value is null || (value is Symbol sym && ReferenceEquals(sym, Symbol.Undefined)))
             {
                 return string.Empty;
             }
 
-            return value.ToJsString(context);
+            return value.ToJsString(context, realm);
         }
     }
 }

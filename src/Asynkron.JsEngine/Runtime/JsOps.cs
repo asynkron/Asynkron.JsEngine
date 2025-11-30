@@ -352,7 +352,7 @@ internal static class JsOps
 
     public static string ToJsString(object? value, EvaluationContext? context = null)
     {
-        return value.ToJsString(context);
+        return value.ToJsString(context, context?.RealmState);
     }
 
     public static bool StrictEquals(object? left, object? right)

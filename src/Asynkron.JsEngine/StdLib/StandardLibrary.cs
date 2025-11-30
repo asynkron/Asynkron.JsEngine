@@ -4,6 +4,7 @@ using System.Text;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine;
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -389,16 +390,8 @@ public static partial class StandardLibrary
     ///     Converts a JavaScript value to its string representation, handling functions appropriately.
     ///     Exposed internally so prototype helpers can reuse the same semantics.
     /// </summary>
-    internal static string JsValueToString(object? value)
+    internal static string JsValueToString(object? value, RealmState? realm = null)
     {
-        return value switch
-        {
-            null => "null",
-            string s => s,
-            bool b => b ? "true" : "false",
-            double d => d.ToString(CultureInfo.InvariantCulture),
-            IJsCallable => "function() { [native code] }",
-            _ => value.ToString() ?? ""
-        };
+        return value.ToJsString(null, realm);
     }
 }

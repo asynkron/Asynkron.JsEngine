@@ -19,12 +19,27 @@ public sealed partial class IntlNumberFormatConstructor(JsObject prototype, Real
         var resolvedLocale = requestedLocales.Count > 0
             ? requestedLocales[0]
             : CultureInfo.CurrentCulture.Name;
-        var numberingSystem = ReadNumberingSystem(optionsArg);
+        var options = NormalizeOptions(optionsArg);
+        var style = ReadStyleOption(options);
+        var numberingSystem = ReadNumberingSystem(options);
+        string? currency = null;
+        if (style == "currency")
+        {
+            currency = ReadCurrencyOption(options);
+        }
+        string? unit = null;
+        if (style == "unit")
+        {
+            unit = ReadUnitOption(options);
+        }
 
         var instance = PrepareThisObject(thisValue);
         IntlNumberFormatPrototype.InitializeInternalSlots(instance, Realm);
         instance.SetProperty("__locale__", resolvedLocale);
         instance.SetProperty("__numberingSystem__", numberingSystem);
+        instance.SetProperty("__style__", style);
+        instance.SetProperty("__currency__", currency ?? (object)Symbol.Undefined);
+        instance.SetProperty("__unit__", unit ?? (object)Symbol.Undefined);
         return instance;
     }
 
@@ -73,7 +88,7 @@ public sealed partial class IntlNumberFormatConstructor(JsObject prototype, Real
 
     }
 
-    private string ReadNumberingSystem(object? optionsArg)
+    private JsObject? NormalizeOptions(object? optionsArg)
     {
         if (optionsArg is null)
         {
@@ -82,15 +97,43 @@ public sealed partial class IntlNumberFormatConstructor(JsObject prototype, Real
 
         if (ReferenceEquals(optionsArg, Symbol.Undefined))
         {
-            return "latn";
+            return null;
         }
 
-        if (optionsArg is not JsObject options)
+        if (optionsArg is JsObject jsObject)
         {
-            throw StandardLibrary.ThrowTypeError("Intl.NumberFormat options must be an object", realm: Realm);
+            return jsObject;
         }
 
-        if (!options.TryGetProperty("numberingSystem", out var rawValue) ||
+        throw StandardLibrary.ThrowTypeError("Intl.NumberFormat options must be an object", realm: Realm);
+    }
+
+    private string ReadStyleOption(JsObject? options)
+    {
+        if (options is null || !options.TryGetProperty("style", out var value) ||
+            value is null || ReferenceEquals(value, Symbol.Undefined))
+        {
+            return "decimal";
+        }
+
+        if (value is not string style)
+        {
+            throw StandardLibrary.ThrowTypeError("Intl.NumberFormat style option must be a string", realm: Realm);
+        }
+
+        if (style is not ("decimal" or "currency" or "unit"))
+        {
+            throw StandardLibrary.ThrowRangeError(
+                $"Intl.NumberFormat style option '{style}' is not supported", realm: Realm);
+        }
+
+        return style;
+    }
+
+    private string ReadNumberingSystem(JsObject? options)
+    {
+        if (options is null ||
+            !options.TryGetProperty("numberingSystem", out var rawValue) ||
             rawValue is null || ReferenceEquals(rawValue, Symbol.Undefined))
         {
             return "latn";
@@ -105,5 +148,56 @@ public sealed partial class IntlNumberFormatConstructor(JsObject prototype, Real
         return IntlUtilities.TryNormalizeNumberingSystem(numberingSystem, out var canonical)
             ? canonical
             : "latn";
+    }
+
+    private string ReadCurrencyOption(JsObject? options)
+    {
+        if (options is null || !options.TryGetProperty("currency", out var value) ||
+            value is null || ReferenceEquals(value, Symbol.Undefined))
+        {
+            throw StandardLibrary.ThrowTypeError(
+                "Intl.NumberFormat currency option is required when style is 'currency'", realm: Realm);
+        }
+
+        if (value is not string currency)
+        {
+            throw StandardLibrary.ThrowTypeError(
+                "Intl.NumberFormat currency option must be a string", realm: Realm);
+        }
+
+        if (!IntlUtilities.TryGetCanonicalCurrency(currency, out var canonical))
+        {
+            throw StandardLibrary.ThrowRangeError($"Invalid currency code '{currency}'", realm: Realm);
+        }
+
+        if (!IntlUtilities.IsSupportedCurrency(canonical))
+        {
+            throw StandardLibrary.ThrowRangeError($"Unsupported currency '{currency}'", realm: Realm);
+        }
+
+        return canonical;
+    }
+
+    private string ReadUnitOption(JsObject? options)
+    {
+        if (options is null || !options.TryGetProperty("unit", out var value) ||
+            value is null || ReferenceEquals(value, Symbol.Undefined))
+        {
+            throw StandardLibrary.ThrowTypeError(
+                "Intl.NumberFormat unit option is required when style is 'unit'", realm: Realm);
+        }
+
+        if (value is not string unit)
+        {
+            throw StandardLibrary.ThrowTypeError(
+                "Intl.NumberFormat unit option must be a string", realm: Realm);
+        }
+
+        if (!IntlUtilities.TryGetCanonicalUnit(unit, out var canonical))
+        {
+            throw StandardLibrary.ThrowRangeError($"Invalid unit '{unit}'", realm: Realm);
+        }
+
+        return canonical;
     }
 }

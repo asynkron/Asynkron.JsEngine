@@ -36,6 +36,12 @@ public static partial class StandardLibrary
         var numberFormatCtor = IntlNumberFormatConstructor.CreateConstructor(realm);
         intl.SetProperty("NumberFormat", numberFormatCtor);
 
+        var relativeTimeFormatCtor = IntlRelativeTimeFormatConstructor.CreateConstructor(realm);
+        intl.SetProperty("RelativeTimeFormat", relativeTimeFormatCtor);
+
+        var displayNamesCtor = IntlDisplayNamesConstructor.CreateConstructor(realm);
+        intl.SetProperty("DisplayNames", displayNamesCtor);
+
         var getCanonicalLocales = new HostFunction(args => CreateCanonicalLocalesResult(args), realm,
             isConstructor: false);
         getCanonicalLocales.DefineProperty("length",
@@ -88,7 +94,7 @@ public static partial class StandardLibrary
         JsArray CreateSupportedValuesResult(IReadOnlyList<object?> args)
         {
             var keyValue = args.Count > 0 ? args[0] : Symbol.Undefined;
-            var key = JsValueToString(keyValue);
+            var key = JsValueToString(keyValue, realm);
             var values = IntlUtilities.GetSupportedValues(key, realm);
             var result = new JsArray(realm);
             foreach (var value in values)

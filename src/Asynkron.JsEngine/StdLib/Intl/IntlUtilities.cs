@@ -16,20 +16,42 @@ internal static class IntlUtilities
         "persian", "roc"
     ];
     private static readonly HashSet<string> CalendarSet = new(CalendarValues, StringComparer.Ordinal);
+    private static readonly Lazy<string[]> CurrencyValues = new(BuildSupportedCurrencies);
 
     private static readonly string[] NumberingSystemValues =
     [
-        "adlm", "ahom", "arab", "arabext", "bali", "beng", "bhks", "brah", "cakm", "cham", "deva", "diak",
-        "fullwide", "gong", "gonm", "gujr", "guru", "hanidec", "hmng", "hmnp", "java", "kali", "kawi", "khmr",
-        "knda", "lana", "lanatham", "laoo", "latn", "lepc", "limb", "mathbold", "mathdbl", "mathmono",
-        "mathsanb", "mathsans", "mlym", "modi", "mong", "mroo", "mtei", "mymr", "mymrshan", "mymrtlng", "nagm",
-        "newa", "nkoo", "olck", "orya", "osma", "rohg", "saur", "segment", "shrd", "sind", "sinh", "sora",
-        "sund", "takr", "talu", "tamldec", "telu", "thai", "tibt", "tirh", "tnsa", "vaii", "wara", "wcho"
+        "adlm", "ahom", "arab", "arabext", "armn", "armnlow", "bali", "beng", "bhks", "brah", "cakm", "cham",
+        "cyrl", "deva", "diak", "ethi", "finance", "fullwide", "gara", "geor", "gong", "gonm", "grek", "greklow",
+        "gujr", "gukh", "guru", "hanidays", "hanidec", "hans", "hansfin", "hant", "hantfin", "hebr", "hmng",
+        "hmnp", "java", "jpan", "jpanfin", "jpanyear", "kali", "kawi", "khmr", "knda", "krai", "lana",
+        "lanatham", "laoo", "latn", "lepc", "limb", "mathbold", "mathdbl", "mathmono", "mathsanb", "mathsans",
+        "mlym", "modi", "mong", "mroo", "mtei", "mymr", "mymrepka", "mymrpao", "mymrshan", "mymrtlng", "nagm",
+        "native", "newa", "nkoo", "olck", "onao", "orya", "osma", "outlined", "rohg", "roman", "romanlow", "saur",
+        "segment", "shrd", "sind", "sinh", "sora", "sund", "sunu", "takr", "talu", "taml", "tamldec", "tnsa",
+        "telu", "thai", "tirh", "tibt", "traditio", "vaii", "wara", "wcho"
     ];
     private static readonly HashSet<string> NumberingSystemSet = new(NumberingSystemValues, StringComparer.Ordinal);
 
+    private static readonly string[] UnitValues =
+    [
+        "acre", "bit", "byte", "celsius", "centimeter", "day", "degree", "fahrenheit", "fluid-ounce", "foot",
+        "gallon", "gigabit", "gigabyte", "gram", "hectare", "hour", "inch", "kilobit", "kilobyte", "kilogram",
+        "kilometer", "liter", "megabit", "megabyte", "meter", "microsecond", "mile", "mile-scandinavian",
+        "milliliter", "millimeter", "millisecond", "minute", "month", "nanosecond", "ounce", "percent",
+        "petabyte", "pound", "second", "stone", "terabit", "terabyte", "week", "yard", "year"
+    ];
+    private static readonly HashSet<string> UnitSet = new(UnitValues, StringComparer.Ordinal);
     private static readonly string[] EmptyValues = Array.Empty<string>();
+    private static readonly Lazy<HashSet<string>> CurrencySet =
+        new(() => new HashSet<string>(CurrencyValues.Value, StringComparer.Ordinal));
     private static readonly Lazy<TimeZoneRegistry> TimeZoneRegistryCache = new(BuildSupportedTimeZones);
+
+    static IntlUtilities()
+    {
+        Array.Sort(NumberingSystemValues, StringComparer.Ordinal);
+    }
+
+    private const long MaxArrayLikeLength = 9007199254740991L;
 
     public static IReadOnlyList<string> CanonicalizeLocaleList(object? locales, RealmState realm)
     {
@@ -43,34 +65,85 @@ internal static class IntlUtilities
             return Array.Empty<string>();
         }
 
-        if (locales is string singleLocale)
+        var seen = new List<string>();
+
+        if (locales is string single)
         {
-            return new[] { CanonicalizeLocale(singleLocale, realm) };
+            AppendCanonicalLocale(seen, single, realm);
+            return seen;
         }
 
-        if (locales is JsArray jsArray)
+        if (!StandardLibrary.TryGetObject(locales, realm, out var localeObject))
         {
-            var result = new List<string>(jsArray.Items.Count);
-            foreach (var entry in jsArray.Items)
+            throw StandardLibrary.ThrowTypeError("Intl locale list must be object-like", realm: realm);
+        }
+
+        var length = GetArrayLikeLength(localeObject, realm);
+        for (long k = 0; k < length; k++)
+        {
+            var propertyKey = k.ToString(CultureInfo.InvariantCulture);
+            if (!StandardLibrary.HasProperty(localeObject, propertyKey))
             {
-                if (entry is null || ReferenceEquals(entry, Symbol.Undefined))
-                {
-                    continue;
-                }
-
-                if (entry is string entryLocale)
-                {
-                    result.Add(CanonicalizeLocale(entryLocale, realm));
-                    continue;
-                }
-
-                result.Add(CanonicalizeLocale(entry.ToString() ?? string.Empty, realm));
+                continue;
             }
 
-            return result;
+            if (!JsOps.TryGetPropertyValue(localeObject, propertyKey, out var element))
+            {
+                continue;
+            }
+
+            if (element is null || ReferenceEquals(element, Symbol.Undefined))
+            {
+                continue;
+            }
+
+            var tag = StandardLibrary.JsValueToString(element, realm);
+            AppendCanonicalLocale(seen, tag, realm);
         }
 
-        throw StandardLibrary.ThrowTypeError("Intl locale list must be a string or array", realm: realm);
+        return seen;
+    }
+
+    private static void AppendCanonicalLocale(ICollection<string> target, string locale, RealmState realm)
+    {
+        var canonical = CanonicalizeLocale(locale, realm);
+        if (!target.Contains(canonical))
+        {
+            target.Add(canonical);
+        }
+    }
+
+    private static long GetArrayLikeLength(IJsPropertyAccessor localeObject, RealmState realm)
+    {
+        if (!JsOps.TryGetPropertyValue(localeObject, "length", out var lengthValue))
+        {
+            lengthValue = 0d;
+        }
+
+        return ToLength(lengthValue, realm);
+    }
+
+    private static long ToLength(object? value, RealmState realm)
+    {
+        var numericContext = realm.CreateContext();
+        var number = JsOps.ToNumberWithContext(value, numericContext);
+        if (numericContext.IsThrow)
+        {
+            throw new ThrowSignal(numericContext.FlowValue);
+        }
+
+        if (double.IsNaN(number) || number <= 0)
+        {
+            return 0;
+        }
+
+        if (double.IsPositiveInfinity(number))
+        {
+            return MaxArrayLikeLength;
+        }
+
+        var truncated = Math.Floor(number);
+        return truncated > MaxArrayLikeLength ? MaxArrayLikeLength : (long)truncated;
     }
 
     public static string CanonicalizeLocale(string locale, RealmState realm)
@@ -144,16 +217,63 @@ internal static class IntlUtilities
         return NumberingSystemSet.Contains(canonical);
     }
 
+    public static bool TryGetCanonicalCurrency(string? code, out string canonical)
+    {
+        canonical = string.Empty;
+        if (string.IsNullOrEmpty(code) || code.Length != 3)
+        {
+            return false;
+        }
+
+        Span<char> buffer = stackalloc char[3];
+        for (var i = 0; i < 3; i++)
+        {
+            var ch = code[i];
+            if (!char.IsLetter(ch))
+            {
+                return false;
+            }
+
+            buffer[i] = char.ToUpperInvariant(ch);
+        }
+
+        canonical = new string(buffer);
+        return true;
+    }
+
+    public static bool IsSupportedCurrency(string canonical)
+    {
+        return CurrencySet.Value.Contains(canonical);
+    }
+
+    public static bool TryGetCanonicalUnit(string? candidate, out string canonical)
+    {
+        canonical = string.Empty;
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            return false;
+        }
+
+        var normalized = candidate.Trim().ToLowerInvariant();
+        if (UnitSet.Contains(normalized))
+        {
+            canonical = normalized;
+            return true;
+        }
+
+        return false;
+    }
+
     public static IReadOnlyList<string> GetSupportedValues(string key, RealmState realm)
     {
         return key switch
         {
             "calendar" => CalendarValues,
             "collation" => EmptyValues,
-            "currency" => EmptyValues,
+            "currency" => CurrencyValues.Value,
             "numberingSystem" => NumberingSystemValues,
             "timeZone" => GetTimeZoneValues(realm),
-            "unit" => EmptyValues,
+            "unit" => UnitValues,
             _ => throw StandardLibrary.ThrowRangeError(
                 $"Unsupported Intl.supportedValuesOf key '{key}'", realm: realm)
         };
@@ -196,6 +316,55 @@ internal static class IntlUtilities
 
         canonical = string.Empty;
         return false;
+    }
+
+    private static string[] BuildSupportedCurrencies()
+    {
+        var currencies = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var culture in CultureInfo.GetCultures(CultureTypes.SpecificCultures))
+        {
+            try
+            {
+                var region = new RegionInfo(culture.Name);
+                var symbol = region.ISOCurrencySymbol;
+                if (string.IsNullOrEmpty(symbol) || symbol.Length != 3)
+                {
+                    continue;
+                }
+
+                Span<char> buffer = stackalloc char[3];
+                var isLetters = true;
+                for (var i = 0; i < 3; i++)
+                {
+                    var ch = symbol[i];
+                    if (!char.IsLetter(ch))
+                    {
+                        isLetters = false;
+                        break;
+                    }
+
+                    buffer[i] = char.ToUpperInvariant(ch);
+                }
+
+                if (isLetters)
+                {
+                    currencies.Add(new string(buffer));
+                }
+            }
+            catch
+            {
+                // Some RegionInfo entries throw on unsupported cultures; ignore them and continue.
+            }
+        }
+
+        if (currencies.Count == 0)
+        {
+            currencies.Add("USD");
+        }
+
+        var list = currencies.ToList();
+        list.Sort(StringComparer.Ordinal);
+        return list.ToArray();
     }
 
     private static TimeZoneRegistry BuildSupportedTimeZones()

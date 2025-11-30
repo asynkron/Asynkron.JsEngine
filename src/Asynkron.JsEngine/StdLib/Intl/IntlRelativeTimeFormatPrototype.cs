@@ -1,0 +1,75 @@
+using System.Collections.Generic;
+using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.Runtime.Prototypes;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+namespace Asynkron.JsEngine.StdLib.Intl;
+
+[JsPrototype("Intl.RelativeTimeFormat", ToStringTag = "Intl.RelativeTimeFormat")]
+public sealed partial class IntlRelativeTimeFormatPrototype
+{
+    private const string BrandKey = "__relativeTimeFormat__";
+
+    internal static void InitializeInternalSlots(JsObject instance, string locale, string numberingSystem,
+        string numeric, string style)
+    {
+        instance.SetProperty(BrandKey, true);
+        instance.SetProperty("__locale__", locale);
+        instance.SetProperty("__numberingSystem__", numberingSystem);
+        instance.SetProperty("__numeric__", numeric);
+        instance.SetProperty("__style__", style);
+    }
+
+    [JsHostMethod("format", Length = 2d)]
+    private string Format(object? thisValue, IReadOnlyList<object?> args)
+    {
+        ValidateReceiver(thisValue);
+        var value = args.Count > 0 ? JsOps.ToNumber(args[0]) : double.NaN;
+        if (double.IsNaN(value))
+        {
+            return "NaN";
+        }
+
+        var unit = args.Count > 1 ? JsValueToString(args[1], Realm) : throw ThrowTypeError(
+            "Intl.RelativeTimeFormat format requires a unit argument", realm: Realm);
+        return $"{value} {unit}";
+    }
+
+    [JsHostMethod("formatToParts", Length = 2d)]
+    private JsArray FormatToParts(object? thisValue, IReadOnlyList<object?> args)
+    {
+        var formatted = Format(thisValue, args);
+        var part = new JsObject();
+        part.SetProperty("type", "literal");
+        part.SetProperty("value", formatted);
+        var parts = new JsArray(Realm);
+        parts.Push(part);
+        return parts;
+    }
+
+    [JsHostMethod("resolvedOptions", Length = 0d)]
+    private JsObject ResolvedOptions(object? thisValue, IReadOnlyList<object?> _)
+    {
+        var instance = ValidateReceiver(thisValue);
+        var obj = new JsObject(Realm.ObjectPrototype);
+        obj.SetProperty("locale",
+            instance.TryGetProperty("__locale__", out var locale) ? locale ?? "en" : "en");
+        obj.SetProperty("numberingSystem",
+            instance.TryGetProperty("__numberingSystem__", out var numberingSystem)
+                ? numberingSystem ?? "latn"
+                : "latn");
+        obj.SetProperty("numeric",
+            instance.TryGetProperty("__numeric__", out var numeric) ? numeric ?? "always" : "always");
+        obj.SetProperty("style",
+            instance.TryGetProperty("__style__", out var style) ? style ?? "long" : "long");
+        return obj;
+    }
+
+    private JsObject ValidateReceiver(object? thisValue)
+    {
+        return thisValue.EnsureBrand(BrandKey, Realm,
+            "Intl.RelativeTimeFormat method called on incompatible receiver");
+    }
+}

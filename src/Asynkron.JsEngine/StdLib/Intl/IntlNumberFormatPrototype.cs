@@ -17,6 +17,9 @@ public sealed partial class IntlNumberFormatPrototype
         instance.SetProperty(NumberFormatBrand, true);
         instance.SetProperty("__locale__", "en");
         instance.SetProperty("__numberingSystem__", "latn");
+        instance.SetProperty("__style__", "decimal");
+        instance.SetProperty("__currency__", Symbol.Undefined);
+        instance.SetProperty("__unit__", Symbol.Undefined);
         instance.SetProperty("__roundingMode__", "halfExpand");
         instance.SetProperty("__roundingIncrement__", 1d);
         instance.SetProperty("__minimumIntegerDigits__", 1d);
@@ -29,20 +32,20 @@ public sealed partial class IntlNumberFormatPrototype
     [JsHostGetter("format", DisplayName = "get format")]
     public object GetFormat(object? thisValue)
     {
-        ValidateNumberFormatReceiver(thisValue);
+        var nf = ValidateNumberFormatReceiver(thisValue);
         return new HostFunction((_, formatArgs) =>
         {
             var value = formatArgs.Count > 0 ? formatArgs[0] : Symbol.Undefined;
-            return FormatNumberValue(value);
+            return FormatNumberValue(nf, value);
         }, Realm, isConstructor: false);
     }
 
     [JsHostMethod("formatToParts", Length = 0d)]
     public JsArray FormatToParts(object? thisValue, IReadOnlyList<object?> args)
     {
-        ValidateNumberFormatReceiver(thisValue);
+        var nf = ValidateNumberFormatReceiver(thisValue);
         var value = args.Count > 0 ? args[0] : Symbol.Undefined;
-        var formatted = FormatNumberValue(value);
+        var formatted = FormatNumberValue(nf, value);
         var part = new JsObject();
         part.SetProperty("type", "literal");
         part.SetProperty("value", formatted);
@@ -64,7 +67,7 @@ public sealed partial class IntlNumberFormatPrototype
             "Intl.NumberFormat method called on incompatible receiver");
     }
 
-    private string FormatNumberValue(object? value)
+    private string FormatNumberValue(JsObject nf, object? value)
     {
         var context = Realm.CreateContext();
         double number;
@@ -82,12 +85,31 @@ public sealed partial class IntlNumberFormatPrototype
             throw new ThrowSignal(context.FlowValue);
         }
 
-        return number switch
+        var numeric = number switch
         {
             double.NaN => "NaN",
             0d => "0",
             _ => number.ToString(CultureInfo.InvariantCulture)
         };
+
+        var style = nf.TryGetProperty("__style__", out var styleValue) && styleValue is string styleStr
+            ? styleStr
+            : "decimal";
+        if (style == "currency" &&
+            nf.TryGetProperty("__currency__", out var currencyValue) &&
+            currencyValue is string currencyCode)
+        {
+            return $"{currencyCode} {numeric}";
+        }
+
+        if (style == "unit" &&
+            nf.TryGetProperty("__unit__", out var unitValue) &&
+            unitValue is string unitIdentifier)
+        {
+            return $"{numeric} {unitIdentifier}";
+        }
+
+        return numeric;
     }
 
     private JsObject CreateNumberFormatResolvedOptions(JsObject nf)
@@ -110,6 +132,22 @@ public sealed partial class IntlNumberFormatPrototype
             nf.TryGetProperty("__minimumSignificantDigits__", out var minsig) ? minsig : Symbol.Undefined);
         obj.SetProperty("maximumSignificantDigits",
             nf.TryGetProperty("__maximumSignificantDigits__", out var maxsig) ? maxsig : Symbol.Undefined);
+        var style = nf.TryGetProperty("__style__", out var styleValue) && styleValue is string styleStr
+            ? styleStr
+            : "decimal";
+        obj.SetProperty("style", style);
+        if (style == "currency" &&
+            nf.TryGetProperty("__currency__", out var currencyValue) &&
+            currencyValue is string currencyCode)
+        {
+            obj.SetProperty("currency", currencyCode);
+        }
+        if (style == "unit" &&
+            nf.TryGetProperty("__unit__", out var unitValue) &&
+            unitValue is string unitIdentifier)
+        {
+            obj.SetProperty("unit", unitIdentifier);
+        }
         return obj;
     }
 

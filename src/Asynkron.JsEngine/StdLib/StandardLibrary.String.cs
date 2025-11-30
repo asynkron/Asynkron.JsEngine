@@ -1146,7 +1146,15 @@ public static partial class StandardLibrary
         {
             var value = args.Count > 0 ? args[0] : Symbol.Undefined;
             var context = realm?.CreateContext();
-            var str = JsOps.ToJsString(value, context);
+            string str;
+            if (value is TypedAstSymbol typedSymbol)
+            {
+                str = typedSymbol.ToString();
+            }
+            else
+            {
+                str = JsOps.ToJsString(value, context);
+            }
 
             if (thisValue is not JsObject obj)
             {

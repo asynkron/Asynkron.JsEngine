@@ -1462,38 +1462,6 @@ public static partial class StandardLibrary
 
     }
 
-    private static bool TryGetObject(object candidate, RealmState realm, out IJsObjectLike accessor)
-    {
-        switch (candidate)
-        {
-            case null:
-            case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
-                accessor = null!;
-                return false;
-            case IJsObjectLike a:
-                accessor = a;
-                return true;
-            case TypedAstSymbol symbol:
-                accessor = CreateSymbolWrapper(symbol, realm: realm);
-                return true;
-            case bool b:
-                accessor = CreateBooleanWrapper(b, realm: realm);
-                return true;
-            case string s:
-                accessor = CreateStringWrapper(s, realm: realm);
-                return true;
-            case JsBigInt bigInt:
-                accessor = CreateBigIntWrapper(bigInt, realm: realm);
-                return true;
-            case double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte:
-                accessor = CreateNumberWrapper(JsOps.ToNumber(candidate), realm: realm);
-                return true;
-            default:
-                accessor = null!;
-                return false;
-        }
-    }
-
     public static HostFunction CreateArrayConstructor(RealmState realm)
     {
         JsObject? arrayPrototype = null;
@@ -3195,37 +3163,6 @@ public static partial class StandardLibrary
     private static object? GetElementOrUndefined(IJsPropertyAccessor accessor, string propertyKey)
     {
         return accessor.TryGetProperty(propertyKey, out var value) ? value : Symbol.Undefined;
-    }
-
-    private static bool HasProperty(IJsPropertyAccessor accessor, string propertyKey)
-    {
-        switch (accessor)
-        {
-            case JsProxy proxy:
-                return proxy.HasProperty(propertyKey);
-            case JsObject jsObject:
-                return jsObject.HasProperty(propertyKey);
-            case IJsObjectLike objectLike:
-                if (objectLike.GetOwnPropertyDescriptor(propertyKey) is not null)
-                {
-                    return true;
-                }
-
-                var prototype = objectLike.Prototype;
-                while (prototype is not null)
-                {
-                    if (prototype.HasProperty(propertyKey))
-                    {
-                        return true;
-                    }
-
-                    prototype = prototype.Prototype;
-                }
-
-                return objectLike.TryGetProperty(propertyKey, out _);
-            default:
-                return accessor.TryGetProperty(propertyKey, out _);
-        }
     }
 
     private static object InvokeDefaultObjectToString(object? target, RealmState? realm)

@@ -7,7 +7,7 @@ public static partial class StandardLibrary
 {
     public static HostFunction CreateParseIntFunction()
     {
-        return new HostFunction(args =>
+        var fn = new HostFunction(args =>
         {
             if (args.Count == 0)
             {
@@ -69,7 +69,12 @@ public static partial class StandardLibrary
             }
 
             return hasDigits ? result * sign : double.NaN;
-        });
+        })
+        {
+            IsConstructor = false
+        };
+        fn.Properties.Delete("prototype");
+        return fn;
     }
 
     /// <summary>
@@ -77,7 +82,7 @@ public static partial class StandardLibrary
     /// </summary>
     public static HostFunction CreateParseFloatFunction()
     {
-        return new HostFunction(args =>
+        var fn = new HostFunction(args =>
         {
             if (args.Count == 0)
             {
@@ -161,7 +166,12 @@ public static partial class StandardLibrary
             }
 
             return double.NaN;
-        });
+        })
+        {
+            IsConstructor = false
+        };
+        fn.Properties.Delete("prototype");
+        return fn;
     }
 
     /// <summary>

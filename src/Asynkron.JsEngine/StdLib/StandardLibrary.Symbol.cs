@@ -28,6 +28,7 @@ public static partial class StandardLibrary
         symbolConstructor.SetProperty("search", TypedAstSymbol.For("Symbol.search"));
         symbolConstructor.SetProperty("split", TypedAstSymbol.For("Symbol.split"));
         symbolConstructor.SetProperty("species", TypedAstSymbol.For("Symbol.species"));
+        symbolConstructor.SetProperty("isConcatSpreadable", TypedAstSymbol.For("Symbol.isConcatSpreadable"));
 
         return symbolConstructor;
 

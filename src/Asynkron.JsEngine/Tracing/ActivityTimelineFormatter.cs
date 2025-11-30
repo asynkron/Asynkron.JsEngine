@@ -8,7 +8,7 @@ public static class ActivityTimelineFormatter
 {
     public static IReadOnlyList<string> Format(Activity root,
         IEnumerable<Activity> activities,
-        int width = 80,
+        int width = 30,
         Func<Activity, bool>? predicate = null)
     {
         ArgumentNullException.ThrowIfNull(root);
@@ -74,9 +74,13 @@ public static class ActivityTimelineFormatter
         IReadOnlyList<Activity> filtered,
         int width)
     {
-        var reference = filtered.FirstOrDefault(a => string.Equals(a.DisplayName, "Program", StringComparison.Ordinal))
-                         ?? filtered.FirstOrDefault()
-                         ?? root;
+        var first = filtered.FirstOrDefault();
+
+        var reference =
+            filtered
+                            .FirstOrDefault(a => string.Equals(a.DisplayName, "Program", StringComparison.Ordinal))
+                        ?? first
+                        ?? root;
 
         var rootStart = reference.StartTimeUtc;
         var rootDuration = GetEffectiveDuration(reference);

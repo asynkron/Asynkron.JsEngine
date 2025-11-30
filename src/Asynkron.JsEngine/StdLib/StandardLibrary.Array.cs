@@ -72,7 +72,7 @@ public static partial class StandardLibrary
         array.SetHostedProperty("shift", ArrayShift, realm);
         array.SetHostedProperty("unshift", ArrayUnshift, realm);
         array.SetHostedProperty("splice", ArraySplice, realm);
-        array.SetHostedProperty("concat", ArrayConcat, realm);
+        DefineArrayFunction(array, "concat", 1d, ArrayConcat, realm);
         array.SetHostedProperty("reverse", ArrayReverse, realm);
         array.SetHostedProperty("sort", ArraySort, realm);
         array.SetHostedProperty("at", ArrayAt, realm);
@@ -845,7 +845,8 @@ public static partial class StandardLibrary
 
     private static object? ArrayConcat(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.concat", realm);
+        const string MethodName = "Array.prototype.concat";
+        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, realm);
         var result = ArraySpeciesCreate(thisValue, 0, realm);
         long resultIndex = 0;
 
@@ -858,10 +859,9 @@ public static partial class StandardLibrary
 
         foreach (var sourceValue in sources)
         {
-            if (IsConcatSpreadable(sourceValue, realm, out var spreadAccessor))
+            if (IsConcatSpreadable(sourceValue, realm, MethodName, out var spreadAccessor))
             {
-                var lengthValue = spreadAccessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-                var spreadLength = (long)ToLengthOrZero(lengthValue);
+                var spreadLength = LengthOfArrayLike(spreadAccessor, realm, MethodName);
                 if (resultIndex + spreadLength > MaxArrayLength)
                 {
                     throw ThrowTypeError("Array length exceeds 2^53 - 1", realm: realm);
@@ -873,11 +873,7 @@ public static partial class StandardLibrary
                     var toKey = ToIndexString(resultIndex);
                     if (TryGetExistingElement(spreadAccessor, fromKey, out var value))
                     {
-                        result.SetProperty(toKey, value);
-                    }
-                    else if (result is not null)
-                    {
-                        result.Delete(toKey);
+                        CreateDataPropertyOrThrow(result, toKey, value, realm, MethodName);
                     }
 
                     resultIndex++;
@@ -890,7 +886,7 @@ public static partial class StandardLibrary
                     throw ThrowTypeError("Array length exceeds 2^53 - 1", realm: realm);
                 }
 
-                result.SetProperty(ToIndexString(resultIndex++), sourceValue);
+                CreateDataPropertyOrThrow(result, ToIndexString(resultIndex++), sourceValue, realm, MethodName);
             }
         }
 
@@ -2002,6 +1998,7 @@ public static partial class StandardLibrary
         Func<object?, IReadOnlyList<object?>, RealmState?, object?> handler, RealmState? realm)
     {
         var fn = new HostFunction(handler, realm) { IsConstructor = false };
+        fn.Properties.Delete("prototype");
         AttachBuiltinMetadata(fn, name, length);
         DefineFunctionProperty(target, name, fn);
     }
@@ -2542,15 +2539,14 @@ public static partial class StandardLibrary
         }
     }
 
-    private static bool IsConcatSpreadable(object? candidate, RealmState? realm, out IJsPropertyAccessor accessor)
+    private static bool IsConcatSpreadable(object? candidate, RealmState? realm, string operation,
+        out IJsPropertyAccessor accessor)
     {
         accessor = null!;
         if (candidate is not IJsPropertyAccessor propertyAccessor)
         {
             return false;
         }
-
-        var inspected = UnwrapProxy(candidate, realm, "Array.prototype.concat");
 
         if (propertyAccessor.TryGetProperty(SymbolIsConcatSpreadableKey, out var spreadableValue) &&
             !ReferenceEquals(spreadableValue, Symbol.Undefined))
@@ -2564,7 +2560,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        if (inspected is JsArray)
+        if (IsArrayObject(candidate, realm, operation))
         {
             accessor = propertyAccessor;
             return true;
@@ -2619,6 +2615,33 @@ public static partial class StandardLibrary
         }
 
         return inspected;
+    }
+
+    private static bool IsArrayObject(object? candidate, RealmState? realm, string operation)
+    {
+        var inspected = candidate;
+        while (inspected is not null)
+        {
+            if (inspected is JsArray)
+            {
+                return true;
+            }
+
+            if (inspected is JsProxy proxy)
+            {
+                if (proxy.Handler is null)
+                {
+                    throw ThrowTypeError($"Cannot perform '{operation}' with a revoked Proxy", realm: realm);
+                }
+
+                inspected = proxy.Target;
+                continue;
+            }
+
+            break;
+        }
+
+        return false;
     }
 
     private static void CopyArrayElement(IJsPropertyAccessor source, long sourceIndex, IJsPropertyAccessor target,
@@ -2685,6 +2708,22 @@ public static partial class StandardLibrary
     private static void SetArrayLikeLength(IJsPropertyAccessor target, long length)
     {
         target.SetProperty("length", (double)Math.Max(length, 0));
+    }
+
+    private static long LengthOfArrayLike(object? target, RealmState? realm, string operation)
+    {
+        if (target is null || ReferenceEquals(target, Symbol.Undefined))
+        {
+            throw ThrowTypeError($"{operation} called on null or undefined", realm: realm);
+        }
+
+        if (!JsOps.TryGetPropertyValue(target, "length", out var lengthValue))
+        {
+            lengthValue = 0d;
+        }
+
+        var numericContext = realm?.CreateContext();
+        return (long)ToLengthOrZero(lengthValue, numericContext);
     }
 
     private static (IJsPropertyAccessor Accessor, long Length, IJsCallable Callback, object? ThisArg)

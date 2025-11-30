@@ -421,6 +421,72 @@ public class AdditionalArrayMethodsTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Array_Concat_ThrowsWhenResultWouldExceedMaxLength()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                     var spreadable = { length: Number.MAX_SAFE_INTEGER };
+                                                     spreadable[Symbol.isConcatSpreadable] = true;
+                                                     try {
+                                                       [1].concat(spreadable);
+                                                       return "no throw";
+                                                     } catch (err) {
+                                                       return err instanceof TypeError;
+                                                     }
+
+                                         """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Array_Concat_RespectsSymbolIsConcatSpreadable()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                     const ta = new Uint8Array([5, 10]);
+                                                     const defaultConcat = [].concat(ta);
+                                                     const defaultBehavior = defaultConcat.length === 1 &&
+                                                       defaultConcat[0] === ta;
+                                                     ta[Symbol.isConcatSpreadable] = true;
+                                                     const flattened = [].concat(ta);
+                                                     const flattenedBehavior = flattened.length === 2 &&
+                                                       flattened[0] === 5 &&
+                                                       flattened[1] === 10;
+                                                     return defaultBehavior && flattenedBehavior;
+
+                                         """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Array_Concat_EvaluatesSpreadableElements()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                     var observed = false;
+                                                     var spreadable = {
+                                                       length: 1,
+                                                       get 0() {
+                                                         observed = true;
+                                                         throw new Error("poison");
+                                                       }
+                                                     };
+                                                     spreadable[Symbol.isConcatSpreadable] = true;
+                                                     try {
+                                                       [].concat(spreadable);
+                                                       return "no throw";
+                                                     } catch (err) {
+                                                       return observed && err.message === "poison";
+                                                     }
+
+                                         """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Array_From_MapFunctionMustBeCallable()
     {
         await using var engine = new JsEngine();

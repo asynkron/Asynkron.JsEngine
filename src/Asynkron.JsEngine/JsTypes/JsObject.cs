@@ -1,146 +1,7 @@
 using System.Globalization;
-using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 
 namespace Asynkron.JsEngine.JsTypes;
-
-/// <summary>
-///     Represents a JavaScript property descriptor.
-/// </summary>
-public sealed class PropertyDescriptor
-{
-    private bool _configurable = true;
-    private bool _enumerable = true;
-    private IJsCallable? _get;
-    private IJsCallable? _set;
-    private object? _value;
-    private bool _writable = true;
-
-    public object? Value
-    {
-        get => _value;
-        set
-        {
-            _value = value;
-            HasValue = true;
-        }
-    }
-
-    public bool Writable
-    {
-        get => _writable;
-        set
-        {
-            _writable = value;
-            HasWritable = true;
-        }
-    }
-
-    public bool Enumerable
-    {
-        get => _enumerable;
-        set
-        {
-            _enumerable = value;
-            HasEnumerable = true;
-        }
-    }
-
-    public bool Configurable
-    {
-        get => _configurable;
-        set
-        {
-            _configurable = value;
-            HasConfigurable = true;
-        }
-    }
-
-    public bool HasValue { get; set; }
-    public bool HasWritable { get; set; }
-    public bool HasEnumerable { get; set; }
-    public bool HasConfigurable { get; set; }
-
-    public bool HasGet { get; private set; }
-    public bool HasSet { get; private set; }
-
-    public IJsCallable? Get
-    {
-        get => _get;
-        set
-        {
-            _get = value;
-            HasGet = true;
-        }
-    }
-
-    public IJsCallable? Set
-    {
-        get => _set;
-        set
-        {
-            _set = value;
-            HasSet = true;
-        }
-    }
-
-    public bool IsAccessorDescriptor => HasGet || HasSet;
-    public bool IsDataDescriptor => HasValue || HasWritable;
-    public bool IsGenericDescriptor => !IsAccessorDescriptor && !IsDataDescriptor;
-    public bool IsEmpty => !HasValue && !HasWritable && !HasEnumerable && !HasConfigurable && !HasGet && !HasSet;
-
-    public PropertyDescriptor Clone()
-    {
-        var clone = new PropertyDescriptor();
-        if (HasValue)
-        {
-            clone.Value = Value;
-        }
-
-        if (HasWritable)
-        {
-            clone.Writable = Writable;
-        }
-
-        if (HasEnumerable)
-        {
-            clone.Enumerable = Enumerable;
-        }
-
-        if (HasConfigurable)
-        {
-            clone.Configurable = Configurable;
-        }
-
-        if (HasGet)
-        {
-            clone.Get = Get;
-        }
-
-        if (HasSet)
-        {
-            clone.Set = Set;
-        }
-
-        return clone;
-    }
-
-    public void ClearDataAttributes()
-    {
-        _value = null;
-        HasValue = false;
-        _writable = true;
-        HasWritable = false;
-    }
-
-    public void ClearAccessorAttributes()
-    {
-        _get = null;
-        HasGet = false;
-        _set = null;
-        HasSet = false;
-    }
-}
 
 /// <summary>
 ///     Simple JavaScript-like object that supports prototype chaining for property lookups.
@@ -255,10 +116,7 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
                     IsAccessorDescriptor: true
                 } desc)
             {
-                if (desc.Set != null)
-                {
-                    desc.Set.Invoke([value], receiver ?? this);
-                }
+                desc.Set?.Invoke([value], receiver ?? this);
 
                 return;
             }
@@ -271,10 +129,7 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
                 if (prototype._privateFields.TryGetValue(name, out var inherited) &&
                     inherited is PropertyDescriptor { IsAccessorDescriptor: true } inheritedDesc)
                 {
-                    if (inheritedDesc.Set != null)
-                    {
-                        inheritedDesc.Set.Invoke([value], receiver ?? this);
-                    }
+                    inheritedDesc.Set?.Invoke([value], receiver ?? this);
 
                     return;
                 }
@@ -291,10 +146,7 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
         {
             if (descriptor.IsAccessorDescriptor)
             {
-                if (descriptor.Set != null)
-                {
-                    descriptor.Set.Invoke([value], receiver ?? this);
-                }
+                descriptor.Set?.Invoke([value], receiver ?? this);
 
                 return;
             }
@@ -327,12 +179,9 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
         if (_prototypeAccessor is IJsObjectLike accessorObject)
         {
             var protoDescriptor = accessorObject.GetOwnPropertyDescriptor(name);
-            if (protoDescriptor is not null && protoDescriptor.IsAccessorDescriptor)
+            if (protoDescriptor?.IsAccessorDescriptor == true)
             {
-                if (protoDescriptor.Set != null)
-                {
-                    protoDescriptor.Set.Invoke([value], receiver ?? this);
-                }
+                protoDescriptor.Set?.Invoke([value], receiver ?? this);
 
                 return;
             }
@@ -590,17 +439,19 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
             return true;
         }
 
-        if (!current.Configurable)
+        if (current.Configurable)
         {
-            if (candidate.HasGet && !ReferenceEquals(candidate.Get, current.Get))
-            {
-                return false;
-            }
+            return true;
+        }
 
-            if (candidate.HasSet && !ReferenceEquals(candidate.Set, current.Set))
-            {
-                return false;
-            }
+        if (candidate.HasGet && !ReferenceEquals(candidate.Get, current.Get))
+        {
+            return false;
+        }
+
+        if (candidate.HasSet && !ReferenceEquals(candidate.Set, current.Set))
+        {
+            return false;
         }
 
         return true;
@@ -707,42 +558,41 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
 
     private static bool SameValue(object? left, object? right)
     {
-        if (left is double ld && right is double rd)
+        switch (left)
         {
-            if (double.IsNaN(ld) && double.IsNaN(rd))
+            case double ld when right is double rd:
             {
-                return true;
-            }
+                if (double.IsNaN(ld) && double.IsNaN(rd))
+                {
+                    return true;
+                }
 
-            if (ld == 0.0 && rd == 0.0)
+                if (ld == 0.0 && rd == 0.0)
+                {
+                    return BitConverter.DoubleToInt64Bits(ld) == BitConverter.DoubleToInt64Bits(rd);
+                }
+
+                return ld.Equals(rd);
+            }
+            case float lf when right is float rf:
             {
-                return BitConverter.DoubleToInt64Bits(ld) == BitConverter.DoubleToInt64Bits(rd);
-            }
+                if (float.IsNaN(lf) && float.IsNaN(rf))
+                {
+                    return true;
+                }
 
-            return ld.Equals(rd);
+                if (lf == 0f && rf == 0f)
+                {
+                    return BitConverter.SingleToInt32Bits(lf) == BitConverter.SingleToInt32Bits(rf);
+                }
+
+                return lf.Equals(rf);
+            }
+            case JsBigInt lbi when right is JsBigInt rbi:
+                return lbi == rbi;
+            default:
+                return Equals(left, right);
         }
-
-        if (left is float lf && right is float rf)
-        {
-            if (float.IsNaN(lf) && float.IsNaN(rf))
-            {
-                return true;
-            }
-
-            if (lf == 0f && rf == 0f)
-            {
-                return BitConverter.SingleToInt32Bits(lf) == BitConverter.SingleToInt32Bits(rf);
-            }
-
-            return lf.Equals(rf);
-        }
-
-        if (left is JsBigInt lbi && right is JsBigInt rbi)
-        {
-            return lbi == rbi;
-        }
-
-        return Equals(left, right);
     }
 
     public bool HasProperty(string name)
@@ -765,18 +615,16 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
             }
 
             var prototype = current._prototypeAccessor;
-            if (prototype is null)
+            switch (prototype)
             {
-                return false;
+                case null:
+                    return false;
+                case JsObject jsObject:
+                    current = jsObject;
+                    continue;
+                default:
+                    return prototype.TryGetProperty(name, out _);
             }
-
-            if (prototype is JsObject jsObject)
-            {
-                current = jsObject;
-                continue;
-            }
-
-            return prototype.TryGetProperty(name, out _);
         }
 
         return false;
@@ -948,18 +796,16 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
         }
 
         var prototype = _prototypeAccessor;
-        if (prototype is null)
+        switch (prototype)
         {
-            value = null;
-            return false;
+            case null:
+                value = null;
+                return false;
+            case JsObject jsObjPrototype:
+                return jsObjPrototype.TryGetProperty(name, receiver ?? this, visited, out value);
+            default:
+                return prototype.TryGetProperty(name, receiver ?? this, out value);
         }
-
-        if (prototype is JsObject jsObjPrototype)
-        {
-            return jsObjPrototype.TryGetProperty(name, receiver ?? this, visited, out value);
-        }
-
-        return prototype.TryGetProperty(name, receiver ?? this, out value);
     }
 
     private bool TryGetOwnProperty(string name, object? receiver, out object? value)
@@ -969,17 +815,18 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
             !ContainsKey(name) &&
             _virtualPropertyProvider.TryGetOwnProperty(name, out value, out var virtualDescriptor))
         {
-            if (virtualDescriptor is not null && virtualDescriptor.IsAccessorDescriptor)
+            if (virtualDescriptor?.IsAccessorDescriptor != true)
             {
-                if (virtualDescriptor.Get != null)
-                {
-                    value = virtualDescriptor.Get.Invoke([], receiver ?? this);
-                }
-
                 return true;
             }
 
+            if (virtualDescriptor.Get != null)
+            {
+                value = virtualDescriptor.Get.Invoke([], receiver ?? this);
+            }
+
             return true;
+
         }
 
         if (_descriptors.TryGetValue(name, out var descriptor))
@@ -1151,37 +998,5 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
                       index != uint.MaxValue &&
                       string.Equals(index.ToString(CultureInfo.InvariantCulture), key, StringComparison.Ordinal);
         return isIndex;
-    }
-}
-
-public interface IVirtualPropertyProvider
-{
-    bool TryGetOwnProperty(string name, out object? value, out PropertyDescriptor? descriptor);
-    IEnumerable<string> GetEnumerableKeys();
-}
-
-public interface IPrivateBrandHolder
-{
-    void AddPrivateBrand(object brand);
-    bool HasPrivateBrand(object brand);
-}
-
-public sealed class ReferenceEqualityComparer<T> : IEqualityComparer<T>
-    where T : class
-{
-    private ReferenceEqualityComparer()
-    {
-    }
-
-    public static ReferenceEqualityComparer<T> Instance { get; } = new();
-
-    public bool Equals(T? x, T? y)
-    {
-        return ReferenceEquals(x, y);
-    }
-
-    public int GetHashCode(T obj)
-    {
-        return RuntimeHelpers.GetHashCode(obj);
     }
 }

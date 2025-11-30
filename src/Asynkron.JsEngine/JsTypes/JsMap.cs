@@ -28,13 +28,14 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     public bool TryGetProperty(string name, object? receiver, out object? value)
     {
         // Handle special 'size' property
-        if (string.Equals(name, "size", StringComparison.Ordinal))
+        if (!string.Equals(name, "size", StringComparison.Ordinal))
         {
-            value = (double)Size;
-            return true;
+            return _properties.TryGetProperty(name, receiver ?? this, out value);
         }
 
-        return _properties.TryGetProperty(name, receiver ?? this, out value);
+        value = (double)Size;
+        return true;
+
     }
 
     public bool TryGetProperty(string name, out object? value)
@@ -91,11 +92,13 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         // Find existing entry with the same key
         for (var i = 0; i < _entries.Count; i++)
         {
-            if (SameValueZero(_entries[i].Key, key))
+            if (!SameValueZero(_entries[i].Key, key))
             {
-                _entries[i] = new KeyValuePair<object?, object?>(key, value);
-                return this;
+                continue;
             }
+
+            _entries[i] = new KeyValuePair<object?, object?>(key, value);
+            return this;
         }
 
         // Key not found, add new entry
@@ -143,11 +146,13 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     {
         for (var i = 0; i < _entries.Count; i++)
         {
-            if (SameValueZero(_entries[i].Key, key))
+            if (!SameValueZero(_entries[i].Key, key))
             {
-                _entries.RemoveAt(i);
-                return true;
+                continue;
             }
+
+            _entries.RemoveAt(i);
+            return true;
         }
 
         return false;
@@ -177,12 +182,10 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsArray Entries()
     {
-        var entries = new List<object?>();
-        foreach (var entry in _entries)
-        {
-            var pair = new JsArray([entry.Key, entry.Value]);
-            entries.Add(pair);
-        }
+        var entries = _entries
+            .Select(entry => new JsArray([entry.Key, entry.Value]))
+            .Cast<object?>()
+            .ToList();
 
         return new JsArray(entries);
     }
@@ -192,7 +195,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsArray Keys()
     {
-        var keys = _entries.Select(e => e.Key).ToList();
+        var keys = _entries.ConvertAll(e => e.Key);
         return new JsArray(keys);
     }
 
@@ -201,7 +204,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsArray Values()
     {
-        var values = _entries.Select(e => e.Value).ToList();
+        var values = _entries.ConvertAll(e => e.Value);
         return new JsArray(values);
     }
 

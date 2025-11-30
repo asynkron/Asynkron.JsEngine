@@ -527,10 +527,7 @@ public static partial class TypedAstEvaluator
                                 var thrownDuringInitialization = context.FlowValue;
                                 context.Clear();
 
-                                if (callingContext is not null)
-                                {
-                                    callingContext.SetThrow(thrownDuringInitialization);
-                                }
+                                callingContext?.SetThrow(thrownDuringInitialization);
 
                                 throw new ThrowSignal(thrownDuringInitialization);
                             }
@@ -572,18 +569,12 @@ public static partial class TypedAstEvaluator
                         if (IsAsyncFunction || _wasAsyncFunction)
                         {
                             // Async functions must reject instead of throwing synchronously.
-                            if (callingContext is not null)
-                            {
-                                callingContext.Clear();
-                            }
+                            callingContext?.Clear();
 
                             return CreateRejectedPromise(thrownDuringBinding, parameterEnvironment);
                         }
 
-                        if (callingContext is not null)
-                        {
-                            callingContext.SetThrow(thrownDuringBinding);
-                        }
+                        callingContext?.SetThrow(thrownDuringBinding);
 
                         throw new ThrowSignal(thrownDuringBinding);
                     }
@@ -617,10 +608,7 @@ public static partial class TypedAstEvaluator
                         return CreateRejectedPromise(thrown, executionEnvironment);
                     }
 
-                    if (callingContext is not null)
-                    {
-                        callingContext.SetThrow(thrown);
-                    }
+                    callingContext?.SetThrow(thrown);
 
                     throw new ThrowSignal(thrown);
                 }

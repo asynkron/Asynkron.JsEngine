@@ -439,10 +439,7 @@ public sealed class JsEnvironment
                 if (current.IsGlobalFunctionScope)
                 {
                     var globalObject = current.GetRootGlobalObject();
-                    if (globalObject is not null)
-                    {
-                        globalObject.SetProperty(name.Name, value);
-                    }
+                    globalObject?.SetProperty(name.Name, value);
                 }
 
                 return true;
@@ -740,10 +737,7 @@ public sealed class JsEnvironment
 
         // Non-strict mode: Create the variable in the global scope (this environment)
         Define(name, value);
-        if (globalObject is not null)
-        {
-            globalObject.SetProperty(name.Name, value);
-        }
+        globalObject?.SetProperty(name.Name, value);
     }
 
     internal DeleteBindingResult DeleteBinding(Symbol name)
@@ -772,19 +766,16 @@ public sealed class JsEnvironment
         }
 
         var globalObject = GetRootGlobalObject();
-        if (globalObject is not null)
+        var descriptor = globalObject?.GetOwnPropertyDescriptor(name.Name);
+        if (descriptor != null)
         {
-            var descriptor = globalObject.GetOwnPropertyDescriptor(name.Name);
-            if (descriptor is not null)
+            if (!descriptor.Configurable)
             {
-                if (!descriptor.Configurable)
-                {
-                    return DeleteBindingResult.NotDeletable;
-                }
-
-                globalObject.Delete(name.Name);
-                return DeleteBindingResult.Deleted;
+                return DeleteBindingResult.NotDeletable;
             }
+
+            globalObject.Delete(name.Name);
+            return DeleteBindingResult.Deleted;
         }
 
         return DeleteBindingResult.NotFound;

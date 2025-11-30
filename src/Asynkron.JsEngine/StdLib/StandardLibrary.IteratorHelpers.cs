@@ -46,7 +46,7 @@ public static partial class StandardLibrary
 
             if (iterable is JsArray jsArray)
             {
-                var iteratorObj = CreateArrayIterator(jsArray);
+                var iteratorObj = CreateArrayIterator(jsArray, idx => jsArray.GetElement((int)idx));
                 engine.WriteAsyncIteratorTrace(
                     $"getAsyncIterator: branch=array length={jsArray.Length}");
                 return iteratorObj;
@@ -104,37 +104,64 @@ public static partial class StandardLibrary
                 }
             }
 
-            static JsObject CreateArrayIterator(JsArray array)
-            {
-                var iteratorObj = new JsObject();
-                var index = 0;
-                iteratorObj.SetHostedProperty("next", Next);
-                return iteratorObj;
-
-                object? Next(IReadOnlyList<object?> _)
-                {
-                    var result = new JsObject();
-                    if (index < array.Length)
-                    {
-                        result.SetProperty("value", array.GetElement(index));
-                        result.SetProperty("done", false);
-                        index++;
-                    }
-                    else
-                    {
-                        result.SetProperty("done", true);
-                    }
-
-                    return result;
-                }
-            }
-
             static bool HasCallableNext(object? candidate)
             {
                 return candidate is JsObject obj &&
                        obj.TryGetProperty("next", out var nextProp) &&
                        nextProp is IJsCallable;
             }
+        }
+    }
+
+    private static JsObject CreateArrayIterator(IJsPropertyAccessor accessor, Func<uint, object?> projector)
+    {
+        var iterator = new JsObject();
+        var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
+        var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
+
+        uint index = 0;
+        var exhausted = false;
+
+        iterator.SetHostedProperty("next", Next);
+        iterator.SetHostedProperty(iteratorKey, ReturnIterator);
+        return iterator;
+
+        object? Next(object? _, IReadOnlyList<object?> __)
+        {
+            if (exhausted)
+            {
+                var doneResult = new JsObject();
+                doneResult.SetProperty("value", Symbol.Undefined);
+                doneResult.SetProperty("done", true);
+                return doneResult;
+            }
+
+            uint length = 0;
+            if (accessor.TryGetProperty("length", out var lengthValue))
+            {
+                length = (uint)ToLengthValue(lengthValue);
+            }
+
+            var result = new JsObject();
+            if (index < length)
+            {
+                result.SetProperty("value", projector(index));
+                result.SetProperty("done", false);
+                index++;
+            }
+            else
+            {
+                result.SetProperty("value", Symbol.Undefined);
+                result.SetProperty("done", true);
+                exhausted = true;
+            }
+
+            return result;
+        }
+
+        object? ReturnIterator(object? _, IReadOnlyList<object?> __)
+        {
+            return iterator;
         }
     }
 

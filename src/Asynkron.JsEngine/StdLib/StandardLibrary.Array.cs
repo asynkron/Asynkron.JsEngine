@@ -11,6 +11,18 @@ public static partial class StandardLibrary
 {
     private const long MaxArrayLength = 9007199254740991L; // 2^53 - 1
 
+    private static double ToLengthValue(object? candidate)
+    {
+        var num = JsOps.ToNumber(candidate);
+        if (double.IsNaN(num) || double.IsInfinity(num) || num <= 0)
+        {
+            return 0;
+        }
+
+        var truncated = Math.Floor(num);
+        return Math.Min(truncated, (double)MaxArrayLength); // 2^53 - 1
+    }
+
     public static void AddArrayMethods(IJsPropertyAccessor array, RealmState? realm = null,
         JsObject? prototypeOverride = null)
     {
@@ -109,72 +121,6 @@ public static partial class StandardLibrary
         });
         return;
 
-        static double ToLengthValue(object? candidate)
-        {
-            var num = JsOps.ToNumber(candidate);
-            if (double.IsNaN(num) || double.IsInfinity(num) || num <= 0)
-            {
-                return 0;
-            }
-
-            var truncated = Math.Floor(num);
-            return Math.Min(truncated, (double)MaxArrayLength); // 2^53 - 1
-        }
-
-        static object CreateArrayIterator(object? thisValue, IJsPropertyAccessor accessor,
-            Func<uint, object?> projector)
-        {
-            var iterator = new JsObject();
-            var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
-            var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
-
-            uint index = 0;
-            var exhausted = false;
-
-            iterator.SetHostedProperty("next", Next);
-
-            iterator.SetHostedProperty(iteratorKey, ReturnIterator);
-            return iterator;
-
-            object? Next(object? _, IReadOnlyList<object?> __)
-            {
-                if (exhausted)
-                {
-                    var doneResult = new JsObject();
-                    doneResult.SetProperty("value", Symbol.Undefined);
-                    doneResult.SetProperty("done", true);
-                    return doneResult;
-                }
-
-                uint length = 0;
-                if (accessor.TryGetProperty("length", out var lengthValue))
-                {
-                    length = (uint)ToLengthValue(lengthValue);
-                }
-
-                var result = new JsObject();
-                if (index < length)
-                {
-                    result.SetProperty("value", projector(index));
-                    result.SetProperty("done", false);
-                    index++;
-                }
-                else
-                {
-                    result.SetProperty("value", Symbol.Undefined);
-                    result.SetProperty("done", true);
-                    exhausted = true;
-                }
-
-                return result;
-            }
-
-            object? ReturnIterator(object? _, IReadOnlyList<object?> __)
-            {
-                return iterator;
-            }
-        }
-
         HostFunction DefineArrayIteratorFunction(string name,
             Func<IJsPropertyAccessor, object?, Func<uint, object?>> projectorFactory)
         {
@@ -197,7 +143,7 @@ public static partial class StandardLibrary
                 }
 
                 var projector = projectorFactory(accessor, thisValue);
-                return CreateArrayIterator(thisValue, accessor, projector);
+                return CreateArrayIterator(accessor, projector);
             }) { IsConstructor = false };
 
             fn.DefineProperty("name",

@@ -19,6 +19,7 @@
 - `Reflect.construct(Array, ...)` now falls back to the `%Array.prototype%` intrinsic from the NewTarget's realm when its `prototype` property is missing or non-object, so the `proto-from-ctor-realm-*` tests observe cross-realm prototypes (see the new regression in `AdditionalArrayMethodsTests`).
 - `Array.from` now re-samples the source array-like `length` on each iteration and only counts successfully visited indices, so deleting elements mid-flight no longer produces phantom entries; the new regression mirrors the Test262 `elements-deleted-after` coverage.
 - Strict global scripts mirror `var` bindings onto `globalThis`, so `"use strict"; var marker = 1;` writes through to the host global object and the regression in `StrictGlobalVar_BindsToGlobalObject` now passes.
+- `Array.fromAsync` is now exposed on `Array` with the correct name/length/descriptors so the built-in metadata tests can execute, but invoking it still throws `NotSupportedException` (full async semantics remain TODO).
 - `Array.from` now treats any provided `mapfn` (including `null`) as requiring a callable mapper, constructs `this`-provided constructors before the iterator is pulled, and tolerates iterator `return()` methods that produce primitives; the new AdditionalArrayMethods regressions prove the constructor ordering, callable validation, and iterator-close behavior.
 
 ## Next Iteration Plan

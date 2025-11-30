@@ -333,6 +333,47 @@ public class AdditionalArrayMethodsTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Array_FromAsync_ExposesCorrectMetadata()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       return {
+                                                         type: typeof Array.fromAsync,
+                                                         extensible: Object.isExtensible(Array.fromAsync),
+                                                         prototypeIsFunction: Object.getPrototypeOf(Array.fromAsync) === Function.prototype,
+                                                         hasOwnPrototype: Object.prototype.hasOwnProperty.call(Array.fromAsync, "prototype"),
+                                                         lengthDesc: Object.getOwnPropertyDescriptor(Array.fromAsync, "length"),
+                                                         nameDesc: Object.getOwnPropertyDescriptor(Array.fromAsync, "name"),
+                                                         propDesc: Object.getOwnPropertyDescriptor(Array, "fromAsync")
+                                                       };
+
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal("function", obj["type"]);
+        Assert.Equal(true, obj["extensible"]);
+        Assert.Equal(true, obj["prototypeIsFunction"]);
+        Assert.Equal(false, obj["hasOwnPrototype"]);
+
+        var lengthDesc = Assert.IsType<JsObject>(obj["lengthDesc"]);
+        Assert.Equal(1d, lengthDesc["value"]);
+        Assert.Equal(false, lengthDesc["writable"]);
+        Assert.Equal(false, lengthDesc["enumerable"]);
+        Assert.Equal(true, lengthDesc["configurable"]);
+
+        var nameDesc = Assert.IsType<JsObject>(obj["nameDesc"]);
+        Assert.Equal("fromAsync", nameDesc["value"]);
+        Assert.Equal(false, nameDesc["writable"]);
+        Assert.Equal(false, nameDesc["enumerable"]);
+        Assert.Equal(true, nameDesc["configurable"]);
+
+        var propDesc = Assert.IsType<JsObject>(obj["propDesc"]);
+        Assert.Equal(true, propDesc["writable"]);
+        Assert.Equal(false, propDesc["enumerable"]);
+        Assert.Equal(true, propDesc["configurable"]);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Array_From_MapFunctionMustBeCallable()
     {
         await using var engine = new JsEngine();

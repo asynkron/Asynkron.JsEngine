@@ -809,9 +809,10 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         return true;
     }
 
-    private ThrowSignal CreateRangeError(string message)
+    private ThrowSignal CreateRangeError(string message, EvaluationContext? context = null)
     {
-        var ctor = _realmState?.RangeErrorConstructor ?? _rangeErrorCtor;
+        var realm = context?.RealmState ?? _realmState;
+        var ctor = realm?.RangeErrorConstructor ?? _rangeErrorCtor;
         if (ctor is IJsCallable)
         {
             var errorObj = ctor.Invoke([message], null);
@@ -823,9 +824,10 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         return new ThrowSignal(fallback);
     }
 
-    private ThrowSignal CreateTypeError(string message)
+    private ThrowSignal CreateTypeError(string message, EvaluationContext? context = null)
     {
-        var ctor = _realmState?.TypeErrorConstructor ?? _typeErrorCtor;
+        var realm = context?.RealmState ?? _realmState;
+        var ctor = realm?.TypeErrorConstructor ?? _typeErrorCtor;
         if (ctor is IJsCallable)
         {
             var errorObj = ctor.Invoke([message], null);
@@ -839,7 +841,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     private bool FailRangeError(EvaluationContext? context)
     {
-        var signal = CreateRangeError("Invalid array length");
+        var signal = CreateRangeError("Invalid array length", context);
         if (context is not null)
         {
             context.SetThrow(signal.ThrownValue);
@@ -856,7 +858,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return false;
         }
 
-        var signal = CreateTypeError("Invalid array length");
+        var signal = CreateTypeError("Invalid array length", context);
         if (context is not null)
         {
             context.SetThrow(signal.ThrownValue);

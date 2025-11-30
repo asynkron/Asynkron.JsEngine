@@ -1595,6 +1595,16 @@ public static partial class StandardLibrary
         AttachBuiltinMetadata(arrayFrom, "from", 1d);
         DefineFunctionProperty(arrayConstructor, "from", arrayFrom);
 
+        HostFunction arrayFromAsync = null!;
+        arrayFromAsync = new HostFunction((thisValue, args) => ArrayFromAsync(arrayFromAsync, thisValue, args, realm),
+            realm)
+        {
+            IsConstructor = false
+        };
+        AttachBuiltinMetadata(arrayFromAsync, "fromAsync", 1d);
+        arrayFromAsync.Properties.Delete("prototype");
+        DefineFunctionProperty(arrayConstructor, "fromAsync", arrayFromAsync);
+
         // Array.of(...elements)
         arrayConstructor.SetHostedProperty("of", ArrayOf, realm);
 
@@ -1739,6 +1749,12 @@ public static partial class StandardLibrary
 
         SetArrayLikeLength(result, k);
         return result;
+    }
+
+    private static object? ArrayFromAsync(HostFunction host, object? thisValue, IReadOnlyList<object?> args,
+        RealmState? realm)
+    {
+        throw new NotSupportedException("Array.fromAsync is not implemented yet.");
     }
 
     private static object? ArrayFromIterable(HostFunction host, object? thisValue, object? items,

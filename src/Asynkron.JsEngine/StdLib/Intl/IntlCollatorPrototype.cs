@@ -7,18 +7,9 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 namespace Asynkron.JsEngine.StdLib.Intl;
 
 [JsPrototype("Intl.Collator", ToStringTag = "Intl.Collator")]
-public sealed partial class IntlCollatorPrototype : JsPrototype
+public sealed partial class IntlCollatorPrototype
 {
     private const string CollatorBrand = "__collator__";
-
-    public IntlCollatorPrototype(JsObject prototype, RealmState realm)
-        : base(prototype, realm)
-    {
-        if (realm.ObjectPrototype is not null)
-        {
-            prototype.SetPrototype(realm.ObjectPrototype);
-        }
-    }
 
     internal static void InitializeInternalSlots(JsObject instance)
     {

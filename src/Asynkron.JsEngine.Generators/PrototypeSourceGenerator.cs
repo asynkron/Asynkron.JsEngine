@@ -150,6 +150,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         source.AppendLine("using Asynkron.JsEngine.Ast;");
         source.AppendLine("using Asynkron.JsEngine.JsTypes;");
         source.AppendLine("using Asynkron.JsEngine.Runtime;");
+        source.AppendLine("using Asynkron.JsEngine.Runtime.Prototypes;");
         source.AppendLine();
         if (!string.IsNullOrEmpty(ns))
         {
@@ -157,8 +158,15 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             source.AppendLine();
         }
 
-        source.Append("public sealed partial class ").Append(info.Symbol.Name).AppendLine();
+        source.Append("public sealed partial class ").Append(info.Symbol.Name).AppendLine(" : JsPrototype");
         source.AppendLine("{");
+        source.Append("    public ").Append(info.Symbol.Name).AppendLine("(JsObject prototype, RealmState realm) : base(prototype, realm)");
+        source.AppendLine("    {");
+        source.AppendLine("        InitializePrototype();");
+        source.AppendLine("    }");
+        source.AppendLine();
+        source.AppendLine("    partial void InitializePrototype();");
+        source.AppendLine();
         source.AppendLine("    public static JsObject CreatePrototype(RealmState realm)");
         source.AppendLine("    {");
         source.AppendLine("        var prototype = new JsObject();");

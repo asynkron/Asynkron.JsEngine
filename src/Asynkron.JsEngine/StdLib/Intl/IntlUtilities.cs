@@ -7,6 +7,9 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 
 internal static class IntlUtilities
 {
+    private static readonly string[] CalendarValues = ["gregory"];
+    private static readonly string[] EmptyValues = Array.Empty<string>();
+
     public static IReadOnlyList<string> CanonicalizeLocaleList(object? locales, RealmState realm)
     {
         if (locales is null)
@@ -107,5 +110,36 @@ internal static class IntlUtilities
         }
 
         throw StandardLibrary.ThrowRangeError($"Unsupported timeZone '{tzString}'", realm: realm);
+    }
+
+    public static IReadOnlyList<string> GetSupportedValues(string key, RealmState realm)
+    {
+        return key switch
+        {
+            "calendar" => CalendarValues,
+            "collation" => EmptyValues,
+            "currency" => EmptyValues,
+            "numberingSystem" => EmptyValues,
+            "timeZone" => BuildSupportedTimeZones(realm),
+            "unit" => EmptyValues,
+            _ => throw StandardLibrary.ThrowRangeError(
+                $"Unsupported Intl.supportedValuesOf key '{key}'", realm: realm)
+        };
+    }
+
+    private static IReadOnlyList<string> BuildSupportedTimeZones(RealmState realm)
+    {
+        var zones = new SortedSet<string>(StringComparer.Ordinal)
+        {
+            TimeZoneInfo.Utc.Id
+        };
+
+        var realmZone = realm.Options.TimeZone.Id;
+        if (!string.IsNullOrEmpty(realmZone))
+        {
+            zones.Add(realmZone);
+        }
+
+        return zones.ToArray();
     }
 }

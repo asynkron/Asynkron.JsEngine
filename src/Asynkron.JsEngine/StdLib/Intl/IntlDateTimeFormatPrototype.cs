@@ -7,19 +7,10 @@ using Asynkron.JsEngine.Runtime.Prototypes;
 namespace Asynkron.JsEngine.StdLib.Intl;
 
 [JsPrototype("Intl.DateTimeFormat", ToStringTag = "Intl.DateTimeFormat")]
-public sealed partial class IntlDateTimeFormatPrototype : JsPrototype
+public sealed partial class IntlDateTimeFormatPrototype
 {
     private const string BrandKey = "__dateTimeFormat__";
     private const string SlotsKey = "__dateTimeFormatSlots__";
-
-    public IntlDateTimeFormatPrototype(JsObject prototype, RealmState realm)
-        : base(prototype, realm)
-    {
-        if (realm.ObjectPrototype is not null)
-        {
-            prototype.SetPrototype(realm.ObjectPrototype);
-        }
-    }
 
     internal static void InitializeInternalSlots(JsObject instance, DateTimeFormatInternalSlots slots)
     {

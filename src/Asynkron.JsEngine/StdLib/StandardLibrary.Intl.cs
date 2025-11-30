@@ -10,6 +10,20 @@ public static partial class StandardLibrary
     public static JsObject CreateIntlObject(RealmState realm)
     {
         var intl = new JsObject();
+        if (realm.ObjectPrototype is not null)
+        {
+            intl.SetPrototype(realm.ObjectPrototype);
+        }
+
+        var toStringTagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
+        intl.DefineProperty(toStringTagKey,
+            new PropertyDescriptor
+            {
+                Value = "Intl",
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
 
         var localeCtor = IntlLocaleConstructor.CreateConstructor(realm);
         intl.SetProperty("Locale", localeCtor);
@@ -26,7 +40,72 @@ public static partial class StandardLibrary
         var numberFormatCtor = IntlNumberFormatConstructor.CreateConstructor(realm);
         intl.SetProperty("NumberFormat", numberFormatCtor);
 
+        var getCanonicalLocales = new HostFunction(args => CreateCanonicalLocalesResult(args), realm)
+        {
+            IsConstructor = false
+        };
+        getCanonicalLocales.DefineProperty("length",
+            new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
+        getCanonicalLocales.DefineProperty("name",
+            new PropertyDescriptor
+            {
+                Value = "getCanonicalLocales", Writable = false, Enumerable = false, Configurable = true
+            });
+        getCanonicalLocales.Delete("prototype");
+
+        intl.DefineProperty("getCanonicalLocales",
+            new PropertyDescriptor
+            {
+                Value = getCanonicalLocales, Writable = true, Enumerable = false, Configurable = true
+            });
+
+        var supportedValuesOf = new HostFunction(args => CreateSupportedValuesResult(args), realm)
+        {
+            IsConstructor = false
+        };
+        supportedValuesOf.DefineProperty("length",
+            new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
+        supportedValuesOf.DefineProperty("name",
+            new PropertyDescriptor
+            {
+                Value = "supportedValuesOf", Writable = false, Enumerable = false, Configurable = true
+            });
+        supportedValuesOf.Delete("prototype");
+
+        intl.DefineProperty("supportedValuesOf",
+            new PropertyDescriptor
+            {
+                Value = supportedValuesOf, Writable = true, Enumerable = false, Configurable = true
+            });
+
         return intl;
+
+        JsArray CreateCanonicalLocalesResult(IReadOnlyList<object?> args)
+        {
+            var localesArg = args.Count > 0 ? args[0] : Symbol.Undefined;
+            var canonicalized = IntlUtilities.CanonicalizeLocaleList(localesArg, realm);
+            var result = new JsArray(realm);
+            foreach (var locale in canonicalized)
+            {
+                result.Push(locale);
+            }
+
+            return result;
+        }
+
+        JsArray CreateSupportedValuesResult(IReadOnlyList<object?> args)
+        {
+            var keyValue = args.Count > 0 ? args[0] : Symbol.Undefined;
+            var key = JsValueToString(keyValue);
+            var values = IntlUtilities.GetSupportedValues(key, realm);
+            var result = new JsArray(realm);
+            foreach (var value in values)
+            {
+                result.Push(value);
+            }
+
+            return result;
+        }
     }
 
     public static JsObject CreateTemporalObject(RealmState realm)
@@ -42,7 +121,7 @@ public static partial class StandardLibrary
         {
             var instance = thisValue as JsObject ?? new JsObject();
             instance.SetPrototype(durationPrototype);
-            if (args.Count <= 0 || args[0] is not JsObject source)
+            if (args.Count == 0 || args[0] is not JsObject source)
             {
                 return instance;
             }

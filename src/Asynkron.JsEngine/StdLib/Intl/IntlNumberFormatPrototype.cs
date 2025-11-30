@@ -8,18 +8,9 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 namespace Asynkron.JsEngine.StdLib.Intl;
 
 [JsPrototype("Intl.NumberFormat", ToStringTag = "Intl.NumberFormat")]
-public sealed partial class IntlNumberFormatPrototype : JsPrototype
+public sealed partial class IntlNumberFormatPrototype
 {
     private const string NumberFormatBrand = "__numberFormat__";
-
-    public IntlNumberFormatPrototype(JsObject prototype, RealmState realm)
-        : base(prototype, realm)
-    {
-        if (realm.ObjectPrototype is not null)
-        {
-            prototype.SetPrototype(realm.ObjectPrototype);
-        }
-    }
 
     internal static void InitializeInternalSlots(JsObject instance, RealmState realm)
     {
@@ -97,17 +88,12 @@ public sealed partial class IntlNumberFormatPrototype : JsPrototype
             throw new ThrowSignal(context.FlowValue);
         }
 
-        if (double.IsNaN(number))
+        return number switch
         {
-            return "NaN";
-        }
-
-        if (number == 0d)
-        {
-            return "0";
-        }
-
-        return number.ToString(CultureInfo.InvariantCulture);
+            double.NaN => "NaN",
+            0d => "0",
+            _ => number.ToString(CultureInfo.InvariantCulture)
+        };
     }
 
     private JsObject CreateNumberFormatResolvedOptions(JsObject nf)

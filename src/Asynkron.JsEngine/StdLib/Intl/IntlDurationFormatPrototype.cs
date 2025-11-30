@@ -7,18 +7,8 @@ using Asynkron.JsEngine.Runtime.Prototypes;
 namespace Asynkron.JsEngine.StdLib.Intl;
 
 [JsPrototype("Intl.DurationFormat", ToStringTag = "Intl.DurationFormat")]
-public sealed partial class IntlDurationFormatPrototype : JsPrototype
+public sealed partial class IntlDurationFormatPrototype
 {
-
-    public IntlDurationFormatPrototype(JsObject prototype, RealmState realm)
-        : base(prototype, realm)
-    {
-        if (realm.ObjectPrototype is not null)
-        {
-            prototype.SetPrototype(realm.ObjectPrototype);
-        }
-    }
-
     [JsHostMethod("format", Length = 0d)]
     public string Format(object? thisValue, IReadOnlyList<object?> args)
     {

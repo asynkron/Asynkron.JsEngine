@@ -6,7 +6,7 @@ using Asynkron.JsEngine.Runtime.Prototypes;
 namespace Asynkron.JsEngine.StdLib.Intl;
 
 [JsPrototype("Intl.Locale")]
-public sealed partial class IntlLocalePrototype(JsObject prototype, RealmState realm) : JsPrototype(prototype, realm)
+public sealed partial class IntlLocalePrototype
 {
     [JsHostGetter("calendar", DisplayName = "get calendar")]
     private object? GetCalendar(object? thisValue)

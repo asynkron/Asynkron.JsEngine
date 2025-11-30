@@ -1,0 +1,83 @@
+using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.Runtime.Prototypes;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+namespace Asynkron.JsEngine.StdLib.Intl;
+
+[JsPrototype("Intl.Collator")]
+public sealed partial class IntlCollatorPrototype : JsPrototype
+{
+    private const string CollatorBrand = "__collator__";
+
+    private static readonly string ToStringTagKey =
+        $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
+
+    public IntlCollatorPrototype(JsObject prototype, RealmState realm)
+        : base(prototype, realm)
+    {
+        if (realm.ObjectPrototype is not null)
+        {
+            prototype.SetPrototype(realm.ObjectPrototype);
+        }
+    }
+
+    internal static void InitializeInternalSlots(JsObject instance)
+    {
+        instance.SetProperty(CollatorBrand, true);
+        instance.SetProperty("__locale__", "en");
+        instance.SetProperty("__usage__", "sort");
+        instance.SetProperty("__sensitivity__", "variant");
+        instance.SetProperty("__ignorePunctuation__", false);
+    }
+
+    [JsHostMethod("compare", Length = 2d)]
+    public object Compare(object? thisValue, IReadOnlyList<object?> args)
+    {
+        ValidateCollatorReceiver(thisValue);
+        var first = args.Count > 0 ? JsValueToString(args[0]) : string.Empty;
+        var second = args.Count > 1 ? JsValueToString(args[1]) : string.Empty;
+        return string.CompareOrdinal(first, second) switch
+        {
+            < 0 => -1d,
+            > 0 => 1d,
+            _ => 0d
+        };
+    }
+
+    [JsHostMethod("resolvedOptions", Length = 0d)]
+    public object ResolvedOptions(object? thisValue, IReadOnlyList<object?> _)
+    {
+        var collator = ValidateCollatorReceiver(thisValue);
+        var options = new JsObject();
+        options.SetPrototype(Realm.ObjectPrototype);
+        options.SetProperty("locale", collator.TryGetProperty("__locale__", out var locale) ? locale ?? "en" : "en");
+        options.SetProperty("usage", collator.TryGetProperty("__usage__", out var usage) ? usage ?? "sort" : "sort");
+        options.SetProperty("sensitivity",
+            collator.TryGetProperty("__sensitivity__", out var sensitivity) ? sensitivity ?? "variant" : "variant");
+        options.SetProperty("ignorePunctuation",
+            collator.TryGetProperty("__ignorePunctuation__", out var ignore) && ignore is bool ignoreBool &&
+            ignoreBool);
+        return options;
+    }
+
+    private JsObject ValidateCollatorReceiver(object? thisValue)
+    {
+        if (thisValue is JsObject obj && obj.TryGetProperty(CollatorBrand, out var marker) && marker is true)
+        {
+            return obj;
+        }
+
+        throw ThrowTypeError("Intl.Collator method called on incompatible receiver", realm: Realm);
+    }
+
+    protected override void ConfigurePrototype()
+    {
+        Prototype.DefineProperty(ToStringTagKey,
+            new PropertyDescriptor
+            {
+                Value = "Intl.Collator", Writable = false, Enumerable = false, Configurable = true
+            });
+    }
+}

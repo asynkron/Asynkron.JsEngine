@@ -83,6 +83,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{CBE37AA6-A
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Asynkron.JsEngine.Tests.Test262", "tests\Asynkron.JsEngine.Tests.Test262\Asynkron.JsEngine.Tests.Test262.csproj", "{7527CADC-BF6A-4F99-846F-92122ACFB155}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Asynkron.JsEngine.Generators", "src\Asynkron.JsEngine.Generators\Asynkron.JsEngine.Generators.csproj", "{A1A0C2D6-9BFB-4F29-A2B6-8D26FBDD36D5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -165,6 +167,18 @@ Global
 		{7527CADC-BF6A-4F99-846F-92122ACFB155}.Release|x64.Build.0 = Release|Any CPU
 		{7527CADC-BF6A-4F99-846F-92122ACFB155}.Release|x86.ActiveCfg = Release|Any CPU
 		{7527CADC-BF6A-4F99-846F-92122ACFB155}.Release|x86.Build.0 = Release|Any CPU
+		{A1A0C2D6-9BFB-4F29-A2B6-8D26FBDD36D5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1A0C2D6-9BFB-4F29-A2B6-8D26FBDD36D5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1A0C2D6-9BFB-4F29-A2B6-8D26FBDD36D5}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A1A0C2D6-9BFB-4F29-A2B6-8D26FBDD36D5}.Debug|x64.Build.0 = Debug|Any CPU
+		{A1A0C2D6-9BFB-4F29-A2B6-8D26FBDD36D5}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A1A0C2D6-9BFB-4F29-A2B6-8D26FBDD36D5}.Debug|x86.Build.0 = Debug|Any CPU
+		{A1A0C2D6-9BFB-4F29-A2B6-8D26FBDD36D5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1A0C2D6-9BFB-4F29-A2B6-8D26FBDD36D5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1A0C2D6-9BFB-4F29-A2B6-8D26FBDD36D5}.Release|x64.ActiveCfg = Release|Any CPU
+		{A1A0C2D6-9BFB-4F29-A2B6-8D26FBDD36D5}.Release|x64.Build.0 = Release|Any CPU
+		{A1A0C2D6-9BFB-4F29-A2B6-8D26FBDD36D5}.Release|x86.ActiveCfg = Release|Any CPU
+		{A1A0C2D6-9BFB-4F29-A2B6-8D26FBDD36D5}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -177,5 +191,6 @@ Global
 		{5C097776-AC94-46C7-B257-5CC4DD39DF67} = {B36A84DF-456D-A817-6EDD-3EC3E7F6E11F}
 		{CBE37AA6-AD59-4A21-A8B0-4208A190EF53} = {77806389-A6B4-4A95-9671-AC93E23FD073}
 		{7527CADC-BF6A-4F99-846F-92122ACFB155} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{A1A0C2D6-9BFB-4F29-A2B6-8D26FBDD36D5} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

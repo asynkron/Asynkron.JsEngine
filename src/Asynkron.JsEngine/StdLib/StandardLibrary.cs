@@ -387,8 +387,9 @@ public static partial class StandardLibrary
 
     /// <summary>
     ///     Converts a JavaScript value to its string representation, handling functions appropriately.
+    ///     Exposed internally so prototype helpers can reuse the same semantics.
     /// </summary>
-    private static string JsValueToString(object? value)
+    internal static string JsValueToString(object? value)
     {
         return value switch
         {

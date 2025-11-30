@@ -663,7 +663,7 @@ public sealed class TypedAstParser(
         {
             var classToken = Previous();
             Symbol? name = null;
-            if (Check(TokenType.Identifier))
+            if (CheckIdentifierLike())
             {
                 var nameToken = Advance();
                 name = Symbol.Intern(nameToken.Lexeme);

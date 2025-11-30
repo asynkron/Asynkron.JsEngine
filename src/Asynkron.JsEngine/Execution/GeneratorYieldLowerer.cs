@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
+using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine.Execution;
 
@@ -63,6 +64,20 @@ internal static class GeneratorYieldLowerer
                     continue;
                 }
 
+                if (TryRewriteClassExpressionUsage(statement, out var classRewrite))
+                {
+                    builder.AddRange(classRewrite);
+                    changed = true;
+                    continue;
+                }
+
+                if (TryRewriteComplexYieldExpression(statement, out var complexYieldRewrite))
+                {
+                    builder.AddRange(complexYieldRewrite);
+                    changed = true;
+                    continue;
+                }
+
                 if (TryRewriteConditionalWithYield(statement, isStrict, out var conditionalRewrite))
                 {
                     builder.AddRange(conditionalRewrite);
@@ -109,6 +124,525 @@ internal static class GeneratorYieldLowerer
             }
 
             return changed ? builder.ToImmutable() : statements;
+        }
+
+        private bool TryRewriteClassExpressionUsage(StatementNode statement, out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+
+            switch (statement)
+            {
+                case VariableDeclaration declaration:
+                    return TryRewriteClassExpressionDeclaration(declaration, out replacement);
+                case ExpressionStatement expressionStatement:
+                    return TryRewriteClassExpressionExpression(expressionStatement, out replacement);
+                default:
+                    return false;
+            }
+        }
+
+        private bool TryRewriteClassExpressionDeclaration(
+            VariableDeclaration declaration,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+            var declarators = declaration.Declarators;
+            if (declarators.IsDefaultOrEmpty)
+            {
+                return false;
+            }
+
+            var rewrittenDeclarators = ImmutableArray.CreateBuilder<VariableDeclarator>(declarators.Length);
+            var prefixStatements = ImmutableArray.CreateBuilder<StatementNode>();
+            var changed = false;
+            foreach (var declarator in declarators)
+            {
+                if (declarator.Initializer is ClassExpression classExpression &&
+                    TryRewriteClassExpression(classExpression, out var rewrittenClass, out var prefix))
+                {
+                    prefixStatements.AddRange(prefix);
+                    rewrittenDeclarators.Add(declarator with { Initializer = rewrittenClass });
+                    changed = true;
+                }
+                else
+                {
+                    rewrittenDeclarators.Add(declarator);
+                }
+            }
+
+            if (!changed)
+            {
+                return false;
+            }
+
+            var rewrittenDeclaration = declaration with { Declarators = rewrittenDeclarators.ToImmutable() };
+            prefixStatements.Add(rewrittenDeclaration);
+            replacement = prefixStatements.ToImmutable();
+            return true;
+        }
+
+        private bool TryRewriteClassExpressionExpression(
+            ExpressionStatement statement,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+
+            if (statement.Expression is ClassExpression classExpression &&
+                TryRewriteClassExpression(classExpression, out var rewrittenClass, out var prefix))
+            {
+                var rewrittenStatement = statement with { Expression = rewrittenClass };
+                var builder = ImmutableArray.CreateBuilder<StatementNode>();
+                builder.AddRange(prefix);
+                builder.Add(rewrittenStatement);
+                replacement = builder.ToImmutable();
+                return true;
+            }
+
+            if (statement.Expression is AssignmentExpression assignment &&
+                assignment.Value is ClassExpression classValue &&
+                TryRewriteClassExpression(classValue, out var rewrittenValue, out var valuePrefix))
+            {
+                var rewrittenAssignment = assignment with { Value = rewrittenValue };
+                var rewrittenStatement = statement with { Expression = rewrittenAssignment };
+                var builder = ImmutableArray.CreateBuilder<StatementNode>();
+                builder.AddRange(valuePrefix);
+                builder.Add(rewrittenStatement);
+                replacement = builder.ToImmutable();
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool TryRewriteClassExpression(
+            ClassExpression classExpression,
+            out ClassExpression rewritten,
+            out ImmutableArray<StatementNode> prefixStatements)
+        {
+            var prefixBuilder = ImmutableArray.CreateBuilder<StatementNode>();
+            if (!TryRewriteClassDefinition(classExpression.Definition, prefixBuilder, out var rewrittenDefinition))
+            {
+                rewritten = classExpression;
+                prefixStatements = ImmutableArray<StatementNode>.Empty;
+                return false;
+            }
+
+            rewritten = classExpression with { Definition = rewrittenDefinition };
+            prefixStatements = prefixBuilder.ToImmutable();
+            return prefixStatements.Length > 0;
+        }
+
+        private bool TryRewriteClassDefinition(
+            ClassDefinition definition,
+            ImmutableArray<StatementNode>.Builder prefixStatements,
+            out ClassDefinition rewritten)
+        {
+            var members = definition.Members.ToBuilder();
+            var fields = definition.Fields.ToBuilder();
+            var changed = false;
+
+            for (var i = 0; i < members.Count; i++)
+            {
+                var member = members[i];
+                if (member.IsComputed &&
+                    member.ComputedName is YieldExpression computedYield)
+                {
+                    var tempBinding = CreateResumeIdentifier();
+                    prefixStatements.Add(CreateYieldDeclaration(computedYield.Source, tempBinding, computedYield));
+                    var replacement = new IdentifierExpression(computedYield.Source, tempBinding.Name);
+                    members[i] = member with { ComputedName = replacement };
+                    changed = true;
+                }
+            }
+
+            for (var i = 0; i < fields.Count; i++)
+            {
+                var field = fields[i];
+                if (field.IsComputed &&
+                    field.ComputedName is YieldExpression computedYield)
+                {
+                    var tempBinding = CreateResumeIdentifier();
+                    prefixStatements.Add(CreateYieldDeclaration(computedYield.Source, tempBinding, computedYield));
+                    var replacement = new IdentifierExpression(computedYield.Source, tempBinding.Name);
+                    fields[i] = field with { ComputedName = replacement };
+                    changed = true;
+                }
+            }
+
+            if (!changed)
+            {
+                rewritten = definition;
+                return false;
+            }
+
+            rewritten = definition with
+            {
+                Members = members.ToImmutable(),
+                Fields = fields.ToImmutable()
+            };
+            return true;
+        }
+
+        private bool TryRewriteComplexYieldExpression(
+            StatementNode statement,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+            if (statement is not ExpressionStatement expressionStatement)
+            {
+                return false;
+            }
+
+            if (!AstShapeAnalyzer.ContainsYield(expressionStatement.Expression) ||
+                expressionStatement.Expression is YieldExpression)
+            {
+                return false;
+            }
+
+            var prefixStatements = ImmutableArray.CreateBuilder<StatementNode>();
+            var changed = false;
+            var rewrittenExpression =
+                RewriteExpressionForComplexYields(expressionStatement.Expression, prefixStatements, ref changed);
+            if (!changed)
+            {
+                return false;
+            }
+
+            var builder = ImmutableArray.CreateBuilder<StatementNode>();
+            builder.AddRange(prefixStatements);
+            builder.Add(expressionStatement with { Expression = rewrittenExpression });
+            replacement = builder.ToImmutable();
+            return true;
+        }
+
+        private ExpressionNode RewriteExpressionForComplexYields(
+            ExpressionNode expression,
+            ImmutableArray<StatementNode>.Builder prefixStatements,
+            ref bool changed)
+        {
+            switch (expression)
+            {
+                case YieldExpression yieldExpression:
+                    return ReplaceYieldWithIdentifier(yieldExpression, prefixStatements, ref changed);
+
+                case BinaryExpression binaryExpression:
+                {
+                    var left = RewriteExpressionForComplexYields(binaryExpression.Left, prefixStatements, ref changed);
+                    var right = RewriteExpressionForComplexYields(binaryExpression.Right, prefixStatements, ref changed);
+                    if (!ReferenceEquals(left, binaryExpression.Left) || !ReferenceEquals(right, binaryExpression.Right))
+                    {
+                        return binaryExpression with { Left = left, Right = right };
+                    }
+
+                    return binaryExpression;
+                }
+
+                case UnaryExpression unaryExpression:
+                {
+                    var operand =
+                        RewriteExpressionForComplexYields(unaryExpression.Operand, prefixStatements, ref changed);
+                    return ReferenceEquals(operand, unaryExpression.Operand)
+                        ? unaryExpression
+                        : unaryExpression with { Operand = operand };
+                }
+
+                case ConditionalExpression conditionalExpression:
+                {
+                    var test =
+                        RewriteExpressionForComplexYields(conditionalExpression.Test, prefixStatements, ref changed);
+                    var consequent = RewriteExpressionForComplexYields(
+                        conditionalExpression.Consequent,
+                        prefixStatements,
+                        ref changed);
+                    var alternate = RewriteExpressionForComplexYields(
+                        conditionalExpression.Alternate,
+                        prefixStatements,
+                        ref changed);
+                    if (!ReferenceEquals(test, conditionalExpression.Test) ||
+                        !ReferenceEquals(consequent, conditionalExpression.Consequent) ||
+                        !ReferenceEquals(alternate, conditionalExpression.Alternate))
+                    {
+                        return conditionalExpression with
+                        {
+                            Test = test, Consequent = consequent, Alternate = alternate
+                        };
+                    }
+
+                    return conditionalExpression;
+                }
+
+                case AssignmentExpression assignmentExpression:
+                {
+                    var value =
+                        RewriteExpressionForComplexYields(assignmentExpression.Value, prefixStatements, ref changed);
+                    return ReferenceEquals(value, assignmentExpression.Value)
+                        ? assignmentExpression
+                        : assignmentExpression with { Value = value };
+                }
+
+                case PropertyAssignmentExpression propertyAssignmentExpression:
+                {
+                    var target =
+                        RewriteExpressionForComplexYields(propertyAssignmentExpression.Target, prefixStatements,
+                            ref changed);
+                    var property =
+                        RewriteExpressionForComplexYields(propertyAssignmentExpression.Property, prefixStatements,
+                            ref changed);
+                    var value =
+                        RewriteExpressionForComplexYields(propertyAssignmentExpression.Value, prefixStatements,
+                            ref changed);
+                    if (!ReferenceEquals(target, propertyAssignmentExpression.Target) ||
+                        !ReferenceEquals(property, propertyAssignmentExpression.Property) ||
+                        !ReferenceEquals(value, propertyAssignmentExpression.Value))
+                    {
+                        return propertyAssignmentExpression with
+                        {
+                            Target = target, Property = property, Value = value
+                        };
+                    }
+
+                    return propertyAssignmentExpression;
+                }
+
+                case IndexAssignmentExpression indexAssignmentExpression:
+                {
+                    var target =
+                        RewriteExpressionForComplexYields(indexAssignmentExpression.Target, prefixStatements,
+                            ref changed);
+                    var index =
+                        RewriteExpressionForComplexYields(indexAssignmentExpression.Index, prefixStatements,
+                            ref changed);
+                    var value =
+                        RewriteExpressionForComplexYields(indexAssignmentExpression.Value, prefixStatements,
+                            ref changed);
+                    if (!ReferenceEquals(target, indexAssignmentExpression.Target) ||
+                        !ReferenceEquals(index, indexAssignmentExpression.Index) ||
+                        !ReferenceEquals(value, indexAssignmentExpression.Value))
+                    {
+                        return indexAssignmentExpression with
+                        {
+                            Target = target, Index = index, Value = value
+                        };
+                    }
+
+                    return indexAssignmentExpression;
+                }
+
+                case CallExpression callExpression:
+                {
+                    var callee =
+                        RewriteExpressionForComplexYields(callExpression.Callee, prefixStatements, ref changed);
+                    var argsBuilder = ImmutableArray.CreateBuilder<CallArgument>(callExpression.Arguments.Length);
+                    var argsChanged = false;
+                    foreach (var argument in callExpression.Arguments)
+                    {
+                        var rewrittenArgument =
+                            RewriteExpressionForComplexYields(argument.Expression, prefixStatements, ref changed);
+                        argsChanged |= !ReferenceEquals(rewrittenArgument, argument.Expression);
+                        argsBuilder.Add(argument with { Expression = rewrittenArgument });
+                    }
+
+                    if (!ReferenceEquals(callee, callExpression.Callee) || argsChanged)
+                    {
+                        return callExpression with { Callee = callee, Arguments = argsBuilder.ToImmutable() };
+                    }
+
+                    return callExpression;
+                }
+
+                case NewExpression newExpression:
+                {
+                    var ctor = RewriteExpressionForComplexYields(newExpression.Constructor, prefixStatements,
+                        ref changed);
+                    var argsBuilder = ImmutableArray.CreateBuilder<ExpressionNode>(newExpression.Arguments.Length);
+                    var argsChanged = false;
+                    foreach (var argument in newExpression.Arguments)
+                    {
+                        var rewrittenArgument =
+                            RewriteExpressionForComplexYields(argument, prefixStatements, ref changed);
+                        argsChanged |= !ReferenceEquals(argument, rewrittenArgument);
+                        argsBuilder.Add(rewrittenArgument);
+                    }
+
+                    if (!ReferenceEquals(ctor, newExpression.Constructor) || argsChanged)
+                    {
+                        return newExpression with { Constructor = ctor, Arguments = argsBuilder.ToImmutable() };
+                    }
+
+                    return newExpression;
+                }
+
+                case MemberExpression memberExpression:
+                {
+                    var target =
+                        RewriteExpressionForComplexYields(memberExpression.Target, prefixStatements, ref changed);
+                    var property = memberExpression.IsComputed
+                        ? RewriteExpressionForComplexYields(memberExpression.Property, prefixStatements, ref changed)
+                        : memberExpression.Property;
+                    if (!ReferenceEquals(target, memberExpression.Target) ||
+                        !ReferenceEquals(property, memberExpression.Property))
+                    {
+                        return memberExpression with { Target = target, Property = property };
+                    }
+
+                    return memberExpression;
+                }
+
+                case SequenceExpression sequenceExpression:
+                {
+                    var left = RewriteExpressionForComplexYields(sequenceExpression.Left, prefixStatements, ref changed);
+                    var right =
+                        RewriteExpressionForComplexYields(sequenceExpression.Right, prefixStatements, ref changed);
+                    if (!ReferenceEquals(left, sequenceExpression.Left) ||
+                        !ReferenceEquals(right, sequenceExpression.Right))
+                    {
+                        return sequenceExpression with { Left = left, Right = right };
+                    }
+
+                    return sequenceExpression;
+                }
+
+                case ArrayExpression arrayExpression:
+                {
+                    var elementsBuilder = ImmutableArray.CreateBuilder<ArrayElement>(arrayExpression.Elements.Length);
+                    var elementsChanged = false;
+                    foreach (var element in arrayExpression.Elements)
+                    {
+                        if (element.Expression is null)
+                        {
+                            elementsBuilder.Add(element);
+                            continue;
+                        }
+
+                        var rewrittenElement =
+                            RewriteExpressionForComplexYields(element.Expression, prefixStatements, ref changed);
+                        elementsChanged |= !ReferenceEquals(rewrittenElement, element.Expression);
+                        elementsBuilder.Add(element with { Expression = rewrittenElement });
+                    }
+
+                    return elementsChanged
+                        ? arrayExpression with { Elements = elementsBuilder.ToImmutable() }
+                        : arrayExpression;
+                }
+
+                case ObjectExpression objectExpression:
+                {
+                    var membersBuilder = ImmutableArray.CreateBuilder<ObjectMember>(objectExpression.Members.Length);
+                    var membersChanged = false;
+                    foreach (var member in objectExpression.Members)
+                    {
+                        ExpressionNode? value = member.Value;
+                        if (value is not null)
+                        {
+                            var rewrittenValue =
+                                RewriteExpressionForComplexYields(value, prefixStatements, ref changed);
+                            if (!ReferenceEquals(value, rewrittenValue))
+                            {
+                                value = rewrittenValue;
+                                membersChanged = true;
+                            }
+                        }
+
+                        membersBuilder.Add(member with { Value = value });
+                    }
+
+                    return membersChanged
+                        ? objectExpression with { Members = membersBuilder.ToImmutable() }
+                        : objectExpression;
+                }
+
+                case TemplateLiteralExpression templateLiteral:
+                {
+                    var partsBuilder = ImmutableArray.CreateBuilder<TemplatePart>(templateLiteral.Parts.Length);
+                    var partsChanged = false;
+                    foreach (var part in templateLiteral.Parts)
+                    {
+                        if (part.Expression is null)
+                        {
+                            partsBuilder.Add(part);
+                            continue;
+                        }
+
+                        var rewrittenExpression =
+                            RewriteExpressionForComplexYields(part.Expression, prefixStatements, ref changed);
+                        if (!ReferenceEquals(part.Expression, rewrittenExpression))
+                        {
+                            partsChanged = true;
+                            partsBuilder.Add(part with { Expression = rewrittenExpression });
+                        }
+                        else
+                        {
+                            partsBuilder.Add(part);
+                        }
+                    }
+
+                    return partsChanged
+                        ? templateLiteral with { Parts = partsBuilder.ToImmutable() }
+                        : templateLiteral;
+                }
+
+                case TaggedTemplateExpression taggedTemplate:
+                {
+                    var tag = RewriteExpressionForComplexYields(taggedTemplate.Tag, prefixStatements, ref changed);
+                    var stringsArray =
+                        RewriteExpressionForComplexYields(taggedTemplate.StringsArray, prefixStatements, ref changed);
+                    var rawStringsArray = RewriteExpressionForComplexYields(taggedTemplate.RawStringsArray,
+                        prefixStatements,
+                        ref changed);
+                    var expressionsBuilder =
+                        ImmutableArray.CreateBuilder<ExpressionNode>(taggedTemplate.Expressions.Length);
+                    var expressionsChanged = false;
+                    foreach (var expr in taggedTemplate.Expressions)
+                    {
+                        var rewrittenExpr = RewriteExpressionForComplexYields(expr, prefixStatements, ref changed);
+                        expressionsChanged |= !ReferenceEquals(expr, rewrittenExpr);
+                        expressionsBuilder.Add(rewrittenExpr);
+                    }
+
+                    if (!ReferenceEquals(tag, taggedTemplate.Tag) ||
+                        !ReferenceEquals(stringsArray, taggedTemplate.StringsArray) ||
+                        !ReferenceEquals(rawStringsArray, taggedTemplate.RawStringsArray) ||
+                        expressionsChanged)
+                    {
+                        return taggedTemplate with
+                        {
+                            Tag = tag,
+                            StringsArray = stringsArray,
+                            RawStringsArray = rawStringsArray,
+                            Expressions = expressionsBuilder.ToImmutable()
+                        };
+                    }
+
+                    return taggedTemplate;
+                }
+
+                default:
+                    return expression;
+            }
+        }
+
+        private IdentifierExpression ReplaceYieldWithIdentifier(
+            YieldExpression yieldExpression,
+            ImmutableArray<StatementNode>.Builder prefixStatements,
+            ref bool changed)
+        {
+            var tempBinding = CreateResumeIdentifier();
+            prefixStatements.Add(CreateYieldDeclaration(yieldExpression.Source, tempBinding, yieldExpression));
+            changed = true;
+            return new IdentifierExpression(yieldExpression.Source, tempBinding.Name);
+        }
+
+        private VariableDeclaration CreateYieldDeclaration(
+            SourceReference? source,
+            IdentifierBinding tempBinding,
+            YieldExpression yieldExpression)
+        {
+            var clonedYield = new YieldExpression(
+                yieldExpression.Source,
+                yieldExpression.Expression,
+                yieldExpression.IsDelegated);
+            var declarator = new VariableDeclarator(source, tempBinding, clonedYield);
+            return new VariableDeclaration(source, VariableKind.Let, [declarator]);
         }
 
         private bool TryRewriteReturnWithYield(StatementNode statement,

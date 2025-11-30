@@ -901,9 +901,15 @@ public static partial class TypedAstEvaluator
     private static JsObject CreateGeneratorIteratorObject(
         Func<IReadOnlyList<object?>, object?> next,
         Func<IReadOnlyList<object?>, object?> @return,
-        Func<IReadOnlyList<object?>, object?> @throw)
+        Func<IReadOnlyList<object?>, object?> @throw,
+        JsObject? prototype)
     {
         var iterator = new JsObject();
+        if (prototype is not null)
+        {
+            iterator.SetPrototype(prototype);
+        }
+
         iterator.SetProperty("next", new HostFunction(next));
         iterator.SetProperty("return", new HostFunction(@return));
         iterator.SetProperty("throw", new HostFunction(@throw));

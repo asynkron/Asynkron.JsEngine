@@ -54,10 +54,12 @@ public static partial class TypedAstEvaluator
 
         public JsObject CreateGeneratorObject()
         {
+            var prototype = ResolveGeneratorPrototype();
             var iterator = CreateGeneratorIteratorObject(
                 args => Next(args.Count > 0 ? args[0] : Symbol.Undefined),
                 args => Return(args.Count > 0 ? args[0] : null),
-                args => Throw(args.Count > 0 ? args[0] : null));
+                args => Throw(args.Count > 0 ? args[0] : null),
+                prototype);
             iterator.SetProperty(IteratorSymbolPropertyName, new HostFunction((_, _) => iterator));
             iterator.SetProperty(GeneratorBrandPropertyName, GeneratorBrandMarker);
             return iterator;
@@ -81,6 +83,18 @@ public static partial class TypedAstEvaluator
         private object? Throw(object? error)
         {
             return ExecutePlan(ResumeMode.Throw, error);
+        }
+
+        private JsObject? ResolveGeneratorPrototype()
+        {
+            if (_callable is IJsPropertyAccessor accessor &&
+                accessor.TryGetProperty("prototype", out var protoValue) &&
+                protoValue is JsObject prototypeObject)
+            {
+                return prototypeObject;
+            }
+
+            return _realmState.ObjectPrototype;
         }
 
         internal AsyncGeneratorStepResult ExecuteAsyncStep(ResumeMode mode, object? resumeValue)

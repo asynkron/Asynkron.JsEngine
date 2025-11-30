@@ -30,13 +30,15 @@ public static partial class TypedAstEvaluator
 
         public JsObject CreateAsyncIteratorObject()
         {
+            var prototype = ResolveGeneratorPrototype();
             var asyncIterator = CreateGeneratorIteratorObject(
                 args => CreateStepPromise(TypedGeneratorInstance.ResumeMode.Next,
                     args.Count > 0 ? args[0] : Symbol.Undefined),
                 args => CreateStepPromise(TypedGeneratorInstance.ResumeMode.Return,
                     args.Count > 0 ? args[0] : null),
                 args => CreateStepPromise(TypedGeneratorInstance.ResumeMode.Throw,
-                    args.Count > 0 ? args[0] : null));
+                    args.Count > 0 ? args[0] : null),
+                prototype);
 
             // asyncIterator[Symbol.asyncIterator] returns itself.
             var asyncSymbol = TypedAstSymbol.For("Symbol.asyncIterator");
@@ -152,6 +154,18 @@ public static partial class TypedAstEvaluator
             });
 
             thenCallable.Invoke([onFulfilled, onRejected], pendingPromise);
+        }
+
+        private JsObject? ResolveGeneratorPrototype()
+        {
+            if (callable is IJsPropertyAccessor accessor &&
+                accessor.TryGetProperty("prototype", out var protoValue) &&
+                protoValue is JsObject prototypeObject)
+            {
+                return prototypeObject;
+            }
+
+            return realmState.ObjectPrototype;
         }
     }
 }

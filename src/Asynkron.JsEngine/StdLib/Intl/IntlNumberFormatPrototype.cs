@@ -44,7 +44,7 @@ public sealed partial class IntlNumberFormatPrototype
     public JsArray FormatToParts(object? thisValue, IReadOnlyList<object?> args)
     {
         var nf = ValidateNumberFormatReceiver(thisValue);
-        var value = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var value = args.GetArgument(0);
         var formatted = FormatNumberValue(nf, value);
         var part = new JsObject();
         part.SetProperty("type", "literal");

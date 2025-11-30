@@ -16,8 +16,8 @@ public sealed partial class IntlDisplayNamesConstructor(JsObject prototype, Real
 
     protected override JsObject ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
     {
-        var localesArg = args.Count > 0 ? args[0] : Symbol.Undefined;
-        var optionsArg = args.Count > 1 ? args[1] : Symbol.Undefined;
+        var localesArg = args.GetArgument(0);
+        var optionsArg = args.GetArgument(1);
 
         var requestedLocales = IntlUtilities.CanonicalizeLocaleList(localesArg, Realm);
         var locale = IntlUtilities.ResolveRequestedLocale(requestedLocales);
@@ -40,7 +40,7 @@ public sealed partial class IntlDisplayNamesConstructor(JsObject prototype, Real
         var supportedLocalesOf = new HostFunction((_, args) =>
         {
             var localeList = IntlUtilities.CanonicalizeLocaleList(
-                args.Count > 0 ? args[0] : Symbol.Undefined,
+                args.GetArgument(0),
                 Realm);
             var result = new JsArray(Realm);
             foreach (var locale in localeList)

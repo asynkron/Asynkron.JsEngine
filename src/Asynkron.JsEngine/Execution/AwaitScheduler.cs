@@ -62,14 +62,14 @@ internal static class AwaitScheduler
 
             var onFulfilled = new HostFunction(args =>
             {
-                var value = args.Count > 0 ? args[0] : Symbol.Undefined;
+                var value = args.GetArgument(0);
                 tcs.TrySetResult((true, value));
                 return null;
             });
 
             var onRejected = new HostFunction(args =>
             {
-                var value = args.Count > 0 ? args[0] : Symbol.Undefined;
+                var value = args.GetArgument(0);
                 tcs.TrySetResult((false, value));
                 return null;
             });

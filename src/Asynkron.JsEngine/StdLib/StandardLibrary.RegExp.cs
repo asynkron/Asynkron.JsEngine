@@ -63,7 +63,7 @@ public static partial class StandardLibrary
             resolved = ResolveRegExpInstance(receiver) ?? resolved;
 
             var input = JsOps.ToJsString(args.Count > 0 ? args[0] : string.Empty);
-            var limitValue = args.Count > 1 ? args[1] : Symbol.Undefined;
+            var limitValue = args.GetArgument(1);
             var forcedFlags = resolved.Flags.Contains('g') ? resolved.Flags : resolved.Flags + "g";
             var splitter = new JsRegExp(resolved.Pattern, forcedFlags, realm);
             splitter.SetProperty("lastIndex", 0d);
@@ -384,8 +384,8 @@ public static partial class StandardLibrary
                     throw ThrowTypeError("RegExp.prototype.compile called on incompatible receiver", realm: realm);
                 }
 
-                var patternArg = args.Count > 0 ? args[0] : Symbol.Undefined;
-                var flagsArg = args.Count > 1 ? args[1] : Symbol.Undefined;
+                var patternArg = args.GetArgument(0);
+                var flagsArg = args.GetArgument(1);
                 string pattern;
                 string flags;
 
@@ -623,7 +623,7 @@ public static partial class StandardLibrary
                 Set = new HostFunction((thisValue, args) =>
                 {
                     var statics = EnsureRegExpReceiver(thisValue);
-                    var value = args.Count > 0 ? args[0] : Symbol.Undefined;
+                    var value = args.GetArgument(0);
                     statics.Input = value?.ToString() ?? string.Empty;
                     return null;
                 }, isConstructor: false),

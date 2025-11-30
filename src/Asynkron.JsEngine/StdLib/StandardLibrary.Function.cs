@@ -118,7 +118,7 @@ public static partial class StandardLibrary
                 throw ThrowTypeError("Function.prototype[@@hasInstance] called on non-object", null, realm);
             }
 
-            var candidate = args.Count > 0 ? args[0] : Symbol.Undefined;
+            var candidate = args.GetArgument(0);
             if (candidate is not JsObject && candidate is not IJsObjectLike)
             {
                 return false;

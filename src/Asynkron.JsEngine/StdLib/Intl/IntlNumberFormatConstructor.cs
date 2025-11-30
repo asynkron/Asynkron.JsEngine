@@ -13,8 +13,8 @@ public sealed partial class IntlNumberFormatConstructor(JsObject prototype, Real
 {
     protected override JsObject ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
     {
-        var localesArg = args.Count > 0 ? args[0] : Symbol.Undefined;
-        var optionsArg = args.Count > 1 ? args[1] : Symbol.Undefined;
+        var localesArg = args.GetArgument(0);
+        var optionsArg = args.GetArgument(1);
         var requestedLocales = IntlUtilities.CanonicalizeLocaleList(localesArg, Realm);
         var resolvedLocale = requestedLocales.Count > 0
             ? requestedLocales[0]
@@ -63,7 +63,7 @@ public sealed partial class IntlNumberFormatConstructor(JsObject prototype, Real
         supportedLocalesOf.Delete("prototype");
     }
 
-    private object? SupportedLocalesOf(IReadOnlyList<object?> args)
+    private JsArray? SupportedLocalesOf(IReadOnlyList<object?> args)
     {
         var result = new JsArray(Realm);
         if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))

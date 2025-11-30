@@ -466,7 +466,7 @@ public static partial class StandardLibrary
         {
             if (args.Count < 2)
             {
-                return args.Count > 0 ? args[0] : Symbol.Undefined;
+                return args.GetArgument(0);
             }
 
             var target = args[0];
@@ -641,7 +641,7 @@ public static partial class StandardLibrary
         {
             if (args.Count == 0 || args[0] is not IJsPropertyAccessor targetAccessor)
             {
-                return args.Count > 0 ? args[0] : Symbol.Undefined;
+                return args.GetArgument(0);
             }
 
             for (var i = 1; i < args.Count; i++)
@@ -762,8 +762,8 @@ public static partial class StandardLibrary
         // ECMA-262 §7.2.9 (SameValue) exposed as Object.is.
         object? ObjectIs(IReadOnlyList<object?> args)
         {
-            var left = args.Count > 0 ? args[0] : Symbol.Undefined;
-            var right = args.Count > 1 ? args[1] : Symbol.Undefined;
+            var left = args.GetArgument(0);
+            var right = args.GetArgument(1);
 
             if (left is double ld && right is double rd)
             {

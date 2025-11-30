@@ -294,7 +294,7 @@ public static partial class StandardLibrary
         }
 
         var propertyKey = JsOps.ToPropertyName(args[1]) ?? string.Empty;
-        var value = args.Count > 2 ? args[2] : Symbol.Undefined;
+        var value = args.GetArgument(2);
         var receiver = args.Count > 3 ? args[3] : target;
         if (target is ModuleNamespace moduleNamespace)
         {

@@ -23,7 +23,7 @@ public sealed partial class IntlDateTimeFormatPrototype
     {
         var slotData = ValidateReceiver(thisValue, out _);
         return new HostFunction(
-            (_, args) => FormatInternal(args.Count > 0 ? args[0] : Symbol.Undefined, slotData), Realm,
+            (_, args) => FormatInternal(args.GetArgument(0), slotData), Realm,
             isConstructor: false);
     }
 
@@ -31,7 +31,7 @@ public sealed partial class IntlDateTimeFormatPrototype
     private JsArray FormatToParts(object? thisValue, IReadOnlyList<object?> args)
     {
         var slotData = ValidateReceiver(thisValue, out _);
-        var formatted = FormatInternal(args.Count > 0 ? args[0] : Symbol.Undefined, slotData);
+        var formatted = FormatInternal(args.GetArgument(0), slotData);
         var part = new JsObject();
         part.SetProperty("type", "literal");
         part.SetProperty("value", formatted);
@@ -44,8 +44,8 @@ public sealed partial class IntlDateTimeFormatPrototype
     private string FormatRange(object? thisValue, IReadOnlyList<object?> args)
     {
         var slotData = ValidateReceiver(thisValue, out _);
-        var start = FormatInternal(args.Count > 0 ? args[0] : Symbol.Undefined, slotData);
-        var end = FormatInternal(args.Count > 1 ? args[1] : Symbol.Undefined, slotData);
+        var start = FormatInternal(args.GetArgument(0), slotData);
+        var end = FormatInternal(args.GetArgument(1), slotData);
         return $"{start} – {end}";
     }
 
@@ -53,8 +53,8 @@ public sealed partial class IntlDateTimeFormatPrototype
     private JsArray FormatRangeToParts(object? thisValue, IReadOnlyList<object?> args)
     {
         var slotData = ValidateReceiver(thisValue, out _);
-        var start = FormatInternal(args.Count > 0 ? args[0] : Symbol.Undefined, slotData);
-        var end = FormatInternal(args.Count > 1 ? args[1] : Symbol.Undefined, slotData);
+        var start = FormatInternal(args.GetArgument(0), slotData);
+        var end = FormatInternal(args.GetArgument(1), slotData);
         var parts = new JsArray(Realm);
         parts.Push(CreateRangePart("startRange", start));
         parts.Push(CreateRangePart("separator", " – "));

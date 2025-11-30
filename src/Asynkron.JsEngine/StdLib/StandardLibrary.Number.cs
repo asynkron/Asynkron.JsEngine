@@ -52,7 +52,7 @@ public static partial class StandardLibrary
 
         object? ToString(IReadOnlyList<object?> args)
         {
-            var radixArg = args.Count > 0 ? args[0] : Symbol.Undefined;
+            var radixArg = args.GetArgument(0);
             var radixNumber = ReferenceEquals(radixArg, Symbol.Undefined) ? 10d : JsOps.ToNumber(radixArg);
             if (double.IsNaN(radixNumber) || Math.Abs(radixNumber % 1) > double.Epsilon)
             {
@@ -287,7 +287,7 @@ public static partial class StandardLibrary
         object? BigIntPrototypeToString(object? thisValue, IReadOnlyList<object?> args)
         {
             var value = ThisBigIntValue(thisValue);
-            var radixArg = args.Count > 0 ? args[0] : Symbol.Undefined;
+            var radixArg = args.GetArgument(0);
             var radixNumber = ReferenceEquals(radixArg, Symbol.Undefined)
                 ? 10d
                 : radixArg is JsBigInt biRadix
@@ -534,7 +534,7 @@ public static partial class StandardLibrary
         {
             var num = RequireNumberReceiver(thisValue, "Number.prototype.toString");
 
-            var radixArg = args.Count > 0 ? args[0] : Symbol.Undefined;
+            var radixArg = args.GetArgument(0);
             var radixNumber = ReferenceEquals(radixArg, Symbol.Undefined) ? 10d : JsOps.ToNumber(radixArg);
             if (double.IsNaN(radixNumber) || Math.Abs(radixNumber % 1) > double.Epsilon)
             {

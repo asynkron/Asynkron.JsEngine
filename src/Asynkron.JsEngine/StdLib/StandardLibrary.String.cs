@@ -424,7 +424,7 @@ public static partial class StandardLibrary
             var splitMethod = GetMethod(separatorValue, splitKey, "@@split");
             if (splitMethod is not null)
             {
-                var limitArg = args.Count > 1 ? args[1] : Symbol.Undefined;
+                var limitArg = args.GetArgument(1);
                 return splitMethod.Invoke([value, limitArg], separatorValue);
             }
 
@@ -451,8 +451,8 @@ public static partial class StandardLibrary
         object? Replace(object? thisValue, IReadOnlyList<object?> args)
         {
             var value = ResolveString(thisValue);
-            var search = args.Count > 0 ? args[0] : Symbol.Undefined;
-            var replacement = args.Count > 1 ? args[1] : Symbol.Undefined;
+            var search = args.GetArgument(0);
+            var replacement = args.GetArgument(1);
 
             var replaceMethod = GetMethod(search, replaceKey, "@@replace");
             if (replaceMethod is not null)
@@ -749,8 +749,8 @@ public static partial class StandardLibrary
         object? ReplaceAll(object? thisValue, IReadOnlyList<object?> args)
         {
             var value = ResolveString(thisValue);
-            var searchValue = args.Count > 0 ? args[0] : Symbol.Undefined;
-            var replaceValue = args.Count > 1 ? args[1] : Symbol.Undefined;
+            var searchValue = args.GetArgument(0);
+            var replaceValue = args.GetArgument(1);
 
             var replaceMethod = GetMethod(searchValue, replaceKey, "@@replace");
             if (replaceMethod is not null)
@@ -1144,7 +1144,7 @@ public static partial class StandardLibrary
         // String constructor
         var stringConstructor = new HostFunction((thisValue, args) =>
         {
-            var value = args.Count > 0 ? args[0] : Symbol.Undefined;
+            var value = args.GetArgument(0);
             var context = realm?.CreateContext();
             string str;
             if (value is TypedAstSymbol typedSymbol)

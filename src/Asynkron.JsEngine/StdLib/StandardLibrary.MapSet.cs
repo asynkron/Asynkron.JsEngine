@@ -196,8 +196,8 @@ public static partial class StandardLibrary
             return Symbol.Undefined;
         }
 
-        var key = args.Count > 0 ? args[0] : Symbol.Undefined;
-        var value = args.Count > 1 ? args[1] : Symbol.Undefined;
+        var key = args.GetArgument(0);
+        var value = args.GetArgument(1);
         return map.Set(key, value);
     }
 
@@ -208,7 +208,7 @@ public static partial class StandardLibrary
             return Symbol.Undefined;
         }
 
-        var key = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var key = args.GetArgument(0);
         return map.Get(key);
     }
 
@@ -219,7 +219,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var key = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var key = args.GetArgument(0);
         return map.Has(key);
     }
 
@@ -230,7 +230,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var key = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var key = args.GetArgument(0);
         return map.Delete(key);
     }
 
@@ -283,7 +283,7 @@ public static partial class StandardLibrary
             return Symbol.Undefined;
         }
 
-        var value = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var value = args.GetArgument(0);
         return set.Add(value);
     }
 
@@ -294,7 +294,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var value = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var value = args.GetArgument(0);
         return set.Has(value);
     }
 
@@ -305,7 +305,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var value = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var value = args.GetArgument(0);
         return set.Delete(value);
     }
 
@@ -358,8 +358,8 @@ public static partial class StandardLibrary
             return Symbol.Undefined;
         }
 
-        var key = args.Count > 0 ? args[0] : Symbol.Undefined;
-        var value = args.Count > 1 ? args[1] : Symbol.Undefined;
+        var key = args.GetArgument(0);
+        var value = args.GetArgument(1);
         try
         {
             return weakMap.Set(key, value);
@@ -377,7 +377,7 @@ public static partial class StandardLibrary
             return Symbol.Undefined;
         }
 
-        var key = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var key = args.GetArgument(0);
         return weakMap.Get(key);
     }
 
@@ -388,7 +388,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var key = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var key = args.GetArgument(0);
         return weakMap.Has(key);
     }
 
@@ -399,7 +399,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var key = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var key = args.GetArgument(0);
         return weakMap.Delete(key);
     }
 
@@ -410,7 +410,7 @@ public static partial class StandardLibrary
             return Symbol.Undefined;
         }
 
-        var value = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var value = args.GetArgument(0);
         try
         {
             return weakSet.Add(value);
@@ -428,7 +428,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var value = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var value = args.GetArgument(0);
         return weakSet.Has(value);
     }
 
@@ -439,7 +439,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var value = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var value = args.GetArgument(0);
         return weakSet.Delete(value);
     }
 }

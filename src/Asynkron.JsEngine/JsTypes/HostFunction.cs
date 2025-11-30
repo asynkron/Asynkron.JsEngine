@@ -111,7 +111,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
             case "call":
                 value = new HostFunction((_, args) =>
                 {
-                    var thisArg = args.Count > 0 ? args[0] : Symbol.Undefined;
+                    var thisArg = args.GetArgument(0);
                     var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
                     return jsCallable.Invoke(callArgs, thisArg);
                 }, isConstructor: false);
@@ -120,7 +120,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
             case "apply":
                 value = new HostFunction((_, args) =>
                 {
-                    var thisArg = args.Count > 0 ? args[0] : Symbol.Undefined;
+                    var thisArg = args.GetArgument(0);
                     var argList = new List<object?>();
                     if (args.Count <= 1 || args[1] is not JsArray jsArray)
                     {
@@ -136,7 +136,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
             case "bind":
                 value = new HostFunction((_, args) =>
                 {
-                    var boundThis = args.Count > 0 ? args[0] : Symbol.Undefined;
+                    var boundThis = args.GetArgument(0);
                     var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
 
                     var targetIsConstructor = JsOps.IsConstructor(jsCallable);

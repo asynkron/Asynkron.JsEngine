@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -146,28 +147,35 @@ internal static class IntlUtilities
         return truncated > MaxArrayLikeLength ? MaxArrayLikeLength : (long)truncated;
     }
 
+    private static readonly Regex LanguageTagRegex = new(
+        @"^(([a-z]{2,3}|[a-z]{5,8})(-([a-z]{4}))?(-([a-z]{2}|[0-9]{3}))?(-([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3})))*(-((u((-([a-z0-9][a-z](-[a-z0-9]{3,8})*))+|((-([a-z0-9]{3,8}))+(-([a-z0-9][a-z](-[a-z0-9]{3,8})*))*)))|(t((-(([a-z]{2,3}|[a-z]{5,8})(-([a-z]{4}))?(-([a-z]{2}|[0-9]{3}))?(-([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3})))*)(-([a-z][0-9](-[a-z0-9]{3,8})+))*)|(-([a-z][0-9](-[a-z0-9]{3,8})+))+))|(([0-9]|[a-sv-wy-z])(-[a-z0-9]{2,8})+)))*(-(x(-[a-z0-9]{1,8})+))?)$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex DuplicateSingletonRegex = new(
+        @"-([0-9]|[a-wy-z])-(.*-)?\1(?![a-z0-9])",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex DuplicateVariantRegex = new(
+        @"([a-z0-9]{2,8}-)+([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3}))-([a-z0-9]{2,8}-)*\2(?![a-z0-9])",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex TransformKeyRegex = new(
+        @"^[a-z][0-9]$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     public static string CanonicalizeLocale(string locale, RealmState realm)
     {
-        if (string.IsNullOrWhiteSpace(locale))
+        if (locale.Length == 0)
         {
             throw StandardLibrary.ThrowRangeError("Invalid locale", realm: realm);
         }
 
-        var normalized = locale.Trim();
-        if (normalized.Contains('_', StringComparison.Ordinal))
+        if (!IsStructurallyValidLanguageTag(locale))
         {
-            throw StandardLibrary.ThrowRangeError("Invalid locale", realm: realm);
+            throw StandardLibrary.ThrowRangeError($"Invalid locale: {locale}", realm: realm);
         }
 
-        try
-        {
-            var culture = CultureInfo.GetCultureInfo(normalized);
-            return culture.Name;
-        }
-        catch (CultureNotFoundException)
-        {
-            throw StandardLibrary.ThrowRangeError($"Invalid locale: {normalized}", realm: realm);
-        }
+        return CanonicalizeLanguageTag(locale);
     }
 
     public static string ResolveRequestedLocale(IReadOnlyList<string> requestedLocales)
@@ -443,5 +451,266 @@ internal static class IntlUtilities
         public IReadOnlyList<string> Values { get; } = values;
         public HashSet<string> Members { get; } = members;
         public Dictionary<string, string> Lookup { get; } = lookup;
+    }
+
+    private static bool IsStructurallyValidLanguageTag(string locale)
+    {
+        if (!LanguageTagRegex.IsMatch(locale))
+        {
+            return false;
+        }
+
+        var privateSplit = locale.Split(new[] { "-x-" }, StringSplitOptions.None);
+        var head = privateSplit[0];
+        return !DuplicateSingletonRegex.IsMatch(head) && !DuplicateVariantRegex.IsMatch(head);
+    }
+
+    private static string CanonicalizeLanguageTag(string locale)
+    {
+        var lower = locale.ToLowerInvariant();
+        if (IntlLocaleData.TagMappings.TryGetValue(lower, out var tagReplacement))
+        {
+            return tagReplacement;
+        }
+
+        var subtags = lower.Split('-');
+        var i = 0;
+        var language = string.Empty;
+        string? script = null;
+        string? region = null;
+
+        while (i < subtags.Length)
+        {
+            var subtag = subtags[i];
+            if (i == 0)
+            {
+                language = subtag;
+            }
+            else if (subtag.Length == 2 || subtag.Length == 3)
+            {
+                region = subtag.ToUpperInvariant();
+            }
+            else if (subtag.Length == 4 && (subtag[0] < '0' || subtag[0] > '9'))
+            {
+                script = char.ToUpperInvariant(subtag[0]) + subtag[1..];
+            }
+            else
+            {
+                break;
+            }
+
+            i++;
+        }
+
+        if (IntlLocaleData.LanguageMappings.TryGetValue(language, out var languageReplacement))
+        {
+            language = languageReplacement;
+        }
+        else if (IntlLocaleData.ComplexLanguageMappings.TryGetValue(language, out var complexLanguage))
+        {
+            language = complexLanguage.Language;
+            if (script is null && complexLanguage.Script is not null)
+            {
+                script = complexLanguage.Script;
+            }
+
+            if (region is null && complexLanguage.Region is not null)
+            {
+                region = complexLanguage.Region;
+            }
+        }
+
+        if (region is not null)
+        {
+            if (IntlLocaleData.RegionMappings.TryGetValue(region, out var regionReplacement))
+            {
+                region = regionReplacement;
+            }
+            else if (IntlLocaleData.ComplexRegionMappings.TryGetValue(region, out var complexRegion))
+            {
+                var mappingKey = language;
+                if (script is not null)
+                {
+                    mappingKey += "-" + script;
+                }
+
+                if (complexRegion.TryGetValue(mappingKey, out var mappedRegion))
+                {
+                    region = mappedRegion;
+                }
+                else if (complexRegion.TryGetValue(language, out var languageRegion))
+                {
+                    region = languageRegion;
+                }
+                else
+                {
+                    region = complexRegion["default"];
+                }
+            }
+        }
+
+        var variants = new List<string>();
+        while (i < subtags.Length && subtags[i].Length > 1)
+        {
+            var variant = subtags[i];
+            if (IntlLocaleData.VariantMappings.TryGetValue(variant, out var variantMapping))
+            {
+                switch (variantMapping.Type)
+                {
+                    case "language":
+                        language = variantMapping.Replacement.ToLowerInvariant();
+                        break;
+                    case "region":
+                        region = variantMapping.Replacement;
+                        break;
+                    case "variant":
+                        variants.Add(variantMapping.Replacement);
+                        break;
+                }
+            }
+            else
+            {
+                variants.Add(variant);
+            }
+
+            i++;
+        }
+
+        variants.Sort(StringComparer.Ordinal);
+
+        var extensions = new List<string>();
+        while (i < subtags.Length && subtags[i] != "x")
+        {
+            var extensionStart = i;
+            i++;
+            while (i < subtags.Length && subtags[i].Length > 1)
+            {
+                i++;
+            }
+
+            var key = subtags[extensionStart];
+            string extension;
+            if (key == "u")
+            {
+                var j = extensionStart + 1;
+                while (j < i && subtags[j].Length > 2)
+                {
+                    j++;
+                }
+
+                extension = JoinSubtags(subtags, extensionStart, j);
+
+                while (j < i)
+                {
+                    var keyStart = j;
+                    j++;
+                    while (j < i && subtags[j].Length > 2)
+                    {
+                        j++;
+                    }
+
+                    var attributeKey = subtags[keyStart];
+                    var value = JoinSubtags(subtags, keyStart + 1, j);
+                    if (IntlLocaleData.UnicodeMappings.TryGetValue(attributeKey, out var unicodeMap) &&
+                        unicodeMap.TryGetValue(value, out var mappedValue))
+                    {
+                        value = mappedValue;
+                    }
+
+                    extension += "-" + attributeKey;
+                    if (!string.IsNullOrEmpty(value) && value != "true")
+                    {
+                        extension += "-" + value;
+                    }
+                }
+            }
+            else if (key == "t")
+            {
+                var j = extensionStart + 1;
+                while (j < i && !TransformKeyRegex.IsMatch(subtags[j]))
+                {
+                    j++;
+                }
+
+                extension = "t";
+                var transformLanguage = JoinSubtags(subtags, extensionStart + 1, j);
+                if (!string.IsNullOrEmpty(transformLanguage))
+                {
+                    extension += "-" + CanonicalizeLanguageTag(transformLanguage).ToLowerInvariant();
+                }
+
+                while (j < i)
+                {
+                    var keyStart = j;
+                    j++;
+                    while (j < i && subtags[j].Length > 2)
+                    {
+                        j++;
+                    }
+
+                    var transformKey = subtags[keyStart];
+                    var value = JoinSubtags(subtags, keyStart + 1, j);
+                    if (IntlLocaleData.TransformMappings.TryGetValue(transformKey, out var transformMap) &&
+                        transformMap.TryGetValue(value, out var mappedValue))
+                    {
+                        value = mappedValue;
+                    }
+
+                    extension += "-" + transformKey + "-" + value;
+                }
+            }
+            else
+            {
+                extension = JoinSubtags(subtags, extensionStart, i);
+            }
+
+            extensions.Add(extension);
+        }
+
+        extensions.Sort(StringComparer.Ordinal);
+
+        string? privateUse = null;
+        if (i < subtags.Length)
+        {
+            privateUse = JoinSubtags(subtags, i, subtags.Length);
+        }
+
+        var canonical = language;
+        if (script is not null)
+        {
+            canonical += "-" + script;
+        }
+
+        if (region is not null)
+        {
+            canonical += "-" + region;
+        }
+
+        if (variants.Count > 0)
+        {
+            canonical += "-" + string.Join("-", variants);
+        }
+
+        if (extensions.Count > 0)
+        {
+            canonical += "-" + string.Join("-", extensions);
+        }
+
+        if (privateUse is not null)
+        {
+            canonical += "-" + privateUse;
+        }
+
+        return canonical;
+    }
+
+    private static string JoinSubtags(string[] subtags, int start, int endExclusive)
+    {
+        if (endExclusive <= start)
+        {
+            return string.Empty;
+        }
+
+        return string.Join("-", subtags, start, endExclusive - start);
     }
 }

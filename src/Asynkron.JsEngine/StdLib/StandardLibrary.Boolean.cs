@@ -14,7 +14,7 @@ public static partial class StandardLibrary
         // Boolean(value) -> boolean primitive using ToBoolean semantics.
         var booleanConstructor = new HostFunction((thisValue, args) =>
         {
-            var value = args.Count > 0 ? args[0] : Symbol.Undefined;
+            var value = args.GetArgument(0);
             var coerced = JsOps.ToBoolean(value);
 
             // When called with `new`, thisValue is the newly-created object;

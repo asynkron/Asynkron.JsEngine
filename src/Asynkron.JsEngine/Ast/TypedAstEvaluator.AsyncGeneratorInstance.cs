@@ -33,7 +33,7 @@ public static partial class TypedAstEvaluator
             var prototype = ResolveGeneratorPrototype();
             var asyncIterator = CreateGeneratorIteratorObject(
                 args => CreateStepPromise(TypedGeneratorInstance.ResumeMode.Next,
-                    args.Count > 0 ? args[0] : Symbol.Undefined),
+                    args.GetArgument(0)),
                 args => CreateStepPromise(TypedGeneratorInstance.ResumeMode.Return,
                     args.Count > 0 ? args[0] : null),
                 args => CreateStepPromise(TypedGeneratorInstance.ResumeMode.Throw,
@@ -139,7 +139,7 @@ public static partial class TypedAstEvaluator
 
             var onFulfilled = new HostFunction(args =>
             {
-                var value = args.Count > 0 ? args[0] : Symbol.Undefined;
+                var value = args.GetArgument(0);
                 var resumed = _inner.ExecuteAsyncStep(TypedGeneratorInstance.ResumeMode.Next, value);
                 ResolveFromStep(resumed, resolve, reject);
                 return null;
@@ -147,7 +147,7 @@ public static partial class TypedAstEvaluator
 
             var onRejected = new HostFunction(args =>
             {
-                var reason = args.Count > 0 ? args[0] : Symbol.Undefined;
+                var reason = args.GetArgument(0);
                 var resumed = _inner.ExecuteAsyncStep(TypedGeneratorInstance.ResumeMode.Throw, reason);
                 ResolveFromStep(resumed, resolve, reject);
                 return null;

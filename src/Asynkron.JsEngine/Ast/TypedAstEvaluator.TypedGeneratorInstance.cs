@@ -57,7 +57,7 @@ public static partial class TypedAstEvaluator
         {
             var prototype = ResolveGeneratorPrototype();
             var iterator = CreateGeneratorIteratorObject(
-                args => Next(args.Count > 0 ? args[0] : Symbol.Undefined),
+                args => Next(args.GetArgument(0)),
                 args => Return(args.Count > 0 ? args[0] : null),
                 args => Throw(args.Count > 0 ? args[0] : null),
                 prototype);

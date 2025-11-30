@@ -125,7 +125,7 @@ public static partial class TypedAstEvaluator
                 case "call":
                     value = new HostFunction((_, args) =>
                     {
-                        var thisArg = args.Count > 0 ? args[0] : Symbol.Undefined;
+                        var thisArg = args.GetArgument(0);
                         var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
                         return callable.Invoke(callArgs, thisArg);
                     });
@@ -134,7 +134,7 @@ public static partial class TypedAstEvaluator
                 case "apply":
                     value = new HostFunction((_, args) =>
                     {
-                        var thisArg = args.Count > 0 ? args[0] : Symbol.Undefined;
+                        var thisArg = args.GetArgument(0);
                         var argList = new List<object?>();
                         if (args.Count > 1 && args[1] is JsArray jsArray)
                         {
@@ -151,7 +151,7 @@ public static partial class TypedAstEvaluator
                 case "bind":
                     value = new HostFunction((_, args) =>
                     {
-                        var boundThis = args.Count > 0 ? args[0] : Symbol.Undefined;
+                        var boundThis = args.GetArgument(0);
                         var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
 
                         return new HostFunction((_, innerArgs) =>

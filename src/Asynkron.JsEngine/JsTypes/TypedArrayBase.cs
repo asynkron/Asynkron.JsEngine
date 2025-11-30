@@ -364,7 +364,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         }
 
         var evalContext = target._buffer.RealmState?.CreateContext();
-        var searchElement = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var searchElement = args.GetArgument(0);
         // Snapshot the length before coercion, as required by the spec.
         var initialLength = target.Length;
         if (initialLength <= 0)
@@ -443,7 +443,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         }
 
         var evalContext = target._buffer.RealmState?.CreateContext();
-        var searchElement = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var searchElement = args.GetArgument(0);
         var initialLength = target.Length;
         if (initialLength <= 0)
         {
@@ -520,7 +520,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         }
 
         var evalContext = target._buffer.RealmState?.CreateContext();
-        var searchElement = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var searchElement = args.GetArgument(0);
         var initialLength = target.Length;
         if (initialLength <= 0)
         {

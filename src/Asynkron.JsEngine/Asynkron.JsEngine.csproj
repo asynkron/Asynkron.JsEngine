@@ -14,4 +14,8 @@
     <ProjectReference Include="..\Asynkron.JsEngine.Generators\Asynkron.JsEngine.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="StdLib/Intl/IntlLocaleData.json" />
+  </ItemGroup>
+
 </Project>

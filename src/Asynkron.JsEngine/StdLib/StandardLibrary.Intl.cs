@@ -2,6 +2,7 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib.Intl;
+using Asynkron.JsEngine;
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -80,7 +81,7 @@ public static partial class StandardLibrary
 
         JsArray CreateCanonicalLocalesResult(IReadOnlyList<object?> args)
         {
-            var localesArg = args.Count > 0 ? args[0] : Symbol.Undefined;
+            var localesArg = args.GetArgument(0);
             var canonicalized = IntlUtilities.CanonicalizeLocaleList(localesArg, realm);
             var result = new JsArray(realm);
             foreach (var locale in canonicalized)
@@ -93,7 +94,7 @@ public static partial class StandardLibrary
 
         JsArray CreateSupportedValuesResult(IReadOnlyList<object?> args)
         {
-            var keyValue = args.Count > 0 ? args[0] : Symbol.Undefined;
+            var keyValue = args.GetArgument(0);
             var key = JsValueToString(keyValue, realm);
             var values = IntlUtilities.GetSupportedValues(key, realm);
             var result = new JsArray(realm);
@@ -155,8 +156,8 @@ public static partial class StandardLibrary
 
         object? DurationToLocaleString(object? thisValue, IReadOnlyList<object?> args)
         {
-            var locale = args.Count > 0 ? args[0] : Symbol.Undefined;
-            var options = args.Count > 1 ? args[1] : Symbol.Undefined;
+            var locale = args.GetArgument(0);
+            var options = args.GetArgument(1);
             if (Symbol.Undefined.Equals(locale) && args.Count > 0)
             {
                 locale = args[0];

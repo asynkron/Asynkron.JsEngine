@@ -316,7 +316,7 @@ public static partial class StandardLibrary
                 }
 
                 mapFn = callableMap;
-                mapThis = args.Count > 2 ? args[2] : Symbol.Undefined;
+                mapThis = args.GetArgument(2);
             }
 
             var source = args[0];
@@ -597,7 +597,7 @@ public static partial class StandardLibrary
             throw ThrowTypeError("TypedArray.prototype.map expects a callable callback", realm: realm);
         }
 
-        var thisArg = args.Count > 1 ? args[1] : Symbol.Undefined;
+        var thisArg = args.GetArgument(1);
 
         if (typedArray.IsDetachedOrOutOfBounds())
         {
@@ -638,7 +638,7 @@ public static partial class StandardLibrary
             throw ThrowTypeError("TypedArray.prototype.every expects a callable callback", realm: realm);
         }
 
-        var thisArg = args.Count > 1 ? args[1] : Symbol.Undefined;
+        var thisArg = args.GetArgument(1);
 
         if (typedArray.IsDetachedOrOutOfBounds())
         {
@@ -682,7 +682,7 @@ public static partial class StandardLibrary
         }
 
         var length = typedArray.Length;
-        var value = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var value = args.GetArgument(0);
         var startIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], realm?.CreateContext()) : 0;
         var endIndex = args.Count > 2 ? ToIntegerOrInfinity(args[2], realm?.CreateContext()) : length;
 

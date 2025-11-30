@@ -33,23 +33,23 @@ public sealed partial class IntlDurationFormatConstructor(JsObject prototype, Re
                 return result;
             }
 
-            if (locales is JsArray localesArray)
+            if (locales is not JsArray localesArray)
             {
-                foreach (var item in localesArray.Items)
-                {
-                    if (item is string locale)
-                    {
-                        result.Push(locale);
-                        continue;
-                    }
+                throw ThrowTypeError("Invalid locales argument", realm: Realm);
+            }
 
+            foreach (var item in localesArray.Items)
+            {
+                if (item is not string locale)
+                {
                     throw ThrowTypeError("Invalid locale value", realm: Realm);
                 }
 
-                return result;
+                result.Push(locale);
             }
 
-            throw ThrowTypeError("Invalid locales argument", realm: Realm);
+            return result;
+
         }, isConstructor: false);
 
         supportedLocales.DefineProperty("length",

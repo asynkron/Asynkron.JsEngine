@@ -457,7 +457,7 @@ public static partial class StandardLibrary
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.includes", realm);
 
-        var searchElement = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var searchElement = args.GetArgument(0);
         var fromIndexArg = args.Count > 1 ? args[1] : 0d;
         var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal) : 0d;
 
@@ -553,7 +553,7 @@ public static partial class StandardLibrary
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.lastIndexOf", realm);
         var evalContext = realm?.CreateContext();
-        var searchElement = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var searchElement = args.GetArgument(0);
         if (accessor is TypedArrayBase typed)
         {
             // Align Array.prototype.lastIndexOf with TypedArray semantics.
@@ -609,8 +609,8 @@ public static partial class StandardLibrary
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toLocaleString", realm);
 
-        var locales = args.Count > 0 ? args[0] : Symbol.Undefined;
-        var options = args.Count > 1 ? args[1] : Symbol.Undefined;
+        var locales = args.GetArgument(0);
+        var options = args.GetArgument(1);
         var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal) : 0d;
         var parts = new List<string>((int)length);
 
@@ -1069,7 +1069,7 @@ public static partial class StandardLibrary
         {
             throw ThrowTypeError("Array.prototype.flatMap expects a callable mapper", realm: realm);
         }
-        var thisArg = args.Count > 1 ? args[1] : Symbol.Undefined;
+        var thisArg = args.GetArgument(1);
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var sourceLength = (long)ToLengthOrZero(lengthValue);
         var result = ArraySpeciesCreate(thisValue, 0, realm);
@@ -1129,7 +1129,7 @@ public static partial class StandardLibrary
         var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
-        var value = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var value = args.GetArgument(0);
         var startIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1]) : 0;
         var endIndex = args.Count > 2 ? ToIntegerOrInfinity(args[2]) : length;
 
@@ -1367,7 +1367,7 @@ public static partial class StandardLibrary
             throw ThrowRangeError("Array.prototype.with index out of range", realm: realm);
         }
 
-        var value = args.Count > 1 ? args[1] : Symbol.Undefined;
+        var value = args.GetArgument(1);
         var result = ArraySpeciesCreate(thisValue, length, realm);
 
         for (long k = 0; k < length; k++)
@@ -1661,8 +1661,8 @@ public static partial class StandardLibrary
         }
 
         var items = args[0];
-        var mapperCandidate = args.Count > 1 ? args[1] : Symbol.Undefined;
-        var thisArg = args.Count > 2 ? args[2] : Symbol.Undefined;
+        var mapperCandidate = args.GetArgument(1);
+        var thisArg = args.GetArgument(2);
 
         var mapping = !ReferenceEquals(mapperCandidate, Symbol.Undefined);
         IJsCallable? mapper = null;
@@ -1735,8 +1735,8 @@ public static partial class StandardLibrary
 
         var items = args[0];
 
-        var mapperCandidate = args.Count > 1 ? args[1] : Symbol.Undefined;
-        var thisArg = args.Count > 2 ? args[2] : Symbol.Undefined;
+        var mapperCandidate = args.GetArgument(1);
+        var thisArg = args.GetArgument(2);
 
         var mapping = !ReferenceEquals(mapperCandidate, Symbol.Undefined);
         IJsCallable? mapper = null;
@@ -1879,7 +1879,7 @@ public static partial class StandardLibrary
             var engine = realm?.Engine;
             var fulfilled = new HostFunction((_, args) =>
             {
-                var value = args.Count > 0 ? args[0] : Symbol.Undefined;
+                var value = args.GetArgument(0);
                 if (engine is not null)
                 {
                     engine.ScheduleTask(() =>
@@ -1897,7 +1897,7 @@ public static partial class StandardLibrary
             }, realm);
             var rejected = new HostFunction((_, args) =>
             {
-                var reason = args.Count > 0 ? args[0] : Symbol.Undefined;
+                var reason = args.GetArgument(0);
                 if (engine is not null)
                 {
                     engine.ScheduleTask(() =>
@@ -2702,7 +2702,7 @@ public static partial class StandardLibrary
 
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
-        var thisArg = args.Count > 1 ? args[1] : Symbol.Undefined;
+        var thisArg = args.GetArgument(1);
         return (accessor, length, callback, thisArg);
     }
 
@@ -2878,7 +2878,7 @@ public static partial class StandardLibrary
             throw ThrowTypeError($"{methodName} expects a callable callback", realm: realm);
         }
 
-        var thisArg = args.Count > 1 ? args[1] : Symbol.Undefined;
+        var thisArg = args.GetArgument(1);
 
         if (accessor is TypedArrayBase typed)
         {

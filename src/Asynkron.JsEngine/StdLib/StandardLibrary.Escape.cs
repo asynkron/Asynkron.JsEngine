@@ -12,7 +12,7 @@ public static partial class StandardLibrary
     {
         var escapeFn = new HostFunction(args =>
         {
-            var value = args.Count > 0 ? args[0] : Symbol.Undefined;
+            var value = args.GetArgument(0);
             var input = ToJsStringWithRealm(value, realm);
             var builder = new StringBuilder(input.Length * 2);
             foreach (var ch in input)
@@ -53,7 +53,7 @@ public static partial class StandardLibrary
     {
         var unescapeFn = new HostFunction(args =>
         {
-            var value = args.Count > 0 ? args[0] : Symbol.Undefined;
+            var value = args.GetArgument(0);
             var input = ToJsStringWithRealm(value, realm);
             var builder = new StringBuilder(input.Length);
 

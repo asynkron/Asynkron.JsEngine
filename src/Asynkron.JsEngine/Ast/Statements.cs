@@ -223,7 +223,9 @@ public sealed record ClassDefinition(
     ExpressionNode? Extends,
     FunctionExpression Constructor,
     ImmutableArray<ClassMember> Members,
-    ImmutableArray<ClassField> Fields) : AstNode(Source);
+    ImmutableArray<ClassField> Fields,
+    ImmutableArray<ClassStaticBlock> StaticBlocks,
+    ImmutableArray<ClassStaticElement> StaticElements) : AstNode(Source);
 
 /// <summary>
 ///     Represents a single method/getter/setter within a class body.
@@ -258,6 +260,25 @@ public sealed record ClassField(
     bool IsPrivate,
     bool IsComputed = false,
     ExpressionNode? ComputedName = null) : AstNode(Source);
+
+/// <summary>
+///     Represents a static initialization block within a class.
+/// </summary>
+public sealed record ClassStaticBlock(SourceReference? Source, BlockStatement Body) : AstNode(Source);
+
+/// <summary>
+///     Captures the textual order of static initialization steps (fields/blocks).
+/// </summary>
+public readonly record struct ClassStaticElement(ClassStaticElementKind Kind, int Index);
+
+/// <summary>
+///     Distinguishes between static field and block initialization steps.
+/// </summary>
+public enum ClassStaticElementKind
+{
+    Field,
+    Block
+}
 
 /// <summary>
 ///     Base type for module import/export statements. Concrete records capture the

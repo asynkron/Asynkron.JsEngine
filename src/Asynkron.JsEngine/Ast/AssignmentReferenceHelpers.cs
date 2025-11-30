@@ -1,3 +1,5 @@
+using System;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Ast;
@@ -9,6 +11,33 @@ public static partial class TypedAstEvaluator
         string propertyName,
         EvaluationContext context)
     {
+        if (propertyName.Length > 0 && propertyName[0] == '#')
+        {
+            var privateScope = context.CurrentPrivateNameScope;
+            if (privateScope is null)
+            {
+                PrivateNameScope.TryResolveScope(propertyName, out privateScope);
+            }
+
+            if (privateScope is null)
+            {
+                throw StandardLibrary.ThrowTypeError("Invalid access of private member", context,
+                    context.RealmState);
+            }
+
+            if (!propertyName.Contains("@", StringComparison.Ordinal))
+            {
+                propertyName = privateScope.GetKey(propertyName);
+            }
+
+            var brandToken = privateScope.BrandToken;
+            if (target is not IPrivateBrandHolder brandHolder || !brandHolder.HasPrivateBrand(brandToken))
+            {
+                throw StandardLibrary.ThrowTypeError("Invalid access of private member", context,
+                    context.RealmState);
+            }
+        }
+
         return new AssignmentReference(
             () => ReadPropertyValue(target, propertyName, context),
             value => AssignPropertyValueWithNullCheck(target, propertyName, value, context));

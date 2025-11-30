@@ -50,6 +50,27 @@ value === undefined ? 'undefined' : (typeof value + ':' + value);"),
                     descriptorHasSet: descriptor.hasOwnProperty('set'),
                     value: obj.value
                 });
+            "),
+            ("private static brand", @"
+                class C1 {
+                  static set #m(v) { this._v = v; }
+                  static access() { this.#m = 'test262'; }
+                }
+
+                class C2 {
+                  static set #m(v) { this._v = v; }
+                  static access() { this.#m = 'test262'; }
+                }
+
+                C1.access();
+                C2.access();
+                try {
+                    C1.access.call(C2);
+                    'no throw';
+                } catch (err) {
+                    'threw: ' + err;
+                }
+                + ' | C1 keys: ' + Object.getOwnPropertyNames(C1).join(',') + ' | C2 keys: ' + Object.getOwnPropertyNames(C2).join(',')
             ")
         };
 

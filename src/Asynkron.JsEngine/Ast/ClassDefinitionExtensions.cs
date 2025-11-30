@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Immutable;
 using Asynkron.JsEngine.JsTypes;
 
@@ -73,8 +74,7 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
-            var staticFields = definition.Fields.Where(field => field.IsStatic).ToImmutableArray();
-            InitializeStaticFields(staticFields, constructorAccessor, environment, context, privateNameScope);
+            InitializeStaticElements(definition, constructorAccessor, environment, context, privateNameScope);
             return context.ShouldStopEvaluation ? Symbol.Undefined : constructorValue;
         }
 
@@ -84,5 +84,64 @@ public static partial class TypedAstEvaluator
             var hasPrivateMembers = definition.Members.Any(m => m.Name.Length > 0 && m.Name[0] == '#');
             return hasPrivateFields || hasPrivateMembers ? new PrivateNameScope() : null;
         }
+    }
+
+    private static void InitializeStaticElements(
+        ClassDefinition definition,
+        IJsPropertyAccessor constructorAccessor,
+        JsEnvironment environment,
+        EvaluationContext context,
+        PrivateNameScope? privateNameScope)
+    {
+        if (definition.StaticElements.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        using var staticFieldScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict, true);
+        Func<IDisposable?>? privateScopeFactory = privateNameScope is not null
+            ? () => context.EnterPrivateNameScope(privateNameScope)
+            : null;
+
+        foreach (var element in definition.StaticElements)
+        {
+            if (context.ShouldStopEvaluation)
+            {
+                break;
+            }
+
+            switch (element.Kind)
+            {
+                case ClassStaticElementKind.Field:
+                    var field = definition.Fields[element.Index];
+                    if (!field.TryInitializeStaticField(
+                            constructorAccessor,
+                            expr => EvaluateStaticFieldExpression(expr, constructorAccessor, environment, context),
+                            context,
+                            privateNameScope,
+                            privateScopeFactory))
+                    {
+                        return;
+                    }
+
+                    break;
+                case ClassStaticElementKind.Block:
+                    var block = definition.StaticBlocks[element.Index];
+                    ExecuteStaticBlock(block, constructorAccessor, environment, context, privateScopeFactory);
+                    break;
+            }
+        }
+    }
+
+    private static void ExecuteStaticBlock(
+        ClassStaticBlock block,
+        IJsPropertyAccessor constructorAccessor,
+        JsEnvironment environment,
+        EvaluationContext context,
+        Func<IDisposable?>? privateScopeFactory)
+    {
+        using var privateScope = privateScopeFactory?.Invoke();
+        var blockEnvironment = CreateStaticInitializationEnvironment(constructorAccessor, environment, out _);
+        EvaluateStatement(block.Body, blockEnvironment, context);
     }
 }

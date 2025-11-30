@@ -704,23 +704,30 @@ public sealed class TypedAstParser(
             FunctionExpression? constructor;
             ImmutableArray<ClassMember> members;
             ImmutableArray<ClassField> fields;
+            ImmutableArray<ClassStaticBlock> staticBlocks;
+            ImmutableArray<ClassStaticElement> staticElements;
             using (EnterStrictContext(true))
             {
-                (constructor, members, fields) = ParseClassElements(className);
+                (constructor, members, fields, staticBlocks, staticElements) = ParseClassElements(className);
             }
 
             Consume(TokenType.RightBrace, "Expected '}' after class body.");
             var ctor = constructor ?? CreateDefaultConstructor(className, extendsExpression is not null);
             var source = CreateSourceReference(classToken);
-            return new ClassDefinition(source, extendsExpression, ctor, members, fields);
+            return new ClassDefinition(source, extendsExpression, ctor, members, fields, staticBlocks, staticElements);
         }
 
-        private (FunctionExpression? Constructor, ImmutableArray<ClassMember> Members,
-            ImmutableArray<ClassField> Fields) ParseClassElements(Symbol? className)
+        private (FunctionExpression? Constructor,
+            ImmutableArray<ClassMember> Members,
+            ImmutableArray<ClassField> Fields,
+            ImmutableArray<ClassStaticBlock> StaticBlocks,
+            ImmutableArray<ClassStaticElement> StaticElements) ParseClassElements(Symbol? className)
         {
             FunctionExpression? constructor = null;
             var members = ImmutableArray.CreateBuilder<ClassMember>();
             var fields = ImmutableArray.CreateBuilder<ClassField>();
+            var staticBlocks = ImmutableArray.CreateBuilder<ClassStaticBlock>();
+            var staticElements = ImmutableArray.CreateBuilder<ClassStaticElement>();
 
             while (!Check(TokenType.RightBrace) && !Check(TokenType.Eof))
             {
@@ -735,6 +742,16 @@ public sealed class TypedAstParser(
                 }
 
                 var isStatic = Match(TokenType.Static);
+
+                if (isStatic && Check(TokenType.LeftBrace))
+                {
+                    var block = ParseBlock();
+                    var staticBlock = new ClassStaticBlock(block.Source, block);
+                    staticBlocks.Add(staticBlock);
+                    staticElements.Add(new ClassStaticElement(ClassStaticElementKind.Block,
+                        staticBlocks.Count - 1));
+                    continue;
+                }
 
                 if (Check(TokenType.PrivateIdentifier))
                 {
@@ -761,8 +778,14 @@ public sealed class TypedAstParser(
                     }
 
                     Match(TokenType.Semicolon);
-                    fields.Add(
-                        new ClassField(CreateSourceReference(fieldToken), fieldName, initializer, isStatic, true));
+                    var field = new ClassField(CreateSourceReference(fieldToken), fieldName, initializer, isStatic,
+                        true);
+                    fields.Add(field);
+                    if (isStatic)
+                    {
+                        staticElements.Add(new ClassStaticElement(ClassStaticElementKind.Field,
+                            fields.Count - 1));
+                    }
                     continue;
                 }
 
@@ -804,16 +827,12 @@ public sealed class TypedAstParser(
                     else
                     {
                         Consume(TokenType.LeftParen, "Expected '(' after setter name.");
-                        var parameterToken = ConsumeParameterIdentifier("Expected parameter name in setter.");
-                        var parameterSymbol = Symbol.Intern(parameterToken.Lexeme);
-                        var parameter = new FunctionParameter(CreateSourceReference(parameterToken), parameterSymbol,
-                            false, null, null);
+                        var setterParameters = ParseSetterParameters();
                         Consume(TokenType.RightParen, "Expected ')' after setter parameter.");
                         var body = ParseBlock();
-                        var parameters = ImmutableArray.Create(parameter);
                         var function = new FunctionExpression(body.Source ?? CreateSourceReference(methodNameToken),
                             null,
-                            parameters, body, false, false);
+                            setterParameters, body, false, false);
                         members.Add(new ClassMember(CreateSourceReference(methodNameToken), ClassMemberKind.Setter,
                             methodName, function, isStatic, computedAccessorName is not null, computedAccessorName));
                     }
@@ -895,8 +914,14 @@ public sealed class TypedAstParser(
                         }
 
                         Match(TokenType.Semicolon);
-                        fields.Add(new ClassField(CreateSourceReference(closing), string.Empty, initializer, isStatic,
-                            false, true, nameExpression));
+                        var field = new ClassField(CreateSourceReference(closing), string.Empty, initializer, isStatic,
+                            false, true, nameExpression);
+                        fields.Add(field);
+                        if (isStatic)
+                        {
+                            staticElements.Add(new ClassStaticElement(ClassStaticElementKind.Field,
+                                fields.Count - 1));
+                        }
                         continue;
                     }
 
@@ -928,8 +953,14 @@ public sealed class TypedAstParser(
                         }
 
                         Match(TokenType.Semicolon);
-                        fields.Add(new ClassField(CreateSourceReference(methodNameToken), methodName, initializer,
-                            isStatic, false));
+                        var field = new ClassField(CreateSourceReference(methodNameToken), methodName, initializer,
+                            isStatic, false);
+                        fields.Add(field);
+                        if (isStatic)
+                        {
+                            staticElements.Add(new ClassStaticElement(ClassStaticElementKind.Field,
+                                fields.Count - 1));
+                        }
                         continue;
                     }
 
@@ -967,10 +998,12 @@ public sealed class TypedAstParser(
                     throw new ParseException("Expected method name after '*'.", Peek(), _source);
                 }
 
-                throw new ParseException("Expected method, field, getter, or setter in class body.", Peek(), _source);
+                throw new ParseException("Expected method, field, getter, setter, or static block in class body.",
+                    Peek(), _source);
             }
 
-            return (constructor, members.ToImmutable(), fields.ToImmutable());
+            return (constructor, members.ToImmutable(), fields.ToImmutable(), staticBlocks.ToImmutable(),
+                staticElements.ToImmutable());
         }
 
         private ExpressionNode ParseComputedPropertyNameExpression()
@@ -2475,16 +2508,13 @@ public sealed class TypedAstParser(
                     Advance(); // set
                     var (setterKey, setterIsComputed, setterKeySource) = ParseObjectPropertyKey();
                     Consume(TokenType.LeftParen, "Expected '(' after setter name.");
-                    var parameterToken = ConsumeParameterIdentifier("Expected parameter name in setter.");
-                    var parameterSymbol = Symbol.Intern(parameterToken.Lexeme);
-                    var parameter = new FunctionParameter(CreateSourceReference(parameterToken), parameterSymbol, false,
-                        null, null);
+                    var setterParameters = ParseSetterParameters();
                     Consume(TokenType.RightParen, "Expected ')' after setter parameter.");
                     var body = ParseBlock();
                     var function = new FunctionExpression(body.Source ?? setterKeySource, null,
-                        [parameter], body, false, false);
+                        setterParameters, body, false, false);
                     members.Add(new ObjectMember(function.Source ?? setterKeySource, ObjectMemberKind.Setter, setterKey,
-                        null, function, setterIsComputed, false, parameterSymbol));
+                        null, function, setterIsComputed, false, setterParameters[0].Name));
                     continue;
                 }
 
@@ -2778,6 +2808,22 @@ public sealed class TypedAstParser(
             } while (true);
 
             return builder.ToImmutable();
+        }
+
+        private ImmutableArray<FunctionParameter> ParseSetterParameters()
+        {
+            var parameters = ParseParameterList();
+            if (parameters.Length != 1)
+            {
+                throw new ParseException("Setter must have exactly one parameter.", Peek(), _source);
+            }
+
+            if (parameters[0].IsRest)
+            {
+                throw new ParseException("Setter parameter cannot be a rest parameter.", Peek(), _source);
+            }
+
+            return parameters;
         }
 
         private ExpressionNode ParseNewExpression()

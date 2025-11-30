@@ -349,17 +349,23 @@ public sealed class TypedConstantExpressionTransformer
         var constructor = TransformFunctionExpression(definition.Constructor);
         var members = TransformImmutableArray(definition.Members, TransformClassMember, out var membersChanged);
         var fields = TransformImmutableArray(definition.Fields, TransformClassField, out var fieldsChanged);
+        var staticBlocks =
+            TransformImmutableArray(definition.StaticBlocks, TransformClassStaticBlock, out var staticBlocksChanged);
 
         if (ReferenceEquals(extendsExpression, definition.Extends) &&
             ReferenceEquals(constructor, definition.Constructor) &&
-            !membersChanged && !fieldsChanged)
+            !membersChanged && !fieldsChanged && !staticBlocksChanged)
         {
             return definition;
         }
 
         return definition with
         {
-            Extends = extendsExpression, Constructor = constructor, Members = members, Fields = fields
+            Extends = extendsExpression,
+            Constructor = constructor,
+            Members = members,
+            Fields = fields,
+            StaticBlocks = staticBlocks
         };
     }
 
@@ -385,6 +391,12 @@ public sealed class TypedConstantExpressionTransformer
         }
 
         return field with { Initializer = initializer, ComputedName = computedName };
+    }
+
+    private ClassStaticBlock TransformClassStaticBlock(ClassStaticBlock block)
+    {
+        var body = TransformBlock(block.Body);
+        return ReferenceEquals(body, block.Body) ? block : block with { Body = body };
     }
 
     private ExportDefaultValue TransformExportDefaultValue(ExportDefaultValue value)

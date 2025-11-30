@@ -23,7 +23,7 @@ public static partial class TypedAstEvaluator
 
         public ResumePayload TakePayload(int yieldIndex)
         {
-            if (_pending.Remove(yieldIndex, out var payload))
+            if (_pending.TryGetValue(yieldIndex, out var payload))
             {
                 return payload;
             }

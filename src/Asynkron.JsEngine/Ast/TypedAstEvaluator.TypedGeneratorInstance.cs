@@ -268,6 +268,7 @@ public static partial class TypedAstEvaluator
 
             var environment = EnsureExecutionEnvironment();
             var context = EnsureEvaluationContext();
+            StoreSymbolValue(environment, Symbol.YieldTrackerSymbol, new YieldTracker(_currentYieldIndex));
 
             // If we are resuming after a pending await, thread the resolved
             // value into the per-site await state so subsequent evaluations
@@ -334,6 +335,15 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 return CompleteReturn(returnSignalValue);
+                            }
+
+                            if (context.IsYield)
+                            {
+                                var yieldedSignalValue = context.FlowValue;
+                                context.Clear();
+                                _state = GeneratorState.Suspended;
+                                _currentYieldIndex++;
+                                return CreateIteratorResult(yieldedSignalValue, false);
                             }
 
                             _programCounter = statementInstruction.Next;
@@ -1241,6 +1251,7 @@ public static partial class TypedAstEvaluator
             return result;
         }
 
+
         private void PreparePendingResumeValue(ResumeMode mode, object? resumeValue, bool wasStart)
         {
             if (wasStart)
@@ -1254,15 +1265,33 @@ public static partial class TypedAstEvaluator
             {
                 case ResumeMode.Throw:
                     _pendingResumeKind = ResumePayloadKind.Throw;
-                    _pendingResumeValue = resumeValue;
                     break;
                 case ResumeMode.Return:
                     _pendingResumeKind = ResumePayloadKind.Return;
-                    _pendingResumeValue = resumeValue;
                     break;
                 default:
                     _pendingResumeKind = ResumePayloadKind.Value;
-                    _pendingResumeValue = resumeValue;
+                    break;
+            }
+
+            _pendingResumeValue = resumeValue;
+
+            if (_currentYieldIndex <= 0)
+            {
+                return;
+            }
+
+            var resumeSlotIndex = _currentYieldIndex - 1;
+            switch (_pendingResumeKind)
+            {
+                case ResumePayloadKind.Throw:
+                    _resumeContext.SetException(resumeSlotIndex, resumeValue);
+                    break;
+                case ResumePayloadKind.Return:
+                    _resumeContext.SetReturn(resumeSlotIndex, resumeValue);
+                    break;
+                default:
+                    _resumeContext.SetValue(resumeSlotIndex, resumeValue);
                     break;
             }
         }

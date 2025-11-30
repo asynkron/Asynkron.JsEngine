@@ -454,8 +454,10 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
     private void ReadIdentifier(char firstChar)
     {
         var builder = new StringBuilder();
+        var containsEscape = false;
         if (firstChar == '\\')
         {
+            containsEscape = true;
             builder.Append(ReadIdentifierEscape(true));
         }
         else
@@ -467,6 +469,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
         {
             if (Peek() == '\\')
             {
+                containsEscape = true;
                 builder.Append(ReadIdentifierEscape());
                 continue;
             }
@@ -481,7 +484,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
         }
 
         var text = builder.ToString();
-        if (Keywords.TryGetValue(text, out var keyword))
+        if (!containsEscape && Keywords.TryGetValue(text, out var keyword))
         {
             _tokens.Add(new Token(keyword, text, null, _startLine, _startColumn, _start, _current));
         }

@@ -770,9 +770,25 @@ public sealed class TypedAstParser(
                 {
                     var accessorToken = Advance();
                     var isGetter = accessorToken.Type == TokenType.Get;
-                    var methodNameToken = ConsumePropertyIdentifierToken(
-                        isGetter ? "Expected getter name in class body." : "Expected setter name in class body.");
-                    var methodName = GetPropertyNameValue(methodNameToken);
+                    ExpressionNode? computedAccessorName = null;
+                    Token methodNameToken;
+
+                    if (Check(TokenType.LeftBracket))
+                    {
+                        Advance();
+                        computedAccessorName = ParseComputedPropertyNameExpression();
+                        methodNameToken =
+                            Consume(TokenType.RightBracket, "Expected ']' after computed accessor name.");
+                    }
+                    else
+                    {
+                        methodNameToken = ConsumePropertyIdentifierToken(
+                            isGetter ? "Expected getter name in class body." : "Expected setter name in class body.");
+                    }
+
+                    var methodName = computedAccessorName is null
+                        ? GetPropertyNameValue(methodNameToken)
+                        : methodNameToken.Lexeme;
 
                     if (isGetter)
                     {
@@ -783,7 +799,7 @@ public sealed class TypedAstParser(
                             null,
                             ImmutableArray<FunctionParameter>.Empty, body, false, false);
                         members.Add(new ClassMember(CreateSourceReference(methodNameToken), ClassMemberKind.Getter,
-                            methodName, function, isStatic));
+                            methodName, function, isStatic, computedAccessorName is not null, computedAccessorName));
                     }
                     else
                     {
@@ -799,7 +815,7 @@ public sealed class TypedAstParser(
                             null,
                             parameters, body, false, false);
                         members.Add(new ClassMember(CreateSourceReference(methodNameToken), ClassMemberKind.Setter,
-                            methodName, function, isStatic));
+                            methodName, function, isStatic, computedAccessorName is not null, computedAccessorName));
                     }
 
                     continue;
@@ -819,7 +835,7 @@ public sealed class TypedAstParser(
                         if (Check(TokenType.LeftBracket))
                         {
                             Advance(); // [
-                            computedName = ParseExpression(false);
+                            computedName = ParseComputedPropertyNameExpression();
                             var closing = Consume(TokenType.RightBracket, "Expected ']' after computed property name.");
                             asyncMethodNameToken = closing;
                         }
@@ -860,7 +876,7 @@ public sealed class TypedAstParser(
                 if (Check(TokenType.LeftBracket))
                 {
                     Advance(); // [
-                    var nameExpression = ParseExpression(false);
+                    var nameExpression = ParseComputedPropertyNameExpression();
                     var closing = Consume(TokenType.RightBracket, "Expected ']' after computed property name.");
                     var hasInitializer = Match(TokenType.Equal);
                     var looksLikeMethod = !hasInitializer && Check(TokenType.LeftParen);
@@ -955,6 +971,15 @@ public sealed class TypedAstParser(
             }
 
             return (constructor, members.ToImmutable(), fields.ToImmutable());
+        }
+
+        private ExpressionNode ParseComputedPropertyNameExpression()
+        {
+            var previousAllowIn = _allowInExpressions;
+            _allowInExpressions = true;
+            var expression = ParseExpression(false);
+            _allowInExpressions = previousAllowIn;
+            return expression;
         }
 
         private FunctionExpression ParseClassMethod(Symbol? functionName, Token methodNameToken, bool isGenerator,
@@ -1888,7 +1913,13 @@ public sealed class TypedAstParser(
 
                     value = ParseAssignment();
                 }
-                else if (!(Check(TokenType.Semicolon) || CanInsertSemicolon()))
+                else if (!(Check(TokenType.Semicolon) ||
+                           Check(TokenType.RightBrace) ||
+                           Check(TokenType.RightBracket) ||
+                           Check(TokenType.RightParen) ||
+                           Check(TokenType.Comma) ||
+                           Check(TokenType.Colon) ||
+                           CanInsertSemicolon()))
                 {
                     value = ParseAssignment();
                 }

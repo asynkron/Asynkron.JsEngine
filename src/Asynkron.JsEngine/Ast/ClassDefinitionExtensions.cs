@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Immutable;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -84,6 +85,21 @@ public static partial class TypedAstEvaluator
             var hasPrivateMembers = definition.Members.Any(m => m.Name.Length > 0 && m.Name[0] == '#');
             return hasPrivateFields || hasPrivateMembers ? new PrivateNameScope() : null;
         }
+    }
+
+    private static JsEnvironment CreateClassScopeEnvironment(
+        JsEnvironment parentEnvironment,
+        Symbol className,
+        SourceReference? source)
+    {
+        var classEnvironment = new JsEnvironment(parentEnvironment, false, true, source, "class scope");
+        classEnvironment.Define(
+            className,
+            JsEnvironment.Uninitialized,
+            isConst: true,
+            isLexical: true,
+            blocksFunctionScopeOverride: true);
+        return classEnvironment;
     }
 
     private static void InitializeStaticElements(

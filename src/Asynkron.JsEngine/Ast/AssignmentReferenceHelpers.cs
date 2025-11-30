@@ -47,8 +47,11 @@ public static partial class TypedAstEvaluator
     {
         if (IsNullish(target))
         {
+            var errorMessage = propertyName.Length > 0
+                ? $"Cannot read property '{propertyName}' of null or undefined"
+                : "Cannot read properties of null or undefined";
             var error = StandardLibrary.CreateTypeError(
-                "Cannot read properties of null or undefined",
+                errorMessage,
                 context,
                 context.RealmState);
             context.SetThrow(error);

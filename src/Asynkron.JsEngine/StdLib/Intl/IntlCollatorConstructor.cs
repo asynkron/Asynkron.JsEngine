@@ -6,13 +6,9 @@ using Asynkron.JsEngine.Runtime.Prototypes;
 namespace Asynkron.JsEngine.StdLib.Intl;
 
 [JsConstructor("Intl.Collator", PrototypeType = typeof(IntlCollatorPrototype), Length = 0d, DisplayName = "Collator")]
-public sealed partial class IntlCollatorConstructor : JsConstructor
+public sealed partial class IntlCollatorConstructor(JsObject prototype, RealmState realm)
+    : JsConstructor(prototype, realm)
 {
-    public IntlCollatorConstructor(JsObject prototype, RealmState realm)
-        : base(prototype, realm)
-    {
-    }
-
     protected override JsObject ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
     {
         var instance = PrepareThisObject(thisValue);
@@ -47,18 +43,16 @@ public sealed partial class IntlCollatorConstructor : JsConstructor
         }
 
         var locales = args[0];
-        if (locales is string single)
+        switch (locales)
         {
-            result.Push(single);
-            return result;
+            case string single:
+                result.Push(single);
+                return result;
+            case JsArray { Items.Count: > 0 } array when array.Items[0] is string firstLocale:
+                result.Push(firstLocale);
+                return result;
+            default:
+                return result;
         }
-
-        if (locales is JsArray array && array.Items.Count > 0 && array.Items[0] is string firstLocale)
-        {
-            result.Push(firstLocale);
-            return result;
-        }
-
-        return result;
     }
 }

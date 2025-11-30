@@ -1,28 +1,18 @@
 namespace Asynkron.JsEngine.Runtime.Prototypes;
 
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-public sealed class JsPrototypeAttribute : Attribute
+public sealed class JsPrototypeAttribute(string intrinsicName) : Attribute
 {
-    public JsPrototypeAttribute(string intrinsicName)
-    {
-        IntrinsicName = intrinsicName;
-    }
-
     /// <summary>
     ///     Friendly name for diagnostics (e.g. "Intl.Locale").
     /// </summary>
-    public string IntrinsicName { get; }
+    public string IntrinsicName { get; } = intrinsicName;
 }
 
 [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = true)]
-public sealed class JsHostGetterAttribute : Attribute
+public sealed class JsHostGetterAttribute(string propertyName) : Attribute
 {
-    public JsHostGetterAttribute(string propertyName)
-    {
-        PropertyName = propertyName;
-    }
-
-    public string PropertyName { get; }
+    public string PropertyName { get; } = propertyName;
 
     /// <summary>
     ///     Optional display name (e.g. "get calendar") assigned to the generated getter function.
@@ -35,14 +25,9 @@ public sealed class JsHostGetterAttribute : Attribute
 }
 
 [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = true)]
-public sealed class JsHostMethodAttribute : Attribute
+public sealed class JsHostMethodAttribute(string propertyName) : Attribute
 {
-    public JsHostMethodAttribute(string propertyName)
-    {
-        PropertyName = propertyName;
-    }
-
-    public string PropertyName { get; }
+    public string PropertyName { get; } = propertyName;
 
     public double Length { get; set; }
 
@@ -60,17 +45,12 @@ public sealed class JsHostMethodAttribute : Attribute
 }
 
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-public sealed class JsConstructorAttribute : Attribute
+public sealed class JsConstructorAttribute(string intrinsicName) : Attribute
 {
-    public JsConstructorAttribute(string intrinsicName)
-    {
-        IntrinsicName = intrinsicName;
-    }
-
     /// <summary>
     ///     Friendly identifier for diagnostics/logging (e.g. "Intl.Locale").
     /// </summary>
-    public string IntrinsicName { get; }
+    public string IntrinsicName { get; } = intrinsicName;
 
     /// <summary>
     ///     Optional Function.length metadata. Defaults to 0.

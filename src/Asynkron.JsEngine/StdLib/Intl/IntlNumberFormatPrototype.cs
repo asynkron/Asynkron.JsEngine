@@ -52,7 +52,7 @@ public sealed partial class IntlNumberFormatPrototype : JsPrototype
     }
 
     [JsHostMethod("formatToParts", Length = 0d)]
-    public object FormatToParts(object? thisValue, IReadOnlyList<object?> args)
+    public JsArray FormatToParts(object? thisValue, IReadOnlyList<object?> args)
     {
         ValidateNumberFormatReceiver(thisValue);
         var value = args.Count > 0 ? args[0] : Symbol.Undefined;
@@ -66,7 +66,7 @@ public sealed partial class IntlNumberFormatPrototype : JsPrototype
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    public object ResolvedOptions(object? thisValue, IReadOnlyList<object?> _)
+    public JsObject ResolvedOptions(object? thisValue, IReadOnlyList<object?> _)
     {
         var nf = ValidateNumberFormatReceiver(thisValue);
         return CreateNumberFormatResolvedOptions(nf);

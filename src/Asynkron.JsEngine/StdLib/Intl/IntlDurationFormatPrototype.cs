@@ -22,19 +22,19 @@ public sealed partial class IntlDurationFormatPrototype : JsPrototype
     }
 
     [JsHostMethod("format", Length = 0d)]
-    public object Format(object? thisValue, IReadOnlyList<object?> args)
+    public string Format(object? thisValue, IReadOnlyList<object?> args)
     {
         return "PT0S";
     }
 
     [JsHostMethod("formatToParts", Length = 0d)]
-    public object FormatToParts(object? thisValue, IReadOnlyList<object?> args)
+    public JsArray FormatToParts(object? thisValue, IReadOnlyList<object?> args)
     {
         return new JsArray(Realm);
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    public object ResolvedOptions(object? thisValue, IReadOnlyList<object?> args)
+    public JsObject ResolvedOptions(object? thisValue, IReadOnlyList<object?> args)
     {
         var obj = new JsObject();
         obj.SetProperty("numberingSystem", "latn");

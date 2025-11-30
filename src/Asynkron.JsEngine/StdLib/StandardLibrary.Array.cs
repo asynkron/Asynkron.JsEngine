@@ -2028,35 +2028,22 @@ public static partial class StandardLibrary
         }
     }
 
-    private sealed class ArrayFromAsyncOperation
+    private sealed class ArrayFromAsyncOperation(
+        HostFunction host,
+        RealmState realm,
+        JsPromise promise,
+        IJsObjectLike result,
+        bool mapping,
+        IJsCallable? mapper,
+        object? thisArg,
+        string methodName)
     {
-        private readonly HostFunction _host;
-        private readonly RealmState _realm;
-        private readonly JsPromise _promise;
-        private readonly IJsObjectLike _result;
-        private readonly bool _mapping;
-        private readonly IJsCallable? _mapper;
-        private readonly object? _thisArg;
-        private readonly string _methodName;
         private long _index;
         private bool _settled;
         private IJsPropertyAccessor? _iterator;
         private IJsCallable? _nextFn;
         private bool _awaitIteratorResult;
         private IJsPropertyAccessor? _arrayLike;
-
-        public ArrayFromAsyncOperation(HostFunction host, RealmState realm, JsPromise promise, IJsObjectLike result,
-            bool mapping, IJsCallable? mapper, object? thisArg, string methodName)
-        {
-            _host = host;
-            _realm = realm;
-            _promise = promise;
-            _result = result;
-            _mapping = mapping;
-            _mapper = mapper;
-            _thisArg = thisArg;
-            _methodName = methodName;
-        }
 
         public void StartIterator(object? items, IJsCallable iteratorMethod, bool awaitIteratorResult)
         {
@@ -2074,14 +2061,14 @@ public static partial class StandardLibrary
             if (iteratorValue is not IJsPropertyAccessor iterator)
             {
                 RejectFailure(CreateTypeError("Array.fromAsync iterator method did not return an object", null,
-                    _realm));
+                    realm));
                 return;
             }
 
             if (!iterator.TryGetProperty("next", out var nextValue) || nextValue is not IJsCallable nextFn)
             {
                 RejectFailure(CreateTypeError("Array.fromAsync iterator does not expose a callable next()", null,
-                    _realm));
+                    realm));
                 return;
             }
 
@@ -2125,7 +2112,7 @@ public static partial class StandardLibrary
                 return;
             }
 
-            if (_awaitIteratorResult && TryAwaitPromiseLike(stepCandidate, _realm, HandleIteratorStep,
+            if (_awaitIteratorResult && TryAwaitPromiseLike(stepCandidate, realm, HandleIteratorStep,
                     RejectWithClose))
             {
                 return;
@@ -2133,7 +2120,7 @@ public static partial class StandardLibrary
 
             if (stepCandidate is not IJsPropertyAccessor stepAccessor)
             {
-                RejectWithClose(CreateTypeError("Array.fromAsync iterator result is not an object", null, _realm));
+                RejectWithClose(CreateTypeError("Array.fromAsync iterator result is not an object", null, realm));
                 return;
             }
 
@@ -2146,12 +2133,12 @@ public static partial class StandardLibrary
 
             if (_index >= MaxArrayLength)
             {
-                RejectWithClose(CreateTypeError("Array.fromAsync result exceeds 2^53 - 1 elements", null, _realm));
+                RejectWithClose(CreateTypeError("Array.fromAsync result exceeds 2^53 - 1 elements", null, realm));
                 return;
             }
 
             var value = stepAccessor.TryGetProperty("value", out var entryValue) ? entryValue : Symbol.Undefined;
-            if (TryAwaitPromiseLike(value, _realm, HandleIteratorValue, RejectWithClose))
+            if (TryAwaitPromiseLike(value, realm, HandleIteratorValue, RejectWithClose))
             {
                 return;
             }
@@ -2166,12 +2153,12 @@ public static partial class StandardLibrary
                 return;
             }
 
-            if (_mapping && _mapper is not null)
+            if (mapping && mapper is not null)
             {
                 object? mapperResult;
                 try
                 {
-                    mapperResult = InvokeArrayFromMapper(_mapper, _host, _thisArg, value, _index);
+                    mapperResult = InvokeArrayFromMapper(mapper, host, thisArg, value, _index);
                 }
                 catch (ThrowSignal signal)
                 {
@@ -2179,7 +2166,7 @@ public static partial class StandardLibrary
                     return;
                 }
 
-                if (TryAwaitPromiseLike(mapperResult, _realm, StoreIteratorValue, RejectWithClose))
+                if (TryAwaitPromiseLike(mapperResult, realm, StoreIteratorValue, RejectWithClose))
                 {
                     return;
                 }
@@ -2200,7 +2187,7 @@ public static partial class StandardLibrary
 
             try
             {
-                CreateDataPropertyOrThrow(_result, ToIndexString(_index), value, _realm, _methodName);
+                CreateDataPropertyOrThrow(result, ToIndexString(_index), value, realm, methodName);
             }
             catch (ThrowSignal signal)
             {
@@ -2229,13 +2216,13 @@ public static partial class StandardLibrary
 
             if (_index >= MaxArrayLength)
             {
-                RejectFailure(CreateTypeError("Array.fromAsync result exceeds 2^53 - 1 elements", null, _realm));
+                RejectFailure(CreateTypeError("Array.fromAsync result exceeds 2^53 - 1 elements", null, realm));
                 return;
             }
 
             var key = ToIndexString(_index);
             var value = GetElementOrUndefined(_arrayLike, key);
-            if (TryAwaitPromiseLike(value, _realm, resolved => HandleArrayLikeValue(key, resolved), RejectFailure))
+            if (TryAwaitPromiseLike(value, realm, resolved => HandleArrayLikeValue(key, resolved), RejectFailure))
             {
                 return;
             }
@@ -2259,7 +2246,7 @@ public static partial class StandardLibrary
 
                 try
                 {
-                    CreateDataPropertyOrThrow(_result, key, finalValue, _realm, _methodName);
+                    CreateDataPropertyOrThrow(result, key, finalValue, realm, methodName);
                 }
                 catch (ThrowSignal signal)
                 {
@@ -2271,12 +2258,12 @@ public static partial class StandardLibrary
                 ProcessArrayLike();
             }
 
-            if (_mapping && _mapper is not null)
+            if (mapping && mapper is not null)
             {
                 object? mapperResult;
                 try
                 {
-                    mapperResult = InvokeArrayFromMapper(_mapper, _host, _thisArg, resolved, _index);
+                    mapperResult = InvokeArrayFromMapper(mapper, host, thisArg, resolved, _index);
                 }
                 catch (ThrowSignal signal)
                 {
@@ -2284,7 +2271,7 @@ public static partial class StandardLibrary
                     return;
                 }
 
-                if (TryAwaitPromiseLike(mapperResult, _realm, FinalizeValue, RejectFailure))
+                if (TryAwaitPromiseLike(mapperResult, realm, FinalizeValue, RejectFailure))
                 {
                     return;
                 }
@@ -2304,8 +2291,8 @@ public static partial class StandardLibrary
             }
 
             _settled = true;
-            SetArrayLikeLength(_result, _index);
-            _promise.Resolve(_result);
+            SetArrayLikeLength(result, _index);
+            promise.Resolve(result);
         }
 
         private void RejectFailure(object? reason)
@@ -2316,7 +2303,7 @@ public static partial class StandardLibrary
             }
 
             _settled = true;
-            _promise.Reject(reason);
+            promise.Reject(reason);
         }
 
         private void RejectWithClose(object? reason)
@@ -2330,7 +2317,7 @@ public static partial class StandardLibrary
 
             if (_iterator is null)
             {
-                _promise.Reject(reason);
+                promise.Reject(reason);
                 return;
             }
 
@@ -2338,13 +2325,13 @@ public static partial class StandardLibrary
                 returnValue is null ||
                 ReferenceEquals(returnValue, Symbol.Undefined))
             {
-                _promise.Reject(reason);
+                promise.Reject(reason);
                 return;
             }
 
             if (returnValue is not IJsCallable returnFn)
             {
-                _promise.Reject(CreateTypeError($"{_methodName} iterator.return is not callable", null, _realm));
+                promise.Reject(CreateTypeError($"{methodName} iterator.return is not callable", null, realm));
                 return;
             }
 
@@ -2355,18 +2342,18 @@ public static partial class StandardLibrary
             }
             catch (ThrowSignal signal)
             {
-                _promise.Reject(signal.ThrownValue ?? signal);
+                promise.Reject(signal.ThrownValue ?? signal);
                 return;
             }
 
-            if (TryAwaitPromiseLike(completion, _realm,
-                    _ => _promise.Reject(reason),
-                    rejection => _promise.Reject(rejection)))
+            if (TryAwaitPromiseLike(completion, realm,
+                    _ => promise.Reject(reason),
+                    rejection => promise.Reject(rejection)))
             {
                 return;
             }
 
-            _promise.Reject(reason);
+            promise.Reject(reason);
         }
 
         private void RejectSignal(ThrowSignal signal)

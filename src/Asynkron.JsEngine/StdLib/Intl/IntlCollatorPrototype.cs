@@ -33,7 +33,7 @@ public sealed partial class IntlCollatorPrototype : JsPrototype
     }
 
     [JsHostMethod("compare", Length = 2d)]
-    public object Compare(object? thisValue, IReadOnlyList<object?> args)
+    public double Compare(object? thisValue, IReadOnlyList<object?> args)
     {
         ValidateCollatorReceiver(thisValue);
         var first = args.Count > 0 ? JsValueToString(args[0]) : string.Empty;
@@ -47,7 +47,7 @@ public sealed partial class IntlCollatorPrototype : JsPrototype
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    public object ResolvedOptions(object? thisValue, IReadOnlyList<object?> _)
+    public JsObject ResolvedOptions(object? thisValue, IReadOnlyList<object?> _)
     {
         var collator = ValidateCollatorReceiver(thisValue);
         var options = new JsObject();

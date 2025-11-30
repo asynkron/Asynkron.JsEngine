@@ -41,7 +41,7 @@ public sealed partial class IntlDateTimeFormatPrototype : JsPrototype
     }
 
     [JsHostMethod("formatToParts", Length = 1d)]
-    public object FormatToParts(object? thisValue, IReadOnlyList<object?> args)
+    public JsArray FormatToParts(object? thisValue, IReadOnlyList<object?> args)
     {
         var slotData = ValidateReceiver(thisValue, out _);
         var formatted = FormatInternal(args.Count > 0 ? args[0] : Symbol.Undefined, slotData);
@@ -54,7 +54,7 @@ public sealed partial class IntlDateTimeFormatPrototype : JsPrototype
     }
 
     [JsHostMethod("formatRange", Length = 2d)]
-    public object FormatRange(object? thisValue, IReadOnlyList<object?> args)
+    public string FormatRange(object? thisValue, IReadOnlyList<object?> args)
     {
         var slotData = ValidateReceiver(thisValue, out _);
         var start = FormatInternal(args.Count > 0 ? args[0] : Symbol.Undefined, slotData);
@@ -63,7 +63,7 @@ public sealed partial class IntlDateTimeFormatPrototype : JsPrototype
     }
 
     [JsHostMethod("formatRangeToParts", Length = 2d)]
-    public object FormatRangeToParts(object? thisValue, IReadOnlyList<object?> args)
+    public JsArray FormatRangeToParts(object? thisValue, IReadOnlyList<object?> args)
     {
         var slotData = ValidateReceiver(thisValue, out _);
         var start = FormatInternal(args.Count > 0 ? args[0] : Symbol.Undefined, slotData);
@@ -76,7 +76,7 @@ public sealed partial class IntlDateTimeFormatPrototype : JsPrototype
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    public object ResolvedOptions(object? thisValue, IReadOnlyList<object?> _unused)
+    public JsObject ResolvedOptions(object? thisValue, IReadOnlyList<object?> _unused)
     {
         var slots = ValidateReceiver(thisValue, out _);
         var obj = new JsObject();
@@ -120,7 +120,7 @@ public sealed partial class IntlDateTimeFormatPrototype : JsPrototype
         return obj;
     }
 
-    private string FormatInternal(object? value, DateTimeFormatInternalSlots slots)
+    private static string FormatInternal(object? value, DateTimeFormatInternalSlots slots)
     {
         var epochMilliseconds = ToEpochMilliseconds(value);
         if (double.IsNaN(epochMilliseconds))

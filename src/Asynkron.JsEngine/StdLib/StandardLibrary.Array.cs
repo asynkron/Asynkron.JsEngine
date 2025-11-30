@@ -38,7 +38,7 @@ public static partial class StandardLibrary
         DefineArrayFunction(array, "some", 1d, ArraySome, realm);
         DefineArrayFunction(array, "every", 1d, ArrayEvery, realm);
         array.SetHostedProperty("join", ArrayJoin, realm);
-        array.SetHostedProperty("toString", (thisValue, _) => ArrayToString(thisValue, array));
+        array.SetHostedProperty("toString", (thisValue, _) => ArrayToString(thisValue, realm));
         array.SetHostedProperty("includes", ArrayIncludes, realm);
         array.SetHostedProperty("indexOf", ArrayIndexOf, realm);
         var lastIndexOf =
@@ -91,14 +91,7 @@ public static partial class StandardLibrary
         {
             var pair = new JsArray(realm);
             pair.Push((double)idx);
-            if (accessor.TryGetProperty(idx.ToString(CultureInfo.InvariantCulture), out var value))
-            {
-                pair.Push(value);
-            }
-            else
-            {
-                pair.Push(Symbol.Undefined);
-            }
+            pair.Push(GetElementOrUndefined(accessor, ToIndexString(idx)));
 
             AddArrayMethods(pair, realm);
             return pair;
@@ -111,7 +104,7 @@ public static partial class StandardLibrary
         var valuesFn = DefineArrayIteratorFunction("values", (accessor, _) => idx =>
         {
             var key = idx.ToString(CultureInfo.InvariantCulture);
-            return accessor.TryGetProperty(key, out var value) ? value : Symbol.Undefined;
+            return GetElementOrUndefined(accessor, key);
         });
         return;
 
@@ -266,7 +259,7 @@ public static partial class StandardLibrary
 
         var newLength = length - 1;
         var key = ToIndexString(newLength);
-        var elementExists = accessor.TryGetProperty(key, out var element);
+        var elementExists = TryGetExistingElement(accessor, key, out var element);
         DeletePropertyOrThrow(objectLike, key, elementExists, MethodName, realm);
         accessor.SetProperty("length", (double)newLength);
         return elementExists ? element : Symbol.Undefined;
@@ -280,16 +273,16 @@ public static partial class StandardLibrary
 
         for (long k = 0; k < length; k++)
         {
-            var key = ToIndexString(k);
-            if (!accessor.TryGetProperty(key, out var value))
+            if (!TryGetExistingElement(accessor, k, out var value))
             {
                 continue;
             }
 
             var mapped = callback.Invoke([value, (double)k, accessor], thisArg);
-            result.SetProperty(key, mapped);
+            result.SetProperty(ToIndexString(k), mapped);
         }
 
+        SetArrayLikeLength(result, length);
         return result;
     }
 
@@ -302,8 +295,7 @@ public static partial class StandardLibrary
 
         for (long k = 0; k < length; k++)
         {
-            var key = ToIndexString(k);
-            if (!accessor.TryGetProperty(key, out var value))
+            if (!TryGetExistingElement(accessor, k, out var value))
             {
                 continue;
             }
@@ -338,8 +330,7 @@ public static partial class StandardLibrary
 
         for (long k = 0; k < length; k++)
         {
-            var key = ToIndexString(k);
-            if (!accessor.TryGetProperty(key, out var value))
+            if (!TryGetExistingElement(accessor, k, out var value))
             {
                 continue;
             }
@@ -357,8 +348,7 @@ public static partial class StandardLibrary
 
         for (long k = 0; k < length; k++)
         {
-            var key = ToIndexString(k);
-            if (!accessor.TryGetProperty(key, out var value))
+            if (!TryGetExistingElement(accessor, k, out var value))
             {
                 continue;
             }
@@ -380,8 +370,7 @@ public static partial class StandardLibrary
 
         for (long k = 0; k < length; k++)
         {
-            var key = ToIndexString(k);
-            if (!accessor.TryGetProperty(key, out var value))
+            if (!TryGetExistingElement(accessor, k, out var value))
             {
                 continue;
             }
@@ -408,8 +397,7 @@ public static partial class StandardLibrary
 
         for (long k = 0; k < length; k++)
         {
-            var key = ToIndexString(k);
-            if (!accessor.TryGetProperty(key, out var value))
+            if (!TryGetExistingElement(accessor, k, out var value))
             {
                 continue;
             }
@@ -447,40 +435,24 @@ public static partial class StandardLibrary
                 builder.Append(separator);
             }
 
-            var key = ToIndexString(k);
-            object? element;
-            if (!accessor.TryGetProperty(key, out var found))
-            {
-                element = Symbol.Undefined;
-            }
-            else
-            {
-                element = found;
-            }
-
+            var element = GetElementOrUndefined(accessor, ToIndexString(k));
             builder.Append(element.ToJsStringForArray());
         }
 
         return builder.ToString();
     }
 
-    private static object? ArrayToString(object? thisValue, IJsPropertyAccessor arrayAccessor)
+    private static object? ArrayToString(object? thisValue, RealmState? realm)
     {
-        if (thisValue is JsArray jsArray)
+        var target = ToObjectPropertyAccessor(thisValue, "Array.prototype.toString", realm);
+
+        if (JsOps.TryGetPropertyValue(target, "join", out var joinValue) &&
+            joinValue is IJsCallable joinCallable)
         {
-            return arrayAccessor.TryGetProperty("join", out var join) && join is IJsCallable joinFn
-                ? joinFn.Invoke([], jsArray)
-                : string.Empty;
+            return joinCallable.Invoke([], target);
         }
 
-        if (thisValue is IJsPropertyAccessor accessor &&
-            accessor.TryGetProperty("join", out var joinVal) &&
-            joinVal is IJsCallable callableJoin)
-        {
-            return callableJoin.Invoke([], thisValue);
-        }
-
-        return "[object Object]";
+        return InvokeDefaultObjectToString(target, realm);
     }
 
     private static object? ArrayIncludes(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
@@ -527,9 +499,7 @@ public static partial class StandardLibrary
         {
             for (var i = start; i < lenLong; i++)
             {
-                var key = i.ToString(CultureInfo.InvariantCulture);
-                var exists = accessor.TryGetProperty(key, out var value);
-                if (exists && SameValueZero(value, searchElement))
+                if (TryGetExistingElement(accessor, i, out var value) && SameValueZero(value, searchElement))
                 {
                     return true;
                 }
@@ -572,8 +542,7 @@ public static partial class StandardLibrary
 
         for (var i = start; i < lenLong; i++)
         {
-            var key = i.ToString(CultureInfo.InvariantCulture);
-            if (accessor.TryGetProperty(key, out var value) && AreStrictlyEqual(value, searchElement))
+            if (TryGetExistingElement(accessor, i, out var value) && AreStrictlyEqual(value, searchElement))
             {
                 return (double)i;
             }
@@ -629,8 +598,7 @@ public static partial class StandardLibrary
 
         for (var i = startIndexGeneric; i >= 0; i--)
         {
-            var key = i.ToString(CultureInfo.InvariantCulture);
-            if (accessor.TryGetProperty(key, out var value) && AreStrictlyEqual(value, searchElement))
+            if (TryGetExistingElement(accessor, i, out var value) && AreStrictlyEqual(value, searchElement))
             {
                 return (double)i;
             }
@@ -650,8 +618,7 @@ public static partial class StandardLibrary
 
         for (var i = 0; i < length; i++)
         {
-            var key = i.ToString(CultureInfo.InvariantCulture);
-            if (!accessor.TryGetProperty(key, out var element) ||
+            if (!TryGetExistingElement(accessor, i, out var element) ||
                 element is null ||
                 ReferenceEquals(element, Symbol.Undefined))
             {
@@ -692,7 +659,7 @@ public static partial class StandardLibrary
         }
 
         object? firstElement = Symbol.Undefined;
-        var firstExists = accessor.TryGetProperty("0", out var firstValue);
+        var firstExists = TryGetExistingElement(accessor, "0", out var firstValue);
         if (firstExists)
         {
             firstElement = firstValue;
@@ -702,20 +669,20 @@ public static partial class StandardLibrary
         {
             var fromKey = ToIndexString(k);
             var toKey = ToIndexString(k - 1);
-            var fromExists = accessor.TryGetProperty(fromKey, out var fromValue);
+            var fromExists = TryGetExistingElement(accessor, fromKey, out var fromValue);
             if (fromExists)
             {
                 accessor.SetProperty(toKey, fromValue);
             }
             else
             {
-                var toExists = accessor.TryGetProperty(toKey, out _);
+                var toExists = HasProperty(accessor, toKey);
                 DeletePropertyOrThrow(objectLike, toKey, toExists, MethodName, realm);
             }
         }
 
         var lastKey = ToIndexString(length - 1);
-        var lastExists = accessor.TryGetProperty(lastKey, out _);
+        var lastExists = HasProperty(accessor, lastKey);
         DeletePropertyOrThrow(objectLike, lastKey, lastExists, MethodName, realm);
         accessor.SetProperty("length", (double)(length - 1));
         return firstElement;
@@ -739,14 +706,14 @@ public static partial class StandardLibrary
         {
             var fromKey = ToIndexString(k);
             var toKey = ToIndexString(k + argCount);
-            var fromExists = accessor.TryGetProperty(fromKey, out var fromValue);
+            var fromExists = TryGetExistingElement(accessor, fromKey, out var fromValue);
             if (fromExists)
             {
                 accessor.SetProperty(toKey, fromValue);
             }
             else
             {
-                var toExists = accessor.TryGetProperty(toKey, out _);
+                var toExists = HasProperty(accessor, toKey);
                 DeletePropertyOrThrow(objectLike, toKey, toExists, MethodName, realm);
             }
         }
@@ -827,13 +794,13 @@ public static partial class StandardLibrary
                 var fromKey = ToIndexString(from);
                 var toKey = ToIndexString(to);
 
-                if (accessor.TryGetProperty(fromKey, out var fromValue))
+                if (TryGetExistingElement(accessor, fromKey, out var fromValue))
                 {
                     accessor.SetProperty(toKey, fromValue);
                 }
                 else
                 {
-                    var toExists = accessor.TryGetProperty(toKey, out _);
+                    var toExists = HasProperty(accessor, toKey);
                     DeletePropertyOrThrow(objectLike, toKey, toExists, MethodName, realm);
                 }
             }
@@ -841,7 +808,7 @@ public static partial class StandardLibrary
             for (long k = length; k > length - (actualDeleteCount - insertCount); k--)
             {
                 var key = ToIndexString(k - 1);
-                var existed = accessor.TryGetProperty(key, out _);
+                var existed = HasProperty(accessor, key);
                 DeletePropertyOrThrow(objectLike, key, existed, MethodName, realm);
             }
         }
@@ -854,13 +821,13 @@ public static partial class StandardLibrary
                 var fromKey = ToIndexString(from);
                 var toKey = ToIndexString(to);
 
-                if (accessor.TryGetProperty(fromKey, out var fromValue))
+                if (TryGetExistingElement(accessor, fromKey, out var fromValue))
                 {
                     accessor.SetProperty(toKey, fromValue);
                 }
                 else
                 {
-                    var toExists = accessor.TryGetProperty(toKey, out _);
+                    var toExists = HasProperty(accessor, toKey);
                     DeletePropertyOrThrow(objectLike, toKey, toExists, MethodName, realm);
                 }
             }
@@ -904,7 +871,7 @@ public static partial class StandardLibrary
                 {
                     var fromKey = ToIndexString(k);
                     var toKey = ToIndexString(resultIndex);
-                    if (spreadAccessor.TryGetProperty(fromKey, out var value))
+                    if (TryGetExistingElement(spreadAccessor, fromKey, out var value))
                     {
                         result.SetProperty(toKey, value);
                     }
@@ -946,11 +913,17 @@ public static partial class StandardLibrary
             var lowerKey = ToIndexString(lower);
             var upperKey = ToIndexString(upper);
 
-            var lowerExists = accessor.TryGetProperty(lowerKey, out var lowerRaw);
-            object? lowerValue = lowerExists ? lowerRaw : Symbol.Undefined;
+            var lowerExists = TryGetExistingElement(accessor, lowerKey, out var lowerValue);
+            if (!lowerExists)
+            {
+                lowerValue = Symbol.Undefined;
+            }
 
-            var upperExists = accessor.TryGetProperty(upperKey, out var upperRaw);
-            object? upperValue = upperExists ? upperRaw : Symbol.Undefined;
+            var upperExists = TryGetExistingElement(accessor, upperKey, out var upperValue);
+            if (!upperExists)
+            {
+                upperValue = Symbol.Undefined;
+            }
 
             if (lowerExists && upperExists)
             {
@@ -990,8 +963,7 @@ public static partial class StandardLibrary
         var elements = new List<object?>((int)Math.Min(length, int.MaxValue));
         for (long k = 0; k < length; k++)
         {
-            var key = ToIndexString(k);
-            if (accessor.TryGetProperty(key, out var value))
+            if (TryGetExistingElement(accessor, k, out var value))
             {
                 elements.Add(value);
             }
@@ -1067,8 +1039,7 @@ public static partial class StandardLibrary
             return Symbol.Undefined;
         }
 
-        var key = ToIndexString(index);
-        return target.TryGetProperty(key, out var value) ? value : Symbol.Undefined;
+        return GetElementOrUndefined(target, ToIndexString(index));
     }
 
     private static object? ArrayFlat(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
@@ -1092,7 +1063,8 @@ public static partial class StandardLibrary
         var sourceLength = (long)ToLengthOrZero(lengthValue);
 
         var result = ArraySpeciesCreate(thisValue, 0, realm);
-        var newLength = FlattenIntoArray(result, accessor, sourceLength, 0, depth, null, null, realm);
+        var newLength = FlattenIntoArray(result, accessor, sourceLength, 0, depth, null, null, realm,
+            "Array.prototype.flat");
         SetArrayLikeLength(result, newLength);
         return result;
     }
@@ -1108,7 +1080,8 @@ public static partial class StandardLibrary
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var sourceLength = (long)ToLengthOrZero(lengthValue);
         var result = ArraySpeciesCreate(thisValue, 0, realm);
-        var newLength = FlattenIntoArray(result, accessor, sourceLength, 0, 1, callback, thisArg, realm);
+        var newLength = FlattenIntoArray(result, accessor, sourceLength, 0, 1, callback, thisArg, realm,
+            "Array.prototype.flatMap");
         SetArrayLikeLength(result, newLength);
         return result;
     }
@@ -1120,8 +1093,7 @@ public static partial class StandardLibrary
 
         for (var k = length - 1; k >= 0; k--)
         {
-            var key = ToIndexString(k);
-            if (!accessor.TryGetProperty(key, out var value))
+            if (!TryGetExistingElement(accessor, k, out var value))
             {
                 continue;
             }
@@ -1143,8 +1115,7 @@ public static partial class StandardLibrary
 
         for (var k = length - 1; k >= 0; k--)
         {
-            var key = ToIndexString(k);
-            if (!accessor.TryGetProperty(key, out var value))
+            if (!TryGetExistingElement(accessor, k, out var value))
             {
                 continue;
             }
@@ -1161,16 +1132,11 @@ public static partial class StandardLibrary
 
     private static object? ArrayFill(object? thisValue, IReadOnlyList<object?> args, RealmState? realm = null)
     {
-        if (args.Count == 0)
-        {
-            return thisValue;
-        }
-
         var target = EnsureArrayLikeReceiver(thisValue, "Array.prototype.fill", realm);
         var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
-        var value = args[0];
+        var value = args.Count > 0 ? args[0] : Symbol.Undefined;
         var startIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1]) : 0;
         var endIndex = args.Count > 2 ? ToIntegerOrInfinity(args[2]) : length;
 
@@ -1186,16 +1152,12 @@ public static partial class StandardLibrary
 
     private static object? ArrayCopyWithin(object? thisValue, IReadOnlyList<object?> args, RealmState? realm = null)
     {
-        if (args.Count == 0)
-        {
-            return thisValue;
-        }
-
-        var target = EnsureArrayLikeReceiver(thisValue, "Array.prototype.copyWithin", realm);
+        const string MethodName = "Array.prototype.copyWithin";
+        var target = EnsureArrayLikeReceiver(thisValue, MethodName, realm);
         var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
-        var toIndex = ToIntegerOrInfinity(args[0]);
+        var toIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0]) : 0;
         var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1]) : 0;
         var endIndex = args.Count > 2 ? ToIntegerOrInfinity(args[2]) : length;
 
@@ -1224,13 +1186,15 @@ public static partial class StandardLibrary
             var fromKey = ToIndexString(from);
             var toKey = ToIndexString(to);
 
-            if (target.TryGetProperty(fromKey, out var value))
+            var fromExists = TryGetExistingElement(target, fromKey, out var value);
+            if (fromExists)
             {
                 target.SetProperty(toKey, value);
             }
-            else if (objectLike is not null)
+            else
             {
-                objectLike.Delete(toKey);
+                var toExisted = HasProperty(target, toKey);
+                DeletePropertyOrThrow(objectLike, toKey, toExisted, MethodName, realm);
             }
 
             from += direction;
@@ -1249,8 +1213,7 @@ public static partial class StandardLibrary
         var values = new List<object?>((int)Math.Min(length, int.MaxValue));
         for (long k = 0; k < length; k++)
         {
-            var key = ToIndexString(k);
-            if (accessor.TryGetProperty(key, out var value))
+            if (TryGetExistingElement(accessor, k, out var value))
             {
                 values.Add(value);
             }
@@ -1329,26 +1292,25 @@ public static partial class StandardLibrary
         var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0]) : 0;
         var actualStart = ClampRelativeIndex(startIndex, length);
 
-        double deleteCountArg;
-        if (args.Count > 1)
-        {
-            deleteCountArg = ToIntegerOrInfinity(args[1]);
-        }
-        else
-        {
-            deleteCountArg = length - actualStart;
-        }
-
+        var deleteCountIsUndefined = args.Count <= 1 || ReferenceEquals(args[1], Symbol.Undefined);
         long actualDeleteCount;
-        if (double.IsPositiveInfinity(deleteCountArg))
+        if (deleteCountIsUndefined)
         {
             actualDeleteCount = length - actualStart;
         }
         else
         {
-            var bounded = Math.Max(deleteCountArg, 0);
-            bounded = Math.Min(bounded, length - actualStart);
-            actualDeleteCount = (long)bounded;
+            var deleteCountArg = ToIntegerOrInfinity(args[1]);
+            if (double.IsPositiveInfinity(deleteCountArg))
+            {
+                actualDeleteCount = length - actualStart;
+            }
+            else
+            {
+                var bounded = Math.Max(deleteCountArg, 0);
+                bounded = Math.Min(bounded, length - actualStart);
+                actualDeleteCount = (long)bounded;
+            }
         }
 
         var insertCount = Math.Max(args.Count - 2, 0);
@@ -1448,13 +1410,7 @@ public static partial class StandardLibrary
 
         for (var k = from; k < to; k++)
         {
-            var key = ToIndexString(k);
-            if (accessor.TryGetProperty(key, out var value))
-            {
-                result.SetProperty(ToIndexString(targetIndex), value);
-            }
-
-            targetIndex++;
+            CopyArrayElement(accessor, k, result, targetIndex++);
         }
 
         SetArrayLikeLength(result, targetIndex);
@@ -1600,20 +1556,9 @@ public static partial class StandardLibrary
             }
 
             var candidate = args[0];
-            while (candidate is JsProxy proxy)
-            {
-                if (proxy.Handler is null)
-                {
-                    var error = realm.TypeErrorConstructor is IJsCallable ctor
-                        ? ctor.Invoke(["Cannot perform 'isArray' with a revoked Proxy"], null)
-                        : new InvalidOperationException("Cannot perform 'isArray' with a revoked Proxy.");
-                    throw new ThrowSignal(error);
-                }
+            var inspected = UnwrapProxy(candidate, realm, "isArray");
 
-                candidate = proxy.Target;
-            }
-
-            if (candidate is JsArray jsArray)
+            if (inspected is JsArray jsArray)
             {
                 if (jsArray.TryGetProperty("__arguments__", out var isArgs) && isArgs is true)
                 {
@@ -1623,7 +1568,7 @@ public static partial class StandardLibrary
                 return true;
             }
 
-            if (candidate is JsObject obj && realm.ArrayPrototype is not null &&
+            if (inspected is JsObject obj && realm.ArrayPrototype is not null &&
                 ReferenceEquals(obj, realm.ArrayPrototype))
             {
                 return true;
@@ -1642,298 +1587,16 @@ public static partial class StandardLibrary
         arrayConstructor.DefineProperty("isArray",
             new PropertyDescriptor { Value = isArrayFn, Writable = true, Enumerable = false, Configurable = true });
 
-        // Array.from(arrayLike)
         HostFunction arrayFrom = null!;
-        arrayFrom = new HostFunction((thisValue, args) =>
+        arrayFrom = new HostFunction((thisValue, args) => ArrayFrom(arrayFrom, thisValue, args, realm), realm)
         {
-            if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
-            {
-                var error = realm.TypeErrorConstructor is IJsCallable ctor
-                    ? ctor.Invoke(["Array.from requires an array-like or iterable"], null)
-                    : new InvalidOperationException("Array.from requires an array-like or iterable.");
-                throw new ThrowSignal(error);
-            }
-
-            var source = args[0]!;
-            var mapfn = args.Count > 1 ? args[1] : null;
-            var thisArg = args.Count > 2 ? args[2] : Symbol.Undefined;
-            var callingEnv = arrayFrom.CallingJsEnvironment;
-
-            if (mapfn is not null && mapfn is not IJsCallable)
-            {
-                var error = realm.TypeErrorConstructor is IJsCallable ctor2
-                    ? ctor2.Invoke(["Array.from: when provided, the mapping callback must be callable"], null)
-                    : new InvalidOperationException(
-                        "Array.from: when provided, the mapping callback must be callable.");
-                throw new ThrowSignal(error);
-            }
-
-            var constructor = thisValue as IJsCallable;
-            var useConstructor = constructor is not null &&
-                                 (constructor is not HostFunction hostFn || hostFn.IsConstructor);
-            if (!useConstructor)
-            {
-                constructor = realm.ArrayConstructor;
-            }
-
-            var lengthValue = source switch
-            {
-                string str => (double)str.Length,
-                JsArray arr => arr.Length,
-                JsObject obj when obj.TryGetProperty("length", out var lenVal) => lenVal,
-                _ => 0d
-            };
-            var len = ToLength(lengthValue);
-            var lengthInt = len > int.MaxValue ? int.MaxValue : (int)len;
-
-            IJsObjectLike result;
-            if (constructor is HostFunction targetCtor && ReferenceEquals(targetCtor, realm.ArrayConstructor))
-            {
-                var array = new JsArray(realm);
-                if (arrayPrototype is not null)
-                {
-                    array.SetPrototype(arrayPrototype);
-                }
-
-                array.SetProperty("length", (double)lengthInt);
-                AddArrayMethods(array, realm, arrayPrototype);
-                result = array;
-            }
-            else
-            {
-                IJsObjectLike instance;
-                var proto = constructor is not null ? ResolveConstructPrototype(constructor, constructor, realm) : null;
-                if (constructor is HostFunction hostFunction && ReferenceEquals(hostFunction, realm.ArrayConstructor))
-                {
-                    instance = new JsArray(realm);
-                }
-                else
-                {
-                    instance = new JsObject();
-                }
-
-                if (proto is not null)
-                {
-                    instance.SetPrototype(proto);
-                }
-
-                var constructed = constructor?.Invoke([(double)lengthInt], instance);
-                result = constructed as IJsObjectLike ?? instance;
-            }
-
-            if (TryGetIteratorMethod(source, out var iteratorMethod))
-            {
-                if (iteratorMethod is not IJsCallable callableIterator)
-                {
-                    var error = WrapTypeError("Iterator method is not callable");
-                    throw new ThrowSignal(error);
-                }
-
-                var iteratorObj = callableIterator.Invoke([], source);
-                if (iteratorObj is not JsObject iter)
-                {
-                    var error = WrapTypeError("Iterator method did not return an object");
-                    throw new ThrowSignal(error);
-                }
-
-                var nextVal = iter.TryGetProperty("next", out var nextProp) ? nextProp : null;
-                if (nextVal is not IJsCallable nextFn)
-                {
-                    var error = WrapTypeError("Iterator.next is not callable");
-                    throw new ThrowSignal(error);
-                }
-
-                var k = 0;
-                while (true)
-                {
-                    var step = nextFn.Invoke([], iter);
-                    if (step is not JsObject stepObj)
-                    {
-                        break;
-                    }
-
-                    var done = stepObj.TryGetProperty("done", out var doneVal) && ToBoolean(doneVal);
-                    if (done)
-                    {
-                        break;
-                    }
-
-                    var value = stepObj.TryGetProperty("value", out var val) ? val : Symbol.Undefined;
-                    if (mapfn is IJsCallable mapper)
-                    {
-                        if (mapper is IJsEnvironmentAwareCallable envAware && callingEnv is not null)
-                        {
-                            envAware.CallingJsEnvironment = callingEnv;
-                        }
-
-                        value = mapper.Invoke([value, (double)k], thisArg);
-                    }
-
-                    CreateDataPropertyOrThrow(result, k.ToString(CultureInfo.InvariantCulture), value,
-                        realm.TypeErrorConstructor);
-                    k++;
-                }
-
-                result.SetProperty("length", (double)k);
-            }
-            else
-            {
-                for (var k = 0; k < lengthInt; k++)
-                {
-                    var value = GetAt(source, k);
-                    if (mapfn is IJsCallable mapper)
-                    {
-                        if (mapper is IJsEnvironmentAwareCallable envAware && callingEnv is not null)
-                        {
-                            envAware.CallingJsEnvironment = callingEnv;
-                        }
-
-                        value = mapper.Invoke([value, (double)k], thisArg);
-                    }
-
-                    CreateDataPropertyOrThrow(result, k.ToString(CultureInfo.InvariantCulture), value,
-                        realm.TypeErrorConstructor);
-                }
-
-                result.SetProperty("length", (double)lengthInt);
-            }
-
-            return result;
-
-            static void CreateDataPropertyOrThrow(IJsObjectLike target, string propertyKey, object? value,
-                IJsCallable? typeErrorCtor)
-            {
-                var existing = target.GetOwnPropertyDescriptor(propertyKey);
-                if (existing is null)
-                {
-                    if (target.IsSealed)
-                    {
-                        var error = typeErrorCtor is not null
-                            ? typeErrorCtor.Invoke([$"Cannot define property {propertyKey} on a sealed object"], null)
-                            : new InvalidOperationException(
-                                $"Cannot define property {propertyKey} on a sealed object");
-                        throw new ThrowSignal(error);
-                    }
-                }
-                else if (!existing.Configurable)
-                {
-                    if (existing is { IsAccessorDescriptor: true, Set: null } || !existing.Writable)
-                    {
-                        var error = typeErrorCtor is not null
-                            ? typeErrorCtor.Invoke([$"Property {propertyKey} is non-writable"], null)
-                            : new InvalidOperationException($"Property {propertyKey} is non-writable");
-                        throw new ThrowSignal(error);
-                    }
-                }
-
-                var descriptor = new PropertyDescriptor
-                {
-                    Value = value, Writable = true, Enumerable = true, Configurable = true
-                };
-
-                target.DefineProperty(propertyKey, descriptor);
-
-                var defined = target.GetOwnPropertyDescriptor(propertyKey);
-                if (defined?.Writable != true || !defined.Enumerable || !defined.Configurable)
-                {
-                    var error = typeErrorCtor is not null
-                        ? typeErrorCtor.Invoke([$"Failed to create data property {propertyKey}"], null)
-                        : new InvalidOperationException($"Failed to create data property {propertyKey}");
-                    throw new ThrowSignal(error);
-                }
-            }
-
-            IJsCallable? ResolveTypeErrorCtor()
-            {
-                if (callingEnv is not null &&
-                    callingEnv.TryGet(Symbol.TypeErrorIdentifier, out var typeErrorVal) &&
-                    typeErrorVal is IJsCallable typeErrorFromEnv)
-                {
-                    return typeErrorFromEnv;
-                }
-
-                return realm.TypeErrorConstructor;
-            }
-
-            object WrapTypeError(string message)
-            {
-                var typeErrorCtor = ResolveTypeErrorCtor();
-                if (typeErrorCtor is null)
-                {
-                    return new InvalidOperationException(message);
-                }
-
-                var errorValue = typeErrorCtor.Invoke([message], null);
-                if (errorValue is JsObject errorObj)
-                {
-                    errorObj.SetProperty("constructor", typeErrorCtor);
-                }
-
-                return errorValue ?? new InvalidOperationException(message);
-            }
-
-            static double ToLength(object? value)
-            {
-                while (true)
-                {
-                    switch (value)
-                    {
-                        case double d when double.IsNaN(d) || d <= 0:
-                            return 0;
-                        case double d when double.IsPositiveInfinity(d):
-                            return double.MaxValue;
-                        case double d:
-                            return Math.Floor(d);
-                        case int i:
-                            return i < 0 ? 0 : i;
-                        case string s when double.TryParse(s, out var parsed):
-                            value = parsed;
-                            continue;
-                        default:
-                            return 0;
-                    }
-                }
-            }
-
-            static object? GetAt(object target, int index)
-            {
-                var key = index.ToString(CultureInfo.InvariantCulture);
-                return target switch
-                {
-                    JsArray jsArr => index < jsArr.Items.Count ? jsArr.GetElement(index) : Symbol.Undefined,
-                    string str => index < str.Length ? str[index].ToString() : Symbol.Undefined,
-                    JsObject jsObj when jsObj.TryGetProperty(key, out var value) => value,
-                    _ => Symbol.Undefined
-                };
-            }
-
-            static bool TryGetIteratorMethod(object sourceObj, out object? methodValue)
-            {
-                var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
-                var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
-                methodValue = null;
-                if (sourceObj is not IJsPropertyAccessor accessor ||
-                    !accessor.TryGetProperty(iteratorKey, out var value) ||
-                    ReferenceEquals(value, Symbol.Undefined) ||
-                    value is null)
-                {
-                    return false;
-                }
-
-                methodValue = value;
-                return true;
-            }
-        });
-        arrayFrom.DefineProperty("name",
-            new PropertyDescriptor { Value = "from", Writable = false, Enumerable = false, Configurable = true });
-        arrayFrom.DefineProperty("length",
-            new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
-        arrayFrom.IsConstructor = false;
-        arrayConstructor.DefineProperty("from",
-            new PropertyDescriptor { Value = arrayFrom, Writable = true, Enumerable = false, Configurable = true });
+            IsConstructor = false
+        };
+        AttachBuiltinMetadata(arrayFrom, "from", 1d);
+        DefineFunctionProperty(arrayConstructor, "from", arrayFrom);
 
         // Array.of(...elements)
-        arrayConstructor.SetHostedProperty("of", ArrayOf);
+        arrayConstructor.SetHostedProperty("of", ArrayOf, realm);
 
         // Expose core Array prototype methods (such as slice) on
         // Array.prototype so patterns like `Array.prototype.slice.call`
@@ -1980,13 +1643,178 @@ public static partial class StandardLibrary
             new PropertyDescriptor { Value = "Array", Writable = false, Enumerable = false, Configurable = true });
 
         return arrayConstructor;
+    }
 
-        object? ArrayOf(IReadOnlyList<object?> args)
+    private static object? ArrayOf(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var len = args.Count;
+        IJsObjectLike result;
+
+        if (thisValue is IJsCallable callable && JsOps.IsConstructor(callable))
         {
-            var arr = new JsArray(args, realm);
-            AddArrayMethods(arr, realm);
+            var receiver = CreateArrayLikeReceiverForConstructor(callable, realm, len);
+            var constructed = callable.Invoke([(double)len], receiver);
+            result = constructed as IJsObjectLike ?? receiver;
+        }
+        else
+        {
+            result = CreateDefaultArrayInstance(len, realm);
+        }
+
+        for (var k = 0; k < len; k++)
+        {
+            result.SetProperty(ToIndexString(k), args[k]);
+        }
+
+        result.SetProperty("length", (double)len);
+        return result;
+
+        static IJsObjectLike CreateDefaultArrayInstance(int length, RealmState? realm)
+        {
+            var arr = new JsArray(realm);
+            AddArrayMethods(arr, realm, arr.Prototype);
+            arr.SetProperty("length", (double)length);
             return arr;
         }
+    }
+
+    private static object? ArrayFrom(HostFunction host, object? thisValue, IReadOnlyList<object?> args,
+        RealmState? realm)
+    {
+        const string MethodName = "Array.from";
+        if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
+        {
+            throw ThrowTypeError("Array.from requires an array-like or iterable", realm: realm);
+        }
+
+        var items = args[0];
+        var mapperCandidate = args.Count > 1 ? args[1] : Symbol.Undefined;
+        var thisArg = args.Count > 2 ? args[2] : Symbol.Undefined;
+
+        var mapping = mapperCandidate is not null && !ReferenceEquals(mapperCandidate, Symbol.Undefined);
+        IJsCallable? mapper = null;
+        if (mapping)
+        {
+            if (mapperCandidate is not IJsCallable callableMapper)
+            {
+                throw ThrowTypeError("Array.from: when provided, the mapping callback must be callable", realm: realm);
+            }
+
+            mapper = callableMapper;
+        }
+
+        if (TryGetCallableMethod(items, SymbolIteratorKey, MethodName, realm, out var iteratorMethod))
+        {
+            return ArrayFromIterable(host, thisValue, items, iteratorMethod!, mapper, mapping, thisArg, realm);
+        }
+
+        var arrayLike = ToPropertyAccessor(items, MethodName, realm);
+        var lengthValue = arrayLike.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var length = (long)ToLengthOrZero(lengthValue);
+        var result = CreateArrayFromResult(thisValue, realm, length, true);
+
+        for (long k = 0; k < length; k++)
+        {
+            var key = ToIndexString(k);
+            var value = GetElementOrUndefined(arrayLike, key);
+            var mapped = mapping && mapper is not null
+                ? InvokeArrayFromMapper(mapper, host, thisArg, value, k)
+                : value;
+            CreateDataPropertyOrThrow(result, key, mapped, realm, MethodName);
+        }
+
+        SetArrayLikeLength(result, length);
+        return result;
+    }
+
+    private static object? ArrayFromIterable(HostFunction host, object? thisValue, object? items,
+        IJsCallable iteratorMethod, IJsCallable? mapper, bool mapping, object? thisArg, RealmState? realm)
+    {
+        const string MethodName = "Array.from";
+        var iteratorValue = iteratorMethod.Invoke([], items);
+        if (iteratorValue is not IJsPropertyAccessor iterator)
+        {
+            throw ThrowTypeError("Array.from iterator method did not return an object", realm: realm);
+        }
+
+        if (!iterator.TryGetProperty("next", out var nextValue) || nextValue is not IJsCallable nextFn)
+        {
+            throw ThrowTypeError("Array.from iterator does not expose a callable next()", realm: realm);
+        }
+
+        var result = CreateArrayFromResult(thisValue, realm, 0, false);
+        long k = 0;
+
+        while (true)
+        {
+            object? step;
+            try
+            {
+                step = nextFn.Invoke([], iterator);
+            }
+            catch (ThrowSignal)
+            {
+                IteratorClose(iterator, realm, MethodName);
+                throw;
+            }
+
+            if (step is not IJsPropertyAccessor stepAccessor)
+            {
+                IteratorClose(iterator, realm, MethodName);
+                throw ThrowTypeError("Array.from iterator result is not an object", realm: realm);
+            }
+
+            var done = stepAccessor.TryGetProperty("done", out var doneValue) && JsOps.ToBoolean(doneValue);
+            if (done)
+            {
+                SetArrayLikeLength(result, k);
+                return result;
+            }
+
+            if (k >= MaxArrayLength)
+            {
+                IteratorClose(iterator, realm, MethodName);
+                throw ThrowTypeError("Array.from result exceeds 2^53 - 1 elements", realm: realm);
+            }
+
+            var value = stepAccessor.TryGetProperty("value", out var entryValue) ? entryValue : Symbol.Undefined;
+            object? mappedValue = value;
+            if (mapping && mapper is not null)
+            {
+                try
+                {
+                    mappedValue = InvokeArrayFromMapper(mapper, host, thisArg, value, k);
+                }
+                catch (ThrowSignal)
+                {
+                    IteratorClose(iterator, realm, MethodName);
+                    throw;
+                }
+            }
+
+            try
+            {
+                CreateDataPropertyOrThrow(result, ToIndexString(k), mappedValue, realm, MethodName);
+            }
+            catch (ThrowSignal)
+            {
+                IteratorClose(iterator, realm, MethodName);
+                throw;
+            }
+
+            k++;
+        }
+    }
+
+    private static object? InvokeArrayFromMapper(IJsCallable mapper, HostFunction host, object? thisArg, object? value,
+        long index)
+    {
+        if (mapper is IJsEnvironmentAwareCallable envAware && host.CallingJsEnvironment is not null)
+        {
+            envAware.CallingJsEnvironment = host.CallingJsEnvironment;
+        }
+
+        return mapper.Invoke([value, (double)index], thisArg);
     }
 
     private static void DefineArrayFunction(IJsPropertyAccessor target, string name, double length,
@@ -2023,6 +1851,7 @@ public static partial class StandardLibrary
     }
 
     private static readonly string SymbolSpeciesKey = $"@@symbol:{TypedAstSymbol.For("Symbol.species").GetHashCode()}";
+    private static readonly string SymbolIteratorKey = $"@@symbol:{TypedAstSymbol.For("Symbol.iterator").GetHashCode()}";
     private static readonly string SymbolIsConcatSpreadableKey =
         $"@@symbol:{TypedAstSymbol.For("Symbol.isConcatSpreadable").GetHashCode()}";
 
@@ -2111,6 +1940,58 @@ public static partial class StandardLibrary
         return receiver;
     }
 
+    private static IJsObjectLike CreateArrayFromResult(object? constructorCandidate, RealmState? realm, long length,
+        bool passLengthToConstructor)
+    {
+        if (constructorCandidate is IJsCallable callable && JsOps.IsConstructor(callable))
+        {
+            var receiver = CreateArrayLikeReceiverForConstructor(callable, realm, passLengthToConstructor ? length : 0);
+            var args = passLengthToConstructor
+                ? new object?[] { (double)Math.Max(length, 0) }
+                : Array.Empty<object?>();
+            var constructed = callable.Invoke(args, receiver);
+            var result = constructed as IJsObjectLike ?? receiver;
+            if (!passLengthToConstructor)
+            {
+                SetArrayLikeLength(result, 0);
+            }
+
+            return result;
+        }
+
+        var array = new JsArray(realm);
+        AddArrayMethods(array, realm, array.Prototype);
+        array.SetProperty("length", passLengthToConstructor ? (double)Math.Max(length, 0) : 0d);
+        return array;
+    }
+
+    private static IJsObjectLike CreateArrayLikeReceiverForConstructor(IJsCallable constructor, RealmState? realm,
+        long length)
+    {
+        var proto = ResolveConstructPrototype(constructor, constructor, realm);
+        IJsObjectLike receiver;
+
+        if (constructor is HostFunction hostFunction && realm?.ArrayConstructor is not null &&
+            ReferenceEquals(hostFunction, realm.ArrayConstructor))
+        {
+            var array = new JsArray(realm);
+            AddArrayMethods(array, realm, array.Prototype);
+            receiver = array;
+        }
+        else
+        {
+            receiver = new JsObject();
+        }
+
+        if (proto is not null)
+        {
+            receiver.SetPrototype(proto);
+        }
+
+        receiver.SetProperty("length", (double)Math.Max(length, 0));
+        return receiver;
+    }
+
     private static void DeletePropertyOrThrow(IJsObjectLike? objectLike, string propertyKey, bool propertyExisted,
         string methodName, RealmState? realm)
     {
@@ -2139,6 +2020,8 @@ public static partial class StandardLibrary
             return false;
         }
 
+        var inspected = UnwrapProxy(candidate, realm, "Array.prototype.concat");
+
         if (propertyAccessor.TryGetProperty(SymbolIsConcatSpreadableKey, out var spreadableValue) &&
             !ReferenceEquals(spreadableValue, Symbol.Undefined))
         {
@@ -2151,7 +2034,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        if (candidate is JsArray)
+        if (inspected is JsArray)
         {
             accessor = propertyAccessor;
             return true;
@@ -2160,7 +2043,8 @@ public static partial class StandardLibrary
         return false;
     }
 
-    private static bool TryGetArrayForFlatten(object? candidate, RealmState? realm, out IJsPropertyAccessor accessor)
+    private static bool TryGetArrayForFlatten(object? candidate, RealmState? realm, string operation,
+        out IJsPropertyAccessor accessor)
     {
         accessor = null!;
         if (candidate is not IJsPropertyAccessor propertyAccessor)
@@ -2168,16 +2052,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var inspected = candidate;
-        while (inspected is JsProxy proxy)
-        {
-            if (proxy.Handler is null)
-            {
-                throw ThrowTypeError("Cannot perform 'isArray' with a revoked Proxy", realm: realm);
-            }
-
-            inspected = proxy.Target;
-        }
+        var inspected = UnwrapProxy(candidate, realm, operation);
 
         if (inspected is JsArray jsArray)
         {
@@ -2200,13 +2075,29 @@ public static partial class StandardLibrary
         return false;
     }
 
+    private static object? UnwrapProxy(object? candidate, RealmState? realm, string operation)
+    {
+        var inspected = candidate;
+        while (inspected is JsProxy proxy)
+        {
+            if (proxy.Handler is null)
+            {
+                throw ThrowTypeError($"Cannot perform '{operation}' with a revoked Proxy", realm: realm);
+            }
+
+            inspected = proxy.Target;
+        }
+
+        return inspected;
+    }
+
     private static void CopyArrayElement(IJsPropertyAccessor source, long sourceIndex, IJsPropertyAccessor target,
         long targetIndex)
     {
         var sourceKey = ToIndexString(sourceIndex);
         var targetKey = ToIndexString(targetIndex);
 
-        if (source.TryGetProperty(sourceKey, out var value))
+        if (TryGetExistingElement(source, sourceKey, out var value))
         {
             target.SetProperty(targetKey, value);
             return;
@@ -2223,12 +2114,12 @@ public static partial class StandardLibrary
     }
 
     private static long FlattenIntoArray(IJsPropertyAccessor target, IJsPropertyAccessor source, long sourceLength,
-        long targetIndex, long depth, IJsCallable? mapper, object? thisArg, RealmState? realm)
+        long targetIndex, long depth, IJsCallable? mapper, object? thisArg, RealmState? realm, string operation)
     {
         for (long k = 0; k < sourceLength; k++)
         {
             var key = ToIndexString(k);
-            if (!source.TryGetProperty(key, out var element))
+            if (!TryGetExistingElement(source, key, out var element))
             {
                 continue;
             }
@@ -2239,14 +2130,15 @@ public static partial class StandardLibrary
                 mappedValue = mapper.Invoke([element, (double)k, source], thisArg ?? Symbol.Undefined);
             }
 
-        if (depth > 0 && TryGetArrayForFlatten(mappedValue, realm, out var flattenAccessor))
-        {
-            var lengthValue = flattenAccessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-            var elementLength = (long)ToLengthOrZero(lengthValue);
-            targetIndex = FlattenIntoArray(target, flattenAccessor, elementLength, targetIndex, depth - 1, null, null,
-                realm);
-            continue;
-        }
+            if (depth > 0 && TryGetArrayForFlatten(mappedValue, realm, operation, out var flattenAccessor))
+            {
+                var lengthValue = flattenAccessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+                var elementLength = (long)ToLengthOrZero(lengthValue);
+                targetIndex =
+                    FlattenIntoArray(target, flattenAccessor, elementLength, targetIndex, depth - 1, null, null, realm,
+                        operation);
+                continue;
+            }
 
             if (targetIndex >= MaxArrayLength)
             {
@@ -2412,8 +2304,7 @@ public static partial class StandardLibrary
             var found = false;
             while (indexGeneric >= 0 && indexGeneric < lengthGeneric)
             {
-                var key = indexGeneric.ToString(CultureInfo.InvariantCulture);
-                if (accessor.TryGetProperty(key, out var current))
+                if (TryGetExistingElement(accessor, indexGeneric, out var current))
                 {
                     accumulatorGeneric = current;
                     found = true;
@@ -2432,8 +2323,7 @@ public static partial class StandardLibrary
 
         while (indexGeneric >= 0 && indexGeneric < lengthGeneric)
         {
-            var key = indexGeneric.ToString(CultureInfo.InvariantCulture);
-            if (accessor.TryGetProperty(key, out var current))
+            if (TryGetExistingElement(accessor, indexGeneric, out var current))
             {
                 accumulatorGeneric = callback.Invoke([accumulatorGeneric, current, (double)indexGeneric, accessor],
                     Symbol.Undefined);
@@ -2486,8 +2376,7 @@ public static partial class StandardLibrary
         var objectLength = (long)ToLengthOrZero(lengthValue);
         for (long i = 0; i < objectLength; i++)
         {
-            var key = i.ToString(CultureInfo.InvariantCulture);
-            if (!accessor.TryGetProperty(key, out var value))
+            if (!TryGetExistingElement(accessor, i, out var value))
             {
                 continue;
             }
@@ -2604,5 +2493,188 @@ public static partial class StandardLibrary
             default:
                 throw ThrowTypeError($"{methodName} called on non-object", realm: realm);
         }
+    }
+
+    private static bool TryGetCallableMethod(object? target, string propertyKey, string operation, RealmState? realm,
+        out IJsCallable? callable)
+    {
+        callable = null;
+        if (!JsOps.TryGetPropertyValue(target, propertyKey, out var candidate))
+        {
+            return false;
+        }
+
+        if (candidate is null || ReferenceEquals(candidate, Symbol.Undefined))
+        {
+            return false;
+        }
+
+        if (candidate is not IJsCallable method)
+        {
+            throw ThrowTypeError($"{operation} property '{propertyKey}' is not callable", realm: realm);
+        }
+
+        callable = method;
+        return true;
+    }
+
+    private static IJsPropertyAccessor ToPropertyAccessor(object? value, string methodName, RealmState? realm)
+    {
+        if (value is IJsPropertyAccessor accessor)
+        {
+            return accessor;
+        }
+
+        if (value is null || ReferenceEquals(value, Symbol.Undefined))
+        {
+            throw ThrowTypeError($"{methodName} requires an array-like or iterable", realm: realm);
+        }
+
+        if (TryGetObject(value, realm ?? new RealmState(), out var boxed))
+        {
+            return boxed;
+        }
+
+        throw ThrowTypeError($"{methodName} could not convert the source to an object", realm: realm);
+    }
+
+    private static IJsPropertyAccessor ToObjectPropertyAccessor(object? value, string methodName, RealmState? realm)
+    {
+        if (value is IJsPropertyAccessor accessor)
+        {
+            return accessor;
+        }
+
+        if (value is null || ReferenceEquals(value, Symbol.Undefined))
+        {
+            throw ThrowTypeError($"{methodName} called on null or undefined", realm: realm);
+        }
+
+        if (TryGetObject(value, realm ?? new RealmState(), out var boxed))
+        {
+            return boxed;
+        }
+
+        throw ThrowTypeError($"{methodName} called on non-object", realm: realm);
+    }
+
+    private static void IteratorClose(IJsPropertyAccessor iterator, RealmState? realm, string operation)
+    {
+        if (!iterator.TryGetProperty("return", out var returnValue) ||
+            returnValue is null ||
+            ReferenceEquals(returnValue, Symbol.Undefined))
+        {
+            return;
+        }
+
+        if (returnValue is not IJsCallable returnFn)
+        {
+            throw ThrowTypeError($"{operation} iterator.return is not callable", realm: realm);
+        }
+
+        var completion = returnFn.Invoke([], iterator);
+        if (completion is not IJsPropertyAccessor && completion is not JsObject)
+        {
+            throw ThrowTypeError($"{operation} iterator.return did not return an object", realm: realm);
+        }
+    }
+
+    private static void CreateDataPropertyOrThrow(IJsObjectLike target, string propertyKey, object? value,
+        RealmState? realm, string operation)
+    {
+        try
+        {
+            var descriptor = new PropertyDescriptor
+            {
+                Value = value,
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
+            };
+            target.DefineProperty(propertyKey, descriptor);
+        }
+        catch (ThrowSignal)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw ThrowTypeError($"{operation} could not define property '{propertyKey}'", realm: realm);
+        }
+
+        var defined = target.GetOwnPropertyDescriptor(propertyKey);
+        if (defined is null || !defined.Writable || !defined.Configurable || !defined.Enumerable)
+        {
+            throw ThrowTypeError($"{operation} could not define property '{propertyKey}'", realm: realm);
+        }
+    }
+
+    private static bool TryGetExistingElement(IJsPropertyAccessor accessor, long index, out object? value)
+    {
+        return TryGetExistingElement(accessor, ToIndexString(index), out value);
+    }
+
+    private static bool TryGetExistingElement(IJsPropertyAccessor accessor, string propertyKey, out object? value)
+    {
+        if (!HasProperty(accessor, propertyKey))
+        {
+            value = null;
+            return false;
+        }
+
+        if (!accessor.TryGetProperty(propertyKey, out value))
+        {
+            value = Symbol.Undefined;
+        }
+
+        return true;
+    }
+
+    private static object? GetElementOrUndefined(IJsPropertyAccessor accessor, string propertyKey)
+    {
+        return accessor.TryGetProperty(propertyKey, out var value) ? value : Symbol.Undefined;
+    }
+
+    private static bool HasProperty(IJsPropertyAccessor accessor, string propertyKey)
+    {
+        switch (accessor)
+        {
+            case JsProxy proxy:
+                return proxy.HasProperty(propertyKey);
+            case JsObject jsObject:
+                return jsObject.HasProperty(propertyKey);
+            case IJsObjectLike objectLike:
+                if (objectLike.GetOwnPropertyDescriptor(propertyKey) is not null)
+                {
+                    return true;
+                }
+
+                var prototype = objectLike.Prototype;
+                while (prototype is not null)
+                {
+                    if (prototype.HasProperty(propertyKey))
+                    {
+                        return true;
+                    }
+
+                    prototype = prototype.Prototype;
+                }
+
+                return objectLike.TryGetProperty(propertyKey, out _);
+            default:
+                return accessor.TryGetProperty(propertyKey, out _);
+        }
+    }
+
+    private static object InvokeDefaultObjectToString(object? target, RealmState? realm)
+    {
+        if (realm?.ObjectPrototype is IJsPropertyAccessor objectPrototype &&
+            objectPrototype.TryGetProperty("toString", out var toStringValue) &&
+            toStringValue is IJsCallable callable)
+        {
+            return callable.Invoke([], target);
+        }
+
+        return "[object Object]";
     }
 }

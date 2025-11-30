@@ -31,6 +31,9 @@ public static partial class StandardLibrary
                 (thisValue, reduceArgs, realmState) =>
                     ReduceLike(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduceRight", true), realm);
             DefineTypedArrayFunction(proto, "map", 1d, TypedArrayMap, realm);
+            DefineTypedArrayFunction(proto, "fill", 1d, TypedArrayFill, realm);
+            DefineTypedArrayFunction(proto, "copyWithin", 2d, TypedArrayCopyWithin, realm);
+            DefineTypedArrayFunction(proto, "reverse", 0d, TypedArrayReverse, realm);
             DefineTypedArrayFunction(proto, "toReversed", 0d, TypedArrayToReversed, realm);
             DefineTypedArrayFunction(proto, "toSorted", 1d, TypedArrayToSorted, realm);
             DefineTypedArrayFunction(proto, "toSpliced", 2d, TypedArrayToSpliced, realm);
@@ -630,6 +633,140 @@ public static partial class StandardLibrary
         return result;
     }
 
+    private static object? TypedArrayFill(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (thisValue is not TypedArrayBase typedArray)
+        {
+            throw ThrowTypeError("TypedArray.prototype.fill called on incompatible receiver", realm: realm);
+        }
+
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            throw typedArray.CreateOutOfBoundsTypeError();
+        }
+
+        var length = typedArray.Length;
+        var value = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var startIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], realm?.CreateContext()) : 0;
+        var endIndex = args.Count > 2 ? ToIntegerOrInfinity(args[2], realm?.CreateContext()) : length;
+
+        var start = (int)ClampRelativeIndex(startIndex, length);
+        var end = (int)ClampRelativeIndex(endIndex, length);
+
+        for (var k = start; k < end; k++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            if (k >= typedArray.Length)
+            {
+                break;
+            }
+
+            typedArray.SetValue(k, value);
+        }
+
+        return typedArray;
+    }
+
+    private static object? TypedArrayCopyWithin(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (thisValue is not TypedArrayBase typedArray)
+        {
+            throw ThrowTypeError("TypedArray.prototype.copyWithin called on incompatible receiver", realm: realm);
+        }
+
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            throw typedArray.CreateOutOfBoundsTypeError();
+        }
+
+        var length = typedArray.Length;
+        var toIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0], realm?.CreateContext()) : 0;
+        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], realm?.CreateContext()) : 0;
+        var endIndex = args.Count > 2 ? ToIntegerOrInfinity(args[2], realm?.CreateContext()) : length;
+
+        var to = (int)ClampRelativeIndex(toIndex, length);
+        var from = (int)ClampRelativeIndex(fromIndex, length);
+        var final = (int)ClampRelativeIndex(endIndex, length);
+
+        var count = Math.Min(final - from, length - to);
+        if (count <= 0)
+        {
+            return typedArray;
+        }
+
+        int direction = 1;
+        if (from < to && to < from + count)
+        {
+            direction = -1;
+            from += count - 1;
+            to += count - 1;
+        }
+
+        for (var i = 0; i < count; i++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            var currentLength = typedArray.Length;
+            if (from < 0 || from >= currentLength || to < 0 || to >= currentLength)
+            {
+                break;
+            }
+
+            var value = typedArray.GetValueForIndex(from);
+            typedArray.SetValue(to, value);
+
+            from += direction;
+            to += direction;
+        }
+
+        return typedArray;
+    }
+
+    private static object? TypedArrayReverse(object? thisValue, IReadOnlyList<object?> _, RealmState? realm)
+    {
+        if (thisValue is not TypedArrayBase typedArray)
+        {
+            throw ThrowTypeError("TypedArray.prototype.reverse called on incompatible receiver", realm: realm);
+        }
+
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            throw typedArray.CreateOutOfBoundsTypeError();
+        }
+
+        var length = typedArray.Length;
+        var middle = length / 2;
+
+        for (var lower = 0; lower < middle; lower++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            var upper = length - lower - 1;
+            var lowerValue = typedArray.GetValueForIndex(lower);
+
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            var upperValue = typedArray.GetValueForIndex(upper);
+            typedArray.SetValue(lower, upperValue);
+            typedArray.SetValue(upper, lowerValue);
+        }
+
+        return typedArray;
+    }
+
     private static object? TypedArrayToReversed(object? thisValue, IReadOnlyList<object?> _, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
@@ -751,8 +888,26 @@ public static partial class StandardLibrary
         var start = args.Count > 0 ? ToIntegerOrInfinity(args[0], realm?.CreateContext()) : 0;
         var actualStart = ClampRelativeIndex(start, length);
 
-        var deleteCount = args.Count > 1 ? ToIntegerOrInfinity(args[1], realm?.CreateContext()) : length - actualStart;
-        var actualDeleteCount = (int)Math.Max(0, Math.Min(deleteCount, length - actualStart));
+        var deleteCountIsUndefined = args.Count <= 1 || ReferenceEquals(args[1], Symbol.Undefined);
+        int actualDeleteCount;
+        if (deleteCountIsUndefined)
+        {
+            actualDeleteCount = length - actualStart;
+        }
+        else
+        {
+            var deleteCount = ToIntegerOrInfinity(args[1], realm?.CreateContext());
+            if (double.IsPositiveInfinity(deleteCount))
+            {
+                actualDeleteCount = length - actualStart;
+            }
+            else
+            {
+                var bounded = Math.Max(deleteCount, 0);
+                bounded = Math.Min(bounded, length - actualStart);
+                actualDeleteCount = (int)bounded;
+            }
+        }
         var insertCount = Math.Max(args.Count - 2, 0);
         var newLength = length - actualDeleteCount + insertCount;
 

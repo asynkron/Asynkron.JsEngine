@@ -159,6 +159,9 @@ public static partial class TypedAstEvaluator
             environment.Define(Symbol.YieldResumeContextSymbol, _resumeContext);
             environment.Define(Symbol.GeneratorInstanceSymbol, this);
 
+            var argumentsObject = CreateArgumentsObject(_function, _arguments, environment, _realmState, _callable);
+            environment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
+
             if (_function.Name is { } functionName)
             {
                 environment.Define(functionName, _callable);
@@ -182,11 +185,6 @@ public static partial class TypedAstEvaluator
             {
                 generatorContext.ClearReturn();
             }
-
-            // Define `arguments` inside generator functions so generator bodies
-            // can observe the values they were invoked with (including mappings).
-            var argumentsObject = CreateArgumentsObject(_function, _arguments, environment, _realmState, _callable);
-            environment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
 
             return environment;
         }

@@ -8,6 +8,7 @@
 - Generator iterator objects inherit from their function prototype (or `Object.prototype` fallback) so computed property names that call generator functions convert to property keys instead of throwing `TypeError: Cannot convert object to primitive value`.
 - Class static blocks are parsed and executed (interleaved with other static elements), so `static-init-await-reference.js` now reaches runtime and observes `await` as an identifier within the block’s scope.
 - Property assignments now reuse the active private-name scope when resolving `#name` keys, so static/private setters throw `TypeError` when invoked with receivers that lack the defining class’s brand (e.g., `private-static-setter-multiple-evaluations-of-class-realm.js` now passes).
+- Parameter default expressions (including static generator methods) can read the per-call `arguments` object because the binding is created before parameter evaluation for both regular and generator functions (`params-dflt-gen-meth-static-ref-arguments.js` now passes).
 
 ## Next Iteration Plan
 1. **Triage the remaining class element failures** – next concentrate on the generator IR gaps surfaced by the `cpn-class-expr-*-yield` cases and the Annex B “contains supercall” buckets. Use the activity tracer to capture the exact scope stack for one failing `Expressions_class_elements` test and port that insight into targeted unit tests before touching the evaluator.

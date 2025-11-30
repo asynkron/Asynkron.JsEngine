@@ -509,10 +509,18 @@ public static partial class TypedAstEvaluator
 
             try
             {
-                // Define `arguments` so non-arrow function bodies can observe the
-                // arguments they were called with. Arrow functions are also
-                // represented as FunctionExpression for now, so this behaves like a
-                // per-call arguments array rather than a lexical binding.
+                if (!IsArrowFunction)
+                {
+                    // Create the `arguments` binding up front so parameter default expressions can reference it.
+                    var argumentsObject =
+                        CreateArgumentsObject(_function, arguments, parameterEnvironment, _realmState, this);
+                    parameterEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
+                    if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
+                    {
+                        functionEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
+                    }
+                }
+
                 // Named function expressions should see their name inside the body.
                 if (!IsArrowFunction && _function.Name is { } functionName)
                 {
@@ -555,13 +563,6 @@ public static partial class TypedAstEvaluator
                         lexicalNames: lexicalNames,
                         catchParameterNames: catchParameterNames,
                         simpleCatchParameterNames: simpleCatchParameterNames);
-                }
-
-                if (!IsArrowFunction)
-                {
-                    var argumentsObject =
-                        CreateArgumentsObject(_function, arguments, parameterEnvironment, _realmState, this);
-                    functionEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
                 }
 
                 try

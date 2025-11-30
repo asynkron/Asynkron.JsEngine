@@ -73,9 +73,9 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("String", StandardLibrary.CreateStringConstructor(RealmState));
         var arrayConstructor = StandardLibrary.CreateArrayConstructor(RealmState);
         SetGlobal("Array", arrayConstructor);
-        if (arrayConstructor is HostFunction arrayHost)
+        if (arrayConstructor is HostFunction)
         {
-            arrayHost.RealmState = RealmState;
+            arrayConstructor.RealmState = RealmState;
         }
 
         GlobalObject.DefineProperty("Array",
@@ -123,11 +123,11 @@ public sealed class JsEngine : IAsyncDisposable
         var dateObj = StandardLibrary.CreateDateObject();
 
         // Add static methods to constructor
-        if (dateConstructor is HostFunction hf)
+        if (dateConstructor is HostFunction)
         {
             foreach (var prop in dateObj)
             {
-                hf.SetProperty(prop.Key, prop.Value);
+                dateConstructor.SetProperty(prop.Key, prop.Value);
             }
         }
 

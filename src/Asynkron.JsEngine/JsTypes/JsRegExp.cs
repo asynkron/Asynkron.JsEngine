@@ -641,7 +641,7 @@ public class JsRegExp
                         builder.Append("\\\\c");
                         continue;
 
-                    case var digit when char.IsDigit(digit):
+                    case var _ when char.IsDigit(c):
                         var start = i;
                         var end = start;
                         var octalDigits = 0;

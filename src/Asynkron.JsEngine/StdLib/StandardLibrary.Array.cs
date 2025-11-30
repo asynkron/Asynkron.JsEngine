@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Threading.Tasks;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -846,7 +847,6 @@ public static partial class StandardLibrary
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.concat", realm);
         var result = ArraySpeciesCreate(thisValue, 0, realm);
-        var resultLike = result as IJsObjectLike;
         long resultIndex = 0;
 
         var sources = new object?[args.Count + 1];
@@ -875,9 +875,9 @@ public static partial class StandardLibrary
                     {
                         result.SetProperty(toKey, value);
                     }
-                    else if (resultLike is not null)
+                    else if (result is not null)
                     {
-                        resultLike.Delete(toKey);
+                        result.Delete(toKey);
                     }
 
                     resultIndex++;
@@ -971,30 +971,30 @@ public static partial class StandardLibrary
 
         var compareFn = args.Count > 0 && args[0] is IJsCallable callable ? callable : null;
 
-        Comparison<object?> comparer = (a, b) =>
+        int Comparer(object? a, object? b)
         {
             if (compareFn is not null)
             {
                 var result = compareFn.Invoke([a, b], null);
-                if (result is double d)
+                if (result is not double d)
                 {
-                    if (double.IsNaN(d))
-                    {
-                        return 0;
-                    }
-
-                    return d > 0 ? 1 : d < 0 ? -1 : 0;
+                    return 0;
                 }
 
-                return 0;
+                if (double.IsNaN(d))
+                {
+                    return 0;
+                }
+
+                return d > 0 ? 1 : d < 0 ? -1 : 0;
             }
 
             var aStr = JsValueToString(a);
             var bStr = JsValueToString(b);
             return string.CompareOrdinal(aStr, bStr);
-        };
+        }
 
-        elements.Sort(comparer);
+        elements.Sort((Comparison<object?>)Comparer);
 
         long index = 0;
         foreach (var value in elements)
@@ -1224,17 +1224,18 @@ public static partial class StandardLibrary
             values.Sort((a, b) =>
             {
                 var cmp = compareFn.Invoke([a, b], null);
-                if (cmp is double d)
+                if (cmp is not double d)
                 {
-                    if (double.IsNaN(d))
-                    {
-                        return 0;
-                    }
-
-                    return d > 0 ? 1 : d < 0 ? -1 : 0;
+                    return 0;
                 }
 
-                return 0;
+                if (double.IsNaN(d))
+                {
+                    return 0;
+                }
+
+                return d > 0 ? 1 : d < 0 ? -1 : 0;
+
             });
         }
         else
@@ -1248,7 +1249,6 @@ public static partial class StandardLibrary
         }
 
         var result = ArraySpeciesCreate(thisValue, length, realm);
-        var resultLike = result as IJsObjectLike;
 
         long targetIndex = 0;
         foreach (var value in values)
@@ -1259,7 +1259,7 @@ public static partial class StandardLibrary
         for (var k = targetIndex; k < length; k++)
         {
             var key = ToIndexString(k);
-            resultLike?.Delete(key);
+            result?.Delete(key);
         }
 
         SetArrayLikeLength(result, length);
@@ -1449,21 +1449,24 @@ public static partial class StandardLibrary
 
     private static int GetArrayLikeLength(IJsObjectLike obj)
     {
-        if (obj.TryGetProperty("length", out var lengthVal))
+        if (!obj.TryGetProperty("length", out var lengthVal))
         {
-            var asNumber = JsOps.ToNumber(lengthVal);
-            if (!double.IsNaN(asNumber) && asNumber > 0)
-            {
-                if (asNumber > int.MaxValue)
-                {
-                    return int.MaxValue;
-                }
-
-                return (int)asNumber;
-            }
+            return 0;
         }
 
-        return 0;
+        var asNumber = JsOps.ToNumber(lengthVal);
+        if (double.IsNaN(asNumber) || !(asNumber > 0))
+        {
+            return 0;
+        }
+
+        if (asNumber > int.MaxValue)
+        {
+            return int.MaxValue;
+        }
+
+        return (int)asNumber;
+
     }
 
     private static bool TryGetObject(object candidate, RealmState realm, out IJsObjectLike accessor)
@@ -1761,7 +1764,78 @@ public static partial class StandardLibrary
     private static object? ArrayFromAsync(HostFunction host, object? thisValue, IReadOnlyList<object?> args,
         RealmState? realm)
     {
-        throw new NotSupportedException("Array.fromAsync is not implemented yet.");
+        const string MethodName = "Array.fromAsync";
+        if (realm?.Engine is null)
+        {
+            throw new InvalidOperationException("Array.fromAsync requires an active engine.");
+        }
+
+        var engine = realm.Engine;
+        var promise = new JsPromise(engine);
+        AddPromiseInstanceMethods(promise.JsObject, promise, engine);
+
+        if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
+        {
+            promise.Reject(CreateTypeError("Array.fromAsync requires an array-like or iterable", realm: realm));
+            return promise.JsObject;
+        }
+
+        var items = args[0];
+
+        var mapperCandidate = args.Count > 1 ? args[1] : Symbol.Undefined;
+        var thisArg = args.Count > 2 ? args[2] : Symbol.Undefined;
+
+        var mapping = !ReferenceEquals(mapperCandidate, Symbol.Undefined);
+        IJsCallable? mapper = null;
+        if (mapping)
+        {
+            if (mapperCandidate is not IJsCallable callableMapper)
+            {
+                promise.Reject(CreateTypeError("Array.fromAsync: when provided, the mapping callback must be callable",
+                    realm: realm));
+                return promise.JsObject;
+            }
+
+            mapper = callableMapper;
+        }
+
+        IJsObjectLike result;
+        try
+        {
+            result = CreateArrayFromResult(thisValue, realm, 0, false);
+        }
+        catch (ThrowSignal signal)
+        {
+            promise.Reject(signal.ThrownValue ?? signal);
+            return promise.JsObject;
+        }
+
+        try
+        {
+            var operation = new ArrayFromAsyncOperation(host, realm, promise, result, mapping, mapper, thisArg,
+                MethodName);
+            if (TryGetCallableMethod(items, SymbolAsyncIteratorKey, MethodName, realm, out var asyncIterator) &&
+                asyncIterator is not null)
+            {
+                operation.StartIterator(items, asyncIterator, true);
+            }
+            else if (TryGetCallableMethod(items, SymbolIteratorKey, MethodName, realm, out var syncIterator) &&
+                     syncIterator is not null)
+            {
+                operation.StartIterator(items, syncIterator, false);
+            }
+            else
+            {
+                var arrayLike = ToPropertyAccessor(items, MethodName, realm);
+                operation.StartArrayLike(arrayLike);
+            }
+        }
+        catch (ThrowSignal signal)
+        {
+            promise.Reject(signal.ThrownValue ?? signal);
+        }
+
+        return promise.JsObject;
     }
 
     private static object? ArrayFromIterable(HostFunction host, object? thisValue, object? items,
@@ -1842,6 +1916,77 @@ public static partial class StandardLibrary
         }
     }
 
+    private static bool TryAwaitPromiseLike(object? candidate, RealmState? realm, Action<object?> onFulfilled,
+        Action<object?> onRejected)
+    {
+        if (candidate is JsObject jsObject &&
+            jsObject.TryGetProperty("then", out var thenValue) &&
+            thenValue is IJsCallable thenCallable)
+        {
+            var engine = realm?.Engine;
+            var fulfilled = new HostFunction((_, args) =>
+            {
+                var value = args.Count > 0 ? args[0] : Symbol.Undefined;
+                if (engine is not null)
+                {
+                    engine.ScheduleTask(() =>
+                    {
+                        onFulfilled(value);
+                        return Task.CompletedTask;
+                    });
+                }
+                else
+                {
+                    onFulfilled(value);
+                }
+
+                return Symbol.Undefined;
+            }, realm);
+            var rejected = new HostFunction((_, args) =>
+            {
+                var reason = args.Count > 0 ? args[0] : Symbol.Undefined;
+                if (engine is not null)
+                {
+                    engine.ScheduleTask(() =>
+                    {
+                        onRejected(reason);
+                        return Task.CompletedTask;
+                    });
+                }
+                else
+                {
+                    onRejected(reason);
+                }
+
+                return Symbol.Undefined;
+            }, realm);
+
+            try
+            {
+                thenCallable.Invoke([fulfilled, rejected], jsObject);
+            }
+            catch (ThrowSignal signal)
+            {
+                if (engine is not null)
+                {
+                    engine.ScheduleTask(() =>
+                    {
+                        onRejected(signal.ThrownValue ?? signal);
+                        return Task.CompletedTask;
+                    });
+                }
+                else
+                {
+                    onRejected(signal.ThrownValue ?? signal);
+                }
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
     private static object? InvokeArrayFromMapper(IJsCallable mapper, HostFunction host, object? thisArg, object? value,
         long index)
     {
@@ -1886,8 +2031,357 @@ public static partial class StandardLibrary
         }
     }
 
+    private sealed class ArrayFromAsyncOperation
+    {
+        private readonly HostFunction _host;
+        private readonly RealmState _realm;
+        private readonly JsPromise _promise;
+        private readonly IJsObjectLike _result;
+        private readonly bool _mapping;
+        private readonly IJsCallable? _mapper;
+        private readonly object? _thisArg;
+        private readonly string _methodName;
+        private long _index;
+        private bool _settled;
+        private IJsPropertyAccessor? _iterator;
+        private IJsCallable? _nextFn;
+        private bool _awaitIteratorResult;
+        private IJsPropertyAccessor? _arrayLike;
+
+        public ArrayFromAsyncOperation(HostFunction host, RealmState realm, JsPromise promise, IJsObjectLike result,
+            bool mapping, IJsCallable? mapper, object? thisArg, string methodName)
+        {
+            _host = host;
+            _realm = realm;
+            _promise = promise;
+            _result = result;
+            _mapping = mapping;
+            _mapper = mapper;
+            _thisArg = thisArg;
+            _methodName = methodName;
+        }
+
+        public void StartIterator(object? items, IJsCallable iteratorMethod, bool awaitIteratorResult)
+        {
+            object? iteratorValue;
+            try
+            {
+                iteratorValue = iteratorMethod.Invoke([], items);
+            }
+            catch (ThrowSignal signal)
+            {
+                RejectSignal(signal);
+                return;
+            }
+
+            if (iteratorValue is not IJsPropertyAccessor iterator)
+            {
+                RejectFailure(CreateTypeError("Array.fromAsync iterator method did not return an object", null,
+                    _realm));
+                return;
+            }
+
+            if (!iterator.TryGetProperty("next", out var nextValue) || nextValue is not IJsCallable nextFn)
+            {
+                RejectFailure(CreateTypeError("Array.fromAsync iterator does not expose a callable next()", null,
+                    _realm));
+                return;
+            }
+
+            _iterator = iterator;
+            _nextFn = nextFn;
+            _awaitIteratorResult = awaitIteratorResult;
+            ProcessIteratorStep();
+        }
+
+        public void StartArrayLike(IJsPropertyAccessor arrayLike)
+        {
+            _arrayLike = arrayLike;
+            ProcessArrayLike();
+        }
+
+        private void ProcessIteratorStep()
+        {
+            if (_settled || _iterator is null || _nextFn is null)
+            {
+                return;
+            }
+
+            object? step;
+            try
+            {
+                step = _nextFn.Invoke([], _iterator);
+            }
+            catch (ThrowSignal signal)
+            {
+                RejectSignal(signal);
+                return;
+            }
+
+            HandleIteratorStep(step);
+        }
+
+        private void HandleIteratorStep(object? stepCandidate)
+        {
+            if (_settled)
+            {
+                return;
+            }
+
+            if (_awaitIteratorResult && TryAwaitPromiseLike(stepCandidate, _realm, HandleIteratorStep,
+                    RejectWithClose))
+            {
+                return;
+            }
+
+            if (stepCandidate is not IJsPropertyAccessor stepAccessor)
+            {
+                RejectWithClose(CreateTypeError("Array.fromAsync iterator result is not an object", null, _realm));
+                return;
+            }
+
+            var done = stepAccessor.TryGetProperty("done", out var doneValue) && JsOps.ToBoolean(doneValue);
+            if (done)
+            {
+                ResolveSuccess();
+                return;
+            }
+
+            if (_index >= MaxArrayLength)
+            {
+                RejectWithClose(CreateTypeError("Array.fromAsync result exceeds 2^53 - 1 elements", null, _realm));
+                return;
+            }
+
+            var value = stepAccessor.TryGetProperty("value", out var entryValue) ? entryValue : Symbol.Undefined;
+            if (TryAwaitPromiseLike(value, _realm, HandleIteratorValue, RejectWithClose))
+            {
+                return;
+            }
+
+            HandleIteratorValue(value);
+        }
+
+        private void HandleIteratorValue(object? value)
+        {
+            if (_settled)
+            {
+                return;
+            }
+
+            if (_mapping && _mapper is not null)
+            {
+                object? mapperResult;
+                try
+                {
+                    mapperResult = InvokeArrayFromMapper(_mapper, _host, _thisArg, value, _index);
+                }
+                catch (ThrowSignal signal)
+                {
+                    RejectWithClose(signal.ThrownValue ?? signal);
+                    return;
+                }
+
+                if (TryAwaitPromiseLike(mapperResult, _realm, StoreIteratorValue, RejectWithClose))
+                {
+                    return;
+                }
+
+                StoreIteratorValue(mapperResult);
+                return;
+            }
+
+            StoreIteratorValue(value);
+        }
+
+        private void StoreIteratorValue(object? value)
+        {
+            if (_settled)
+            {
+                return;
+            }
+
+            try
+            {
+                CreateDataPropertyOrThrow(_result, ToIndexString(_index), value, _realm, _methodName);
+            }
+            catch (ThrowSignal signal)
+            {
+                RejectWithClose(signal.ThrownValue ?? signal);
+                return;
+            }
+
+            _index++;
+            ProcessIteratorStep();
+        }
+
+        private void ProcessArrayLike()
+        {
+            if (_settled || _arrayLike is null)
+            {
+                return;
+            }
+
+            var lengthValue = _arrayLike.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+            var dynamicLength = (long)ToLengthOrZero(lengthValue);
+            if (_index >= dynamicLength)
+            {
+                ResolveSuccess();
+                return;
+            }
+
+            if (_index >= MaxArrayLength)
+            {
+                RejectFailure(CreateTypeError("Array.fromAsync result exceeds 2^53 - 1 elements", null, _realm));
+                return;
+            }
+
+            var key = ToIndexString(_index);
+            var value = GetElementOrUndefined(_arrayLike, key);
+            if (TryAwaitPromiseLike(value, _realm, resolved => HandleArrayLikeValue(key, resolved), RejectFailure))
+            {
+                return;
+            }
+
+            HandleArrayLikeValue(key, value);
+        }
+
+        private void HandleArrayLikeValue(string key, object? resolved)
+        {
+            if (_settled)
+            {
+                return;
+            }
+
+            void FinalizeValue(object? finalValue)
+            {
+                if (_settled)
+                {
+                    return;
+                }
+
+                try
+                {
+                    CreateDataPropertyOrThrow(_result, key, finalValue, _realm, _methodName);
+                }
+                catch (ThrowSignal signal)
+                {
+                    RejectFailure(signal.ThrownValue ?? signal);
+                    return;
+                }
+
+                _index++;
+                ProcessArrayLike();
+            }
+
+            if (_mapping && _mapper is not null)
+            {
+                object? mapperResult;
+                try
+                {
+                    mapperResult = InvokeArrayFromMapper(_mapper, _host, _thisArg, resolved, _index);
+                }
+                catch (ThrowSignal signal)
+                {
+                    RejectFailure(signal.ThrownValue ?? signal);
+                    return;
+                }
+
+                if (TryAwaitPromiseLike(mapperResult, _realm, FinalizeValue, RejectFailure))
+                {
+                    return;
+                }
+
+                FinalizeValue(mapperResult);
+                return;
+            }
+
+            FinalizeValue(resolved);
+        }
+
+        private void ResolveSuccess()
+        {
+            if (_settled)
+            {
+                return;
+            }
+
+            _settled = true;
+            SetArrayLikeLength(_result, _index);
+            _promise.Resolve(_result);
+        }
+
+        private void RejectFailure(object? reason)
+        {
+            if (_settled)
+            {
+                return;
+            }
+
+            _settled = true;
+            _promise.Reject(reason);
+        }
+
+        private void RejectWithClose(object? reason)
+        {
+            if (_settled)
+            {
+                return;
+            }
+
+            _settled = true;
+
+            if (_iterator is null)
+            {
+                _promise.Reject(reason);
+                return;
+            }
+
+            if (!_iterator.TryGetProperty("return", out var returnValue) ||
+                returnValue is null ||
+                ReferenceEquals(returnValue, Symbol.Undefined))
+            {
+                _promise.Reject(reason);
+                return;
+            }
+
+            if (returnValue is not IJsCallable returnFn)
+            {
+                _promise.Reject(CreateTypeError($"{_methodName} iterator.return is not callable", null, _realm));
+                return;
+            }
+
+            object? completion;
+            try
+            {
+                completion = returnFn.Invoke([], _iterator);
+            }
+            catch (ThrowSignal signal)
+            {
+                _promise.Reject(signal.ThrownValue ?? signal);
+                return;
+            }
+
+            if (TryAwaitPromiseLike(completion, _realm,
+                    _ => _promise.Reject(reason),
+                    rejection => _promise.Reject(rejection)))
+            {
+                return;
+            }
+
+            _promise.Reject(reason);
+        }
+
+        private void RejectSignal(ThrowSignal signal)
+        {
+            RejectFailure(signal.ThrownValue ?? signal);
+        }
+    }
+
     private static readonly string SymbolSpeciesKey = $"@@symbol:{TypedAstSymbol.For("Symbol.species").GetHashCode()}";
     private static readonly string SymbolIteratorKey = $"@@symbol:{TypedAstSymbol.For("Symbol.iterator").GetHashCode()}";
+    private static readonly string SymbolAsyncIteratorKey =
+        $"@@symbol:{TypedAstSymbol.For("Symbol.asyncIterator").GetHashCode()}";
     private static readonly string SymbolIsConcatSpreadableKey =
         $"@@symbol:{TypedAstSymbol.For("Symbol.isConcatSpreadable").GetHashCode()}";
 

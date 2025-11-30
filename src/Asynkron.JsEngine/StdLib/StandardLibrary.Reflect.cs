@@ -357,8 +357,8 @@ public static partial class StandardLibrary
                 return realmArrayProtoFromState;
             }
 
-            if (newTargetRealmObject is JsObject realmObj &&
-                realmObj.TryGetProperty("Array", out var realmArrayCtor) &&
+            if (newTargetRealmObject is JsObject &&
+                newTargetRealmObject.TryGetProperty("Array", out var realmArrayCtor) &&
                 TryGetPrototype(realmArrayCtor!, out var realmArrayProto))
             {
                 return realmArrayProto;

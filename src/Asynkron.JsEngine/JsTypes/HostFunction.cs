@@ -143,7 +143,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
                     var boundThis = args.Count > 0 ? args[0] : Symbol.Undefined;
                     var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
 
-                    return new HostFunction((_, innerArgs) =>
+                    var boundFunction = new HostFunction((_, innerArgs) =>
                     {
                         var finalArgs = new object?[boundArgs.Length + innerArgs.Count];
                         boundArgs.CopyTo(finalArgs, 0);
@@ -154,7 +154,29 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
 
                         return jsCallable.Invoke(finalArgs, boundThis);
                     });
-                });
+
+                    var targetIsConstructor = JsOps.IsConstructor(jsCallable);
+                    boundFunction.IsConstructor = targetIsConstructor;
+                    if (!targetIsConstructor)
+                    {
+                        boundFunction.PropertiesObject.DeleteOwnProperty("prototype");
+                    }
+
+                    if (jsCallable is HostFunction hostFunction)
+                    {
+                        boundFunction.Realm = hostFunction.Realm;
+                        boundFunction.RealmState = hostFunction.RealmState ?? boundFunction.RealmState;
+                    }
+                    else if (jsCallable is ICallableMetadata metadata)
+                    {
+                        boundFunction.RealmState = metadata.RealmState;
+                    }
+
+                    return boundFunction;
+                })
+                {
+                    IsConstructor = false
+                };
                 return true;
         }
 

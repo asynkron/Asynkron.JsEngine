@@ -396,7 +396,6 @@ internal sealed class SyncGeneratorIrBuilder
         var instructionStart = _instructions.Count;
 
         var conditionJumpIndex = Append(new JumpInstruction(-1));
-        var breakTarget = nextIndex;
 
         var postIterationEntry = conditionJumpIndex;
         if (!plan.PostIteration.IsDefaultOrEmpty)
@@ -410,7 +409,7 @@ internal sealed class SyncGeneratorIrBuilder
         }
 
         var continueTarget = postIterationEntry;
-        var scope = new LoopScope(label, continueTarget, breakTarget);
+        var scope = new LoopScope(label, continueTarget, nextIndex);
         _loopScopes.Push(scope);
 
         if (!TryBuildStatement(plan.Body, continueTarget, out var bodyEntry, label))
@@ -465,12 +464,11 @@ internal sealed class SyncGeneratorIrBuilder
         }
 
         var instructionStart = _instructions.Count;
-        var exitIndex = nextIndex;
 
         var finallyEntry = -1;
         if (hasFinally && statement.Finally is not null)
         {
-            var endFinallyIndex = Append(new EndFinallyInstruction(exitIndex));
+            var endFinallyIndex = Append(new EndFinallyInstruction(nextIndex));
             if (!TryBuildStatement(statement.Finally, endFinallyIndex, out finallyEntry, activeLabel))
             {
                 _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
@@ -479,8 +477,7 @@ internal sealed class SyncGeneratorIrBuilder
             }
         }
 
-        var leaveNext = exitIndex;
-        var leaveTryIndex = Append(new LeaveTryInstruction(leaveNext));
+        var leaveTryIndex = Append(new LeaveTryInstruction(nextIndex));
 
         var catchEntry = -1;
         Symbol? catchSlotSymbol = null;

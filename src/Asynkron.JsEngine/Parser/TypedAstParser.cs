@@ -1483,9 +1483,9 @@ public sealed class TypedAstParser(
                     declarationKind);
                 if (!InStrictContext &&
                     declarationKind == VariableKind.Var &&
-                    initializerDeclaration is { Declarators: [{ Initializer: { } varInitializer }] } varDecl)
+                    initializerDeclaration is { Declarators: [{ Initializer: { } varInitializer }] })
                 {
-                    var assignment = CreateInitializerAssignment(varDecl.Declarators[0].Target, varInitializer);
+                    var assignment = CreateInitializerAssignment(initializerDeclaration.Declarators[0].Target, varInitializer);
                     var assignmentStatement = new ExpressionStatement(
                         assignment.Source ?? varInitializer.Source ?? CreateSourceReference(forToken), assignment);
                     var isStrict = body is BlockStatement b ? b.IsStrict : InStrictContext;

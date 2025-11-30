@@ -374,6 +374,53 @@ public class AdditionalArrayMethodsTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Array_FromAsync_ConsumesAsyncIterables()
+    {
+        await using var engine = new JsEngine();
+        await engine.Run("""
+
+                                                     async function* source() {
+                                                       yield Promise.resolve(3);
+                                                       yield 7;
+                                                     }
+                                                     Array.fromAsync(source(), (value, index) => value * index)
+                                                       .then(result => { globalThis.__asyncResult = result; },
+                                                             err => { globalThis.__asyncError = err; });
+
+                                         """);
+
+        Assert.False(engine.GlobalObject.ContainsKey("__asyncError"));
+        Assert.True(engine.GlobalObject.TryGetValue("__asyncResult", out var stored));
+        var arr = Assert.IsType<JsArray>(stored);
+        Assert.Equal(0d, arr.GetElement(0));
+        Assert.Equal(7d, arr.GetElement(1));
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Array_FromAsync_AwaitsArrayLikeValues()
+    {
+        await using var engine = new JsEngine();
+        await engine.Run("""
+
+                                                     const source = {
+                                                       0: Promise.resolve("a"),
+                                                       1: "b",
+                                                       get length() { return 2; }
+                                                     };
+                                                     Array.fromAsync(source, value => value + "!")
+                                                       .then(result => { globalThis.__asyncArrayLike = result; },
+                                                             err => { globalThis.__asyncArrayLikeError = err; });
+
+                                         """);
+
+        Assert.False(engine.GlobalObject.ContainsKey("__asyncArrayLikeError"));
+        Assert.True(engine.GlobalObject.TryGetValue("__asyncArrayLike", out var stored));
+        var arr = Assert.IsType<JsArray>(stored);
+        Assert.Equal("a!", arr.GetElement(0));
+        Assert.Equal("b!", arr.GetElement(1));
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Array_From_MapFunctionMustBeCallable()
     {
         await using var engine = new JsEngine();

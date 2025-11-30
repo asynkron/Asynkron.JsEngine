@@ -1254,7 +1254,7 @@ public sealed class TypedCpsTransformer
 
             var tryNeedsRewrite = StatementNeedsAsyncHandling(statement.TryBlock);
             var currentCatchClause = statement.Catch;
-            var catchNeedsRewrite = currentCatchClause is { } clause && StatementNeedsAsyncHandling(clause.Body);
+            var catchNeedsRewrite = currentCatchClause != null && StatementNeedsAsyncHandling(currentCatchClause.Body);
 
             if (!tryNeedsRewrite && !catchNeedsRewrite)
             {
@@ -1279,19 +1279,19 @@ public sealed class TypedCpsTransformer
 
             ExpressionNode finalExpression = thenCall;
 
-            if (currentCatchClause is { } catchClause)
+            if (currentCatchClause != null)
             {
-                var catchStatements = RewriteStatements(catchClause.Body.Statements);
+                var catchStatements = RewriteStatements(currentCatchClause.Body.Statements);
                 var combinedBuilder = ImmutableArray.CreateBuilder<StatementNode>(
                     catchStatements.Length + continuationBlock.Statements.Length);
                 combinedBuilder.AddRange(catchStatements);
                 combinedBuilder.AddRange(continuationBlock.Statements);
-                var catchBlock = new BlockStatement(null, combinedBuilder.ToImmutable(), catchClause.Body.IsStrict);
-                var catchParameters = catchClause.Binding switch
+                var catchBlock = new BlockStatement(null, combinedBuilder.ToImmutable(), currentCatchClause.Body.IsStrict);
+                var catchParameters = currentCatchClause.Binding switch
                 {
                     IdentifierBinding id => [new FunctionParameter(null, id.Name, false, null, null)],
                     null => ImmutableArray<FunctionParameter>.Empty,
-                    _ => [new FunctionParameter(null, null, false, catchClause.Binding, null)]
+                    _ => [new FunctionParameter(null, null, false, currentCatchClause.Binding, null)]
                 };
                 var catchHandler = new FunctionExpression(null, null, catchParameters, catchBlock, false, false);
                 finalExpression = new CallExpression(null,

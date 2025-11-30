@@ -30,6 +30,11 @@ public static partial class StandardLibrary
             proto.SetHostedProperty("reduceRight",
                 (thisValue, reduceArgs, realmState) =>
                     ReduceLike(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduceRight", true), realm);
+            DefineTypedArrayFunction(proto, "map", 1d, TypedArrayMap, realm);
+            DefineTypedArrayFunction(proto, "toReversed", 0d, TypedArrayToReversed, realm);
+            DefineTypedArrayFunction(proto, "toSorted", 1d, TypedArrayToSorted, realm);
+            DefineTypedArrayFunction(proto, "toSpliced", 2d, TypedArrayToSpliced, realm);
+            DefineTypedArrayFunction(proto, "with", 2d, TypedArrayWith, realm);
             proto.SetHostedProperty("indexOf", TypedArrayIndexOf, realm);
             proto.SetHostedProperty("lastIndexOf", TypedArrayLastIndexOf, realm);
             proto.SetHostedProperty("includes", TypedArrayIncludes, realm);
@@ -584,6 +589,267 @@ public static partial class StandardLibrary
             realm);
     }
 
+    private static object? TypedArrayMap(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (thisValue is not TypedArrayBase typedArray)
+        {
+            throw ThrowTypeError("TypedArray.prototype.map called on incompatible receiver", realm: realm);
+        }
+
+        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            throw ThrowTypeError("TypedArray.prototype.map expects a callable callback", realm: realm);
+        }
+
+        var thisArg = args.Count > 1 ? args[1] : Symbol.Undefined;
+
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            throw typedArray.CreateOutOfBoundsTypeError();
+        }
+
+        var length = typedArray.Length;
+        var result = TypedArraySpeciesCreate(typedArray, length, realm);
+        for (var k = 0; k < length; k++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            if (k >= typedArray.Length)
+            {
+                break;
+            }
+
+            var value = typedArray.GetValueForIndex(k);
+            var mapped = callback.Invoke([value, (double)k, typedArray], thisArg);
+            result.SetValue(k, mapped);
+        }
+
+        return result;
+    }
+
+    private static object? TypedArrayToReversed(object? thisValue, IReadOnlyList<object?> _, RealmState? realm)
+    {
+        if (thisValue is not TypedArrayBase typedArray)
+        {
+            throw ThrowTypeError("TypedArray.prototype.toReversed called on incompatible receiver", realm: realm);
+        }
+
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            throw typedArray.CreateOutOfBoundsTypeError();
+        }
+
+        var length = typedArray.Length;
+        var result = TypedArraySpeciesCreate(typedArray, length, realm);
+        for (var k = 0; k < length; k++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            var value = typedArray.GetValueForIndex(length - 1 - k);
+            result.SetValue(k, value);
+        }
+
+        return result;
+    }
+
+    private static object? TypedArrayToSorted(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (thisValue is not TypedArrayBase typedArray)
+        {
+            throw ThrowTypeError("TypedArray.prototype.toSorted called on incompatible receiver", realm: realm);
+        }
+
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            throw typedArray.CreateOutOfBoundsTypeError();
+        }
+
+        IJsCallable? compareFn = null;
+        if (args.Count > 0 && !ReferenceEquals(args[0], Symbol.Undefined))
+        {
+            if (args[0] is not IJsCallable callable)
+            {
+                throw ThrowTypeError("TypedArray.prototype.toSorted comparator must be callable", realm: realm);
+            }
+
+            compareFn = callable;
+        }
+
+        var length = typedArray.Length;
+        var values = new List<object?>(length);
+        for (var i = 0; i < length; i++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            values.Add(typedArray.GetValueForIndex(i));
+        }
+
+        Comparison<object?> comparer = (left, right) =>
+        {
+            if (compareFn is not null)
+            {
+                var result = compareFn.Invoke([left, right], Symbol.Undefined);
+                var numeric = JsOps.ToNumber(result);
+                return numeric > 0 ? 1 : numeric < 0 ? -1 : 0;
+            }
+
+            if (typedArray.IsBigIntArray)
+            {
+                var leftBig = left as JsBigInt ?? StandardLibrary.ToBigInt(left, realmState: realm);
+                var rightBig = right as JsBigInt ?? StandardLibrary.ToBigInt(right, realmState: realm);
+                return leftBig.Value.CompareTo(rightBig.Value);
+            }
+
+            var leftNum = JsOps.ToNumber(left);
+            var rightNum = JsOps.ToNumber(right);
+            if (double.IsNaN(leftNum))
+            {
+                return double.IsNaN(rightNum) ? 0 : 1;
+            }
+
+            if (double.IsNaN(rightNum))
+            {
+                return -1;
+            }
+
+            return leftNum.CompareTo(rightNum);
+        };
+
+        values.Sort(comparer);
+
+        var result = TypedArraySpeciesCreate(typedArray, length, realm);
+        for (var i = 0; i < values.Count; i++)
+        {
+            result.SetValue(i, values[i]);
+        }
+
+        return result;
+    }
+
+    private static object? TypedArrayToSpliced(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (thisValue is not TypedArrayBase typedArray)
+        {
+            throw ThrowTypeError("TypedArray.prototype.toSpliced called on incompatible receiver", realm: realm);
+        }
+
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            throw typedArray.CreateOutOfBoundsTypeError();
+        }
+
+        var length = typedArray.Length;
+        var start = args.Count > 0 ? ToIntegerOrInfinity(args[0], realm?.CreateContext()) : 0;
+        var actualStart = ClampRelativeIndex(start, length);
+
+        var deleteCount = args.Count > 1 ? ToIntegerOrInfinity(args[1], realm?.CreateContext()) : length - actualStart;
+        var actualDeleteCount = (int)Math.Max(0, Math.Min(deleteCount, length - actualStart));
+        var insertCount = Math.Max(args.Count - 2, 0);
+        var newLength = length - actualDeleteCount + insertCount;
+
+        var result = TypedArraySpeciesCreate(typedArray, newLength, realm);
+        var targetIndex = 0;
+
+        for (var i = 0; i < actualStart; i++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            result.SetValue(targetIndex++, typedArray.GetValueForIndex(i));
+        }
+
+        for (var i = 0; i < insertCount; i++)
+        {
+            result.SetValue(targetIndex++, args[i + 2]);
+        }
+
+        for (var i = actualStart + actualDeleteCount; i < length; i++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            result.SetValue(targetIndex++, typedArray.GetValueForIndex(i));
+        }
+
+        return result;
+    }
+
+    private static object? TypedArrayWith(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (thisValue is not TypedArrayBase typedArray)
+        {
+            throw ThrowTypeError("TypedArray.prototype.with called on incompatible receiver", realm: realm);
+        }
+
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            throw typedArray.CreateOutOfBoundsTypeError();
+        }
+
+        if (args.Count < 2)
+        {
+            throw ThrowTypeError("TypedArray.prototype.with requires index and value arguments", realm: realm);
+        }
+
+        var length = typedArray.Length;
+        var indexNumber = ToIntegerOrInfinity(args[0], realm?.CreateContext());
+        int actualIndex;
+        if (double.IsPositiveInfinity(indexNumber) || double.IsNegativeInfinity(indexNumber))
+        {
+            actualIndex = indexNumber > 0 ? length : -1;
+        }
+        else
+        {
+            var truncated = (int)Math.Truncate(indexNumber);
+            actualIndex = truncated < 0 ? length + truncated : truncated;
+        }
+
+        if (actualIndex < 0 || actualIndex >= length)
+        {
+            throw ThrowRangeError("Index out of range", realm: realm);
+        }
+
+        var result = TypedArraySpeciesCreate(typedArray, length, realm);
+        for (var i = 0; i < length; i++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            var value = i == actualIndex ? args[1] : typedArray.GetValueForIndex(i);
+            result.SetValue(i, value);
+        }
+
+        return result;
+    }
+
+    private static void DefineTypedArrayFunction(JsObject target, string name, double length,
+        Func<object?, IReadOnlyList<object?>, RealmState?, object?> handler, RealmState realm)
+    {
+        var fn = new HostFunction(handler, realm) { IsConstructor = false };
+        fn.DefineProperty("name",
+            new PropertyDescriptor { Value = name, Writable = false, Enumerable = false, Configurable = true });
+        fn.DefineProperty("length",
+            new PropertyDescriptor { Value = length, Writable = false, Enumerable = false, Configurable = true });
+
+        target.DefineProperty(name,
+            new PropertyDescriptor { Value = fn, Writable = true, Enumerable = false, Configurable = true });
+    }
+
     private static object? ArrayBufferIsView(object? _, IReadOnlyList<object?> args)
     {
         if (args.Count == 0)
@@ -622,5 +888,78 @@ public static partial class StandardLibrary
         }
 
         return TypedArrayBase.IncludesInternal(typed, args);
+    }
+
+    private static TypedArrayBase TypedArraySpeciesCreate(TypedArrayBase exemplar, int length, RealmState? realm)
+    {
+        length = Math.Max(length, 0);
+        object? constructorValue = null;
+
+        if (exemplar.TryGetProperty("constructor", exemplar, out var ctorValue))
+        {
+            constructorValue = ctorValue;
+        }
+
+        if (constructorValue is IJsPropertyAccessor ctorAccessor &&
+            ctorAccessor.TryGetProperty(SymbolSpeciesKey, out var speciesValue))
+        {
+            constructorValue = speciesValue;
+        }
+
+        if (constructorValue is null || ReferenceEquals(constructorValue, Symbol.Undefined))
+        {
+            return CreateDefaultTypedArray(exemplar, length);
+        }
+
+        if (!JsOps.IsConstructor(constructorValue) || constructorValue is not IJsCallable callable)
+        {
+            throw ThrowTypeError("TypedArray species constructor must be a constructor", realm: realm);
+        }
+
+        var constructed = callable.Invoke([(double)length], null);
+        if (constructed is not TypedArrayBase typedResult)
+        {
+            throw ThrowTypeError("TypedArray species constructor did not return a TypedArray instance", realm: realm);
+        }
+
+        if (typedResult.Length < length)
+        {
+            throw ThrowTypeError("TypedArray species constructor result has insufficient length", realm: realm);
+        }
+
+        return typedResult;
+
+        static TypedArrayBase CreateDefaultTypedArray(TypedArrayBase exemplarArray, int len)
+        {
+            var fallback = exemplarArray.CreateSpeciesDefault(len);
+            if (exemplarArray.Prototype is not null)
+            {
+                fallback.SetPrototype(exemplarArray.Prototype);
+            }
+
+            return fallback;
+        }
+    }
+
+    private static int ClampRelativeIndex(double index, int length)
+    {
+        if (double.IsNegativeInfinity(index))
+        {
+            return 0;
+        }
+
+        if (double.IsPositiveInfinity(index))
+        {
+            return length;
+        }
+
+        var integer = (int)Math.Truncate(index);
+        if (integer < 0)
+        {
+            var relative = length + integer;
+            return relative < 0 ? 0 : relative;
+        }
+
+        return integer > length ? length : integer;
     }
 }

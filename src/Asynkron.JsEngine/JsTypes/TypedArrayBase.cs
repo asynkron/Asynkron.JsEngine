@@ -648,6 +648,11 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
     protected abstract TypedArrayBase CreateNewSameType(int length);
 
+    internal TypedArrayBase CreateSpeciesDefault(int length)
+    {
+        return CreateNewSameType(length);
+    }
+
     public TypedArrayBase Slice(int begin, int end)
     {
         var (start, finalEnd) = NormalizeSliceIndices(begin, end);

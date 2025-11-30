@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.JsTypes;
+
 namespace Asynkron.JsEngine.Tests;
 
 public class TypedArrayTests
@@ -655,4 +657,96 @@ public class TypedArrayTests
                                            """);
         Assert.Equal(2d, result); // Elements at indices 3, 4
     }
+    
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_Map_UsesSpeciesConstructor()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+                                                       let hits = 0;
+                                                       const arr = new Uint8Array([1, 2, 3]);
+                                                       const mapped = arr.map((v) => { hits++; return v + 1; });
+                                                       return {
+                                                         instance: mapped instanceof Uint8Array,
+                                                         first: mapped[0],
+                                                         len: mapped.length,
+                                                         hits
+                                                       };
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(true, obj["instance"]);
+        Assert.Equal(2d, obj["first"]);
+        Assert.Equal(3d, obj["len"]);
+        Assert.Equal(3d, obj["hits"]);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_ToReversed_UsesSpeciesConstructor()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+                                                       const arr = new Uint8Array([1, 2, 3]);
+                                                       const reversed = arr.toReversed();
+                                                       return {
+                                                         instance: reversed instanceof Uint8Array,
+                                                         first: reversed[0],
+                                                         len: reversed.length,
+                                                         sameReference: reversed === arr
+                                                       };
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(true, obj["instance"]);
+        Assert.Equal(3d, obj["first"]);
+        Assert.Equal(3d, obj["len"]);
+        Assert.Equal(false, obj["sameReference"]);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_ToSorted_DefaultCompare()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+                                                       const arr = new Int16Array([3, 1, 2]);
+                                                       const sorted = arr.toSorted();
+                                                       return {vals: [sorted[0], sorted[1], sorted[2]], sameProto: Object.getPrototypeOf(sorted) === Object.getPrototypeOf(arr)};
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        var vals = Assert.IsType<JsArray>(obj["vals"]);
+        Assert.Equal(1d, vals.GetElement(0));
+        Assert.Equal(2d, vals.GetElement(1));
+        Assert.Equal(3d, vals.GetElement(2));
+        Assert.Equal(true, obj["sameProto"]);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_ToSpliced_ReplacesSegment()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+                                                       const arr = new Uint8Array([1, 2, 3, 4]);
+                                                       const spliced = arr.toSpliced(1, 2, 99, 100);
+                                                       return [spliced[0], spliced[1], spliced[2], spliced[3]];
+                                           """);
+        var arr = Assert.IsType<JsArray>(result);
+        Assert.Equal(1d, arr.GetElement(0));
+        Assert.Equal(99d, arr.GetElement(1));
+        Assert.Equal(100d, arr.GetElement(2));
+        Assert.Equal(4d, arr.GetElement(3));
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_With_ReplacesElement()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+                                                       const arr = new Uint8Array([5, 6, 7]);
+                                                       const copy = arr.with(1, 42);
+                                                       return {orig: arr[1], copy: copy[1], len: copy.length};
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(6d, obj["orig"]);
+        Assert.Equal(42d, obj["copy"]);
+        Assert.Equal(3d, obj["len"]);
+    }
+
 }

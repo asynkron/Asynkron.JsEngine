@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -7,6 +8,8 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
+    private const long MaxArrayLength = 9007199254740991L; // 2^53 - 1
+
     public static void AddArrayMethods(IJsPropertyAccessor array, RealmState? realm = null,
         JsObject? prototypeOverride = null)
     {
@@ -22,19 +25,19 @@ public static partial class StandardLibrary
         }
 
         // push - already implemented natively
-        array.SetHostedProperty("push", ArrayPush);
+        array.SetHostedProperty("push", ArrayPush, realm);
 
-        array.SetHostedProperty("pop", ArrayPop);
-        array.SetHostedProperty("map", ArrayMap, realm);
-        array.SetHostedProperty("filter", ArrayFilter, realm);
+        array.SetHostedProperty("pop", ArrayPop, realm);
+        DefineArrayFunction(array, "map", 1d, ArrayMap, realm);
+        DefineArrayFunction(array, "filter", 1d, ArrayFilter, realm);
         array.SetHostedProperty("reduce", ArrayReduce, realm);
         array.SetHostedProperty("reduceRight", ArrayReduceRight, realm);
-        array.SetHostedProperty("forEach", ArrayForEach);
-        array.SetHostedProperty("find", ArrayFind);
-        array.SetHostedProperty("findIndex", ArrayFindIndex);
-        array.SetHostedProperty("some", ArraySome, realm);
-        array.SetHostedProperty("every", ArrayEvery);
-        array.SetHostedProperty("join", ArrayJoin);
+        DefineArrayFunction(array, "forEach", 1d, ArrayForEach, realm);
+        DefineArrayFunction(array, "find", 1d, ArrayFind, realm);
+        DefineArrayFunction(array, "findIndex", 1d, ArrayFindIndex, realm);
+        DefineArrayFunction(array, "some", 1d, ArraySome, realm);
+        DefineArrayFunction(array, "every", 1d, ArrayEvery, realm);
+        array.SetHostedProperty("join", ArrayJoin, realm);
         array.SetHostedProperty("toString", (thisValue, _) => ArrayToString(thisValue, array));
         array.SetHostedProperty("includes", ArrayIncludes, realm);
         array.SetHostedProperty("indexOf", ArrayIndexOf, realm);
@@ -65,19 +68,19 @@ public static partial class StandardLibrary
 
         array.SetHostedProperty("toLocaleString", ArrayToLocaleString, realm);
         array.SetHostedProperty("slice", ArraySlice, realm);
-        array.SetHostedProperty("shift", ArrayShift);
-        array.SetHostedProperty("unshift", ArrayUnshift);
+        array.SetHostedProperty("shift", ArrayShift, realm);
+        array.SetHostedProperty("unshift", ArrayUnshift, realm);
         array.SetHostedProperty("splice", ArraySplice, realm);
         array.SetHostedProperty("concat", ArrayConcat, realm);
-        array.SetHostedProperty("reverse", ArrayReverse);
-        array.SetHostedProperty("sort", ArraySort);
-        array.SetHostedProperty("at", ArrayAt);
+        array.SetHostedProperty("reverse", ArrayReverse, realm);
+        array.SetHostedProperty("sort", ArraySort, realm);
+        array.SetHostedProperty("at", ArrayAt, realm);
         array.SetHostedProperty("flat", ArrayFlat, realm);
         array.SetHostedProperty("flatMap", ArrayFlatMap, realm);
-        array.SetHostedProperty("findLast", ArrayFindLast);
-        array.SetHostedProperty("findLastIndex", ArrayFindLastIndex);
-        array.SetHostedProperty("fill", ArrayFill);
-        array.SetHostedProperty("copyWithin", ArrayCopyWithin);
+        DefineArrayFunction(array, "findLast", 1d, ArrayFindLast, realm);
+        DefineArrayFunction(array, "findLastIndex", 1d, ArrayFindLastIndex, realm);
+        array.SetHostedProperty("fill", ArrayFill, realm);
+        array.SetHostedProperty("copyWithin", ArrayCopyWithin, realm);
         array.SetHostedProperty("toSorted", ArrayToSorted, realm);
         array.SetHostedProperty("toReversed", ArrayToReversed, realm);
         array.SetHostedProperty("toSpliced", ArrayToSpliced, realm);
@@ -121,7 +124,7 @@ public static partial class StandardLibrary
             }
 
             var truncated = Math.Floor(num);
-            return Math.Min(truncated, 9007199254740991d); // 2^53 - 1
+            return Math.Min(truncated, (double)MaxArrayLength); // 2^53 - 1
         }
 
         static object CreateArrayIterator(object? thisValue, IJsPropertyAccessor accessor,
@@ -227,73 +230,94 @@ public static partial class StandardLibrary
         }
     }
 
-    private static object? ArrayPush(object? thisValue, IReadOnlyList<object?> args)
+    private static object? ArrayPush(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray)
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.push", realm);
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var length = (long)ToLengthOrZero(lengthValue);
+        var newLength = length + args.Count;
+        if (newLength > MaxArrayLength)
         {
-            return null;
+            throw ThrowTypeError("Array.prototype.push cannot exceed 2^53 - 1 elements", realm: realm);
         }
 
-        foreach (var arg in args)
+        for (var i = 0; i < args.Count; i++)
         {
-            jsArray.Push(arg);
+            var index = length + i;
+            accessor.SetProperty(ToIndexString(index), args[i]);
         }
 
-        return jsArray.Items.Count;
+        accessor.SetProperty("length", (double)newLength);
+        return (double)newLength;
     }
 
-    private static object? ArrayPop(object? thisValue, IReadOnlyList<object?> _)
+    private static object? ArrayPop(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        return thisValue is JsArray jsArray ? jsArray.Pop() : null;
+        const string MethodName = "Array.prototype.pop";
+        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, realm);
+        var objectLike = accessor as IJsObjectLike;
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var length = (long)ToLengthOrZero(lengthValue);
+        if (length == 0)
+        {
+            accessor.SetProperty("length", 0d);
+            return Symbol.Undefined;
+        }
+
+        var newLength = length - 1;
+        var key = ToIndexString(newLength);
+        var elementExists = accessor.TryGetProperty(key, out var element);
+        DeletePropertyOrThrow(objectLike, key, elementExists, MethodName, realm);
+        accessor.SetProperty("length", (double)newLength);
+        return elementExists ? element : Symbol.Undefined;
     }
 
     private static object? ArrayMap(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray || args.Count == 0 || args[0] is not IJsCallable callback)
+        var (accessor, length, callback, thisArg) =
+            PrepareArrayIteration(thisValue, args, realm, "Array.prototype.map");
+        var result = ArraySpeciesCreate(thisValue, length, realm);
+
+        for (long k = 0; k < length; k++)
         {
-            return null;
+            var key = ToIndexString(k);
+            if (!accessor.TryGetProperty(key, out var value))
+            {
+                continue;
+            }
+
+            var mapped = callback.Invoke([value, (double)k, accessor], thisArg);
+            result.SetProperty(key, mapped);
         }
 
-        var thisArg = args.Count > 1 ? args[1] : Symbol.Undefined;
-        var result = new JsArray(realm);
-        for (var i = 0; i < jsArray.Items.Count; i++)
-        {
-            var element = jsArray.Items[i];
-            var mapped = callback.Invoke([element, (double)i, jsArray], thisArg);
-            result.Push(mapped);
-        }
-
-        AddArrayMethods(result, realm);
         return result;
     }
 
     private static object? ArrayFilter(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (args.Count == 0 || args[0] is not IJsCallable callback)
-        {
-            return null;
-        }
+        var (accessor, length, callback, thisArg) =
+            PrepareArrayIteration(thisValue, args, realm, "Array.prototype.filter");
+        var result = ArraySpeciesCreate(thisValue, 0, realm);
+        long toIndex = 0;
 
-        var thisObj = ToArrayLike(thisValue, realm);
-        var thisArg = args.Count > 1 ? args[1] : Symbol.Undefined;
-
-        var result = new JsArray(realm);
-        var length = GetArrayLikeLength(thisObj);
-        for (var i = 0; i < length; i++)
+        for (long k = 0; k < length; k++)
         {
-            if (!thisObj.TryGetProperty(i.ToString(CultureInfo.InvariantCulture), out var element))
+            var key = ToIndexString(k);
+            if (!accessor.TryGetProperty(key, out var value))
             {
                 continue;
             }
 
-            var keep = callback.Invoke([element, (double)i, thisObj], thisArg);
-            if (IsTruthy(keep))
+            var keep = callback.Invoke([value, (double)k, accessor], thisArg);
+            if (!IsTruthy(keep))
             {
-                result.Push(element);
+                continue;
             }
+
+            result.SetProperty(ToIndexString(toIndex), value);
+            toIndex++;
         }
 
-        AddArrayMethods(result, realm);
         return result;
     }
 
@@ -307,56 +331,65 @@ public static partial class StandardLibrary
         return ReduceLike(thisValue, args, realm, "Array.prototype.reduceRight", true);
     }
 
-    private static object? ArrayForEach(object? thisValue, IReadOnlyList<object?> args)
+    private static object? ArrayForEach(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray || args.Count == 0 || args[0] is not IJsCallable callback)
+        var (accessor, length, callback, thisArg) =
+            PrepareArrayIteration(thisValue, args, realm, "Array.prototype.forEach");
+
+        for (long k = 0; k < length; k++)
         {
-            return null;
+            var key = ToIndexString(k);
+            if (!accessor.TryGetProperty(key, out var value))
+            {
+                continue;
+            }
+
+            callback.Invoke([value, (double)k, accessor], thisArg);
         }
 
-        for (var i = 0; i < jsArray.Items.Count; i++)
-        {
-            var element = jsArray.Items[i];
-            callback.Invoke([element, (double)i, jsArray], null);
-        }
-
-        return null;
+        return Symbol.Undefined;
     }
 
-    private static object? ArrayFind(object? thisValue, IReadOnlyList<object?> args)
+    private static object? ArrayFind(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray || args.Count == 0 || args[0] is not IJsCallable callback)
-        {
-            return null;
-        }
+        var (accessor, length, callback, thisArg) =
+            PrepareArrayIteration(thisValue, args, realm, "Array.prototype.find");
 
-        for (var i = 0; i < jsArray.Items.Count; i++)
+        for (long k = 0; k < length; k++)
         {
-            var element = jsArray.Items[i];
-            var match = callback.Invoke([element, (double)i, jsArray], null);
+            var key = ToIndexString(k);
+            if (!accessor.TryGetProperty(key, out var value))
+            {
+                continue;
+            }
+
+            var match = callback.Invoke([value, (double)k, accessor], thisArg);
             if (IsTruthy(match))
             {
-                return element;
+                return value;
             }
         }
 
-        return null;
+        return Symbol.Undefined;
     }
 
-    private static object? ArrayFindIndex(object? thisValue, IReadOnlyList<object?> args)
+    private static object? ArrayFindIndex(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray || args.Count == 0 || args[0] is not IJsCallable callback)
-        {
-            return -1d;
-        }
+        var (accessor, length, callback, thisArg) =
+            PrepareArrayIteration(thisValue, args, realm, "Array.prototype.findIndex");
 
-        for (var i = 0; i < jsArray.Items.Count; i++)
+        for (long k = 0; k < length; k++)
         {
-            var element = jsArray.Items[i];
-            var match = callback.Invoke([element, (double)i, jsArray], null);
+            var key = ToIndexString(k);
+            if (!accessor.TryGetProperty(key, out var value))
+            {
+                continue;
+            }
+
+            var match = callback.Invoke([value, (double)k, accessor], thisArg);
             if (IsTruthy(match))
             {
-                return (double)i;
+                return (double)k;
             }
         }
 
@@ -368,22 +401,20 @@ public static partial class StandardLibrary
         return SomeLike(thisValue, args, realm, "Array.prototype.some");
     }
 
-    private static object? ArrayEvery(object? thisValue, IReadOnlyList<object?> args)
+    private static object? ArrayEvery(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray)
-        {
-            return true;
-        }
+        var (accessor, length, callback, thisArg) =
+            PrepareArrayIteration(thisValue, args, realm, "Array.prototype.every");
 
-        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        for (long k = 0; k < length; k++)
         {
-            return true;
-        }
+            var key = ToIndexString(k);
+            if (!accessor.TryGetProperty(key, out var value))
+            {
+                continue;
+            }
 
-        for (var i = 0; i < jsArray.Items.Count; i++)
-        {
-            var element = jsArray.Items[i];
-            var result = callback.Invoke([element, (double)i, jsArray], null);
+            var result = callback.Invoke([value, (double)k, accessor], thisArg);
             if (!IsTruthy(result))
             {
                 return false;
@@ -393,24 +424,44 @@ public static partial class StandardLibrary
         return true;
     }
 
-    private static object? ArrayJoin(object? thisValue, IReadOnlyList<object?> args)
+    private static object? ArrayJoin(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray)
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.join", realm);
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var length = (long)ToLengthOrZero(lengthValue);
+
+        if (length == 0)
         {
-            return "";
+            return string.Empty;
         }
 
-        var separator = args.Count > 0 && args[0] is string sep ? sep : ",";
+        var separator = args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined)
+            ? ","
+            : args[0].ToJsString();
 
-        var length = jsArray.Length > int.MaxValue ? int.MaxValue : (int)jsArray.Length;
-        var parts = new List<string>(length);
-        for (var i = 0; i < length; i++)
+        var builder = new StringBuilder();
+        for (long k = 0; k < length; k++)
         {
-            var element = jsArray.GetElement(i);
-            parts.Add(element.ToJsStringForArray());
+            if (k > 0)
+            {
+                builder.Append(separator);
+            }
+
+            var key = ToIndexString(k);
+            object? element;
+            if (!accessor.TryGetProperty(key, out var found))
+            {
+                element = Symbol.Undefined;
+            }
+            else
+            {
+                element = found;
+            }
+
+            builder.Append(element.ToJsStringForArray());
         }
 
-        return string.Join(separator, parts);
+        return builder.ToString();
     }
 
     private static object? ArrayToString(object? thisValue, IJsPropertyAccessor arrayAccessor)
@@ -456,7 +507,7 @@ public static partial class StandardLibrary
         }
 
         var start = (long)Math.Min(fromIndex, length);
-        var lenLong = (long)Math.Min(length, 9007199254740991d);
+        var lenLong = (long)Math.Min(length, (double)MaxArrayLength);
 
         if (accessor is JsArray jsArr && lenLong > 100000)
         {
@@ -517,7 +568,7 @@ public static partial class StandardLibrary
         }
 
         var start = (long)Math.Min(fromIndex, length);
-        var lenLong = (long)Math.Min(length, 9007199254740991d);
+        var lenLong = (long)Math.Min(length, (double)MaxArrayLength);
 
         for (var i = start; i < lenLong; i++)
         {
@@ -549,7 +600,7 @@ public static partial class StandardLibrary
         }
 
         var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : length - 1;
-        var lenLong = (long)Math.Min(length, 9007199254740991d);
+        var lenLong = (long)Math.Min(length, (double)MaxArrayLength);
 
         long startIndexGeneric;
         if (double.IsNegativeInfinity(fromIndex))
@@ -627,344 +678,596 @@ public static partial class StandardLibrary
         return string.Join(",", parts);
     }
 
-    private static object? ArrayShift(object? thisValue, IReadOnlyList<object?> _)
+    private static object? ArrayShift(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        return thisValue is JsArray jsArray ? jsArray.Shift() : null;
-    }
-
-    private static object? ArrayUnshift(object? thisValue, IReadOnlyList<object?> args)
-    {
-        if (thisValue is not JsArray jsArray)
+        const string MethodName = "Array.prototype.shift";
+        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, realm);
+        var objectLike = accessor as IJsObjectLike;
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var length = (long)ToLengthOrZero(lengthValue);
+        if (length == 0)
         {
-            return 0;
+            accessor.SetProperty("length", 0d);
+            return Symbol.Undefined;
         }
 
-        jsArray.Unshift(args.ToArray());
-        return jsArray.Items.Count;
+        object? firstElement = Symbol.Undefined;
+        var firstExists = accessor.TryGetProperty("0", out var firstValue);
+        if (firstExists)
+        {
+            firstElement = firstValue;
+        }
+
+        for (long k = 1; k < length; k++)
+        {
+            var fromKey = ToIndexString(k);
+            var toKey = ToIndexString(k - 1);
+            var fromExists = accessor.TryGetProperty(fromKey, out var fromValue);
+            if (fromExists)
+            {
+                accessor.SetProperty(toKey, fromValue);
+            }
+            else
+            {
+                var toExists = accessor.TryGetProperty(toKey, out _);
+                DeletePropertyOrThrow(objectLike, toKey, toExists, MethodName, realm);
+            }
+        }
+
+        var lastKey = ToIndexString(length - 1);
+        var lastExists = accessor.TryGetProperty(lastKey, out _);
+        DeletePropertyOrThrow(objectLike, lastKey, lastExists, MethodName, realm);
+        accessor.SetProperty("length", (double)(length - 1));
+        return firstElement;
+    }
+
+    private static object? ArrayUnshift(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        const string MethodName = "Array.prototype.unshift";
+        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, realm);
+        var objectLike = accessor as IJsObjectLike;
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var length = (long)ToLengthOrZero(lengthValue);
+        var argCount = args.Count;
+
+        if (length + argCount > MaxArrayLength)
+        {
+            throw ThrowTypeError("Array.prototype.unshift cannot exceed 2^53 - 1 elements", realm: realm);
+        }
+
+        for (long k = length - 1; k >= 0; k--)
+        {
+            var fromKey = ToIndexString(k);
+            var toKey = ToIndexString(k + argCount);
+            var fromExists = accessor.TryGetProperty(fromKey, out var fromValue);
+            if (fromExists)
+            {
+                accessor.SetProperty(toKey, fromValue);
+            }
+            else
+            {
+                var toExists = accessor.TryGetProperty(toKey, out _);
+                DeletePropertyOrThrow(objectLike, toKey, toExists, MethodName, realm);
+            }
+        }
+
+        for (var j = 0; j < argCount; j++)
+        {
+            accessor.SetProperty(ToIndexString(j), args[j]);
+        }
+
+        var newLength = length + argCount;
+        accessor.SetProperty("length", (double)newLength);
+        return (double)newLength;
     }
 
     private static object? ArraySplice(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray)
+        const string MethodName = "Array.prototype.splice";
+        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, realm);
+        var objectLike = accessor as IJsObjectLike;
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var length = (long)ToLengthOrZero(lengthValue);
+
+        var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0]) : 0;
+        var actualStart = ClampRelativeIndex(startIndex, length);
+
+        var insertCount = args.Count > 2 ? args.Count - 2 : 0;
+
+        double deleteCountArg;
+        if (args.Count == 0)
         {
-            return null;
+            deleteCountArg = length - actualStart;
+        }
+        else if (args.Count == 1)
+        {
+            deleteCountArg = length - actualStart;
+        }
+        else
+        {
+            deleteCountArg = ToIntegerOrInfinity(args[1]);
         }
 
-        var start = args.Count > 0 && args[0] is double startD ? (int)startD : 0;
-        var deleteCount = args.Count > 1 && args[1] is double deleteD ? (int)deleteD : jsArray.Items.Count - start;
+        long actualDeleteCount;
+        if (double.IsPositiveInfinity(deleteCountArg))
+        {
+            actualDeleteCount = length - actualStart;
+        }
+        else if (double.IsNegativeInfinity(deleteCountArg))
+        {
+            actualDeleteCount = 0;
+        }
+        else
+        {
+            var bounded = Math.Max(deleteCountArg, 0);
+            bounded = Math.Min(bounded, length - actualStart);
+            actualDeleteCount = (long)bounded;
+        }
 
-        var itemsToInsert = args.Count > 2 ? args.Skip(2).ToArray() : [];
+        var newLength = length - actualDeleteCount + insertCount;
+        if (newLength > MaxArrayLength)
+        {
+            throw ThrowRangeError("Array length exceeds 2^53 - 1", realm: realm);
+        }
 
-        var deleted = jsArray.Splice(start, deleteCount, itemsToInsert);
-        AddArrayMethods(deleted, realm);
-        return deleted;
+        var result = ArraySpeciesCreate(thisValue, actualDeleteCount, realm);
+        for (long k = 0; k < actualDeleteCount; k++)
+        {
+            CopyArrayElement(accessor, actualStart + k, result, k);
+        }
+
+        SetArrayLikeLength(result, actualDeleteCount);
+
+        if (insertCount < actualDeleteCount)
+        {
+            for (long k = actualStart; k < length - actualDeleteCount; k++)
+            {
+                var from = k + actualDeleteCount;
+                var to = k + insertCount;
+                var fromKey = ToIndexString(from);
+                var toKey = ToIndexString(to);
+
+                if (accessor.TryGetProperty(fromKey, out var fromValue))
+                {
+                    accessor.SetProperty(toKey, fromValue);
+                }
+                else
+                {
+                    var toExists = accessor.TryGetProperty(toKey, out _);
+                    DeletePropertyOrThrow(objectLike, toKey, toExists, MethodName, realm);
+                }
+            }
+
+            for (long k = length; k > length - (actualDeleteCount - insertCount); k--)
+            {
+                var key = ToIndexString(k - 1);
+                var existed = accessor.TryGetProperty(key, out _);
+                DeletePropertyOrThrow(objectLike, key, existed, MethodName, realm);
+            }
+        }
+        else if (insertCount > actualDeleteCount)
+        {
+            for (long k = length - actualDeleteCount; k > actualStart; k--)
+            {
+                var from = k + actualDeleteCount - 1;
+                var to = k + insertCount - 1;
+                var fromKey = ToIndexString(from);
+                var toKey = ToIndexString(to);
+
+                if (accessor.TryGetProperty(fromKey, out var fromValue))
+                {
+                    accessor.SetProperty(toKey, fromValue);
+                }
+                else
+                {
+                    var toExists = accessor.TryGetProperty(toKey, out _);
+                    DeletePropertyOrThrow(objectLike, toKey, toExists, MethodName, realm);
+                }
+            }
+        }
+
+        for (var j = 0; j < insertCount; j++)
+        {
+            accessor.SetProperty(ToIndexString(actualStart + j), args[j + 2]);
+        }
+
+        accessor.SetProperty("length", (double)newLength);
+        return result;
     }
 
     private static object? ArrayConcat(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray)
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.concat", realm);
+        var result = ArraySpeciesCreate(thisValue, 0, realm);
+        var resultLike = result as IJsObjectLike;
+        long resultIndex = 0;
+
+        var sources = new object?[args.Count + 1];
+        sources[0] = accessor;
+        for (var i = 0; i < args.Count; i++)
         {
-            return null;
+            sources[i + 1] = args[i];
         }
 
-        var result = new JsArray(realm);
-        foreach (var item in jsArray.Items)
+        foreach (var sourceValue in sources)
         {
-            result.Push(item);
-        }
-
-        foreach (var arg in args)
-        {
-            if (arg is JsArray argArray)
+            if (IsConcatSpreadable(sourceValue, realm, out var spreadAccessor))
             {
-                foreach (var item in argArray.Items)
+                var lengthValue = spreadAccessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+                var spreadLength = (long)ToLengthOrZero(lengthValue);
+                if (resultIndex + spreadLength > MaxArrayLength)
                 {
-                    result.Push(item);
+                    throw ThrowTypeError("Array length exceeds 2^53 - 1", realm: realm);
+                }
+
+                for (long k = 0; k < spreadLength; k++)
+                {
+                    var fromKey = ToIndexString(k);
+                    var toKey = ToIndexString(resultIndex);
+                    if (spreadAccessor.TryGetProperty(fromKey, out var value))
+                    {
+                        result.SetProperty(toKey, value);
+                    }
+                    else if (resultLike is not null)
+                    {
+                        resultLike.Delete(toKey);
+                    }
+
+                    resultIndex++;
                 }
             }
             else
             {
-                result.Push(arg);
+                if (resultIndex >= MaxArrayLength)
+                {
+                    throw ThrowTypeError("Array length exceeds 2^53 - 1", realm: realm);
+                }
+
+                result.SetProperty(ToIndexString(resultIndex++), sourceValue);
             }
         }
 
-        AddArrayMethods(result, realm);
+        SetArrayLikeLength(result, resultIndex);
         return result;
     }
 
-    private static object? ArrayReverse(object? thisValue, IReadOnlyList<object?> _)
+    private static object? ArrayReverse(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray)
+        const string MethodName = "Array.prototype.reverse";
+        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, realm);
+        var objectLike = accessor as IJsObjectLike;
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var length = (long)ToLengthOrZero(lengthValue);
+        var middle = length / 2;
+
+        for (long lower = 0; lower < middle; lower++)
         {
-            return null;
+            var upper = length - lower - 1;
+            var lowerKey = ToIndexString(lower);
+            var upperKey = ToIndexString(upper);
+
+            var lowerExists = accessor.TryGetProperty(lowerKey, out var lowerRaw);
+            object? lowerValue = lowerExists ? lowerRaw : Symbol.Undefined;
+
+            var upperExists = accessor.TryGetProperty(upperKey, out var upperRaw);
+            object? upperValue = upperExists ? upperRaw : Symbol.Undefined;
+
+            if (lowerExists && upperExists)
+            {
+                accessor.SetProperty(lowerKey, upperValue);
+                accessor.SetProperty(upperKey, lowerValue);
+                continue;
+            }
+
+            if (!lowerExists && upperExists)
+            {
+                accessor.SetProperty(lowerKey, upperValue);
+                DeletePropertyOrThrow(objectLike, upperKey, upperExists, MethodName, realm);
+                continue;
+            }
+
+            if (lowerExists && !upperExists)
+            {
+                DeletePropertyOrThrow(objectLike, lowerKey, lowerExists, MethodName, realm);
+                accessor.SetProperty(upperKey, lowerValue);
+                continue;
+            }
+
+            DeletePropertyOrThrow(objectLike, lowerKey, lowerExists, MethodName, realm);
+            DeletePropertyOrThrow(objectLike, upperKey, upperExists, MethodName, realm);
         }
 
-        jsArray.Reverse();
-        return jsArray;
+        return accessor;
     }
 
-    private static object? ArraySort(object? thisValue, IReadOnlyList<object?> args)
+    private static object? ArraySort(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray)
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.sort", realm);
+        var objectLike = accessor as IJsObjectLike;
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var length = (long)ToLengthOrZero(lengthValue);
+
+        var elements = new List<object?>((int)Math.Min(length, int.MaxValue));
+        for (long k = 0; k < length; k++)
         {
-            return null;
+            var key = ToIndexString(k);
+            if (accessor.TryGetProperty(key, out var value))
+            {
+                elements.Add(value);
+            }
         }
 
-        var items = jsArray.Items.ToList();
+        var compareFn = args.Count > 0 && args[0] is IJsCallable callable ? callable : null;
 
-        if (args.Count > 0 && args[0] is IJsCallable compareFn)
+        Comparison<object?> comparer = (a, b) =>
         {
-            items.Sort((a, b) =>
+            if (compareFn is not null)
             {
                 var result = compareFn.Invoke([a, b], null);
                 if (result is double d)
                 {
+                    if (double.IsNaN(d))
+                    {
+                        return 0;
+                    }
+
                     return d > 0 ? 1 : d < 0 ? -1 : 0;
                 }
 
                 return 0;
-            });
+            }
+
+            var aStr = JsValueToString(a);
+            var bStr = JsValueToString(b);
+            return string.CompareOrdinal(aStr, bStr);
+        };
+
+        elements.Sort(comparer);
+
+        long index = 0;
+        foreach (var value in elements)
+        {
+            accessor.SetProperty(ToIndexString(index++), value);
+        }
+
+        if (objectLike is not null)
+        {
+            for (var k = index; k < length; k++)
+            {
+                objectLike.Delete(ToIndexString(k));
+            }
         }
         else
         {
-            items.Sort((a, b) =>
+            for (var k = index; k < length; k++)
             {
-                var aStr = JsValueToString(a);
-                var bStr = JsValueToString(b);
-                return string.CompareOrdinal(aStr, bStr);
-            });
+                accessor.SetProperty(ToIndexString(k), Symbol.Undefined);
+            }
         }
 
-        for (var i = 0; i < items.Count; i++)
-        {
-            jsArray.SetElement(i, items[i]);
-        }
-
-        return jsArray;
+        return accessor;
     }
 
-    private static object? ArrayAt(object? thisValue, IReadOnlyList<object?> args)
+    private static object? ArrayAt(object? thisValue, IReadOnlyList<object?> args, RealmState? realm = null)
     {
-        if (thisValue is not JsArray jsArray || args.Count == 0 || args[0] is not double d)
+        if (args.Count == 0)
         {
-            return null;
+            return Symbol.Undefined;
         }
 
-        var index = (int)d;
-        if (index < 0)
+        var target = EnsureArrayLikeReceiver(thisValue, "Array.prototype.at", realm);
+        var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var length = (long)ToLengthOrZero(lengthValue);
+
+        var indexNumber = args[0] is double d ? d : JsOps.ToNumber(args[0]);
+        var index = indexNumber < 0 ? length + (long)Math.Ceiling(indexNumber) : (long)Math.Floor(indexNumber);
+
+        if (index < 0 || index >= length)
         {
-            index = jsArray.Items.Count + index;
+            return Symbol.Undefined;
         }
 
-        if (index < 0 || index >= jsArray.Items.Count)
-        {
-            return null;
-        }
-
-        return jsArray.GetElement(index);
+        var key = ToIndexString(index);
+        return target.TryGetProperty(key, out var value) ? value : Symbol.Undefined;
     }
 
     private static object? ArrayFlat(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray)
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.flat", realm);
+        var depthNum = args.Count > 0 ? ToIntegerOrInfinity(args[0]) : 1;
+        long depth;
+        if (double.IsNegativeInfinity(depthNum) || depthNum < 0)
         {
-            return null;
+            depth = 0;
         }
+        else if (double.IsPositiveInfinity(depthNum))
+        {
+            depth = long.MaxValue;
+        }
+        else
+        {
+            depth = (long)depthNum;
+        }
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var sourceLength = (long)ToLengthOrZero(lengthValue);
 
-        var depth = args.Count > 0 && args[0] is double d ? (int)d : 1;
-
-        var result = new JsArray(realm);
-        FlattenArray(jsArray, result, depth);
-        AddArrayMethods(result, realm);
+        var result = ArraySpeciesCreate(thisValue, 0, realm);
+        var newLength = FlattenIntoArray(result, accessor, sourceLength, 0, depth, null, null, realm);
+        SetArrayLikeLength(result, newLength);
         return result;
     }
 
     private static object? ArrayFlatMap(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray || args.Count == 0 || args[0] is not IJsCallable callback)
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.flatMap", realm);
+        if (args.Count == 0 || args[0] is not IJsCallable callback)
         {
-            return null;
+            throw ThrowTypeError("Array.prototype.flatMap expects a callable mapper", realm: realm);
         }
-
-        var result = new JsArray(realm);
-        for (var i = 0; i < jsArray.Items.Count; i++)
-        {
-            var element = jsArray.Items[i];
-            var mapped = callback.Invoke([element, (double)i, jsArray], null);
-
-            if (mapped is JsArray mappedArray)
-            {
-                for (var j = 0; j < mappedArray.Items.Count; j++)
-                {
-                    result.Push(mappedArray.GetElement(j));
-                }
-            }
-            else
-            {
-                result.Push(mapped);
-            }
-        }
-
-        AddArrayMethods(result, realm);
+        var thisArg = args.Count > 1 ? args[1] : Symbol.Undefined;
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var sourceLength = (long)ToLengthOrZero(lengthValue);
+        var result = ArraySpeciesCreate(thisValue, 0, realm);
+        var newLength = FlattenIntoArray(result, accessor, sourceLength, 0, 1, callback, thisArg, realm);
+        SetArrayLikeLength(result, newLength);
         return result;
     }
 
-    private static object? ArrayFindLast(object? thisValue, IReadOnlyList<object?> args)
+    private static object? ArrayFindLast(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray || args.Count == 0 || args[0] is not IJsCallable callback)
-        {
-            return null;
-        }
+        var (accessor, length, callback, thisArg) =
+            PrepareArrayIteration(thisValue, args, realm, "Array.prototype.findLast");
 
-        for (var i = jsArray.Items.Count - 1; i >= 0; i--)
+        for (var k = length - 1; k >= 0; k--)
         {
-            var element = jsArray.Items[i];
-            var matches = callback.Invoke([element, (double)i, jsArray], null);
+            var key = ToIndexString(k);
+            if (!accessor.TryGetProperty(key, out var value))
+            {
+                continue;
+            }
+
+            var matches = callback.Invoke([value, (double)k, accessor], thisArg);
             if (IsTruthy(matches))
             {
-                return element;
+                return value;
             }
         }
 
-        return null;
+        return Symbol.Undefined;
     }
 
-    private static object? ArrayFindLastIndex(object? thisValue, IReadOnlyList<object?> args)
+    private static object? ArrayFindLastIndex(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray || args.Count == 0 || args[0] is not IJsCallable callback)
-        {
-            return -1d;
-        }
+        var (accessor, length, callback, thisArg) =
+            PrepareArrayIteration(thisValue, args, realm, "Array.prototype.findLastIndex");
 
-        for (var i = jsArray.Items.Count - 1; i >= 0; i--)
+        for (var k = length - 1; k >= 0; k--)
         {
-            var element = jsArray.Items[i];
-            var matches = callback.Invoke([element, (double)i, jsArray], null);
+            var key = ToIndexString(k);
+            if (!accessor.TryGetProperty(key, out var value))
+            {
+                continue;
+            }
+
+            var matches = callback.Invoke([value, (double)k, accessor], thisArg);
             if (IsTruthy(matches))
             {
-                return (double)i;
+                return (double)k;
             }
         }
 
         return -1d;
     }
 
-    private static object? ArrayFill(object? thisValue, IReadOnlyList<object?> args)
+    private static object? ArrayFill(object? thisValue, IReadOnlyList<object?> args, RealmState? realm = null)
     {
-        if (thisValue is not JsArray jsArray || args.Count == 0)
+        if (args.Count == 0)
         {
-            return thisValue is JsArray ? thisValue : null;
+            return thisValue;
         }
+
+        var target = EnsureArrayLikeReceiver(thisValue, "Array.prototype.fill", realm);
+        var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var length = (long)ToLengthOrZero(lengthValue);
 
         var value = args[0];
-        var start = args.Count > 1 && args[1] is double d1 ? (int)d1 : 0;
-        var end = args.Count > 2 && args[2] is double d2 ? (int)d2 : jsArray.Items.Count;
+        var startIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1]) : 0;
+        var endIndex = args.Count > 2 ? ToIntegerOrInfinity(args[2]) : length;
 
-        if (start < 0)
+        var start = ClampRelativeIndex(startIndex, length);
+        var end = ClampRelativeIndex(endIndex, length);
+        for (var k = start; k < end; k++)
         {
-            start = Math.Max(0, jsArray.Items.Count + start);
+            target.SetProperty(ToIndexString(k), value);
         }
 
-        if (end < 0)
-        {
-            end = Math.Max(0, jsArray.Items.Count + end);
-        }
-
-        start = Math.Max(0, Math.Min(start, jsArray.Items.Count));
-        end = Math.Max(start, Math.Min(end, jsArray.Items.Count));
-
-        for (var i = start; i < end; i++)
-        {
-            jsArray.SetElement(i, value);
-        }
-
-        return jsArray;
+        return target;
     }
 
-    private static object? ArrayCopyWithin(object? thisValue, IReadOnlyList<object?> args)
+    private static object? ArrayCopyWithin(object? thisValue, IReadOnlyList<object?> args, RealmState? realm = null)
     {
-        if (thisValue is not JsArray jsArray || args.Count == 0)
+        if (args.Count == 0)
         {
-            return thisValue is JsArray ? thisValue : null;
+            return thisValue;
         }
 
-        var target = args[0] is double dt ? (int)dt : 0;
-        var start = args.Count > 1 && args[1] is double ds ? (int)ds : 0;
-        var end = args.Count > 2 && args[2] is double de ? (int)de : jsArray.Items.Count;
+        var target = EnsureArrayLikeReceiver(thisValue, "Array.prototype.copyWithin", realm);
+        var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var length = (long)ToLengthOrZero(lengthValue);
 
-        var len = jsArray.Items.Count;
+        var toIndex = ToIntegerOrInfinity(args[0]);
+        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1]) : 0;
+        var endIndex = args.Count > 2 ? ToIntegerOrInfinity(args[2]) : length;
 
-        if (target < 0)
-        {
-            target = Math.Max(0, len + target);
-        }
-        else
-        {
-            target = Math.Min(target, len);
-        }
+        var to = ClampRelativeIndex(toIndex, length);
+        var from = ClampRelativeIndex(fromIndex, length);
+        var final = ClampRelativeIndex(endIndex, length);
 
-        if (start < 0)
-        {
-            start = Math.Max(0, len + start);
-        }
-        else
-        {
-            start = Math.Min(start, len);
-        }
-
-        if (end < 0)
-        {
-            end = Math.Max(0, len + end);
-        }
-        else
-        {
-            end = Math.Min(end, len);
-        }
-
-        var count = Math.Min(end - start, len - target);
+        var count = Math.Min(final - from, length - to);
         if (count <= 0)
         {
-            return jsArray;
+            return target;
         }
 
-        var temp = new object?[count];
+        long direction = 1;
+        if (from < to && to < from + count)
+        {
+            direction = -1;
+            from += count - 1;
+            to += count - 1;
+        }
+
+        var objectLike = target as IJsObjectLike;
+
         for (var i = 0; i < count; i++)
         {
-            temp[i] = jsArray.GetElement(start + i);
+            var fromKey = ToIndexString(from);
+            var toKey = ToIndexString(to);
+
+            if (target.TryGetProperty(fromKey, out var value))
+            {
+                target.SetProperty(toKey, value);
+            }
+            else if (objectLike is not null)
+            {
+                objectLike.Delete(toKey);
+            }
+
+            from += direction;
+            to += direction;
         }
 
-        for (var i = 0; i < count; i++)
-        {
-            jsArray.SetElement(target + i, temp[i]);
-        }
-
-        return jsArray;
+        return target;
     }
 
     private static object? ArrayToSorted(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray)
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toSorted", realm);
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var length = (long)ToLengthOrZero(lengthValue);
+
+        var values = new List<object?>((int)Math.Min(length, int.MaxValue));
+        for (long k = 0; k < length; k++)
         {
-            return null;
+            var key = ToIndexString(k);
+            if (accessor.TryGetProperty(key, out var value))
+            {
+                values.Add(value);
+            }
         }
-
-        var result = new JsArray(realm);
-        for (var i = 0; i < jsArray.Items.Count; i++)
-        {
-            result.Push(jsArray.GetElement(i));
-        }
-
-        AddArrayMethods(result, realm);
-
-        var items = result.Items.ToList();
 
         if (args.Count > 0 && args[0] is IJsCallable compareFn)
         {
-            items.Sort((a, b) =>
+            values.Sort((a, b) =>
             {
                 var cmp = compareFn.Invoke([a, b], null);
                 if (cmp is double d)
                 {
+                    if (double.IsNaN(d))
+                    {
+                        return 0;
+                    }
+
                     return d > 0 ? 1 : d < 0 ? -1 : 0;
                 }
 
@@ -973,7 +1276,7 @@ public static partial class StandardLibrary
         }
         else
         {
-            items.Sort((a, b) =>
+            values.Sort((a, b) =>
             {
                 var aStr = JsValueToString(a);
                 var bStr = JsValueToString(b);
@@ -981,165 +1284,181 @@ public static partial class StandardLibrary
             });
         }
 
-        for (var i = 0; i < items.Count; i++)
+        var result = ArraySpeciesCreate(thisValue, length, realm);
+        var resultLike = result as IJsObjectLike;
+
+        long targetIndex = 0;
+        foreach (var value in values)
         {
-            result.SetElement(i, items[i]);
+            result.SetProperty(ToIndexString(targetIndex++), value);
         }
 
+        for (var k = targetIndex; k < length; k++)
+        {
+            var key = ToIndexString(k);
+            resultLike?.Delete(key);
+        }
+
+        SetArrayLikeLength(result, length);
         return result;
     }
 
     private static object? ArrayToReversed(object? thisValue, IReadOnlyList<object?> _, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray)
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toReversed", realm);
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var length = (long)ToLengthOrZero(lengthValue);
+
+        var result = ArraySpeciesCreate(thisValue, length, realm);
+        for (long k = 0; k < length; k++)
         {
-            return null;
+            var from = length - 1 - k;
+            CopyArrayElement(accessor, from, result, k);
         }
 
-        var result = new JsArray(realm);
-        for (var i = jsArray.Items.Count - 1; i >= 0; i--)
-        {
-            result.Push(jsArray.GetElement(i));
-        }
-
-        AddArrayMethods(result, realm);
+        SetArrayLikeLength(result, length);
         return result;
     }
 
     private static object? ArrayToSpliced(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray)
-        {
-            return null;
-        }
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toSpliced", realm);
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var length = (long)ToLengthOrZero(lengthValue);
 
-        var result = new JsArray(realm);
-        var len = jsArray.Items.Count;
+        var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0]) : 0;
+        var actualStart = ClampRelativeIndex(startIndex, length);
 
-        if (args.Count == 0)
+        double deleteCountArg;
+        if (args.Count > 1)
         {
-            for (var i = 0; i < len; i++)
-            {
-                result.Push(jsArray.GetElement(i));
-            }
+            deleteCountArg = ToIntegerOrInfinity(args[1]);
         }
         else
         {
-            var start = args[0] is double ds ? (int)ds : 0;
-            var deleteCount = args.Count > 1 && args[1] is double dc ? (int)dc : len - start;
-
-            if (start < 0)
-            {
-                start = Math.Max(0, len + start);
-            }
-            else
-            {
-                start = Math.Min(start, len);
-            }
-
-            deleteCount = Math.Max(0, Math.Min(deleteCount, len - start));
-
-            for (var i = 0; i < start; i++)
-            {
-                result.Push(jsArray.GetElement(i));
-            }
-
-            for (var i = 2; i < args.Count; i++)
-            {
-                result.Push(args[i]);
-            }
-
-            for (var i = start + deleteCount; i < len; i++)
-            {
-                result.Push(jsArray.GetElement(i));
-            }
+            deleteCountArg = length - actualStart;
         }
 
-        AddArrayMethods(result, realm);
+        long actualDeleteCount;
+        if (double.IsPositiveInfinity(deleteCountArg))
+        {
+            actualDeleteCount = length - actualStart;
+        }
+        else
+        {
+            var bounded = Math.Max(deleteCountArg, 0);
+            bounded = Math.Min(bounded, length - actualStart);
+            actualDeleteCount = (long)bounded;
+        }
+
+        var insertCount = Math.Max(args.Count - 2, 0);
+        var newLength = length - actualDeleteCount + insertCount;
+        if (newLength > MaxArrayLength)
+        {
+            throw ThrowTypeError("Array.prototype.toSpliced cannot exceed 2^53 - 1 elements", realm: realm);
+        }
+
+        var result = ArraySpeciesCreate(thisValue, newLength, realm);
+        long targetIndex = 0;
+
+        for (long k = 0; k < actualStart; k++)
+        {
+            CopyArrayElement(accessor, k, result, targetIndex++);
+        }
+
+        for (var i = 0; i < insertCount; i++)
+        {
+            result.SetProperty(ToIndexString(targetIndex++), args[i + 2]);
+        }
+
+        for (var k = actualStart + actualDeleteCount; k < length; k++)
+        {
+            CopyArrayElement(accessor, k, result, targetIndex++);
+        }
+
+        SetArrayLikeLength(result, targetIndex);
         return result;
     }
 
     private static object? ArrayWith(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray || args.Count < 2 || args[0] is not double d)
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.with", realm);
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var length = (long)ToLengthOrZero(lengthValue);
+
+        if (args.Count == 0)
         {
-            return null;
+            throw ThrowTypeError("Array.prototype.with requires an index argument", realm: realm);
         }
 
-        var index = (int)d;
-        var value = args[1];
-
-        if (index < 0)
+        var indexNumber = ToIntegerOrInfinity(args[0]);
+        var integer = (long)Math.Truncate(indexNumber);
+        if (double.IsPositiveInfinity(indexNumber))
         {
-            index = jsArray.Items.Count + index;
+            integer = length;
+        }
+        else if (double.IsNegativeInfinity(indexNumber))
+        {
+            integer = -1;
         }
 
-        if (index < 0 || index >= jsArray.Items.Count)
+        if (integer < 0)
         {
-            return null;
+            integer = length + integer;
         }
 
-        var result = new JsArray(realm);
-        for (var i = 0; i < jsArray.Items.Count; i++)
+        if (integer < 0 || integer >= length)
         {
-            result.Push(i == index ? value : jsArray.GetElement(i));
+            throw ThrowRangeError("Array.prototype.with index out of range", realm: realm);
         }
 
-        AddArrayMethods(result, realm);
+        var value = args.Count > 1 ? args[1] : Symbol.Undefined;
+        var result = ArraySpeciesCreate(thisValue, length, realm);
+
+        for (long k = 0; k < length; k++)
+        {
+            if (k == integer)
+            {
+                result.SetProperty(ToIndexString(k), value);
+            }
+            else
+            {
+                CopyArrayElement(accessor, k, result, k);
+            }
+        }
+
+        SetArrayLikeLength(result, length);
         return result;
     }
 
     private static object? ArraySlice(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
-        if (thisValue is not JsArray jsArray)
-        {
-            return null;
-        }
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.slice", realm);
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var length = (long)ToLengthOrZero(lengthValue);
 
-        var start = 0;
-        var end = jsArray.Items.Count;
+        var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0]) : 0;
+        var endIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1]) : length;
 
-        if (args.Count > 0 && args[0] is double startD)
+        var from = ClampRelativeIndex(startIndex, length);
+        var to = ClampRelativeIndex(endIndex, length);
+        var count = Math.Max(to - from, 0);
+        var result = ArraySpeciesCreate(thisValue, count, realm);
+        long targetIndex = 0;
+
+        for (var k = from; k < to; k++)
         {
-            start = (int)startD;
-            if (start < 0)
+            var key = ToIndexString(k);
+            if (accessor.TryGetProperty(key, out var value))
             {
-                start = Math.Max(0, jsArray.Items.Count + start);
+                result.SetProperty(ToIndexString(targetIndex), value);
             }
+
+            targetIndex++;
         }
 
-        if (args.Count > 1 && args[1] is double endD)
-        {
-            end = (int)endD;
-            if (end < 0)
-            {
-                end = Math.Max(0, jsArray.Items.Count + end);
-            }
-        }
-
-        var result = new JsArray(realm);
-        for (var i = start; i < Math.Min(end, jsArray.Items.Count); i++)
-        {
-            result.Push(jsArray.Items[i]);
-        }
-
-        AddArrayMethods(result, realm);
+        SetArrayLikeLength(result, targetIndex);
         return result;
-    }
-
-    private static void FlattenArray(JsArray source, JsArray target, int depth)
-    {
-        foreach (var item in source.Items)
-        {
-            if (depth > 0 && item is JsArray nestedArray)
-            {
-                FlattenArray(nestedArray, target, depth - 1);
-            }
-            else
-            {
-                target.Push(item);
-            }
-        }
     }
 
     private static bool IsTruthy(object? value)
@@ -1670,6 +1989,302 @@ public static partial class StandardLibrary
         }
     }
 
+    private static void DefineArrayFunction(IJsPropertyAccessor target, string name, double length,
+        Func<object?, IReadOnlyList<object?>, RealmState?, object?> handler, RealmState? realm)
+    {
+        var fn = new HostFunction(handler, realm) { IsConstructor = false };
+        AttachBuiltinMetadata(fn, name, length);
+        DefineFunctionProperty(target, name, fn);
+    }
+
+    private static void AttachBuiltinMetadata(HostFunction fn, string name, double length)
+    {
+        fn.DefineProperty("name",
+            new PropertyDescriptor { Value = name, Writable = false, Enumerable = false, Configurable = true });
+        fn.DefineProperty("length",
+            new PropertyDescriptor { Value = length, Writable = false, Enumerable = false, Configurable = true });
+    }
+
+    private static void DefineFunctionProperty(IJsPropertyAccessor target, string name, HostFunction fn)
+    {
+        var descriptor = new PropertyDescriptor
+        {
+            Value = fn, Writable = true, Enumerable = false, Configurable = true
+        };
+
+        if (target is IJsObjectLike objectLike)
+        {
+            objectLike.DefineProperty(name, descriptor);
+        }
+        else
+        {
+            target.SetProperty(name, fn);
+        }
+    }
+
+    private static readonly string SymbolSpeciesKey = $"@@symbol:{TypedAstSymbol.For("Symbol.species").GetHashCode()}";
+    private static readonly string SymbolIsConcatSpreadableKey =
+        $"@@symbol:{TypedAstSymbol.For("Symbol.isConcatSpreadable").GetHashCode()}";
+
+    private static IJsObjectLike ArraySpeciesCreate(object? original, long length, RealmState? realm)
+    {
+        length = Math.Max(length, 0);
+
+        IJsObjectLike CreateDefaultArray()
+        {
+            var arr = new JsArray(realm);
+            AddArrayMethods(arr, realm, arr.Prototype);
+            arr.SetProperty("length", (double)length);
+            return arr;
+        }
+
+        if (realm is null || original is not JsArray jsArray)
+        {
+            return CreateDefaultArray();
+        }
+
+        if (!jsArray.TryGetProperty("constructor", out var constructorValue) ||
+            constructorValue is null ||
+            ReferenceEquals(constructorValue, Symbol.Undefined))
+        {
+            return CreateDefaultArray();
+        }
+
+        object? constructor = constructorValue;
+
+        if (constructor is IJsPropertyAccessor ctorAccessor)
+        {
+            object? species = null;
+            if (ctorAccessor.TryGetProperty(SymbolSpeciesKey, out var speciesValue))
+            {
+                species = speciesValue;
+            }
+
+            if (species is null || ReferenceEquals(species, Symbol.Undefined))
+            {
+                constructor = null;
+            }
+            else
+            {
+                constructor = species;
+            }
+        }
+        else
+        {
+            constructor = null;
+        }
+
+        if (constructor is null)
+        {
+            return CreateDefaultArray();
+        }
+
+        if (constructor is not IJsCallable callable || !JsOps.IsConstructor(callable))
+        {
+            throw ThrowTypeError("Array species constructor must be a constructor", realm: realm);
+        }
+
+        var proto = ResolveConstructPrototype(callable, callable, realm);
+        IJsObjectLike receiver;
+
+        if (callable is HostFunction hostFunction && realm?.ArrayConstructor is not null &&
+            ReferenceEquals(hostFunction, realm.ArrayConstructor))
+        {
+            receiver = new JsArray(realm);
+        }
+        else
+        {
+            receiver = new JsObject();
+        }
+
+        if (proto is not null)
+        {
+            receiver.SetPrototype(proto);
+        }
+
+        var constructed = callable.Invoke([(double)length], receiver);
+        if (constructed is IJsObjectLike objectLike)
+        {
+            return objectLike;
+        }
+
+        return receiver;
+    }
+
+    private static void DeletePropertyOrThrow(IJsObjectLike? objectLike, string propertyKey, bool propertyExisted,
+        string methodName, RealmState? realm)
+    {
+        if (objectLike is null)
+        {
+            if (propertyExisted)
+            {
+                throw ThrowTypeError($"{methodName} receiver does not support deleting property '{propertyKey}'",
+                    realm: realm);
+            }
+
+            return;
+        }
+
+        if (!objectLike.Delete(propertyKey) && propertyExisted)
+        {
+            throw ThrowTypeError($"{methodName} could not delete property '{propertyKey}'", realm: realm);
+        }
+    }
+
+    private static bool IsConcatSpreadable(object? candidate, RealmState? realm, out IJsPropertyAccessor accessor)
+    {
+        accessor = null!;
+        if (candidate is not IJsPropertyAccessor propertyAccessor)
+        {
+            return false;
+        }
+
+        if (propertyAccessor.TryGetProperty(SymbolIsConcatSpreadableKey, out var spreadableValue) &&
+            !ReferenceEquals(spreadableValue, Symbol.Undefined))
+        {
+            if (JsOps.IsTruthy(spreadableValue))
+            {
+                accessor = propertyAccessor;
+                return true;
+            }
+
+            return false;
+        }
+
+        if (candidate is JsArray)
+        {
+            accessor = propertyAccessor;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryGetArrayForFlatten(object? candidate, RealmState? realm, out IJsPropertyAccessor accessor)
+    {
+        accessor = null!;
+        if (candidate is not IJsPropertyAccessor propertyAccessor)
+        {
+            return false;
+        }
+
+        var inspected = candidate;
+        while (inspected is JsProxy proxy)
+        {
+            if (proxy.Handler is null)
+            {
+                throw ThrowTypeError("Cannot perform 'isArray' with a revoked Proxy", realm: realm);
+            }
+
+            inspected = proxy.Target;
+        }
+
+        if (inspected is JsArray jsArray)
+        {
+            if (jsArray.TryGetProperty("__arguments__", out var isArgs) && isArgs is true)
+            {
+                return false;
+            }
+
+            accessor = propertyAccessor;
+            return true;
+        }
+
+        if (inspected is JsObject obj && realm?.ArrayPrototype is not null &&
+            ReferenceEquals(obj, realm.ArrayPrototype))
+        {
+            accessor = propertyAccessor;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static void CopyArrayElement(IJsPropertyAccessor source, long sourceIndex, IJsPropertyAccessor target,
+        long targetIndex)
+    {
+        var sourceKey = ToIndexString(sourceIndex);
+        var targetKey = ToIndexString(targetIndex);
+
+        if (source.TryGetProperty(sourceKey, out var value))
+        {
+            target.SetProperty(targetKey, value);
+            return;
+        }
+
+        if (target is IJsObjectLike targetLike)
+        {
+            targetLike.Delete(targetKey);
+        }
+        else
+        {
+            target.SetProperty(targetKey, Symbol.Undefined);
+        }
+    }
+
+    private static long FlattenIntoArray(IJsPropertyAccessor target, IJsPropertyAccessor source, long sourceLength,
+        long targetIndex, long depth, IJsCallable? mapper, object? thisArg, RealmState? realm)
+    {
+        for (long k = 0; k < sourceLength; k++)
+        {
+            var key = ToIndexString(k);
+            if (!source.TryGetProperty(key, out var element))
+            {
+                continue;
+            }
+
+            object? mappedValue = element;
+            if (mapper is not null)
+            {
+                mappedValue = mapper.Invoke([element, (double)k, source], thisArg ?? Symbol.Undefined);
+            }
+
+        if (depth > 0 && TryGetArrayForFlatten(mappedValue, realm, out var flattenAccessor))
+        {
+            var lengthValue = flattenAccessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+            var elementLength = (long)ToLengthOrZero(lengthValue);
+            targetIndex = FlattenIntoArray(target, flattenAccessor, elementLength, targetIndex, depth - 1, null, null,
+                realm);
+            continue;
+        }
+
+            if (targetIndex >= MaxArrayLength)
+            {
+                throw ThrowTypeError("Flattened array exceeds maximum length", realm: realm);
+            }
+
+            target.SetProperty(ToIndexString(targetIndex), mappedValue);
+            targetIndex++;
+        }
+
+        return targetIndex;
+    }
+
+    private static void SetArrayLikeLength(IJsPropertyAccessor target, long length)
+    {
+        target.SetProperty("length", (double)Math.Max(length, 0));
+    }
+
+    private static (IJsPropertyAccessor Accessor, long Length, IJsCallable Callback, object? ThisArg)
+        PrepareArrayIteration(object? receiver, IReadOnlyList<object?> args, RealmState? realm, string methodName)
+    {
+        var accessor = EnsureArrayLikeReceiver(receiver, methodName, realm);
+        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            throw ThrowTypeError($"{methodName} expects a callable callback", realm: realm);
+        }
+
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var length = (long)ToLengthOrZero(lengthValue);
+        var thisArg = args.Count > 1 ? args[1] : Symbol.Undefined;
+        return (accessor, length, callback, thisArg);
+    }
+
+    private static string ToIndexString(long index)
+    {
+        return index.ToString(CultureInfo.InvariantCulture);
+    }
+
     private static double ToLengthOrZero(object? value, EvaluationContext? context = null)
     {
         var number = JsOps.ToNumberWithContext(value, context);
@@ -1685,11 +2300,11 @@ public static partial class StandardLibrary
 
         if (double.IsPositiveInfinity(number))
         {
-            return 9007199254740991d; // 2^53 - 1
+            return MaxArrayLength;
         }
 
         var truncated = Math.Floor(number);
-        return truncated > 9007199254740991d ? 9007199254740991d : truncated;
+        return truncated > MaxArrayLength ? MaxArrayLength : truncated;
     }
 
     private static double ToIntegerOrInfinity(object? value, EvaluationContext? context = null)
@@ -1711,6 +2326,28 @@ public static partial class StandardLibrary
         }
 
         return Math.Sign(number) * Math.Floor(Math.Abs(number));
+    }
+
+    private static long ClampRelativeIndex(double index, long length)
+    {
+        if (double.IsNegativeInfinity(index))
+        {
+            return 0;
+        }
+
+        if (double.IsPositiveInfinity(index))
+        {
+            return length;
+        }
+
+        var integer = (long)Math.Truncate(index);
+        if (integer < 0)
+        {
+            var relative = length + integer;
+            return relative < 0 ? 0 : relative;
+        }
+
+        return integer > length ? length : integer;
     }
 
     internal static object? ReduceLike(object? thisValue, IReadOnlyList<object?> args, RealmState? realm,

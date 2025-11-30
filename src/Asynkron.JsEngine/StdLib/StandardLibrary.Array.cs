@@ -666,26 +666,7 @@ public static partial class StandardLibrary
             firstElement = firstValue;
         }
 
-        for (long k = 1; k < length; k++)
-        {
-            var fromKey = ToIndexString(k);
-            var toKey = ToIndexString(k - 1);
-            var fromExists = TryGetExistingElement(accessor, fromKey, out var fromValue);
-            if (fromExists)
-            {
-                accessor.SetProperty(toKey, fromValue);
-            }
-            else
-            {
-                var toExists = HasProperty(accessor, toKey);
-                DeletePropertyOrThrow(objectLike, toKey, toExists, MethodName, realm);
-            }
-        }
-
-        var lastKey = ToIndexString(length - 1);
-        var lastExists = HasProperty(accessor, lastKey);
-        DeletePropertyOrThrow(objectLike, lastKey, lastExists, MethodName, realm);
-        accessor.SetProperty("length", (double)(length - 1));
+        MoveArrayRange(accessor, objectLike, MethodName, length, 1, length - 1, -1, -1, realm);
         return firstElement;
     }
 
@@ -698,34 +679,13 @@ public static partial class StandardLibrary
         var length = (long)ToLengthOrZero(lengthValue);
         var argCount = args.Count;
 
-        if (length + argCount > MaxArrayLength)
-        {
-            throw ThrowTypeError("Array.prototype.unshift cannot exceed 2^53 - 1 elements", realm: realm);
-        }
-
-        for (long k = length - 1; k >= 0; k--)
-        {
-            var fromKey = ToIndexString(k);
-            var toKey = ToIndexString(k + argCount);
-            var fromExists = TryGetExistingElement(accessor, fromKey, out var fromValue);
-            if (fromExists)
-            {
-                accessor.SetProperty(toKey, fromValue);
-            }
-            else
-            {
-                var toExists = HasProperty(accessor, toKey);
-                DeletePropertyOrThrow(objectLike, toKey, toExists, MethodName, realm);
-            }
-        }
-
+        var newLength = MoveArrayRange(accessor, objectLike, MethodName, length, 0, length, argCount, argCount, realm,
+            overflowMessage: "Array.prototype.unshift cannot exceed 2^53 - 1 elements");
         for (var j = 0; j < argCount; j++)
         {
             accessor.SetProperty(ToIndexString(j), args[j]);
         }
 
-        var newLength = length + argCount;
-        accessor.SetProperty("length", (double)newLength);
         return (double)newLength;
     }
 
@@ -772,12 +732,6 @@ public static partial class StandardLibrary
             actualDeleteCount = (long)bounded;
         }
 
-        var newLength = length - actualDeleteCount + insertCount;
-        if (newLength > MaxArrayLength)
-        {
-            throw ThrowRangeError("Array length exceeds 2^53 - 1", realm: realm);
-        }
-
         var result = ArraySpeciesCreate(thisValue, actualDeleteCount, realm);
         for (long k = 0; k < actualDeleteCount; k++)
         {
@@ -786,53 +740,11 @@ public static partial class StandardLibrary
 
         SetArrayLikeLength(result, actualDeleteCount);
 
-        if (insertCount < actualDeleteCount)
-        {
-            for (long k = actualStart; k < length - actualDeleteCount; k++)
-            {
-                var from = k + actualDeleteCount;
-                var to = k + insertCount;
-                var fromKey = ToIndexString(from);
-                var toKey = ToIndexString(to);
-
-                if (TryGetExistingElement(accessor, fromKey, out var fromValue))
-                {
-                    accessor.SetProperty(toKey, fromValue);
-                }
-                else
-                {
-                    var toExists = HasProperty(accessor, toKey);
-                    DeletePropertyOrThrow(objectLike, toKey, toExists, MethodName, realm);
-                }
-            }
-
-            for (long k = length; k > length - (actualDeleteCount - insertCount); k--)
-            {
-                var key = ToIndexString(k - 1);
-                var existed = HasProperty(accessor, key);
-                DeletePropertyOrThrow(objectLike, key, existed, MethodName, realm);
-            }
-        }
-        else if (insertCount > actualDeleteCount)
-        {
-            for (long k = length - actualDeleteCount; k > actualStart; k--)
-            {
-                var from = k + actualDeleteCount - 1;
-                var to = k + insertCount - 1;
-                var fromKey = ToIndexString(from);
-                var toKey = ToIndexString(to);
-
-                if (TryGetExistingElement(accessor, fromKey, out var fromValue))
-                {
-                    accessor.SetProperty(toKey, fromValue);
-                }
-                else
-                {
-                    var toExists = HasProperty(accessor, toKey);
-                    DeletePropertyOrThrow(objectLike, toKey, toExists, MethodName, realm);
-                }
-            }
-        }
+        var lengthDelta = insertCount - actualDeleteCount;
+        var tailStart = actualStart + actualDeleteCount;
+        var tailCount = Math.Max(length - tailStart, 0);
+        var newLength = MoveArrayRange(accessor, objectLike, MethodName, length, tailStart, tailCount, lengthDelta,
+            lengthDelta, realm, overflowIsRangeError: true);
 
         for (var j = 0; j < insertCount; j++)
         {
@@ -2520,6 +2432,73 @@ public static partial class StandardLibrary
 
         receiver.SetProperty("length", (double)Math.Max(length, 0));
         return receiver;
+    }
+
+    private static long MoveArrayRange(IJsPropertyAccessor accessor, IJsObjectLike? objectLike, string methodName,
+        long length, long sourceStart, long sourceCount, long destinationOffset, long lengthDelta, RealmState? realm,
+        bool overflowIsRangeError = false, string? overflowMessage = null, bool updateLength = true)
+    {
+        var newLength = length + lengthDelta;
+        if (newLength > MaxArrayLength)
+        {
+            var errorMessage = overflowMessage ?? "Array length exceeds 2^53 - 1";
+            if (overflowIsRangeError)
+            {
+                throw ThrowRangeError(errorMessage, realm: realm);
+            }
+
+            throw ThrowTypeError(errorMessage, realm: realm);
+        }
+
+        if (sourceCount > 0 && destinationOffset != 0)
+        {
+            if (destinationOffset > 0)
+            {
+                for (long k = sourceStart + sourceCount - 1; k >= sourceStart; k--)
+                {
+                    MoveSingleIndex(k, destinationOffset);
+                }
+            }
+            else
+            {
+                for (long k = sourceStart; k < sourceStart + sourceCount; k++)
+                {
+                    MoveSingleIndex(k, destinationOffset);
+                }
+            }
+        }
+
+        if (lengthDelta < 0)
+        {
+            for (long k = length; k > newLength; k--)
+            {
+                var key = ToIndexString(k - 1);
+                var existed = HasProperty(accessor, key);
+                DeletePropertyOrThrow(objectLike, key, existed, methodName, realm);
+            }
+        }
+
+        if (updateLength)
+        {
+            accessor.SetProperty("length", (double)newLength);
+        }
+
+        return newLength;
+
+        void MoveSingleIndex(long fromIndex, long offset)
+        {
+            var toIndex = fromIndex + offset;
+            var fromKey = ToIndexString(fromIndex);
+            var toKey = ToIndexString(toIndex);
+            if (TryGetExistingElement(accessor, fromKey, out var value))
+            {
+                accessor.SetProperty(toKey, value);
+                return;
+            }
+
+            var toExisted = HasProperty(accessor, toKey);
+            DeletePropertyOrThrow(objectLike, toKey, toExisted, methodName, realm);
+        }
     }
 
     private static void DeletePropertyOrThrow(IJsObjectLike? objectLike, string propertyKey, bool propertyExisted,

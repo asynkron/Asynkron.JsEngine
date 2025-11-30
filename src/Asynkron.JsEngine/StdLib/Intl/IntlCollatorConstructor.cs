@@ -33,10 +33,13 @@ public sealed partial class IntlCollatorConstructor(JsObject prototype, RealmSta
             {
                 Value = supportedLocalesOf, Writable = true, Enumerable = false, Configurable = true
             });
+
+        supportedLocalesOf.SetPrototype(constructor.Prototype);
+        supportedLocalesOf.Delete("prototype");
     }
 
     private JsArray SupportedLocalesOf(IReadOnlyList<object?> args)
     {
-        return StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), Realm);
+        return StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
     }
 }

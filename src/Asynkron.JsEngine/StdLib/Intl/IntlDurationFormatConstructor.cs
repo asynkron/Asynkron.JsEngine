@@ -22,7 +22,7 @@ public sealed partial class IntlDurationFormatConstructor(JsObject prototype, Re
     protected override void ConfigureConstructor(HostFunction constructor)
     {
         var supportedLocales = new HostFunction(
-            args => StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), Realm),
+            args => StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm),
             isConstructor: false);
 
         supportedLocales.DefineProperty("length",
@@ -38,5 +38,8 @@ public sealed partial class IntlDurationFormatConstructor(JsObject prototype, Re
             {
                 Value = supportedLocales, Writable = true, Enumerable = false, Configurable = true
             });
+
+        supportedLocales.SetPrototype(constructor.Prototype);
+        supportedLocales.Delete("prototype");
     }
 }

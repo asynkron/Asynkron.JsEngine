@@ -20,7 +20,7 @@ public sealed partial class IntlDisplayNamesPrototype
     private static readonly HashSet<string> DateTimeFieldValues = new(StringComparer.Ordinal)
     {
         "era", "year", "quarter", "month", "weekOfYear", "weekday", "day",
-        "dayPeriod", "hour", "minute", "second", "relative"
+        "dayPeriod", "hour", "minute", "second", "relative", "timeZoneName"
     };
 
     internal static void InitializeInternalSlots(JsObject instance, string locale, string style, string type,
@@ -195,6 +195,17 @@ public sealed partial class IntlDisplayNamesPrototype
     private static bool IsUnicodeTypeIdentifier(string value)
     {
         if (string.IsNullOrEmpty(value))
+        {
+            return false;
+        }
+
+        if (!value.Equals(value.Trim(), StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (value[0] == '-' || value[^1] == '-' ||
+            value.Contains("--", StringComparison.Ordinal))
         {
             return false;
         }

@@ -16,6 +16,8 @@
 
   <ItemGroup>
     <EmbeddedResource Include="StdLib/Intl/IntlLocaleData.json" />
+    <EmbeddedResource Include="StdLib/Intl/IntlLikelySubtags.json" />
+    <EmbeddedResource Include="StdLib/Intl/IntlWeekData.json" />
   </ItemGroup>
 
 </Project>

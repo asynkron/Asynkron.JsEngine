@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -46,6 +47,9 @@ internal static class IntlUtilities
     private static readonly Lazy<HashSet<string>> CurrencySet =
         new(() => new HashSet<string>(CurrencyValues.Value, StringComparer.Ordinal));
     private static readonly Lazy<TimeZoneRegistry> TimeZoneRegistryCache = new(BuildSupportedTimeZones);
+    private static readonly RealmState CanonicalizationRealm = new() { Options = Asynkron.JsEngine.JsEngineOptions.Default };
+    private static readonly Lazy<HashSet<string>> AvailableLocales = new(BuildAvailableLocales);
+    private static readonly Lazy<string> DefaultLocale = new(DetermineDefaultLocale);
 
     static IntlUtilities()
     {
@@ -175,12 +179,38 @@ internal static class IntlUtilities
 
     public static string ResolveRequestedLocale(IReadOnlyList<string> requestedLocales)
     {
-        if (requestedLocales.Count > 0)
+        foreach (var locale in requestedLocales)
         {
-            return requestedLocales[0];
+            var baseName = RemoveUnicodeExtensions(locale);
+            var match = BestAvailableLocale(baseName);
+            if (match is not null)
+            {
+                var extension = ExtractUnicodeExtension(locale);
+                return extension.Length == 0 ? match : match + extension;
+            }
         }
 
-        return CultureInfo.CurrentCulture.Name;
+        return DefaultLocale.Value;
+    }
+
+    public static IReadOnlyList<string> FilterSupportedLocales(IReadOnlyList<string> requestedLocales)
+    {
+        if (requestedLocales.Count == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        var supported = new List<string>(requestedLocales.Count);
+        foreach (var locale in requestedLocales)
+        {
+            var baseName = RemoveUnicodeExtensions(locale);
+            if (BestAvailableLocale(baseName) is not null)
+            {
+                supported.Add(locale);
+            }
+        }
+
+        return supported;
     }
 
     public static string NormalizeTimeZone(object? option, RealmState realm)
@@ -722,6 +752,123 @@ internal static class IntlUtilities
         }
 
         return string.Join("-", subtags, start, endExclusive - start);
+    }
+
+    private static string DetermineDefaultLocale()
+    {
+        var cultureName = CultureInfo.CurrentCulture.Name;
+        if (string.IsNullOrEmpty(cultureName))
+        {
+            return "en";
+        }
+
+        if (TryCanonicalizeLocaleTag(cultureName, out var canonical))
+        {
+            var baseName = RemoveUnicodeExtensions(canonical);
+            var match = BestAvailableLocale(baseName);
+            return match ?? canonical;
+        }
+
+        return "en";
+    }
+
+    private static HashSet<string> BuildAvailableLocales()
+    {
+        var set = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var culture in CultureInfo.GetCultures(CultureTypes.AllCultures))
+        {
+            if (string.IsNullOrEmpty(culture.Name))
+            {
+                continue;
+            }
+
+            if (!TryCanonicalizeLocaleTag(culture.Name, out var canonical))
+            {
+                continue;
+            }
+
+            var baseName = RemoveUnicodeExtensions(canonical);
+            if (!string.IsNullOrEmpty(baseName))
+            {
+                set.Add(baseName);
+            }
+        }
+
+        if (!set.Contains("en"))
+        {
+            set.Add("en");
+        }
+
+        return set;
+    }
+
+    private static bool TryCanonicalizeLocaleTag(string locale, out string canonical)
+    {
+        try
+        {
+            canonical = CanonicalizeLocale(locale, CanonicalizationRealm);
+            return true;
+        }
+        catch (ThrowSignal)
+        {
+            canonical = string.Empty;
+            return false;
+        }
+    }
+
+    private static string RemoveUnicodeExtensions(string locale)
+    {
+        var unicodeIndex = locale.IndexOf("-u-", StringComparison.Ordinal);
+        if (unicodeIndex >= 0)
+        {
+            locale = locale[..unicodeIndex];
+        }
+
+        var privateIndex = locale.IndexOf("-x-", StringComparison.Ordinal);
+        if (privateIndex >= 0)
+        {
+            locale = locale[..privateIndex];
+        }
+
+        return locale;
+    }
+
+    private static string ExtractUnicodeExtension(string locale)
+    {
+        var unicodeIndex = locale.IndexOf("-u-", StringComparison.Ordinal);
+        if (unicodeIndex < 0)
+        {
+            return string.Empty;
+        }
+
+        return locale[unicodeIndex..];
+    }
+
+    private static string? BestAvailableLocale(string locale)
+    {
+        var candidate = locale;
+        var available = AvailableLocales.Value;
+
+        while (true)
+        {
+            if (available.Contains(candidate))
+            {
+                return candidate;
+            }
+
+            var pos = candidate.LastIndexOf('-');
+            if (pos < 0)
+            {
+                return null;
+            }
+
+            if (pos >= 2 && candidate[pos - 2] == '-')
+            {
+                pos -= 2;
+            }
+
+            candidate = candidate[..pos];
+        }
     }
 
     internal static string ApplyUnicodeLocaleOverrides(string baseTag, IReadOnlyDictionary<string, string> overrides)

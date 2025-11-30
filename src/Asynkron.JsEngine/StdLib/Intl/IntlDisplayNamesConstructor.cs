@@ -45,7 +45,7 @@ public sealed partial class IntlDisplayNamesConstructor(JsObject prototype, Real
     {
         var supportedLocalesOf = new HostFunction((_, args) =>
         {
-            return StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), Realm);
+            return StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
         }, isConstructor: false);
 
         supportedLocalesOf.DefineProperty("length",

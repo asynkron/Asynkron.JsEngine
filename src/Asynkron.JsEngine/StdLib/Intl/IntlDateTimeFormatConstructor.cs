@@ -207,7 +207,7 @@ public sealed partial class IntlDateTimeFormatConstructor(JsObject prototype, Re
     {
         var supportedLocales = new HostFunction((_, args) =>
         {
-            return StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), Realm);
+            return StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
         }, isConstructor: false);
 
         supportedLocales.DefineProperty("length",
@@ -223,5 +223,8 @@ public sealed partial class IntlDateTimeFormatConstructor(JsObject prototype, Re
             {
                 Value = supportedLocales, Writable = true, Enumerable = false, Configurable = true
             });
+
+        supportedLocales.SetPrototype(constructor.Prototype);
+        supportedLocales.Delete("prototype");
     }
 }

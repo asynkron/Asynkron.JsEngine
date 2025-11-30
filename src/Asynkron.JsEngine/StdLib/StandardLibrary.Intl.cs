@@ -146,10 +146,19 @@ public static partial class StandardLibrary
         return result;
     }
 
-    internal static JsArray ResolveSupportedLocales(object? localesArg, RealmState realm)
+    internal static JsArray ResolveSupportedLocales(object? localesArg, object? optionsArg, RealmState realm)
     {
-        var (requestedLocales, _) = ResolveIntlLocales(localesArg, realm);
-        return CreateLocaleArray(requestedLocales, realm);
+        var requestedLocales = IntlUtilities.CanonicalizeLocaleList(localesArg, realm);
+        var options = IntlOptionHelpers.GetOptionsObject(optionsArg, realm, "supportedLocalesOf");
+        var _ = IntlOptionHelpers.GetStringOption(
+            options,
+            "localeMatcher",
+            realm,
+            "supportedLocalesOf",
+            ["lookup", "best fit"],
+            "best fit");
+        var supported = IntlUtilities.FilterSupportedLocales(requestedLocales);
+        return CreateLocaleArray(supported, realm);
     }
 
     public static JsObject CreateTemporalObject(RealmState realm)

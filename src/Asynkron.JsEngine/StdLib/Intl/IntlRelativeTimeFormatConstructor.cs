@@ -30,7 +30,7 @@ public sealed partial class IntlRelativeTimeFormatConstructor(JsObject prototype
     protected override void ConfigureConstructor(HostFunction constructor)
     {
         var supportedLocalesOf = new HostFunction(
-            (_, args) => StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), Realm),
+            (_, args) => StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm),
             isConstructor: false);
 
         supportedLocalesOf.DefineProperty("length",
@@ -46,6 +46,9 @@ public sealed partial class IntlRelativeTimeFormatConstructor(JsObject prototype
             {
                 Value = supportedLocalesOf, Writable = true, Enumerable = false, Configurable = true
             });
+
+        supportedLocalesOf.SetPrototype(constructor.Prototype);
+        supportedLocalesOf.Delete("prototype");
     }
 
     private JsObject? NormalizeOptions(object? optionsArg)

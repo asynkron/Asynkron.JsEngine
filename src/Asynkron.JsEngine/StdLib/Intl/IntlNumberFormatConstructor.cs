@@ -62,7 +62,7 @@ public sealed partial class IntlNumberFormatConstructor(JsObject prototype, Real
 
     private JsArray SupportedLocalesOf(IReadOnlyList<object?> args)
     {
-        return StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), Realm);
+        return StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
     }
 
     private JsObject? NormalizeOptions(object? optionsArg)

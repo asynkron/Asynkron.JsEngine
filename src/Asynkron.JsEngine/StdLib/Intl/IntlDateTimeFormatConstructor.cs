@@ -140,12 +140,12 @@ public sealed partial class IntlDateTimeFormatConstructor(JsObject prototype, Re
             throw StandardLibrary.ThrowTypeError("Intl.DateTimeFormat calendar option must be a string", realm: Realm);
         }
 
-        if (!string.Equals(calendar, "gregory", StringComparison.OrdinalIgnoreCase))
+        if (!IntlUtilities.TryNormalizeCalendar(calendar, out var canonical))
         {
             throw StandardLibrary.ThrowRangeError($"Unsupported calendar '{calendar}'", realm: Realm);
         }
 
-        return "gregory";
+        return canonical;
     }
 
     private string ReadNumberingSystem(JsObject? options)
@@ -162,7 +162,9 @@ public sealed partial class IntlDateTimeFormatConstructor(JsObject prototype, Re
                 "Intl.DateTimeFormat numberingSystem option must be a string", realm: Realm);
         }
 
-        return system;
+        return IntlUtilities.TryNormalizeNumberingSystem(system, out var canonical)
+            ? canonical
+            : "latn";
     }
 
     private string? ReadStyleOption(JsObject? options, string propertyName)

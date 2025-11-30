@@ -17,4 +17,15 @@ public sealed partial class IntlLocalePrototype
 
         return Symbol.Undefined;
     }
+
+    [JsHostGetter("numberingSystem", DisplayName = "get numberingSystem")]
+    private object? GetNumberingSystem(object? thisValue)
+    {
+        if (thisValue is JsObject self && self.TryGetProperty("__numberingSystem__", out var value))
+        {
+            return value;
+        }
+
+        return Symbol.Undefined;
+    }
 }

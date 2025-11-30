@@ -16,6 +16,7 @@ public sealed partial class IntlNumberFormatPrototype
     {
         instance.SetProperty(NumberFormatBrand, true);
         instance.SetProperty("__locale__", "en");
+        instance.SetProperty("__numberingSystem__", "latn");
         instance.SetProperty("__roundingMode__", "halfExpand");
         instance.SetProperty("__roundingIncrement__", 1d);
         instance.SetProperty("__minimumIntegerDigits__", 1d);
@@ -93,6 +94,8 @@ public sealed partial class IntlNumberFormatPrototype
     {
         var obj = new JsObject(Realm.ObjectPrototype);
         obj.SetProperty("locale", nf.TryGetProperty("__locale__", out var loc) ? loc ?? "en" : "en");
+        obj.SetProperty("numberingSystem",
+            nf.TryGetProperty("__numberingSystem__", out var ns) ? ns ?? "latn" : "latn");
         obj.SetProperty("roundingMode",
             nf.TryGetProperty("__roundingMode__", out var rm) && rm is not null ? rm : "halfExpand");
         obj.SetProperty("roundingIncrement",

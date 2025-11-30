@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -7,8 +9,27 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 
 internal static class IntlUtilities
 {
-    private static readonly string[] CalendarValues = ["gregory"];
+    private static readonly string[] CalendarValues =
+    [
+        "buddhist", "chinese", "coptic", "dangi", "ethioaa", "ethiopic", "gregory", "hebrew", "indian",
+        "islamic", "islamic-civil", "islamic-rgsa", "islamic-tbla", "islamic-umalqura", "iso8601", "japanese",
+        "persian", "roc"
+    ];
+    private static readonly HashSet<string> CalendarSet = new(CalendarValues, StringComparer.Ordinal);
+
+    private static readonly string[] NumberingSystemValues =
+    [
+        "adlm", "ahom", "arab", "arabext", "bali", "beng", "bhks", "brah", "cakm", "cham", "deva", "diak",
+        "fullwide", "gong", "gonm", "gujr", "guru", "hanidec", "hmng", "hmnp", "java", "kali", "kawi", "khmr",
+        "knda", "lana", "lanatham", "laoo", "latn", "lepc", "limb", "mathbold", "mathdbl", "mathmono",
+        "mathsanb", "mathsans", "mlym", "modi", "mong", "mroo", "mtei", "mymr", "mymrshan", "mymrtlng", "nagm",
+        "newa", "nkoo", "olck", "orya", "osma", "rohg", "saur", "segment", "shrd", "sind", "sinh", "sora",
+        "sund", "takr", "talu", "tamldec", "telu", "thai", "tibt", "tirh", "tnsa", "vaii", "wara", "wcho"
+    ];
+    private static readonly HashSet<string> NumberingSystemSet = new(NumberingSystemValues, StringComparer.Ordinal);
+
     private static readonly string[] EmptyValues = Array.Empty<string>();
+    private static readonly Lazy<TimeZoneRegistry> TimeZoneRegistryCache = new(BuildSupportedTimeZones);
 
     public static IReadOnlyList<string> CanonicalizeLocaleList(object? locales, RealmState realm)
     {
@@ -98,18 +119,29 @@ internal static class IntlUtilities
             throw StandardLibrary.ThrowTypeError("Intl.DateTimeFormat timeZone option must be a string", realm: realm);
         }
 
-        if (string.Equals(tzString, "UTC", StringComparison.OrdinalIgnoreCase))
+        if (TryCanonicalizeTimeZone(tzString, out var canonical))
         {
-            return TimeZoneInfo.Utc.Id;
+            return canonical;
         }
 
-        // For now, only allow the configured engine time zone to avoid platform-specific names.
         if (string.Equals(tzString, realm.Options.TimeZone.Id, StringComparison.OrdinalIgnoreCase))
         {
             return realm.Options.TimeZone.Id;
         }
 
         throw StandardLibrary.ThrowRangeError($"Unsupported timeZone '{tzString}'", realm: realm);
+    }
+
+    public static bool TryNormalizeCalendar(string calendar, out string canonical)
+    {
+        canonical = calendar?.Trim().ToLowerInvariant() ?? string.Empty;
+        return CalendarSet.Contains(canonical);
+    }
+
+    public static bool TryNormalizeNumberingSystem(string? numberingSystem, out string canonical)
+    {
+        canonical = numberingSystem?.Trim().ToLowerInvariant() ?? string.Empty;
+        return NumberingSystemSet.Contains(canonical);
     }
 
     public static IReadOnlyList<string> GetSupportedValues(string key, RealmState realm)
@@ -119,27 +151,128 @@ internal static class IntlUtilities
             "calendar" => CalendarValues,
             "collation" => EmptyValues,
             "currency" => EmptyValues,
-            "numberingSystem" => EmptyValues,
-            "timeZone" => BuildSupportedTimeZones(realm),
+            "numberingSystem" => NumberingSystemValues,
+            "timeZone" => GetTimeZoneValues(realm),
             "unit" => EmptyValues,
             _ => throw StandardLibrary.ThrowRangeError(
                 $"Unsupported Intl.supportedValuesOf key '{key}'", realm: realm)
         };
     }
 
-    private static IReadOnlyList<string> BuildSupportedTimeZones(RealmState realm)
+    private static IReadOnlyList<string> GetTimeZoneValues(RealmState realm)
     {
-        var zones = new SortedSet<string>(StringComparer.Ordinal)
+        var registry = TimeZoneRegistryCache.Value;
+        var requestedZone = realm.Options.TimeZone.Id;
+        if (string.IsNullOrEmpty(requestedZone))
         {
-            TimeZoneInfo.Utc.Id
-        };
-
-        var realmZone = realm.Options.TimeZone.Id;
-        if (!string.IsNullOrEmpty(realmZone))
-        {
-            zones.Add(realmZone);
+            return registry.Values;
         }
 
-        return zones.ToArray();
+        var canonical = CanonicalizeTimeZoneId(requestedZone);
+        if (registry.Members.Contains(canonical))
+        {
+            return registry.Values;
+        }
+
+        var copy = registry.Values.ToList();
+        copy.Add(canonical);
+        copy.Sort(StringComparer.Ordinal);
+        return copy;
+    }
+
+    private static bool TryCanonicalizeTimeZone(string id, out string canonical)
+    {
+        var registry = TimeZoneRegistryCache.Value;
+        if (registry.Lookup.TryGetValue(id, out canonical!))
+        {
+            return true;
+        }
+
+        var normalized = CanonicalizeTimeZoneId(id);
+        if (registry.Lookup.TryGetValue(normalized, out canonical!))
+        {
+            return true;
+        }
+
+        canonical = string.Empty;
+        return false;
+    }
+
+    private static TimeZoneRegistry BuildSupportedTimeZones()
+    {
+        var zones = new SortedSet<string>(StringComparer.Ordinal) { "UTC" };
+        var members = new HashSet<string>(StringComparer.Ordinal) { "UTC" };
+        var lookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["UTC"] = "UTC"
+        };
+
+        void AddZone(string? id)
+        {
+            if (string.IsNullOrEmpty(id))
+            {
+                return;
+            }
+
+            var canonical = CanonicalizeTimeZoneId(id);
+            if (zones.Add(canonical))
+            {
+                members.Add(canonical);
+            }
+
+            lookup[canonical] = canonical;
+            lookup[id] = canonical;
+        }
+
+        try
+        {
+            foreach (var tz in TimeZoneInfo.GetSystemTimeZones())
+            {
+                AddZone(tz.Id);
+            }
+        }
+        catch
+        {
+            // Fall back to the minimal UTC-only set on unsupported platforms.
+        }
+
+        foreach (var etcZone in BuildEtcGmtZones())
+        {
+            AddZone(etcZone);
+        }
+
+        return new TimeZoneRegistry(zones.ToArray(), members, lookup);
+    }
+
+    private static IEnumerable<string> BuildEtcGmtZones()
+    {
+        // Spec requires supporting the Etc/GMT +/- offsets along with UTC.
+        for (var offset = 1; offset <= 12; offset++)
+        {
+            yield return $"Etc/GMT+{offset}";
+        }
+
+        for (var offset = 1; offset <= 14; offset++)
+        {
+            yield return $"Etc/GMT-{offset}";
+        }
+    }
+
+    private static string CanonicalizeTimeZoneId(string id)
+    {
+        if (string.Equals(id, "UTC", StringComparison.OrdinalIgnoreCase))
+        {
+            return "UTC";
+        }
+
+        return id.Replace(' ', '_');
+    }
+
+    private sealed class TimeZoneRegistry(IReadOnlyList<string> values, HashSet<string> members,
+        Dictionary<string, string> lookup)
+    {
+        public IReadOnlyList<string> Values { get; } = values;
+        public HashSet<string> Members { get; } = members;
+        public Dictionary<string, string> Lookup { get; } = lookup;
     }
 }

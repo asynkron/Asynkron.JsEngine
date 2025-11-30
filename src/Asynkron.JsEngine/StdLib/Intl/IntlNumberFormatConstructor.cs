@@ -1,3 +1,4 @@
+using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -12,8 +13,18 @@ public sealed partial class IntlNumberFormatConstructor(JsObject prototype, Real
 {
     protected override JsObject ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
     {
+        var localesArg = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var optionsArg = args.Count > 1 ? args[1] : Symbol.Undefined;
+        var requestedLocales = IntlUtilities.CanonicalizeLocaleList(localesArg, Realm);
+        var resolvedLocale = requestedLocales.Count > 0
+            ? requestedLocales[0]
+            : CultureInfo.CurrentCulture.Name;
+        var numberingSystem = ReadNumberingSystem(optionsArg);
+
         var instance = PrepareThisObject(thisValue);
         IntlNumberFormatPrototype.InitializeInternalSlots(instance, Realm);
+        instance.SetProperty("__locale__", resolvedLocale);
+        instance.SetProperty("__numberingSystem__", numberingSystem);
         return instance;
     }
 
@@ -60,5 +71,39 @@ public sealed partial class IntlNumberFormatConstructor(JsObject prototype, Real
         result.Push(firstLocale);
         return result;
 
+    }
+
+    private string ReadNumberingSystem(object? optionsArg)
+    {
+        if (optionsArg is null)
+        {
+            throw StandardLibrary.ThrowTypeError("Intl.NumberFormat options must be an object", realm: Realm);
+        }
+
+        if (ReferenceEquals(optionsArg, Symbol.Undefined))
+        {
+            return "latn";
+        }
+
+        if (optionsArg is not JsObject options)
+        {
+            throw StandardLibrary.ThrowTypeError("Intl.NumberFormat options must be an object", realm: Realm);
+        }
+
+        if (!options.TryGetProperty("numberingSystem", out var rawValue) ||
+            rawValue is null || ReferenceEquals(rawValue, Symbol.Undefined))
+        {
+            return "latn";
+        }
+
+        if (rawValue is not string numberingSystem)
+        {
+            throw StandardLibrary.ThrowTypeError(
+                "Intl.NumberFormat numberingSystem option must be a string", realm: Realm);
+        }
+
+        return IntlUtilities.TryNormalizeNumberingSystem(numberingSystem, out var canonical)
+            ? canonical
+            : "latn";
     }
 }

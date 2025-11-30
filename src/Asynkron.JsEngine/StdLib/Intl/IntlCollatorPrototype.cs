@@ -19,7 +19,7 @@ public sealed partial class IntlCollatorPrototype
     }
 
     [JsHostMethod("compare", Length = 2d)]
-    public double Compare(object? thisValue, IReadOnlyList<object?> args)
+    private double Compare(object? thisValue, IReadOnlyList<object?> args)
     {
         ValidateCollatorReceiver(thisValue);
         var first = args.Count > 0 ? JsValueToString(args[0]) : string.Empty;
@@ -33,7 +33,7 @@ public sealed partial class IntlCollatorPrototype
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    public JsObject ResolvedOptions(object? thisValue, IReadOnlyList<object?> _)
+    private JsObject ResolvedOptions(object? thisValue, IReadOnlyList<object?> _)
     {
         var collator = ValidateCollatorReceiver(thisValue);
         var options = new JsObject(Realm.ObjectPrototype);

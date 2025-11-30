@@ -20,9 +20,17 @@ public sealed partial class IntlLocaleConstructor : JsConstructor
             instance.SetProperty("__tag__", tag);
         }
 
-        if (args.Count > 1 && args[1] is JsObject options && options.TryGetProperty("calendar", out var calendar))
+        if (args.Count > 1 && args[1] is JsObject options)
         {
-            instance.SetProperty("__calendar__", calendar);
+            if (options.TryGetProperty("calendar", out var calendar))
+            {
+                instance.SetProperty("__calendar__", calendar);
+            }
+
+            if (options.TryGetProperty("numberingSystem", out var numberingSystem))
+            {
+                instance.SetProperty("__numberingSystem__", numberingSystem);
+            }
         }
 
         return instance;

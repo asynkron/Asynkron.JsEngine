@@ -49,12 +49,8 @@ public sealed partial class IntlCollatorPrototype
 
     private JsObject ValidateCollatorReceiver(object? thisValue)
     {
-        if (thisValue is JsObject obj && obj.TryGetProperty(CollatorBrand, out var marker) && marker is true)
-        {
-            return obj;
-        }
-
-        throw ThrowTypeError("Intl.Collator method called on incompatible receiver", realm: Realm);
+        return thisValue.EnsureBrand(CollatorBrand, Realm,
+            "Intl.Collator method called on incompatible receiver");
     }
 
 }

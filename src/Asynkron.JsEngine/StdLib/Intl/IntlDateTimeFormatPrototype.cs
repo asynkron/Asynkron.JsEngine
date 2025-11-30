@@ -19,7 +19,7 @@ public sealed partial class IntlDateTimeFormatPrototype
     }
 
     [JsHostGetter("format", DisplayName = "get format")]
-    public object GetFormat(object? thisValue)
+    private HostFunction GetFormat(object? thisValue)
     {
         var slotData = ValidateReceiver(thisValue, out _);
         return new HostFunction(
@@ -28,7 +28,7 @@ public sealed partial class IntlDateTimeFormatPrototype
     }
 
     [JsHostMethod("formatToParts", Length = 1d)]
-    public JsArray FormatToParts(object? thisValue, IReadOnlyList<object?> args)
+    private JsArray FormatToParts(object? thisValue, IReadOnlyList<object?> args)
     {
         var slotData = ValidateReceiver(thisValue, out _);
         var formatted = FormatInternal(args.Count > 0 ? args[0] : Symbol.Undefined, slotData);
@@ -41,7 +41,7 @@ public sealed partial class IntlDateTimeFormatPrototype
     }
 
     [JsHostMethod("formatRange", Length = 2d)]
-    public string FormatRange(object? thisValue, IReadOnlyList<object?> args)
+    private string FormatRange(object? thisValue, IReadOnlyList<object?> args)
     {
         var slotData = ValidateReceiver(thisValue, out _);
         var start = FormatInternal(args.Count > 0 ? args[0] : Symbol.Undefined, slotData);
@@ -50,7 +50,7 @@ public sealed partial class IntlDateTimeFormatPrototype
     }
 
     [JsHostMethod("formatRangeToParts", Length = 2d)]
-    public JsArray FormatRangeToParts(object? thisValue, IReadOnlyList<object?> args)
+    private JsArray FormatRangeToParts(object? thisValue, IReadOnlyList<object?> args)
     {
         var slotData = ValidateReceiver(thisValue, out _);
         var start = FormatInternal(args.Count > 0 ? args[0] : Symbol.Undefined, slotData);
@@ -63,7 +63,7 @@ public sealed partial class IntlDateTimeFormatPrototype
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    public JsObject ResolvedOptions(object? thisValue, IReadOnlyList<object?> _unused)
+    private JsObject ResolvedOptions(object? thisValue, IReadOnlyList<object?> _unused)
     {
         var slots = ValidateReceiver(thisValue, out _);
         var obj = new JsObject(Realm.ObjectPrototype);
@@ -87,10 +87,9 @@ public sealed partial class IntlDateTimeFormatPrototype
 
     private DateTimeFormatInternalSlots ValidateReceiver(object? thisValue, out JsObject instance)
     {
-        if (thisValue is not JsObject obj ||
-            !obj.TryGetProperty(BrandKey, out var marker) ||
-            marker is not true ||
-            !obj.TryGetProperty(SlotsKey, out var slotValue) ||
+        var obj = thisValue.EnsureBrand(BrandKey, Realm,
+            "Intl.DateTimeFormat method called on incompatible receiver");
+        if (!obj.TryGetProperty(SlotsKey, out var slotValue) ||
             slotValue is not DateTimeFormatInternalSlots slots)
         {
             throw StandardLibrary.ThrowTypeError("Intl.DateTimeFormat method called on incompatible receiver",
@@ -156,23 +155,4 @@ public sealed partial class IntlDateTimeFormatPrototype
         }
     }
 
-}
-
-internal sealed class DateTimeFormatInternalSlots
-{
-    public static readonly string[] ComponentNames =
-    [
-        "weekday", "era", "year", "month", "day", "hour", "minute", "second", "timeZoneName"
-    ];
-
-    public string Locale { get; init; } = CultureInfo.CurrentCulture.Name;
-    public string TimeZone { get; init; } = TimeZoneInfo.Utc.Id;
-    public string Calendar { get; init; } = "gregory";
-    public string NumberingSystem { get; init; } = "latn";
-    public string HourCycle { get; init; } = "h23";
-    public string LocaleMatcher { get; init; } = "best fit";
-    public string FormatMatcher { get; init; } = "best fit";
-    public string? DateStyle { get; init; }
-    public string? TimeStyle { get; init; }
-    public Dictionary<string, string> Components { get; } = new();
 }

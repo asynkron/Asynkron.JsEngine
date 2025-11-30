@@ -59,12 +59,8 @@ public sealed partial class IntlNumberFormatPrototype
 
     private JsObject ValidateNumberFormatReceiver(object? thisValue)
     {
-        if (thisValue is JsObject obj && obj.TryGetProperty(NumberFormatBrand, out var marker) && marker is true)
-        {
-            return obj;
-        }
-
-        throw ThrowTypeError("Intl.NumberFormat method called on incompatible receiver", realm: Realm);
+        return thisValue.EnsureBrand(NumberFormatBrand, Realm,
+            "Intl.NumberFormat method called on incompatible receiver");
     }
 
     private string FormatNumberValue(object? value)

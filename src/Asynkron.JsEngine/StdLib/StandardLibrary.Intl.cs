@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -83,13 +84,7 @@ public static partial class StandardLibrary
         {
             var localesArg = args.GetArgument(0);
             var canonicalized = IntlUtilities.CanonicalizeLocaleList(localesArg, realm);
-            var result = new JsArray(realm);
-            foreach (var locale in canonicalized)
-            {
-                result.Push(locale);
-            }
-
-            return result;
+            return CreateLocaleArray(canonicalized, realm);
         }
 
         JsArray CreateSupportedValuesResult(IReadOnlyList<object?> args)
@@ -102,9 +97,34 @@ public static partial class StandardLibrary
             {
                 result.Push(value);
             }
-
             return result;
         }
+    }
+
+    internal static (IReadOnlyList<string> RequestedLocales, string ResolvedLocale) ResolveIntlLocales(
+        object? localesArg,
+        RealmState realm)
+    {
+        var requestedLocales = IntlUtilities.CanonicalizeLocaleList(localesArg, realm);
+        var resolvedLocale = IntlUtilities.ResolveRequestedLocale(requestedLocales);
+        return (requestedLocales, resolvedLocale);
+    }
+
+    internal static JsArray CreateLocaleArray(IEnumerable<string> locales, RealmState realm)
+    {
+        var result = new JsArray(realm);
+        foreach (var locale in locales)
+        {
+            result.Push(locale);
+        }
+
+        return result;
+    }
+
+    internal static JsArray ResolveSupportedLocales(object? localesArg, RealmState realm)
+    {
+        var (requestedLocales, _) = ResolveIntlLocales(localesArg, realm);
+        return CreateLocaleArray(requestedLocales, realm);
     }
 
     public static JsObject CreateTemporalObject(RealmState realm)

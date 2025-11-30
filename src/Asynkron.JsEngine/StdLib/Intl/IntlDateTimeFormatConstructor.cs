@@ -24,10 +24,7 @@ public sealed partial class IntlDateTimeFormatConstructor(JsObject prototype, Re
 
     private DateTimeFormatInternalSlots CreateInternalSlots(object? localesArg, object? optionsArg)
     {
-        var requestedLocales = IntlUtilities.CanonicalizeLocaleList(localesArg, Realm);
-        var resolvedLocale = requestedLocales.Count > 0
-            ? requestedLocales[0]
-            : CultureInfo.CurrentCulture.Name;
+        var (_, resolvedLocale) = StandardLibrary.ResolveIntlLocales(localesArg, Realm);
 
         var options = NormalizeOptions(optionsArg);
         var localeMatcher = ReadStringOption(
@@ -210,15 +207,7 @@ public sealed partial class IntlDateTimeFormatConstructor(JsObject prototype, Re
     {
         var supportedLocales = new HostFunction((_, args) =>
         {
-            var localeList = IntlUtilities.CanonicalizeLocaleList(
-                args.GetArgument(0),
-                Realm);
-            var result = new JsArray(Realm);
-            foreach (var locale in localeList)
-            {
-                result.Push(locale);
-            }
-            return result;
+            return StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), Realm);
         }, isConstructor: false);
 
         supportedLocales.DefineProperty("length",

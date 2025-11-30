@@ -11,8 +11,9 @@ public sealed partial class IntlCollatorConstructor(JsObject prototype, RealmSta
 {
     protected override JsObject ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
     {
+        var (_, resolvedLocale) = StandardLibrary.ResolveIntlLocales(args.GetArgument(0), Realm);
         var instance = PrepareThisObject(thisValue);
-        IntlCollatorPrototype.InitializeInternalSlots(instance);
+        IntlCollatorPrototype.InitializeInternalSlots(instance, resolvedLocale);
         return instance;
     }
 
@@ -36,23 +37,6 @@ public sealed partial class IntlCollatorConstructor(JsObject prototype, RealmSta
 
     private JsArray SupportedLocalesOf(IReadOnlyList<object?> args)
     {
-        var result = new JsArray(Realm);
-        if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
-        {
-            return result;
-        }
-
-        var locales = args[0];
-        switch (locales)
-        {
-            case string single:
-                result.Push(single);
-                return result;
-            case JsArray { Items.Count: > 0 } array when array.Items[0] is string firstLocale:
-                result.Push(firstLocale);
-                return result;
-            default:
-                return result;
-        }
+        return StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), Realm);
     }
 }

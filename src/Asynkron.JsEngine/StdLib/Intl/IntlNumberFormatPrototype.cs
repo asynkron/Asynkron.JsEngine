@@ -12,14 +12,20 @@ public sealed partial class IntlNumberFormatPrototype
 {
     private const string NumberFormatBrand = "__numberFormat__";
 
-    internal static void InitializeInternalSlots(JsObject instance, RealmState realm)
+    internal static void InitializeInternalSlots(
+        JsObject instance,
+        string locale,
+        string numberingSystem,
+        string style,
+        object? currency,
+        object? unit)
     {
         instance.SetProperty(NumberFormatBrand, true);
-        instance.SetProperty("__locale__", "en");
-        instance.SetProperty("__numberingSystem__", "latn");
-        instance.SetProperty("__style__", "decimal");
-        instance.SetProperty("__currency__", Symbol.Undefined);
-        instance.SetProperty("__unit__", Symbol.Undefined);
+        instance.SetProperty("__locale__", locale);
+        instance.SetProperty("__numberingSystem__", numberingSystem);
+        instance.SetProperty("__style__", style);
+        instance.SetProperty("__currency__", currency ?? (object)Symbol.Undefined);
+        instance.SetProperty("__unit__", unit ?? (object)Symbol.Undefined);
         instance.SetProperty("__roundingMode__", "halfExpand");
         instance.SetProperty("__roundingIncrement__", 1d);
         instance.SetProperty("__minimumIntegerDigits__", 1d);

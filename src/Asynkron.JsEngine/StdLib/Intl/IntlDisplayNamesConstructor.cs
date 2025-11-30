@@ -19,8 +19,7 @@ public sealed partial class IntlDisplayNamesConstructor(JsObject prototype, Real
         var localesArg = args.GetArgument(0);
         var optionsArg = args.GetArgument(1);
 
-        var requestedLocales = IntlUtilities.CanonicalizeLocaleList(localesArg, Realm);
-        var locale = IntlUtilities.ResolveRequestedLocale(requestedLocales);
+        var (_, resolvedLocale) = StandardLibrary.ResolveIntlLocales(localesArg, Realm);
 
         var options = NormalizeOptions(optionsArg);
         var type = ReadStringOption(options, "type", SupportedTypes, null)
@@ -31,7 +30,13 @@ public sealed partial class IntlDisplayNamesConstructor(JsObject prototype, Real
         var languageDisplay = ReadStringOption(options, "languageDisplay", ["dialect", "standard"], "dialect")!;
 
         var instance = PrepareThisObject(thisValue);
-        IntlDisplayNamesPrototype.InitializeInternalSlots(instance, locale, style, type, fallback, languageDisplay);
+        IntlDisplayNamesPrototype.InitializeInternalSlots(
+            instance,
+            resolvedLocale,
+            style,
+            type,
+            fallback,
+            languageDisplay);
         return instance;
     }
 
@@ -39,16 +44,7 @@ public sealed partial class IntlDisplayNamesConstructor(JsObject prototype, Real
     {
         var supportedLocalesOf = new HostFunction((_, args) =>
         {
-            var localeList = IntlUtilities.CanonicalizeLocaleList(
-                args.GetArgument(0),
-                Realm);
-            var result = new JsArray(Realm);
-            foreach (var locale in localeList)
-            {
-                result.Push(locale);
-            }
-
-            return result;
+            return StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), Realm);
         }, isConstructor: false);
 
         supportedLocalesOf.DefineProperty("length",

@@ -93,12 +93,7 @@ internal static class IntlUtilities
                 continue;
             }
 
-            if (element is null || ReferenceEquals(element, Symbol.Undefined))
-            {
-                continue;
-            }
-
-            var tag = StandardLibrary.JsValueToString(element, realm);
+            var tag = ResolveLocaleEntry(element, realm);
             AppendCanonicalLocale(seen, tag, realm);
         }
 
@@ -577,6 +572,10 @@ internal static class IntlUtilities
         }
 
         variants.Sort(StringComparer.Ordinal);
+        if (variants.Contains("alalc97"))
+        {
+            variants.Remove("hepburn");
+        }
 
         var extensions = new List<string>();
         while (i < subtags.Length && subtags[i] != "x")
@@ -632,12 +631,8 @@ internal static class IntlUtilities
                     j++;
                 }
 
-                extension = "t";
+                var keywordMap = new SortedDictionary<string, string>(StringComparer.Ordinal);
                 var transformLanguage = JoinSubtags(subtags, extensionStart + 1, j);
-                if (!string.IsNullOrEmpty(transformLanguage))
-                {
-                    extension += "-" + CanonicalizeLanguageTag(transformLanguage).ToLowerInvariant();
-                }
 
                 while (j < i)
                 {
@@ -656,7 +651,22 @@ internal static class IntlUtilities
                         value = mappedValue;
                     }
 
-                    extension += "-" + transformKey + "-" + value;
+                    keywordMap[transformKey] = value;
+                }
+
+                extension = "t";
+                if (!string.IsNullOrEmpty(transformLanguage))
+                {
+                    extension += "-" + CanonicalizeLanguageTag(transformLanguage).ToLowerInvariant();
+                }
+
+                foreach (var kvp in keywordMap)
+                {
+                    extension += "-" + kvp.Key;
+                    if (!string.IsNullOrEmpty(kvp.Value))
+                    {
+                        extension += "-" + kvp.Value;
+                    }
                 }
             }
             else
@@ -712,5 +722,145 @@ internal static class IntlUtilities
         }
 
         return string.Join("-", subtags, start, endExclusive - start);
+    }
+
+    internal static string ApplyUnicodeLocaleOverrides(string baseTag, IReadOnlyDictionary<string, string> overrides)
+    {
+        if (string.IsNullOrEmpty(baseTag) || overrides.Count == 0)
+        {
+            return baseTag;
+        }
+
+        var filteredOverrides = overrides
+            .Where(kvp => !string.IsNullOrWhiteSpace(kvp.Value))
+            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value, StringComparer.Ordinal);
+
+        if (filteredOverrides.Count == 0)
+        {
+            return baseTag;
+        }
+
+        var subtags = baseTag.Split('-');
+        var output = new List<string>(subtags.Length + filteredOverrides.Count * 2);
+        var unicodeProcessed = false;
+
+        for (var i = 0; i < subtags.Length;)
+        {
+            var current = subtags[i];
+            output.Add(current);
+            i++;
+
+            if (!string.Equals(current, "u", StringComparison.OrdinalIgnoreCase) || unicodeProcessed)
+            {
+                continue;
+            }
+
+            unicodeProcessed = true;
+            var attributes = new List<string>();
+            var keywords = new Dictionary<string, string>(StringComparer.Ordinal);
+
+            while (i < subtags.Length)
+            {
+                var next = subtags[i];
+                if (next.Length == 1)
+                {
+                    break;
+                }
+
+                if (next.Length >= 3)
+                {
+                    attributes.Add(next);
+                    i++;
+                    continue;
+                }
+
+                var key = next;
+                i++;
+                var typeParts = new List<string>();
+                while (i < subtags.Length && subtags[i].Length > 2)
+                {
+                    typeParts.Add(subtags[i]);
+                    i++;
+                }
+
+                var value = string.Join("-", typeParts);
+                keywords[key] = value;
+            }
+
+            foreach (var kvp in filteredOverrides)
+            {
+                keywords[kvp.Key] = kvp.Value;
+            }
+
+            if (attributes.Count == 0 && keywords.Count == 0)
+            {
+                output.RemoveAt(output.Count - 1);
+                continue;
+            }
+
+            attributes.Sort(StringComparer.Ordinal);
+            output.AddRange(attributes);
+
+            foreach (var key in keywords.Keys.OrderBy(k => k, StringComparer.Ordinal))
+            {
+                output.Add(key);
+                var value = keywords[key];
+                if (!string.IsNullOrEmpty(value))
+                {
+                    output.AddRange(value.Split('-'));
+                }
+            }
+        }
+
+        if (!unicodeProcessed)
+        {
+            var ordered = filteredOverrides.OrderBy(kvp => kvp.Key, StringComparer.Ordinal).ToList();
+            if (ordered.Count > 0)
+            {
+                output.Add("u");
+                foreach (var kvp in ordered)
+                {
+                    output.Add(kvp.Key);
+                    output.AddRange(kvp.Value.Split('-'));
+                }
+            }
+        }
+
+        return string.Join("-", output);
+    }
+
+    private static string ResolveLocaleEntry(object? candidate, RealmState realm)
+    {
+        if (candidate is null || ReferenceEquals(candidate, Symbol.Undefined))
+        {
+            throw StandardLibrary.ThrowTypeError(
+                "Intl locale list entries must be strings or Intl.Locale objects", realm: realm);
+        }
+
+        if (candidate is bool
+            || candidate is double
+            || candidate is float
+            || candidate is decimal
+            || candidate is int
+            || candidate is uint
+            || candidate is long
+            || candidate is ulong
+            || candidate is short
+            || candidate is ushort
+            || candidate is byte
+            || candidate is sbyte
+            || candidate is JsBigInt)
+        {
+            throw StandardLibrary.ThrowTypeError(
+                "Intl locale list entries must be strings or Intl.Locale objects", realm: realm);
+        }
+
+        if (candidate is JsObject jsObject &&
+            IntlLocalePrototype.TryBuildLocaleIdentifier(jsObject, out var localeIdentifier))
+        {
+            return localeIdentifier;
+        }
+
+        return StandardLibrary.JsValueToString(candidate, realm);
     }
 }

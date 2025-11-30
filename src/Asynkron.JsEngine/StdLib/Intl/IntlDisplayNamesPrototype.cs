@@ -56,12 +56,9 @@ public sealed partial class IntlDisplayNamesPrototype
             : "code";
 
         var canonical = CanonicalizeCode(type, codeInput);
-        if (canonical is null)
-        {
-            return fallback == "none" ? Symbol.Undefined : codeInput;
-        }
-
-        return canonical;
+        return canonical ?? (object?)(fallback == "none"
+            ? Symbol.Undefined
+            : codeInput);
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]

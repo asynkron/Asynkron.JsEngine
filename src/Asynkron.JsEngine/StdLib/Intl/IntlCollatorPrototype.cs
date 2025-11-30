@@ -9,10 +9,10 @@ public sealed partial class IntlCollatorPrototype
 {
     private const string CollatorBrand = "__collator__";
 
-    internal static void InitializeInternalSlots(JsObject instance)
+    internal static void InitializeInternalSlots(JsObject instance, string locale)
     {
         instance.SetProperty(CollatorBrand, true);
-        instance.SetProperty("__locale__", "en");
+        instance.SetProperty("__locale__", locale);
         instance.SetProperty("__usage__", "sort");
         instance.SetProperty("__sensitivity__", "variant");
         instance.SetProperty("__ignorePunctuation__", false);

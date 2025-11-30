@@ -2,7 +2,6 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
-using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
@@ -13,44 +12,18 @@ public sealed partial class IntlDurationFormatConstructor(JsObject prototype, Re
 {
     protected override JsObject ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
     {
-        return PrepareThisObject(thisValue);
+        var localesArg = args.GetArgument(0);
+        var (_, resolvedLocale) = StandardLibrary.ResolveIntlLocales(localesArg, Realm);
+        var instance = PrepareThisObject(thisValue);
+        IntlDurationFormatPrototype.InitializeInternalSlots(instance, resolvedLocale);
+        return instance;
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
     {
-        var supportedLocales = new HostFunction(args =>
-        {
-            var result = new JsArray(Realm);
-            if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
-            {
-                return result;
-            }
-
-            var locales = args[0];
-            if (locales is string localeString)
-            {
-                result.Push(localeString);
-                return result;
-            }
-
-            if (locales is not JsArray localesArray)
-            {
-                throw ThrowTypeError("Invalid locales argument", realm: Realm);
-            }
-
-            foreach (var item in localesArray.Items)
-            {
-                if (item is not string locale)
-                {
-                    throw ThrowTypeError("Invalid locale value", realm: Realm);
-                }
-
-                result.Push(locale);
-            }
-
-            return result;
-
-        }, isConstructor: false);
+        var supportedLocales = new HostFunction(
+            args => StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), Realm),
+            isConstructor: false);
 
         supportedLocales.DefineProperty("length",
             new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });

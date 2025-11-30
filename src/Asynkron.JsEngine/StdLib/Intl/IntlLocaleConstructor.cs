@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -15,24 +16,27 @@ public sealed partial class IntlLocaleConstructor : JsConstructor
     {
         var instance = PrepareThisObject(thisValue);
 
-        if (args.Count > 0 && args[0] is string tag)
-        {
-            instance.SetProperty("__tag__", tag);
-        }
+        var tagValue = args.GetArgument(0);
+        var tag = StandardLibrary.JsValueToString(tagValue, Realm);
+        var canonicalTag = IntlUtilities.CanonicalizeLocale(tag, Realm);
+        instance.SetProperty(IntlLocalePrototype.TagSlot, canonicalTag);
+        instance.SetProperty(IntlLocalePrototype.BrandKey, true);
 
-        if (args.Count <= 1 || args[1] is not JsObject options)
+        var optionsArg = args.GetArgument(1);
+        if (!StandardLibrary.TryGetObject(optionsArg, Realm, out var optionsAccessor) ||
+            optionsAccessor is not IJsPropertyAccessor options)
         {
             return instance;
         }
 
         if (options.TryGetProperty("calendar", out var calendar))
         {
-            instance.SetProperty("__calendar__", calendar);
+            instance.SetProperty(IntlLocalePrototype.CalendarSlot, calendar);
         }
 
         if (options.TryGetProperty("numberingSystem", out var numberingSystem))
         {
-            instance.SetProperty("__numberingSystem__", numberingSystem);
+            instance.SetProperty(IntlLocalePrototype.NumberingSystemSlot, numberingSystem);
         }
 
         return instance;

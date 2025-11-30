@@ -13,12 +13,8 @@ public sealed partial class IntlNumberFormatConstructor(JsObject prototype, Real
 {
     protected override JsObject ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
     {
-        var localesArg = args.GetArgument(0);
+        var (_, resolvedLocale) = StandardLibrary.ResolveIntlLocales(args.GetArgument(0), Realm);
         var optionsArg = args.GetArgument(1);
-        var requestedLocales = IntlUtilities.CanonicalizeLocaleList(localesArg, Realm);
-        var resolvedLocale = requestedLocales.Count > 0
-            ? requestedLocales[0]
-            : CultureInfo.CurrentCulture.Name;
         var options = NormalizeOptions(optionsArg);
         var style = ReadStyleOption(options);
         var numberingSystem = ReadNumberingSystem(options);
@@ -34,12 +30,13 @@ public sealed partial class IntlNumberFormatConstructor(JsObject prototype, Real
         }
 
         var instance = PrepareThisObject(thisValue);
-        IntlNumberFormatPrototype.InitializeInternalSlots(instance, Realm);
-        instance.SetProperty("__locale__", resolvedLocale);
-        instance.SetProperty("__numberingSystem__", numberingSystem);
-        instance.SetProperty("__style__", style);
-        instance.SetProperty("__currency__", currency ?? (object)Symbol.Undefined);
-        instance.SetProperty("__unit__", unit ?? (object)Symbol.Undefined);
+        IntlNumberFormatPrototype.InitializeInternalSlots(
+            instance,
+            resolvedLocale,
+            numberingSystem,
+            style,
+            currency,
+            unit);
         return instance;
     }
 
@@ -63,29 +60,9 @@ public sealed partial class IntlNumberFormatConstructor(JsObject prototype, Real
         supportedLocalesOf.Delete("prototype");
     }
 
-    private JsArray? SupportedLocalesOf(IReadOnlyList<object?> args)
+    private JsArray SupportedLocalesOf(IReadOnlyList<object?> args)
     {
-        var result = new JsArray(Realm);
-        if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
-        {
-            return result;
-        }
-
-        var locales = args[0];
-        if (locales is string single)
-        {
-            result.Push(single);
-            return result;
-        }
-
-        if (locales is not JsArray { Items.Count: > 0 } array || array.Items[0] is not string firstLocale)
-        {
-            return result;
-        }
-
-        result.Push(firstLocale);
-        return result;
-
+        return StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), Realm);
     }
 
     private JsObject? NormalizeOptions(object? optionsArg)

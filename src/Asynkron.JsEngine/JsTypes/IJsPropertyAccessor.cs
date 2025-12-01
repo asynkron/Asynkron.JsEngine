@@ -94,3 +94,8 @@ public interface IExtensibilityControl
     bool IsExtensible { get; }
     void PreventExtensions();
 }
+
+internal interface IPrototypeAccessorProvider
+{
+    IJsPropertyAccessor? PrototypeAccessor { get; }
+}

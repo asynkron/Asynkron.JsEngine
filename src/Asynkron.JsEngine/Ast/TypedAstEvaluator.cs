@@ -704,19 +704,14 @@ public static partial class TypedAstEvaluator
         }
 
         if (!TryGetPropertyValue(constructor, "prototype", out var prototype, context) ||
-            prototype is not JsObject prototypeObject)
+            prototype is not IJsPropertyAccessor prototypeObject)
         {
             context.SetThrow(
                 StandardLibrary.CreateTypeError("Function has non-object prototype in instanceof check", context));
             return false;
         }
 
-        var current = candidate switch
-        {
-            JsObject obj => obj.Prototype,
-            IJsObjectLike objectLike => objectLike.Prototype,
-            _ => null
-        };
+        var current = GetPrototypePointer(candidate);
 
         while (current is not null)
         {
@@ -725,10 +720,30 @@ public static partial class TypedAstEvaluator
                 return true;
             }
 
-            current = current.Prototype;
+            current = GetPrototypePointer(current);
         }
 
         return false;
+
+        static IJsPropertyAccessor? GetPrototypePointer(object? value)
+        {
+            if (value is IPrototypeAccessorProvider provider && provider.PrototypeAccessor is { } protoAccessor)
+            {
+                return protoAccessor;
+            }
+
+            if (value is IJsObjectLike objectLike && objectLike.Prototype is { } proto)
+            {
+                return proto;
+            }
+
+            if (value is JsObject jsObject && jsObject.Prototype is { } jsProto)
+            {
+                return jsProto;
+            }
+
+            return null;
+        }
     }
 
     private static string GetTypeofString(object? value)

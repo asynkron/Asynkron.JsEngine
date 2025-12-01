@@ -125,17 +125,12 @@ public static partial class StandardLibrary
             }
 
             if (!JsOps.TryGetPropertyValue(thisValue, "prototype", out var protoVal) ||
-                protoVal is not JsObject prototypeObject)
+                protoVal is not IJsPropertyAccessor prototypeObject)
             {
                 throw ThrowTypeError("Function has non-object prototype in instanceof check", null, realm);
             }
 
-            var cursor = candidate switch
-            {
-                JsObject obj => obj.Prototype,
-                IJsObjectLike objectLike => objectLike.Prototype,
-                _ => null
-            };
+            var cursor = GetPrototypePointer(candidate);
 
             while (cursor is not null)
             {
@@ -144,10 +139,30 @@ public static partial class StandardLibrary
                     return true;
                 }
 
-                cursor = cursor.Prototype;
+                cursor = GetPrototypePointer(cursor);
             }
 
             return false;
+
+            static IJsPropertyAccessor? GetPrototypePointer(object? value)
+            {
+                if (value is IPrototypeAccessorProvider provider && provider.PrototypeAccessor is { } protoAccessor)
+                {
+                    return protoAccessor;
+                }
+
+                if (value is IJsObjectLike objectLike && objectLike.Prototype is { } proto)
+                {
+                    return proto;
+                }
+
+                if (value is JsObject jsObject && jsObject.Prototype is { } jsProto)
+                {
+                    return jsProto;
+                }
+
+                return null;
+            }
         }) { RealmState = realm };
         functionPrototype.SetProperty(hasInstanceKey, hasInstance);
         realm.FunctionPrototype ??= functionPrototype;

@@ -374,13 +374,13 @@ public static partial class StandardLibrary
         }
     }
 
-    private static JsObject? ResolveConstructPrototype(IJsCallable newTarget, IJsCallable target,
+    private static IJsObjectLike? ResolveConstructPrototype(IJsCallable newTarget, IJsCallable target,
         RealmState realmState)
     {
         // Step 1: use newTarget.prototype if it is an object
         if (newTarget is IJsPropertyAccessor accessor &&
             accessor.TryGetProperty("prototype", out var protoVal) &&
-            protoVal is JsObject protoObj)
+            protoVal is IJsObjectLike protoObj)
         {
             return protoObj;
         }
@@ -391,7 +391,7 @@ public static partial class StandardLibrary
         if ((realmState.ArrayConstructor is not null && ReferenceEquals(target, realmState.ArrayConstructor)) ||
             (realmState.ArrayConstructor is not null && ReferenceEquals(newTarget, realmState.ArrayConstructor)))
         {
-            if (newTargetRealmState?.ArrayPrototype is JsObject realmArrayProtoFromState)
+            if (newTargetRealmState?.ArrayPrototype is IJsObjectLike realmArrayProtoFromState)
             {
                 return realmArrayProtoFromState;
             }
@@ -426,7 +426,7 @@ public static partial class StandardLibrary
         return null;
     }
 
-    private static bool TryResolveRealmDefaultPrototype(object newTarget, IJsCallable target, out JsObject? prototype)
+    private static bool TryResolveRealmDefaultPrototype(object newTarget, IJsCallable target, out IJsObjectLike? prototype)
     {
         prototype = null;
         if (!TryGetRealmInfo(newTarget, out var realmState, out var realmObject))
@@ -479,7 +479,7 @@ public static partial class StandardLibrary
         return false;
     }
 
-    private static bool TryGetPrototypeFromRealmState(string ctorName, RealmState realmState, out JsObject? prototype)
+    private static bool TryGetPrototypeFromRealmState(string ctorName, RealmState realmState, out IJsObjectLike? prototype)
     {
         prototype = ctorName switch
         {
@@ -492,7 +492,7 @@ public static partial class StandardLibrary
     }
 
     private static bool TryGetIntlPrototype(string ctorName, RealmState? realmState, JsObject? realmObject,
-        out JsObject? prototype)
+        out IJsObjectLike? prototype)
     {
         prototype = null;
         if (!IsIntlConstructor(ctorName))
@@ -558,7 +558,7 @@ public static partial class StandardLibrary
         }
     }
 
-    private static bool TryGetPrototype(object candidate, out JsObject? prototype)
+    private static bool TryGetPrototype(object candidate, out IJsObjectLike? prototype)
     {
         prototype = null;
 
@@ -567,7 +567,7 @@ public static partial class StandardLibrary
         // lives on the .prototype data property).
         if (candidate is IJsPropertyAccessor accessor &&
             accessor.TryGetProperty("prototype", out var protoProperty) &&
-            protoProperty is JsObject protoObj)
+            protoProperty is IJsObjectLike protoObj)
         {
             prototype = protoObj;
             return true;

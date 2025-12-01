@@ -7,9 +7,9 @@ namespace Asynkron.JsEngine.Runtime.Prototypes;
 ///     Base class for typed constructors that can be materialized into HostFunction instances.
 ///     Generated code wires the constructor to its prototype and calls <see cref="ConstructInstance" />.
 /// </summary>
-public abstract class JsConstructor(JsObject prototype, RealmState realm)
+public abstract class JsConstructor(IJsObjectLike prototype, RealmState realm)
 {
-    protected JsObject Prototype { get; } = prototype ?? throw new ArgumentNullException(nameof(prototype));
+    protected IJsObjectLike Prototype { get; } = prototype ?? throw new ArgumentNullException(nameof(prototype));
 
     protected RealmState Realm { get; } = realm ?? throw new ArgumentNullException(nameof(realm));
 

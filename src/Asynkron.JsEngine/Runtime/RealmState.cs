@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.JsTypes;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Runtime;
 
@@ -10,9 +11,10 @@ public sealed class RealmState
 {
     public IJsEngineOptions Options { get; internal set; } = JsEngineOptions.Default;
     internal Asynkron.JsEngine.JsEngine? Engine { get; set; }
+    public ILogger? Logger { get; set; }
     public JsObject? ObjectPrototype { get; set; }
     public JsObject? FunctionPrototype { get; set; }
-    public JsObject? ArrayPrototype { get; set; }
+    public IJsObjectLike? ArrayPrototype { get; set; }
     public JsObject? DatePrototype { get; set; }
     public JsObject? ErrorPrototype { get; set; }
     public JsObject? TypeErrorPrototype { get; set; }

@@ -52,6 +52,9 @@ public static partial class StandardLibrary
         RealmState? realm)
     {
         const string MethodName = "Array.from";
+        LogDebug(realm,
+            $"Array.from thisValue={thisValue?.GetType().Name ?? "null"}, isCtor={JsOps.IsConstructor(thisValue)}");
+
         if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
         {
             throw ThrowTypeError("Array.from requires an array-like or iterable", realm: realm);

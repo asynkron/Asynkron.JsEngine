@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     Maps hold key-value pairs and remember the original insertion order of keys.
 ///     Unlike objects, Map keys can be any value (including objects and functions).
 /// </summary>
-public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl
+public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider
 {
     // Use List to maintain insertion order
     private readonly List<KeyValuePair<object?, object?>> _entries = [];
@@ -54,6 +54,8 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     }
 
     public JsObject? Prototype => _properties.Prototype;
+    public IJsPropertyAccessor? PrototypeAccessor =>
+        _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
     public bool IsSealed => _properties.IsSealed;
 

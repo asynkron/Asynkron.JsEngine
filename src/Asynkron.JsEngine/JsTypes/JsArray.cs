@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.JsTypes;
 /// <summary>
 ///     Minimal JavaScript-like array that tracks indexed elements and behaves like an object for property access.
 /// </summary>
-public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl
+public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider
 {
     private const uint DenseIndexLimit = 1_000_000;
 
@@ -15,7 +15,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     // Sentinel value to represent holes in sparse arrays (indices that have never been set)
     private static readonly object ArrayHole = new();
-    private readonly JsObject? _arrayPrototype;
+    private readonly IJsObjectLike? _arrayPrototype;
     private readonly List<object?> _items = [];
 
     private readonly JsObject _properties = new();
@@ -86,6 +86,8 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     }
 
     public bool IsSealed => _properties.IsSealed;
+    public IJsPropertyAccessor? PrototypeAccessor =>
+        _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
     public IEnumerable<string> Keys => _properties.Keys;
 
     public bool TryGetProperty(string name, out object? value)

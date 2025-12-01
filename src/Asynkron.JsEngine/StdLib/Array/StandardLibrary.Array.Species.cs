@@ -126,6 +126,8 @@ public static partial class StandardLibrary
     internal static IJsObjectLike CreateArrayFromResult(object? constructorCandidate, RealmState? realm, long length,
         bool passLengthToConstructor, string methodName)
     {
+        LogDebug(realm,
+            $"CreateArrayFromResult candidate={constructorCandidate?.GetType().Name ?? "null"}, isCtor={JsOps.IsConstructor(constructorCandidate)}, length={length}, passLength={passLengthToConstructor}");
         if (constructorCandidate is IJsCallable callable && JsOps.IsConstructor(callable))
         {
             var constructorRealm = GetConstructorRealm(callable, realm) ?? realm;
@@ -136,6 +138,8 @@ public static partial class StandardLibrary
                 : Array.Empty<object?>();
             var constructed = callable.Invoke(args, receiver);
             var result = constructed as IJsObjectLike ?? receiver;
+            LogDebug(realm,
+                $"CreateArrayFromResult constructed={constructed?.GetType().Name ?? "null"}, result={result.GetType().Name}");
             if (!passLengthToConstructor)
             {
                 SetArrayLikeLength(result, 0);
@@ -151,6 +155,7 @@ public static partial class StandardLibrary
 
         var array = new JsArray(realm);
         array.SetProperty("length", passLengthToConstructor ? (double)Math.Max(length, 0) : 0d);
+        LogDebug(realm, $"CreateArrayFromResult default array length={array.Length}");
         return array;
     }
 
@@ -264,8 +269,8 @@ public static partial class StandardLibrary
             return true;
         }
 
-        if (inspected is JsObject obj && realm?.ArrayPrototype is not null &&
-            ReferenceEquals(obj, realm.ArrayPrototype))
+        if (realm?.ArrayPrototype is not null &&
+            ReferenceEquals(inspected, realm.ArrayPrototype))
         {
             return true;
         }
@@ -340,9 +345,8 @@ public static partial class StandardLibrary
                 continue;
             }
 
-            if (inspected is JsObject obj &&
-                realm?.ArrayPrototype is not null &&
-                ReferenceEquals(obj, realm.ArrayPrototype))
+            if (realm?.ArrayPrototype is not null &&
+                ReferenceEquals(inspected, realm.ArrayPrototype))
             {
                 return true;
             }
@@ -391,10 +395,12 @@ public static partial class StandardLibrary
         if (spreadable && mappedAccessor is not null)
         {
             var newDepth = depth == double.PositiveInfinity ? depth : depth - 1;
-            var elementLengthValue = mappedAccessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+                var elementLengthValue = mappedAccessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
                 var elementLength = (long)ToLengthOrZero(elementLengthValue);
-                targetIndex = FlattenIntoArray(target, mappedAccessor, elementLength, targetIndex, newDepth, mapper,
-                    thisArg, realm, operation);
+                IJsCallable? nextMapper = mapper is not null ? null : mapper;
+                object? nextThisArg = mapper is not null ? null : thisArg;
+                targetIndex = FlattenIntoArray(target, mappedAccessor, elementLength, targetIndex, newDepth,
+                    nextMapper, nextThisArg, realm, operation);
             }
             else
             {

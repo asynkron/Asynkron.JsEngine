@@ -909,8 +909,15 @@ public static partial class StandardLibrary
                 return null;
             }
 
-            var proto = obj.Prototype ?? (object?)Symbol.Undefined;
-            if (proto is not JsObject &&
+            object? proto = obj.Prototype;
+            if (proto is null && obj is IPrototypeAccessorProvider provider)
+            {
+                proto = provider.PrototypeAccessor;
+            }
+
+            proto ??= Symbol.Undefined;
+
+            if (proto is not IJsPropertyAccessor &&
                 obj is HostFunction { Realm: JsObject fnRealm } &&
                 fnRealm.TryGetProperty("Function", out var fnVal) &&
                 fnVal is IJsPropertyAccessor fnAccessor &&

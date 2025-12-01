@@ -13,6 +13,12 @@ public sealed class JsPrototypeAttribute(string intrinsicName) : Attribute
     ///     emits the descriptor automatically.
     /// </summary>
     public string? ToStringTag { get; set; }
+
+    /// <summary>
+    ///     Specifies which underlying object implementation should back the prototype.
+    ///     Defaults to a plain <see cref="JsObject" />.
+    /// </summary>
+    public PrototypeObjectKind ObjectKind { get; set; } = PrototypeObjectKind.Object;
 }
 
 [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = true)]
@@ -72,4 +78,10 @@ public sealed class JsConstructorAttribute(string intrinsicName) : Attribute
     ///     Prototype class that this constructor should expose via its "prototype" property.
     /// </summary>
     public Type PrototypeType { get; set; } = null!;
+}
+
+public enum PrototypeObjectKind
+{
+    Object,
+    Array
 }

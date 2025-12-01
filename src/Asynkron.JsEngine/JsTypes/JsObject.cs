@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
     IPrivateBrandHolder,
-    IPropertyDefinitionHost, IExtensibilityControl
+    IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider
 {
     private const string PrototypeKey = "__proto__";
     private const string GetterPrefix = "__getter__";
@@ -60,6 +60,7 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
     }
 
     public JsObject? Prototype { get; private set; }
+    public IJsPropertyAccessor? PrototypeAccessor => _prototypeAccessor;
 
     public bool IsSealed { get; private set; }
 

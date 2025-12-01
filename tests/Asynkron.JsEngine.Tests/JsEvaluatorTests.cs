@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
@@ -118,6 +119,29 @@ public class JsEvaluatorTests
         Assert.True(Assert.IsType<bool>(await engine.Evaluate("orResult;")));
         Assert.Equal(3d, await engine.Evaluate("coalesceResult;"));
         Assert.Equal(0d, await engine.Evaluate("coalesceNonNull;"));
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ArrayFromMatchesTest262FromArrayFixture()
+    {
+        await using var engine = new JsEngine();
+        var script = """
+                     var array = [0, 'foo', , Infinity];
+                     var result = Array.from(array);
+                     """;
+
+        await engine.Evaluate(script);
+
+        Assert.Equal(4d, await engine.Evaluate("result.length;"));
+        Assert.Equal(0d, await engine.Evaluate("result[0];"));
+        Assert.Equal("foo", await engine.Evaluate("result[1];"));
+        Assert.Same(Symbol.Undefined, await engine.Evaluate("result[2];"));
+        Assert.Equal(double.PositiveInfinity, await engine.Evaluate("result[3];"));
+
+        var resultRef = await engine.Evaluate("result;");
+        var arrayRef = await engine.Evaluate("array;");
+        Assert.NotSame(arrayRef, resultRef);
+        Assert.True(Assert.IsType<bool>(await engine.Evaluate("result instanceof Array;")));
     }
 
     [Fact(Timeout = 2000)]

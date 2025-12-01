@@ -10,7 +10,8 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     Only the traps required by the current test surface (has/get/set/defineProperty/getOwnPropertyDescriptor/delete)
 ///     are implemented for now; other operations fall back to the underlying target.
 /// </summary>
-public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IJsCallable
+public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IJsCallable,
+    IPrototypeAccessorProvider
 {
     private readonly JsObject _meta = new();
     private readonly RealmState? _realm;
@@ -44,6 +45,8 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     }
 
     public JsObject? Prototype => _meta.Prototype;
+    public IJsPropertyAccessor? PrototypeAccessor =>
+        _meta is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
     public bool IsSealed => Target.IsSealed;
 

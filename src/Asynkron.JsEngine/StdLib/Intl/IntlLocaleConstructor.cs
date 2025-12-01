@@ -20,7 +20,7 @@ public sealed partial class IntlLocaleConstructor : JsConstructor
         "upper", "lower", "false"
     };
 
-    public IntlLocaleConstructor(JsObject prototype, RealmState realm) : base(prototype, realm)
+    public IntlLocaleConstructor(IJsObjectLike prototype, RealmState realm) : base(prototype, realm)
     {
     }
 

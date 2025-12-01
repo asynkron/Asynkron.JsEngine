@@ -8,7 +8,7 @@ using Asynkron.JsEngine.Runtime.Prototypes;
 namespace Asynkron.JsEngine.StdLib.Intl;
 
 [JsConstructor("Intl.Collator", PrototypeType = typeof(IntlCollatorPrototype), Length = 0d, DisplayName = "Collator")]
-public sealed partial class IntlCollatorConstructor(JsObject prototype, RealmState realm)
+public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, RealmState realm)
     : JsConstructor(prototype, realm)
 {
     protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)

@@ -3,6 +3,7 @@ using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -351,6 +352,8 @@ public static partial class StandardLibrary
     internal static void CreateDataPropertyOrThrow(IJsObjectLike target, string propertyKey, object? value,
         RealmState? realm, string methodName)
     {
+        LogDebug(realm,
+            $"CreateDataPropertyOrThrow target={target.GetType().Name}, key={propertyKey}, valueType={value?.GetType().Name ?? "null"}");
         var descriptor = new PropertyDescriptor
         {
             Value = value,
@@ -361,8 +364,10 @@ public static partial class StandardLibrary
 
         if (target is IPropertyDefinitionHost definitionHost)
         {
-            if (!definitionHost.TryDefineProperty(propertyKey, descriptor))
+            var defined = definitionHost.TryDefineProperty(propertyKey, descriptor);
+            if (!defined)
             {
+                LogDebug(realm, $"{methodName} could not define property '{propertyKey}' on {target.GetType().Name}");
                 throw ThrowTypeError($"{methodName} could not define property '{propertyKey}'", realm: realm);
             }
 
@@ -375,6 +380,11 @@ public static partial class StandardLibrary
     internal static bool TryGetExistingElement(IJsPropertyAccessor accessor, long index, out object? value)
     {
         return TryGetExistingElement(accessor, ToIndexString(index), out value);
+    }
+
+    internal static void LogDebug(RealmState? realm, string message)
+    {
+        realm?.Logger?.LogDebug(message);
     }
 
     internal static bool TryGetExistingElement(IJsPropertyAccessor accessor, string propertyKey, out object? value)

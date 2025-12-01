@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 
 [JsConstructor("Intl.DurationFormat", PrototypeType = typeof(IntlDurationFormatPrototype), Length = 0d,
     DisplayName = "DurationFormat")]
-public sealed partial class IntlDurationFormatConstructor(JsObject prototype, RealmState realm)
+public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototype, RealmState realm)
     : JsConstructor(prototype, realm)
 {
     protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)

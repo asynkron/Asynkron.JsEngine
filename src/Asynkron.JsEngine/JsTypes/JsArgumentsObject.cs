@@ -5,7 +5,8 @@ using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.JsTypes;
 
-internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl
+internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl,
+    IPrototypeAccessorProvider
 {
     private readonly JsObject _backing = new();
     private readonly PropertyDescriptor? _calleeDescriptor;
@@ -125,6 +126,8 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
     }
 
     public JsObject? Prototype => _backing.Prototype;
+    public IJsPropertyAccessor? PrototypeAccessor =>
+        _backing is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
     public bool IsSealed => _backing.IsSealed;
 
@@ -554,7 +557,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
     {
         iteratorValue = null;
 
-        if (realmState.ArrayPrototype is JsObject arrayPrototype &&
+        if (realmState.ArrayPrototype is IJsPropertyAccessor arrayPrototype &&
             arrayPrototype.TryGetProperty(iteratorKey, out var protoIterator))
         {
             iteratorValue = protoIterator;

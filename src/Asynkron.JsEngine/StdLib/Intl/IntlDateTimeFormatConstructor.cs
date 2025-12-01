@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 
 [JsConstructor("Intl.DateTimeFormat", PrototypeType = typeof(IntlDateTimeFormatPrototype), Length = 0d,
     DisplayName = "DateTimeFormat")]
-public sealed partial class IntlDateTimeFormatConstructor(JsObject prototype, RealmState realm)
+public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototype, RealmState realm)
     : JsConstructor(prototype, realm)
 {
     protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)

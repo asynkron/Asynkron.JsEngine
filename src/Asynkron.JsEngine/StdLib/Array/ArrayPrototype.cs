@@ -5,7 +5,7 @@ using Asynkron.JsEngine.Runtime.Prototypes;
 
 namespace Asynkron.JsEngine.StdLib;
 
-[JsPrototype("Array", ToStringTag = "Array")]
+[JsPrototype("Array", ToStringTag = "Array", ObjectKind = PrototypeObjectKind.Array)]
 public sealed partial class ArrayPrototype
 {
 
@@ -22,7 +22,6 @@ public sealed partial class ArrayPrototype
                 Enumerable = false,
                 Configurable = false
             });
-        Prototype.EnableArrayLengthTracking(0d);
 
         var iteratorKey = $"@@symbol:{TypedAstSymbol.For("Symbol.iterator").GetHashCode()}";
         if (Prototype.TryGetProperty("values", out var valuesFunction))

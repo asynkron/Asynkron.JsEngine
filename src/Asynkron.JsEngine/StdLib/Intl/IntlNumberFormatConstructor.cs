@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 
 [JsConstructor("Intl.NumberFormat", PrototypeType = typeof(IntlNumberFormatPrototype), Length = 0d,
     DisplayName = "NumberFormat")]
-public sealed partial class IntlNumberFormatConstructor(JsObject prototype, RealmState realm)
+public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype, RealmState realm)
     : JsConstructor(prototype, realm)
 {
     protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)

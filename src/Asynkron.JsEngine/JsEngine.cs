@@ -537,12 +537,6 @@ public sealed class JsEngine : IAsyncDisposable
         return Evaluate(program, cancellationToken);
     }
 
-    public Task<object?> Evaluate(string source, string? sourcePath, CancellationToken cancellationToken = default)
-    {
-        var program = ParseForExecution(source);
-        return Evaluate(program, cancellationToken, sourcePath);
-    }
-
     public Task<object?> EvaluateModule(string source, string? sourcePath = null,
         CancellationToken cancellationToken = default)
     {

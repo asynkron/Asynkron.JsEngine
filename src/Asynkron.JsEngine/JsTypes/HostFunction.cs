@@ -10,6 +10,7 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     Represents a host function that can be called from JavaScript.
 /// </summary>
 public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl,
+    IPrototypeAccessorProvider,
     IJsEnvironmentAwareCallable
 {
     private readonly Func<object?, IReadOnlyList<object?>, object?> _handler;
@@ -275,6 +276,9 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
             return Properties.Prototype;
         }
     }
+
+    public IJsPropertyAccessor? PrototypeAccessor =>
+        Properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
     public bool IsSealed => Properties.IsSealed;
 

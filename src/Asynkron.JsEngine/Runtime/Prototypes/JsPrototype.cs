@@ -4,11 +4,11 @@ namespace Asynkron.JsEngine.Runtime.Prototypes;
 
 /// <summary>
 ///     Base class for typed prototypes that are materialized via source generators.
-///     Derived types get access to the underlying <see cref="JsObject" /> and the owning realm.
+///     Derived types get access to the underlying <see cref="IJsObjectLike" /> and the owning realm.
 /// </summary>
 public abstract class JsPrototype
 {
-    protected JsPrototype(JsObject prototype, RealmState realm)
+    protected JsPrototype(IJsObjectLike prototype, RealmState realm)
     {
         Prototype = prototype ?? throw new ArgumentNullException(nameof(prototype));
         Realm = realm ?? throw new ArgumentNullException(nameof(realm));
@@ -19,7 +19,7 @@ public abstract class JsPrototype
         }
     }
 
-    protected JsObject Prototype { get; }
+    protected IJsObjectLike Prototype { get; }
 
     protected RealmState Realm { get; }
 

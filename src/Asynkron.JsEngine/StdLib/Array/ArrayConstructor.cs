@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.StdLib;
 [JsConstructor("Array", PrototypeType = typeof(ArrayPrototype), Length = 1d, DisplayName = "Array")]
 public sealed partial class ArrayConstructor : JsConstructor
 {
-    public ArrayConstructor(JsObject prototype, RealmState realm) : base(prototype, realm)
+    public ArrayConstructor(IJsObjectLike prototype, RealmState realm) : base(prototype, realm)
     {
     }
 

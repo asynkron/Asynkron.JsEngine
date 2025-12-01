@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     WeakMaps hold key-value pairs where keys must be objects and are held weakly.
 ///     Unlike Map, WeakMap does not prevent garbage collection of keys and does not support iteration.
 /// </summary>
-public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl
+public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider
 {
     // Use ConditionalWeakTable for weak reference semantics
     private readonly ConditionalWeakTable<object, object?> _entries = new();
@@ -41,6 +41,8 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     }
 
     public JsObject? Prototype => _properties.Prototype;
+    public IJsPropertyAccessor? PrototypeAccessor =>
+        _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
     public bool IsSealed => _properties.IsSealed;
 

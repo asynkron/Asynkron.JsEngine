@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -94,7 +95,8 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         }
 
         var toStringTag = GetNamedValue(prototypeAttr, "ToStringTag");
-        return new PrototypeInfo(typeSymbol, getters.ToImmutable(), methods.ToImmutable(), toStringTag);
+        var useArrayInstance = TryGetPrototypeObjectKind(prototypeAttr) == PrototypeObjectKind.Array;
+        return new PrototypeInfo(typeSymbol, getters.ToImmutable(), methods.ToImmutable(), toStringTag, useArrayInstance);
     }
 
     private static ConstructorInfo? TransformConstructor(GeneratorSyntaxContext context)
@@ -160,16 +162,16 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
         source.Append("public sealed partial class ").Append(info.Symbol.Name).AppendLine(" : JsPrototype");
         source.AppendLine("{");
-        source.Append("    public ").Append(info.Symbol.Name).AppendLine("(JsObject prototype, RealmState realm) : base(prototype, realm)");
+        source.Append("    public ").Append(info.Symbol.Name).AppendLine("(IJsObjectLike prototype, RealmState realm) : base(prototype, realm)");
         source.AppendLine("    {");
         source.AppendLine("        InitializePrototype();");
         source.AppendLine("    }");
         source.AppendLine();
         source.AppendLine("    partial void InitializePrototype();");
         source.AppendLine();
-        source.AppendLine("    public static JsObject CreatePrototype(RealmState realm)");
+        source.AppendLine("    public static IJsObjectLike CreatePrototype(RealmState realm)");
         source.AppendLine("    {");
-        source.AppendLine("        var prototype = new JsObject();");
+        source.Append("        var prototype = ").Append(info.UseArrayInstance ? "new JsArray(realm)" : "new JsObject()").AppendLine(";");
         source.Append("        var typed = new ").Append(info.Symbol.Name)
             .AppendLine("(prototype, realm);");
 
@@ -354,7 +356,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
     }
 
     private sealed record PrototypeInfo(INamedTypeSymbol Symbol, ImmutableArray<GetterInfo> Getters,
-        ImmutableArray<MethodInfo> Methods, string? ToStringTag);
+        ImmutableArray<MethodInfo> Methods, string? ToStringTag, bool UseArrayInstance);
 
     private sealed record GetterInfo(IMethodSymbol MethodSymbol, string PropertyName, string DisplayName, bool Enumerable,
         bool Configurable);
@@ -364,4 +366,32 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
     private sealed record ConstructorInfo(INamedTypeSymbol Symbol, INamedTypeSymbol PrototypeType, string LengthLiteral,
         string DisplayName);
+
+    private enum PrototypeObjectKind
+    {
+        Object = 0,
+        Array = 1
+    }
+
+    private static PrototypeObjectKind TryGetPrototypeObjectKind(AttributeData attr)
+    {
+        foreach (var arg in attr.NamedArguments)
+        {
+            if (arg.Key == "ObjectKind")
+            {
+                var value = arg.Value.Value;
+                if (value is int intValue)
+                {
+                    return (PrototypeObjectKind)intValue;
+                }
+
+                if (value is IConvertible convertible)
+                {
+                    return (PrototypeObjectKind)convertible.ToInt32(CultureInfo.InvariantCulture);
+                }
+            }
+        }
+
+        return PrototypeObjectKind.Object;
+    }
 }

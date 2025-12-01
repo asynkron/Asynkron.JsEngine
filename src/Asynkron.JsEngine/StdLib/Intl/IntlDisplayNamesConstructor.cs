@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 
 [JsConstructor("Intl.DisplayNames", PrototypeType = typeof(IntlDisplayNamesPrototype), Length = 2d,
     DisplayName = "DisplayNames")]
-public sealed partial class IntlDisplayNamesConstructor(JsObject prototype, RealmState realm)
+public sealed partial class IntlDisplayNamesConstructor(IJsObjectLike prototype, RealmState realm)
     : JsConstructor(prototype, realm)
 {
     private static readonly string[] SupportedTypes =

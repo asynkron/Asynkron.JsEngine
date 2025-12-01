@@ -198,6 +198,7 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("RangeError", StandardLibrary.CreateErrorConstructor(RealmState, "RangeError"));
         SetGlobal("ReferenceError", StandardLibrary.CreateErrorConstructor(RealmState, "ReferenceError"));
         SetGlobal("SyntaxError", StandardLibrary.CreateErrorConstructor(RealmState, "SyntaxError"));
+        SetGlobal("EvalError", StandardLibrary.CreateErrorConstructor(RealmState, "EvalError"));
 
         // Register eval function as an environment-aware callable
         // This allows eval to execute code in the caller's scope without blocking the event loop

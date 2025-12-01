@@ -40,9 +40,10 @@ public static partial class TypedAstEvaluator
             }
 
             var instance = new JsObject();
-            if (TryGetPropertyValue(constructor, "prototype", out var prototype) && prototype is JsObject proto)
+            if (TryGetPropertyValue(constructor, "prototype", out var prototype) &&
+                prototype is IJsPropertyAccessor protoAccessor)
             {
-                instance.SetPrototype(proto);
+                instance.SetPrototype(protoAccessor);
             }
 
             var args = ImmutableArray.CreateBuilder<object?>(expression.Arguments.Length);

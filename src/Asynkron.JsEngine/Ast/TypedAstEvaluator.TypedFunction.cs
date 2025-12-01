@@ -467,7 +467,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 if (!_function.Body.IsStrict &&
-                    boundThis is not JsObject &&
+                    boundThis is not IJsPropertyAccessor &&
                     !IsNullish(boundThis) &&
                     boundThis is not IIsHtmlDda)
                 {

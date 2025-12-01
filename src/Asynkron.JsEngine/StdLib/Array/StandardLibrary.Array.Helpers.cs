@@ -98,6 +98,11 @@ public static partial class StandardLibrary
             throw ThrowTypeError($"{methodName} requires a callable callback", realm: realm);
         }
 
+        if (callback is IJsEnvironmentAwareCallable envAware && realm?.Engine?.GlobalEnvironment is { } globalEnv)
+        {
+            envAware.CallingJsEnvironment = globalEnv;
+        }
+
         var thisArg = args.GetArgument(1);
         return (accessor, length, callback, thisArg);
     }
@@ -170,6 +175,11 @@ public static partial class StandardLibrary
         if (args.Count == 0 || args[0] is not IJsCallable callback)
         {
             throw ThrowTypeError($"{methodName} requires a callable accumulator", realm: realm);
+        }
+
+        if (callback is IJsEnvironmentAwareCallable envAware && realm?.Engine?.GlobalEnvironment is { } globalEnv)
+        {
+            envAware.CallingJsEnvironment = globalEnv;
         }
 
         object? accumulator = Symbol.Undefined;

@@ -39,7 +39,7 @@ public abstract class JsConstructor(JsObject prototype, RealmState realm)
         return instance;
     }
 
-    protected abstract JsObject ConstructInstance(object? thisValue, IReadOnlyList<object?> args);
+    protected abstract object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args);
 
     protected virtual void ConfigureConstructor(HostFunction constructor)
     {

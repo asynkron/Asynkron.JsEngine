@@ -562,7 +562,6 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         }
 
         var temp = new JsArray(realmState);
-        StandardLibrary.AddArrayMethods(temp, realmState);
         if (temp.TryGetProperty(iteratorKey, out var tmpIterator))
         {
             iteratorValue = tmpIterator;

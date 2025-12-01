@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 
@@ -20,7 +21,7 @@ public class AutomaticSemicolonInsertionTests
         ");
 
         // Should return undefined (null in C#), not the object
-        Assert.Null(result);
+        Assert.Equal(Symbol.Undefined, result);
     }
 
     [Fact(Timeout = 2000)]

@@ -186,7 +186,6 @@ public class JsRegExp
         result.SetProperty("index", (double)match.Index);
         result.SetProperty("input", input);
 
-        StandardLibrary.AddArrayMethods(result, RealmState);
         RealmState.UpdateRegExpStatics(input, match);
         return result;
     }
@@ -217,12 +216,10 @@ public class JsRegExp
 
             matchArray.SetProperty("index", (double)match.Index);
             matchArray.SetProperty("input", input);
-            StandardLibrary.AddArrayMethods(matchArray, RealmState);
 
             result.Push(matchArray);
         }
 
-        StandardLibrary.AddArrayMethods(result, RealmState);
         return result;
     }
 

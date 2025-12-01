@@ -11,7 +11,7 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 public sealed partial class IntlCollatorConstructor(JsObject prototype, RealmState realm)
     : JsConstructor(prototype, realm)
 {
-    protected override JsObject ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
     {
         var slots = CreateInternalSlots(args.GetArgument(0), args.GetArgument(1));
         var instance = PrepareThisObject(thisValue);

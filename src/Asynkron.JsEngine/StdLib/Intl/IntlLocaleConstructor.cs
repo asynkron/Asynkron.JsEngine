@@ -48,7 +48,7 @@ public sealed partial class IntlLocaleConstructor : JsConstructor
         DefineInternalSlot(target, IntlLocalePrototype.TextDirectionSlot, "ltr");
     }
 
-    protected override JsObject ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
     {
         var instance = PrepareThisObject(thisValue);
         var tagValue = args.GetArgument(0);

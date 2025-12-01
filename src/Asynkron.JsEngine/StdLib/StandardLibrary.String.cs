@@ -1122,15 +1122,10 @@ public static partial class StandardLibrary
 
     private static JsArray CreateArrayFromStrings(string[] strings, RealmState? realm)
     {
-        var array = new JsArray();
+        var array = new JsArray(realm);
         foreach (var s in strings)
         {
             array.Push(s);
-        }
-
-        if (realm is not null)
-        {
-            AddArrayMethods(array, realm);
         }
 
         return array;

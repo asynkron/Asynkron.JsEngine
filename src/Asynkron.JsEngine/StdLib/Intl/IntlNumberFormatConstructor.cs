@@ -11,7 +11,7 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 public sealed partial class IntlNumberFormatConstructor(JsObject prototype, RealmState realm)
     : JsConstructor(prototype, realm)
 {
-    protected override JsObject ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
     {
         var (_, resolvedLocale) = StandardLibrary.ResolveIntlLocales(args.GetArgument(0), Realm);
         var options = IntlOptionHelpers.GetOptionsObject(args.GetArgument(1), Realm, "NumberFormat");

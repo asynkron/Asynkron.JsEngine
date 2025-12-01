@@ -14,7 +14,7 @@ public sealed partial class IntlDisplayNamesConstructor(JsObject prototype, Real
     private static readonly string[] SupportedTypes =
         ["language", "region", "script", "currency", "calendar", "dateTimeField"];
 
-    protected override JsObject ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
     {
         var localesArg = args.GetArgument(0);
         var optionsArg = args.GetArgument(1);

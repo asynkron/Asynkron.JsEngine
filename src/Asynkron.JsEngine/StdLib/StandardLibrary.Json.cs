@@ -93,13 +93,11 @@ public static partial class StandardLibrary
                 return obj;
 
             case JsonValueKind.Array:
-                var arr = new JsArray();
+                var arr = new JsArray(realm);
                 foreach (var item in element.EnumerateArray())
                 {
                     arr.Push(ParseJsonValue(item, realm));
                 }
-
-                AddArrayMethods(arr, realm);
                 return arr;
 
             case JsonValueKind.String:

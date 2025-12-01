@@ -515,12 +515,12 @@ public static partial class StandardLibrary
         {
             if (args.Count == 0)
             {
-                return new JsArray();
+                return new JsArray(realm);
             }
 
             if (!TryGetObject(args[0]!, realm, out var obj))
             {
-                return new JsArray();
+                return new JsArray(realm);
             }
 
             var symbols = new JsArray(realm);
@@ -535,7 +535,6 @@ public static partial class StandardLibrary
                 }
             }
 
-            AddArrayMethods(symbols, realm);
             return symbols;
         }
 
@@ -543,7 +542,7 @@ public static partial class StandardLibrary
         {
             if (args.Count == 0)
             {
-                return new JsArray();
+                return new JsArray(realm);
             }
 
             var obj = args[0] as IJsPropertyAccessor;
@@ -554,7 +553,7 @@ public static partial class StandardLibrary
 
             if (obj is null)
             {
-                return new JsArray();
+                return new JsArray(realm);
             }
 
             var keys = new JsArray(realm);
@@ -567,7 +566,6 @@ public static partial class StandardLibrary
                 }
             }
 
-            AddArrayMethods(keys, realm);
             return keys;
         }
 
@@ -575,7 +573,7 @@ public static partial class StandardLibrary
         {
             if (args.Count == 0)
             {
-                return new JsArray();
+                return new JsArray(realm);
             }
 
             var obj = args[0] as IJsPropertyAccessor;
@@ -586,7 +584,7 @@ public static partial class StandardLibrary
 
             if (obj is null)
             {
-                return new JsArray();
+                return new JsArray(realm);
             }
 
             var values = new JsArray(realm);
@@ -598,7 +596,6 @@ public static partial class StandardLibrary
                 }
             }
 
-            AddArrayMethods(values, realm);
             return values;
         }
 
@@ -606,7 +603,7 @@ public static partial class StandardLibrary
         {
             if (args.Count == 0)
             {
-                return new JsArray();
+                return new JsArray(realm);
             }
 
             var obj = args[0] as IJsPropertyAccessor;
@@ -617,7 +614,7 @@ public static partial class StandardLibrary
 
             if (obj is null)
             {
-                return new JsArray();
+                return new JsArray(realm);
             }
 
             var entries = new JsArray(realm);
@@ -629,11 +626,9 @@ public static partial class StandardLibrary
                 }
 
                 var entry = new JsArray([key, value], realm);
-                AddArrayMethods(entry, realm);
                 entries.Push(entry);
             }
 
-            AddArrayMethods(entries, realm);
             return entries;
         }
 
@@ -834,7 +829,7 @@ public static partial class StandardLibrary
         {
             if (args.Count == 0)
             {
-                return new JsArray();
+                return new JsArray(realm);
             }
 
             var obj = args[0] as IJsPropertyAccessor;
@@ -845,12 +840,11 @@ public static partial class StandardLibrary
 
             if (obj is null)
             {
-                return new JsArray();
+                return new JsArray(realm);
             }
 
             var names = new JsArray(obj.GetOwnPropertyNames(), realm);
 
-            AddArrayMethods(names, realm);
             return names;
         }
 

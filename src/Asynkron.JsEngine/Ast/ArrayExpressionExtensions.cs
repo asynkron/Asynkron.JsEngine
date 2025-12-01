@@ -44,7 +44,6 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            StandardLibrary.AddArrayMethods(array, context.RealmState);
             return array;
         }
     }

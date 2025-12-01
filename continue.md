@@ -1,13 +1,11 @@
 # Language Suite Next Steps
 
 ## Current State
-- Scientific and engineering notation now reuse a decimal-aware quantity pipeline: doubles are normalized through `decimal` when the value is in range, the mantissa formatter clamps the exponent to 1–3 integer digits, and `maximumFractionDigits` trimming keeps exponents stable.
-- `Intl.NumberFormat.prototype.format` and `formatToParts` for scientific/engineering emit spec-shaped parts (`integer`, `decimal`, `fraction`, `exponentSeparator`, `exponentMinusSign`, `exponentInteger`, `minusSign`, `nan`, `infinity`) so the en-US Test262 slices pass.
-- NaN/Infinity now honor the active culture’s symbols, exponent fragments include the locale’s minus sign, and the formatter exposes structured results so both `.format` and `.formatToParts` share rounding decisions.
-- `BestAvailableLocale` now seeds plain language-region tags when .NET’s culture list only exposes script-specific names (e.g., `zh-Hant-TW`), so requested locales like `zh-TW` resolve to their real NumberFormat data and the zh-TW engineering/scientific cases pass.
-- The `Intl.NumberFormat.prototype.format` getter now produces spec-compliant callables (Function.prototype prototype, `length` 1, empty `name` property), and the shared decimal formatter preserves negative zero / rounded-to-zero negatives while enforcing `minimumFractionDigits` even when trims zero significant digits.
+- The legacy `StandardLibrary.Array.cs` has been split into focused partials so helper logic (species creation, ReduceLike, iterator plumbing, Array.from/of) lives under `StdLib/Array/StandardLibrary.Array.*.cs`.
+- `%Array.prototype%` now comes from the generator-backed `ArrayPrototype` type, with iteration-centric methods (`map`, `filter`, `reduce`, `find*`, `every`, `some`, `forEach`), mutators (`push`/`pop`, `shift`/`unshift`, `splice`, `concat`, `reverse`, `sort`), and transformation helpers (`join`, `slice`, `flat*`, `fill`, `copyWithin`, `toSorted`, `toReversed`, `toSpliced`, `with`, iterator factories) each living in their own partials so no single file dominates the definition.
+- `dotnet build` succeeds with the new layout, so the constructor/prototype reshuffle doesn't break existing projects and existing array tests (e.g., `PrototypeLookupResolvesInheritedMethods`) stay green.
 
 ## Next Iteration Plan
-1. Broaden `formatToParts` coverage beyond scientific/engineering so decimal, percent, currency, and unit styles emit structured pieces (including unit/an-CLDR literals) instead of a single literal, and add regression tests for those pathways.
-2. Audit the augmented locale availability map against CLDR so that DisplayNames, DateTimeFormat, and the rest of Intl observe the same script/region aliases (and add coverage for other languages that only surface script-specific .NET culture names).
-3. Finish the pending NumberFormat option matrix: honor `useGrouping: "min2"`/`"always"` and `notation:"compact"`, surface scientific notation inside `formatRange`/`formatToParts`, and thread `signDisplay` plus the remaining fraction/significant digit overrides through the decimal helpers.
+1. Sweep for any callers that still expect the deleted `StandardLibrary.Array` monolith (e.g., missing helper exports or stale `using` directives) and patch them before enabling more aggressive warnings.
+2. Once confident in the structure, run the array-focused unit/Test262 slices to confirm no behavioural regressions and capture any migration bugs early.
+3. Keep tightening the partials (shared helpers, comments, tests) so additional array features can slot into the generator model without reintroducing giant files.

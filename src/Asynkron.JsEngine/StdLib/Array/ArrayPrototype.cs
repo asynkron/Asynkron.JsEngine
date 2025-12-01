@@ -14,6 +14,16 @@ public sealed partial class ArrayPrototype
     {
         Realm.ArrayPrototype ??= Prototype;
 
+        Prototype.DefineProperty("length",
+            new PropertyDescriptor
+            {
+                Value = 0d,
+                Writable = true,
+                Enumerable = false,
+                Configurable = false
+            });
+        Prototype.EnableArrayLengthTracking(0d);
+
         var iteratorKey = $"@@symbol:{TypedAstSymbol.For("Symbol.iterator").GetHashCode()}";
         if (Prototype.TryGetProperty("values", out var valuesFunction))
         {
@@ -26,5 +36,47 @@ public sealed partial class ArrayPrototype
                     Configurable = true
                 });
         }
+
+        DefineUnscopables();
+    }
+
+    private void DefineUnscopables()
+    {
+        var unscopables = new JsObject();
+        unscopables.SetPrototype(null);
+
+        void Flag(string name)
+        {
+            unscopables.DefineProperty(name,
+                new PropertyDescriptor
+                {
+                    Value = true,
+                    Writable = true,
+                    Enumerable = true,
+                    Configurable = true
+                });
+        }
+
+        Flag("copyWithin");
+        Flag("entries");
+        Flag("fill");
+        Flag("find");
+        Flag("findIndex");
+        Flag("flat");
+        Flag("flatMap");
+        Flag("includes");
+        Flag("keys");
+        Flag("values");
+
+        var symbol = TypedAstSymbol.For("Symbol.unscopables");
+        var key = $"@@symbol:{symbol.GetHashCode()}";
+        Prototype.DefineProperty(key,
+            new PropertyDescriptor
+            {
+                Value = unscopables,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
+            });
     }
 }

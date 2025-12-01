@@ -473,6 +473,14 @@ public static partial class StandardLibrary
             return Math.Log(1 + d);
         });
 
+        foreach (var entry in math)
+        {
+            if (entry.Value is HostFunction hostFunction)
+            {
+                hostFunction.IsConstructor = false;
+            }
+        }
+
         return math;
     }
 }

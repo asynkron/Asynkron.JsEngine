@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Tests;
@@ -333,6 +334,82 @@ public class AdditionalArrayMethodsTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Array_From_IteratorClosesWhenElementCannotBeDefined()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let closeCount = 0;
+                                                       const items = {
+                                                         [Symbol.iterator]() {
+                                                           let called = false;
+                                                           return {
+                                                             next() {
+                                                               if (called) {
+                                                                 return { done: true };
+                                                               }
+                                                               called = true;
+                                                               return { value: "x", done: false };
+                                                             },
+                                                             return() { closeCount++; return { done: true }; }
+                                                           };
+                                                         }
+                                                       };
+                                                       function Trap() {
+                                                         Object.defineProperty(this, "0", {
+                                                           writable: true,
+                                                           configurable: false
+                                                         });
+                                                       }
+                                                       try {
+                                                         Array.from.call(Trap, items);
+                                                         return { threw: "no throw", closeCount };
+                                                       } catch (err) {
+                                                         return {
+                                                           threw: err instanceof TypeError,
+                                                           closeCount
+                                                         };
+                                                       }
+
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(true, obj["threw"]);
+        Assert.Equal(1d, obj["closeCount"]);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Array_From_ArrayLikeThrowsWhenElementsCannotBeDefined()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       const items = { length: 1 };
+                                                       const ctors = [
+                                                         function() {
+                                                           this.length = 0;
+                                                           Object.preventExtensions(this);
+                                                         },
+                                                         function() {
+                                                           Object.defineProperty(this, "0", {
+                                                             writable: true,
+                                                             configurable: false
+                                                           });
+                                                         }
+                                                       ];
+                                                       return ctors.every(ctor => {
+                                                         try {
+                                                           Array.from.call(ctor, items);
+                                                           return false;
+                                                         } catch (err) {
+                                                           return err instanceof TypeError;
+                                                         }
+                                                       });
+
+                                           """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Array_FromAsync_ExposesCorrectMetadata()
     {
         await using var engine = new JsEngine();
@@ -418,6 +495,53 @@ public class AdditionalArrayMethodsTests
         var arr = Assert.IsType<JsArray>(stored);
         Assert.Equal("a!", arr.GetElement(0));
         Assert.Equal("b!", arr.GetElement(1));
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Array_FromAsync_RejectsWhenArrayLikeLengthIsTooLarge()
+    {
+        await using var engine = new JsEngine();
+        await engine.Run("""
+
+                                                     Array.fromAsync.call({}, { length: 4294967296 })
+                                                       .then(
+                                                         () => { globalThis.__asyncRangeStatus = "resolved"; },
+                                                         err => { globalThis.__asyncRangeStatus = err && err.name; });
+
+                                         """);
+        Assert.True(engine.GlobalObject.TryGetValue("__asyncRangeStatus", out var status));
+        Assert.Equal("RangeError", status);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Array_FromAsync_ClosesIteratorWhenCustomConstructorFailsToDefineElement()
+    {
+        await using var engine = new JsEngine();
+        await engine.Run("""
+
+                                                     globalThis.__asyncCtorStatus = "pending";
+                                                     globalThis.__asyncCtorClosed = 0;
+                                                     function TrapArray() {
+                                                       Object.defineProperty(this, 0, {
+                                                         enumerable: true,
+                                                         writable: true,
+                                                         configurable: false,
+                                                         value: 0
+                                                       });
+                                                     }
+                                                     const iterator = {
+                                                       next() { return { value: 1, done: false }; },
+                                                       return() { globalThis.__asyncCtorClosed++; return { done: true }; },
+                                                       [Symbol.iterator]() { return this; }
+                                                     };
+                                                     Array.fromAsync.call(TrapArray, iterator)
+                                                       .then(
+                                                         () => { globalThis.__asyncCtorStatus = "resolved"; },
+                                                         err => { globalThis.__asyncCtorStatus = err && err.name; });
+
+                                         """);
+        Assert.Equal("TypeError", engine.GlobalObject["__asyncCtorStatus"]);
+        Assert.Equal(1d, engine.GlobalObject["__asyncCtorClosed"]);
     }
 
     [Fact(Timeout = 2000)]
@@ -612,6 +736,40 @@ public class AdditionalArrayMethodsTests
 
                                            """);
         Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Array_Prototype_BehavesAsExoticArray()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       const initialLength = Array.prototype.length;
+                                                       const hadOwn = Object.prototype.hasOwnProperty.call(Array.prototype, "2");
+                                                       const previous = Array.prototype[2];
+                                                       Array.prototype[2] = 42;
+                                                       const summary = {
+                                                         length: Array.prototype.length,
+                                                         zero: Array.prototype[0],
+                                                         one: Array.prototype[1],
+                                                         two: Array.prototype[2],
+                                                         tag: Object.prototype.toString.call(Array.prototype)
+                                                       };
+                                                       if (hadOwn) {
+                                                         Array.prototype[2] = previous;
+                                                       } else {
+                                                         delete Array.prototype[2];
+                                                       }
+                                                       Array.prototype.length = initialLength;
+                                                       return summary;
+
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(3d, obj["length"]);
+        Assert.Same(Symbol.Undefined, obj["zero"]);
+        Assert.Same(Symbol.Undefined, obj["one"]);
+        Assert.Equal(42d, obj["two"]);
+        Assert.Equal("[object Array]", obj["tag"]);
     }
 
     [Fact(Timeout = 2000)]

@@ -72,7 +72,7 @@ public sealed partial class ArrayConstructor : JsConstructor
                 throw StandardLibrary.ThrowRangeError("Invalid array length", realm: Realm);
             }
 
-            if (lengthNumber > StandardLibrary.MaxArrayLength)
+            if (lengthNumber > StandardLibrary.MaxConcreteArrayLength)
             {
                 throw StandardLibrary.ThrowRangeError("Invalid array length", realm: Realm);
             }

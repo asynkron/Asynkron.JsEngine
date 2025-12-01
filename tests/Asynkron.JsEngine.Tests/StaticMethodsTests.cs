@@ -105,6 +105,25 @@ public class StaticMethodsTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ArrayIsArrayThrowsOnRevokedProxy()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       const handle = Proxy.revocable([], {});
+                                                       handle.revoke();
+                                                       try {
+                                                         Array.isArray(handle.proxy);
+                                                         return "no throw";
+                                                       } catch (err) {
+                                                         return err.name;
+                                                       }
+
+                                           """);
+        Assert.Equal("TypeError", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ArrayFrom()
     {
         await using var engine = new JsEngine();
@@ -156,5 +175,52 @@ public class StaticMethodsTests
 
                                            """);
         Assert.Equal(5d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ArrayOfReturnsArrayWhenReceiverIsNotConstructor()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       const receivers = [Array, undefined, Math.cos, Math.cos.bind(Math)];
+                                                       return receivers.every(receiver => {
+                                                         const arr = Array.of.call(receiver);
+                                                         return Array.isArray(arr) &&
+                                                           Object.getPrototypeOf(arr) === Array.prototype;
+                                                       });
+
+                                           """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ArrayOfThrowsWhenElementsCannotBeDefined()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+
+                                                       function Frozen() {
+                                                         this.length = 0;
+                                                         Object.preventExtensions(this);
+                                                       }
+                                                       function Locked() {
+                                                         Object.defineProperty(this, 0, {
+                                                           configurable: false,
+                                                           writable: true
+                                                         });
+                                                       }
+                                                       const ctors = [Frozen, Locked];
+                                                       return ctors.every(ctor => {
+                                                         try {
+                                                           Array.of.call(ctor, "x");
+                                                           return false;
+                                                         } catch (err) {
+                                                           return err instanceof TypeError;
+                                                         }
+                                                       });
+
+                                           """);
+        Assert.Equal(true, result);
     }
 }

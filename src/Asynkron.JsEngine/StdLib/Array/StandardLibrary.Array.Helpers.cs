@@ -1,0 +1,408 @@
+using System;
+using System.Globalization;
+using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
+
+namespace Asynkron.JsEngine.StdLib;
+
+public static partial class StandardLibrary
+{
+    internal static bool IsTruthy(object? value)
+    {
+        return JsOps.IsTruthy(value);
+    }
+
+    internal static bool AreStrictlyEqual(object? left, object? right)
+    {
+        return JsOps.StrictEquals(left, right);
+    }
+
+    internal static IJsObjectLike ToArrayLike(object? value, RealmState? realm)
+    {
+        if (value is IJsObjectLike accessor)
+        {
+            return accessor;
+        }
+
+        if (value is null || ReferenceEquals(value, Symbol.Undefined))
+        {
+            throw ThrowTypeError("Array method called on null or undefined", realm: realm);
+        }
+
+        if (TryGetObject(value, realm ?? new RealmState(), out var boxed))
+        {
+            return boxed;
+        }
+
+        throw ThrowTypeError("Array method receiver is not object-like", realm: realm);
+    }
+
+    internal static int GetArrayLikeLength(IJsObjectLike obj)
+    {
+        if (!obj.TryGetProperty("length", out var lengthVal))
+        {
+            return 0;
+        }
+
+        var asNumber = JsOps.ToNumber(lengthVal);
+        if (double.IsNaN(asNumber) || !(asNumber > 0))
+        {
+            return 0;
+        }
+
+        if (asNumber > int.MaxValue)
+        {
+            return int.MaxValue;
+        }
+
+        return (int)asNumber;
+    }
+
+    internal static void AttachBuiltinMetadata(HostFunction fn, string name, double length)
+    {
+        fn.DefineProperty("name",
+            new PropertyDescriptor { Value = name, Writable = false, Enumerable = false, Configurable = true });
+        fn.DefineProperty("length",
+            new PropertyDescriptor { Value = length, Writable = false, Enumerable = false, Configurable = true });
+    }
+
+    internal static void SetArrayLikeLength(IJsPropertyAccessor target, long length)
+    {
+        target.SetProperty("length", (double)Math.Max(length, 0));
+    }
+
+    internal static long LengthOfArrayLike(object? target, RealmState? realm, string operation)
+    {
+        if (target is null || ReferenceEquals(target, Symbol.Undefined))
+        {
+            throw ThrowTypeError($"{operation} requires an object", realm: realm);
+        }
+
+        var accessor = target as IJsPropertyAccessor ?? ToPropertyAccessor(target, operation, realm);
+        var context = realm?.CreateContext();
+        var value = accessor.TryGetProperty("length", out var lengthValue) ? lengthValue : 0d;
+        return (long)ToLengthOrZero(value, context);
+    }
+
+    internal static (IJsPropertyAccessor Accessor, long Length, IJsCallable Callback, object? ThisArg)
+        PrepareArrayIteration(object? receiver, IReadOnlyList<object?> args, RealmState? realm, string methodName)
+    {
+        var accessor = EnsureArrayLikeReceiver(receiver, methodName, realm);
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var length = (long)ToLengthOrZero(lengthValue);
+
+        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            throw ThrowTypeError($"{methodName} requires a callable callback", realm: realm);
+        }
+
+        var thisArg = args.GetArgument(1);
+        return (accessor, length, callback, thisArg);
+    }
+
+    internal static string ToIndexString(long index)
+    {
+        return index.ToString(CultureInfo.InvariantCulture);
+    }
+
+    internal static double ToLengthOrZero(object? value, EvaluationContext? context = null)
+    {
+        var number = JsOps.ToNumberWithContext(value, context);
+        if (context is not null && context.IsThrow)
+        {
+            return 0;
+        }
+
+        if (double.IsNaN(number) || number <= 0)
+        {
+            return 0;
+        }
+
+        var truncated = Math.Floor(number);
+        return truncated > MaxArrayLength ? MaxArrayLength : truncated;
+    }
+
+    internal static double ToIntegerOrInfinity(object? value, EvaluationContext? context = null)
+    {
+        var number = JsOps.ToNumberWithContext(value, context);
+        if (context is not null && context.IsThrow)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        if (double.IsNaN(number) || number == 0)
+        {
+            return 0;
+        }
+
+        if (double.IsPositiveInfinity(number) || double.IsNegativeInfinity(number))
+        {
+            return number;
+        }
+
+        return Math.Sign(number) * Math.Floor(Math.Abs(number));
+    }
+
+    internal static long ClampRelativeIndex(double index, long length)
+    {
+        if (double.IsNegativeInfinity(index))
+        {
+            return 0;
+        }
+
+        if (index < 0)
+        {
+            return Math.Max(length + (long)index, 0);
+        }
+
+        return Math.Min((long)index, length);
+    }
+
+    internal static object? ReduceLike(object? thisValue, IReadOnlyList<object?> args, RealmState? realm,
+        string methodName, bool fromRight)
+    {
+        var accessor = EnsureArrayLikeReceiver(thisValue, methodName, realm);
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var length = (long)ToLengthOrZero(lengthValue);
+
+        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            throw ThrowTypeError($"{methodName} requires a callable accumulator", realm: realm);
+        }
+
+        object? accumulator = Symbol.Undefined;
+        var start = fromRight ? length - 1 : 0;
+        var step = fromRight ? -1 : 1;
+
+        var argOffset = 1;
+        if (args.Count > 1 && !ReferenceEquals(args[1], Symbol.Undefined))
+        {
+            accumulator = args[1];
+        }
+
+        var k = start;
+        while (k >= 0 && k < length)
+        {
+            if (TryGetExistingElement(accessor, k, out var value))
+            {
+                if (ReferenceEquals(accumulator, Symbol.Undefined) && argOffset == 1)
+                {
+                    accumulator = value;
+                }
+                else
+                {
+                    accumulator = callback.Invoke([accumulator, value, (double)k, accessor], null);
+                }
+            }
+
+            k += step;
+        }
+
+        if (ReferenceEquals(accumulator, Symbol.Undefined))
+        {
+            throw ThrowTypeError($"{methodName} requires at least one element", realm: realm);
+        }
+
+        return accumulator;
+    }
+
+    internal static object? SomeLike(object? thisValue, IReadOnlyList<object?> args, RealmState? realm,
+        string methodName)
+    {
+        var (accessor, length, callback, thisArg) =
+            PrepareArrayIteration(thisValue, args, realm, methodName);
+
+        for (long k = 0; k < length; k++)
+        {
+            if (!TryGetExistingElement(accessor, k, out var value))
+            {
+                continue;
+            }
+
+            var result = callback.Invoke([value, (double)k, accessor], thisArg);
+            if (IsTruthy(result))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal static bool SameValueZero(object? x, object? y)
+    {
+        if (x is double.NaN && y is double.NaN)
+        {
+            return true;
+        }
+
+        return JsOps.StrictEquals(x, y);
+    }
+
+    internal static IJsPropertyAccessor EnsureArrayLikeReceiver(object? receiver, string methodName, RealmState? realm)
+    {
+        if (receiver is null || ReferenceEquals(receiver, Symbol.Undefined))
+        {
+            throw ThrowTypeError($"{methodName} called on null or undefined", realm: realm);
+        }
+
+        if (receiver is IJsPropertyAccessor accessor)
+        {
+            return accessor;
+        }
+
+        if (receiver is JsObject jsObj)
+        {
+            return jsObj;
+        }
+
+        if (TryGetObject(receiver, realm, out var boxed))
+        {
+            return boxed;
+        }
+
+        throw ThrowTypeError($"{methodName} receiver is not object-like", realm: realm);
+    }
+
+    internal static bool TryGetCallableMethod(object? target, string propertyKey, string operation, RealmState? realm,
+        out IJsCallable? callable)
+    {
+        callable = null;
+        if (target is null || ReferenceEquals(target, Symbol.Undefined))
+        {
+            return false;
+        }
+
+        var accessor = target as IJsPropertyAccessor ?? ToPropertyAccessor(target, operation, realm);
+        if (!accessor.TryGetProperty(propertyKey, out var candidate) ||
+            candidate is null ||
+            ReferenceEquals(candidate, Symbol.Undefined))
+        {
+            return false;
+        }
+
+        if (candidate is not IJsCallable resolved)
+        {
+            throw ThrowTypeError($"{operation} expected a function", realm: realm);
+        }
+
+        callable = resolved;
+        return true;
+    }
+
+    internal static IJsPropertyAccessor ToPropertyAccessor(object? value, string methodName, RealmState? realm)
+    {
+        if (value is IJsPropertyAccessor accessor)
+        {
+            return accessor;
+        }
+
+        if (value is null || ReferenceEquals(value, Symbol.Undefined))
+        {
+            throw ThrowTypeError($"{methodName} called on null or undefined", realm: realm);
+        }
+
+        if (TryGetObject(value, realm, out var boxed))
+        {
+            return boxed;
+        }
+
+        throw ThrowTypeError($"{methodName} could not convert the source to an object", realm: realm);
+    }
+
+    internal static IJsPropertyAccessor ToObjectPropertyAccessor(object? value, string methodName, RealmState? realm)
+    {
+        if (value is IJsPropertyAccessor accessor)
+        {
+            return accessor;
+        }
+
+        if (value is null || ReferenceEquals(value, Symbol.Undefined))
+        {
+            throw ThrowTypeError($"{methodName} called on null or undefined", realm: realm);
+        }
+
+        if (TryGetObject(value, realm, out var boxed))
+        {
+            return boxed;
+        }
+
+        throw ThrowTypeError($"{methodName} called on non-object", realm: realm);
+    }
+
+    internal static void IteratorClose(IJsPropertyAccessor iterator, RealmState? realm, string operation)
+    {
+        if (!iterator.TryGetProperty("return", out var returnValue) ||
+            returnValue is null ||
+            ReferenceEquals(returnValue, Symbol.Undefined))
+        {
+            return;
+        }
+
+        if (returnValue is not IJsCallable callable)
+        {
+            throw ThrowTypeError($"{operation} iterator return is not callable", realm: realm);
+        }
+
+        callable.Invoke(Array.Empty<object?>(), iterator);
+    }
+
+    internal static void CreateDataPropertyOrThrow(IJsObjectLike target, string propertyKey, object? value,
+        RealmState? realm, string methodName)
+    {
+        var descriptor = new PropertyDescriptor
+        {
+            Value = value,
+            Writable = true,
+            Enumerable = true,
+            Configurable = true
+        };
+
+        if (target is IPropertyDefinitionHost definitionHost)
+        {
+            if (!definitionHost.TryDefineProperty(propertyKey, descriptor))
+            {
+                throw ThrowTypeError($"{methodName} could not define property '{propertyKey}'", realm: realm);
+            }
+
+            return;
+        }
+
+        target.DefineProperty(propertyKey, descriptor);
+    }
+
+    internal static bool TryGetExistingElement(IJsPropertyAccessor accessor, long index, out object? value)
+    {
+        return TryGetExistingElement(accessor, ToIndexString(index), out value);
+    }
+
+    internal static bool TryGetExistingElement(IJsPropertyAccessor accessor, string propertyKey, out object? value)
+    {
+        if (!HasProperty(accessor, propertyKey))
+        {
+            value = null;
+            return false;
+        }
+
+        value = accessor.TryGetProperty(propertyKey, out var obtained) ? obtained : Symbol.Undefined;
+        return true;
+    }
+
+    internal static object? GetElementOrUndefined(IJsPropertyAccessor accessor, string propertyKey)
+    {
+        return accessor.TryGetProperty(propertyKey, out var value) ? value : Symbol.Undefined;
+    }
+
+    internal static object InvokeDefaultObjectToString(object? target, RealmState? realm)
+    {
+        if (realm?.ObjectPrototype is IJsPropertyAccessor objectPrototype &&
+            objectPrototype.TryGetProperty("toString", out var toStringValue) &&
+            toStringValue is IJsCallable callable)
+        {
+            return callable.Invoke(Array.Empty<object?>(), target);
+        }
+
+        return "[object Object]";
+    }
+}

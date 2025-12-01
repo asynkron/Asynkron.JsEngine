@@ -1,5 +1,6 @@
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -18,6 +19,8 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
     private readonly Dictionary<string, object?> _privateFields = new(StringComparer.Ordinal);
     private readonly List<string> _propertyInsertionOrder = [];
     private readonly HashSet<string> _propertyInsertionSet = new(StringComparer.Ordinal);
+    private bool _trackArrayLength;
+    private double _trackedArrayLength;
 
     private IJsPropertyAccessor? _prototypeAccessor;
     private IVirtualPropertyProvider? _virtualPropertyProvider;
@@ -32,6 +35,13 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
         {
             SetPrototype(prototype);
         }
+    }
+
+    internal void EnableArrayLengthTracking(double initialLength = 0)
+    {
+        _trackArrayLength = true;
+        _trackedArrayLength = Math.Max(initialLength, 0);
+        SyncTrackedLengthDescriptor();
     }
 
     internal void BeginConstruction()
@@ -168,12 +178,14 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
             }
 
             this[name] = value;
+            TrackArrayWrite(name, value);
             return;
         }
 
         if (TryGetValue(name, out _))
         {
             this[name] = value;
+            TrackArrayWrite(name, value);
             return;
         }
 
@@ -218,6 +230,7 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
         }
 
         this[name] = value;
+        TrackArrayWrite(name, value);
         if (!propertyExists)
         {
             TrackPropertyInsertion(name);
@@ -298,6 +311,22 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
         return DefinePropertyInternal(name, descriptor);
     }
 
+    private void TrackArrayWrite(string name, object? value)
+    {
+        if (!_trackArrayLength)
+        {
+            return;
+        }
+
+        if (string.Equals(name, "length", StringComparison.Ordinal))
+        {
+            TrackLengthAssignment(value);
+            return;
+        }
+
+        TrackArrayIndexWriteIfNeeded(name);
+    }
+
     private static bool IsPrivateName(string name)
     {
         return name.Length > 0 && name[0] == '#';
@@ -332,6 +361,17 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
             _descriptors[name] = newDescriptor;
             TrackPropertyInsertion(name);
             AssignDescriptorStorage(name, newDescriptor);
+            if (_trackArrayLength)
+            {
+                if (string.Equals(name, "length", StringComparison.Ordinal))
+                {
+                    TrackLengthAssignment(newDescriptor.Value);
+                }
+                else if (!newDescriptor.IsAccessorDescriptor)
+                {
+                    TrackArrayIndexWriteIfNeeded(name);
+                }
+            }
             return true;
         }
 
@@ -352,6 +392,17 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
         }
 
         AssignDescriptorStorage(name, currentDescriptor);
+        if (_trackArrayLength)
+        {
+            if (string.Equals(name, "length", StringComparison.Ordinal))
+            {
+                TrackLengthAssignment(currentDescriptor.Value);
+            }
+            else if (!currentDescriptor.IsAccessorDescriptor)
+            {
+                TrackArrayIndexWriteIfNeeded(name);
+            }
+        }
         return true;
     }
 
@@ -466,6 +517,85 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
         }
 
         return true;
+    }
+
+    private void TrackArrayIndexWriteIfNeeded(string name)
+    {
+        if (!_trackArrayLength)
+        {
+            return;
+        }
+
+        if (!TryParseArrayIndex(name, out var index))
+        {
+            return;
+        }
+
+        var candidate = (double)index + 1;
+        if (candidate > _trackedArrayLength)
+        {
+            _trackedArrayLength = candidate;
+            SyncTrackedLengthDescriptor();
+        }
+    }
+
+    private void TrackLengthAssignment(object? value)
+    {
+        if (!_trackArrayLength)
+        {
+            return;
+        }
+
+        double coerced;
+        try
+        {
+            coerced = value is double d ? d : JsOps.ToNumber(value);
+        }
+        catch (ThrowSignal)
+        {
+            return;
+        }
+
+        if (double.IsNaN(coerced) || double.IsInfinity(coerced) || coerced < 0)
+        {
+            return;
+        }
+
+        _trackedArrayLength = Math.Floor(coerced);
+        SyncTrackedLengthDescriptor();
+    }
+
+    private void SyncTrackedLengthDescriptor()
+    {
+        if (!_trackArrayLength)
+        {
+            return;
+        }
+
+        if (_descriptors.TryGetValue("length", out var descriptor))
+        {
+            descriptor.Value = _trackedArrayLength;
+        }
+        else
+        {
+            base["length"] = _trackedArrayLength;
+        }
+    }
+
+    private static bool TryParseArrayIndex(string propertyName, out uint index)
+    {
+        index = 0;
+        if (propertyName.Length == 0 || propertyName.Length > 10)
+        {
+            return false;
+        }
+
+        if (propertyName[0] == '0' && propertyName.Length > 1)
+        {
+            return false;
+        }
+
+        return uint.TryParse(propertyName, NumberStyles.None, CultureInfo.InvariantCulture, out index);
     }
 
     private static void ApplyDescriptorChange(PropertyDescriptor source, PropertyDescriptor target)

@@ -24,6 +24,7 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
 
     public bool IsFrozen { get; private set; }
     public bool IsExtensible { get; private set; } = true;
+    internal bool IsConstructing { get; private set; }
 
     public JsObject(object? prototype = null) : base(StringComparer.Ordinal)
     {
@@ -31,6 +32,16 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
         {
             SetPrototype(prototype);
         }
+    }
+
+    internal void BeginConstruction()
+    {
+        IsConstructing = true;
+    }
+
+    internal void EndConstruction()
+    {
+        IsConstructing = false;
     }
 
     public void PreventExtensions()

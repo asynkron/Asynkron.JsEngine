@@ -30,7 +30,13 @@ public static partial class TypedAstEvaluator
                         var value = member.Value is null
                             ? Symbol.Undefined
                             : EvaluateExpression(member.Value, environment, context);
-                        obj.SetProperty(name, value);
+                        obj.DefineProperty(name, new PropertyDescriptor
+                        {
+                            Value = value,
+                            Writable = true,
+                            Enumerable = true,
+                            Configurable = true
+                        });
                         break;
                     }
                     case ObjectMemberKind.Method:
@@ -47,7 +53,13 @@ public static partial class TypedAstEvaluator
                             return Symbol.Undefined;
                         }
 
-                        obj.SetProperty(name, callable);
+                        obj.DefineProperty(name, new PropertyDescriptor
+                        {
+                            Value = callable,
+                            Writable = true,
+                            Enumerable = true,
+                            Configurable = true
+                        });
                         break;
                     }
                     case ObjectMemberKind.Getter:
@@ -87,7 +99,13 @@ public static partial class TypedAstEvaluator
                         var value = member.Value is null
                             ? Symbol.Undefined
                             : EvaluateExpression(member.Value, environment, context);
-                        obj.SetProperty(name, value);
+                        obj.DefineProperty(name, new PropertyDescriptor
+                        {
+                            Value = value,
+                            Writable = true,
+                            Enumerable = true,
+                            Configurable = true
+                        });
                         break;
                     }
                     case ObjectMemberKind.Spread:
@@ -109,7 +127,13 @@ public static partial class TypedAstEvaluator
                         {
                             foreach (var kvp in dictionary)
                             {
-                                obj.SetProperty(kvp.Key, kvp.Value);
+                                obj.DefineProperty(kvp.Key, new PropertyDescriptor
+                                {
+                                    Value = kvp.Value,
+                                    Writable = true,
+                                    Enumerable = true,
+                                    Configurable = true
+                                });
                             }
 
                             break;
@@ -124,7 +148,13 @@ public static partial class TypedAstEvaluator
                             var spreadPropertyValue = accessor.TryGetProperty(key, out var val)
                                 ? val
                                 : Symbol.Undefined;
-                            obj.SetProperty(key, spreadPropertyValue);
+                            obj.DefineProperty(key, new PropertyDescriptor
+                            {
+                                Value = spreadPropertyValue,
+                                Writable = true,
+                                Enumerable = true,
+                                Configurable = true
+                            });
                         }
 
                         break;

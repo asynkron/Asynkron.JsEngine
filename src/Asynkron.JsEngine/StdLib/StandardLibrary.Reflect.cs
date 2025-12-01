@@ -114,7 +114,17 @@ public static partial class StandardLibrary
             instance.SetPrototype(proto);
         }
 
-        var constructed = target.Invoke(argList, instance);
+        object? constructed;
+        instance.BeginConstruction();
+        try
+        {
+            constructed = target.Invoke(argList, instance);
+        }
+        finally
+        {
+            instance.EndConstruction();
+        }
+
         return constructed is JsObject obj ? obj : instance;
     }
 

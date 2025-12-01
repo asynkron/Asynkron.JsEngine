@@ -20,7 +20,7 @@ public abstract class JsConstructor(JsObject prototype, RealmState realm)
     /// </summary>
     protected JsObject PrepareThisObject(object? thisValue, bool assignPrototype = true)
     {
-        if (thisValue is JsObject existing)
+        if (thisValue is JsObject { IsConstructing: true } existing)
         {
             if (assignPrototype && existing.Prototype is null && Prototype is not null)
             {

@@ -56,6 +56,7 @@ public static partial class TypedAstEvaluator
             }
 
             object? result;
+            instance.BeginConstruction();
             try
             {
                 if (callable is TypedFunction typedFunction)
@@ -72,6 +73,10 @@ public static partial class TypedAstEvaluator
             {
                 context.SetThrow(signal.ThrownValue);
                 return signal.ThrownValue;
+            }
+            finally
+            {
+                instance.EndConstruction();
             }
 
             // In JavaScript, constructors can explicitly return an object to override the

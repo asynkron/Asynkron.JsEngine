@@ -816,7 +816,7 @@ internal static class IntlUtilities
         }
     }
 
-    private static string RemoveUnicodeExtensions(string locale)
+    internal static string RemoveUnicodeExtensions(string locale)
     {
         var unicodeIndex = locale.IndexOf("-u-", StringComparison.Ordinal);
         if (unicodeIndex >= 0)
@@ -841,7 +841,65 @@ internal static class IntlUtilities
             return string.Empty;
         }
 
+        var privateIndex = locale.IndexOf("-x-", StringComparison.Ordinal);
+        if (privateIndex >= 0 && unicodeIndex > privateIndex)
+        {
+            return string.Empty;
+        }
+
         return locale[unicodeIndex..];
+    }
+
+    public static IReadOnlyDictionary<string, List<string>> ParseUnicodeExtensionKeywords(string locale)
+    {
+        var extension = ExtractUnicodeExtension(locale);
+        if (string.IsNullOrEmpty(extension))
+        {
+            return new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        }
+
+        var subtags = extension.Split('-', StringSplitOptions.RemoveEmptyEntries);
+        if (subtags.Length == 0 || !string.Equals(subtags[0], "u", StringComparison.Ordinal))
+        {
+            return new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        }
+
+        var keywords = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var index = 1;
+        while (index < subtags.Length)
+        {
+            var subtag = subtags[index];
+            if (string.Equals(subtag, "x", StringComparison.Ordinal))
+            {
+                break;
+            }
+
+            if (subtag.Length == 2)
+            {
+                var key = subtag;
+                index++;
+                var values = new List<string>();
+                while (index < subtags.Length)
+                {
+                    var value = subtags[index];
+                    if (value.Length <= 2)
+                    {
+                        break;
+                    }
+
+                    values.Add(value);
+                    index++;
+                }
+
+                keywords[key] = values;
+            }
+            else
+            {
+                index++;
+            }
+        }
+
+        return keywords;
     }
 
     public static CultureInfo ResolveCulture(string locale)

@@ -71,10 +71,10 @@ public sealed partial class IntlNumberFormatConstructor(JsObject prototype, Real
             unitDisplay = ResolveUnitDisplay(options);
         }
 
-        var digits = ResolveDigitOptions(options, style, currency);
-        var useGrouping = ResolveUseGrouping(options);
         var notation = IntlOptionHelpers.GetStringOption(options, "notation", Realm, "NumberFormat",
             ["standard", "scientific", "engineering", "compact"], "standard");
+        var digits = ResolveDigitOptions(options, style, currency, notation);
+        var useGrouping = ResolveUseGrouping(options);
         var signDisplay = IntlOptionHelpers.GetStringOption(options, "signDisplay", Realm, "NumberFormat",
             ["auto", "never", "always", "exceptZero"], "auto");
 
@@ -223,29 +223,15 @@ public sealed partial class IntlNumberFormatConstructor(JsObject prototype, Real
             "Intl.NumberFormat useGrouping option must be a boolean or string", realm: Realm);
     }
 
-    private DigitOptions ResolveDigitOptions(IJsPropertyAccessor? options, string style, string? currency)
+    private DigitOptions ResolveDigitOptions(
+        IJsPropertyAccessor? options,
+        string style,
+        string? currency,
+        string notation)
     {
         var minimumIntegerDigits = GetDigitOption(options, "minimumIntegerDigits", 1, 21, 1);
         var hasMinSig = TryGetDigitOption(options, "minimumSignificantDigits", 1, 21, out var minimumSignificantDigits);
         var hasMaxSig = TryGetDigitOption(options, "maximumSignificantDigits", 1, 21, out var maximumSignificantDigits);
-
-        if (hasMinSig || hasMaxSig)
-        {
-            minimumSignificantDigits ??= 1;
-            maximumSignificantDigits ??= 21;
-            if (minimumSignificantDigits > maximumSignificantDigits)
-            {
-                throw StandardLibrary.ThrowRangeError(
-                    "minimumSignificantDigits must be less than or equal to maximumSignificantDigits", realm: Realm);
-            }
-
-            return new DigitOptions
-            {
-                MinimumIntegerDigits = minimumIntegerDigits,
-                MinimumSignificantDigits = minimumSignificantDigits,
-                MaximumSignificantDigits = maximumSignificantDigits
-            };
-        }
 
         var currencyDigits = style == "currency" ? GetCurrencyDigits(currency) : 0;
         var minimumFractionDefault = style == "currency" ? currencyDigits : 0;
@@ -259,6 +245,26 @@ public sealed partial class IntlNumberFormatConstructor(JsObject prototype, Real
         var minimumFractionDigits = GetDigitOption(options, "minimumFractionDigits", 0, 20, minimumFractionDefault);
         var maximumFractionDigits = GetDigitOption(options, "maximumFractionDigits", minimumFractionDigits, 20,
             Math.Max(minimumFractionDigits, maximumFractionDefault));
+
+        if (hasMinSig || hasMaxSig || notation is "scientific" or "engineering")
+        {
+            minimumSignificantDigits ??= 1;
+            maximumSignificantDigits ??= 21;
+            if (minimumSignificantDigits > maximumSignificantDigits)
+            {
+                throw StandardLibrary.ThrowRangeError(
+                    "minimumSignificantDigits must be less than or equal to maximumSignificantDigits", realm: Realm);
+            }
+
+            return new DigitOptions
+            {
+                MinimumIntegerDigits = minimumIntegerDigits,
+                MinimumFractionDigits = minimumFractionDigits,
+                MaximumFractionDigits = maximumFractionDigits,
+                MinimumSignificantDigits = minimumSignificantDigits,
+                MaximumSignificantDigits = maximumSignificantDigits
+            };
+        }
 
         if (minimumFractionDigits > maximumFractionDigits)
         {

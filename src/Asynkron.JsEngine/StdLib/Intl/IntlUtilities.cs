@@ -791,6 +791,13 @@ internal static class IntlUtilities
             if (!string.IsNullOrEmpty(baseName))
             {
                 set.Add(baseName);
+                var (language, script, region, _) = IntlLocaleConstructor.ParseBaseName(baseName);
+                if (!string.IsNullOrEmpty(language) && !string.IsNullOrEmpty(region) &&
+                    !string.IsNullOrEmpty(script))
+                {
+                    var languageRegion = IntlLocaleConstructor.BuildBaseTag(language, null, region);
+                    set.Add(languageRegion);
+                }
             }
         }
 
@@ -905,20 +912,92 @@ internal static class IntlUtilities
     public static CultureInfo ResolveCulture(string locale)
     {
         var baseName = RemoveUnicodeExtensions(locale);
+        foreach (var candidate in EnumerateCultureCandidates(baseName))
+        {
+            if (TryGetCulture(candidate, out var culture))
+            {
+                return culture;
+            }
+        }
+
+        return CultureInfo.InvariantCulture;
+    }
+
+    private static IEnumerable<string> EnumerateCultureCandidates(string baseName)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        bool Add(string candidate)
+        {
+            if (string.IsNullOrEmpty(candidate))
+            {
+                return false;
+            }
+
+            return seen.Add(candidate);
+        }
+
+        if (Add(baseName))
+        {
+            yield return baseName;
+        }
+
+        var (language, script, region, _) = IntlLocaleConstructor.ParseBaseName(baseName);
+        var canonicalBase = IntlLocaleConstructor.BuildBaseTag(language, script, region);
+        if (Add(canonicalBase))
+        {
+            yield return canonicalBase;
+        }
+
+        if (!string.IsNullOrEmpty(script))
+        {
+            var languageScript = IntlLocaleConstructor.BuildBaseTag(language, script, null);
+            if (Add(languageScript))
+            {
+                yield return languageScript;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(region))
+        {
+            var languageRegion = IntlLocaleConstructor.BuildBaseTag(language, null, region);
+            if (Add(languageRegion))
+            {
+                yield return languageRegion;
+            }
+        }
+
+        if (Add(language))
+        {
+            yield return language;
+        }
+
+        var maximized = IntlLocaleLikelySubtags.AddLikelySubtags(baseName);
+        var maximizedBase = IntlLocaleConstructor.ExtractBaseName(maximized);
+        if (Add(maximizedBase))
+        {
+            yield return maximizedBase;
+        }
+    }
+
+    private static bool TryGetCulture(string candidate, out CultureInfo culture)
+    {
         try
         {
-            return CultureInfo.GetCultureInfo(baseName);
+            culture = CultureInfo.GetCultureInfo(candidate);
+            return true;
         }
         catch (CultureNotFoundException)
         {
-            var normalized = baseName.Replace('-', '_');
+            candidate = candidate.Replace('-', '_');
             try
             {
-                return CultureInfo.GetCultureInfo(normalized);
+                culture = CultureInfo.GetCultureInfo(candidate);
+                return true;
             }
             catch (CultureNotFoundException)
             {
-                return CultureInfo.InvariantCulture;
+                culture = CultureInfo.InvariantCulture;
+                return false;
             }
         }
     }

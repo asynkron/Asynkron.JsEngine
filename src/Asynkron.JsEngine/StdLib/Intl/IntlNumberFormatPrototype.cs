@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -24,7 +26,7 @@ public sealed partial class IntlNumberFormatPrototype
         var nf = ValidateNumberFormatReceiver(thisValue);
         return new HostFunction((_, formatArgs) =>
         {
-            var value = formatArgs.Count > 0 ? formatArgs[0] : Symbol.Undefined;
+            var value = formatArgs.GetArgument(0);
             return FormatNumberValue(nf, value);
         }, Realm, isConstructor: false);
     }
@@ -34,13 +36,21 @@ public sealed partial class IntlNumberFormatPrototype
     {
         var nf = ValidateNumberFormatReceiver(thisValue);
         var value = args.GetArgument(0);
-        var formatted = FormatNumberValue(nf, value);
-        var part = new JsObject();
-        part.SetProperty("type", "literal");
-        part.SetProperty("value", formatted);
-        var parts = new JsArray(Realm);
-        parts.Push(part);
-        return parts;
+        var result = FormatNumberResult(nf, value);
+        var partsArray = new JsArray(Realm);
+        var parts = result.Parts ?? new List<NumberFormatPart>
+        {
+            new("literal", result.Formatted)
+        };
+        foreach (var part in parts)
+        {
+            var entry = new JsObject(Realm.ObjectPrototype);
+            entry.SetProperty("type", part.Type);
+            entry.SetProperty("value", part.Value);
+            partsArray.Push(entry);
+        }
+
+        return partsArray;
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
@@ -57,6 +67,11 @@ public sealed partial class IntlNumberFormatPrototype
     }
 
     private string FormatNumberValue(JsObject nf, object? value)
+    {
+        return FormatNumberResult(nf, value).Formatted;
+    }
+
+    private IntlNumberFormatResult FormatNumberResult(JsObject nf, object? value)
     {
         var context = Realm.CreateContext();
         object numericValue;

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Numerics;
 using System.Text;
@@ -7,34 +8,48 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 
 internal static class IntlNumberFormatter
 {
-    public static string FormatBigInteger(BigInteger value, IntlNumberFormatInternalSlots slots)
+    private const double DecimalMaxMagnitude = 7.9228162514264338E28;
+
+    public static IntlNumberFormatResult FormatBigInteger(BigInteger value, IntlNumberFormatInternalSlots slots)
     {
         var quantity = DecimalQuantity.FromBigInteger(value);
         return FormatQuantity(quantity, slots);
     }
 
-    public static string FormatDouble(double value, IntlNumberFormatInternalSlots slots)
+    public static IntlNumberFormatResult FormatDouble(double value, IntlNumberFormatInternalSlots slots)
     {
         if (double.IsNaN(value))
         {
-            return "NaN";
+            var symbol = slots.Culture.NumberFormat.NaNSymbol;
+            return IntlNumberFormatResult.FromParts(symbol,
+                new List<NumberFormatPart> { new("nan", symbol) });
         }
 
         if (double.IsPositiveInfinity(value))
         {
-            return slots.Culture.NumberFormat.PositiveInfinitySymbol;
+            var symbol = slots.Culture.NumberFormat.PositiveInfinitySymbol;
+            return IntlNumberFormatResult.FromParts(symbol,
+                new List<NumberFormatPart> { new("infinity", symbol) });
         }
 
         if (double.IsNegativeInfinity(value))
         {
-            return slots.Culture.NumberFormat.NegativeInfinitySymbol;
+            var minus = slots.Culture.NumberFormat.NegativeSign;
+            var infinity = slots.Culture.NumberFormat.PositiveInfinitySymbol;
+            var formatted = slots.Culture.NumberFormat.NegativeInfinitySymbol;
+            return IntlNumberFormatResult.FromParts(formatted,
+                new List<NumberFormatPart>
+                {
+                    new("minusSign", minus),
+                    new("infinity", infinity)
+                });
         }
 
-        var quantity = DecimalQuantity.FromDouble(value);
+        var quantity = TryCreateDecimalQuantity(value) ?? DecimalQuantity.FromDouble(value);
         return FormatQuantity(quantity, slots);
     }
 
-    private static string FormatQuantity(DecimalQuantity quantity, IntlNumberFormatInternalSlots slots)
+    private static IntlNumberFormatResult FormatQuantity(DecimalQuantity quantity, IntlNumberFormatInternalSlots slots)
     {
         if (slots.Style == "percent")
         {
@@ -56,38 +71,237 @@ internal static class IntlNumberFormatter
             ApplyMaximumFractionDigits(quantity, slots.MaximumFractionDigits);
         }
 
-        var digits = quantity.Coefficient.ToString(CultureInfo.InvariantCulture);
-        var integerDigits = ExtractIntegerDigits(digits, quantity.Scale, out var fractionDigits);
-        integerDigits = PadIntegerDigits(integerDigits, slots.MinimumIntegerDigits);
-
-        if (!slots.UseSignificantDigits)
+        var result = slots.Notation switch
         {
-            if (fractionDigits.Length < slots.MinimumFractionDigits)
-            {
-                fractionDigits = fractionDigits.PadRight(slots.MinimumFractionDigits, '0');
-            }
-        }
-
-        var groupedInteger = slots.UseGrouping
-            ? ApplyGrouping(integerDigits, slots.Culture.NumberFormat)
-            : integerDigits;
-
-        var formatted = fractionDigits.Length > 0
-            ? $"{groupedInteger}{slots.Culture.NumberFormat.NumberDecimalSeparator}{fractionDigits}"
-            : groupedInteger;
+            "scientific" => FormatScientificNotation(quantity, slots, scientific: true),
+            "engineering" => FormatScientificNotation(quantity, slots, scientific: false),
+            _ => IntlNumberFormatResult.FromLiteral(
+                FormatDecimal(quantity, slots, slots.UseGrouping, trimTrailingZeros: false).Formatted)
+        };
 
         if (quantity.IsNegative && !quantity.Coefficient.IsZero)
         {
-            formatted = $"{slots.Culture.NumberFormat.NegativeSign}{formatted}";
+            var minus = slots.Culture.NumberFormat.NegativeSign;
+            result.Formatted = $"{minus}{result.Formatted}";
+            result.Parts?.Insert(0, new NumberFormatPart("minusSign", minus));
         }
 
         return slots.Style switch
         {
-            "percent" => ApplyPercentPattern(formatted, slots.Culture.NumberFormat),
-            "currency" when slots.Currency is { Length: > 0 } => FormatCurrency(formatted, slots),
-            "unit" when slots.Unit is { Length: > 0 } => $"{formatted} {slots.Unit}",
-            _ => formatted
+            "percent" => IntlNumberFormatResult.FromLiteral(
+                ApplyPercentPattern(result.Formatted, slots.Culture.NumberFormat)),
+            "currency" when slots.Currency is { Length: > 0 } =>
+                IntlNumberFormatResult.FromLiteral(FormatCurrency(result.Formatted, slots)),
+            "unit" when slots.Unit is { Length: > 0 } =>
+                IntlNumberFormatResult.FromLiteral($"{result.Formatted} {slots.Unit}"),
+            _ => result
         };
+    }
+
+    private static DecimalFormatResult FormatDecimal(
+        DecimalQuantity quantity,
+        IntlNumberFormatInternalSlots slots,
+        bool useGrouping,
+        bool trimTrailingZeros,
+        int? minimumIntegerOverride = null)
+    {
+        var digits = quantity.Coefficient.ToString(CultureInfo.InvariantCulture);
+        var integerDigits = ExtractIntegerDigits(digits, quantity.Scale, out var fractionDigits);
+        var minIntegerDigits = minimumIntegerOverride ?? slots.MinimumIntegerDigits;
+        integerDigits = PadIntegerDigits(integerDigits, minIntegerDigits);
+
+        if (fractionDigits.Length > 0)
+        {
+            if (!slots.UseSignificantDigits)
+            {
+                if (fractionDigits.Length < slots.MinimumFractionDigits)
+                {
+                    fractionDigits = fractionDigits.PadRight(slots.MinimumFractionDigits, '0');
+                }
+                else if (trimTrailingZeros && fractionDigits.Length > slots.MinimumFractionDigits)
+                {
+                    fractionDigits = TrimTrailingZeros(fractionDigits, slots.MinimumFractionDigits);
+                }
+            }
+            else if (trimTrailingZeros)
+            {
+                fractionDigits = fractionDigits.TrimEnd('0');
+            }
+        }
+
+        var integerPortion = useGrouping
+            ? ApplyGrouping(integerDigits, slots.Culture.NumberFormat)
+            : integerDigits;
+
+        var separator = slots.Culture.NumberFormat.NumberDecimalSeparator;
+        if (fractionDigits.Length == 0)
+        {
+            return new DecimalFormatResult
+            {
+                Formatted = integerPortion,
+                IntegerDigits = integerPortion,
+                FractionDigits = null,
+                DecimalSeparator = separator
+            };
+        }
+
+        return new DecimalFormatResult
+        {
+            Formatted = $"{integerPortion}{separator}{fractionDigits}",
+            IntegerDigits = integerPortion,
+            FractionDigits = fractionDigits,
+            DecimalSeparator = separator
+        };
+    }
+
+    private static string TrimTrailingZeros(string fractionDigits, int minimumLength)
+    {
+        var trimmed = fractionDigits.TrimEnd('0');
+        if (trimmed.Length < minimumLength)
+        {
+            return fractionDigits[..minimumLength];
+        }
+
+        return trimmed;
+    }
+
+    private static IntlNumberFormatResult FormatScientificNotation(
+        DecimalQuantity quantity,
+        IntlNumberFormatInternalSlots slots,
+        bool scientific)
+    {
+        if (quantity.Coefficient.IsZero)
+        {
+            var zeroParts = new List<NumberFormatPart>
+            {
+                new("integer", "0"),
+                new("exponentSeparator", "E"),
+                new("exponentInteger", "0")
+            };
+            return IntlNumberFormatResult.FromParts("0E0", zeroParts);
+        }
+
+        var digits = quantity.Coefficient.ToString(CultureInfo.InvariantCulture);
+        var decimalPos = digits.Length - quantity.Scale;
+        var baseExponent = decimalPos - 1;
+
+        int exponent;
+        if (scientific)
+        {
+            exponent = baseExponent;
+        }
+        else
+        {
+            var multiple = FloorDiv(baseExponent, 3);
+            exponent = multiple * 3;
+        }
+
+        var intDigits = decimalPos - exponent;
+        if (intDigits <= 0)
+        {
+            var adjustment = (int)Math.Ceiling((-intDigits) / 3d);
+            exponent -= adjustment * 3;
+            intDigits += adjustment * 3;
+        }
+
+        intDigits = Math.Clamp(intDigits, 1, 3);
+
+        var adjustedScale = quantity.Scale + exponent;
+        var adjustedCoefficient = quantity.Coefficient;
+        if (adjustedScale < 0)
+        {
+            adjustedCoefficient *= Pow10(-adjustedScale);
+            adjustedScale = 0;
+        }
+
+        var mantissaQuantity = new DecimalQuantity
+        {
+            Coefficient = adjustedCoefficient,
+            Scale = adjustedScale,
+            IsNegative = false
+        };
+
+        ApplyMaximumFractionDigits(mantissaQuantity, slots.MaximumFractionDigits);
+
+        var mantissa = FormatDecimal(mantissaQuantity, slots, useGrouping: false, trimTrailingZeros: true,
+            minimumIntegerOverride: Math.Max(1, intDigits));
+
+        var parts = new List<NumberFormatPart>();
+        AppendMantissaParts(parts, mantissa);
+
+        var builder = new StringBuilder();
+        builder.Append(mantissa.Formatted);
+        builder.Append('E');
+        parts.Add(new NumberFormatPart("exponentSeparator", "E"));
+
+        var exponentValue = exponent;
+        if (exponentValue < 0)
+        {
+            var minus = slots.Culture.NumberFormat.NegativeSign;
+            builder.Append(minus);
+            parts.Add(new NumberFormatPart("exponentMinusSign", minus));
+            exponentValue = -exponentValue;
+        }
+
+        var exponentDigits = exponentValue.ToString(CultureInfo.InvariantCulture);
+        builder.Append(exponentDigits);
+        parts.Add(new NumberFormatPart("exponentInteger", exponentDigits));
+
+        return IntlNumberFormatResult.FromParts(builder.ToString(), parts);
+    }
+
+    private static void AppendMantissaParts(List<NumberFormatPart> parts, DecimalFormatResult mantissa)
+    {
+        var integer = mantissa.IntegerDigits.Length > 0 ? mantissa.IntegerDigits : "0";
+        parts.Add(new NumberFormatPart("integer", integer));
+        if (!string.IsNullOrEmpty(mantissa.FractionDigits))
+        {
+            parts.Add(new NumberFormatPart("decimal", mantissa.DecimalSeparator));
+            parts.Add(new NumberFormatPart("fraction", mantissa.FractionDigits));
+        }
+    }
+
+    private static DecimalQuantity? TryCreateDecimalQuantity(double value)
+    {
+        if (value == 0d)
+        {
+            return DecimalQuantity.FromDecimal(0m);
+        }
+
+        if (value <= DecimalMaxMagnitude && value >= -DecimalMaxMagnitude)
+        {
+            try
+            {
+                var decimalValue = (decimal)value;
+                if (decimalValue != 0m)
+                {
+                    return DecimalQuantity.FromDecimal(decimalValue);
+                }
+            }
+            catch (OverflowException)
+            {
+                // fall back to double handling
+            }
+        }
+
+        return null;
+    }
+
+    private static int FloorDiv(int dividend, int divisor)
+    {
+        if (divisor == 0)
+        {
+            throw new DivideByZeroException();
+        }
+
+        var quotient = dividend / divisor;
+        var remainder = dividend % divisor;
+        if ((remainder != 0) && ((remainder < 0) ^ (divisor < 0)))
+        {
+            quotient--;
+        }
+
+        return quotient;
     }
 
     private static void ApplyMaximumFractionDigits(DecimalQuantity quantity, int maxFractionDigits)
@@ -406,10 +620,64 @@ internal static class IntlNumberFormatter
                 IsNegative = isNegative
             };
         }
+
+        public static DecimalQuantity FromDecimal(decimal value)
+        {
+            if (value == 0m)
+            {
+                return new DecimalQuantity
+                {
+                    Coefficient = BigInteger.Zero,
+                    Scale = 0,
+                    IsNegative = false
+                };
+            }
+
+            var bits = decimal.GetBits(decimal.Abs(value));
+            var scale = (bits[3] >> 16) & 0x7F;
+            var isNegative = value < 0m;
+            var high = (uint)bits[2];
+            var mid = (uint)bits[1];
+            var low = (uint)bits[0];
+            var coefficient = ((BigInteger)high << 64) | ((BigInteger)mid << 32) | low;
+
+            return new DecimalQuantity
+            {
+                Coefficient = coefficient,
+                Scale = scale,
+                IsNegative = isNegative
+            };
+        }
     }
 
     private static bool IsNegative(double value)
     {
         return BitConverter.DoubleToInt64Bits(value) < 0 && value != 0d;
     }
+
+    private sealed class DecimalFormatResult
+    {
+        public required string Formatted { get; init; }
+        public required string IntegerDigits { get; init; }
+        public string? FractionDigits { get; init; }
+        public string DecimalSeparator { get; init; } = string.Empty;
+    }
 }
+
+internal sealed class IntlNumberFormatResult
+{
+    public static IntlNumberFormatResult FromLiteral(string value)
+    {
+        return new IntlNumberFormatResult { Formatted = value };
+    }
+
+    public static IntlNumberFormatResult FromParts(string value, List<NumberFormatPart> parts)
+    {
+        return new IntlNumberFormatResult { Formatted = value, Parts = parts };
+    }
+
+    public string Formatted { get; set; } = string.Empty;
+    public List<NumberFormatPart>? Parts { get; set; }
+}
+
+internal readonly record struct NumberFormatPart(string Type, string Value);

@@ -1,3 +1,4 @@
+using System;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Ast;
@@ -30,6 +31,18 @@ public static partial class TypedAstEvaluator
                         var value = member.Value is null
                             ? Symbol.Undefined
                             : EvaluateExpression(member.Value, environment, context);
+
+                        if (!member.IsComputed &&
+                            string.Equals(name, "__proto__", StringComparison.Ordinal) &&
+                            !ReferenceEquals(value, Symbol.Undefined))
+                        {
+                            if (value is null || value is IJsPropertyAccessor)
+                            {
+                                obj.SetPrototype(value);
+                                break;
+                            }
+                        }
+
                         obj.DefineProperty(name, new PropertyDescriptor
                         {
                             Value = value,

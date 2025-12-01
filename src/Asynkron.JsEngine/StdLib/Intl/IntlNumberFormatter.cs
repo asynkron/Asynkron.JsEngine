@@ -13,7 +13,8 @@ internal static class IntlNumberFormatter
     public static IntlNumberFormatResult FormatBigInteger(BigInteger value, IntlNumberFormatInternalSlots slots)
     {
         var quantity = DecimalQuantity.FromBigInteger(value);
-        return FormatQuantity(quantity, slots);
+        var wasNegative = value.Sign < 0;
+        return FormatQuantity(quantity, slots, wasNegative);
     }
 
     public static IntlNumberFormatResult FormatDouble(double value, IntlNumberFormatInternalSlots slots)
@@ -46,10 +47,14 @@ internal static class IntlNumberFormatter
         }
 
         var quantity = TryCreateDecimalQuantity(value) ?? DecimalQuantity.FromDouble(value);
-        return FormatQuantity(quantity, slots);
+        var wasNegative = IsNegative(value);
+        return FormatQuantity(quantity, slots, wasNegative);
     }
 
-    private static IntlNumberFormatResult FormatQuantity(DecimalQuantity quantity, IntlNumberFormatInternalSlots slots)
+    private static IntlNumberFormatResult FormatQuantity(
+        DecimalQuantity quantity,
+        IntlNumberFormatInternalSlots slots,
+        bool wasNegative)
     {
         if (slots.Style == "percent")
         {
@@ -79,7 +84,8 @@ internal static class IntlNumberFormatter
                 FormatDecimal(quantity, slots, slots.UseGrouping, trimTrailingZeros: false).Formatted)
         };
 
-        if (quantity.IsNegative && !quantity.Coefficient.IsZero)
+        var showNegative = wasNegative;
+        if (showNegative)
         {
             var minus = slots.Culture.NumberFormat.NegativeSign;
             result.Formatted = $"{minus}{result.Formatted}";
@@ -118,15 +124,23 @@ internal static class IntlNumberFormatter
                 {
                     fractionDigits = fractionDigits.PadRight(slots.MinimumFractionDigits, '0');
                 }
-                else if (trimTrailingZeros && fractionDigits.Length > slots.MinimumFractionDigits)
+                else
                 {
-                    fractionDigits = TrimTrailingZeros(fractionDigits, slots.MinimumFractionDigits);
+                    var minimumLength = trimTrailingZeros ? 0 : slots.MinimumFractionDigits;
+                    if (fractionDigits.Length > minimumLength)
+                    {
+                        fractionDigits = TrimTrailingZeros(fractionDigits, minimumLength);
+                    }
                 }
             }
             else if (trimTrailingZeros)
             {
                 fractionDigits = fractionDigits.TrimEnd('0');
             }
+        }
+        else if (!slots.UseSignificantDigits && slots.MinimumFractionDigits > 0)
+        {
+            fractionDigits = new string('0', slots.MinimumFractionDigits);
         }
 
         var integerPortion = useGrouping
@@ -562,7 +576,7 @@ internal static class IntlNumberFormatter
                 {
                     Coefficient = BigInteger.Zero,
                     Scale = 0,
-                    IsNegative = false
+                    IsNegative = IsNegative(value)
                 };
             }
 
@@ -652,7 +666,7 @@ internal static class IntlNumberFormatter
 
     private static bool IsNegative(double value)
     {
-        return BitConverter.DoubleToInt64Bits(value) < 0 && value != 0d;
+        return BitConverter.DoubleToInt64Bits(value) < 0;
     }
 
     private sealed class DecimalFormatResult

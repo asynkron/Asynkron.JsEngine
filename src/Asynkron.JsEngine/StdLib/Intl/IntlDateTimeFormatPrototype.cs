@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
@@ -22,9 +24,7 @@ public sealed partial class IntlDateTimeFormatPrototype
     private HostFunction GetFormat(object? thisValue)
     {
         var slotData = ValidateReceiver(thisValue, out _);
-        return new HostFunction(
-            (_, args) => FormatInternal(args.GetArgument(0), slotData), Realm,
-            isConstructor: false);
+        return CreateBoundFormatFunction(value => FormatInternal(value, slotData));
     }
 
     [JsHostMethod("formatToParts", Length = 1d)]
@@ -107,6 +107,31 @@ public sealed partial class IntlDateTimeFormatPrototype
         obj.SetProperty("type", type);
         obj.SetProperty("value", value);
         return obj;
+    }
+
+    private HostFunction CreateBoundFormatFunction(Func<object?, object?> formatter)
+    {
+        var function = new HostFunction((_, args) => formatter(args.GetArgument(0)), Realm, isConstructor: false);
+        DefineFormatFunctionMetadata(function);
+        return function;
+    }
+
+    private static void DefineFormatFunctionMetadata(HostFunction function)
+    {
+        function.DefineProperty("length", new PropertyDescriptor
+        {
+            Value = 1d,
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+        function.DefineProperty("name", new PropertyDescriptor
+        {
+            Value = string.Empty,
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
     }
 
     private static string FormatInternal(object? value, DateTimeFormatInternalSlots slots)

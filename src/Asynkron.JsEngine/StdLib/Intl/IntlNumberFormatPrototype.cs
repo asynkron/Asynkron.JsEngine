@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
@@ -21,14 +22,10 @@ public sealed partial class IntlNumberFormatPrototype
     }
 
     [JsHostGetter("format", DisplayName = "get format")]
-    public object GetFormat(object? thisValue)
+    public HostFunction GetFormat(object? thisValue)
     {
         var nf = ValidateNumberFormatReceiver(thisValue);
-        return new HostFunction((_, formatArgs) =>
-        {
-            var value = formatArgs.GetArgument(0);
-            return FormatNumberValue(nf, value);
-        }, Realm, isConstructor: false);
+        return CreateBoundFormatFunction(value => FormatNumberValue(nf, value));
     }
 
     [JsHostMethod("formatToParts", Length = 0d)]
@@ -151,5 +148,29 @@ public sealed partial class IntlNumberFormatPrototype
         }
 
         throw StandardLibrary.ThrowTypeError("Intl.NumberFormat instance is missing internal slots", realm: Realm);
+    }
+    private HostFunction CreateBoundFormatFunction(Func<object?, object?> formatter)
+    {
+        var function = new HostFunction((_, args) => formatter(args.GetArgument(0)), Realm, isConstructor: false);
+        DefineFormatFunctionMetadata(function);
+        return function;
+    }
+
+    private static void DefineFormatFunctionMetadata(HostFunction function)
+    {
+        function.DefineProperty("length", new PropertyDescriptor
+        {
+            Value = 1d,
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+        function.DefineProperty("name", new PropertyDescriptor
+        {
+            Value = string.Empty,
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
     }
 }

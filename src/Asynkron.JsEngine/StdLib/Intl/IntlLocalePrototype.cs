@@ -240,9 +240,16 @@ public sealed partial class IntlLocalePrototype
     }
 
     [JsHostMethod("getTimeZones", Length = 0d)]
-    private JsArray GetTimeZones(object? thisValue, IReadOnlyList<object?> _)
+    private object? GetTimeZones(object? thisValue, IReadOnlyList<object?> _)
     {
-        ValidateLocaleReceiver(thisValue);
+        var locale = ValidateLocaleReceiver(thisValue);
+        var hasRegion = locale.TryGetProperty(RegionSlot, out var regionValue) && regionValue is string region &&
+                        region.Length > 0;
+        if (!hasRegion)
+        {
+            return Symbol.Undefined;
+        }
+
         var result = new JsArray(Realm);
         var zones = IntlUtilities.GetSupportedValues("timeZone", Realm);
         foreach (var zone in zones)

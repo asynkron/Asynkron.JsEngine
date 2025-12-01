@@ -163,7 +163,38 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public IEnumerable<string> GetOwnPropertyNames()
     {
-        return _properties.GetOwnPropertyNames();
+        foreach (var indexKey in EnumerateIndexPropertyNames(includeNonEnumerable: true))
+        {
+            yield return indexKey;
+        }
+
+        foreach (var key in _properties.GetOwnPropertyNames())
+        {
+            if (TryParseArrayIndex(key, out _))
+            {
+                continue;
+            }
+
+            yield return key;
+        }
+    }
+
+    public IEnumerable<string> GetEnumerablePropertyNames()
+    {
+        foreach (var indexKey in EnumerateIndexPropertyNames(includeNonEnumerable: false))
+        {
+            yield return indexKey;
+        }
+
+        foreach (var key in _properties.GetEnumerablePropertyNames())
+        {
+            if (TryParseArrayIndex(key, out _))
+            {
+                continue;
+            }
+
+            yield return key;
+        }
     }
 
     public void Seal()
@@ -320,6 +351,54 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             {
                 yield return key;
             }
+        }
+    }
+
+    private IEnumerable<string> EnumerateIndexPropertyNames(bool includeNonEnumerable)
+    {
+        var indices = new SortedSet<uint>();
+
+        for (var i = 0; i < _items.Count; i++)
+        {
+            if (!ReferenceEquals(_items[i], ArrayHole))
+            {
+                indices.Add((uint)i);
+            }
+        }
+
+        if (_sparseItems is not null)
+        {
+            foreach (var key in _sparseItems.Keys)
+            {
+                indices.Add(key);
+            }
+        }
+
+        foreach (var key in _properties.GetOwnPropertyNames())
+        {
+            if (TryParseArrayIndex(key, out var parsed))
+            {
+                indices.Add(parsed);
+            }
+        }
+
+        foreach (var index in indices)
+        {
+            var propertyName = index.ToString(CultureInfo.InvariantCulture);
+            var descriptor = GetOwnPropertyDescriptor(propertyName);
+            var enumerable = descriptor is { HasEnumerable: true } ? descriptor.Enumerable : true;
+
+            if (!includeNonEnumerable && !enumerable)
+            {
+                continue;
+            }
+
+            if (descriptor is null && !HasOwnIndex(index))
+            {
+                continue;
+            }
+
+            yield return propertyName;
         }
     }
 

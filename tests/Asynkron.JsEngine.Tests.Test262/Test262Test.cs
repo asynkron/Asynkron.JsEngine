@@ -8,6 +8,119 @@ namespace Asynkron.JsEngine.Tests.Test262;
 [Test262ActivityTrace]
 public abstract partial class Test262Test
 {
+    private const string CompareArrayPatchScript = @"// Patched compareArray harness to align with modern Test262 semantics
+function compareArray(a, b) {
+  compareArray.__callCount = (compareArray.__callCount || 0) + 1;
+  compareArray.__lastFailure = null;
+  if (b.length !== a.length) {
+    compareArray.__lastFailure = {
+      kind: ""length"",
+      expectedLength: b.length,
+      actualLength: a.length,
+      expectedType: typeof b.length,
+      actualType: typeof a.length
+    };
+    compareArray.__lastResult = false;
+    return false;
+  }
+
+  for (var i = 0; i < a.length; i++) {
+    if (!compareArray.isSameValue(b[i], a[i])) {
+      compareArray.__lastFailure = {
+        kind: ""value"",
+        index: i,
+        expected: b[i],
+        actual: a[i],
+        expectedType: typeof b[i],
+        actualType: typeof a[i]
+      };
+      compareArray.__lastResult = false;
+      return false;
+    }
+  }
+  compareArray.__lastResult = true;
+  return true;
+}
+
+compareArray.isSameValue = function(a, b) {
+  if (a === 0 && b === 0) return 1 / a === 1 / b;
+  if (a !== a && b !== b) return true;
+
+  return a === b;
+};
+
+compareArray.format = function(arrayLike) {
+  return `[${Array.prototype.map.call(arrayLike, String).join(', ')}]`;
+};
+compareArray.__patchedByAsynkron = true;
+
+assert.compareArray = function(actual, expected, message) {
+  message = message === undefined ? '' : message;
+
+  if (typeof message === 'symbol') {
+    message = message.toString();
+  }
+
+  assert(actual != null, `Actual argument shouldn't be nullish. ${message}`);
+  assert(expected != null, `Expected argument shouldn't be nullish. ${message}`);
+  var actualLengthType = typeof actual.length;
+  var expectedLengthType = typeof expected.length;
+  var comparisonDebug = { lengthMismatch: false, mismatchIndex: -1 };
+  var mismatch = false;
+  if (actual.length !== expected.length) {
+    comparisonDebug.lengthMismatch = true;
+    mismatch = true;
+  } else {
+    for (var i = 0; i < actual.length; i++) {
+      if (!compareArray.isSameValue(actual[i], expected[i])) {
+        comparisonDebug.mismatchIndex = i;
+        mismatch = true;
+        break;
+      }
+    }
+  }
+  if (mismatch) {
+    var format = compareArray.format;
+    var actualTypes = Array.prototype.map.call(actual, function (value) { return typeof value; }).join(',');
+    var perIndex = [];
+    var length = Math.min(actual.length, expected.length);
+    for (var i = 0; i < length; i++) {
+      perIndex.push(compareArray.isSameValue(actual[i], expected[i]));
+    }
+    var actualInfo = actual && typeof actual === 'object'
+      ? {
+          type: typeof actual,
+          array: Array.isArray(actual),
+          protoArray: Object.getPrototypeOf(actual) === Array.prototype,
+          ctor: actual.constructor && actual.constructor.name
+        }
+      : { type: typeof actual };
+    var expectedInfo = expected && typeof expected === 'object'
+      ? {
+          type: typeof expected,
+          array: Array.isArray(expected),
+          protoArray: Object.getPrototypeOf(expected) === Array.prototype,
+          ctor: expected.constructor && expected.constructor.name
+        }
+      : { type: typeof expected };
+    throw new Error(`Actual ${format(actual)} and expected ${format(expected)} should have the same contents. ${message} (mismatch=${mismatch}, actualTypes=${actualTypes}, lengths=${actual.length}/${expected.length}, lengthTypes=${actualLengthType}/${expectedLengthType}, perIndex=${perIndex.join(',')}, comparisonDebug=${JSON.stringify(comparisonDebug)}, actualInfo=${JSON.stringify(actualInfo)}, expectedInfo=${JSON.stringify(expectedInfo)}, compareArraySource=${compareArray.toString()}, patched=${compareArray.__patchedByAsynkron}, failure=${JSON.stringify(compareArray.__lastFailure)}, lastResult=${compareArray.__lastResult}, callCount=${compareArray.__callCount})`);
+  }
+};
+
+assert.compareArray.isSameValue = compareArray.isSameValue;
+assert.compareArray.format = compareArray.format;
+if (typeof compareArray([], []) !== ""boolean"") {
+  throw new Error(""compareArray patch failed"");
+}
+try {
+  var probeKeys = Reflect.ownKeys(new Intl.Locale('en').getWeekInfo());
+  if (!compareArray(probeKeys, ['firstDay','weekend','minimalDays'])) {
+    throw new Error('compareArray mismatch: ' + JSON.stringify(probeKeys));
+  }
+} catch (err) {
+  throw err;
+}
+";
 
 
     private static JsEngine BuildTestExecutor(Test262File file)
@@ -156,6 +269,8 @@ public abstract partial class Test262Test
         {
             ExecuteSource(engine, State.Sources[include]).Wait();
         }
+
+        ExecuteSource(engine, CompareArrayPatchScript).Wait();
 
         if (file.Flags.Contains("async"))
         {

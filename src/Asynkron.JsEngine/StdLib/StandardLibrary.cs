@@ -394,4 +394,51 @@ public static partial class StandardLibrary
     {
         return value.ToJsString(null, realm);
     }
+
+    private static bool TryFormatWithIntlNumberFormat(
+        object numericValue,
+        object? localesArg,
+        object? optionsArg,
+        RealmState? realm,
+        out object? formatted)
+    {
+        formatted = null;
+        var constructor = ResolveIntlNumberFormatConstructor(realm);
+        if (constructor is null)
+        {
+            return false;
+        }
+
+        var formatter = constructor.Invoke([localesArg, optionsArg], null);
+        if (formatter is not IJsPropertyAccessor accessor ||
+            !accessor.TryGetProperty("format", out var formatValue) ||
+            formatValue is not IJsCallable formatFn)
+        {
+            return false;
+        }
+
+        formatted = formatFn.Invoke([numericValue], formatter);
+        return true;
+    }
+
+    private static IJsCallable? ResolveIntlNumberFormatConstructor(RealmState? realm)
+    {
+        var intl = realm?.Engine?.GlobalObject;
+        if (intl is null)
+        {
+            return null;
+        }
+
+        if (!intl.TryGetProperty("Intl", out var intlValue) || intlValue is not IJsPropertyAccessor intlAccessor)
+        {
+            return null;
+        }
+
+        if (!intlAccessor.TryGetProperty("NumberFormat", out var ctorValue) || ctorValue is not IJsCallable ctor)
+        {
+            return null;
+        }
+
+        return ctor;
+    }
 }

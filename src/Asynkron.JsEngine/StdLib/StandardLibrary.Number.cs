@@ -153,7 +153,16 @@ public static partial class StandardLibrary
 
         object? ToLocaleString(IReadOnlyList<object?> args)
         {
-            if (args.Count > 1 && args[1] is JsObject options)
+            var localesArg = args.GetArgument(0);
+            var optionsArg = args.GetArgument(1);
+
+            if (realm is not null &&
+                TryFormatWithIntlNumberFormat(num, localesArg, optionsArg, realm, out var formatted))
+            {
+                return formatted;
+            }
+
+            if (optionsArg is JsObject options)
             {
                 var style = options.TryGetProperty("style", out var styleVal) ? styleVal?.ToString() : null;
                 if (string.Equals(style, "unit", StringComparison.OrdinalIgnoreCase) &&
@@ -312,9 +321,16 @@ public static partial class StandardLibrary
             return ThisBigIntValue(thisValue);
         }
 
-        object? BigIntPrototypeToLocaleString(object? thisValue, IReadOnlyList<object?> _)
+        object? BigIntPrototypeToLocaleString(object? thisValue, IReadOnlyList<object?> args)
         {
             var value = ThisBigIntValue(thisValue);
+            var localesArg = args.GetArgument(0);
+            var optionsArg = args.GetArgument(1);
+            if (TryFormatWithIntlNumberFormat(value, localesArg, optionsArg, realm, out var formatted))
+            {
+                return formatted;
+            }
+
             return BigIntToString(value.Value, 10);
         }
 

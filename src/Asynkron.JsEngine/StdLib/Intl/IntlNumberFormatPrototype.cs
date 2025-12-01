@@ -76,10 +76,10 @@ public sealed partial class IntlNumberFormatPrototype
     private string FormatNumberValue(JsObject nf, object? value)
     {
         var context = Realm.CreateContext();
-        double number;
+        object numericValue;
         try
         {
-            number = JsOps.ToNumber(value, context);
+            numericValue = JsOps.ToNumeric(value, context);
         }
         catch
         {
@@ -91,12 +91,21 @@ public sealed partial class IntlNumberFormatPrototype
             throw new ThrowSignal(context.FlowValue);
         }
 
-        var numeric = number switch
+        string numeric;
+        if (numericValue is JsBigInt bigInt)
         {
-            double.NaN => "NaN",
-            0d => "0",
-            _ => number.ToString(CultureInfo.InvariantCulture)
-        };
+            numeric = bigInt.ToString();
+        }
+        else
+        {
+            var number = (double)numericValue;
+            numeric = number switch
+            {
+                double.NaN => "NaN",
+                0d => "0",
+                _ => number.ToString(CultureInfo.InvariantCulture)
+            };
+        }
 
         var style = nf.TryGetProperty("__style__", out var styleValue) && styleValue is string styleStr
             ? styleStr

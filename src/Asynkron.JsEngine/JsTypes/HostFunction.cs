@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 
@@ -10,6 +13,8 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
     IJsEnvironmentAwareCallable
 {
     private readonly Func<object?, IReadOnlyList<object?>, object?> _handler;
+    private bool _isConstructor = true;
+    private RealmState? _realmState;
 
     public HostFunction(Func<IReadOnlyList<object?>, object?> handler, RealmState? realmState = null,
         bool isConstructor = true)
@@ -18,7 +23,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
 
         _handler = (_, args) => handler(args);
         RealmState = realmState;
-        IsConstructor = isConstructor;
+        _isConstructor = isConstructor;
         InitializePrototype();
     }
 
@@ -27,7 +32,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
     {
         _handler = handler ?? throw new ArgumentNullException(nameof(handler));
         RealmState = realmState;
-        IsConstructor = isConstructor;
+        _isConstructor = isConstructor;
         InitializePrototype();
     }
 
@@ -42,7 +47,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
         }
 
         RealmState = realmState;
-        IsConstructor = isConstructor;
+        _isConstructor = isConstructor;
         _handler = (thisValue, args) => handler(thisValue, args, realmState);
         InitializePrototype();
     }
@@ -56,12 +61,49 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
     /// <summary>
     ///     Optional realm state for intrinsic prototype resolution.
     /// </summary>
-    public RealmState? RealmState { get; set; }
+    public RealmState? RealmState
+    {
+        get => _realmState;
+        set
+        {
+            if (ReferenceEquals(_realmState, value))
+            {
+                return;
+            }
+
+            _realmState = value;
+            if (_realmState?.FunctionPrototype is JsObject functionPrototype &&
+                Properties.Prototype is null)
+            {
+                Properties.SetPrototype(functionPrototype);
+            }
+        }
+    }
 
     /// <summary>
     ///     Indicates whether this host function can be used with <c>new</c>.
     /// </summary>
-    public bool IsConstructor { get; set; } = true;
+    public bool IsConstructor
+    {
+        get => _isConstructor;
+        set
+        {
+            if (_isConstructor == value)
+            {
+                return;
+            }
+
+            _isConstructor = value;
+            if (_isConstructor)
+            {
+                EnsurePrototypeDataProperty();
+            }
+            else
+            {
+                RemovePrototypeDataProperty();
+            }
+        }
+    }
 
     /// <summary>
     ///     When true, construction is explicitly disallowed even though the function
@@ -97,6 +139,12 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
 
     public bool TryGetProperty(string name, object? receiver, out object? value)
     {
+        if (!_isConstructor && string.Equals(name, "prototype", StringComparison.Ordinal))
+        {
+            value = Symbol.Undefined;
+            return true;
+        }
+
         EnsureFunctionPrototype();
         if (Properties.TryGetProperty(name, receiver ?? this, out value))
         {
@@ -198,12 +246,25 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
     {
+        if (!_isConstructor && string.Equals(name, "prototype", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
         return Properties.GetOwnPropertyDescriptor(name);
     }
 
     public IEnumerable<string> GetOwnPropertyNames()
     {
-        return Properties.GetOwnPropertyNames();
+        foreach (var key in Properties.GetOwnPropertyNames())
+        {
+            if (!_isConstructor && string.Equals(key, "prototype", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            yield return key;
+        }
     }
 
     public JsObject? Prototype
@@ -217,7 +278,21 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
 
     public bool IsSealed => Properties.IsSealed;
 
-    public IEnumerable<string> Keys => Properties.Keys;
+    public IEnumerable<string> Keys
+    {
+        get
+        {
+            foreach (var key in Properties.Keys)
+            {
+                if (!_isConstructor && string.Equals(key, "prototype", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                yield return key;
+            }
+        }
+    }
 
     public void SetPrototype(object? candidate)
     {
@@ -259,9 +334,37 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
 
     private void InitializePrototype()
     {
+        EnsureFunctionPrototype();
+        if (_isConstructor)
+        {
+            EnsurePrototypeDataProperty();
+        }
+        else
+        {
+            RemovePrototypeDataProperty();
+        }
+    }
+
+    private void EnsurePrototypeDataProperty()
+    {
+        if (!_isConstructor || HasPrototypeDataProperty())
+        {
+            return;
+        }
+
         var prototype = new JsObject();
         prototype.SetProperty("constructor", this);
         Properties.SetProperty("prototype", prototype);
-        EnsureFunctionPrototype();
+    }
+
+    private void RemovePrototypeDataProperty()
+    {
+        Properties.DeleteOwnProperty("prototype");
+    }
+
+    private bool HasPrototypeDataProperty()
+    {
+        return Properties.GetOwnPropertyDescriptor("prototype") is not null
+               || Properties.ContainsKey("prototype");
     }
 }

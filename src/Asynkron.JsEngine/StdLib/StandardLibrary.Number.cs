@@ -261,9 +261,10 @@ public static partial class StandardLibrary
                     Value = bigIntFunction, Writable = true, Enumerable = false, Configurable = true
                 });
 
-            DefineBuiltinFunction(proto, "toString", new HostFunction(BigIntPrototypeToString), 0);
-            DefineBuiltinFunction(proto, "valueOf", new HostFunction(BigIntPrototypeValueOf), 0);
-            DefineBuiltinFunction(proto, "toLocaleString", new HostFunction(BigIntPrototypeToLocaleString), 0);
+            DefineBuiltinFunction(proto, "toString", new HostFunction(BigIntPrototypeToString, realm), 0);
+            DefineBuiltinFunction(proto, "valueOf", new HostFunction(BigIntPrototypeValueOf, realm), 0);
+            var toLocaleFunction = new HostFunction(BigIntPrototypeToLocaleString, realm);
+            DefineBuiltinFunction(proto, "toLocaleString", toLocaleFunction, 0);
         }
 
         DefineBuiltinFunction(
@@ -295,7 +296,7 @@ public static partial class StandardLibrary
 
         object? BigIntPrototypeToString(object? thisValue, IReadOnlyList<object?> args)
         {
-            var value = ThisBigIntValue(thisValue);
+            var value = ThisBigIntValue(thisValue, realm);
             var radixArg = args.GetArgument(0);
             var radixNumber = ReferenceEquals(radixArg, Symbol.Undefined)
                 ? 10d
@@ -318,12 +319,12 @@ public static partial class StandardLibrary
 
         object? BigIntPrototypeValueOf(object? thisValue, IReadOnlyList<object?> _)
         {
-            return ThisBigIntValue(thisValue);
+            return ThisBigIntValue(thisValue, realm);
         }
 
         object? BigIntPrototypeToLocaleString(object? thisValue, IReadOnlyList<object?> args)
         {
-            var value = ThisBigIntValue(thisValue);
+            var value = ThisBigIntValue(thisValue, realm);
             var localesArg = args.GetArgument(0);
             var optionsArg = args.GetArgument(1);
             if (TryFormatWithIntlNumberFormat(value, localesArg, optionsArg, realm, out var formatted))

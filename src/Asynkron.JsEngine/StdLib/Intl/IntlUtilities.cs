@@ -844,6 +844,27 @@ internal static class IntlUtilities
         return locale[unicodeIndex..];
     }
 
+    public static CultureInfo ResolveCulture(string locale)
+    {
+        var baseName = RemoveUnicodeExtensions(locale);
+        try
+        {
+            return CultureInfo.GetCultureInfo(baseName);
+        }
+        catch (CultureNotFoundException)
+        {
+            var normalized = baseName.Replace('-', '_');
+            try
+            {
+                return CultureInfo.GetCultureInfo(normalized);
+            }
+            catch (CultureNotFoundException)
+            {
+                return CultureInfo.InvariantCulture;
+            }
+        }
+    }
+
     private static string? BestAvailableLocale(string locale)
     {
         var candidate = locale;

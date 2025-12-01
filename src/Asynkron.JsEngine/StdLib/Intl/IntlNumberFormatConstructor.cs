@@ -14,29 +14,10 @@ public sealed partial class IntlNumberFormatConstructor(JsObject prototype, Real
     protected override JsObject ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
     {
         var (_, resolvedLocale) = StandardLibrary.ResolveIntlLocales(args.GetArgument(0), Realm);
-        var optionsArg = args.GetArgument(1);
-        var options = NormalizeOptions(optionsArg);
-        var style = ReadStyleOption(options);
-        var numberingSystem = ReadNumberingSystem(options);
-        string? currency = null;
-        if (style == "currency")
-        {
-            currency = ReadCurrencyOption(options);
-        }
-        string? unit = null;
-        if (style == "unit")
-        {
-            unit = ReadUnitOption(options);
-        }
-
+        var options = IntlOptionHelpers.GetOptionsObject(args.GetArgument(1), Realm, "NumberFormat");
+        var slots = CreateInternalSlots(resolvedLocale, options);
         var instance = PrepareThisObject(thisValue);
-        IntlNumberFormatPrototype.InitializeInternalSlots(
-            instance,
-            resolvedLocale,
-            numberingSystem,
-            style,
-            currency,
-            unit);
+        IntlNumberFormatPrototype.InitializeInternalSlots(instance, slots);
         return instance;
     }
 
@@ -65,53 +46,71 @@ public sealed partial class IntlNumberFormatConstructor(JsObject prototype, Real
         return StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
     }
 
-    private JsObject? NormalizeOptions(object? optionsArg)
+    private IntlNumberFormatInternalSlots CreateInternalSlots(string locale, IJsPropertyAccessor? options)
     {
-        if (optionsArg is null)
+        _ = IntlOptionHelpers.GetStringOption(options, "localeMatcher", Realm, "NumberFormat",
+            ["lookup", "best fit"], "best fit");
+        var style = ResolveStyle(options);
+        var numberingSystem = ResolveNumberingSystem(options);
+        var culture = IntlUtilities.ResolveCulture(locale);
+        string? currency = null;
+        string currencyDisplay = "symbol";
+        string currencySign = "standard";
+        if (style == "currency")
         {
-            throw StandardLibrary.ThrowTypeError("Intl.NumberFormat options must be an object", realm: Realm);
+            currency = ResolveCurrency(options);
+            currencyDisplay = ResolveCurrencyDisplay(options);
+            currencySign = ResolveCurrencySign(options);
         }
 
-        if (ReferenceEquals(optionsArg, Symbol.Undefined))
+        string? unit = null;
+        var unitDisplay = "short";
+        if (style == "unit")
         {
-            return null;
+            unit = ResolveUnit(options);
+            unitDisplay = ResolveUnitDisplay(options);
         }
 
-        if (optionsArg is JsObject jsObject)
-        {
-            return jsObject;
-        }
+        var digits = ResolveDigitOptions(options, style, currency);
+        var useGrouping = ResolveUseGrouping(options);
+        var notation = IntlOptionHelpers.GetStringOption(options, "notation", Realm, "NumberFormat",
+            ["standard", "scientific", "engineering", "compact"], "standard");
+        var signDisplay = IntlOptionHelpers.GetStringOption(options, "signDisplay", Realm, "NumberFormat",
+            ["auto", "never", "always", "exceptZero"], "auto");
 
-        throw StandardLibrary.ThrowTypeError("Intl.NumberFormat options must be an object", realm: Realm);
+        return new IntlNumberFormatInternalSlots
+        {
+            Locale = locale,
+            NumberingSystem = numberingSystem,
+            Style = style,
+            Currency = currency,
+            CurrencyDisplay = currencyDisplay,
+            CurrencySign = currencySign,
+            Unit = unit,
+            UnitDisplay = unitDisplay,
+            MinimumIntegerDigits = digits.MinimumIntegerDigits,
+            MinimumFractionDigits = digits.MinimumFractionDigits,
+            MaximumFractionDigits = digits.MaximumFractionDigits,
+            MinimumSignificantDigits = digits.MinimumSignificantDigits,
+            MaximumSignificantDigits = digits.MaximumSignificantDigits,
+            UseGrouping = useGrouping,
+            Notation = notation,
+            SignDisplay = signDisplay,
+            Culture = culture
+        };
     }
 
-    private string ReadStyleOption(JsObject? options)
+    private string ResolveStyle(IJsPropertyAccessor? options)
     {
-        if (options is null || !options.TryGetProperty("style", out var value) ||
-            value is null || ReferenceEquals(value, Symbol.Undefined))
-        {
-            return "decimal";
-        }
-
-        if (value is not string style)
-        {
-            throw StandardLibrary.ThrowTypeError("Intl.NumberFormat style option must be a string", realm: Realm);
-        }
-
-        if (style is not ("decimal" or "currency" or "unit"))
-        {
-            throw StandardLibrary.ThrowRangeError(
-                $"Intl.NumberFormat style option '{style}' is not supported", realm: Realm);
-        }
-
-        return style;
+        return IntlOptionHelpers.GetStringOption(options, "style", Realm, "NumberFormat",
+            ["decimal", "currency", "percent", "unit"], "decimal");
     }
 
-    private string ReadNumberingSystem(JsObject? options)
+    private string ResolveNumberingSystem(IJsPropertyAccessor? options)
     {
         if (options is null ||
             !options.TryGetProperty("numberingSystem", out var rawValue) ||
-            rawValue is null || ReferenceEquals(rawValue, Symbol.Undefined))
+            ReferenceEquals(rawValue, Symbol.Undefined))
         {
             return "latn";
         }
@@ -127,10 +126,10 @@ public sealed partial class IntlNumberFormatConstructor(JsObject prototype, Real
             : "latn";
     }
 
-    private string ReadCurrencyOption(JsObject? options)
+    private string ResolveCurrency(IJsPropertyAccessor? options)
     {
         if (options is null || !options.TryGetProperty("currency", out var value) ||
-            value is null || ReferenceEquals(value, Symbol.Undefined))
+            ReferenceEquals(value, Symbol.Undefined))
         {
             throw StandardLibrary.ThrowTypeError(
                 "Intl.NumberFormat currency option is required when style is 'currency'", realm: Realm);
@@ -147,18 +146,25 @@ public sealed partial class IntlNumberFormatConstructor(JsObject prototype, Real
             throw StandardLibrary.ThrowRangeError($"Invalid currency code '{currency}'", realm: Realm);
         }
 
-        if (!IntlUtilities.IsSupportedCurrency(canonical))
-        {
-            throw StandardLibrary.ThrowRangeError($"Unsupported currency '{currency}'", realm: Realm);
-        }
-
         return canonical;
     }
 
-    private string ReadUnitOption(JsObject? options)
+    private string ResolveCurrencyDisplay(IJsPropertyAccessor? options)
+    {
+        return IntlOptionHelpers.GetStringOption(options, "currencyDisplay", Realm, "NumberFormat",
+            ["code", "symbol", "narrowSymbol", "name"], "symbol");
+    }
+
+    private string ResolveCurrencySign(IJsPropertyAccessor? options)
+    {
+        return IntlOptionHelpers.GetStringOption(options, "currencySign", Realm, "NumberFormat",
+            ["standard", "accounting"], "standard");
+    }
+
+    private string ResolveUnit(IJsPropertyAccessor? options)
     {
         if (options is null || !options.TryGetProperty("unit", out var value) ||
-            value is null || ReferenceEquals(value, Symbol.Undefined))
+            ReferenceEquals(value, Symbol.Undefined))
         {
             throw StandardLibrary.ThrowTypeError(
                 "Intl.NumberFormat unit option is required when style is 'unit'", realm: Realm);
@@ -176,5 +182,159 @@ public sealed partial class IntlNumberFormatConstructor(JsObject prototype, Real
         }
 
         return canonical;
+    }
+
+    private string ResolveUnitDisplay(IJsPropertyAccessor? options)
+    {
+        return IntlOptionHelpers.GetStringOption(options, "unitDisplay", Realm, "NumberFormat",
+            ["short", "narrow", "long"], "short");
+    }
+
+    private bool ResolveUseGrouping(IJsPropertyAccessor? options)
+    {
+        if (options is null ||
+            !options.TryGetProperty("useGrouping", out var value) ||
+            ReferenceEquals(value, Symbol.Undefined))
+        {
+            return true;
+        }
+
+        if (value is bool boolValue)
+        {
+            return boolValue;
+        }
+
+        if (value is string stringValue)
+        {
+            return stringValue switch
+            {
+                "always" => true,
+                "auto" => true,
+                "min2" => true,
+                "false" => false,
+                "never" => false,
+                "true" => true,
+                _ => throw StandardLibrary.ThrowRangeError(
+                    $"Invalid value '{stringValue}' for Intl.NumberFormat useGrouping option", realm: Realm)
+            };
+        }
+
+        throw StandardLibrary.ThrowTypeError(
+            "Intl.NumberFormat useGrouping option must be a boolean or string", realm: Realm);
+    }
+
+    private DigitOptions ResolveDigitOptions(IJsPropertyAccessor? options, string style, string? currency)
+    {
+        var minimumIntegerDigits = GetDigitOption(options, "minimumIntegerDigits", 1, 21, 1);
+        var hasMinSig = TryGetDigitOption(options, "minimumSignificantDigits", 1, 21, out var minimumSignificantDigits);
+        var hasMaxSig = TryGetDigitOption(options, "maximumSignificantDigits", 1, 21, out var maximumSignificantDigits);
+
+        if (hasMinSig || hasMaxSig)
+        {
+            minimumSignificantDigits ??= 1;
+            maximumSignificantDigits ??= 21;
+            if (minimumSignificantDigits > maximumSignificantDigits)
+            {
+                throw StandardLibrary.ThrowRangeError(
+                    "minimumSignificantDigits must be less than or equal to maximumSignificantDigits", realm: Realm);
+            }
+
+            return new DigitOptions
+            {
+                MinimumIntegerDigits = minimumIntegerDigits,
+                MinimumSignificantDigits = minimumSignificantDigits,
+                MaximumSignificantDigits = maximumSignificantDigits
+            };
+        }
+
+        var currencyDigits = style == "currency" ? GetCurrencyDigits(currency) : 0;
+        var minimumFractionDefault = style == "currency" ? currencyDigits : 0;
+        var maximumFractionDefault = style switch
+        {
+            "currency" => currencyDigits,
+            "percent" => 0,
+            _ => 3
+        };
+
+        var minimumFractionDigits = GetDigitOption(options, "minimumFractionDigits", 0, 20, minimumFractionDefault);
+        var maximumFractionDigits = GetDigitOption(options, "maximumFractionDigits", minimumFractionDigits, 20,
+            Math.Max(minimumFractionDigits, maximumFractionDefault));
+
+        if (minimumFractionDigits > maximumFractionDigits)
+        {
+            throw StandardLibrary.ThrowRangeError(
+                "minimumFractionDigits must be less than or equal to maximumFractionDigits", realm: Realm);
+        }
+
+        return new DigitOptions
+        {
+            MinimumIntegerDigits = minimumIntegerDigits,
+            MinimumFractionDigits = minimumFractionDigits,
+            MaximumFractionDigits = maximumFractionDigits
+        };
+    }
+
+    private int GetDigitOption(IJsPropertyAccessor? options, string property, int minimum, int maximum, int fallback)
+    {
+        if (options is null ||
+            !options.TryGetProperty(property, out var value) ||
+            ReferenceEquals(value, Symbol.Undefined))
+        {
+            return fallback;
+        }
+
+        var number = JsOps.ToNumber(value);
+        if (double.IsNaN(number) || number < minimum || number > maximum)
+        {
+            throw StandardLibrary.ThrowRangeError(
+                $"Intl.NumberFormat {property} option must be between {minimum} and {maximum}", realm: Realm);
+        }
+
+        return (int)Math.Floor(number);
+    }
+
+    private bool TryGetDigitOption(
+        IJsPropertyAccessor? options,
+        string property,
+        int minimum,
+        int maximum,
+        out int? result)
+    {
+        result = null;
+        if (options is null ||
+            !options.TryGetProperty(property, out var value) ||
+            ReferenceEquals(value, Symbol.Undefined))
+        {
+            return false;
+        }
+
+        var number = JsOps.ToNumber(value);
+        if (double.IsNaN(number) || number < minimum || number > maximum)
+        {
+            throw StandardLibrary.ThrowRangeError(
+                $"Intl.NumberFormat {property} option must be between {minimum} and {maximum}", realm: Realm);
+        }
+
+        result = (int)Math.Floor(number);
+        return true;
+    }
+
+    private static int GetCurrencyDigits(string? currency)
+    {
+        if (string.IsNullOrEmpty(currency))
+        {
+            return 2;
+        }
+
+        return 2;
+    }
+
+    private sealed class DigitOptions
+    {
+        public int MinimumIntegerDigits { get; init; }
+        public int MinimumFractionDigits { get; init; }
+        public int MaximumFractionDigits { get; init; }
+        public int? MinimumSignificantDigits { get; init; }
+        public int? MaximumSignificantDigits { get; init; }
     }
 }

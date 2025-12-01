@@ -134,13 +134,13 @@ public static partial class StandardLibrary
             });
     }
 
-    private static JsBigInt ThisBigIntValue(object? receiver)
+    private static JsBigInt ThisBigIntValue(object? receiver, RealmState? realm = null)
     {
         return receiver switch
         {
             JsBigInt bi => bi,
             JsObject obj when obj.TryGetValue("__value__", out var inner) && inner is JsBigInt wrapped => wrapped,
-            _ => throw ThrowTypeError("BigInt.prototype method called on incompatible receiver")
+            _ => throw ThrowTypeError("BigInt.prototype method called on incompatible receiver", realm: realm)
         };
     }
 

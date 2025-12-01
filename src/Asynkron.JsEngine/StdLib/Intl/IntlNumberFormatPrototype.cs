@@ -1,4 +1,3 @@
-using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -11,28 +10,12 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 public sealed partial class IntlNumberFormatPrototype
 {
     private const string NumberFormatBrand = "__numberFormat__";
+    private const string SlotsKey = "__numberFormatSlots__";
 
-    internal static void InitializeInternalSlots(
-        JsObject instance,
-        string locale,
-        string numberingSystem,
-        string style,
-        object? currency,
-        object? unit)
+    internal static void InitializeInternalSlots(JsObject instance, IntlNumberFormatInternalSlots slots)
     {
         instance.SetProperty(NumberFormatBrand, true);
-        instance.SetProperty("__locale__", locale);
-        instance.SetProperty("__numberingSystem__", numberingSystem);
-        instance.SetProperty("__style__", style);
-        instance.SetProperty("__currency__", currency ?? (object)Symbol.Undefined);
-        instance.SetProperty("__unit__", unit ?? (object)Symbol.Undefined);
-        instance.SetProperty("__roundingMode__", "halfExpand");
-        instance.SetProperty("__roundingIncrement__", 1d);
-        instance.SetProperty("__minimumIntegerDigits__", 1d);
-        instance.SetProperty("__minimumFractionDigits__", 0d);
-        instance.SetProperty("__maximumFractionDigits__", 3d);
-        instance.SetProperty("__minimumSignificantDigits__", Symbol.Undefined);
-        instance.SetProperty("__maximumSignificantDigits__", Symbol.Undefined);
+        instance.SetProperty(SlotsKey, slots);
     }
 
     [JsHostGetter("format", DisplayName = "get format")]
@@ -91,79 +74,67 @@ public sealed partial class IntlNumberFormatPrototype
             throw new ThrowSignal(context.FlowValue);
         }
 
-        string numeric;
+        var slots = GetSlots(nf);
         if (numericValue is JsBigInt bigInt)
         {
-            numeric = bigInt.ToString();
-        }
-        else
-        {
-            var number = (double)numericValue;
-            numeric = number switch
-            {
-                double.NaN => "NaN",
-                0d => "0",
-                _ => number.ToString(CultureInfo.InvariantCulture)
-            };
+            return IntlNumberFormatter.FormatBigInteger(bigInt.Value, slots);
         }
 
-        var style = nf.TryGetProperty("__style__", out var styleValue) && styleValue is string styleStr
-            ? styleStr
-            : "decimal";
-        if (style == "currency" &&
-            nf.TryGetProperty("__currency__", out var currencyValue) &&
-            currencyValue is string currencyCode)
-        {
-            return $"{currencyCode} {numeric}";
-        }
-
-        if (style == "unit" &&
-            nf.TryGetProperty("__unit__", out var unitValue) &&
-            unitValue is string unitIdentifier)
-        {
-            return $"{numeric} {unitIdentifier}";
-        }
-
-        return numeric;
+        var number = (double)numericValue;
+        return IntlNumberFormatter.FormatDouble(number, slots);
     }
 
     private JsObject CreateNumberFormatResolvedOptions(JsObject nf)
     {
+        var slots = GetSlots(nf);
         var obj = new JsObject(Realm.ObjectPrototype);
-        obj.SetProperty("locale", nf.TryGetProperty("__locale__", out var loc) ? loc ?? "en" : "en");
-        obj.SetProperty("numberingSystem",
-            nf.TryGetProperty("__numberingSystem__", out var ns) ? ns ?? "latn" : "latn");
-        obj.SetProperty("roundingMode",
-            nf.TryGetProperty("__roundingMode__", out var rm) && rm is not null ? rm : "halfExpand");
-        obj.SetProperty("roundingIncrement",
-            nf.TryGetProperty("__roundingIncrement__", out var ri) && ri is not null ? ri : 1d);
-        obj.SetProperty("minimumIntegerDigits",
-            nf.TryGetProperty("__minimumIntegerDigits__", out var mid) && mid is not null ? mid : 1d);
-        obj.SetProperty("minimumFractionDigits",
-            nf.TryGetProperty("__minimumFractionDigits__", out var minfd) && minfd is not null ? minfd : 0d);
-        obj.SetProperty("maximumFractionDigits",
-            nf.TryGetProperty("__maximumFractionDigits__", out var maxfd) && maxfd is not null ? maxfd : 3d);
-        obj.SetProperty("minimumSignificantDigits",
-            nf.TryGetProperty("__minimumSignificantDigits__", out var minsig) ? minsig : Symbol.Undefined);
-        obj.SetProperty("maximumSignificantDigits",
-            nf.TryGetProperty("__maximumSignificantDigits__", out var maxsig) ? maxsig : Symbol.Undefined);
-        var style = nf.TryGetProperty("__style__", out var styleValue) && styleValue is string styleStr
-            ? styleStr
-            : "decimal";
-        obj.SetProperty("style", style);
-        if (style == "currency" &&
-            nf.TryGetProperty("__currency__", out var currencyValue) &&
-            currencyValue is string currencyCode)
+        obj.SetProperty("locale", slots.Locale);
+        obj.SetProperty("numberingSystem", slots.NumberingSystem);
+        obj.SetProperty("style", slots.Style);
+        obj.SetProperty("currency", slots.Currency is { Length: > 0 } currencyValue ? currencyValue : Symbol.Undefined);
+        obj.SetProperty("currencyDisplay",
+            slots.Style == "currency" ? slots.CurrencyDisplay : Symbol.Undefined);
+        obj.SetProperty("currencySign",
+            slots.Style == "currency" ? slots.CurrencySign : "standard");
+        obj.SetProperty("minimumIntegerDigits", (double)slots.MinimumIntegerDigits);
+        if (slots.UseSignificantDigits)
         {
-            obj.SetProperty("currency", currencyCode);
+            obj.SetProperty("minimumSignificantDigits", (double)(slots.MinimumSignificantDigits ?? 1));
+            obj.SetProperty("maximumSignificantDigits", (double)(slots.MaximumSignificantDigits ?? 21));
+            obj.SetProperty("minimumFractionDigits", Symbol.Undefined);
+            obj.SetProperty("maximumFractionDigits", Symbol.Undefined);
         }
-        if (style == "unit" &&
-            nf.TryGetProperty("__unit__", out var unitValue) &&
-            unitValue is string unitIdentifier)
+        else
         {
-            obj.SetProperty("unit", unitIdentifier);
+            obj.SetProperty("minimumSignificantDigits", Symbol.Undefined);
+            obj.SetProperty("maximumSignificantDigits", Symbol.Undefined);
+            obj.SetProperty("minimumFractionDigits", (double)slots.MinimumFractionDigits);
+            obj.SetProperty("maximumFractionDigits", (double)slots.MaximumFractionDigits);
         }
+        obj.SetProperty("useGrouping", slots.UseGrouping ? "auto" : "never");
+        obj.SetProperty("notation", slots.Notation);
+        obj.SetProperty("signDisplay", slots.SignDisplay);
+        if (slots.Style == "unit")
+        {
+            obj.SetProperty("unit", slots.Unit is { Length: > 0 } unitValue ? unitValue : Symbol.Undefined);
+            obj.SetProperty("unitDisplay", slots.UnitDisplay);
+        }
+        else
+        {
+            obj.SetProperty("unit", Symbol.Undefined);
+            obj.SetProperty("unitDisplay", Symbol.Undefined);
+        }
+
         return obj;
     }
 
+    private IntlNumberFormatInternalSlots GetSlots(JsObject nf)
+    {
+        if (nf.TryGetProperty(SlotsKey, out var slotsValue) && slotsValue is IntlNumberFormatInternalSlots slots)
+        {
+            return slots;
+        }
+
+        throw StandardLibrary.ThrowTypeError("Intl.NumberFormat instance is missing internal slots", realm: Realm);
+    }
 }

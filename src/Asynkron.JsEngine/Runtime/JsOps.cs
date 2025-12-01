@@ -893,6 +893,14 @@ internal static class JsOps
     public static bool TryGetPropertyValue(object? target, string propertyName, out object? value,
         EvaluationContext? context = null)
     {
+        if (target is HostFunction hostFunction
+            && !hostFunction.IsConstructor
+            && string.Equals(propertyName, "prototype", StringComparison.Ordinal))
+        {
+            value = Symbol.Undefined;
+            return true;
+        }
+
         if (target is IJsPropertyAccessor propertyAccessor)
         {
             return propertyAccessor.TryGetProperty(propertyName, target, out value);

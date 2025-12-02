@@ -91,7 +91,8 @@ public static partial class StandardLibrary
     {
         var accessor = EnsureArrayLikeReceiver(receiver, methodName, realm);
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-        var length = (long)ToLengthOrZero(lengthValue);
+        var context = realm?.CreateContext();
+        var length = (long)ToLengthOrZero(lengthValue, context);
 
         if (args.Count == 0 || args[0] is not IJsCallable callback)
         {
@@ -170,7 +171,8 @@ public static partial class StandardLibrary
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, methodName, realm);
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-        var length = (long)ToLengthOrZero(lengthValue);
+        var lengthContext = realm?.CreateContext();
+        var length = (long)ToLengthOrZero(lengthValue, lengthContext);
 
         if (args.Count == 0 || args[0] is not IJsCallable callback)
         {
@@ -182,24 +184,22 @@ public static partial class StandardLibrary
             envAware.CallingJsEnvironment = globalEnv;
         }
 
-        object? accumulator = Symbol.Undefined;
+        var hasInitial = args.Count > 1;
+        object? accumulator = hasInitial ? args[1] : Symbol.Undefined;
         var start = fromRight ? length - 1 : 0;
         var step = fromRight ? -1 : 1;
 
-        var argOffset = 1;
-        if (args.Count > 1 && !ReferenceEquals(args[1], Symbol.Undefined))
-        {
-            accumulator = args[1];
-        }
-
         var k = start;
+        var accumulatorSet = hasInitial;
         while (k >= 0 && k < length)
         {
             if (TryGetExistingElement(accessor, k, out var value))
             {
-                if (ReferenceEquals(accumulator, Symbol.Undefined) && argOffset == 1)
+                if (!accumulatorSet)
                 {
+                    // No initialValue provided: first present element becomes accumulator
                     accumulator = value;
+                    accumulatorSet = true;
                 }
                 else
                 {
@@ -210,7 +210,7 @@ public static partial class StandardLibrary
             k += step;
         }
 
-        if (ReferenceEquals(accumulator, Symbol.Undefined))
+        if (!accumulatorSet)
         {
             throw ThrowTypeError($"{methodName} requires at least one element", realm: realm);
         }

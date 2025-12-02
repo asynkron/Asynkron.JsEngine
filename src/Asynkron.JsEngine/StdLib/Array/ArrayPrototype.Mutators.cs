@@ -275,9 +275,10 @@ public sealed partial class ArrayPrototype
             if (IsConcatSpreadable(sourceValue, realm, MethodName, out var spreadAccessor))
             {
                 var spreadLength = LengthOfArrayLike(spreadAccessor, realm, MethodName);
-                if (resultIndex + spreadLength > MaxConcreteArrayLength)
+                const long MaxSafeIntegerLength = 9007199254740991L; // 2^53 - 1
+                if (resultIndex + spreadLength > MaxSafeIntegerLength)
                 {
-                    throw ThrowTypeError("Array length exceeds 2^32 - 1", realm: realm);
+                    throw ThrowTypeError("Array length exceeds 2^53 - 1", realm: realm);
                 }
 
                 for (long k = 0; k < spreadLength; k++)
@@ -294,9 +295,10 @@ public sealed partial class ArrayPrototype
             }
             else
             {
-                if (resultIndex >= MaxConcreteArrayLength)
+                const long MaxSafeIntegerLength = 9007199254740991L; // 2^53 - 1
+                if (resultIndex >= MaxSafeIntegerLength)
                 {
-                    throw ThrowTypeError("Array length exceeds 2^32 - 1", realm: realm);
+                    throw ThrowTypeError("Array length exceeds 2^53 - 1", realm: realm);
                 }
 
                 CreateDataPropertyOrThrow(result, ToIndexString(resultIndex++), sourceValue, realm, MethodName);

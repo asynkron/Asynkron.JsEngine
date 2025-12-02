@@ -11,10 +11,15 @@ public static partial class TypedAstEvaluator
     {
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
+        private readonly bool _isLexicallyStrict;
         private readonly JsObject _properties = new();
         private readonly RealmState _realmState;
 
-        public AsyncGeneratorFactory(FunctionExpression function, JsEnvironment closure, RealmState realmState)
+        public AsyncGeneratorFactory(
+            FunctionExpression function,
+            JsEnvironment closure,
+            RealmState realmState,
+            bool isLexicallyStrict)
         {
             if (!function.IsGenerator || !function.IsAsync)
             {
@@ -24,6 +29,7 @@ public static partial class TypedAstEvaluator
             _function = function;
             _closure = closure;
             _realmState = realmState;
+            _isLexicallyStrict = isLexicallyStrict;
             InitializeProperties();
         }
 
@@ -81,7 +87,14 @@ public static partial class TypedAstEvaluator
 
         public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
         {
-            var instance = new AsyncGeneratorInstance(_function, _closure, arguments, thisValue, this, _realmState);
+            var instance = new AsyncGeneratorInstance(
+                _function,
+                _closure,
+                arguments,
+                thisValue,
+                this,
+                _realmState,
+                _isLexicallyStrict);
             instance.Initialize();
             return instance.CreateAsyncIteratorObject();
         }

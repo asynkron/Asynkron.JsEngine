@@ -77,7 +77,11 @@ public static partial class TypedAstEvaluator
                     }
                     case ObjectMemberKind.Getter:
                     {
-                        var getter = new TypedFunction(member.Function!, environment, context.RealmState);
+                        var getter = new TypedFunction(
+                            member.Function!,
+                            environment,
+                            context.RealmState,
+                            context.CurrentScope.IsStrict);
                         getter.SetHomeObject(obj);
                         var name = ResolveObjectMemberName(member, environment, context);
                         if (context.ShouldStopEvaluation)
@@ -90,7 +94,11 @@ public static partial class TypedAstEvaluator
                     }
                     case ObjectMemberKind.Setter:
                     {
-                        var setter = new TypedFunction(member.Function!, environment, context.RealmState);
+                        var setter = new TypedFunction(
+                            member.Function!,
+                            environment,
+                            context.RealmState,
+                            context.CurrentScope.IsStrict);
                         setter.SetHomeObject(obj);
                         var name = ResolveObjectMemberName(member, environment, context);
                         if (context.ShouldStopEvaluation)

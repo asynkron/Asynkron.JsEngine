@@ -14,6 +14,7 @@ public static partial class TypedAstEvaluator
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
         private readonly GeneratorPlan? _plan;
+        private readonly bool _isStrict;
         private readonly RealmState _realmState;
         private readonly YieldResumeContext _resumeContext = new();
         private readonly object? _thisValue;
@@ -33,8 +34,14 @@ public static partial class TypedAstEvaluator
         private int _programCounter;
         private GeneratorState _state = GeneratorState.Start;
 
-        public TypedGeneratorInstance(FunctionExpression function, JsEnvironment closure,
-            IReadOnlyList<object?> arguments, object? thisValue, IJsCallable callable, RealmState realmState)
+        public TypedGeneratorInstance(
+            FunctionExpression function,
+            JsEnvironment closure,
+            IReadOnlyList<object?> arguments,
+            object? thisValue,
+            IJsCallable callable,
+            RealmState realmState,
+            bool isLexicallyStrict)
         {
             _function = function;
             _closure = closure;
@@ -42,6 +49,7 @@ public static partial class TypedAstEvaluator
             _thisValue = thisValue;
             _callable = callable;
             _realmState = realmState;
+            _isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
 
             if (!GeneratorIrBuilder.TryBuild(function, out var plan, out var failureReason))
             {
@@ -188,22 +196,22 @@ public static partial class TypedAstEvaluator
             JsEnvironment functionEnvironment;
             if (hasParameterExpressions)
             {
-                parameterEnvironment = new JsEnvironment(_closure, false, _function.Body.IsStrict, _function.Source,
+                parameterEnvironment = new JsEnvironment(_closure, false, _isStrict, _function.Source,
                     description, isParameterEnvironment: true);
                 parameterEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-                functionEnvironment = new JsEnvironment(parameterEnvironment, true, _function.Body.IsStrict,
+                functionEnvironment = new JsEnvironment(parameterEnvironment, true, _isStrict,
                     _function.Source, description);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
             }
             else
             {
-                functionEnvironment = new JsEnvironment(_closure, true, _function.Body.IsStrict, _function.Source,
+                functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     description);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
                 parameterEnvironment = functionEnvironment;
             }
 
-            var executionEnvironment = new JsEnvironment(functionEnvironment, false, _function.Body.IsStrict,
+            var executionEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict,
                 _function.Source, description, isBodyEnvironment: true);
             executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
 
@@ -212,7 +220,8 @@ public static partial class TypedAstEvaluator
             functionEnvironment.Define(Symbol.GeneratorInstanceSymbol, this);
 
             var argumentsObject =
-                CreateArgumentsObject(_function, _arguments, parameterEnvironment, _realmState, _callable);
+                CreateArgumentsObject(_function, _arguments, parameterEnvironment, _realmState, _callable,
+                    _isStrict);
             parameterEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
             if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
             {
@@ -1125,7 +1134,7 @@ public static partial class TypedAstEvaluator
 
         private ScopeMode DetermineGeneratorScopeMode()
         {
-            if (_function.Body.IsStrict)
+            if (_isStrict)
             {
                 return ScopeMode.Strict;
             }

@@ -12,7 +12,8 @@ public static partial class TypedAstEvaluator
             IReadOnlyList<object?> arguments,
             JsEnvironment environment,
             RealmState realmState,
-            IJsCallable? callee)
+            IJsCallable? callee,
+            bool isStrict)
         {
             var values = new object?[arguments.Count];
             for (var i = 0; i < arguments.Count; i++)
@@ -20,7 +21,7 @@ public static partial class TypedAstEvaluator
                 values[i] = arguments[i];
             }
 
-            var mapped = !function.Body.IsStrict && IsSimpleParameterList(function);
+            var mapped = !isStrict && IsSimpleParameterList(function);
             var mappedParameters = new Symbol?[arguments.Count];
             if (mapped)
             {
@@ -49,7 +50,7 @@ public static partial class TypedAstEvaluator
                 mapped,
                 realmState,
                 callee,
-                function.Body.IsStrict);
+                isStrict);
         }
 
         private bool IsSimpleParameterList()
@@ -348,9 +349,11 @@ public static partial class TypedAstEvaluator
             return functionExpression.IsGenerator switch
             {
                 true when functionExpression.IsAsync => new AsyncGeneratorFactory(functionExpression, environment,
-                    context.RealmState),
-                true => new TypedGeneratorFactory(functionExpression, environment, context.RealmState),
-                _ => new TypedFunction(functionExpression, environment, context.RealmState)
+                    context.RealmState, context.CurrentScope.IsStrict),
+                true => new TypedGeneratorFactory(functionExpression, environment, context.RealmState,
+                    context.CurrentScope.IsStrict),
+                _ => new TypedFunction(functionExpression, environment, context.RealmState,
+                    context.CurrentScope.IsStrict)
             };
         }
     }

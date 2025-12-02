@@ -1,3 +1,5 @@
+using Asynkron.JsEngine;
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Tests;
@@ -754,6 +756,20 @@ public class TypedArrayTests
                                                        return ctx.touched;
                                            """);
         Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_Every_DefaultThisIsUndefinedInStrictMode()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+                                                       "use strict";
+                                                       let seen;
+                                                       const arr = new BigInt64Array(3);
+                                                       arr.every(function() { seen = this; return true; });
+                                                       seen;
+                                           """);
+        Assert.Same(Symbol.Undefined, result);
     }
 
     [Fact(Timeout = 2000)]

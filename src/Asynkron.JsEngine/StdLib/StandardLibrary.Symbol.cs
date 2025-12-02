@@ -35,6 +35,13 @@ public static partial class StandardLibrary
             prototype.SetPrototype(realm.ObjectPrototype);
             realm.SymbolPrototype = prototype;
         }
+        else
+        {
+            var symbolProto = new JsObject();
+            symbolProto.SetPrototype(realm.ObjectPrototype);
+            realm.SymbolPrototype = symbolProto;
+            symbolConstructor.SetProperty("prototype", symbolProto);
+        }
 
         return symbolConstructor;
 

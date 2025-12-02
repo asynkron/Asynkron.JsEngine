@@ -82,6 +82,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         get
         {
             if (_properties.Prototype is null &&
+                _properties is IPrototypeAccessorProvider { PrototypeAccessor: null } &&
                 _arrayPrototype is not null)
             {
                 _properties.SetPrototype(_arrayPrototype);

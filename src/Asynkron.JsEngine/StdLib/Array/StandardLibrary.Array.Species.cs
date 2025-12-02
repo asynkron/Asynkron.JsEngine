@@ -224,18 +224,12 @@ public static partial class StandardLibrary
             return false;
         }
 
-        if (candidate is IJsPropertyAccessor propertyAccessor)
-        {
-            accessor = propertyAccessor;
-        }
-        else if (!TryGetObject(candidate, realm, out var boxed))
+        if (candidate is not IJsPropertyAccessor propertyAccessor)
         {
             return false;
         }
-        else
-        {
-            accessor = boxed;
-        }
+
+        accessor = propertyAccessor;
 
         if (accessor.TryGetProperty(SymbolIsConcatSpreadableKey, out var spreadable) &&
             !ReferenceEquals(spreadable, Symbol.Undefined))
@@ -243,7 +237,15 @@ public static partial class StandardLibrary
             return JsOps.ToBoolean(spreadable);
         }
 
-        return IsArrayObject(candidate, realm, operation);
+        if (IsArrayObject(candidate, realm, operation))
+        {
+            return true;
+        }
+
+        // Wrapper objects for strings are not concat-spreadable by default, but
+        // become spreadable when @@isConcatSpreadable is truthy. Ensure they
+        // fall back to non-spreadable here.
+        return false;
     }
 
     internal static bool ArrayIsArray(object? candidate, RealmState? realm)

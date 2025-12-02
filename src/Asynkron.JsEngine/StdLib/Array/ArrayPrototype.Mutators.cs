@@ -21,12 +21,14 @@ public sealed partial class ArrayPrototype
             throw ThrowTypeError("Array.prototype.push cannot exceed 2^32 - 1 elements", realm: Realm);
         }
 
+
         for (var i = 0; i < args.Count; i++)
         {
             var index = length + i;
             accessor.SetProperty(ToIndexString(index), args[i]);
         }
 
+        // Set length using ToUint32 semantics
         accessor.SetProperty("length", (double)newLength);
         return (double)newLength;
     }
@@ -36,6 +38,11 @@ public sealed partial class ArrayPrototype
     {
         const string MethodName = "Array.prototype.pop";
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
+        // Re-entrancy: if sorting in progress, avoid mutating length/elements
+        if (accessor.TryGetProperty("__sorting__", out var sortingFlag) && !ReferenceEquals(sortingFlag, Symbol.Undefined))
+        {
+            return Symbol.Undefined;
+        }
         var objectLike = accessor as IJsObjectLike;
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
@@ -58,6 +65,11 @@ public sealed partial class ArrayPrototype
     {
         const string MethodName = "Array.prototype.shift";
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
+        // Re-entrancy: if sorting in progress, avoid mutating length/elements
+        if (accessor.TryGetProperty("__sorting__", out var sortingFlag) && !ReferenceEquals(sortingFlag, Symbol.Undefined))
+        {
+            return Symbol.Undefined;
+        }
         var objectLike = accessor as IJsObjectLike;
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
@@ -371,49 +383,93 @@ public sealed partial class ArrayPrototype
         RealmState? realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.sort", realm);
         var objectLike = accessor as IJsObjectLike;
+
+        // Validate comparefn before touching length (per spec)
+        IJsCallable? compareFn = null;
+        if (args.Count > 0 && !ReferenceEquals(args[0], Symbol.Undefined))
+        {
+            if (args[0] is not IJsCallable callable)
+            {
+                throw ThrowTypeError("Array.prototype.sort comparefn must be callable", realm: realm);
+            }
+            compareFn = callable;
+        }
+
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
-        var elements = new List<object?>((int)Math.Min(length, int.MaxValue));
+        var elements = new List<(string Key, long Index)>((int)Math.Min(length, int.MaxValue));
         for (long k = 0; k < length; k++)
         {
-            if (TryGetExistingElement(accessor, k, out var value))
+            var key = ToIndexString(k);
+            if (HasProperty(accessor, key))
             {
-                elements.Add(value);
+                elements.Add((key, k));
             }
         }
 
-        var compareFn = args.Count > 0 && args[0] is IJsCallable callable ? callable : null;
 
-        int Comparer(object? a, object? b)
+
+        int Comparer((string Key, long Index) a, (string Key, long Index) b)
         {
+            // Fetch current values lazily to observe getters/side-effects
+            var aVal = GetElementOrUndefined(accessor, a.Key);
+            var bVal = GetElementOrUndefined(accessor, b.Key);
+
             if (compareFn is not null)
             {
-                var result = compareFn.Invoke([a, b], null);
-                if (result is not double d)
+                var raw = compareFn.Invoke([aVal, bVal], Symbol.Undefined);
+                var ctx = realm?.CreateContext();
+                var num = JsOps.ToNumberWithContext(raw, ctx);
+                if (ctx is not null && ctx.IsThrow)
                 {
-                    return 0;
+                    throw new ThrowSignal(ctx.FlowValue);
                 }
-
-                if (double.IsNaN(d))
+                if (double.IsNaN(num))
                 {
-                    return 0;
+                    return a.Index.CompareTo(b.Index);
                 }
-
-                return d > 0 ? 1 : d < 0 ? -1 : 0;
+                var cmp = num > 0 ? 1 : num < 0 ? -1 : 0;
+                return cmp != 0 ? cmp : a.Index.CompareTo(b.Index);
             }
 
-            var aStr = JsValueToString(a);
-            var bStr = JsValueToString(b);
-            return string.CompareOrdinal(aStr, bStr);
+            var aUndef = ReferenceEquals(aVal, Symbol.Undefined);
+            var bUndef = ReferenceEquals(bVal, Symbol.Undefined);
+            if (aUndef || bUndef)
+            {
+                if (aUndef && bUndef) return a.Index.CompareTo(b.Index);
+                return aUndef ? 1 : -1;
+            }
+
+            var aStr = JsValueToString(aVal, realm);
+            var bStr = JsValueToString(bVal, realm);
+            var ord = string.CompareOrdinal(aStr, bStr);
+            return ord != 0 ? ord : a.Index.CompareTo(b.Index);
         }
 
-        elements.Sort((Comparison<object?>)Comparer);
+        elements.Sort((x, y) => Comparer(x, y));
 
         long index = 0;
-        foreach (var value in elements)
+        foreach (var pair in elements)
         {
-            accessor.SetProperty(ToIndexString(index++), value);
+            var keyNow = pair.Key;
+            var existsNow = HasProperty(accessor, keyNow);
+            if (existsNow)
+            {
+                var value = GetElementOrUndefined(accessor, keyNow);
+                accessor.SetProperty(ToIndexString(index++), value);
+            }
+            else
+            {
+                if (objectLike is not null)
+                {
+                    objectLike.Delete(ToIndexString(index++));
+                }
+                else
+                {
+                    accessor.SetProperty(ToIndexString(index++), Symbol.Undefined);
+                }
+            }
         }
 
         if (objectLike is not null)
@@ -430,6 +486,9 @@ public sealed partial class ArrayPrototype
                 accessor.SetProperty(ToIndexString(k), Symbol.Undefined);
             }
         }
+
+        // Clear re-entrancy guard
+        accessor.SetProperty("__sorting__", Symbol.Undefined);
 
         return accessor;
     }

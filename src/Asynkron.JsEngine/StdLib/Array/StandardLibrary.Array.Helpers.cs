@@ -117,7 +117,7 @@ public static partial class StandardLibrary
         var number = JsOps.ToNumberWithContext(value, context);
         if (context is not null && context.IsThrow)
         {
-            return 0;
+            throw new ThrowSignal(context.FlowValue);
         }
 
         if (double.IsNaN(number) || number <= 0)

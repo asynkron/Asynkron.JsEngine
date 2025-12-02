@@ -1,4 +1,7 @@
+using System.Collections.Generic;
 using System.Globalization;
+using System.Reflection;
+using Microsoft.Extensions.Logging;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -22,12 +25,16 @@ public static partial class StandardLibrary
 
             proto.SetHostedProperty("reduce",
                 (thisValue, reduceArgs, realmState) =>
-                    ReduceLike(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduce", false), realm);
+                    TypedArrayReduce(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduce", false),
+                realm);
             proto.SetHostedProperty("reduceRight",
                 (thisValue, reduceArgs, realmState) =>
-                    ReduceLike(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduceRight", true), realm);
+                    TypedArrayReduce(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduceRight", true),
+                realm);
             DefineTypedArrayFunction(proto, "map", 1d, TypedArrayMap, realm);
+            DefineTypedArrayFunction(proto, "filter", 1d, TypedArrayFilter, realm);
             DefineTypedArrayFunction(proto, "every", 1d, TypedArrayEvery, realm);
+            DefineTypedArrayFunction(proto, "forEach", 1d, TypedArrayForEach, realm);
             DefineTypedArrayFunction(proto, "fill", 1d, TypedArrayFill, realm);
             DefineTypedArrayFunction(proto, "copyWithin", 2d, TypedArrayCopyWithin, realm);
             DefineTypedArrayFunction(proto, "reverse", 0d, TypedArrayReverse, realm);
@@ -204,11 +211,11 @@ public static partial class StandardLibrary
             });
         prototype.SetHostedProperty("reduce",
             (thisValue, reduceArgs, realmState) =>
-                ReduceLike(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduce", false),
+                TypedArrayReduce(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduce", false),
             realm);
         prototype.SetHostedProperty("reduceRight",
             (thisValue, reduceArgs, realmState) =>
-                ReduceLike(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduceRight",
+                TypedArrayReduce(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduceRight",
                     true),
             realm);
         if (sharedPrototype is not null)
@@ -598,6 +605,10 @@ public static partial class StandardLibrary
         }
 
         var thisArg = args.GetArgument(1);
+        if (callback is IJsEnvironmentAwareCallable envAware && realm?.Engine?.GlobalEnvironment is { } globalEnv)
+        {
+            envAware.CallingJsEnvironment = globalEnv;
+        }
 
         if (typedArray.IsDetachedOrOutOfBounds())
         {
@@ -626,6 +637,133 @@ public static partial class StandardLibrary
         return result;
     }
 
+    private static object? TypedArrayFilter(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (thisValue is not TypedArrayBase typedArray)
+        {
+            throw ThrowTypeError("TypedArray.prototype.filter called on incompatible receiver", realm: realm);
+        }
+
+        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            throw ThrowTypeError("TypedArray.prototype.filter expects a callable callback", realm: realm);
+        }
+
+        var thisArg = args.GetArgument(1);
+        if (callback is IJsEnvironmentAwareCallable envAware && realm?.Engine?.GlobalEnvironment is { } globalEnv)
+        {
+            envAware.CallingJsEnvironment = globalEnv;
+        }
+
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            throw typedArray.CreateOutOfBoundsTypeError();
+        }
+
+        var length = typedArray.Length;
+        var kept = new List<object?>();
+        for (var k = 0; k < length; k++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            if (k >= typedArray.Length)
+            {
+                break;
+            }
+
+            var value = typedArray.GetValueForIndex(k);
+            var result = callback.Invoke([value, (double)k, typedArray], thisArg);
+            if (IsTruthy(result))
+            {
+                kept.Add(value);
+            }
+        }
+
+        var filtered = TypedArraySpeciesCreate(typedArray, kept.Count, realm);
+        for (var i = 0; i < kept.Count; i++)
+        {
+            filtered.SetValue(i, kept[i]);
+        }
+
+        return filtered;
+    }
+
+    private static object? TypedArrayReduce(object? thisValue, IReadOnlyList<object?> args, RealmState? realm,
+        string methodName, bool fromRight)
+    {
+        if (thisValue is not TypedArrayBase typedArray)
+        {
+            throw ThrowTypeError($"{methodName} called on incompatible receiver", realm: realm);
+        }
+
+        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            throw ThrowTypeError($"{methodName} requires a callable accumulator", realm: realm);
+        }
+
+        if (callback is IJsEnvironmentAwareCallable envAware && realm?.Engine?.GlobalEnvironment is { } globalEnv)
+        {
+            envAware.CallingJsEnvironment = globalEnv;
+        }
+
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            throw typedArray.CreateOutOfBoundsTypeError();
+        }
+
+        var length = typedArray.Length;
+        var step = fromRight ? -1 : 1;
+        var k = fromRight ? length - 1 : 0;
+
+        object? accumulator = Symbol.Undefined;
+        var hasAccumulator = false;
+        if (args.Count > 1 && !ReferenceEquals(args[1], Symbol.Undefined))
+        {
+            accumulator = args[1];
+            hasAccumulator = true;
+        }
+
+        var visited = 0;
+
+        while (k >= 0 && k < length)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            if (k >= typedArray.Length)
+            {
+                break;
+            }
+
+            var value = typedArray.GetValueForIndex(k);
+            visited++;
+
+            if (!hasAccumulator)
+            {
+                accumulator = value;
+                hasAccumulator = true;
+            }
+            else
+            {
+                accumulator = callback.Invoke([accumulator, value, (double)k, typedArray], Symbol.Undefined);
+            }
+
+            k += step;
+        }
+
+        if (!hasAccumulator)
+        {
+            throw ThrowTypeError($"{methodName} requires at least one element", realm: realm);
+        }
+
+        return accumulator;
+    }
+
     private static object? TypedArrayEvery(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
@@ -642,6 +780,20 @@ public static partial class StandardLibrary
         if (callback is IJsEnvironmentAwareCallable envAware && realm?.Engine?.GlobalEnvironment is { } globalEnv)
         {
             envAware.CallingJsEnvironment = globalEnv;
+        }
+
+        if (realm?.Logger is { } logger)
+        {
+            var strictField = callback.GetType().GetField("_isStrict", BindingFlags.NonPublic | BindingFlags.Instance);
+            var strictValue = strictField?.GetValue(callback);
+            var thisArgKind = thisArg is Symbol sym && ReferenceEquals(sym, Symbol.Undefined)
+                ? "undefined"
+                : thisArg?.GetType().Name ?? "null";
+            logger.LogInformation(
+                "TypedArray.every callback type={Type} strict={Strict} thisArg={ThisArg}",
+                callback.GetType().Name,
+                strictValue ?? "null",
+                thisArgKind);
         }
 
         if (typedArray.IsDetachedOrOutOfBounds())
@@ -661,6 +813,49 @@ public static partial class StandardLibrary
         }
 
         return true;
+    }
+
+    private static object? TypedArrayForEach(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (thisValue is not TypedArrayBase typedArray)
+        {
+            throw ThrowTypeError("TypedArray.prototype.forEach called on incompatible receiver", realm: realm);
+        }
+
+        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            throw ThrowTypeError("TypedArray.prototype.forEach expects a callable callback", realm: realm);
+        }
+
+        var thisArg = args.GetArgument(1);
+        if (callback is IJsEnvironmentAwareCallable envAware && realm?.Engine?.GlobalEnvironment is { } globalEnv)
+        {
+            envAware.CallingJsEnvironment = globalEnv;
+        }
+
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            throw typedArray.CreateOutOfBoundsTypeError();
+        }
+
+        var length = typedArray.Length;
+        for (var k = 0; k < length; k++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            if (k >= typedArray.Length)
+            {
+                break;
+            }
+
+            var value = typedArray.GetValueForIndex(k);
+            callback.Invoke([value, (double)k, typedArray], thisArg);
+        }
+
+        return Symbol.Undefined;
     }
 
     private static object? TypedArrayFill(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)

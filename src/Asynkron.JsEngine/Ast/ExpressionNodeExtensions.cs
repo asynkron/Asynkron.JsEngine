@@ -286,7 +286,7 @@ public static partial class TypedAstEvaluator
             }
 
             var directCallee = EvaluateExpression(callee, environment, context);
-            return (directCallee, null, false);
+            return (directCallee, Symbol.Undefined, false);
         }
     }
 

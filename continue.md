@@ -8,5 +8,4 @@
 
 ## Next Iteration Plan
 1. Tidy up the focused array tests and harness helpers now that the subclass/hoisting bug is fixed; keep the targeted `Array_prototype_every` filter test for quick iteration.
-2. Fix the remaining TypedArray.prototype.every callback `this` binding (strict callbacks currently see the global object instead of `undefined`), then re-run the TypedArray every slice.
-3. Keep tightening the partials (shared helpers, comments, tests) so additional array features can slot into the generator model without reintroducing giant files.
+2. Keep tightening the partials (shared helpers, comments, tests) so additional array features can slot into the generator model without reintroducing giant files; remove the temporary logging once the remaining typed array slices are green.

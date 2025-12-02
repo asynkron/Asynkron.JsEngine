@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -326,6 +327,11 @@ public static partial class TypedAstEvaluator
             object? newTarget = null)
         {
             var context = _realmState.CreateContext(pushScope: false);
+            if (_realmState.Logger is { } logger && _isStrict && !ReferenceEquals(thisValue, Symbol.Undefined))
+            {
+                logger.LogInformation("TypedFunction strict received thisValue type={Type}",
+                    thisValue?.GetType().Name ?? "null");
+            }
             if (callingContext is not null)
             {
                 context.CallDepth = callingContext.CallDepth;
@@ -467,17 +473,19 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                if (!_isStrict && (thisValue is null || ReferenceEquals(thisValue, Symbol.Undefined)))
+                if (!_isStrict)
                 {
-                    boundThis = CallingJsEnvironment?.Get(Symbol.This) ?? Symbol.Undefined;
-                }
+                    if (thisValue is null || ReferenceEquals(thisValue, Symbol.Undefined))
+                    {
+                        boundThis = CallingJsEnvironment?.Get(Symbol.This) ?? Symbol.Undefined;
+                    }
 
-                if (!_isStrict &&
-                    boundThis is not IJsPropertyAccessor &&
-                    !IsNullish(boundThis) &&
-                    boundThis is not IIsHtmlDda)
-                {
-                    boundThis = ToObjectForDestructuring(boundThis, context);
+                    if (boundThis is not IJsPropertyAccessor &&
+                        !IsNullish(boundThis) &&
+                        boundThis is not IIsHtmlDda)
+                    {
+                        boundThis = ToObjectForDestructuring(boundThis, context);
+                    }
                 }
 
                 object? initialThisValue;
@@ -489,9 +497,13 @@ public static partial class TypedAstEvaluator
                 else
                 {
                     context.MarkThisInitialized();
-                    var resolvedThis = boundThis ?? new JsObject();
-                    initialThisValue = resolvedThis;
-                    boundThis = resolvedThis;
+                    initialThisValue = boundThis;
+                    if (!_isStrict && initialThisValue is null)
+                    {
+                        initialThisValue = new JsObject();
+                    }
+
+                    boundThis = initialThisValue;
                 }
 
                 SetThisInitializationStatus(functionEnvironment, context.IsThisInitialized);

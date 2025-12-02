@@ -126,8 +126,6 @@ public static partial class StandardLibrary
     internal static IJsObjectLike CreateArrayFromResult(object? constructorCandidate, RealmState? realm, long length,
         bool passLengthToConstructor, string methodName)
     {
-        LogDebug(realm,
-            $"CreateArrayFromResult candidate={constructorCandidate?.GetType().Name ?? "null"}, isCtor={JsOps.IsConstructor(constructorCandidate)}, length={length}, passLength={passLengthToConstructor}");
         if (constructorCandidate is IJsCallable callable && JsOps.IsConstructor(callable))
         {
             var constructorRealm = GetConstructorRealm(callable, realm) ?? realm;
@@ -138,8 +136,6 @@ public static partial class StandardLibrary
                 : Array.Empty<object?>();
             var constructed = callable.Invoke(args, receiver);
             var result = constructed as IJsObjectLike ?? receiver;
-            LogDebug(realm,
-                $"CreateArrayFromResult constructed={constructed?.GetType().Name ?? "null"}, result={result.GetType().Name}");
             if (!passLengthToConstructor)
             {
                 SetArrayLikeLength(result, 0);
@@ -155,7 +151,6 @@ public static partial class StandardLibrary
 
         var array = new JsArray(realm);
         array.SetProperty("length", passLengthToConstructor ? (double)Math.Max(length, 0) : 0d);
-        LogDebug(realm, $"CreateArrayFromResult default array length={array.Length}");
         return array;
     }
 

@@ -1,3 +1,4 @@
+using System;
 using System.Net.Http;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
@@ -129,7 +130,11 @@ try {
         {
             ExecutionTimeout = null
         };
-        engine.RealmState.Logger = new ConsoleLogger();
+
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("JSENGINE_TRACE_REALM")))
+        {
+            engine.RealmState.Logger = new ConsoleLogger();
+        }
 
         if (file.Flags.Contains("raw"))
         {

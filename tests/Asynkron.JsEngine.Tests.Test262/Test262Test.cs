@@ -231,6 +231,9 @@ try {
 
         engine.SetGlobalValue("$262", obj262);
 
+        // Helper used by some modern reduce tests
+        ExecuteSource(engine, "function ReduceCollecting(list){ return function(acc, v){ list.push(v); return acc; }; }").Wait();
+
         var moduleSourceCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         engine.SetModuleLoader((specifier, _) =>
         {

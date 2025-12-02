@@ -1,22 +1,16 @@
-tests (2638 tests) Aborted: 2634 tests failed
-  Asynkron.JsEngine.Tests.Test262 (2638 tests) Aborted: 2634 tests failed
-    Asynkron.JsEngine.Tests.Test262 (2638 tests) Aborted: 2634 tests failed
-      TestHarness (2638 tests) Aborted: Run was aborted: 2634 tests failed
-        BuiltInsTests (660 tests) Aborted: Run was aborted: 656 tests failed
+tests (2623 tests) Running: 2619 tests failed
+  Asynkron.JsEngine.Tests.Test262 (2623 tests) Running: 2619 tests failed
+    Asynkron.JsEngine.Tests.Test262 (2623 tests) Running: 2619 tests failed
+      TestHarness (2623 tests) Running: 2619 tests failed
+        BuiltInsTests (645 tests) Running: 641 tests failed
           Array_prototype_at (4 tests) Failed: One or more child tests had errors: 4 tests failed
             Array_prototype_at("built-ins/Array/prototype/at/index-non-numeric-argument-tointeger-invalid.js",False) Failed
             Array_prototype_at("built-ins/Array/prototype/at/index-non-numeric-argument-tointeger-invalid.js",True) Failed
             Array_prototype_at("built-ins/Array/prototype/at/return-abrupt-from-this.js",False) Failed
             Array_prototype_at("built-ins/Array/prototype/at/return-abrupt-from-this.js",True) Failed
-          Array_prototype_concat (12 tests) Failed: One or more child tests had errors: 12 tests failed
+          Array_prototype_concat (6 tests) Failed: One or more child tests had errors: 6 tests failed
             Array_prototype_concat("built-ins/Array/prototype/concat/arg-length-near-integer-limit.js",False) Failed
             Array_prototype_concat("built-ins/Array/prototype/concat/arg-length-near-integer-limit.js",True) Failed
-            Array_prototype_concat("built-ins/Array/prototype/concat/Array.prototype.concat_array-like-length-to-string-throws.js",False) Failed
-            Array_prototype_concat("built-ins/Array/prototype/concat/Array.prototype.concat_array-like-length-to-string-throws.js",True) Failed
-            Array_prototype_concat("built-ins/Array/prototype/concat/Array.prototype.concat_array-like-length-value-of-throws.js",False) Failed
-            Array_prototype_concat("built-ins/Array/prototype/concat/Array.prototype.concat_array-like-length-value-of-throws.js",True) Failed
-            Array_prototype_concat("built-ins/Array/prototype/concat/Array.prototype.concat_array-like-to-length-throws.js",False) Failed
-            Array_prototype_concat("built-ins/Array/prototype/concat/Array.prototype.concat_array-like-to-length-throws.js",True) Failed
             Array_prototype_concat("built-ins/Array/prototype/concat/Array.prototype.concat_spreadable-boolean-wrapper.js",False) Failed
             Array_prototype_concat("built-ins/Array/prototype/concat/Array.prototype.concat_spreadable-boolean-wrapper.js",True) Failed
             Array_prototype_concat("built-ins/Array/prototype/concat/Array.prototype.concat_spreadable-string-wrapper.js",False) Failed
@@ -86,11 +80,11 @@ tests (2638 tests) Aborted: 2634 tests failed
             Array_prototype_findIndex("built-ins/Array/prototype/findIndex/resizable-buffer.js",True) Failed
             Array_prototype_findIndex("built-ins/Array/prototype/findIndex/return-abrupt-from-this-length-as-symbol.js",False) Failed
             Array_prototype_findIndex("built-ins/Array/prototype/findIndex/return-abrupt-from-this-length-as-symbol.js",True) Failed
-          Array_prototype_findLast (11 tests) Aborted: Run was aborted: 9 tests failed
+          Array_prototype_findLast (11 tests) Running: 9 tests failed
             Array_prototype_findLast("built-ins/Array/prototype/findLast/callbackfn-resize-arraybuffer.js",False) Failed
             Array_prototype_findLast("built-ins/Array/prototype/findLast/callbackfn-resize-arraybuffer.js",True) Failed
-            Array_prototype_findLast("built-ins/Array/prototype/findLast/maximum-index.js",False) Aborted
-            Array_prototype_findLast("built-ins/Array/prototype/findLast/maximum-index.js",True) Aborted
+            Array_prototype_findLast("built-ins/Array/prototype/findLast/maximum-index.js",False) Running
+            Array_prototype_findLast("built-ins/Array/prototype/findLast/maximum-index.js",True) Running
             Array_prototype_findLast("built-ins/Array/prototype/findLast/predicate-called-for-each-array-property.js",False) Failed
             Array_prototype_findLast("built-ins/Array/prototype/findLast/predicate-called-for-each-array-property.js",True) Failed
             Array_prototype_findLast("built-ins/Array/prototype/findLast/resizable-buffer-shrink-mid-iteration.js",False) Failed
@@ -98,11 +92,11 @@ tests (2638 tests) Aborted: 2634 tests failed
             Array_prototype_findLast("built-ins/Array/prototype/findLast/resizable-buffer.js",True) Failed
             Array_prototype_findLast("built-ins/Array/prototype/findLast/return-abrupt-from-this-length-as-symbol.js",False) Failed
             Array_prototype_findLast("built-ins/Array/prototype/findLast/return-abrupt-from-this-length-as-symbol.js",True) Failed
-          Array_prototype_findLastIndex (11 tests) Aborted: Run was aborted: 9 tests failed
+          Array_prototype_findLastIndex (11 tests) Running: 9 tests failed
             Array_prototype_findLastIndex("built-ins/Array/prototype/findLastIndex/callbackfn-resize-arraybuffer.js",False) Failed
             Array_prototype_findLastIndex("built-ins/Array/prototype/findLastIndex/callbackfn-resize-arraybuffer.js",True) Failed
-            Array_prototype_findLastIndex("built-ins/Array/prototype/findLastIndex/maximum-index.js",False) Aborted
-            Array_prototype_findLastIndex("built-ins/Array/prototype/findLastIndex/maximum-index.js",True) Aborted
+            Array_prototype_findLastIndex("built-ins/Array/prototype/findLastIndex/maximum-index.js",False) Running
+            Array_prototype_findLastIndex("built-ins/Array/prototype/findLastIndex/maximum-index.js",True) Running
             Array_prototype_findLastIndex("built-ins/Array/prototype/findLastIndex/predicate-called-for-each-array-property.js",False) Failed
             Array_prototype_findLastIndex("built-ins/Array/prototype/findLastIndex/predicate-called-for-each-array-property.js",True) Failed
             Array_prototype_findLastIndex("built-ins/Array/prototype/findLastIndex/resizable-buffer-shrink-mid-iteration.js",False) Failed
@@ -119,7 +113,7 @@ tests (2638 tests) Aborted: 2634 tests failed
             Array_prototype_flat("built-ins/Array/prototype/flat/target-array-with-non-configurable-property.js",True) Failed
             Array_prototype_flat("built-ins/Array/prototype/flat/target-array-with-non-writable-property.js",False) Failed
             Array_prototype_flat("built-ins/Array/prototype/flat/target-array-with-non-writable-property.js",True) Failed
-          Array_prototype_flatMap (15 tests) Failed: One or more child tests had errors: 15 tests failed
+          Array_prototype_flatMap (14 tests) Failed: One or more child tests had errors: 14 tests failed
             Array_prototype_flatMap("built-ins/Array/prototype/flatMap/array-like-objects-poisoned-length.js",False) Failed
             Array_prototype_flatMap("built-ins/Array/prototype/flatMap/array-like-objects-poisoned-length.js",True) Failed
             Array_prototype_flatMap("built-ins/Array/prototype/flatMap/target-array-non-extensible.js",False) Failed
@@ -134,7 +128,6 @@ tests (2638 tests) Aborted: 2634 tests failed
             Array_prototype_flatMap("built-ins/Array/prototype/flatMap/this-value-ctor-object-species-custom-ctor-poisoned-throws.js",True) Failed
             Array_prototype_flatMap("built-ins/Array/prototype/flatMap/this-value-ctor-object-species-custom-ctor.js",False) Failed
             Array_prototype_flatMap("built-ins/Array/prototype/flatMap/this-value-ctor-object-species-custom-ctor.js",True) Failed
-            Array_prototype_flatMap("built-ins/Array/prototype/flatMap/thisArg-argument.js",True) Failed
           Array_prototype_forEach (3 tests) Failed: One or more child tests had errors: 3 tests failed
             Array_prototype_forEach("built-ins/Array/prototype/forEach/15.4.4.18-3-22.js",False) Failed
             Array_prototype_forEach("built-ins/Array/prototype/forEach/15.4.4.18-3-22.js",True) Failed
@@ -152,11 +145,9 @@ tests (2638 tests) Aborted: 2634 tests failed
             Array_prototype_includes("built-ins/Array/prototype/includes/return-abrupt-tonumber-length-symbol.js",True) Failed
             Array_prototype_includes("built-ins/Array/prototype/includes/sparse.js",False) Failed
             Array_prototype_includes("built-ins/Array/prototype/includes/sparse.js",True) Failed
-          Array_prototype_indexOf (8 tests) Failed: One or more child tests had errors: 8 tests failed
+          Array_prototype_indexOf (6 tests) Failed: One or more child tests had errors: 6 tests failed
             Array_prototype_indexOf("built-ins/Array/prototype/indexOf/15.4.4.14-3-22.js",False) Failed
             Array_prototype_indexOf("built-ins/Array/prototype/indexOf/15.4.4.14-3-22.js",True) Failed
-            Array_prototype_indexOf("built-ins/Array/prototype/indexOf/15.4.4.14-5-30.js",False) Failed
-            Array_prototype_indexOf("built-ins/Array/prototype/indexOf/15.4.4.14-5-30.js",True) Failed
             Array_prototype_indexOf("built-ins/Array/prototype/indexOf/15.4.4.14-9-b-ii-2.js",False) Failed
             Array_prototype_indexOf("built-ins/Array/prototype/indexOf/15.4.4.14-9-b-ii-2.js",True) Failed
             Array_prototype_indexOf("built-ins/Array/prototype/indexOf/length-zero-returns-minus-one.js",False) Failed
@@ -175,11 +166,7 @@ tests (2638 tests) Aborted: 2634 tests failed
             Array_prototype_keys("built-ins/Array/prototype/keys/resizable-buffer-shrink-mid-iteration.js",True) Failed
             Array_prototype_keys("built-ins/Array/prototype/keys/resizable-buffer.js",False) Failed
             Array_prototype_keys("built-ins/Array/prototype/keys/resizable-buffer.js",True) Failed
-          Array_prototype_lastIndexOf (6 tests) Failed: One or more child tests had errors: 6 tests failed
-            Array_prototype_lastIndexOf("built-ins/Array/prototype/lastIndexOf/15.4.4.15-3-22.js",False) Failed
-            Array_prototype_lastIndexOf("built-ins/Array/prototype/lastIndexOf/15.4.4.15-3-22.js",True) Failed
-            Array_prototype_lastIndexOf("built-ins/Array/prototype/lastIndexOf/15.4.4.15-5-30.js",False) Failed
-            Array_prototype_lastIndexOf("built-ins/Array/prototype/lastIndexOf/15.4.4.15-5-30.js",True) Failed
+          Array_prototype_lastIndexOf (2 tests) Failed: One or more child tests had errors: 2 tests failed
             Array_prototype_lastIndexOf("built-ins/Array/prototype/lastIndexOf/resizable-buffer.js",False) Failed
             Array_prototype_lastIndexOf("built-ins/Array/prototype/lastIndexOf/resizable-buffer.js",True) Failed
           Array_prototype_map (8 tests) Failed: One or more child tests had errors: 8 tests failed
@@ -225,7 +212,7 @@ tests (2638 tests) Aborted: 2634 tests failed
             Array_prototype_push("built-ins/Array/prototype/push/set-length-zero-array-is-frozen.js",True) Failed
             Array_prototype_push("built-ins/Array/prototype/push/throws-with-string-receiver.js",False) Failed
             Array_prototype_push("built-ins/Array/prototype/push/throws-with-string-receiver.js",True) Failed
-          Array_prototype_reduce (149 tests) Failed: One or more child tests had errors: 149 tests failed
+          Array_prototype_reduce (148 tests) Failed: One or more child tests had errors: 148 tests failed
             Array_prototype_reduce("built-ins/Array/prototype/reduce/15.4.4.21-3-22.js",False) Failed
             Array_prototype_reduce("built-ins/Array/prototype/reduce/15.4.4.21-3-22.js",True) Failed
             Array_prototype_reduce("built-ins/Array/prototype/reduce/15.4.4.21-8-b-3.js",False) Failed
@@ -364,7 +351,6 @@ tests (2638 tests) Aborted: 2634 tests failed
             Array_prototype_reduce("built-ins/Array/prototype/reduce/15.4.4.21-9-c-ii-19.js",True) Failed
             Array_prototype_reduce("built-ins/Array/prototype/reduce/15.4.4.21-9-c-ii-20.js",False) Failed
             Array_prototype_reduce("built-ins/Array/prototype/reduce/15.4.4.21-9-c-ii-20.js",True) Failed
-            Array_prototype_reduce("built-ins/Array/prototype/reduce/15.4.4.21-9-c-ii-4-s.js",False) Failed
             Array_prototype_reduce("built-ins/Array/prototype/reduce/15.4.4.21-9-c-ii-4.js",False) Failed
             Array_prototype_reduce("built-ins/Array/prototype/reduce/15.4.4.21-9-c-ii-4.js",True) Failed
             Array_prototype_reduce("built-ins/Array/prototype/reduce/15.4.4.21-9-c-ii-5.js",False) Failed
@@ -375,7 +361,7 @@ tests (2638 tests) Aborted: 2634 tests failed
             Array_prototype_reduce("built-ins/Array/prototype/reduce/15.4.4.21-9-c-ii-9.js",True) Failed
             Array_prototype_reduce("built-ins/Array/prototype/reduce/resizable-buffer.js",False) Failed
             Array_prototype_reduce("built-ins/Array/prototype/reduce/resizable-buffer.js",True) Failed
-          Array_prototype_reduceRight (129 tests) Failed: One or more child tests had errors: 129 tests failed
+          Array_prototype_reduceRight (128 tests) Failed: One or more child tests had errors: 128 tests failed
             Array_prototype_reduceRight("built-ins/Array/prototype/reduceRight/15.4.4.22-10-8.js",False) Failed
             Array_prototype_reduceRight("built-ins/Array/prototype/reduceRight/15.4.4.22-10-8.js",True) Failed
             Array_prototype_reduceRight("built-ins/Array/prototype/reduceRight/15.4.4.22-3-22.js",False) Failed
@@ -498,7 +484,6 @@ tests (2638 tests) Aborted: 2634 tests failed
             Array_prototype_reduceRight("built-ins/Array/prototype/reduceRight/15.4.4.22-9-c-i-9.js",True) Failed
             Array_prototype_reduceRight("built-ins/Array/prototype/reduceRight/15.4.4.22-9-c-ii-20.js",False) Failed
             Array_prototype_reduceRight("built-ins/Array/prototype/reduceRight/15.4.4.22-9-c-ii-20.js",True) Failed
-            Array_prototype_reduceRight("built-ins/Array/prototype/reduceRight/15.4.4.22-9-c-ii-4-s.js",False) Failed
             Array_prototype_reduceRight("built-ins/Array/prototype/reduceRight/15.4.4.22-9-c-ii-4.js",False) Failed
             Array_prototype_reduceRight("built-ins/Array/prototype/reduceRight/15.4.4.22-9-c-ii-4.js",True) Failed
             Array_prototype_reduceRight("built-ins/Array/prototype/reduceRight/15.4.4.22-9-c-ii-5.js",False) Failed

@@ -283,17 +283,18 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("at", Length = 1d)]
     public object? At(object? thisValue, IReadOnlyList<object?> args)
     {
-        if (args.Count == 0)
-        {
-            return Symbol.Undefined;
-        }
-
         var target = EnsureArrayLikeReceiver(thisValue, "Array.prototype.at", Realm);
         var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
-        var indexNumber = args[0] is double d ? d : JsOps.ToNumber(args[0]);
-        var index = indexNumber < 0 ? length + (long)Math.Ceiling(indexNumber) : (long)Math.Floor(indexNumber);
+        var indexArg = args.GetArgument(0);
+        var relativeIndex = ToIntegerOrInfinity(indexArg);
+        if (double.IsPositiveInfinity(relativeIndex) || double.IsNegativeInfinity(relativeIndex))
+        {
+            return Symbol.Undefined;
+        }
+
+        var index = relativeIndex < 0 ? length + (long)relativeIndex : (long)relativeIndex;
 
         if (index < 0 || index >= length)
         {

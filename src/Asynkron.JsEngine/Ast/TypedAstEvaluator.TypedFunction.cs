@@ -19,6 +19,7 @@ public static partial class TypedAstEvaluator
         private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
         private readonly JsObject _properties = new();
         private readonly RealmState _realmState;
+        private readonly bool _isStrict;
         private readonly bool _wasAsyncFunction;
         private IJsObjectLike? _homeObject;
         private ImmutableArray<ClassField> _instanceFields = ImmutableArray<ClassField>.Empty;
@@ -27,7 +28,11 @@ public static partial class TypedAstEvaluator
         private IJsEnvironmentAwareCallable? _superConstructor;
         private IJsPropertyAccessor? _superPrototype;
 
-        public TypedFunction(FunctionExpression function, JsEnvironment closure, RealmState realmState)
+        public TypedFunction(
+            FunctionExpression function,
+            JsEnvironment closure,
+            RealmState realmState,
+            bool isLexicallyStrict)
         {
             if (function.IsGenerator)
             {
@@ -38,6 +43,7 @@ public static partial class TypedAstEvaluator
             _function = function;
             _closure = closure;
             _realmState = realmState;
+            _isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
             IsAsyncFunction = function.IsAsync;
             _wasAsyncFunction = function.WasAsync;
             IsArrowFunction = function.IsArrow;
@@ -347,14 +353,14 @@ public static partial class TypedAstEvaluator
                 blockedFunctionVarNames.Add(parameterName);
             }
 
-            var functionMode = _function.Body.IsStrict
+            var functionMode = _isStrict
                 ? ScopeMode.Strict
                 : _realmState.Options.EnableAnnexBFunctionExtensions
                     ? ScopeMode.SloppyAnnexB
                     : ScopeMode.Sloppy;
             using var functionScopeFrame = context.PushScope(ScopeKind.Function, functionMode);
 
-            if (!_function.Body.IsStrict && !IsArrowFunction)
+            if (!_isStrict && !IsArrowFunction)
             {
                 blockedFunctionVarNames.Add(Symbol.Arguments);
             }
@@ -370,22 +376,22 @@ public static partial class TypedAstEvaluator
             JsEnvironment functionEnvironment;
             if (hasParameterExpressions)
             {
-                parameterEnvironment = new JsEnvironment(_closure, false, _function.Body.IsStrict, _function.Source,
+                parameterEnvironment = new JsEnvironment(_closure, false, _isStrict, _function.Source,
                     description, isParameterEnvironment: true);
                 parameterEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-                functionEnvironment = new JsEnvironment(parameterEnvironment, true, _function.Body.IsStrict,
+                functionEnvironment = new JsEnvironment(parameterEnvironment, true, _isStrict,
                     _function.Source, description);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
             }
             else
             {
-                functionEnvironment = new JsEnvironment(_closure, true, _function.Body.IsStrict, _function.Source,
+                functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     description);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
                 parameterEnvironment = functionEnvironment;
             }
 
-            var executionEnvironment = new JsEnvironment(functionEnvironment, false, _function.Body.IsStrict,
+            var executionEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict,
                 _function.Source, description, isBodyEnvironment: true);
             executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
             using var privateScope = PrivateNameScope is not null
@@ -461,12 +467,12 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                if (!_function.Body.IsStrict && (thisValue is null || ReferenceEquals(thisValue, Symbol.Undefined)))
+                if (!_isStrict && (thisValue is null || ReferenceEquals(thisValue, Symbol.Undefined)))
                 {
                     boundThis = CallingJsEnvironment?.Get(Symbol.This) ?? Symbol.Undefined;
                 }
 
-                if (!_function.Body.IsStrict &&
+                if (!_isStrict &&
                     boundThis is not IJsPropertyAccessor &&
                     !IsNullish(boundThis) &&
                     boundThis is not IIsHtmlDda)
@@ -544,7 +550,8 @@ public static partial class TypedAstEvaluator
                 {
                     // Create the `arguments` binding up front so parameter default expressions can reference it.
                     var argumentsObject =
-                        CreateArgumentsObject(_function, arguments, parameterEnvironment, _realmState, this);
+                        CreateArgumentsObject(_function, arguments, parameterEnvironment, _realmState, this,
+                            _isStrict);
                     parameterEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
                     if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
                     {

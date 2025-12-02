@@ -1,6 +1,8 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -24,6 +26,8 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
 
     private IJsPropertyAccessor? _prototypeAccessor;
     private IVirtualPropertyProvider? _virtualPropertyProvider;
+
+    internal RealmState? RealmState { get; set; }
 
     public bool IsFrozen { get; private set; }
     public bool IsExtensible { get; private set; } = true;
@@ -68,6 +72,7 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
 
     public void SetPrototype(object? candidate)
     {
+        var previous = _prototypeAccessor ?? Prototype;
         _prototypeAccessor = candidate as IJsPropertyAccessor;
         Prototype = candidate as JsObject;
 
@@ -78,6 +83,15 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
         else
         {
             Remove(PrototypeKey);
+        }
+
+        if (!ReferenceEquals(previous, candidate))
+        {
+            RealmState?.Logger?.LogInformation(
+                "Prototype reassigned on {ObjectId}: {OldPrototype} -> {NewPrototype}",
+                RuntimeHelpers.GetHashCode(this),
+                DescribePrototype(previous),
+                DescribePrototype(candidate));
         }
     }
 
@@ -938,16 +952,41 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
         }
 
         var prototype = _prototypeAccessor;
-        switch (prototype)
+        if (prototype is null && TryGetValue(PrototypeKey, out var protoCandidate) &&
+            protoCandidate is IJsPropertyAccessor accessor)
         {
-            case null:
-                value = null;
-                return false;
-            case JsObject jsObjPrototype:
-                return jsObjPrototype.TryGetProperty(name, receiver ?? this, visited, out value);
-            default:
-                return prototype.TryGetProperty(name, receiver ?? this, out value);
+            prototype = accessor;
         }
+        while (prototype is not null)
+        {
+            if (prototype.TryGetProperty(name, receiver ?? this, out value))
+            {
+                return true;
+            }
+
+            if (prototype is IPrototypeAccessorProvider provider && provider.PrototypeAccessor is { } next)
+            {
+                prototype = next;
+                continue;
+            }
+
+            if (prototype is IJsObjectLike objLike && objLike.Prototype is { } objProto)
+            {
+        prototype = objProto;
+        continue;
+    }
+
+    if (prototype is JsObject jsObj && jsObj.Prototype is { } jsProto)
+    {
+        prototype = jsProto;
+        continue;
+    }
+
+            break;
+        }
+
+        value = null;
+        return false;
     }
 
     private bool TryGetOwnProperty(string name, object? receiver, out object? value)
@@ -1120,6 +1159,17 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
                 yield return key;
             }
         }
+    }
+
+    private static string DescribePrototype(object? candidate)
+    {
+        if (candidate is null)
+        {
+            return "null";
+        }
+
+        var typeName = candidate.GetType().Name;
+        return $"{typeName}@{RuntimeHelpers.GetHashCode(candidate)}";
     }
 
     private static bool IsInternalKey(string name)

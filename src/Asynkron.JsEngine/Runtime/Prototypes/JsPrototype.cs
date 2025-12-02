@@ -17,6 +17,11 @@ public abstract class JsPrototype
         {
             Prototype.SetPrototype(Realm.ObjectPrototype);
         }
+
+        if (Prototype is JsObject jsObj && jsObj.RealmState is null)
+        {
+            jsObj.RealmState = Realm;
+        }
     }
 
     protected IJsObjectLike Prototype { get; }

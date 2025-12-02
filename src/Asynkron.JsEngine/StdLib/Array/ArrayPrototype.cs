@@ -2,6 +2,7 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -13,6 +14,7 @@ public sealed partial class ArrayPrototype
     protected override void ConfigurePrototype()
     {
         Realm.ArrayPrototype ??= Prototype;
+        Realm.Logger?.LogInformation("ArrayPrototype configured: {Prototype}", Prototype);
 
         Prototype.DefineProperty("length",
             new PropertyDescriptor

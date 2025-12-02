@@ -621,6 +621,22 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
     internal virtual object? GetValueForIndex(int index)
     {
+        if (index < 0)
+        {
+            return Symbol.Undefined;
+        }
+
+        if (_buffer.IsDetached || IsDetachedOrOutOfBounds())
+        {
+            return Symbol.Undefined;
+        }
+
+        var currentLength = GetCurrentLength();
+        if (index >= currentLength)
+        {
+            return Symbol.Undefined;
+        }
+
         return GetElement(index);
     }
 

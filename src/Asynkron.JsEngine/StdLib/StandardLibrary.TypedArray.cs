@@ -639,6 +639,10 @@ public static partial class StandardLibrary
         }
 
         var thisArg = args.GetArgument(1);
+        if (callback is IJsEnvironmentAwareCallable envAware && realm?.Engine?.GlobalEnvironment is { } globalEnv)
+        {
+            envAware.CallingJsEnvironment = globalEnv;
+        }
 
         if (typedArray.IsDetachedOrOutOfBounds())
         {
@@ -648,16 +652,6 @@ public static partial class StandardLibrary
         var length = typedArray.Length;
         for (var k = 0; k < length; k++)
         {
-            if (typedArray.IsDetachedOrOutOfBounds())
-            {
-                throw typedArray.CreateOutOfBoundsTypeError();
-            }
-
-            if (k >= typedArray.Length)
-            {
-                break;
-            }
-
             var value = typedArray.GetValueForIndex(k);
             var result = callback.Invoke([value, (double)k, typedArray], thisArg);
             if (!IsTruthy(result))

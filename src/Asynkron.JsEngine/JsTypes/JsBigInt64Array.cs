@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Numerics;
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 
@@ -70,6 +71,17 @@ public sealed class JsBigInt64Array(JsArrayBuffer buffer, int byteOffset, int le
 
     internal override object? GetValueForIndex(int index)
     {
+        if (_buffer.IsDetached || IsDetachedOrOutOfBounds())
+        {
+            return Symbol.Undefined;
+        }
+
+        var currentLength = GetCurrentLength();
+        if (index < 0 || index >= currentLength)
+        {
+            return Symbol.Undefined;
+        }
+
         return GetBigIntElement(index);
     }
 

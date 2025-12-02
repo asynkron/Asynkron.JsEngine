@@ -7,58 +7,8 @@ public static partial class TypedAstEvaluator
         private object? EvaluateFunctionDeclaration(JsEnvironment environment,
             EvaluationContext context)
         {
-            var currentScope = context.CurrentScope;
-            var annexBEnabled = currentScope.AllowAnnexB;
-            var isStrictScope = currentScope.IsStrict;
-            object? function = null;
-            if (!isStrictScope &&
-                environment.TryFindBinding(declaration.Name, out var bindingEnvironment, out var existingValue) &&
-                bindingEnvironment.HasOwnLexicalBinding(declaration.Name))
-            {
-                function = existingValue;
-            }
-
-            function ??= CreateFunctionValue(declaration.Function, environment, context);
-            var isBlockEnvironment = !environment.IsFunctionScope;
-            var shouldCreateLexicalBinding = isStrictScope ||
-                                             (!annexBEnabled && isBlockEnvironment);
-            if (shouldCreateLexicalBinding)
-            {
-                environment.Define(declaration.Name, function);
-            }
-
-            var skipVarBinding = (context.BlockedFunctionVarNames is { } blocked &&
-                                  blocked.Contains(declaration.Name)) ||
-                                 environment.HasBodyLexicalName(declaration.Name);
-
-            var hasBlockingLexicalBeforeFunctionScope =
-                !isStrictScope && HasBlockingLexicalBeforeFunctionScope(environment, declaration.Name);
-
-            var isAnnexBBlockFunction = !isStrictScope && annexBEnabled && isBlockEnvironment;
-            var shouldCreateVarBinding = annexBEnabled || !isBlockEnvironment;
-            if (!shouldCreateVarBinding || skipVarBinding || hasBlockingLexicalBeforeFunctionScope)
-            {
-                return EmptyCompletion;
-            }
-
-            if (!isStrictScope)
-            {
-                var assigned = environment.TryAssignBlockedBinding(declaration.Name, function);
-            }
-
-            var configurable = context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false };
-            bool? globalFunctionConfigurable = configurable;
-            environment.DefineFunctionScoped(
-                declaration.Name,
-                function,
-                true,
-                true,
-                globalFunctionConfigurable,
-                context,
-                globalVarConfigurable: null,
-                allowExistingGlobalFunctionRedeclaration: isAnnexBBlockFunction,
-                isAnnexBFunction: isAnnexBBlockFunction);
-
+            // FunctionDeclarationInstantiation handles creating and binding functions up front.
+            // Runtime evaluation is a no-op (NormalCompletion(empty)).
             return EmptyCompletion;
         }
     }

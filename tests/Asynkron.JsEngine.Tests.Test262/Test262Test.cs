@@ -129,6 +129,7 @@ try {
         {
             ExecutionTimeout = null
         };
+        engine.RealmState.Logger = new ConsoleLogger();
 
         if (file.Flags.Contains("raw"))
         {

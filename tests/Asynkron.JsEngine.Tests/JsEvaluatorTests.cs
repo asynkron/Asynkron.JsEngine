@@ -173,6 +173,24 @@ public class JsEvaluatorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ArrayPrototypeMethodsAreInheritedFromArrayPrototypeInstances()
+    {
+        await using var engine = new JsEngine();
+        var script = """
+                     "use strict";
+                     function Foo() {}
+                     Foo.prototype = [1, 2, 3];
+                     var f = new Foo();
+                     f.length = [];
+                     """;
+
+        await engine.Evaluate(script);
+
+        Assert.Equal("function", await engine.Evaluate("typeof f.every;"));
+        Assert.Equal(true, await engine.Evaluate("f.every(() => true);"));
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task VarDeclarationHoistsToFunctionScope()
     {
         await using var engine = new JsEngine();

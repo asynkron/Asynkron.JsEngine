@@ -73,6 +73,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
             }
 
             _realmState = value;
+            Properties.RealmState ??= value;
             if (_realmState?.FunctionPrototype is JsObject functionPrototype &&
                 Properties.Prototype is null)
             {

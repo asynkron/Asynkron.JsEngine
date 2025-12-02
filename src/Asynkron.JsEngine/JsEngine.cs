@@ -55,6 +55,7 @@ public sealed class JsEngine : IAsyncDisposable
         // top-level `this` behaves like the global object (e.g. for UMD
         // wrappers such as babel-standalone).
         GlobalEnvironment.Define(Symbol.This, GlobalObject);
+        GlobalObject.RealmState = RealmState;
 
         // Expose common aliases for the global object that many libraries
         // expect to exist (Node-style `global`, standard `globalThis`).
@@ -747,6 +748,10 @@ public sealed class JsEngine : IAsyncDisposable
             {
                 hostFunction.Properties.SetPrototype(RealmState.FunctionPrototype);
             }
+        }
+        else if (value is JsObject jsObject && jsObject.RealmState is null)
+        {
+            jsObject.RealmState = RealmState;
         }
 
         GlobalObject.SetProperty(name, value);

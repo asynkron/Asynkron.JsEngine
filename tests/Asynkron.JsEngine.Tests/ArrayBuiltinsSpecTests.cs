@@ -57,4 +57,42 @@ public class ArrayBuiltinsSpecTests
 
         Assert.Equal(1d, result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task Array_at_SymbolIndexThrowsTypeError()
+    {
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            "use strict";
+            var a = [0, 1, 2, 3];
+            var outcome = { kind: "unset" };
+            try {
+              a.at(Symbol());
+              outcome = { kind: "no-throw" };
+            } catch (err) {
+              outcome = {
+                kind: "throw",
+                type: typeof err,
+                ctor: err && err.constructor && err.constructor.name,
+                name: err && err.name,
+                message: err && err.message
+              };
+            }
+            outcome;
+        """);
+
+        var record = Assert.IsType<JsObject>(result);
+        var kind = record["kind"];
+        var type = record["type"];
+        var ctor = record["ctor"];
+        var name = record["name"];
+        var message = record["message"];
+
+        Assert.Equal("throw", kind);
+        Assert.Equal("object", type);
+        Assert.Equal("TypeError", ctor);
+        Assert.Equal("TypeError", name);
+        Assert.NotNull(message);
+    }
 }

@@ -6,7 +6,8 @@
 - `dotnet build` succeeds with the new layout, so the constructor/prototype reshuffle doesn't break existing projects and existing array tests (e.g., `PrototypeLookupResolvesInheritedMethods`) stay green.
 - Function declarations no longer re-instantiate at runtime (evaluation is now a no-op), which fixed the Array.prototype.every subclass failures when a function declaration was overwriting a custom prototype assignment.
 - Realm logging is opt-in for Test262 runs (`JSENGINE_TRACE_REALM`), and array helper debug traces have been removed; ToLength now respects abrupt completions so concat with poisoned lengths throws as expected.
+- Array.prototype.at now throws a proper TypeError for Symbol indices (propagated via realm-aware ToIntegerOrInfinity), and the Array.prototype.at Test262 slice is green.
 
 ## Next Iteration Plan
-1. Sweep remaining array-built-in failures (e.g., the earlier Array.from/fromAsync/isArray/of/exotic-array cases) now that concat length coercion is fixed—focus on conversions/abrupt completions and species plumbing.
+1. Sweep remaining array-built-in failures around concat spreadable string wrappers and copyWithin coercion/length-change semantics.
 2. Keep tightening the partials (shared helpers, comments, tests) so additional array features can slot into the generator model without reintroducing giant files; leave logging opt-in-only for troubleshooting.

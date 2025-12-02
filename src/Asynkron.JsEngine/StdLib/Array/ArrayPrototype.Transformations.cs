@@ -288,7 +288,8 @@ public sealed partial class ArrayPrototype
         var length = (long)ToLengthOrZero(lengthValue);
 
         var indexArg = args.GetArgument(0);
-        var relativeIndex = ToIntegerOrInfinity(indexArg);
+        var numericContext = Realm?.CreateContext(pushScope: false);
+        var relativeIndex = ToIntegerOrInfinity(indexArg, numericContext);
         if (double.IsPositiveInfinity(relativeIndex) || double.IsNegativeInfinity(relativeIndex))
         {
             return Symbol.Undefined;

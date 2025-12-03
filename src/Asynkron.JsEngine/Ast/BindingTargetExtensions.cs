@@ -123,13 +123,14 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             BindingMode mode,
             bool hasInitializer = true,
-            bool allowNameInference = true)
+            bool allowNameInference = true,
+            bool skipBlockedBindingLookup = false)
         {
             switch (target)
             {
                 case IdentifierBinding identifier:
                     ApplyIdentifierBinding(identifier, value, environment, context, mode, hasInitializer,
-                        allowNameInference);
+                        allowNameInference, skipBlockedBindingLookup);
                     break;
                 case ArrayBinding arrayBinding:
                     BindArrayPattern(arrayBinding, value, environment, context, mode);

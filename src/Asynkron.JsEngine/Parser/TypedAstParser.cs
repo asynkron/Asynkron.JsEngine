@@ -3646,35 +3646,92 @@ public sealed class TypedAstParser(
             return ConsumeParameterIdentifier(message);
         }
 
-        private bool CheckForUseStrictDirective()
+        private bool IsUseStrictDirectiveLiteral(Token token)
         {
-            var saved = _current;
-
-            if (!Check(TokenType.String))
+            if (token.Type != TokenType.String)
             {
                 return false;
             }
 
-            var token = Advance();
             var literalValue = GetStringLiteralValue(token);
             if (!string.Equals(literalValue, "use strict", StringComparison.Ordinal))
             {
-                _current = saved;
                 return false;
             }
 
-            Match(TokenType.Semicolon);
-            return true;
+            return string.Equals(token.Lexeme, "\"use strict\"", StringComparison.Ordinal) ||
+                   string.Equals(token.Lexeme, "'use strict'", StringComparison.Ordinal);
         }
 
-        private bool CheckIdentifierLike()
+        private bool IsStrictModeReservedWord(Token token)
         {
-            if (Check(TokenType.Identifier))
+            if (!InStrictContext)
+            {
+                return false;
+            }
+
+            if (token.Type == TokenType.Yield)
             {
                 return true;
             }
 
+            if (token.Type != TokenType.Identifier)
+            {
+                return false;
+            }
+
+            return token.Lexeme is "implements" or "interface" or "let" or "package" or "private" or "protected" or
+                "public" or "static" or "yield";
+        }
+
+        private bool CheckForUseStrictDirective()
+        {
+            var index = _current;
+            var foundStrict = false;
+
+            while (index < _tokens.Count && _tokens[index].Type == TokenType.String)
+            {
+                var token = _tokens[index];
+                index++;
+
+                if (IsUseStrictDirectiveLiteral(token))
+                {
+                    foundStrict = true;
+                }
+
+                if (index < _tokens.Count && _tokens[index].Type == TokenType.Semicolon)
+                {
+                    index++;
+                    continue;
+                }
+
+                if (index < _tokens.Count)
+                {
+                    var next = _tokens[index];
+                    var sameLine = next.Line == token.Line;
+                    if (sameLine && next.Type is not TokenType.RightBrace and not TokenType.Eof)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            return foundStrict;
+        }
+
+        private bool CheckIdentifierLike()
+        {
             var token = Peek();
+            if (IsStrictModeReservedWord(token))
+            {
+                return false;
+            }
+
+            if (token.Type is TokenType.Identifier)
+            {
+                return true;
+            }
+
             if (token.Type is TokenType.Async or TokenType.Await or TokenType.Yield ||
                 IsContextualIdentifierToken(token))
             {

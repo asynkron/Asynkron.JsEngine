@@ -642,8 +642,8 @@ internal static class JsOps
                     return i.ToString(CultureInfo.InvariantCulture);
                 case long l:
                     return l.ToString(CultureInfo.InvariantCulture);
-                case double d when !double.IsNaN(d) && !double.IsInfinity(d):
-                    return d.ToString(CultureInfo.InvariantCulture);
+                case double d:
+                    return ToCanonicalNumberString(d);
             }
 
             if (value is IJsPropertyAccessor accessor)
@@ -677,6 +677,50 @@ internal static class JsOps
 
             return Convert.ToString(value, CultureInfo.InvariantCulture);
         }
+    }
+
+    // Align numeric property keys with ECMAScript ToString(number) formatting (case-sensitive keys).
+    internal static string ToCanonicalNumberString(double value)
+    {
+        if (double.IsNaN(value))
+        {
+            return "NaN";
+        }
+
+        if (double.IsPositiveInfinity(value))
+        {
+            return "Infinity";
+        }
+
+        if (double.IsNegativeInfinity(value))
+        {
+            return "-Infinity";
+        }
+
+        if (value == 0)
+        {
+            return "0";
+        }
+
+        var sign = value < 0 ? "-" : string.Empty;
+        var abs = Math.Abs(value);
+        var exponent = (int)Math.Floor(Math.Log10(abs));
+        var useExponential = exponent < -6 || exponent >= 21;
+
+        if (!useExponential)
+        {
+            // Fixed-point form for the mid-range magnitude.
+            var fixedText = abs.ToString("0.###################", CultureInfo.InvariantCulture);
+            return sign + fixedText;
+        }
+
+        var expText = abs.ToString("0.###################e+0", CultureInfo.InvariantCulture);
+        var parts = expText.Split('e');
+        var mantissa = parts[0].TrimEnd('0').TrimEnd('.');
+        var expVal = int.Parse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture);
+        var expStr = expVal >= 0 ? $"+{expVal}" : expVal.ToString(CultureInfo.InvariantCulture);
+
+        return $"{sign}{mantissa}e{expStr}";
     }
 
     private static bool TryConvertObjectToPropertyKey(IJsPropertyAccessor accessor, out object? key,

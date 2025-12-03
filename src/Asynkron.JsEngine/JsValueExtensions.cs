@@ -135,8 +135,8 @@ internal static class JsValueExtensions
             {
                 IJsCallable => "function() { [native code] }",
                 string s => s,
-                double d => d.ToString(CultureInfo.InvariantCulture),
-                float f => f.ToString(CultureInfo.InvariantCulture),
+                double d => JsOps.ToCanonicalNumberString(d),
+                float f => JsOps.ToCanonicalNumberString(f),
                 decimal m => m.ToString(CultureInfo.InvariantCulture),
                 int i => i.ToString(CultureInfo.InvariantCulture),
                 uint ui => ui.ToString(CultureInfo.InvariantCulture),

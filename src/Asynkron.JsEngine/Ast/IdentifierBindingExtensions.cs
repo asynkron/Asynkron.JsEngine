@@ -11,7 +11,8 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             BindingMode mode,
             bool hasInitializer,
-            bool allowNameInference)
+            bool allowNameInference,
+            bool skipBlockedBindingLookup = false)
         {
             if (allowNameInference && value is IFunctionNameTarget nameTarget)
             {
@@ -37,7 +38,21 @@ public static partial class TypedAstEvaluator
                     break;
                 case BindingMode.DefineVar:
                 {
-                    var assignedBlockedBinding = environment.TryAssignBlockedBinding(identifier.Name, value);
+                    if (skipBlockedBindingLookup)
+                    {
+                        EnsureFunctionScopedVarBinding(environment, identifier.Name, context);
+                        if (hasInitializer)
+                        {
+                            var functionScope = environment.GetFunctionScope();
+                            functionScope.Assign(identifier.Name, value);
+                        }
+
+                        break;
+                    }
+
+                    var assignedBlockedBinding = skipBlockedBindingLookup
+                        ? false
+                        : environment.TryAssignBlockedBinding(identifier.Name, value);
 
                     EnsureFunctionScopedVarBinding(environment, identifier.Name, context);
 

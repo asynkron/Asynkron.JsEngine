@@ -32,6 +32,13 @@ public static partial class TypedAstEvaluator
                     }
                 }
 
+                if (property.Target is IdentifierBinding identifierForSideEffects)
+                {
+                    // Resolve the binding reference before touching the source value so proxies
+                    // used in with-environments observe the same lookup order as the spec.
+                    _ = environment.HasBinding(identifierForSideEffects.Name);
+                }
+
                 usedKeys.Add(propertyName);
                 var hasProperty = obj.TryGetProperty(propertyName, out var val);
                 var propertyValue = hasProperty ? val : Symbol.Undefined;
@@ -55,8 +62,11 @@ public static partial class TypedAstEvaluator
                     nameTarget.EnsureHasName(identifierTarget.Name.Name);
                 }
 
+                var skipBlockedLookup = mode == BindingMode.DefineVar &&
+                                        property.Target is IdentifierBinding;
+
                 ApplyBindingTarget(property.Target, propertyValue, environment, context, mode,
-                    allowNameInference: false);
+                    allowNameInference: false, skipBlockedBindingLookup: skipBlockedLookup);
             }
 
             if (binding.RestElement is null)

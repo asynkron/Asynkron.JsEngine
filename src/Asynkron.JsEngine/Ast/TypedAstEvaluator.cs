@@ -759,6 +759,17 @@ public static partial class TypedAstEvaluator
         iterator = null;
         enumerator = null;
 
+        if (value is TypedArrayBase typedArray)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            enumerator = EnumerateTypedArrayValues(typedArray);
+            return true;
+        }
+
         var iteratorTarget = value as IJsPropertyAccessor;
         var thisArg = value;
         if (iteratorTarget is null && value is not null && !ReferenceEquals(value, Symbol.Undefined))
@@ -826,6 +837,21 @@ public static partial class TypedAstEvaluator
             foreach (var ch in value)
             {
                 yield return ch.ToString();
+            }
+        }
+
+        return Enumerate().GetEnumerator();
+    }
+
+    [MustDisposeResource]
+    private static IEnumerator<object?> EnumerateTypedArrayValues(TypedArrayBase typedArray)
+    {
+        IEnumerable<object?> Enumerate()
+        {
+            var length = typedArray.Length;
+            for (var i = 0; i < length; i++)
+            {
+                yield return typedArray.GetValueForIndex(i);
             }
         }
 

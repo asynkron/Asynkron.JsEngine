@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
@@ -98,6 +99,34 @@ public static partial class StandardLibrary
         const double MsPerMinute = 60000d;
         const double MsPerSecond = 1000d;
 
+        var setYearFn = new HostFunction((thisVal, methodArgs) =>
+        {
+            var timeValue = RequireDateValue(thisVal, realm, out var obj);
+
+            var yearArg = methodArgs.Count > 0 ? methodArgs[0] : Symbol.Undefined;
+            if (yearArg is Symbol sym && !ReferenceEquals(sym, Symbol.Undefined) || yearArg is TypedAstSymbol)
+            {
+                throw ThrowTypeError("Cannot convert a Symbol value to a number", realm: realm);
+            }
+
+            var y = JsOps.ToNumber(yearArg);
+            if (double.IsNaN(y))
+            {
+                StoreInternalDateValue(obj, double.NaN);
+                return double.NaN;
+            }
+
+            var fullYear = MakeFullYear(y);
+            var tLocal = double.IsNaN(timeValue) ? 0d : LocalTimeMs(timeValue, realm);
+            var day = MakeDay(fullYear, MonthFromTime(tLocal), DateFromTime(tLocal));
+            var newDate = MakeDate(day, TimeWithinDay(tLocal));
+            var utc = UTCTimeFromLocal(newDate, realm);
+            var clipped = TimeClip(utc);
+
+            StoreInternalDateValue(obj, clipped);
+            return clipped;
+        }, realm);
+
         dateConstructor = new HostFunction((thisValue, args) =>
         {
             // For `new Date(...)`, the typed evaluator creates the instance
@@ -175,388 +204,6 @@ public static partial class StandardLibrary
             // Store the internal date value
             StoreInternalDateValue(dateInstance, timeValue);
 
-            // Add instance methods
-            dateInstance["getTime"] = new HostFunction((thisVal, args) =>
-            {
-                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) &&
-                    val is double ms)
-                {
-                    return ms;
-                }
-
-                return double.NaN;
-            });
-
-            dateInstance["setTime"] = new HostFunction((thisVal, methodArgs) =>
-            {
-                if (thisVal is not JsObject obj)
-                {
-                    throw ThrowTypeError("Date method called on incompatible receiver", realm: realm);
-                }
-
-                var ms = methodArgs.Count > 0 ? JsOps.ToNumber(methodArgs[0]) : double.NaN;
-                var clipped = TimeClip(ms);
-                StoreInternalDateValue(obj, clipped);
-                return clipped;
-            });
-
-            dateInstance["getFullYear"] = new HostFunction((thisVal, args) =>
-            {
-                var timeValue = RequireDateValue(thisVal, realm, out _);
-                if (double.IsNaN(timeValue))
-                {
-                    return double.NaN;
-                }
-
-                var local = LocalTimeMs(timeValue, realm);
-                return YearFromTime(local);
-            });
-
-            var getYearFn = new HostFunction((thisVal, args) =>
-            {
-                var timeValue = RequireDateValue(thisVal, realm, out _);
-                if (double.IsNaN(timeValue))
-                {
-                    return double.NaN;
-                }
-
-                var local = LocalTimeMs(timeValue, realm);
-                return YearFromTime(local) - 1900;
-            });
-            DefineBuiltinFunction(dateInstance, "getYear", getYearFn, 0);
-
-            var setYearFn = new HostFunction((thisVal, methodArgs) =>
-            {
-                var timeValue = RequireDateValue(thisVal, realm, out var obj);
-
-                var yearArg = methodArgs.Count > 0 ? methodArgs[0] : Symbol.Undefined;
-                if (yearArg is Symbol sym && !ReferenceEquals(sym, Symbol.Undefined))
-                {
-                    throw ThrowTypeError("Cannot convert a Symbol value to a number", realm: realm);
-                }
-
-                if (yearArg is TypedAstSymbol)
-                {
-                    throw ThrowTypeError("Cannot convert a Symbol value to a number", realm: realm);
-                }
-
-                var y = JsOps.ToNumber(yearArg);
-                if (double.IsNaN(y))
-                {
-                    StoreInternalDateValue(obj, double.NaN);
-                    return double.NaN;
-                }
-
-                var fullYear = MakeFullYear(y);
-                if (double.IsNaN(fullYear) || double.IsInfinity(fullYear))
-                {
-                    StoreInternalDateValue(obj, double.NaN);
-                    return double.NaN;
-                }
-
-                var tLocal = double.IsNaN(timeValue) ? 0d : LocalTimeMs(timeValue, realm);
-                var month = MonthFromTime(tLocal);
-                var date = DateFromTime(tLocal);
-                var hour = HourFromTime(tLocal);
-                var minute = MinFromTime(tLocal);
-                var second = SecFromTime(tLocal);
-                var millisecond = MsFromTime(tLocal);
-
-                double clipped;
-                if (fullYear is >= 1 and <= 9999 &&
-                    month is >= 0 and < 12 &&
-                    date is >= 1 and <= 31)
-                {
-                    try
-                    {
-                        var localDate = new DateTime(
-                            (int)fullYear,
-                            month + 1,
-                            date,
-                            (int)hour,
-                            (int)minute,
-                            (int)second,
-                            (int)millisecond,
-                            DateTimeKind.Local);
-                        var utcMs = new DateTimeOffset(localDate).ToUniversalTime().ToUnixTimeMilliseconds();
-                        clipped = TimeClip(utcMs);
-                    }
-                    catch
-                    {
-                        clipped = double.NaN;
-                    }
-                }
-                else
-                {
-                    var d = MakeDay(fullYear, month, date);
-                    var newDate = MakeDate(d, TimeWithinDay(tLocal));
-                    var utc = UTCTimeFromLocal(newDate, realm);
-                    clipped = TimeClip(utc);
-                }
-
-                StoreInternalDateValue(obj, clipped);
-                return clipped;
-            });
-            DefineBuiltinFunction(dateInstance, "setYear", setYearFn, 1);
-
-            dateInstance["getMonth"] = new HostFunction((thisVal, args) =>
-            {
-                var timeValue = RequireDateValue(thisVal, realm, out _);
-                if (double.IsNaN(timeValue))
-                {
-                    return double.NaN;
-                }
-
-                var local = LocalTimeMs(timeValue, realm);
-                return (double)MonthFromTime(local); // JS months are 0-indexed
-            });
-
-            dateInstance["getDate"] = new HostFunction((thisVal, args) =>
-            {
-                var timeValue = RequireDateValue(thisVal, realm, out _);
-                if (double.IsNaN(timeValue))
-                {
-                    return double.NaN;
-                }
-
-                var local = LocalTimeMs(timeValue, realm);
-                return (double)DateFromTime(local);
-            });
-
-            dateInstance["getDay"] = new HostFunction((thisVal, args) =>
-            {
-                var timeValue = RequireDateValue(thisVal, realm, out _);
-                if (double.IsNaN(timeValue))
-                {
-                    return double.NaN;
-                }
-
-                var local = LocalTimeMs(timeValue, realm);
-                return WeekDayFromTime(local);
-            });
-
-            dateInstance["getHours"] = new HostFunction((thisVal, args) =>
-            {
-                var timeValue = RequireDateValue(thisVal, realm, out _);
-                if (double.IsNaN(timeValue))
-                {
-                    return double.NaN;
-                }
-
-                var local = LocalTimeMs(timeValue, realm);
-                return HourFromTime(local);
-            });
-
-            dateInstance["getMinutes"] = new HostFunction((thisVal, args) =>
-            {
-                var timeValue = RequireDateValue(thisVal, realm, out _);
-                if (double.IsNaN(timeValue))
-                {
-                    return double.NaN;
-                }
-
-                var local = LocalTimeMs(timeValue, realm);
-                return MinFromTime(local);
-            });
-
-            dateInstance["getSeconds"] = new HostFunction((thisVal, args) =>
-            {
-                var timeValue = RequireDateValue(thisVal, realm, out _);
-                if (double.IsNaN(timeValue))
-                {
-                    return double.NaN;
-                }
-
-                var local = LocalTimeMs(timeValue, realm);
-                return SecFromTime(local);
-            });
-
-            dateInstance["getMilliseconds"] = new HostFunction((thisVal, args) =>
-            {
-                var timeValue = RequireDateValue(thisVal, realm, out _);
-                if (double.IsNaN(timeValue))
-                {
-                    return double.NaN;
-                }
-
-                var local = LocalTimeMs(timeValue, realm);
-                return MsFromTime(local);
-            });
-
-            dateInstance["getTimezoneOffset"] = new HostFunction((thisVal, args) =>
-            {
-                var timeValue = RequireDateValue(thisVal, realm, out _);
-                if (double.IsNaN(timeValue))
-                {
-                    return double.NaN;
-                }
-
-                var offset = GetLocalOffsetMs(timeValue, realm);
-                return -(offset / MsPerMinute);
-            });
-
-            dateInstance["toISOString"] = new HostFunction((thisVal, args) =>
-            {
-                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) &&
-                    val is double ms && !double.IsNaN(ms))
-                {
-                    var dt = ConvertMillisecondsToUtc(ms);
-                    return dt.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture);
-                }
-
-                return double.NaN;
-            });
-
-            dateInstance["toString"] = new HostFunction((thisVal, args) =>
-            {
-                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) &&
-                    val is double ms && !double.IsNaN(ms))
-                {
-                    try
-                    {
-                        var local = ConvertMillisecondsToLocal(ms, realm);
-                        return FormatDateToJsString(local, realm);
-                    }
-                    catch
-                    {
-                        return "Invalid Date";
-                    }
-                }
-
-                return "Invalid Date";
-            });
-
-            // UTC-based accessors
-            dateInstance["getUTCFullYear"] = new HostFunction((thisVal, args) =>
-            {
-                var timeValue = RequireDateValue(thisVal, realm, out _);
-                if (double.IsNaN(timeValue))
-                {
-                    return double.NaN;
-                }
-
-                return YearFromTime(timeValue);
-            });
-
-            dateInstance["getUTCMonth"] = new HostFunction((thisVal, args) =>
-            {
-                var timeValue = RequireDateValue(thisVal, realm, out _);
-                if (double.IsNaN(timeValue))
-                {
-                    return double.NaN;
-                }
-
-                return (double)MonthFromTime(timeValue);
-            });
-
-            dateInstance["getUTCDate"] = new HostFunction((thisVal, args) =>
-            {
-                var timeValue = RequireDateValue(thisVal, realm, out _);
-                if (double.IsNaN(timeValue))
-                {
-                    return double.NaN;
-                }
-
-                return (double)DateFromTime(timeValue);
-            });
-
-            dateInstance["getUTCDay"] = new HostFunction((thisVal, args) =>
-            {
-                var timeValue = RequireDateValue(thisVal, realm, out _);
-                if (double.IsNaN(timeValue))
-                {
-                    return double.NaN;
-                }
-
-                return WeekDayFromTime(timeValue);
-            });
-
-            dateInstance["getUTCHours"] = new HostFunction((thisVal, args) =>
-            {
-                var timeValue = RequireDateValue(thisVal, realm, out _);
-                if (double.IsNaN(timeValue))
-                {
-                    return double.NaN;
-                }
-
-                return HourFromTime(timeValue);
-            });
-
-            dateInstance["getUTCMinutes"] = new HostFunction((thisVal, args) =>
-            {
-                var timeValue = RequireDateValue(thisVal, realm, out _);
-                if (double.IsNaN(timeValue))
-                {
-                    return double.NaN;
-                }
-
-                return MinFromTime(timeValue);
-            });
-
-            dateInstance["getUTCSeconds"] = new HostFunction((thisVal, args) =>
-            {
-                var timeValue = RequireDateValue(thisVal, realm, out _);
-                if (double.IsNaN(timeValue))
-                {
-                    return double.NaN;
-                }
-
-                return SecFromTime(timeValue);
-            });
-
-            dateInstance["getUTCMilliseconds"] = new HostFunction((thisVal, args) =>
-            {
-                var timeValue = RequireDateValue(thisVal, realm, out _);
-                if (double.IsNaN(timeValue))
-                {
-                    return double.NaN;
-                }
-
-                return MsFromTime(timeValue);
-            });
-
-            // Formatting helpers
-            var toUtcStringFn = new HostFunction((thisVal, args) =>
-            {
-                var timeValue = RequireDateValue(thisVal, realm, out _);
-                if (double.IsNaN(timeValue))
-                {
-                    return "Invalid Date";
-                }
-
-                var utc = ConvertMillisecondsToUtc(timeValue);
-                return FormatUtcToJsUtcString(utc);
-            });
-            DefineBuiltinFunction(dateInstance, "toUTCString", toUtcStringFn, 0);
-            dateInstance.DefineProperty("toGMTString",
-                new PropertyDescriptor
-                {
-                    Value = toUtcStringFn, Writable = true, Enumerable = false, Configurable = true
-                });
-
-            dateInstance["toJSON"] = new HostFunction((thisVal, args) =>
-            {
-                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) &&
-                    val is double ms && !double.IsNaN(ms))
-                {
-                    var dt = ConvertMillisecondsToUtc(ms);
-                    return dt.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture);
-                }
-
-                return null;
-            });
-
-            // valueOf() – mirrors getTime()
-            dateInstance["valueOf"] = new HostFunction((thisVal, args) =>
-            {
-                if (thisVal is JsObject obj && obj.TryGetProperty("_internalDate", out var val) && val is double ms)
-                {
-                    return ms;
-                }
-
-                return double.NaN;
-            });
-
             return dateInstance;
         });
 
@@ -570,6 +217,490 @@ public static partial class StandardLibrary
 
         dateConstructor.SetProperty("prototype", datePrototype);
         realm.DatePrototype ??= datePrototype;
+
+        datePrototype.DefineProperty("constructor",
+            new PropertyDescriptor
+            {
+                Value = dateConstructor, Writable = true, Enumerable = false, Configurable = true
+            });
+
+        DefineBuiltinFunction(datePrototype, "getTime",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                return timeValue;
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "setTime",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out var obj);
+                var ms = args.GetArgument(0);
+                var clipped = TimeClip(JsOps.ToNumber(ms));
+                StoreInternalDateValue(obj, clipped);
+                return clipped;
+            }, realm, isConstructor: false), 1);
+
+        DefineBuiltinFunction(datePrototype, "getFullYear",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return double.NaN;
+                }
+
+                var local = LocalTimeMs(timeValue, realm);
+                return YearFromTime(local);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "getMonth",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return double.NaN;
+                }
+
+                var local = LocalTimeMs(timeValue, realm);
+                return (double)MonthFromTime(local);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "getDate",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return double.NaN;
+                }
+
+                var local = LocalTimeMs(timeValue, realm);
+                return (double)DateFromTime(local);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "getDay",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return double.NaN;
+                }
+
+                var local = LocalTimeMs(timeValue, realm);
+                return WeekDayFromTime(local);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "getHours",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return double.NaN;
+                }
+
+                var local = LocalTimeMs(timeValue, realm);
+                return HourFromTime(local);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "getMinutes",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return double.NaN;
+                }
+
+                var local = LocalTimeMs(timeValue, realm);
+                return MinFromTime(local);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "getSeconds",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return double.NaN;
+                }
+
+                var local = LocalTimeMs(timeValue, realm);
+                return SecFromTime(local);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "getMilliseconds",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return double.NaN;
+                }
+
+                var local = LocalTimeMs(timeValue, realm);
+                return MsFromTime(local);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "getTimezoneOffset",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return double.NaN;
+                }
+
+                var offset = GetLocalOffsetMs(timeValue, realm);
+                return -(offset / MsPerMinute);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "getUTCFullYear",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return double.NaN;
+                }
+
+                return YearFromTime(timeValue);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "getUTCMonth",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return double.NaN;
+                }
+
+                return (double)MonthFromTime(timeValue);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "getUTCDate",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return double.NaN;
+                }
+
+                return (double)DateFromTime(timeValue);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "getUTCDay",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return double.NaN;
+                }
+
+                return WeekDayFromTime(timeValue);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "getUTCHours",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return double.NaN;
+                }
+
+                return HourFromTime(timeValue);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "getUTCMinutes",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return double.NaN;
+                }
+
+                return MinFromTime(timeValue);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "getUTCSeconds",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return double.NaN;
+                }
+
+                return SecFromTime(timeValue);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "getUTCMilliseconds",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return double.NaN;
+                }
+
+                return MsFromTime(timeValue);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "setMilliseconds",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out var obj);
+                var time = LocalTimeMs(timeValue, realm);
+                var ms = JsOps.ToNumber(args.GetArgument(0));
+                var clipped = SetTimeComponents(time, realm, millisecond: ms);
+                StoreInternalDateValue(obj, clipped);
+                return clipped;
+            }, realm, isConstructor: false), 1);
+
+        DefineBuiltinFunction(datePrototype, "setUTCMilliseconds",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out var obj);
+                var ms = JsOps.ToNumber(args.GetArgument(0));
+                var clipped = SetTimeComponents(timeValue, realm, millisecond: ms, inputIsUtc: true);
+                StoreInternalDateValue(obj, clipped);
+                return clipped;
+            }, realm, isConstructor: false), 1);
+
+        DefineBuiltinFunction(datePrototype, "setSeconds",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out var obj);
+                var time = LocalTimeMs(timeValue, realm);
+                var sec = JsOps.ToNumber(args.GetArgument(0));
+                var ms = args.Count > 1 ? JsOps.ToNumber(args[1]) : MsFromTime(time);
+                var clipped = SetTimeComponents(time, realm, second: sec, millisecond: ms);
+                StoreInternalDateValue(obj, clipped);
+                return clipped;
+            }, realm, isConstructor: false), 2);
+
+        DefineBuiltinFunction(datePrototype, "setUTCSeconds",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out var obj);
+                var sec = JsOps.ToNumber(args.GetArgument(0));
+                var ms = args.Count > 1 ? JsOps.ToNumber(args[1]) : MsFromTime(timeValue);
+                var clipped = SetTimeComponents(timeValue, realm, second: sec, millisecond: ms, inputIsUtc: true);
+                StoreInternalDateValue(obj, clipped);
+                return clipped;
+            }, realm, isConstructor: false), 2);
+
+        DefineBuiltinFunction(datePrototype, "setMinutes",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out var obj);
+                var time = LocalTimeMs(timeValue, realm);
+                var minute = JsOps.ToNumber(args.GetArgument(0));
+                var sec = args.Count > 1 ? JsOps.ToNumber(args[1]) : SecFromTime(time);
+                var ms = args.Count > 2 ? JsOps.ToNumber(args[2]) : MsFromTime(time);
+                var clipped = SetTimeComponents(time, realm, minute: minute, second: sec, millisecond: ms);
+                StoreInternalDateValue(obj, clipped);
+                return clipped;
+            }, realm, isConstructor: false), 3);
+
+        DefineBuiltinFunction(datePrototype, "setUTCMinutes",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out var obj);
+                var minute = JsOps.ToNumber(args.GetArgument(0));
+                var sec = args.Count > 1 ? JsOps.ToNumber(args[1]) : SecFromTime(timeValue);
+                var ms = args.Count > 2 ? JsOps.ToNumber(args[2]) : MsFromTime(timeValue);
+                var clipped = SetTimeComponents(timeValue, realm, minute: minute, second: sec, millisecond: ms,
+                    inputIsUtc: true);
+                StoreInternalDateValue(obj, clipped);
+                return clipped;
+            }, realm, isConstructor: false), 3);
+
+        DefineBuiltinFunction(datePrototype, "setHours",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out var obj);
+                var time = LocalTimeMs(timeValue, realm);
+                var hour = JsOps.ToNumber(args.GetArgument(0));
+                var minute = args.Count > 1 ? JsOps.ToNumber(args[1]) : MinFromTime(time);
+                var sec = args.Count > 2 ? JsOps.ToNumber(args[2]) : SecFromTime(time);
+                var ms = args.Count > 3 ? JsOps.ToNumber(args[3]) : MsFromTime(time);
+                var clipped = SetTimeComponents(time, realm, hour: hour, minute: minute, second: sec,
+                    millisecond: ms);
+                StoreInternalDateValue(obj, clipped);
+                return clipped;
+            }, realm, isConstructor: false), 4);
+
+        DefineBuiltinFunction(datePrototype, "setUTCHours",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out var obj);
+                var hour = JsOps.ToNumber(args.GetArgument(0));
+                var minute = args.Count > 1 ? JsOps.ToNumber(args[1]) : MinFromTime(timeValue);
+                var sec = args.Count > 2 ? JsOps.ToNumber(args[2]) : SecFromTime(timeValue);
+                var ms = args.Count > 3 ? JsOps.ToNumber(args[3]) : MsFromTime(timeValue);
+                var clipped = SetTimeComponents(timeValue, realm, hour: hour, minute: minute, second: sec,
+                    millisecond: ms, inputIsUtc: true);
+                StoreInternalDateValue(obj, clipped);
+                return clipped;
+            }, realm, isConstructor: false), 4);
+
+        DefineBuiltinFunction(datePrototype, "setDate",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out var obj);
+                var time = LocalTimeMs(timeValue, realm);
+                var newDt = JsOps.ToNumber(args.GetArgument(0));
+                var day = MakeDay(YearFromTime(time), MonthFromTime(time), newDt);
+                var clipped = ApplyTimeClip(day, time, realm, false);
+                StoreInternalDateValue(obj, clipped);
+                return clipped;
+            }, realm, isConstructor: false), 1);
+
+        DefineBuiltinFunction(datePrototype, "setUTCDate",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out var obj);
+                var newDt = JsOps.ToNumber(args.GetArgument(0));
+                var day = MakeDay(YearFromTime(timeValue), MonthFromTime(timeValue), newDt);
+                var clipped = ApplyTimeClip(day, timeValue, realm, true);
+                StoreInternalDateValue(obj, clipped);
+                return clipped;
+            }, realm, isConstructor: false), 1);
+
+        DefineBuiltinFunction(datePrototype, "setMonth",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out var obj);
+                var time = LocalTimeMs(timeValue, realm);
+                var month = JsOps.ToNumber(args.GetArgument(0));
+                var dt = args.Count > 1 ? JsOps.ToNumber(args[1]) : DateFromTime(time);
+                var day = MakeDay(YearFromTime(time), month, dt);
+                var clipped = ApplyTimeClip(day, time, realm, false);
+                StoreInternalDateValue(obj, clipped);
+                return clipped;
+            }, realm, isConstructor: false), 2);
+
+        DefineBuiltinFunction(datePrototype, "setUTCMonth",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out var obj);
+                var month = JsOps.ToNumber(args.GetArgument(0));
+                var dt = args.Count > 1 ? JsOps.ToNumber(args[1]) : DateFromTime(timeValue);
+                var day = MakeDay(YearFromTime(timeValue), month, dt);
+                var clipped = ApplyTimeClip(day, timeValue, realm, true);
+                StoreInternalDateValue(obj, clipped);
+                return clipped;
+            }, realm, isConstructor: false), 2);
+
+        DefineBuiltinFunction(datePrototype, "setFullYear",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out var obj);
+                var time = LocalTimeMs(timeValue, realm);
+                var year = JsOps.ToNumber(args.GetArgument(0));
+                var month = args.Count > 1 ? JsOps.ToNumber(args[1]) : MonthFromTime(time);
+                var date = args.Count > 2 ? JsOps.ToNumber(args[2]) : DateFromTime(time);
+                var clipped = SetFullYear(year, month, date, time, realm, false);
+                StoreInternalDateValue(obj, clipped);
+                return clipped;
+            }, realm, isConstructor: false), 3);
+
+        DefineBuiltinFunction(datePrototype, "setUTCFullYear",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out var obj);
+                var year = JsOps.ToNumber(args.GetArgument(0));
+                var month = args.Count > 1 ? JsOps.ToNumber(args[1]) : MonthFromTime(timeValue);
+                var date = args.Count > 2 ? JsOps.ToNumber(args[2]) : DateFromTime(timeValue);
+                var clipped = SetFullYear(year, month, date, timeValue, realm, true);
+                StoreInternalDateValue(obj, clipped);
+                return clipped;
+            }, realm, isConstructor: false), 3);
+
+        DefineBuiltinFunction(datePrototype, "toISOString",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue) || double.IsInfinity(timeValue))
+                {
+                    throw ThrowRangeError("Invalid time value", realm: realm);
+                }
+
+                var utc = ConvertMillisecondsToUtc(timeValue);
+                return utc.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "toJSON",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out var obj);
+                if (double.IsNaN(timeValue) || double.IsInfinity(timeValue))
+                {
+                    return null;
+                }
+
+                if (!obj.TryGetProperty("toISOString", out var method) || method is not IJsCallable fn)
+                {
+                    throw ThrowTypeError("toISOString is not callable", realm: realm);
+                }
+
+                return fn.Invoke(Array.Empty<object?>(), obj);
+            }, realm, isConstructor: false), 1);
+
+        DefineBuiltinFunction(datePrototype, "toString",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return "Invalid Date";
+                }
+
+                var local = ConvertMillisecondsToLocal(timeValue, realm);
+                return FormatDateToJsString(local, realm);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "toDateString",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return "Invalid Date";
+                }
+
+                var local = ConvertMillisecondsToLocal(timeValue, realm);
+                return local.ToString("ddd MMM dd yyyy", CultureInfo.InvariantCulture);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "toTimeString",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return "Invalid Date";
+                }
+
+                var local = ConvertMillisecondsToLocal(timeValue, realm);
+                return local.ToString("HH:mm:ss 'GMT'zzz", CultureInfo.InvariantCulture);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "valueOf",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                return timeValue;
+            }, realm, isConstructor: false), 0);
 
         // Annex B legacy methods and shared prototype methods
         DefineBuiltinFunction(datePrototype, "getYear",
@@ -585,41 +716,7 @@ public static partial class StandardLibrary
                 return YearFromTime(local) - 1900;
             }), 0);
 
-        DefineBuiltinFunction(datePrototype, "setYear",
-            new HostFunction((thisVal, methodArgs) =>
-            {
-                var timeValue = RequireDateValue(thisVal, realm, out var obj);
-
-                var yearArg = methodArgs.Count > 0 ? methodArgs[0] : Symbol.Undefined;
-                if (yearArg is Symbol sym && !ReferenceEquals(sym, Symbol.Undefined))
-                {
-                    throw ThrowTypeError("Cannot convert a Symbol value to a number", realm: realm);
-                }
-
-                if (yearArg is TypedAstSymbol)
-                {
-                    throw ThrowTypeError("Cannot convert a Symbol value to a number", realm: realm);
-                }
-
-                var y = JsOps.ToNumber(yearArg);
-                var fullYear = MakeFullYear(y);
-
-                var tLocal = double.IsNaN(timeValue) ? 0d : LocalTimeMs(timeValue, realm);
-                var month = MonthFromTime(tLocal);
-                var date = DateFromTime(tLocal);
-                var hour = HourFromTime(tLocal);
-                var minute = MinFromTime(tLocal);
-                var second = SecFromTime(tLocal);
-                var millisecond = MsFromTime(tLocal);
-
-                var day = MakeDay(fullYear, month, date);
-                var newDate = MakeDate(day, TimeWithinDay(tLocal));
-                var utc = UTCTimeFromLocal(newDate, realm);
-                var clipped = TimeClip(utc);
-
-                StoreInternalDateValue(obj, clipped);
-                return clipped;
-            }), 1);
+        DefineBuiltinFunction(datePrototype, "setYear", setYearFn, 1);
 
         var protoToUtcStringFn = new HostFunction((thisVal, args) =>
         {
@@ -639,6 +736,45 @@ public static partial class StandardLibrary
                 Value = protoToUtcStringFn, Writable = true, Enumerable = false, Configurable = true
             });
 
+        DefineBuiltinFunction(datePrototype, "toLocaleString",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return "Invalid Date";
+                }
+
+                return FormatWithIntlDateTime(thisVal, args.GetArgument(0), args.GetArgument(1),
+                    CreateDefaultDateTimeOptions);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "toLocaleDateString",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return "Invalid Date";
+                }
+
+                return FormatWithIntlDateTime(thisVal, args.GetArgument(0), args.GetArgument(1),
+                    CreateDefaultDateOptions);
+            }, realm, isConstructor: false), 0);
+
+        DefineBuiltinFunction(datePrototype, "toLocaleTimeString",
+            new HostFunction((thisVal, args) =>
+            {
+                var timeValue = RequireDateValue(thisVal, realm, out _);
+                if (double.IsNaN(timeValue))
+                {
+                    return "Invalid Date";
+                }
+
+                return FormatWithIntlDateTime(thisVal, args.GetArgument(0), args.GetArgument(1),
+                    CreateDefaultTimeOptions);
+            }, realm, isConstructor: false), 0);
+
         dateConstructor.DefineProperty("name",
             new PropertyDescriptor { Value = "Date", Writable = false, Enumerable = false, Configurable = true });
 
@@ -646,16 +782,6 @@ public static partial class StandardLibrary
             new PropertyDescriptor { Value = 7d, Writable = false, Enumerable = false, Configurable = true });
 
         return dateConstructor;
-
-        static DateTimeOffset GetUtcTimeFromInternalDate(JsObject obj)
-        {
-            if (obj.TryGetProperty("_internalDate", out var stored) && stored is double storedMs)
-            {
-                return ConvertMillisecondsToUtc(storedMs);
-            }
-
-            return ConvertMillisecondsToUtc(0);
-        }
 
         static DateTimeOffset ConvertMillisecondsToLocal(double milliseconds, RealmState realmState)
         {
@@ -672,6 +798,96 @@ public static partial class StandardLibrary
         static TimeZoneInfo ResolveTimeZone(RealmState realmState)
         {
             return realmState.Options.TimeZone ?? TimeZoneInfo.Utc;
+        }
+
+        object FormatWithIntlDateTime(object? dateThis, object? localesArg, object? optionsArg,
+            Func<JsObject>? defaultOptionsFactory)
+        {
+            if (dateThis is not JsObject dateObj)
+            {
+                throw ThrowTypeError("Date method called on incompatible receiver", realm: realm);
+            }
+
+            if (defaultOptionsFactory is not null &&
+                optionsArg is Symbol sym &&
+                ReferenceEquals(sym, Symbol.Undefined))
+            {
+                optionsArg = defaultOptionsFactory();
+            }
+
+            if (realm.Engine?.GlobalObject is not JsObject global ||
+                !global.TryGetProperty("Intl", out var intlVal) || intlVal is not JsObject intlObj ||
+                !intlObj.TryGetProperty("DateTimeFormat", out var ctorVal) ||
+                ctorVal is not IJsCallable ctor)
+            {
+                return "Invalid Date";
+            }
+
+            var ctorArgs = new object?[] { localesArg, optionsArg };
+            var instance = new JsObject();
+            if (ctorVal is IJsPropertyAccessor ctorAccessor &&
+                ctorAccessor.TryGetProperty("prototype", out var proto) &&
+                proto is IJsPropertyAccessor protoAccessor)
+            {
+                instance.SetPrototype(protoAccessor);
+            }
+
+            instance.BeginConstruction();
+            object? constructed;
+            try
+            {
+                constructed = ctor.Invoke(ctorArgs, instance);
+            }
+            finally
+            {
+                instance.EndConstruction();
+            }
+
+            var formatter = constructed switch
+            {
+                IJsPropertyAccessor => constructed,
+                IJsCallable => constructed,
+                _ => (object?)instance
+            };
+
+            if (formatter is not IJsPropertyAccessor accessor ||
+                !accessor.TryGetProperty("format", formatter, out var formatVal) ||
+                formatVal is not IJsCallable formatCallable)
+            {
+                return "Invalid Date";
+            }
+
+            return formatCallable.Invoke(new object?[] { dateObj }, formatter) ?? Symbol.Undefined;
+        }
+
+        JsObject CreateDefaultDateTimeOptions()
+        {
+            var opts = new JsObject(realm.ObjectPrototype);
+            opts.SetProperty("year", "numeric");
+            opts.SetProperty("month", "numeric");
+            opts.SetProperty("day", "numeric");
+            opts.SetProperty("hour", "numeric");
+            opts.SetProperty("minute", "numeric");
+            opts.SetProperty("second", "numeric");
+            return opts;
+        }
+
+        JsObject CreateDefaultDateOptions()
+        {
+            var opts = new JsObject(realm.ObjectPrototype);
+            opts.SetProperty("year", "numeric");
+            opts.SetProperty("month", "numeric");
+            opts.SetProperty("day", "numeric");
+            return opts;
+        }
+
+        JsObject CreateDefaultTimeOptions()
+        {
+            var opts = new JsObject(realm.ObjectPrototype);
+            opts.SetProperty("hour", "numeric");
+            opts.SetProperty("minute", "numeric");
+            opts.SetProperty("second", "numeric");
+            return opts;
         }
 
         static void StoreInternalDateValue(JsObject obj, double timeValue)
@@ -720,6 +936,60 @@ public static partial class StandardLibrary
             }
 
             return Math.Truncate(time);
+        }
+
+        static double SetTimeComponents(double time, RealmState realmState, double? hour = null, double? minute = null,
+            double? second = null, double? millisecond = null, bool inputIsUtc = false)
+        {
+            if (double.IsNaN(time))
+            {
+                return double.NaN;
+            }
+
+            var h = ToIntegerOrInfinity(hour ?? HourFromTime(time));
+            var m = ToIntegerOrInfinity(minute ?? MinFromTime(time));
+            var s = ToIntegerOrInfinity(second ?? SecFromTime(time));
+            var ms = ToIntegerOrInfinity(millisecond ?? MsFromTime(time));
+            if (double.IsInfinity(h) || double.IsInfinity(m) || double.IsInfinity(s) || double.IsInfinity(ms))
+            {
+                return double.NaN;
+            }
+
+            var day = Day(time);
+            var newTime = h * MsPerHour + m * MsPerMinute + s * MsPerSecond + ms;
+            var newDate = MakeDate(day, newTime);
+            var utc = inputIsUtc ? newDate : UTCTimeFromLocal(newDate, realmState);
+            return TimeClip(utc);
+        }
+
+        static double ApplyTimeClip(double day, double time, RealmState realmState, bool inputIsUtc)
+        {
+            if (double.IsNaN(day) || double.IsNaN(time))
+            {
+                return double.NaN;
+            }
+
+            var newDate = MakeDate(day, TimeWithinDay(time));
+            var utc = inputIsUtc ? newDate : UTCTimeFromLocal(newDate, realmState);
+            return TimeClip(utc);
+        }
+
+        static double SetFullYear(double year, double month, double date, double time, RealmState realmState,
+            bool inputIsUtc)
+        {
+            var timeValue = double.IsNaN(time) ? 0 : time;
+            var y = ToIntegerOrInfinity(year);
+            var m = ToIntegerOrInfinity(month);
+            var dt = ToIntegerOrInfinity(date);
+            if (double.IsInfinity(y) || double.IsInfinity(m) || double.IsInfinity(dt))
+            {
+                return double.NaN;
+            }
+
+            var day = MakeDay(y, m, dt);
+            var newDate = MakeDate(day, TimeWithinDay(timeValue));
+            var utc = inputIsUtc ? newDate : UTCTimeFromLocal(newDate, realmState);
+            return TimeClip(utc);
         }
 
         static double Day(double t)

@@ -412,23 +412,47 @@ public static partial class StandardLibrary
                 return false;
             }
 
-            var cursor = objectLike;
-            while (cursor.Prototype is JsObject proto)
+            var cursor = objectLike as object;
+            while (TryGetPrototype(cursor, out var proto))
             {
                 if (ReferenceEquals(proto, thisValue))
                 {
                     return true;
                 }
 
-                if (proto is not IJsObjectLike next)
-                {
-                    break;
-                }
-
-                cursor = next;
+                cursor = proto;
             }
 
             return false;
+
+            static bool TryGetPrototype(object? candidate, out IJsObjectLike? prototype)
+            {
+                prototype = null;
+
+                if (candidate is IJsObjectLike objLike && objLike.Prototype is { } protoObj)
+                {
+                    prototype = protoObj;
+                    return true;
+                }
+
+                if (candidate is IPrototypeAccessorProvider { PrototypeAccessor: { } protoAccessor })
+                {
+                    prototype = protoAccessor as IJsObjectLike;
+                    if (prototype is not null)
+                    {
+                        return true;
+                    }
+                }
+
+                if (candidate is JsObject jsObj && jsObj.TryGetProperty("__proto__", out var protoProp) &&
+                    protoProp is IJsObjectLike protoFromProp)
+                {
+                    prototype = protoFromProp;
+                    return true;
+                }
+
+                return false;
+            }
         }
 
         object? ObjectDefineProperties(object? _, IReadOnlyList<object?> args)

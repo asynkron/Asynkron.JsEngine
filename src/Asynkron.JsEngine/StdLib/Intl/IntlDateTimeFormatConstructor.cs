@@ -104,12 +104,12 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
         string defaultValue)
     {
         if (options is null || !options.TryGetProperty(propertyName, out var rawValue) ||
-            rawValue is null || ReferenceEquals(rawValue, Symbol.Undefined))
+            ReferenceEquals(rawValue, Symbol.Undefined))
         {
             return defaultValue;
         }
 
-        if (rawValue is not string strValue)
+        if (rawValue is null || rawValue is not string strValue)
         {
             throw StandardLibrary.ThrowTypeError(
                 $"Intl.DateTimeFormat {propertyName} option must be a string", realm: Realm);
@@ -195,12 +195,32 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
                 $"Intl.DateTimeFormat {propertyName} option must be a string", realm: Realm);
         }
 
-        return component switch
+        bool IsWidthAllowed(string value)
         {
-            "2-digit" or "numeric" or "narrow" or "short" or "long" => component,
-            _ => throw StandardLibrary.ThrowRangeError(
-                $"Intl.DateTimeFormat {propertyName} option '{component}' is not supported", realm: Realm)
+            return value is "2-digit" or "numeric";
+        }
+
+        bool IsMonthAllowed(string value)
+        {
+            return value is "2-digit" or "numeric" or "narrow" or "short" or "long";
+        }
+
+        var isAllowed = propertyName switch
+        {
+            "month" => IsMonthAllowed(component),
+            "weekday" => component is "narrow" or "short" or "long",
+            "era" => component is "narrow" or "short" or "long",
+            "timeZoneName" => component is "short" or "long",
+            _ => IsWidthAllowed(component)
         };
+
+        if (!isAllowed)
+        {
+            throw StandardLibrary.ThrowRangeError(
+                $"Intl.DateTimeFormat {propertyName} option '{component}' is not supported", realm: Realm);
+        }
+
+        return component;
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)

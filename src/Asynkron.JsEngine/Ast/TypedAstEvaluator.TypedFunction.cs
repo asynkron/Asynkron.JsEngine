@@ -440,23 +440,31 @@ public static partial class TypedAstEvaluator
             if (IsArrowFunction)
             {
                 var lexicalThis = _lexicalThis;
+                var lexicalThisInitialized = !ReferenceEquals(lexicalThis, JsEnvironment.Uninitialized);
                 if (_lexicalThisEnvironment is not null)
                 {
                     try
                     {
                         lexicalThis = _lexicalThisEnvironment.Get(Symbol.This);
+                        lexicalThisInitialized = !ReferenceEquals(lexicalThis, JsEnvironment.Uninitialized);
                     }
                     catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                  StringComparison.Ordinal))
                     {
-                        var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context,
-                            context.RealmState);
-                        throw new ThrowSignal(errorObject);
+                        lexicalThis = JsEnvironment.Uninitialized;
+                        lexicalThisInitialized = false;
                     }
                 }
 
                 boundThis = lexicalThis ?? Symbol.Undefined;
-                context.MarkThisInitialized();
+                if (lexicalThisInitialized)
+                {
+                    context.MarkThisInitialized();
+                }
+                else
+                {
+                    context.MarkThisUninitialized();
+                }
                 functionEnvironment.Define(Symbol.This, boundThis);
 
                 var hasCopiedInitialization = false;
@@ -485,7 +493,7 @@ public static partial class TypedAstEvaluator
 
                 if (lexicalSuperBinding is not null)
                 {
-                    functionEnvironment.Define(Symbol.Super, lexicalSuperBinding, true, isLexical: true,
+                    functionEnvironment.Define(Symbol.Super, lexicalSuperBinding, false, isLexical: true,
                         blocksFunctionScopeOverride: true);
                     if (!hasCopiedInitialization)
                     {
@@ -495,6 +503,25 @@ public static partial class TypedAstEvaluator
             }
             else
             {
+                if (_isClassConstructor &&
+                    ReferenceEquals(boundThis, Symbol.Undefined) &&
+                    newTarget is not null)
+                {
+                    var constructedThis = new JsObject();
+                    if (newTarget is IJsPropertyAccessor prototypeSource &&
+                        JsOps.TryGetPropertyValue(prototypeSource, "prototype", out var protoVal) &&
+                        protoVal is IJsPropertyAccessor protoAccessor)
+                    {
+                        constructedThis.SetPrototype(protoAccessor);
+                    }
+                    else if (_realmState.ObjectPrototype is { } defaultProto)
+                    {
+                        constructedThis.SetPrototype(defaultProto);
+                    }
+
+                    boundThis = constructedThis;
+                }
+
                 if (!_isStrict)
                 {
                     if (thisValue is null || ReferenceEquals(thisValue, Symbol.Undefined))

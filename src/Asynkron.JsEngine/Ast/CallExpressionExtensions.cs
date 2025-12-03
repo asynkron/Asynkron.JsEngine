@@ -211,18 +211,20 @@ public static partial class TypedAstEvaluator
                             "Super constructor may only be called once.", context, context.RealmState);
                     }
 
-                    environment.Assign(Symbol.This, thisAfterSuper);
+                    var targetEnvironment = thisInitializationEnvironment ?? environment;
+                    targetEnvironment.Assign(Symbol.This, thisAfterSuper);
 
-                    if (environment.TryGet(Symbol.Super, out var superBinding) && superBinding is SuperBinding binding)
+                    if (targetEnvironment.TryGet(Symbol.Super, out var superBinding) &&
+                        superBinding is SuperBinding binding)
                     {
                         var constructorForSuper = superBindingForCall?.Constructor ?? binding.Constructor;
                         var prototypeForSuper = superBindingForCall?.Prototype ?? binding.Prototype;
-                        environment.Assign(Symbol.Super,
+                        targetEnvironment.Assign(Symbol.Super,
                             new SuperBinding(constructorForSuper, prototypeForSuper, thisAfterSuper, true));
                     }
 
                     context.MarkThisInitialized();
-                    SetThisInitializationStatus(thisInitializationEnvironment ?? environment,
+                    SetThisInitializationStatus(targetEnvironment,
                         context.IsThisInitialized);
 
                     if (thisAfterSuper is JsObject initializedThis &&

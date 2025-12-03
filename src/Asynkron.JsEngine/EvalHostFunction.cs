@@ -208,6 +208,16 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             foreach (var name in varDeclaredNames)
             {
+                if (isDirectEval &&
+                    varEnv.IsParameterEnvironment &&
+                    varEnv.HasOwnBinding(name))
+                {
+                    throw StandardLibrary.ThrowSyntaxError(
+                        $"Cannot declare var-scoped binding '{name.Name}' in direct eval due to existing parameter binding.",
+                        CallingContext,
+                        environment.RealmState);
+                }
+
                 // In sloppy direct eval, a parameter named `arguments` (or any matching
                 // parameter binding) blocks new var/function declarations of the same name
                 // (EvalDeclarationInstantiation step 5.d). Only enforce when the parameter

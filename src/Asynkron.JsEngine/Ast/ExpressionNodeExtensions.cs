@@ -231,7 +231,10 @@ public static partial class TypedAstEvaluator
                         $"Super constructor is not available in this context.{GetSourceInfo(context, superExpression.Source)}");
                 }
 
-                return (binding.Constructor, binding.ThisValue, false);
+                var superThis = ReferenceEquals(binding.ThisValue, JsEnvironment.Uninitialized)
+                    ? Symbol.Undefined
+                    : binding.ThisValue;
+                return (binding.Constructor, superThis, false);
             }
 
             if (callee is MemberExpression member)

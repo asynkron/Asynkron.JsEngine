@@ -107,7 +107,8 @@ public static partial class StandardLibrary
                 throw ThrowTypeError("Function.prototype.caller called on non-callable", realm: realm);
             }
 
-            if (callerInfo.IsStrictFunction)
+            var isArrowFunction = callerInfo is ICallableMetadata { IsArrowFunction: true };
+            if (callerInfo.IsStrictFunction || isArrowFunction)
             {
                 throw ThrowTypeError("Access to caller or arguments is not allowed", realm: realm);
             }
@@ -121,7 +122,8 @@ public static partial class StandardLibrary
         }, realm, isConstructor: false);
         var callerSetter = new HostFunction((thisValue, _) =>
         {
-            if (thisValue is not ICallerInfo callerInfo || callerInfo.IsStrictFunction)
+            var isArrowFunction = thisValue is ICallableMetadata { IsArrowFunction: true };
+            if (thisValue is not ICallerInfo callerInfo || callerInfo.IsStrictFunction || isArrowFunction)
             {
                 throw ThrowTypeError("Access to caller or arguments is not allowed", realm: realm);
             }

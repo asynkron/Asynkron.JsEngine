@@ -17,8 +17,9 @@
 - Date prototype methods now live on `%Date.prototype%` (no per-instance definitions), reuse shared helpers for the set* family, and `toJSON`/`toISOString` match the spec metadata. The `Date_prototype_constructor` and `Date_prototype_getDate` Test262 slices pass again.
 - Eval now distinguishes direct vs indirect calls, runs strict eval in an isolated scope, and marks eval-created var bindings as deletable so `delete` behaves per EvalDeclarationInstantiation. Var declarations without initializers no longer resurrect deleted eval bindings.
 - Host-provided globals are registered as var-scoped bindings (not lexicals), and direct/indirect eval now walks the caller chain per EvalDeclarationInstantiation (catch parameters are exempt, annex B), so the `Language_evalCode*` slices are green.
+- Direct eval now tolerates `arguments` var/func declarations when the caller parameters do not bind `arguments` (EvalDeclarationInstantiation 5.d), and parameter environments for default-expr functions are function scopes so eval-created vars do not leak to globals; the full `LanguageTests.EvalCode_direct` slice is green.
 
 ## Next Iteration Plan
-1. Revisit the remaining language suite failures the user called out earlier (`ComputedPropertyNames_*`, `Destructuring_binding`, `DirectivePrologue`), and repro a focused slice to see what is still red.
+1. Revisit the remaining language suite failures the user called out earlier (`ComputedPropertyNames_*`, `Destructuring_binding`, `DirectivePrologue`) and repro a focused slice to see what is still red.
 2. Trace any regressions back to the recent eval/array refactors and patch the runtime to match the ECMAScript steps (add brief spec breadcrumbs in code where the behavior is non-obvious).
 3. Once the above slices are green, refresh failing/*.testsession to keep the rolling todo list accurate.

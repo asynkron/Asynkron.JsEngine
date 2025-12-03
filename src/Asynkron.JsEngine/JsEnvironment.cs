@@ -988,7 +988,10 @@ public sealed class JsEnvironment
             }
 
             binding.Value = value;
-            globalObject?.SetProperty(name.Name, value);
+            if (!binding.IsLexical)
+            {
+                globalObject?.SetProperty(name.Name, value);
+            }
             NotifyBindingObservers(name, value);
             return;
         }

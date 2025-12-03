@@ -43,6 +43,14 @@ public static partial class TypedAstEvaluator
             {
                 prototype.SetPrototype(superPrototype);
             }
+            if (constructorValue is TypedFunction typedCtorForOrdering)
+            {
+                typedCtorForOrdering.SeedIntrinsicConstructorKeys();
+            }
+            else if (constructorAccessor is JsObject ctorForOrdering)
+            {
+                ctorForOrdering.SeedIntrinsicConstructorKeys();
+            }
 
             var privateNameScope = CreatePrivateNameScope(definition);
             if (constructorValue is TypedFunction typedFunction)
@@ -61,12 +69,12 @@ public static partial class TypedAstEvaluator
             if (superConstructor is not null)
             {
                 constructorAccessor.SetProperty("__proto__", superConstructor);
-                if (constructorAccessor is IJsObjectLike ctorObject)
+                if (constructorAccessor is JsObject ctorObject)
                 {
                     ctorObject.SetPrototype(superConstructor);
                 }
             }
-            else if (constructorAccessor is IJsObjectLike { Prototype: null } baseCtor &&
+            else if (constructorAccessor is JsObject { Prototype: null } baseCtor &&
                      realm.FunctionPrototype is not null)
             {
                 baseCtor.SetPrototype(realm.FunctionPrototype);

@@ -7,6 +7,7 @@
 - Function declarations no longer re-instantiate at runtime (evaluation is now a no-op), which fixed the Array.prototype.every subclass failures when a function declaration was overwriting a custom prototype assignment.
 - Annex B block-function applicability is now tracked per declaration (not just per name), so nested block functions no longer clobber outer bindings; the `Language_functionCode`/`Language_globalCode` Test262 slices are green again.
 - Non-strict `Function.prototype.caller` mirrors Annex B caller metadata instead of poisoning all access, so the `Language ArgumentsObject` caller tests now pass.
+- Hashbang (`#!`) at the start of Script/eval sources is parsed as a single-line comment, bringing the `Comments_hashbang` slice to green.
 - Realm logging is opt-in for Test262 runs (`JSENGINE_TRACE_REALM`), and array helper debug traces have been removed; ToLength now respects abrupt completions so concat with poisoned lengths throws as expected.
 - Array.prototype.at now throws a proper TypeError for Symbol indices (propagated via realm-aware ToIntegerOrInfinity), and the Array.prototype.at Test262 slice is green.
 - Reflect.construct on Array now falls back to the newTarget realm's `%Array.prototype%` when its `.prototype` is null/undefined, so cross-realm array construction picks up the correct prototype.

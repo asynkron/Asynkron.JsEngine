@@ -298,6 +298,29 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
         }
     }
 
+    public IEnumerable<string> GetOwnPropertyKeysInOrder(bool includeSymbols = true, bool includeNonEnumerable = true)
+    {
+        return EnumerateOwnKeysInOrder(includeSymbols, includeNonEnumerable);
+    }
+
+    internal void SeedOwnPropertyInsertion(string name)
+    {
+        TrackPropertyInsertion(name);
+    }
+
+    internal void SeedIntrinsicConstructorKeys()
+    {
+        _propertyInsertionOrder.Clear();
+        _propertyInsertionSet.Clear();
+        SeedOwnPropertyInsertion("length");
+        SeedOwnPropertyInsertion("name");
+        SeedOwnPropertyInsertion("prototype");
+        foreach (var existing in Keys)
+        {
+            SeedOwnPropertyInsertion(existing);
+        }
+    }
+
     public bool Delete(string name)
     {
         return DeleteOwnProperty(name);

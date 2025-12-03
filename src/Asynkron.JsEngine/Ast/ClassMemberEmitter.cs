@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -11,6 +12,10 @@ internal static class ClassMemberEmitter
             IJsPropertyAccessor constructorAccessor,
             JsObject prototype)
         {
+            if (member.IsStatic && string.Equals(propertyName, "prototype", StringComparison.Ordinal))
+            {
+                throw StandardLibrary.ThrowTypeError("Cannot redefine constructor prototype via static member");
+            }
             if (member.Kind == ClassMemberKind.Method)
             {
                 DefineMethod(member, propertyName, callable, constructorAccessor, prototype);

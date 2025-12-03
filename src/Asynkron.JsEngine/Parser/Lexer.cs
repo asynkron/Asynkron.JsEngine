@@ -122,6 +122,12 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             case '@':
                 AddToken(TokenType.At);
                 break;
+            case '#' when _start == 0 && Match('!'):
+                // Hashbang comments (Annex B.1.3) are allowed at the start of
+                // Script/Module source texts. Treat them as a single-line comment
+                // so the rest of the source parses normally (e.g. directive prologue).
+                SkipSingleLineComment();
+                break;
             case '+':
                 if (Match('+'))
                 {

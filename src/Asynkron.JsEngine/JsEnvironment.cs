@@ -969,6 +969,13 @@ public sealed class JsEnvironment
 
         if (_values.TryGetValue(name, out var binding))
         {
+            if (ReferenceEquals(binding.Value, Uninitialized) &&
+                binding.IsLexical &&
+                !Symbol.Equals(name, Symbol.This))
+            {
+                throw StandardLibrary.ThrowReferenceError($"ReferenceError: {name.Name} is not defined", null, realm);
+            }
+
             if (binding.IsConst)
             {
                 throw new ThrowSignal(StandardLibrary.CreateTypeError($"Cannot reassign constant '{name.Name}'.",
@@ -1006,7 +1013,16 @@ public sealed class JsEnvironment
 
         if (_withObject is not null && HasVisibleWithBinding(_withObject, name))
         {
-            _withObject.SetProperty(name.Name, value);
+            if (_withObject is JsObject withObject)
+            {
+                AssignmentReferenceResolver.AssignObjectProperty(withObject, name.Name, value, isStrictContext, null,
+                    realm);
+            }
+            else
+            {
+                _withObject.SetProperty(name.Name, value);
+            }
+
             return;
         }
 
@@ -1018,17 +1034,24 @@ public sealed class JsEnvironment
 
         if (globalObject is not null && globalObject.GetOwnPropertyDescriptor(name.Name) is not null)
         {
-            globalObject.SetProperty(name.Name, value);
+            AssignmentReferenceResolver.AssignObjectProperty(globalObject, name.Name, value, isStrictContext, null,
+                realm);
             return;
         }
 
         // Reached the global scope without finding the variable
         // In strict mode, assignment to undefined variable is an error
         // In non-strict mode, create the variable as a global
+        var functionScope = GetFunctionScope();
+        if (functionScope.HasBodyLexicalName(name))
+        {
+            throw StandardLibrary.ThrowReferenceError($"ReferenceError: {name.Name} is not defined", null, realm);
+        }
+
         if (isStrictContext)
         {
             // Use ReferenceError message format
-            throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+            throw StandardLibrary.ThrowReferenceError($"ReferenceError: {name.Name} is not defined", null, realm);
         }
 
         // Non-strict mode: Create the variable in the global scope (this environment)

@@ -131,7 +131,17 @@ internal static class AssignmentReferenceResolver
 
         return new AssignmentReference(
             () => JsOps.TryGetPropertyValue(target, propertyName, out var value) ? value : Symbol.Undefined,
-            newValue => JsOps.AssignPropertyValueByName(target, propertyName, newValue));
+            newValue =>
+            {
+                if (target is JsObject jsObject)
+                {
+                    AssignObjectProperty(jsObject, propertyName, newValue, context.CurrentScope.IsStrict, context,
+                        context.RealmState, target);
+                    return;
+                }
+
+                JsOps.AssignPropertyValueByName(target, propertyName, newValue);
+            });
     }
 
     private static object? ReadIdentifierValue(Func<object?> getter, EvaluationContext context)
@@ -151,5 +161,79 @@ internal static class AssignmentReferenceResolver
     private static bool IsReferenceError(Exception ex)
     {
         return ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal);
+    }
+
+    internal static void AssignObjectProperty(
+        JsObject target,
+        string propertyName,
+        object? value,
+        bool isStrict,
+        EvaluationContext? context = null,
+        RealmState? realmState = null,
+        object? receiver = null)
+    {
+        receiver ??= target;
+        realmState ??= context?.RealmState ?? target.RealmState;
+
+        if (propertyName.Length > 0 && propertyName[0] == '#')
+        {
+            target.SetProperty(propertyName, value, receiver);
+            return;
+        }
+
+        var ownDescriptor = target.GetOwnPropertyDescriptor(propertyName);
+        if (ownDescriptor is not null)
+        {
+            if (ownDescriptor.IsAccessorDescriptor)
+            {
+                if (ownDescriptor.Set is null)
+                {
+                    if (isStrict)
+                    {
+                        throw StandardLibrary.ThrowTypeError(
+                            $"Cannot set property '{propertyName}' that has only a getter.", context, realmState);
+                    }
+
+                    return;
+                }
+
+                ownDescriptor.Set.Invoke([value], receiver);
+                return;
+            }
+
+            if (!ownDescriptor.Writable)
+            {
+                if (isStrict)
+                {
+                    throw StandardLibrary.ThrowTypeError(
+                        $"Cannot assign to read only property '{propertyName}'.", context, realmState);
+                }
+
+                return;
+            }
+
+            target.SetProperty(propertyName, value, receiver);
+            return;
+        }
+
+        var inheritedSetter = target.GetSetter(propertyName);
+        if (inheritedSetter is not null)
+        {
+            inheritedSetter.Invoke([value], receiver);
+            return;
+        }
+
+        if (!target.IsExtensible)
+        {
+            if (isStrict)
+            {
+                throw StandardLibrary.ThrowTypeError(
+                    $"Cannot add property '{propertyName}', object is not extensible.", context, realmState);
+            }
+
+            return;
+        }
+
+        target.SetProperty(propertyName, value, receiver);
     }
 }

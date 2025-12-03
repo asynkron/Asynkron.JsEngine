@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -118,7 +119,18 @@ public static partial class StandardLibrary
         instance.BeginConstruction();
         try
         {
-            constructed = target.Invoke(argList, instance);
+            var invokeWithContext = target.GetType().GetMethod(
+                "InvokeWithContext",
+                new[] { typeof(IReadOnlyList<object?>), typeof(object), typeof(EvaluationContext), typeof(object) });
+            if (invokeWithContext is not null)
+            {
+                var constructContext = realm.CreateContext(pushScope: false);
+                constructed = invokeWithContext.Invoke(target, [argList, instance, constructContext, newTarget]);
+            }
+            else
+            {
+                constructed = target.Invoke(argList, instance);
+            }
         }
         finally
         {

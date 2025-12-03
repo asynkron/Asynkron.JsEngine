@@ -397,13 +397,19 @@ public static partial class TypedAstEvaluator
             JsEnvironment functionEnvironment;
             if (hasParameterExpressions)
             {
-                parameterEnvironment = new JsEnvironment(_closure, false, _isStrict, _function.Source,
+                parameterEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     description, isParameterEnvironment: true);
                 parameterEnvironment.SetBodyLexicalNames(bodyLexicalNames);
                 functionEnvironment = new JsEnvironment(parameterEnvironment, true, _isStrict,
                     _function.Source, description);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-                parameterEnvironment.SetVarEnvironment(functionEnvironment);
+                // Parameter expressions (including direct eval) should use the
+                // dedicated parameter environment as their variable environment
+                // (ES 10.2.11, FunctionDeclarationInstantiation step 14 when
+                // HasParameterExpressions is true). This keeps var bindings created
+                // during parameter evaluation (e.g. `eval("var arguments = ...")`)
+                // separate from the function body’s var environment so later body
+                // declarations do not overwrite them.
             }
             else
             {

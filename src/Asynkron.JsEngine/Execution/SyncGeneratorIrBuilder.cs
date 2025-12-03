@@ -119,6 +119,10 @@ internal sealed class SyncGeneratorIrBuilder
                 case BlockStatement block:
                     return TryBuildStatementList(block.Statements, nextIndex, out entryIndex);
 
+                case FunctionDeclaration functionDeclaration:
+                    entryIndex = Append(new StatementInstruction(nextIndex, functionDeclaration));
+                    return true;
+
                 case IfStatement ifStatement:
                     return TryBuildIfStatement(ifStatement, nextIndex, out entryIndex, activeLabel);
 

@@ -196,7 +196,7 @@ public static partial class TypedAstEvaluator
             JsEnvironment functionEnvironment;
             if (hasParameterExpressions)
             {
-                parameterEnvironment = new JsEnvironment(_closure, false, _isStrict, _function.Source,
+                parameterEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     description, isParameterEnvironment: true);
                 parameterEnvironment.SetBodyLexicalNames(bodyLexicalNames);
                 functionEnvironment = new JsEnvironment(parameterEnvironment, true, _isStrict,

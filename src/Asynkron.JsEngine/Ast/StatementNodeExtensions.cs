@@ -293,9 +293,10 @@ public static partial class TypedAstEvaluator
                     case ClassDeclaration classDeclaration:
                         names.Add(classDeclaration.Name);
                         break;
-                    case FunctionDeclaration:
-                        // Function declarations are handled separately; they should not block themselves.
-                        break;
+                case FunctionDeclaration:
+                    // Function declarations are handled separately for hoisting/Annex B;
+                    // they are not treated as lexical bindings here.
+                    break;
                     case IfStatement ifStatement:
                         CollectLexicalNamesFromStatement(ifStatement.Then, names);
                         if (ifStatement.Else is { } elseBranch)

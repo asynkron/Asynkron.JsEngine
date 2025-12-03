@@ -81,6 +81,7 @@ public static partial class TypedAstEvaluator
 
             var functionScope = blockEnvironment.GetFunctionScope();
             var lexicalNames = CollectLexicalNames(block);
+            var blockFunctionNames = CollectFunctionNames(block);
             var simpleCatchParameterNames = CollectSimpleCatchParameterNames(block);
 
             foreach (var statement in block.Statements)
@@ -90,7 +91,8 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
-                var hasNonCatchLexical = lexicalNames.Contains(functionDeclaration.Name) &&
+                var hasNonCatchLexical = (lexicalNames.Contains(functionDeclaration.Name) ||
+                                          blockFunctionNames.Contains(functionDeclaration.Name)) &&
                                          !simpleCatchParameterNames.Contains(functionDeclaration.Name);
                 var shouldCreateVarBinding = !hasNonCatchLexical &&
                                              !functionScope.HasBodyLexicalName(functionDeclaration.Name);
@@ -308,6 +310,20 @@ public static partial class TypedAstEvaluator
         {
             var names = new HashSet<Symbol>();
             CollectLexicalNamesFromStatement(block, names);
+            return names;
+        }
+
+        private HashSet<Symbol> CollectFunctionNames()
+        {
+            var names = new HashSet<Symbol>();
+            foreach (var statement in block.Statements)
+            {
+                if (statement is FunctionDeclaration functionDeclaration)
+                {
+                    names.Add(functionDeclaration.Name);
+                }
+            }
+
             return names;
         }
 

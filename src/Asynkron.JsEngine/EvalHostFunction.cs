@@ -106,9 +106,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
         if (isDirectEval && ContainsNewTarget(program.Typed.Body))
         {
-            var isFunctionScope = CallingContext?.CurrentScope.Kind == ScopeKind.Function;
-            var callerHasNewTarget = isFunctionScope &&
-                                     CallingJsEnvironment?.HasBinding(Symbol.NewTarget) == true;
+            var callerFunctionScope = CallingJsEnvironment?.GetFunctionScope();
+            var callerHasNewTarget = callerFunctionScope?.HasOwnBinding(Symbol.NewTarget) == true;
             if (!callerHasNewTarget)
             {
                 throw StandardLibrary.ThrowSyntaxError(
@@ -150,7 +149,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
 
         var isStrictEval = program.Typed.IsStrict;
-        var lexicalEnv = environment;
+        JsEnvironment lexicalEnv;
         if (!isDirectEval)
         {
             // Indirect eval runs with a fresh lexical environment whose outer is the global
@@ -168,22 +167,32 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
         else if (isStrictEval)
         {
-            // Direct eval of strict code uses a fresh declarative environment for both
-            // lexical and var bindings (PerformEval step 9.a).
-            var strictEvalEnv = new JsEnvironment(
+            // Strict direct eval: fresh declarative environment for both lexical and var bindings
+            // (PerformEval step 9.a).
+            lexicalEnv = new JsEnvironment(
                 environment,
                 isFunctionScope: true,
                 true,
                 description: "strict direct eval",
                 treatAsGlobalFunctionScope: false,
                 inheritStrictness: false);
-            lexicalEnv = strictEvalEnv;
+        }
+        else
+        {
+            // Sloppy direct eval: fresh lexical environment whose outer is the caller, but var
+            // declarations still target the caller's var environment (EvalDeclarationInstantiation step 8).
+            lexicalEnv = new JsEnvironment(
+                environment,
+                isFunctionScope: false,
+                isStrict: false,
+                description: "direct eval lexical",
+                inheritStrictness: false);
         }
 
         var varEnv = isDirectEval
-            ? lexicalEnv == environment
-                ? environment.GetVarEnvironment()
-                : lexicalEnv
+            ? isStrictEval
+                ? lexicalEnv
+                : environment.GetVarEnvironment()
             : isStrictEval
                 ? lexicalEnv
                 : lexicalEnv.GetVarEnvironment();
@@ -195,11 +204,25 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         var lexicallyDeclaredNames = CollectLexicallyDeclaredNames(program.Typed.Body);
         var lexicalDeclarations = CollectLexicalDeclarations(program.Typed.Body);
         var varFunctionDeclarations = CollectVarFunctionDeclarations(program.Typed.Body);
-
         if (!isStrictEval)
         {
             foreach (var name in varDeclaredNames)
             {
+                // In sloppy direct eval, a parameter named `arguments` (or any matching
+                // parameter binding) blocks new var/function declarations of the same name
+                // (EvalDeclarationInstantiation step 5.d). Only enforce when the parameter
+                // environment actually has that binding; otherwise allow the eval hoist.
+                if (isDirectEval &&
+                    varEnv.IsParameterEnvironment &&
+                    ReferenceEquals(name, Symbol.Arguments) &&
+                    varEnv.HasOwnBinding(Symbol.Arguments))
+                {
+                    throw StandardLibrary.ThrowSyntaxError(
+                        $"Cannot declare var-scoped binding '{name.Name}' in direct eval due to existing parameter binding.",
+                        CallingContext,
+                        environment.RealmState);
+                }
+
                 var hasGlobalLexical = varEnv.IsGlobalFunctionScope &&
                                        (varEnv.HasOwnLexicalBinding(name) || varEnv.HasBodyLexicalName(name));
                 // EvalDeclarationInstantiation (18.2.1.3, step 5.d) rejects var names
@@ -215,6 +238,10 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             }
         }
 
+        // Annex B / EvalDeclarationInstantiation: in non-strict direct eval, declaring
+        // `arguments` via var/function inside parameter initializers of functions with
+        // default parameters is a SyntaxError when an `arguments` binding already exists
+        // in the caller's variable environment (ES 18.2.1.1, steps 5.d+).
         // EvalDeclarationInstantiation step 7+8: lexical declarations must not
         // conflict with existing var/lexical bindings in the variable environment.
         if (isDirectEval)
@@ -222,8 +249,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             foreach (var name in lexicallyDeclaredNames)
             {
                 var hasVarBinding = varEnv.HasFunctionScopedBinding(name);
-                var hasLexicalInVarEnv = varEnv.IsGlobalFunctionScope && varEnv.HasOwnLexicalBinding(name);
-                if (hasVarBinding || hasLexicalInVarEnv)
+                if (hasVarBinding)
                 {
                     throw StandardLibrary.ThrowSyntaxError(
                         $"Cannot declare lexical binding '{name.Name}' in direct eval because a var binding already exists.",

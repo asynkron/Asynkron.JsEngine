@@ -62,3 +62,7 @@ When you encounter an unsupported language/runtime feature or AST shape, fail fa
 
 You have access powerful visualizations and debug outputs, check the ActivityTracingTests.EvaluatorActivitiesAttachToTestRoot test to see how you can leverage System.Diagnostics.Activity for tracing code execution paths.
 
+## Logging
+
+- When adding evaluator logging, use the realm logger directly with null-propagation, e.g. `realm.Logger?.LogInformation(...)`. Do not wrap this in helper methods.
+- Never use `Console.WriteLine`/`Console.Error.WriteLine` for runtime logging; route diagnostics through `realm.Logger?.Log...`.

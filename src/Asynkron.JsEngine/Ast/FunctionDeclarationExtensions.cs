@@ -8,8 +8,9 @@ public static partial class TypedAstEvaluator
             EvaluationContext context)
         {
             // FunctionDeclarationInstantiation handles most bindings up front.
-            // In sloppy eval Annex B cases, we must copy the function object
-            // into the variable environment when the declaration is evaluated.
+            // Annex B.3.3.4 (sloppy eval only) requires copying the block-scoped
+            // function object into the var/global binding when the declaration
+            // is evaluated, mirroring the web‑compat behaviour described in the spec.
             if (context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false } &&
                 context.CurrentScope.AllowAnnexB)
             {

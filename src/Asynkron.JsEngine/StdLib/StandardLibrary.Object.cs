@@ -561,14 +561,11 @@ public static partial class StandardLibrary
                 return symbols;
             }
 
-            if (obj is JsObject jsObject)
+            foreach (var key in obj.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
             {
-                foreach (var key in jsObject.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
+                if (TypedAstSymbol.TryGetByInternalKey(key, out var symbol))
                 {
-                    if (TypedAstSymbol.TryGetByInternalKey(key, out var symbol))
-                    {
-                        symbols.Push(symbol);
-                    }
+                    symbols.Push(symbol);
                 }
             }
 

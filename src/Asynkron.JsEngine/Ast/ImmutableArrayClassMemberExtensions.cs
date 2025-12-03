@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -18,6 +19,15 @@ public static partial class TypedAstEvaluator
                         privateNameScope,
                         out var propertyName))
                 {
+                    return;
+                }
+
+                if (member.IsStatic &&
+                    string.Equals(propertyName, "prototype", StringComparison.Ordinal))
+                {
+                    context.SetThrow(StandardLibrary.CreateTypeError(
+                        "Cannot redefine constructor prototype via static member",
+                        context));
                     return;
                 }
 

@@ -177,6 +177,13 @@ public static partial class TypedAstEvaluator
                 });
         }
 
+        // Ensure constructor [[OwnPropertyKeys]] start with length/name/prototype as required by
+        // ClassDefinitionEvaluation (ECMA-262 16.5.6.6, steps 31-33).
+        internal void SeedIntrinsicConstructorKeys()
+        {
+            _properties.SeedIntrinsicConstructorKeys();
+        }
+
         public JsEnvironment? CallingJsEnvironment { get; set; }
 
         public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
@@ -707,6 +714,12 @@ public static partial class TypedAstEvaluator
         public IEnumerable<string> GetOwnPropertyNames()
         {
             return _properties.GetOwnPropertyNames();
+        }
+
+        public IEnumerable<string> GetOwnPropertyKeysInOrder(bool includeSymbols = true,
+            bool includeNonEnumerable = true)
+        {
+            return _properties.GetOwnPropertyKeysInOrder(includeSymbols, includeNonEnumerable);
         }
 
         public void SetPrivateNameScope(PrivateNameScope? scope)

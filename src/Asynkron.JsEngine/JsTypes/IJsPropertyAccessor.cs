@@ -62,6 +62,15 @@ public interface IJsPropertyAccessor
         return [];
     }
 
+    /// <summary>
+    ///     Provides ordered own property keys following OrdinaryOwnPropertyKeys ordering.
+    ///     Implementors should include symbol keys when requested; default falls back to names only.
+    /// </summary>
+    IEnumerable<string> GetOwnPropertyKeysInOrder(bool includeSymbols = true, bool includeNonEnumerable = true)
+    {
+        return GetOwnPropertyNames();
+    }
+
     IEnumerable<string> GetEnumerablePropertyNames()
     {
         return [];

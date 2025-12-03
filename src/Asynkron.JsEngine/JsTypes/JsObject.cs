@@ -193,6 +193,7 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
             }
 
             this[name] = value;
+            descriptor.Value = value;
             TrackArrayWrite(name, value);
             return;
         }

@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Diagnostics;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -38,15 +39,28 @@ public static partial class TypedAstEvaluator
                     treatAsGlobalFunctionScope: executionEnvironment.IsGlobalFunctionScope);
             }
 
-            var programMode = executionEnvironment.IsStrict
-                ? ScopeMode.Strict
-                : context.Options.EnableAnnexBFunctionExtensions
-                    ? ScopeMode.SloppyAnnexB
-                    : ScopeMode.Sloppy;
+            if (executionKind == ExecutionKind.Script)
+            {
+                executionEnvironment.RealmState?.Engine?.SetGlobalExecutionScope(
+                    executionEnvironment.GetFunctionScope());
+            }
+
+            var programMode = executionKind == ExecutionKind.Eval
+                ? program.IsStrict
+                    ? ScopeMode.Strict
+                    : context.Options.EnableAnnexBFunctionExtensions
+                        ? ScopeMode.SloppyAnnexB
+                        : ScopeMode.Sloppy
+                : executionEnvironment.IsStrict
+                    ? ScopeMode.Strict
+                    : context.Options.EnableAnnexBFunctionExtensions
+                        ? ScopeMode.SloppyAnnexB
+                        : ScopeMode.Sloppy;
             using var programScope = context.PushScope(ScopeKind.Program, programMode);
 
             var programBlock = new BlockStatement(program.Source, program.Body, program.IsStrict);
             var lexicalNames = CollectLexicalNames(programBlock);
+            var topLevelLexicalNames = CollectTopLevelLexicalNames(program.Body);
             var catchParameterNames = CollectCatchParameterNames(programBlock);
             var simpleCatchParameterNames = CollectSimpleCatchParameterNames(programBlock);
             var bodyLexicalNames = lexicalNames.Count == 0
@@ -56,11 +70,14 @@ public static partial class TypedAstEvaluator
             context.BlockedFunctionVarNames = bodyLexicalNames;
             executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
             var functionScope = executionEnvironment.GetFunctionScope();
-            functionScope.SetBodyLexicalNames(bodyLexicalNames);
-            if (functionScope.IsGlobalFunctionScope &&
-                functionScope.Enclosing is { IsGlobalFunctionScope: true } enclosingGlobal)
+            if (executionKind != ExecutionKind.Eval)
             {
-                enclosingGlobal.SetBodyLexicalNames(bodyLexicalNames);
+                functionScope.SetBodyLexicalNames(topLevelLexicalNames);
+                if (functionScope.IsGlobalFunctionScope &&
+                    functionScope.Enclosing is { IsGlobalFunctionScope: true } enclosingGlobal)
+                {
+                    enclosingGlobal.SetBodyLexicalNames(topLevelLexicalNames);
+                }
             }
             if (functionScope.IsGlobalFunctionScope)
             {
@@ -106,6 +123,73 @@ public static partial class TypedAstEvaluator
             }
 
             return ReferenceEquals(result, EmptyCompletion) ? Symbol.Undefined : result;
+        }
+    }
+
+    private static HashSet<Symbol> CollectTopLevelLexicalNames(ImmutableArray<StatementNode> statements)
+    {
+        var names = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+        foreach (var statement in statements)
+        {
+            switch (statement)
+            {
+                case VariableDeclaration { Kind: VariableKind.Let or VariableKind.Const } decl:
+                    foreach (var declarator in decl.Declarators)
+                    {
+                        CollectBindingNames(declarator.Target, names);
+                    }
+
+                    break;
+                case ClassDeclaration classDeclaration:
+                    names.Add(classDeclaration.Name);
+                    break;
+            }
+        }
+
+        return names;
+    }
+
+    private static void CollectBindingNames(BindingTarget target, HashSet<Symbol> names)
+    {
+        while (true)
+        {
+            switch (target)
+            {
+                case IdentifierBinding identifier:
+                    names.Add(identifier.Name);
+                    break;
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        if (element.Target is not null)
+                        {
+                            CollectBindingNames(element.Target, names);
+                        }
+                    }
+
+                    if (arrayBinding.RestElement is not null)
+                    {
+                        target = arrayBinding.RestElement;
+                        continue;
+                    }
+
+                    break;
+                case ObjectBinding objectBinding:
+                    foreach (var property in objectBinding.Properties)
+                    {
+                        CollectBindingNames(property.Target, names);
+                    }
+
+                    if (objectBinding.RestElement is not null)
+                    {
+                        target = objectBinding.RestElement;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            break;
         }
     }
 }

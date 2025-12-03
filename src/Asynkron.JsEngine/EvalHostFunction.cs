@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
@@ -43,9 +44,10 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         IsDirectCall = false;
 
         // Direct eval executes in the caller's scope; indirect eval always uses the realm's global scope.
+        var evalRealmGlobal = _engine.GlobalExecutionScope ?? _engine.GlobalEnvironment;
         var environment = isDirectEval
             ? CallingJsEnvironment ?? throw new InvalidOperationException("eval() called without a calling environment")
-            : _engine.GlobalEnvironment;
+            : evalRealmGlobal;
 
         var forceStrict = isDirectEval && (CallingContext?.CurrentScope.IsStrict ?? false);
 
@@ -77,15 +79,69 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             throw new ThrowSignal(errorObject);
         }
 
-        var lexicalEnv = environment;
-        var varEnv = lexicalEnv.GetFunctionScope();
+        // Scripts evaluated via eval may not contain module syntax (export/import).
+        if (program.Typed.Body.Any(statement => statement is ModuleStatement))
+        {
+            throw StandardLibrary.ThrowSyntaxError(
+                "Cannot use module declarations within eval code.",
+                CallingContext,
+                environment.RealmState);
+        }
+
+        if (!isDirectEval && ContainsNewTarget(program.Typed.Body))
+        {
+            throw StandardLibrary.ThrowSyntaxError(
+                "new.target is not allowed in indirect eval code.",
+                CallingContext,
+                environment.RealmState);
+        }
+
+        if (!isDirectEval && ContainsSuperReference(program.Typed.Body))
+        {
+            throw StandardLibrary.ThrowSyntaxError(
+                "super references are not allowed in indirect eval code.",
+                CallingContext,
+                environment.RealmState);
+        }
+
+        if (ContainsIllegalReturn(program.Typed.Body) || ContainsIllegalBreakOrContinue(program.Typed.Body))
+        {
+            throw StandardLibrary.ThrowSyntaxError(
+                "Illegal control flow statement in eval code.",
+                CallingContext,
+                environment.RealmState);
+        }
+
         var isStrictEval = program.Typed.IsStrict;
+        var lexicalEnv = environment;
+        if (!isDirectEval)
+        {
+            // Indirect eval runs with a fresh lexical environment whose outer is the global
+            // environment record (ES 18.2.1.1 EvalDeclarationInstantiation). In strict mode
+            // the variable environment is that new declarative scope as well, so top-level
+            // var/function declarations do not leak into the caller or global scope.
+            var indirectLexical = new JsEnvironment(environment, isStrictEval, isStrictEval,
+                description: "indirect eval", inheritStrictness: false);
+            if (!isStrictEval)
+            {
+                indirectLexical.SetVarEnvironment(environment.GetVarEnvironment());
+            }
+
+            lexicalEnv = indirectLexical;
+        }
+        var varEnv = isDirectEval
+            ? environment.GetVarEnvironment()
+            : isStrictEval
+                ? lexicalEnv
+                : lexicalEnv.GetVarEnvironment();
 
         // 18.2.1.1 EvalDeclarationInstantiation: non-strict direct eval must
         // reject var declarations that collide with caller lexicals (including parameters).
         var varDeclaredNames = new HashSet<Symbol>();
         CollectVarDeclaredNames(program.Typed.Body, varDeclaredNames);
         var lexicallyDeclaredNames = CollectLexicallyDeclaredNames(program.Typed.Body);
+        var lexicalDeclarations = CollectLexicalDeclarations(program.Typed.Body);
+        var varFunctionDeclarations = CollectVarFunctionDeclarations(program.Typed.Body);
 
         if (!isStrictEval)
         {
@@ -93,8 +149,10 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             {
                 var hasGlobalLexical = varEnv.IsGlobalFunctionScope &&
                                        (varEnv.HasOwnLexicalBinding(name) || varEnv.HasBodyLexicalName(name));
-                if (HasDeclarativeBindingBetween(lexicalEnv, varEnv, name) ||
-                    hasGlobalLexical)
+                // EvalDeclarationInstantiation (18.2.1.3, step 5.d) rejects var names
+                // that collide with existing lexical bindings on the path to the var
+                // environment, except for simple catch parameters (Annex B.3.3.3).
+                if (HasDeclarativeBindingBetween(lexicalEnv, varEnv, name) || hasGlobalLexical)
                 {
                     throw StandardLibrary.ThrowSyntaxError(
                         $"Cannot declare var-scoped binding '{name.Name}' in direct eval due to existing lexical declaration.",
@@ -106,36 +164,85 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
         // EvalDeclarationInstantiation step 7+8: lexical declarations must not
         // conflict with existing var/lexical bindings in the variable environment.
-        foreach (var name in lexicallyDeclaredNames)
+        if (isDirectEval)
         {
-            var hasVarBinding = varEnv.HasFunctionScopedBinding(name);
-            var hasLexicalInVarEnv = varEnv.IsGlobalFunctionScope && varEnv.HasOwnLexicalBinding(name);
-            if (hasVarBinding || hasLexicalInVarEnv)
+            foreach (var name in lexicallyDeclaredNames)
             {
-                throw StandardLibrary.ThrowSyntaxError(
-                    $"Cannot declare lexical binding '{name.Name}' in direct eval because a var binding already exists.",
-                    CallingContext,
-                    environment.RealmState);
-            }
+                var hasVarBinding = varEnv.HasFunctionScopedBinding(name);
+                var hasLexicalInVarEnv = varEnv.IsGlobalFunctionScope && varEnv.HasOwnLexicalBinding(name);
+                if (hasVarBinding || hasLexicalInVarEnv)
+                {
+                    throw StandardLibrary.ThrowSyntaxError(
+                        $"Cannot declare lexical binding '{name.Name}' in direct eval because a var binding already exists.",
+                        CallingContext,
+                        environment.RealmState);
+                }
 
-            if (varEnv.IsGlobalFunctionScope && varEnv.HasRestrictedGlobalProperty(name))
+                if (varEnv.IsGlobalFunctionScope && varEnv.HasRestrictedGlobalProperty(name))
+                {
+                    throw StandardLibrary.ThrowSyntaxError(
+                        $"Cannot declare lexical binding '{name.Name}' in direct eval due to non-configurable global.",
+                        CallingContext,
+                        environment.RealmState);
+                }
+            }
+        }
+
+        if (!isStrictEval && varEnv.IsGlobalFunctionScope)
+        {
+            var declaredFunctionNames = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+            for (var i = varFunctionDeclarations.Count - 1; i >= 0; i--)
             {
-                throw StandardLibrary.ThrowSyntaxError(
-                    $"Cannot declare lexical binding '{name.Name}' in direct eval due to non-configurable global.",
-                    CallingContext,
-                    environment.RealmState);
+                var declaration = varFunctionDeclarations[i];
+                if (declaration.Function.Name is null || !declaredFunctionNames.Add(declaration.Function.Name))
+                {
+                    continue;
+                }
+
+                if (!CanDeclareGlobalFunction(varEnv, declaration.Function.Name))
+                {
+                    throw StandardLibrary.ThrowTypeError(
+                        "Cannot redeclare non-configurable global function",
+                        CallingContext,
+                        environment.RealmState);
+                }
             }
         }
 
         var evalEnvironment = isStrictEval
-            ? new JsEnvironment(lexicalEnv, true, true, description: "eval", treatAsGlobalFunctionScope: false)
+            ? new JsEnvironment(
+                lexicalEnv,
+                false,
+                true,
+                description: "eval",
+                treatAsGlobalFunctionScope: false,
+                inheritStrictness: !isDirectEval)
             : lexicalEnv;
 
-        // Evaluate directly in the constructed eval environment (direct eval is synchronous).
-        var result = program.Typed.EvaluateProgram(evalEnvironment, _engine.RealmState, CancellationToken.None,
-            ExecutionKind.Eval, createStrictEnvironment: false);
+        InstantiateLexicalDeclarations(evalEnvironment, lexicalDeclarations);
 
-        return result;
+        var preexistingVarBindings = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+        foreach (var name in varDeclaredNames)
+        {
+            if (varEnv.HasBinding(name))
+            {
+                preexistingVarBindings.Add(name);
+            }
+        }
+
+        try
+        {
+            // Evaluate directly in the constructed eval environment (direct eval is synchronous).
+            var result = program.Typed.EvaluateProgram(evalEnvironment, _engine.RealmState, CancellationToken.None,
+                ExecutionKind.Eval, createStrictEnvironment: false);
+
+            return result;
+        }
+        catch (ThrowSignal)
+        {
+            RollbackEvalBindings(varEnv, varDeclaredNames, preexistingVarBindings);
+            throw;
+        }
     }
 
     public bool TryGetProperty(string name, object? receiver, out object? value)
@@ -265,6 +372,17 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         return names;
     }
 
+    private static List<FunctionDeclaration> CollectVarFunctionDeclarations(ImmutableArray<StatementNode> statements)
+    {
+        var functions = new List<FunctionDeclaration>();
+        foreach (var statement in statements)
+        {
+            CollectVarFunctionsFromStatement(statement, functions);
+        }
+
+        return functions;
+    }
+
     private static void CollectLexicallyDeclaredNamesFromStatement(StatementNode statement, HashSet<Symbol> names)
     {
         while (true)
@@ -364,6 +482,86 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
     }
 
+    private static void CollectVarFunctionsFromStatement(StatementNode statement, List<FunctionDeclaration> functions)
+    {
+        while (true)
+        {
+            switch (statement)
+            {
+                case FunctionDeclaration functionDeclaration:
+                    functions.Add(functionDeclaration);
+                    break;
+                case BlockStatement block:
+                    foreach (var inner in block.Statements)
+                    {
+                        CollectVarFunctionsFromStatement(inner, functions);
+                    }
+
+                    break;
+                case IfStatement ifStatement:
+                    CollectVarFunctionsFromStatement(ifStatement.Then, functions);
+                    if (ifStatement.Else is { } elseBranch)
+                    {
+                        statement = elseBranch;
+                        continue;
+                    }
+
+                    break;
+                case WhileStatement whileStatement:
+                    statement = whileStatement.Body;
+                    continue;
+                case DoWhileStatement doWhileStatement:
+                    statement = doWhileStatement.Body;
+                    continue;
+                case WithStatement withStatement:
+                    statement = withStatement.Body;
+                    continue;
+                case ForStatement forStatement:
+                    if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initDecl)
+                    {
+                        CollectVarFunctionsFromStatement(initDecl, functions);
+                    }
+
+                    if (forStatement.Body is not null)
+                    {
+                        statement = forStatement.Body;
+                        continue;
+                    }
+
+                    break;
+                case ForEachStatement forEachStatement:
+                    statement = forEachStatement.Body;
+                    continue;
+                case SwitchStatement switchStatement:
+                    foreach (var switchCase in switchStatement.Cases)
+                    {
+                        CollectVarFunctionsFromStatement(switchCase.Body, functions);
+                    }
+
+                    break;
+                case TryStatement tryStatement:
+                    CollectVarFunctionsFromStatement(tryStatement.TryBlock, functions);
+                    if (tryStatement.Catch is { Body: not null } catchClause)
+                    {
+                        CollectVarFunctionsFromStatement(catchClause.Body, functions);
+                    }
+
+                    if (tryStatement.Finally is { } finallyBlock)
+                    {
+                        statement = finallyBlock;
+                        continue;
+                    }
+
+                    break;
+                case LabeledStatement labeledStatement:
+                    statement = labeledStatement.Statement;
+                    continue;
+            }
+
+            break;
+        }
+    }
+
     private static bool HasDeclarativeBindingBetween(JsEnvironment lexicalEnv, JsEnvironment varEnv, Symbol name)
     {
         var current = lexicalEnv;
@@ -375,7 +573,13 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 continue;
             }
 
-            if (current.HasOwnBinding(name))
+            if (current.IsSimpleCatchParameter(name))
+            {
+                current = current.Enclosing;
+                continue;
+            }
+
+            if (current.HasOwnLexicalBinding(name))
             {
                 return true;
             }
@@ -384,5 +588,969 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
 
         return false;
+    }
+
+    private static bool ContainsIllegalBreakOrContinue(ImmutableArray<StatementNode> statements)
+    {
+        var labelStack = new Stack<(Symbol Label, LabelTargetKind Kind)>();
+        foreach (var statement in statements)
+        {
+            if (ContainsIllegalBreakOrContinue(statement, labelStack, 0, 0))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ContainsIllegalBreakOrContinue(
+        StatementNode statement,
+        Stack<(Symbol Label, LabelTargetKind Kind)> labels,
+        int iterationDepth,
+        int switchDepth)
+    {
+        while (true)
+        {
+            switch (statement)
+            {
+                case BreakStatement breakStatement:
+                    if (breakStatement.Label is null)
+                    {
+                        return iterationDepth == 0 && switchDepth == 0;
+                    }
+
+                    return !TryResolveLabel(labels, breakStatement.Label, requireIteration: false);
+                case ContinueStatement continueStatement:
+                    if (continueStatement.Label is null)
+                    {
+                        return iterationDepth == 0;
+                    }
+
+                    return !TryResolveLabel(labels, continueStatement.Label, requireIteration: true);
+                case BlockStatement block:
+                    foreach (var inner in block.Statements)
+                    {
+                        if (ContainsIllegalBreakOrContinue(inner, labels, iterationDepth, switchDepth))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case IfStatement ifStatement:
+                    return ContainsIllegalBreakOrContinue(ifStatement.Then, labels, iterationDepth, switchDepth) ||
+                           (ifStatement.Else is not null &&
+                            ContainsIllegalBreakOrContinue(ifStatement.Else, labels, iterationDepth, switchDepth));
+                case WhileStatement whileStatement:
+                    statement = whileStatement.Body;
+                    iterationDepth++;
+                    continue;
+                case DoWhileStatement doWhileStatement:
+                    statement = doWhileStatement.Body;
+                    iterationDepth++;
+                    continue;
+                case ForStatement forStatement:
+                    if (forStatement.Body is null)
+                    {
+                        return false;
+                    }
+
+                    statement = forStatement.Body;
+                    iterationDepth++;
+                    continue;
+                case ForEachStatement forEachStatement:
+                    statement = forEachStatement.Body;
+                    iterationDepth++;
+                    continue;
+                case SwitchStatement switchStatement:
+                    foreach (var @case in switchStatement.Cases)
+                    {
+                        if (ContainsIllegalBreakOrContinue(@case.Body, labels, iterationDepth, switchDepth + 1))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case TryStatement tryStatement:
+                    if (ContainsIllegalBreakOrContinue(tryStatement.TryBlock, labels, iterationDepth, switchDepth))
+                    {
+                        return true;
+                    }
+
+                    if (tryStatement.Catch is { Body: not null } catchClause &&
+                        ContainsIllegalBreakOrContinue(catchClause.Body, labels, iterationDepth, switchDepth))
+                    {
+                        return true;
+                    }
+
+                    if (tryStatement.Finally is not null &&
+                        ContainsIllegalBreakOrContinue(tryStatement.Finally, labels, iterationDepth, switchDepth))
+                    {
+                        return true;
+                    }
+
+                    return false;
+                case WithStatement withStatement:
+                    statement = withStatement.Body;
+                    continue;
+                case LabeledStatement labeledStatement:
+                    var targetKind = GetLabelTargetKind(labeledStatement.Statement);
+                    labels.Push((labeledStatement.Label, targetKind));
+                    var result = ContainsIllegalBreakOrContinue(
+                        labeledStatement.Statement,
+                        labels,
+                        iterationDepth,
+                        switchDepth);
+                    labels.Pop();
+                    return result;
+                case FunctionDeclaration:
+                case ClassDeclaration:
+                    // Function/class bodies handle their own control flow rules.
+                    return false;
+                default:
+                    return false;
+            }
+        }
+    }
+
+    private static LabelTargetKind GetLabelTargetKind(StatementNode statement)
+    {
+        return statement switch
+        {
+            WhileStatement => LabelTargetKind.Iteration,
+            DoWhileStatement => LabelTargetKind.Iteration,
+            ForStatement => LabelTargetKind.Iteration,
+            ForEachStatement => LabelTargetKind.Iteration,
+            SwitchStatement => LabelTargetKind.Switch,
+            _ => LabelTargetKind.Other
+        };
+    }
+
+    private static bool TryResolveLabel(
+        Stack<(Symbol Label, LabelTargetKind Kind)> labels,
+        Symbol target,
+        bool requireIteration)
+    {
+        foreach (var (label, kind) in labels)
+        {
+            if (!ReferenceEquals(label, target))
+            {
+                continue;
+            }
+
+            if (!requireIteration)
+            {
+                return true;
+            }
+
+            return kind == LabelTargetKind.Iteration;
+        }
+
+        return false;
+    }
+
+    private enum LabelTargetKind
+    {
+        Other,
+        Iteration,
+        Switch
+    }
+
+    private static bool ContainsIllegalReturn(ImmutableArray<StatementNode> statements)
+    {
+        foreach (var statement in statements)
+        {
+            if (IsIllegalReturn(statement))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool CanDeclareGlobalFunction(JsEnvironment varEnv, Symbol name)
+    {
+        var descriptor = varEnv.GetGlobalOwnPropertyDescriptor(name, out var globalObject);
+        if (globalObject is null)
+        {
+            return true;
+        }
+
+        return descriptor switch
+        {
+            null => globalObject.IsExtensible,
+            { Configurable: true } => true,
+            _ => !descriptor.IsAccessorDescriptor &&
+                 descriptor.Writable &&
+                 descriptor.Enumerable
+        };
+    }
+
+    private static bool IsIllegalReturn(StatementNode statement)
+    {
+        switch (statement)
+        {
+            case ReturnStatement:
+                return true;
+            case BlockStatement block:
+                return block.Statements.Any(IsIllegalReturn);
+            case IfStatement ifStatement:
+                return IsIllegalReturn(ifStatement.Then) ||
+                       (ifStatement.Else is not null && IsIllegalReturn(ifStatement.Else));
+            case WhileStatement whileStatement:
+                return IsIllegalReturn(whileStatement.Body);
+            case DoWhileStatement doWhileStatement:
+                return IsIllegalReturn(doWhileStatement.Body);
+            case ForStatement forStatement when forStatement.Body is not null:
+                return IsIllegalReturn(forStatement.Body);
+            case ForEachStatement forEachStatement:
+                return IsIllegalReturn(forEachStatement.Body);
+            case WithStatement withStatement:
+                return IsIllegalReturn(withStatement.Body);
+            case SwitchStatement switchStatement:
+                return switchStatement.Cases.Any(c => IsIllegalReturn(c.Body));
+            case TryStatement tryStatement:
+                return IsIllegalReturn(tryStatement.TryBlock) ||
+                       (tryStatement.Catch is { Body: not null } catchClause && IsIllegalReturn(catchClause.Body)) ||
+                       (tryStatement.Finally is not null && IsIllegalReturn(tryStatement.Finally));
+            // Function/class declarations create their own return-valid scope.
+            case FunctionDeclaration:
+            case ClassDeclaration:
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    private static bool ContainsNewTarget(ImmutableArray<StatementNode> statements)
+    {
+        foreach (var statement in statements)
+        {
+            if (StatementContainsNewTarget(statement))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ContainsSuperReference(ImmutableArray<StatementNode> statements)
+    {
+        foreach (var statement in statements)
+        {
+            if (StatementContainsSuper(statement))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool StatementContainsNewTarget(StatementNode statement)
+    {
+        while (true)
+        {
+            switch (statement)
+            {
+                case ExpressionStatement expressionStatement:
+                    return ExpressionContainsNewTarget(expressionStatement.Expression);
+                case BlockStatement block:
+                    foreach (var inner in block.Statements)
+                    {
+                        if (StatementContainsNewTarget(inner))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case IfStatement ifStatement:
+                    return StatementContainsNewTarget(ifStatement.Then) ||
+                           (ifStatement.Else is not null && StatementContainsNewTarget(ifStatement.Else));
+                case WhileStatement whileStatement:
+                    statement = whileStatement.Body;
+                    continue;
+                case DoWhileStatement doWhileStatement:
+                    statement = doWhileStatement.Body;
+                    continue;
+                case WithStatement withStatement:
+                    statement = withStatement.Body;
+                    continue;
+                case ForStatement forStatement:
+                    if (forStatement.Initializer is ExpressionStatement initExpression &&
+                        ExpressionContainsNewTarget(initExpression.Expression))
+                    {
+                        return true;
+                    }
+
+                    if (forStatement.Condition is not null && ExpressionContainsNewTarget(forStatement.Condition))
+                    {
+                        return true;
+                    }
+
+                    if (forStatement.Increment is not null && ExpressionContainsNewTarget(forStatement.Increment))
+                    {
+                        return true;
+                    }
+
+                    statement = forStatement.Body;
+                    continue;
+                case ForEachStatement forEachStatement:
+                    if (ExpressionContainsNewTarget(forEachStatement.Iterable))
+                    {
+                        return true;
+                    }
+
+                    statement = forEachStatement.Body;
+                    continue;
+                case SwitchStatement switchStatement:
+                    foreach (var switchCase in switchStatement.Cases)
+                    {
+                        if (StatementContainsNewTarget(switchCase.Body))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case TryStatement tryStatement:
+                    if (StatementContainsNewTarget(tryStatement.TryBlock))
+                    {
+                        return true;
+                    }
+
+                    if (tryStatement.Catch is { Body: not null } catchClause &&
+                        StatementContainsNewTarget(catchClause.Body))
+                    {
+                        return true;
+                    }
+
+                    if (tryStatement.Finally is not null)
+                    {
+                        statement = tryStatement.Finally;
+                        continue;
+                    }
+
+                    return false;
+                case LabeledStatement labeledStatement:
+                    statement = labeledStatement.Statement;
+                    continue;
+                case FunctionDeclaration:
+                case ClassDeclaration:
+                    // new.target is allowed inside function/class bodies; skip nested scopes.
+                    return false;
+                default:
+                    return false;
+            }
+        }
+    }
+
+    private static bool StatementContainsSuper(StatementNode statement)
+    {
+        while (true)
+        {
+            switch (statement)
+            {
+                case ExpressionStatement expressionStatement:
+                    return ExpressionContainsSuper(expressionStatement.Expression);
+                case BlockStatement block:
+                    foreach (var inner in block.Statements)
+                    {
+                        if (StatementContainsSuper(inner))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case IfStatement ifStatement:
+                    return StatementContainsSuper(ifStatement.Then) ||
+                           (ifStatement.Else is not null && StatementContainsSuper(ifStatement.Else));
+                case WhileStatement whileStatement:
+                    statement = whileStatement.Body;
+                    continue;
+                case DoWhileStatement doWhileStatement:
+                    statement = doWhileStatement.Body;
+                    continue;
+                case WithStatement withStatement:
+                    statement = withStatement.Body;
+                    continue;
+                case ForStatement forStatement:
+                    if (forStatement.Initializer is ExpressionStatement initExpression &&
+                        ExpressionContainsSuper(initExpression.Expression))
+                    {
+                        return true;
+                    }
+
+                    if (forStatement.Condition is not null && ExpressionContainsSuper(forStatement.Condition))
+                    {
+                        return true;
+                    }
+
+                    if (forStatement.Increment is not null && ExpressionContainsSuper(forStatement.Increment))
+                    {
+                        return true;
+                    }
+
+                    statement = forStatement.Body;
+                    continue;
+                case ForEachStatement forEachStatement:
+                    if (ExpressionContainsSuper(forEachStatement.Iterable))
+                    {
+                        return true;
+                    }
+
+                    statement = forEachStatement.Body;
+                    continue;
+                case SwitchStatement switchStatement:
+                    foreach (var switchCase in switchStatement.Cases)
+                    {
+                        if (StatementContainsSuper(switchCase.Body))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case TryStatement tryStatement:
+                    if (StatementContainsSuper(tryStatement.TryBlock))
+                    {
+                        return true;
+                    }
+
+                    if (tryStatement.Catch is { Body: not null } catchClause &&
+                        StatementContainsSuper(catchClause.Body))
+                    {
+                        return true;
+                    }
+
+                    if (tryStatement.Finally is not null)
+                    {
+                        statement = tryStatement.Finally;
+                        continue;
+                    }
+
+                    return false;
+                case LabeledStatement labeledStatement:
+                    statement = labeledStatement.Statement;
+                    continue;
+                case FunctionDeclaration:
+                case ClassDeclaration:
+                    return false;
+                default:
+                    return false;
+            }
+        }
+    }
+
+    private static bool ExpressionContainsNewTarget(ExpressionNode expression)
+    {
+        while (true)
+        {
+            switch (expression)
+            {
+                case NewTargetExpression:
+                    return true;
+                case BinaryExpression binary:
+                    return ExpressionContainsNewTarget(binary.Left) ||
+                           ExpressionContainsNewTarget(binary.Right);
+                case UnaryExpression unary:
+                    expression = unary.Operand;
+                    continue;
+                case ConditionalExpression conditional:
+                    return ExpressionContainsNewTarget(conditional.Test) ||
+                           ExpressionContainsNewTarget(conditional.Consequent) ||
+                           ExpressionContainsNewTarget(conditional.Alternate);
+                case CallExpression call:
+                    if (ExpressionContainsNewTarget(call.Callee))
+                    {
+                        return true;
+                    }
+
+                    foreach (var argument in call.Arguments)
+                    {
+                        if (ExpressionContainsNewTarget(argument.Expression))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case NewExpression newExpression:
+                    if (ExpressionContainsNewTarget(newExpression.Constructor))
+                    {
+                        return true;
+                    }
+
+                    foreach (var argument in newExpression.Arguments)
+                    {
+                        if (ExpressionContainsNewTarget(argument))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case MemberExpression member:
+                    return ExpressionContainsNewTarget(member.Target) ||
+                           ExpressionContainsNewTarget(member.Property);
+                case AssignmentExpression assignment:
+                    return ExpressionContainsNewTarget(assignment.Value);
+                case PropertyAssignmentExpression propertyAssignment:
+                    return ExpressionContainsNewTarget(propertyAssignment.Target) ||
+                           ExpressionContainsNewTarget(propertyAssignment.Property) ||
+                           ExpressionContainsNewTarget(propertyAssignment.Value);
+                case IndexAssignmentExpression indexAssignment:
+                    return ExpressionContainsNewTarget(indexAssignment.Target) ||
+                           ExpressionContainsNewTarget(indexAssignment.Index) ||
+                           ExpressionContainsNewTarget(indexAssignment.Value);
+                case SequenceExpression sequence:
+                    return ExpressionContainsNewTarget(sequence.Left) ||
+                           ExpressionContainsNewTarget(sequence.Right);
+                case DestructuringAssignmentExpression destructuringAssignment:
+                    return ExpressionContainsNewTarget(destructuringAssignment.Value);
+                case ArrayExpression arrayExpression:
+                    foreach (var element in arrayExpression.Elements)
+                    {
+                        if (element.Expression is not null && ExpressionContainsNewTarget(element.Expression))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case ObjectExpression objectExpression:
+                    foreach (var member in objectExpression.Members)
+                    {
+                        if (member.IsComputed && member.Key is ExpressionNode computedKey &&
+                            ExpressionContainsNewTarget(computedKey))
+                        {
+                            return true;
+                        }
+
+                        if (member.Kind == ObjectMemberKind.Spread && member.Value is not null &&
+                            ExpressionContainsNewTarget(member.Value))
+                        {
+                            return true;
+                        }
+
+                        if (member.Function is not null || member.Kind is ObjectMemberKind.Method
+                            or ObjectMemberKind.Getter or ObjectMemberKind.Setter)
+                        {
+                            // new.target inside the method body is valid; skip nested functions.
+                            if (member.IsComputed && member.Value is not null &&
+                                ExpressionContainsNewTarget(member.Value))
+                            {
+                                return true;
+                            }
+
+                            continue;
+                        }
+
+                        if (member.Value is not null && ExpressionContainsNewTarget(member.Value))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case TemplateLiteralExpression template:
+                    foreach (var part in template.Parts)
+                    {
+                        if (part.Expression is not null && ExpressionContainsNewTarget(part.Expression))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case TaggedTemplateExpression taggedTemplate:
+                    if (ExpressionContainsNewTarget(taggedTemplate.Tag) ||
+                        ExpressionContainsNewTarget(taggedTemplate.StringsArray) ||
+                        ExpressionContainsNewTarget(taggedTemplate.RawStringsArray))
+                    {
+                        return true;
+                    }
+
+                    foreach (var expr in taggedTemplate.Expressions)
+                    {
+                        if (ExpressionContainsNewTarget(expr))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case YieldExpression yieldExpression when yieldExpression.Expression is not null:
+                    expression = yieldExpression.Expression;
+                    continue;
+                case AwaitExpression awaitExpression:
+                    expression = awaitExpression.Expression;
+                    continue;
+                case ClassExpression:
+                case FunctionExpression:
+                    // new.target is permitted inside function/class bodies.
+                    return false;
+                case LiteralExpression:
+                case IdentifierExpression:
+                case ThisExpression:
+                    return false;
+                default:
+                    return false;
+            }
+        }
+    }
+
+    private static bool ExpressionContainsSuper(ExpressionNode expression)
+    {
+        while (true)
+        {
+            switch (expression)
+            {
+                case SuperExpression:
+                    return true;
+                case MemberExpression member when member.Target is SuperExpression:
+                    return true;
+                case MemberExpression member:
+                    return ExpressionContainsSuper(member.Target) || ExpressionContainsSuper(member.Property);
+                case CallExpression call:
+                    if (call.Callee is SuperExpression)
+                    {
+                        return true;
+                    }
+
+                    if (ExpressionContainsSuper(call.Callee))
+                    {
+                        return true;
+                    }
+
+                    foreach (var argument in call.Arguments)
+                    {
+                        if (ExpressionContainsSuper(argument.Expression))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case NewExpression newExpression:
+                    if (ExpressionContainsSuper(newExpression.Constructor))
+                    {
+                        return true;
+                    }
+
+                    foreach (var argument in newExpression.Arguments)
+                    {
+                        if (ExpressionContainsSuper(argument))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case BinaryExpression binary:
+                    return ExpressionContainsSuper(binary.Left) || ExpressionContainsSuper(binary.Right);
+                case UnaryExpression unary:
+                    expression = unary.Operand;
+                    continue;
+                case ConditionalExpression conditional:
+                    return ExpressionContainsSuper(conditional.Test) ||
+                           ExpressionContainsSuper(conditional.Consequent) ||
+                           ExpressionContainsSuper(conditional.Alternate);
+                case PropertyAssignmentExpression propertyAssignment:
+                    return ExpressionContainsSuper(propertyAssignment.Target) ||
+                           ExpressionContainsSuper(propertyAssignment.Property) ||
+                           ExpressionContainsSuper(propertyAssignment.Value);
+                case IndexAssignmentExpression indexAssignment:
+                    return ExpressionContainsSuper(indexAssignment.Target) ||
+                           ExpressionContainsSuper(indexAssignment.Index) ||
+                           ExpressionContainsSuper(indexAssignment.Value);
+                case SequenceExpression sequence:
+                    return ExpressionContainsSuper(sequence.Left) || ExpressionContainsSuper(sequence.Right);
+                case DestructuringAssignmentExpression destructuringAssignment:
+                    return ExpressionContainsSuper(destructuringAssignment.Value);
+                case ArrayExpression arrayExpression:
+                    foreach (var element in arrayExpression.Elements)
+                    {
+                        if (element.Expression is not null && ExpressionContainsSuper(element.Expression))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case ObjectExpression objectExpression:
+                    foreach (var member in objectExpression.Members)
+                    {
+                        if (member.IsComputed && member.Key is ExpressionNode computedKey &&
+                            ExpressionContainsSuper(computedKey))
+                        {
+                            return true;
+                        }
+
+                        if (member.Function is not null ||
+                            member.Kind is ObjectMemberKind.Method or ObjectMemberKind.Getter or ObjectMemberKind.Setter)
+                        {
+                            if (member.IsComputed && member.Value is not null &&
+                                ExpressionContainsSuper(member.Value))
+                            {
+                                return true;
+                            }
+
+                            continue;
+                        }
+
+                        if (member.Value is not null && ExpressionContainsSuper(member.Value))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case TemplateLiteralExpression template:
+                    foreach (var part in template.Parts)
+                    {
+                        if (part.Expression is not null && ExpressionContainsSuper(part.Expression))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case TaggedTemplateExpression tagged:
+                    if (ExpressionContainsSuper(tagged.Tag) ||
+                        ExpressionContainsSuper(tagged.StringsArray) ||
+                        ExpressionContainsSuper(tagged.RawStringsArray))
+                    {
+                        return true;
+                    }
+
+                    foreach (var expr in tagged.Expressions)
+                    {
+                        if (ExpressionContainsSuper(expr))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case YieldExpression { Expression: not null } yieldExpression:
+                    expression = yieldExpression.Expression;
+                    continue;
+                case AwaitExpression awaitExpression:
+                    expression = awaitExpression.Expression;
+                    continue;
+                case ClassExpression:
+                case FunctionExpression:
+                    return false;
+                case LiteralExpression:
+                case IdentifierExpression:
+                case ThisExpression:
+                    return false;
+                default:
+                    return false;
+            }
+        }
+    }
+
+    private static Dictionary<Symbol, bool> CollectLexicalDeclarations(ImmutableArray<StatementNode> statements)
+    {
+        var declarations = new Dictionary<Symbol, bool>(ReferenceEqualityComparer<Symbol>.Instance);
+        foreach (var statement in statements)
+        {
+            CollectLexicalDeclarationsFromStatement(statement, declarations);
+        }
+
+        return declarations;
+    }
+
+    private static void CollectLexicalDeclarationsFromStatement(
+        StatementNode statement,
+        Dictionary<Symbol, bool> declarations)
+    {
+        while (true)
+        {
+            switch (statement)
+            {
+                case BlockStatement block:
+                    foreach (var inner in block.Statements)
+                    {
+                        CollectLexicalDeclarationsFromStatement(inner, declarations);
+                    }
+
+                    break;
+                case VariableDeclaration { Kind: VariableKind.Let or VariableKind.Const } lexicalDeclaration:
+                {
+                    var isConst = lexicalDeclaration.Kind == VariableKind.Const;
+                    foreach (var declarator in lexicalDeclaration.Declarators)
+                    {
+                        CollectLexicalDeclarationNames(declarator.Target, isConst, declarations);
+                    }
+
+                    break;
+                }
+                case ClassDeclaration classDeclaration:
+                    declarations[classDeclaration.Name] = true;
+                    break;
+                case IfStatement ifStatement:
+                    CollectLexicalDeclarationsFromStatement(ifStatement.Then, declarations);
+                    if (ifStatement.Else is { } elseBranch)
+                    {
+                        statement = elseBranch;
+                        continue;
+                    }
+
+                    break;
+                case WhileStatement whileStatement:
+                    statement = whileStatement.Body;
+                    continue;
+                case DoWhileStatement doWhileStatement:
+                    statement = doWhileStatement.Body;
+                    continue;
+                case WithStatement withStatement:
+                    statement = withStatement.Body;
+                    continue;
+                case ForStatement forStatement:
+                    if (forStatement.Initializer is VariableDeclaration
+                        {
+                            Kind: VariableKind.Let or VariableKind.Const
+                        } initDecl)
+                    {
+                        var isConst = initDecl.Kind == VariableKind.Const;
+                        foreach (var declarator in initDecl.Declarators)
+                        {
+                            CollectLexicalDeclarationNames(declarator.Target, isConst, declarations);
+                        }
+                    }
+
+                    if (forStatement.Body is not null)
+                    {
+                        statement = forStatement.Body;
+                        continue;
+                    }
+
+                    break;
+                case ForEachStatement forEachStatement:
+                    if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const)
+                    {
+                        var isConst = forEachStatement.DeclarationKind == VariableKind.Const;
+                        CollectLexicalDeclarationNames(forEachStatement.Target, isConst, declarations);
+                    }
+
+                    statement = forEachStatement.Body;
+                    continue;
+                case SwitchStatement switchStatement:
+                    foreach (var switchCase in switchStatement.Cases)
+                    {
+                        CollectLexicalDeclarationsFromStatement(switchCase.Body, declarations);
+                    }
+
+                    break;
+                case TryStatement tryStatement:
+                    CollectLexicalDeclarationsFromStatement(tryStatement.TryBlock, declarations);
+                    if (tryStatement.Catch is { } catchClause)
+                    {
+                        CollectLexicalDeclarationNames(catchClause.Binding, false, declarations);
+                        CollectLexicalDeclarationsFromStatement(catchClause.Body, declarations);
+                    }
+
+                    if (tryStatement.Finally is { } finallyBlock)
+                    {
+                        statement = finallyBlock;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            break;
+        }
+    }
+
+    private static void CollectLexicalDeclarationNames(
+        BindingTarget target,
+        bool isConst,
+        Dictionary<Symbol, bool> declarations)
+    {
+        while (true)
+        {
+            switch (target)
+            {
+                case IdentifierBinding identifier:
+                    declarations[identifier.Name] =
+                        declarations.TryGetValue(identifier.Name, out var existing)
+                            ? existing || isConst
+                            : isConst;
+                    break;
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        if (element.Target is not null)
+                        {
+                            CollectLexicalDeclarationNames(element.Target, isConst, declarations);
+                        }
+                    }
+
+                    if (arrayBinding.RestElement is not null)
+                    {
+                        target = arrayBinding.RestElement;
+                        continue;
+                    }
+
+                    break;
+                case ObjectBinding objectBinding:
+                    foreach (var property in objectBinding.Properties)
+                    {
+                        CollectLexicalDeclarationNames(property.Target, isConst, declarations);
+                    }
+
+                    if (objectBinding.RestElement is not null)
+                    {
+                        target = objectBinding.RestElement;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            break;
+        }
+    }
+
+    private static void InstantiateLexicalDeclarations(
+        JsEnvironment lexicalEnvironment,
+        Dictionary<Symbol, bool> declarations)
+    {
+        foreach (var (name, isConst) in declarations)
+        {
+            if (lexicalEnvironment.HasOwnBinding(name))
+            {
+                continue;
+            }
+
+            lexicalEnvironment.Define(name, JsEnvironment.Uninitialized, isConst, isLexical: true,
+                blocksFunctionScopeOverride: true);
+        }
+    }
+
+    private static void RollbackEvalBindings(
+        JsEnvironment varEnvironment,
+        HashSet<Symbol> declaredNames,
+        HashSet<Symbol> preexistingBindings)
+    {
+        foreach (var name in declaredNames)
+        {
+            if (preexistingBindings.Contains(name))
+            {
+                continue;
+            }
+
+            varEnvironment.DeleteBinding(name);
+        }
     }
 }

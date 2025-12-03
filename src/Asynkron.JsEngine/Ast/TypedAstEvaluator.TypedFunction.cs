@@ -403,6 +403,7 @@ public static partial class TypedAstEvaluator
                 functionEnvironment = new JsEnvironment(parameterEnvironment, true, _isStrict,
                     _function.Source, description);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+                parameterEnvironment.SetVarEnvironment(functionEnvironment);
             }
             else
             {

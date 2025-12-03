@@ -51,6 +51,7 @@ public sealed class JsEngine : IAsyncDisposable
         RealmState.Options = Options;
         RealmState.Engine = this;
         GlobalEnvironment.SetRealmState(RealmState);
+        GlobalExecutionScope = GlobalEnvironment;
         // Bind the global `this` value to a dedicated JS object so that
         // top-level `this` behaves like the global object (e.g. for UMD
         // wrappers such as babel-standalone).
@@ -257,9 +258,15 @@ public sealed class JsEngine : IAsyncDisposable
     public JsObject GlobalObject { get; } = new();
 
     internal JsEnvironment GlobalEnvironment { get; } = new(isFunctionScope: true);
+    internal JsEnvironment GlobalExecutionScope { get; private set; }
 
     internal RealmState RealmState { get; } = new();
     public IJsEngineOptions Options { get; }
+
+    internal void SetGlobalExecutionScope(JsEnvironment environment)
+    {
+        GlobalExecutionScope = environment ?? GlobalEnvironment;
+    }
 
     public async ValueTask DisposeAsync()
     {
@@ -728,7 +735,9 @@ public sealed class JsEngine : IAsyncDisposable
     private void SetGlobal(string name, object? value, bool isGlobalConstant = false)
     {
         var symbol = Symbol.Intern(name);
-        GlobalEnvironment.Define(symbol, value, isGlobalConstant: isGlobalConstant);
+        // Global built-ins are properties of the global object (ES GlobalDeclarationInstantiation),
+        // so they are registered as var-scoped bindings rather than lexical declarations.
+        GlobalEnvironment.Define(symbol, value, isGlobalConstant: isGlobalConstant, isLexical: false);
 
         // Also mirror globals onto the global object so that code using
         // `this.foo` or `global.foo` can see host-provided bindings.

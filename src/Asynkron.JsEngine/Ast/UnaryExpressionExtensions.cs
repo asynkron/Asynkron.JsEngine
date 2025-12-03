@@ -11,56 +11,80 @@ public static partial class TypedAstEvaluator
         private object? EvaluateUnary(JsEnvironment environment,
             EvaluationContext context)
         {
-            switch (expression.Operator)
+            try
             {
-                case "++" or "--":
+                switch (expression.Operator)
                 {
-                    var reference = AssignmentReferenceResolver.Resolve(
-                        expression.Operand,
-                        environment,
-                        context,
-                        EvaluateExpression);
-                    var currentValue = reference.GetValue();
-                    var updatedValue = expression.Operator == "++"
-                        ? IncrementValue(currentValue, context)
-                        : DecrementValue(currentValue, context);
-                    reference.SetValue(updatedValue);
-                    return expression.IsPrefix ? updatedValue : currentValue;
-                }
-                case "delete":
-                    return EvaluateDelete(expression.Operand, environment, context);
-                case "typeof" when expression.Operand is IdentifierExpression identifier &&
-                                   !environment.TryGet(identifier.Name, out var value):
-                    return "undefined";
-                case "typeof":
-                {
-                    var operandValue = EvaluateExpression(expression.Operand, environment, context);
-                    if (context.ShouldStopEvaluation)
+                    case "++" or "--":
                     {
-                        return Symbol.Undefined;
+                        var reference = AssignmentReferenceResolver.Resolve(
+                            expression.Operand,
+                            environment,
+                            context,
+                            EvaluateExpression);
+                        var currentValue = reference.GetValue();
+                        var updatedValue = expression.Operator == "++"
+                            ? IncrementValue(currentValue, context)
+                            : DecrementValue(currentValue, context);
+                        reference.SetValue(updatedValue);
+                        return expression.IsPrefix ? updatedValue : currentValue;
                     }
+                    case "delete":
+                        return EvaluateDelete(expression.Operand, environment, context);
+                    case "typeof" when expression.Operand is IdentifierExpression identifier &&
+                                       !environment.TryGet(identifier.Name, out var value):
+                        return "undefined";
+                    case "typeof":
+                    {
+                        var operandValue = EvaluateExpression(expression.Operand, environment, context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            return Symbol.Undefined;
+                        }
 
-                    return GetTypeofString(operandValue);
+                        return GetTypeofString(operandValue);
+                    }
                 }
-            }
 
-            var operand = EvaluateExpression(expression.Operand, environment, context);
-            if (context.ShouldStopEvaluation)
-            {
-                return Symbol.Undefined;
-            }
+                var operand = EvaluateExpression(expression.Operand, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return Symbol.Undefined;
+                }
 
-            return expression.Operator switch
+                return expression.Operator switch
+                {
+                    "!" => !IsTruthy(operand),
+                    "+" => operand is JsBigInt
+                        ? throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number", context)
+                        : JsOps.ToNumber(operand, context),
+                    "-" => operand is JsBigInt bigInt ? -bigInt : -JsOps.ToNumber(operand, context),
+                    "~" => BitwiseNot(operand, context),
+                    "void" => Symbol.Undefined,
+                    _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet.")
+                };
+            }
+            catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
+                         StringComparison.Ordinal))
             {
-                "!" => !IsTruthy(operand),
-                "+" => operand is JsBigInt
-                    ? throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number", context)
-                    : JsOps.ToNumber(operand, context),
-                "-" => operand is JsBigInt bigInt ? -bigInt : -JsOps.ToNumber(operand, context),
-                "~" => BitwiseNot(operand, context),
-                "void" => Symbol.Undefined,
-                _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet.")
-            };
+                object? errorObject = ex.Message;
+
+                if (environment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
+                    ctor is IJsCallable callable)
+                {
+                    try
+                    {
+                        errorObject = callable.Invoke([ex.Message], Symbol.Undefined);
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        errorObject = signal.ThrownValue;
+                    }
+                }
+
+                context.SetThrow(errorObject);
+                return errorObject;
+            }
         }
     }
 }

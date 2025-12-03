@@ -11,6 +11,7 @@ public sealed class JsEnvironment
     private const int MaxDepth = 1_000;
     internal static readonly object Uninitialized = new();
     private readonly SourceReference? _creatingSource;
+    private readonly bool _inheritStrictness;
     private readonly string? _description;
     private readonly bool _treatAsGlobalFunctionScope;
 
@@ -23,6 +24,7 @@ public sealed class JsEnvironment
     private HashSet<Symbol>? _annexBApplicableFunctions;
 
     internal RealmState? RealmState { get; private set; }
+    private JsEnvironment? _varEnvironmentOverride;
 
     public JsEnvironment(
         JsEnvironment? enclosing = null,
@@ -33,7 +35,8 @@ public sealed class JsEnvironment
         IJsObjectLike? withObject = null,
         bool isParameterEnvironment = false,
         bool isBodyEnvironment = false,
-        bool treatAsGlobalFunctionScope = false)
+        bool treatAsGlobalFunctionScope = false,
+        bool inheritStrictness = true)
     {
         Enclosing = enclosing;
         IsFunctionScope = isFunctionScope;
@@ -44,6 +47,7 @@ public sealed class JsEnvironment
         IsParameterEnvironment = isParameterEnvironment;
         IsBodyEnvironment = isBodyEnvironment;
         _treatAsGlobalFunctionScope = treatAsGlobalFunctionScope;
+        _inheritStrictness = inheritStrictness;
         RealmState = enclosing?.RealmState;
 
         Depth = (Enclosing?.Depth ?? -1) + 1;
@@ -64,7 +68,7 @@ public sealed class JsEnvironment
     /// <summary>
     ///     Returns true if this environment or any enclosing environment is in strict mode.
     /// </summary>
-    public bool IsStrict => IsStrictLocal || (Enclosing?.IsStrict ?? false);
+    public bool IsStrict => IsStrictLocal || (_inheritStrictness && (Enclosing?.IsStrict ?? false));
 
     internal bool IsObjectEnvironment => _withObject is not null;
 
@@ -166,18 +170,45 @@ public sealed class JsEnvironment
             }
         }
 
-        if (isGlobalScope &&
-            isFunctionDeclaration &&
-            existingDescriptor is not null &&
-            !allowExistingGlobalFunctionRedeclaration)
+        var canDeclareFunction = true;
+        var isRestrictedGlobal = isGlobalScope &&
+                                 existingDescriptor is { Configurable: false } descriptor &&
+                                 (!descriptor.IsDataDescriptor || !descriptor.Writable);
+
+        if (isGlobalScope && isFunctionDeclaration)
         {
-            var canDeclare = existingDescriptor.Configurable ||
-                             existingDescriptor is { IsDataDescriptor: true, Writable: true, Enumerable: true };
-            if (!canDeclare)
+            if (isRestrictedGlobal)
             {
                 throw StandardLibrary.ThrowTypeError("Cannot redeclare non-configurable global function",
                     context, context?.RealmState);
             }
+
+            canDeclareFunction = existingDescriptor switch
+            {
+                null => globalThis?.IsExtensible != false,
+                { Configurable: true } => true,
+                _ => !existingDescriptor.IsAccessorDescriptor &&
+                     existingDescriptor.Writable &&
+                     existingDescriptor.Enumerable
+            };
+
+            if (!canDeclareFunction)
+            {
+                throw StandardLibrary.ThrowTypeError("Cannot redeclare non-configurable global function",
+                    context, context?.RealmState);
+            }
+        }
+
+        if (isGlobalScope &&
+            !isFunctionDeclaration &&
+            existingDescriptor is null &&
+            globalThis is not null &&
+            !globalThis.IsExtensible)
+        {
+            throw StandardLibrary.ThrowTypeError(
+                $"Cannot declare global variable '{name.Name}' on a non-extensible global object.",
+                context,
+                context?.RealmState);
         }
 
         if (scope._values.TryGetValue(name, out var existing))
@@ -239,28 +270,59 @@ public sealed class JsEnvironment
         {
             if (isFunctionDeclaration)
             {
-                var canUpdateExisting =
-                    allowExistingGlobalFunctionRedeclaration &&
-                    (existingDescriptor is not null || wasTrackedAnnexBFunction || hasLooseGlobalValue);
-                if (canUpdateExisting)
+                var configurable = globalFunctionConfigurable ?? allowConfigurableGlobalBinding;
+                if (existingDescriptor is null)
                 {
-                    globalThis.SetProperty(name.Name, initialValue);
-                }
-                else
-                {
-                    var configurable = globalFunctionConfigurable ?? allowConfigurableGlobalBinding;
-                    globalThis.DefineProperty(name.Name,
+                    if (!globalThis.TryDefineProperty(
+                            name.Name,
                         new PropertyDescriptor
                         {
                             Value = initialValue, Writable = true, Enumerable = true, Configurable = configurable
-                        });
+                        }))
+                    {
+                        throw StandardLibrary.ThrowTypeError(
+                            $"Cannot declare global function '{name.Name}'.",
+                            context,
+                            context?.RealmState);
+                    }
+                }
+                else if (existingDescriptor.Configurable)
+                {
+                    if (!globalThis.TryDefineProperty(
+                            name.Name,
+                        new PropertyDescriptor
+                        {
+                            Value = initialValue, Writable = true, Enumerable = true, Configurable = configurable
+                        }))
+                    {
+                        throw StandardLibrary.ThrowTypeError(
+                            $"Cannot redeclare global function '{name.Name}'.",
+                            context,
+                            context?.RealmState);
+                    }
+                }
+                else
+                {
+                    // Existing non-configurable property: update value only (CreateGlobalFunctionBinding step 6).
+                    if (!globalThis.TryDefineProperty(
+                            name.Name,
+                        new PropertyDescriptor
+                        {
+                            Value = initialValue
+                        }))
+                    {
+                        throw StandardLibrary.ThrowTypeError(
+                            $"Cannot update global function binding for '{name.Name}'.",
+                            context,
+                            context?.RealmState);
+                    }
                 }
             }
             else
             {
                 if (existingDescriptor is null)
                 {
-                    globalThis.DefineProperty(
+                    if (!globalThis.TryDefineProperty(
                         name.Name,
                         new PropertyDescriptor
                         {
@@ -268,7 +330,13 @@ public sealed class JsEnvironment
                             Writable = true,
                             Enumerable = true,
                             Configurable = varBindingConfigurable
-                        });
+                        }))
+                    {
+                        throw StandardLibrary.ThrowTypeError(
+                            $"Cannot declare global variable '{name.Name}'.",
+                            context,
+                            context?.RealmState);
+                    }
                 }
                 else
                 {
@@ -552,6 +620,12 @@ public sealed class JsEnvironment
         }
 
         return scope._annexBFunctionNames is not null && scope._annexBFunctionNames.Contains(name);
+    }
+
+    internal PropertyDescriptor? GetGlobalOwnPropertyDescriptor(Symbol name, out JsObject? globalObject)
+    {
+        globalObject = GetRootGlobalObject();
+        return globalObject?.GetOwnPropertyDescriptor(name.Name);
     }
 
     internal bool HasLexicalBindingBeforeFunctionScope(Symbol name)
@@ -1087,6 +1161,16 @@ public sealed class JsEnvironment
         }
 
         return current;
+    }
+
+    internal JsEnvironment GetVarEnvironment()
+    {
+        return _varEnvironmentOverride ?? GetFunctionScope();
+    }
+
+    internal void SetVarEnvironment(JsEnvironment environment)
+    {
+        _varEnvironmentOverride = environment;
     }
 
     /// <summary>

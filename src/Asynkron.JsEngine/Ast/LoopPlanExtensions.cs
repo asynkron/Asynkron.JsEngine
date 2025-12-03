@@ -15,9 +15,10 @@ public static partial class TypedAstEvaluator
             {
                 foreach (var statement in plan.LeadingStatements)
                 {
-                    lastValue = EvaluateStatement(statement, environment, context, loopLabel);
+                    var leadingCompletion = EvaluateStatement(statement, environment, context, loopLabel);
                     if (context.ShouldStopEvaluation)
                     {
+                        lastValue = leadingCompletion;
                         return NormalizeLoopCompletion(lastValue);
                     }
                 }
@@ -43,7 +44,7 @@ public static partial class TypedAstEvaluator
 
                 if (context.TryClearContinue(loopLabel))
                 {
-                    if (!ExecutePostIteration(plan, environment, context, ref lastValue))
+                    if (!ExecutePostIteration(plan, environment, context))
                     {
                         break;
                     }
@@ -66,7 +67,7 @@ public static partial class TypedAstEvaluator
                     break;
                 }
 
-                if (!ExecutePostIteration(plan, environment, context, ref lastValue))
+                if (!ExecutePostIteration(plan, environment, context))
                 {
                     break;
                 }
@@ -108,8 +109,7 @@ public static partial class TypedAstEvaluator
             return IsTruthy(test);
         }
 
-        private bool ExecutePostIteration(JsEnvironment environment, EvaluationContext context,
-            ref object? lastValue)
+        private bool ExecutePostIteration(JsEnvironment environment, EvaluationContext context)
         {
             if (plan.PostIteration.IsDefaultOrEmpty)
             {
@@ -118,7 +118,7 @@ public static partial class TypedAstEvaluator
 
             foreach (var statement in plan.PostIteration)
             {
-                lastValue = EvaluateStatement(statement, environment, context);
+                _ = EvaluateStatement(statement, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return false;

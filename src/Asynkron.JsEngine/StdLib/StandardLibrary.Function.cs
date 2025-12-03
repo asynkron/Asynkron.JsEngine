@@ -100,6 +100,40 @@ public static partial class StandardLibrary
         functionPrototype.SetProperty("constructor", functionConstructor);
         functionPrototype.SetHostedProperty("toString", FunctionPrototypeToString);
         functionPrototype.SetHostedProperty("valueOf", (thisValue, _) => thisValue);
+        var callerGetter = new HostFunction((thisValue, _) =>
+        {
+            if (thisValue is not ICallerInfo callerInfo)
+            {
+                throw ThrowTypeError("Function.prototype.caller called on non-callable", realm: realm);
+            }
+
+            if (callerInfo.IsStrictFunction)
+            {
+                throw ThrowTypeError("Access to caller or arguments is not allowed", realm: realm);
+            }
+
+            if (callerInfo.Caller is ICallerInfo callerMetadata && callerMetadata.IsStrictFunction)
+            {
+                throw ThrowTypeError("Access to caller or arguments is not allowed", realm: realm);
+            }
+
+            return (object?)callerInfo.Caller ?? Symbol.Undefined;
+        }, realm, isConstructor: false);
+        var callerSetter = new HostFunction((thisValue, _) =>
+        {
+            if (thisValue is not ICallerInfo callerInfo || callerInfo.IsStrictFunction)
+            {
+                throw ThrowTypeError("Access to caller or arguments is not allowed", realm: realm);
+            }
+
+            // Legacy accessor is effectively non-writable; ignore assignments in sloppy mode.
+            return Symbol.Undefined;
+        }, realm, isConstructor: false);
+        var callerDescriptor = new PropertyDescriptor
+        {
+            Get = callerGetter, Set = callerSetter, Enumerable = false, Configurable = false
+        };
+        functionPrototype.DefineProperty("caller", callerDescriptor);
         var thrower = new HostFunction((_, _) =>
             throw ThrowTypeError("Access to caller or arguments is not allowed", realm: realm), realm,
             isConstructor: false);
@@ -107,7 +141,6 @@ public static partial class StandardLibrary
         {
             Get = thrower, Set = thrower, Enumerable = false, Configurable = false
         };
-        functionPrototype.DefineProperty("caller", poisonDescriptor);
         functionPrototype.DefineProperty("arguments", poisonDescriptor);
 
         var hasInstanceKey = $"@@symbol:{TypedAstSymbol.For("Symbol.hasInstance").GetHashCode()}";

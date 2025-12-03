@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
-using Asynkron.JsEngine.Runtime;
+    using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine;
 
@@ -26,6 +26,11 @@ public sealed class EvaluationContext(
     ///     lookups can be mapped to their class-specific brands.
     /// </summary>
     private readonly Stack<PrivateNameScope> _privateNameScopes = new();
+
+    /// <summary>
+    ///     Tracks the current function call stack for Annex B caller metadata.
+    /// </summary>
+    private readonly Stack<ICallerInfo> _callerStack = new();
 
     private readonly Stack<ScopeFrame> _scopeStack = new();
     private readonly Stack<PendingClassFieldInitialization> _pendingClassFieldInitializers = new();
@@ -144,6 +149,13 @@ public sealed class EvaluationContext(
         var frame = new ScopeFrame(kind, mode, skipAnnexBInstantiation);
         _scopeStack.Push(frame);
         return new ScopeHandle(_scopeStack);
+    }
+
+    internal IDisposable PushCaller(ICallerInfo function, out ICallerInfo? previous)
+    {
+        previous = _callerStack.Count > 0 ? _callerStack.Peek() : null;
+        _callerStack.Push(function);
+        return new CallerHandle(_callerStack);
     }
 
     public void MarkThisUninitialized()
@@ -332,6 +344,26 @@ public sealed class EvaluationContext(
     }
 
     private sealed class ScopeHandle(Stack<ScopeFrame> scopes) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (scopes.Count > 0)
+            {
+                scopes.Pop();
+            }
+
+            _disposed = true;
+        }
+    }
+
+    private sealed class CallerHandle(Stack<ICallerInfo> scopes) : IDisposable
     {
         private bool _disposed;
 

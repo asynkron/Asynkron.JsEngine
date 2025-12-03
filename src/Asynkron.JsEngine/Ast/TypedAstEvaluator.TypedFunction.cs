@@ -9,7 +9,8 @@ namespace Asynkron.JsEngine.Ast;
 public static partial class TypedAstEvaluator
 {
     private sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor, IJsObjectLike,
-        ICallableMetadata, IFunctionNameTarget, IPrivateBrandHolder, IPropertyDefinitionHost, IExtensibilityControl
+        ICallableMetadata, ICallerInfo, IFunctionNameTarget, IPrivateBrandHolder, IPropertyDefinitionHost,
+        IExtensibilityControl
     {
         private readonly Symbol[] _bodyLexicalNames;
         private readonly JsEnvironment _closure;
@@ -22,6 +23,7 @@ public static partial class TypedAstEvaluator
         private readonly RealmState _realmState;
         private readonly bool _isStrict;
         private readonly bool _wasAsyncFunction;
+        private IJsCallable? _caller;
         private IJsObjectLike? _homeObject;
         private ImmutableArray<ClassField> _instanceFields = ImmutableArray<ClassField>.Empty;
         private bool _isClassConstructor;
@@ -327,6 +329,12 @@ public static partial class TypedAstEvaluator
             object? newTarget = null)
         {
             var context = _realmState.CreateContext(pushScope: false);
+            var callerRestore = _caller;
+            using var callerFrame = context.PushCaller(this, out var previousCaller);
+            if (!_isStrict && !IsArrowFunction)
+            {
+                _caller = previousCaller;
+            }
             if (_realmState.Logger is { } logger && _isStrict && !ReferenceEquals(thisValue, Symbol.Undefined))
             {
                 logger.LogInformation("TypedFunction strict received thisValue type={Type}",
@@ -666,6 +674,13 @@ public static partial class TypedAstEvaluator
             {
                 return CreateRejectedPromise(signal.ThrownValue, executionEnvironment);
             }
+            finally
+            {
+                if (!_isStrict && !IsArrowFunction)
+                {
+                    _caller = callerRestore;
+                }
+            }
         }
         finally
         {
@@ -709,6 +724,14 @@ public static partial class TypedAstEvaluator
         {
             _homeObject = homeObject;
         }
+
+        IJsCallable? ICallerInfo.Caller
+        {
+            get => _caller;
+            set => _caller = value;
+        }
+
+        bool ICallerInfo.IsStrictFunction => _isStrict;
 
         public void SetIsClassConstructor(bool isDerived)
         {

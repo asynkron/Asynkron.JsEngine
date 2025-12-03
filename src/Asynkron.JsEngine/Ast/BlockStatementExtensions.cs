@@ -32,6 +32,10 @@ public static partial class TypedAstEvaluator
             blockActivity?.SetTag("js.block.statementCount", block.Statements.Length);
 
             var currentFrame = context.CurrentScope;
+            if (currentFrame.SkipAnnexBInstantiation || !currentFrame.AllowAnnexB)
+            {
+                InstantiateLexicalBlockFunctions(block, scope, context);
+            }
             if (currentFrame is { AllowAnnexB: true, SkipAnnexBInstantiation: false })
             {
                 InstantiateAnnexBBlockFunctions(block, scope, context);
@@ -180,6 +184,27 @@ public static partial class TypedAstEvaluator
                     globalVarConfigurable: null,
                     allowExistingGlobalFunctionRedeclaration: true,
                     isAnnexBFunction: true);
+            }
+        }
+
+        private void InstantiateLexicalBlockFunctions(
+            JsEnvironment blockEnvironment,
+            EvaluationContext context)
+        {
+            foreach (var statement in block.Statements)
+            {
+                if (statement is not FunctionDeclaration functionDeclaration)
+                {
+                    continue;
+                }
+
+                var functionValue = CreateFunctionValue(functionDeclaration.Function, blockEnvironment, context);
+                blockEnvironment.Define(
+                    functionDeclaration.Name,
+                    functionValue,
+                    isConst: true,
+                    isLexical: true,
+                    blocksFunctionScopeOverride: true);
             }
         }
 

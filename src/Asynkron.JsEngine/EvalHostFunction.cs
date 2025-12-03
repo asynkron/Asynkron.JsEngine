@@ -104,6 +104,43 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 environment.RealmState);
         }
 
+        if (isDirectEval && ContainsNewTarget(program.Typed.Body))
+        {
+            var isFunctionScope = CallingContext?.CurrentScope.Kind == ScopeKind.Function;
+            var callerHasNewTarget = isFunctionScope &&
+                                     CallingJsEnvironment?.HasBinding(Symbol.NewTarget) == true;
+            if (!callerHasNewTarget)
+            {
+                throw StandardLibrary.ThrowSyntaxError(
+                    "new.target is not allowed in this direct eval context.",
+                    CallingContext,
+                    environment.RealmState);
+            }
+        }
+
+        if (isDirectEval)
+        {
+            var hasSuperBinding = CallingJsEnvironment?.TryGet(Symbol.Super, out _) == true;
+            var hasNewTarget = CallingJsEnvironment?.TryGet(Symbol.NewTarget, out var newTarget) == true &&
+                               !ReferenceEquals(newTarget, Symbol.Undefined);
+
+            if (!hasSuperBinding && ContainsSuperReference(program.Typed.Body))
+            {
+                throw StandardLibrary.ThrowSyntaxError(
+                    "super references are not allowed in direct eval outside methods.",
+                    CallingContext,
+                    environment.RealmState);
+            }
+
+            if (!hasNewTarget && ContainsSuperCall(program.Typed.Body))
+            {
+                throw StandardLibrary.ThrowSyntaxError(
+                    "super calls are only allowed in direct eval when evaluating constructors.",
+                    CallingContext,
+                    environment.RealmState);
+            }
+        }
+
         if (ContainsIllegalReturn(program.Typed.Body) || ContainsIllegalBreakOrContinue(program.Typed.Body))
         {
             throw StandardLibrary.ThrowSyntaxError(
@@ -129,8 +166,24 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
             lexicalEnv = indirectLexical;
         }
+        else if (isStrictEval)
+        {
+            // Direct eval of strict code uses a fresh declarative environment for both
+            // lexical and var bindings (PerformEval step 9.a).
+            var strictEvalEnv = new JsEnvironment(
+                environment,
+                isFunctionScope: true,
+                true,
+                description: "strict direct eval",
+                treatAsGlobalFunctionScope: false,
+                inheritStrictness: false);
+            lexicalEnv = strictEvalEnv;
+        }
+
         var varEnv = isDirectEval
-            ? environment.GetVarEnvironment()
+            ? lexicalEnv == environment
+                ? environment.GetVarEnvironment()
+                : lexicalEnv
             : isStrictEval
                 ? lexicalEnv
                 : lexicalEnv.GetVarEnvironment();
@@ -579,6 +632,11 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 continue;
             }
 
+            if (current.HasOwnBinding(name))
+            {
+                return true;
+            }
+
             if (current.HasOwnLexicalBinding(name))
             {
                 return true;
@@ -791,37 +849,41 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
     private static bool IsIllegalReturn(StatementNode statement)
     {
-        switch (statement)
+        while (true)
         {
-            case ReturnStatement:
-                return true;
-            case BlockStatement block:
-                return block.Statements.Any(IsIllegalReturn);
-            case IfStatement ifStatement:
-                return IsIllegalReturn(ifStatement.Then) ||
-                       (ifStatement.Else is not null && IsIllegalReturn(ifStatement.Else));
-            case WhileStatement whileStatement:
-                return IsIllegalReturn(whileStatement.Body);
-            case DoWhileStatement doWhileStatement:
-                return IsIllegalReturn(doWhileStatement.Body);
-            case ForStatement forStatement when forStatement.Body is not null:
-                return IsIllegalReturn(forStatement.Body);
-            case ForEachStatement forEachStatement:
-                return IsIllegalReturn(forEachStatement.Body);
-            case WithStatement withStatement:
-                return IsIllegalReturn(withStatement.Body);
-            case SwitchStatement switchStatement:
-                return switchStatement.Cases.Any(c => IsIllegalReturn(c.Body));
-            case TryStatement tryStatement:
-                return IsIllegalReturn(tryStatement.TryBlock) ||
-                       (tryStatement.Catch is { Body: not null } catchClause && IsIllegalReturn(catchClause.Body)) ||
-                       (tryStatement.Finally is not null && IsIllegalReturn(tryStatement.Finally));
-            // Function/class declarations create their own return-valid scope.
-            case FunctionDeclaration:
-            case ClassDeclaration:
-                return false;
-            default:
-                return false;
+            switch (statement)
+            {
+                case ReturnStatement:
+                    return true;
+                case BlockStatement block:
+                    return block.Statements.Any(IsIllegalReturn);
+                case IfStatement ifStatement:
+                    return IsIllegalReturn(ifStatement.Then) || (ifStatement.Else is not null && IsIllegalReturn(ifStatement.Else));
+                case WhileStatement whileStatement:
+                    statement = whileStatement.Body;
+                    continue;
+                case DoWhileStatement doWhileStatement:
+                    statement = doWhileStatement.Body;
+                    continue;
+                case ForStatement forStatement:
+                    statement = forStatement.Body;
+                    continue;
+                case ForEachStatement forEachStatement:
+                    statement = forEachStatement.Body;
+                    continue;
+                case WithStatement withStatement:
+                    statement = withStatement.Body;
+                    continue;
+                case SwitchStatement switchStatement:
+                    return switchStatement.Cases.Any(c => IsIllegalReturn(c.Body));
+                case TryStatement tryStatement:
+                    return IsIllegalReturn(tryStatement.TryBlock) || (tryStatement.Catch is { Body: not null } catchClause && IsIllegalReturn(catchClause.Body)) || (tryStatement.Finally is not null && IsIllegalReturn(tryStatement.Finally));
+                // Function/class declarations create their own return-valid scope.
+                default:
+                    return false;
+            }
+
+            break;
         }
     }
 
@@ -843,6 +905,19 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         foreach (var statement in statements)
         {
             if (StatementContainsSuper(statement))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ContainsSuperCall(ImmutableArray<StatementNode> statements)
+    {
+        foreach (var statement in statements)
+        {
+            if (StatementContainsSuperCall(statement))
             {
                 return true;
             }
@@ -943,6 +1018,104 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case FunctionDeclaration:
                 case ClassDeclaration:
                     // new.target is allowed inside function/class bodies; skip nested scopes.
+                    return false;
+                default:
+                    return false;
+            }
+        }
+    }
+
+    private static bool StatementContainsSuperCall(StatementNode statement)
+    {
+        while (true)
+        {
+            switch (statement)
+            {
+                case ExpressionStatement expressionStatement:
+                    return ExpressionContainsSuperCall(expressionStatement.Expression);
+                case BlockStatement block:
+                    foreach (var inner in block.Statements)
+                    {
+                        if (StatementContainsSuperCall(inner))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case IfStatement ifStatement:
+                    return StatementContainsSuperCall(ifStatement.Then) ||
+                           (ifStatement.Else is not null && StatementContainsSuperCall(ifStatement.Else));
+                case WhileStatement whileStatement:
+                    statement = whileStatement.Body;
+                    continue;
+                case DoWhileStatement doWhileStatement:
+                    statement = doWhileStatement.Body;
+                    continue;
+                case WithStatement withStatement:
+                    statement = withStatement.Body;
+                    continue;
+                case ForStatement forStatement:
+                    if (forStatement.Initializer is ExpressionStatement initExpression &&
+                        ExpressionContainsSuperCall(initExpression.Expression))
+                    {
+                        return true;
+                    }
+
+                    if (forStatement.Condition is not null && ExpressionContainsSuperCall(forStatement.Condition))
+                    {
+                        return true;
+                    }
+
+                    if (forStatement.Increment is not null && ExpressionContainsSuperCall(forStatement.Increment))
+                    {
+                        return true;
+                    }
+
+                    statement = forStatement.Body;
+                    continue;
+                case ForEachStatement forEachStatement:
+                    if (ExpressionContainsSuperCall(forEachStatement.Iterable))
+                    {
+                        return true;
+                    }
+
+                    statement = forEachStatement.Body;
+                    continue;
+                case SwitchStatement switchStatement:
+                    foreach (var switchCase in switchStatement.Cases)
+                    {
+                        if (StatementContainsSuperCall(switchCase.Body))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case TryStatement tryStatement:
+                    if (StatementContainsSuperCall(tryStatement.TryBlock))
+                    {
+                        return true;
+                    }
+
+                    if (tryStatement.Catch is { Body: not null } catchClause &&
+                        StatementContainsSuperCall(catchClause.Body))
+                    {
+                        return true;
+                    }
+
+                    if (tryStatement.Finally is not null)
+                    {
+                        statement = tryStatement.Finally;
+                        continue;
+                    }
+
+                    return false;
+                case LabeledStatement labeledStatement:
+                    statement = labeledStatement.Statement;
+                    continue;
+                case FunctionDeclaration:
+                case ClassDeclaration:
                     return false;
                 default:
                     return false;
@@ -1204,6 +1377,168 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     return false;
             }
         }
+    }
+
+    private static bool ExpressionContainsSuperCall(ExpressionNode expression)
+    {
+        while (true)
+        {
+            switch (expression)
+            {
+                case CallExpression call when IsSuperCallee(call.Callee):
+                    return true;
+                case CallExpression call:
+                    if (ExpressionContainsSuperCall(call.Callee))
+                    {
+                        return true;
+                    }
+
+                    foreach (var argument in call.Arguments)
+                    {
+                        if (ExpressionContainsSuperCall(argument.Expression))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case NewExpression newExpression:
+                    if (ExpressionContainsSuperCall(newExpression.Constructor))
+                    {
+                        return true;
+                    }
+
+                    foreach (var argument in newExpression.Arguments)
+                    {
+                        if (ExpressionContainsSuperCall(argument))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case MemberExpression member:
+                    expression = member.Target;
+                    continue;
+                case BinaryExpression binary:
+                    return ExpressionContainsSuperCall(binary.Left) || ExpressionContainsSuperCall(binary.Right);
+                case UnaryExpression unary:
+                    expression = unary.Operand;
+                    continue;
+                case ConditionalExpression conditional:
+                    return ExpressionContainsSuperCall(conditional.Test) ||
+                           ExpressionContainsSuperCall(conditional.Consequent) ||
+                           ExpressionContainsSuperCall(conditional.Alternate);
+                case AssignmentExpression assignment:
+                    expression = assignment.Value;
+                    continue;
+                case PropertyAssignmentExpression propertyAssignment:
+                    return ExpressionContainsSuperCall(propertyAssignment.Target) ||
+                           ExpressionContainsSuperCall(propertyAssignment.Property) ||
+                           ExpressionContainsSuperCall(propertyAssignment.Value);
+                case IndexAssignmentExpression indexAssignment:
+                    return ExpressionContainsSuperCall(indexAssignment.Target) ||
+                           ExpressionContainsSuperCall(indexAssignment.Index) ||
+                           ExpressionContainsSuperCall(indexAssignment.Value);
+                case SequenceExpression sequence:
+                    return ExpressionContainsSuperCall(sequence.Left) || ExpressionContainsSuperCall(sequence.Right);
+                case DestructuringAssignmentExpression destructuringAssignment:
+                    expression = destructuringAssignment.Value;
+                    continue;
+                case ArrayExpression arrayExpression:
+                    foreach (var element in arrayExpression.Elements)
+                    {
+                        if (element.Expression is not null && ExpressionContainsSuperCall(element.Expression))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case ObjectExpression objectExpression:
+                    foreach (var member in objectExpression.Members)
+                    {
+                        if (member.IsComputed && member.Key is ExpressionNode computedKey &&
+                            ExpressionContainsSuperCall(computedKey))
+                        {
+                            return true;
+                        }
+
+                        if (member.Kind == ObjectMemberKind.Spread && member.Value is not null &&
+                            ExpressionContainsSuperCall(member.Value))
+                        {
+                            return true;
+                        }
+
+                        if (member.Function is not null || member.Kind is ObjectMemberKind.Method
+                            or ObjectMemberKind.Getter or ObjectMemberKind.Setter)
+                        {
+                            if (member.IsComputed && member.Value is not null &&
+                                ExpressionContainsSuperCall(member.Value))
+                            {
+                                return true;
+                            }
+
+                            continue;
+                        }
+
+                        if (member.Value is not null && ExpressionContainsSuperCall(member.Value))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case TemplateLiteralExpression template:
+                    foreach (var part in template.Parts)
+                    {
+                        if (part.Expression is not null && ExpressionContainsSuperCall(part.Expression))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case TaggedTemplateExpression taggedTemplate:
+                    if (ExpressionContainsSuperCall(taggedTemplate.Tag) ||
+                        ExpressionContainsSuperCall(taggedTemplate.StringsArray) ||
+                        ExpressionContainsSuperCall(taggedTemplate.RawStringsArray))
+                    {
+                        return true;
+                    }
+
+                    foreach (var expr in taggedTemplate.Expressions)
+                    {
+                        if (ExpressionContainsSuperCall(expr))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case YieldExpression { Expression: not null } yieldExpression:
+                    expression = yieldExpression.Expression;
+                    continue;
+                case AwaitExpression awaitExpression:
+                    expression = awaitExpression.Expression;
+                    continue;
+                case ClassExpression:
+                case FunctionExpression:
+                    return false;
+                case LiteralExpression:
+                case IdentifierExpression:
+                case ThisExpression:
+                case SuperExpression:
+                    return false;
+                default:
+                    return false;
+            }
+        }
+    }
+
+    private static bool IsSuperCallee(ExpressionNode callee)
+    {
+        return callee is SuperExpression || callee is MemberExpression { Target: SuperExpression };
     }
 
     private static bool ExpressionContainsSuper(ExpressionNode expression)

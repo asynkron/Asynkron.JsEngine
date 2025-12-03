@@ -3,6 +3,7 @@ using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine;
 
@@ -144,6 +145,8 @@ public sealed class JsEnvironment
         bool canDelete = false)
     {
         // `var` declarations are hoisted to the nearest function/global scope, so we skip block environments here.
+        LogRealm("DefineFunctionScoped name={Name} funcDecl={FuncDecl} hasInit={HasInit} allowDelete={AllowDelete}",
+            name.Name, isFunctionDeclaration, hasInitializer, canDelete);
         var scope = GetFunctionScope();
         var isGlobalScope = scope.IsGlobalFunctionScope;
         var wasTrackedAnnexBFunction = scope._annexBFunctionNames?.Contains(name) == true;
@@ -179,6 +182,7 @@ public sealed class JsEnvironment
         {
             if (isRestrictedGlobal)
             {
+                LogRealm("DefineFunctionScoped restricted global function name={Name}", name.Name);
                 throw StandardLibrary.ThrowTypeError("Cannot redeclare non-configurable global function",
                     context, context?.RealmState);
             }
@@ -194,6 +198,8 @@ public sealed class JsEnvironment
 
             if (!canDeclareFunction)
             {
+                LogRealm("DefineFunctionScoped cannot declare global function name={Name} existingConfig={Config} writable={Writable} enumerable={Enumerable}",
+                    name.Name, existingDescriptor.Configurable, existingDescriptor.Writable, existingDescriptor.Enumerable);
                 throw StandardLibrary.ThrowTypeError("Cannot redeclare non-configurable global function",
                     context, context?.RealmState);
             }
@@ -241,6 +247,8 @@ public sealed class JsEnvironment
             if (hasInitializer)
             {
                 existing.Value = value;
+                LogRealm("DefineFunctionScoped reuse existing binding name={Name} varEnvOverride={VarOverride} isGlobal={IsGlobal} isFunctionDecl={FuncDecl} hasInitializer={HasInit}",
+                    name.Name, _varEnvironmentOverride is not null, isGlobalScope, isFunctionDeclaration, hasInitializer);
                 if (isGlobalScope && globalThis is not null)
                 {
                     globalThis.SetProperty(name.Name, value);
@@ -372,12 +380,23 @@ public sealed class JsEnvironment
 
     public object? Get(Symbol name)
     {
+        var visited = new HashSet<JsEnvironment>(ReferenceEqualityComparer.Instance);
+        return GetInternal(name, visited);
+    }
+
+    private object? GetInternal(Symbol name, HashSet<JsEnvironment> visited)
+    {
         var current = this;
         var hops = 0;
         const int maxLookupDepth = 10_000;
-
         while (current is not null && hops++ < maxLookupDepth)
         {
+            if (!visited.Add(current))
+            {
+                current = current.Enclosing;
+                continue;
+            }
+
             if (current._values.TryGetValue(name, out var binding))
             {
                 if (ReferenceEquals(binding.Value, Uninitialized))
@@ -397,6 +416,13 @@ public sealed class JsEnvironment
                 }
 
                 return binding.Value;
+            }
+
+            if (current._varEnvironmentOverride is not null &&
+                current._varEnvironmentOverride != current &&
+                !visited.Contains(current._varEnvironmentOverride))
+            {
+                return current._varEnvironmentOverride.GetInternal(name, visited);
             }
 
             if (current._withObject is not null && TryGetFromWith(current._withObject, name, out var withValue))
@@ -421,12 +447,23 @@ public sealed class JsEnvironment
 
     internal object? GetDeclarative(Symbol name)
     {
+        var visited = new HashSet<JsEnvironment>(ReferenceEqualityComparer.Instance);
+        return GetDeclarativeInternal(name, visited);
+    }
+
+    private object? GetDeclarativeInternal(Symbol name, HashSet<JsEnvironment> visited)
+    {
         var current = this;
         var hops = 0;
         const int maxLookupDepth = 10_000;
-
         while (current is not null && hops++ < maxLookupDepth)
         {
+            if (!visited.Add(current))
+            {
+                current = current.Enclosing;
+                continue;
+            }
+
             if (current._values.TryGetValue(name, out var binding))
             {
                 if (ReferenceEquals(binding.Value, Uninitialized))
@@ -446,6 +483,13 @@ public sealed class JsEnvironment
                 }
 
                 return binding.Value;
+            }
+
+            if (current._varEnvironmentOverride is not null &&
+                current._varEnvironmentOverride != current &&
+                !visited.Contains(current._varEnvironmentOverride))
+            {
+                return current._varEnvironmentOverride.GetDeclarativeInternal(name, visited);
             }
 
             current = current.Enclosing;
@@ -679,12 +723,19 @@ public sealed class JsEnvironment
 
     public bool TryGet(Symbol name, out object? value)
     {
+        var visited = new HashSet<JsEnvironment>(ReferenceEqualityComparer.Instance);
         var current = this;
         var hops = 0;
         const int maxLookupDepth = 10_000;
 
         while (current is not null && hops++ < maxLookupDepth)
         {
+            if (!visited.Add(current))
+            {
+                current = current.Enclosing;
+                continue;
+            }
+
             if (current._values.TryGetValue(name, out var binding))
             {
                 if (ReferenceEquals(binding.Value, Uninitialized))
@@ -704,6 +755,80 @@ public sealed class JsEnvironment
                 }
 
                 value = binding.Value;
+                return true;
+            }
+
+            if (current._varEnvironmentOverride is not null &&
+                current._varEnvironmentOverride != current &&
+                !visited.Contains(current._varEnvironmentOverride) &&
+                current._varEnvironmentOverride.TryGetInternal(name, visited, out value))
+            {
+                return true;
+            }
+
+            if (current._withObject is not null && TryGetFromWith(current._withObject, name, out value))
+            {
+                return true;
+            }
+
+            current = current.Enclosing;
+        }
+
+        if (IsGlobalFunctionScope)
+        {
+            var rootGlobal = GetRootGlobalObject();
+            if (rootGlobal is not null && rootGlobal.TryGetProperty(name.Name, out var propertyValue))
+            {
+                value = propertyValue;
+                return true;
+            }
+        }
+
+        value = null;
+        return false;
+    }
+
+    private bool TryGetInternal(Symbol name, HashSet<JsEnvironment> visited, out object? value)
+    {
+        var current = this;
+        var hops = 0;
+        const int maxLookupDepth = 10_000;
+
+        while (current is not null && hops++ < maxLookupDepth)
+        {
+            if (!visited.Add(current))
+            {
+                current = current.Enclosing;
+                continue;
+            }
+
+            if (current._values.TryGetValue(name, out var binding))
+            {
+                if (ReferenceEquals(binding.Value, Uninitialized))
+                {
+                    throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+                }
+
+                if (current.IsGlobalFunctionScope)
+                {
+                    var globalObject = current.GetRootGlobalObject();
+                    if (globalObject is not null &&
+                        globalObject.TryGetProperty(name.Name, out var globalValue))
+                    {
+                        value = globalValue;
+                        return true;
+                    }
+                }
+
+                value = binding.Value;
+                return true;
+            }
+
+            if (current._varEnvironmentOverride is not null &&
+                current._varEnvironmentOverride != current &&
+                !visited.Contains(current._varEnvironmentOverride) &&
+                current._varEnvironmentOverride.TryGetInternal(name, visited, out value))
+            {
                 return true;
             }
 
@@ -731,12 +856,19 @@ public sealed class JsEnvironment
 
     internal bool TryFindBinding(Symbol name, out JsEnvironment environment, out object? value)
     {
+        var visited = new HashSet<JsEnvironment>(ReferenceEqualityComparer.Instance);
         var current = this;
         var hops = 0;
         const int maxLookupDepth = 10_000;
 
         while (current is not null && hops++ < maxLookupDepth)
         {
+            if (!visited.Add(current))
+            {
+                current = current.Enclosing;
+                continue;
+            }
+
             if (current._values.TryGetValue(name, out var binding))
             {
                 if (ReferenceEquals(binding.Value, Uninitialized))
@@ -746,6 +878,57 @@ public sealed class JsEnvironment
 
                 environment = current;
                 value = binding.Value;
+                return true;
+            }
+
+            if (current._varEnvironmentOverride is not null &&
+                current._varEnvironmentOverride != current &&
+                !visited.Contains(current._varEnvironmentOverride) &&
+                current._varEnvironmentOverride.TryFindBindingInternal(name, visited, out environment, out value))
+            {
+                return true;
+            }
+
+            current = current.Enclosing;
+        }
+
+        environment = null!;
+        value = null;
+        return false;
+    }
+
+    private bool TryFindBindingInternal(Symbol name, HashSet<JsEnvironment> visited, out JsEnvironment environment,
+        out object? value)
+    {
+        var current = this;
+        var hops = 0;
+        const int maxLookupDepth = 10_000;
+
+        while (current is not null && hops++ < maxLookupDepth)
+        {
+            if (!visited.Add(current))
+            {
+                current = current.Enclosing;
+                continue;
+            }
+
+            if (current._values.TryGetValue(name, out var binding))
+            {
+                if (ReferenceEquals(binding.Value, Uninitialized))
+                {
+                    throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+                }
+
+                environment = current;
+                value = binding.Value;
+                return true;
+            }
+
+            if (current._varEnvironmentOverride is not null &&
+                current._varEnvironmentOverride != current &&
+                !visited.Contains(current._varEnvironmentOverride) &&
+                current._varEnvironmentOverride.TryFindBindingInternal(name, visited, out environment, out value))
+            {
                 return true;
             }
 
@@ -761,11 +944,22 @@ public sealed class JsEnvironment
     {
         // Remember if we're in strict mode at the call site
         var isStrictContext = IsStrict;
-        AssignInternal(name, value, isStrictContext);
+        var visited = new HashSet<JsEnvironment>(ReferenceEqualityComparer.Instance);
+        AssignInternal(name, value, isStrictContext, visited);
     }
 
-    private void AssignInternal(Symbol name, object? value, bool isStrictContext)
+    private void AssignInternal(Symbol name, object? value, bool isStrictContext,
+        HashSet<JsEnvironment> visited)
     {
+        if (!visited.Add(this))
+        {
+            if (Enclosing is not null)
+            {
+                Enclosing.AssignInternal(name, value, isStrictContext, visited);
+            }
+            return;
+        }
+
         JsObject? globalObject = null;
         if (IsGlobalFunctionScope)
         {
@@ -799,6 +993,14 @@ public sealed class JsEnvironment
             return;
         }
 
+        if (_varEnvironmentOverride is not null &&
+            _varEnvironmentOverride != this &&
+            !visited.Contains(_varEnvironmentOverride))
+        {
+            _varEnvironmentOverride.AssignInternal(name, value, isStrictContext, visited);
+            return;
+        }
+
         if (_withObject is not null && HasVisibleWithBinding(_withObject, name))
         {
             _withObject.SetProperty(name.Name, value);
@@ -807,7 +1009,7 @@ public sealed class JsEnvironment
 
         if (Enclosing is not null)
         {
-            Enclosing.AssignInternal(name, value, isStrictContext);
+            Enclosing.AssignInternal(name, value, isStrictContext, visited);
             return;
         }
 
@@ -828,6 +1030,8 @@ public sealed class JsEnvironment
 
         // Non-strict mode: Create the variable in the global scope (this environment)
         Define(name, value);
+        LogRealm("Assign created global via sloppy assignment name={Name} valueType={ValueType}", name.Name,
+            value?.GetType().Name ?? "null");
         globalObject?.SetProperty(name.Name, value);
     }
 
@@ -930,6 +1134,11 @@ public sealed class JsEnvironment
         }
 
         return null;
+    }
+
+    private void LogRealm(string message, params object?[] args)
+    {
+        RealmState?.Logger?.LogInformation(message, args);
     }
 
     private static bool IsBlockedByUnscopables(IJsObjectLike target, string name, out bool touchedUnscopables)
@@ -1153,6 +1362,11 @@ public sealed class JsEnvironment
 
     internal JsEnvironment GetFunctionScope()
     {
+        if (_varEnvironmentOverride is not null)
+        {
+            return _varEnvironmentOverride.GetFunctionScope();
+        }
+
         var current = this;
         while (!current.IsFunctionScope)
         {

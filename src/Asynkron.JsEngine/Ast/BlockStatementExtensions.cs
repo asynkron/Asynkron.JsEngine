@@ -155,6 +155,21 @@ public static partial class TypedAstEvaluator
                     globalVarConfigurable: null,
                     allowExistingGlobalFunctionRedeclaration: true,
                     isAnnexBFunction: true);
+
+                // B.3.3.4: When the declaration is evaluated, copy the block-scoped
+                // function object into the var/global binding so callers see the
+                // function value (while preserving existing property attributes).
+                functionScope.DefineFunctionScoped(
+                    functionDeclaration.Name,
+                    functionValue,
+                    true,
+                    true,
+                    globalFunctionConfigurable,
+                    context,
+                    blocksFunctionScopeOverride: true,
+                    globalVarConfigurable: null,
+                    allowExistingGlobalFunctionRedeclaration: true,
+                    isAnnexBFunction: true);
             }
         }
 

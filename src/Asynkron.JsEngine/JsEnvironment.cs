@@ -508,7 +508,7 @@ public sealed class JsEnvironment
     internal bool HasBindingBeforeFunctionScope(Symbol name)
     {
         var current = this;
-        while (current is not null && !current.IsFunctionScope)
+        while (current is not null)
         {
             if (current._withObject is null && current._values.ContainsKey(name))
             {

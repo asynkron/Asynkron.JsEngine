@@ -98,7 +98,8 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            environment.DefineFunctionScoped(name, Symbol.Undefined, false, context: context);
+            var allowDelete = context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false };
+            environment.DefineFunctionScoped(name, Symbol.Undefined, false, context: context, canDelete: allowDelete);
         }
 
         private SuperBinding ExpectSuperBinding(EvaluationContext context)
@@ -134,7 +135,7 @@ public static partial class TypedAstEvaluator
             Exception? inner)
         {
             var message = $"Super is not available in this context.{GetSourceInfo(context)}";
-            if (!environment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctorVal) ||
+            if (!environment.TryGet(Symbol.SyntaxErrorIdentifier, out var ctorVal) ||
                 ctorVal is not IJsCallable ctor)
             {
                 return new InvalidOperationException(message, inner);

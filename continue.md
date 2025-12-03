@@ -15,7 +15,9 @@
 - `Date.prototype.setYear` now follows the Annex B ordering (captures [[DateValue]] before coercing the argument) and uses the realm time zone; the Date `toLocale*String` helpers are defined as real built-ins, so the `Date_prototype_setYear` and `Date_prototype_toLocaleTimeString` slices pass.
 - Date `toLocaleString`/`toLocaleDateString`/`toLocaleTimeString` now delegate to `Intl.DateTimeFormat` with the same default options and option validation, so the `returns-same-results-as-DateTimeFormat` and `throws-same-exceptions-as-DateTimeFormat` Test262 cases pass.
 - Date prototype methods now live on `%Date.prototype%` (no per-instance definitions), reuse shared helpers for the set* family, and `toJSON`/`toISOString` match the spec metadata. The `Date_prototype_constructor` and `Date_prototype_getDate` Test262 slices pass again.
+- Eval now distinguishes direct vs indirect calls, runs strict eval in an isolated scope, and marks eval-created var bindings as deletable so `delete` behaves per EvalDeclarationInstantiation. Var declarations without initializers no longer resurrect deleted eval bindings.
 
 ## Next Iteration Plan
-1. Re-run a wider Test262 sweep (Intl/Date/Temporal, remaining Array_* groups, Language_eval* slices) to list the next failures now that the Annex B hoisting fixes are in place.
-2. Keep tightening the partials (shared helpers, comments, tests) so additional array features can slot into the generator model without reintroducing giant files; leave logging opt-in-only for troubleshooting.
+1. Finish EvalDeclarationInstantiation semantics: catch var/lexical collisions in indirect eval, block `arguments` collisions in arrow parameter scopes, and enforce `super` early errors for direct eval in global code.
+2. Align eval global var/function binding with CreateGlobalVarBinding/CreateGlobalFunctionBinding (updates to non-configurable globals, configurable bindings for non-strict eval) so remaining `Language_evalCode*` regressions clear.
+3. Re-run the eval slices and update remaining failure notes before moving back to any array/Intl cleanup.

@@ -492,7 +492,15 @@ public static partial class TypedAstEvaluator
                 {
                     if (thisValue is null || ReferenceEquals(thisValue, Symbol.Undefined))
                     {
-                        boundThis = CallingJsEnvironment?.Get(Symbol.This) ?? Symbol.Undefined;
+                        boundThis = CallingJsEnvironment?.Get(Symbol.This);
+                        if (boundThis is null || ReferenceEquals(boundThis, Symbol.Undefined))
+                        {
+                            boundThis = _realmState.Engine?.GlobalObject;
+                            if (boundThis is null)
+                            {
+                                boundThis = Symbol.Undefined;
+                            }
+                        }
                     }
 
                     if (boundThis is not IJsPropertyAccessor &&

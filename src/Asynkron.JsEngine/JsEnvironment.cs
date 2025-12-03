@@ -89,7 +89,8 @@ public sealed class JsEnvironment
         bool isConst = false,
         bool isGlobalConstant = false,
         bool isLexical = true,
-        bool blocksFunctionScopeOverride = false)
+        bool blocksFunctionScopeOverride = false,
+        bool canDelete = false)
     {
         if (_values.TryGetValue(name, out var existing) && existing.IsGlobalConstant)
         {
@@ -108,7 +109,7 @@ public sealed class JsEnvironment
                 if (isLexical && blocksFunctionScopeOverride)
                 {
                     _values[name] = new Binding(value, isConst, isGlobalConstant, isLexical,
-                        blocksFunctionScopeOverride);
+                        blocksFunctionScopeOverride, canDelete);
                 }
 
                 return;
@@ -120,7 +121,8 @@ public sealed class JsEnvironment
             return;
         }
 
-        _values[name] = new Binding(value, isConst, isGlobalConstant, isLexical, blocksFunctionScopeOverride);
+        _values[name] = new Binding(value, isConst, isGlobalConstant, isLexical, blocksFunctionScopeOverride,
+            canDelete);
         NotifyBindingObservers(name, value);
     }
 
@@ -134,7 +136,8 @@ public sealed class JsEnvironment
         bool blocksFunctionScopeOverride = false,
         bool? globalVarConfigurable = null,
         bool allowExistingGlobalFunctionRedeclaration = false,
-        bool isAnnexBFunction = false)
+        bool isAnnexBFunction = false,
+        bool canDelete = false)
     {
         // `var` declarations are hoisted to the nearest function/global scope, so we skip block environments here.
         var scope = GetFunctionScope();
@@ -144,6 +147,7 @@ public sealed class JsEnvironment
         PropertyDescriptor? existingDescriptor = null;
         object? existingGlobalValue = null;
         var hasLooseGlobalValue = false;
+        var allowDelete = canDelete || context is { ExecutionKind: ExecutionKind.Eval } && !isGlobalScope;
         if (isGlobalScope)
         {
             globalThis = scope.GetRootGlobalObject();
@@ -229,7 +233,7 @@ public sealed class JsEnvironment
             shouldWriteGlobal = false;
         }
 
-        scope._values[name] = new Binding(initialValue, false, false, false, blocksFunctionScopeOverride);
+        scope._values[name] = new Binding(initialValue, false, false, false, blocksFunctionScopeOverride, allowDelete);
         TrackAnnexBBinding();
         if (isGlobalScope && globalThis is not null && shouldWriteGlobal)
         {
@@ -801,6 +805,12 @@ public sealed class JsEnvironment
             return false;
         }
 
+        if (binding.CanDelete)
+        {
+            _values.Remove(name);
+            return true;
+        }
+
         if (IsFunctionScope)
         {
             if (Enclosing is not null)
@@ -1163,7 +1173,8 @@ public sealed class JsEnvironment
         bool isConst,
         bool isGlobalConstant,
         bool isLexical,
-        bool blocksFunctionScopeOverride)
+        bool blocksFunctionScopeOverride,
+        bool canDelete)
     {
         public object? Value { get; set; } = value;
 
@@ -1174,6 +1185,8 @@ public sealed class JsEnvironment
         public bool IsLexical { get; private set; } = isLexical;
 
         public bool BlocksFunctionScopeOverride { get; private set; } = blocksFunctionScopeOverride;
+
+        public bool CanDelete { get; private set; } = canDelete;
 
         public void UpgradeLexical(bool isLexical, bool blocksFunctionScopeOverride)
         {

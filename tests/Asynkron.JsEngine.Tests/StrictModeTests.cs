@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Tests;
@@ -334,5 +335,33 @@ public class StrictModeTests
                         """);
 
         Assert.Equal(6.0, result);
+    }
+
+    [Theory(Timeout = 2000)]
+    [InlineData("'use\\u0020strict';")]
+    [InlineData("'use\tstrict';")]
+    [InlineData("'Use Strict';")]
+    [InlineData("; 'use strict';")]
+    public async Task NonCanonicalDirectives_DoNotEnableStrictMode(string directiveLine)
+    {
+        await using var engine = new JsEngine();
+
+        Assert.IsType<JsObject>(engine.GlobalEnvironment.Get(Symbol.This));
+
+        var definition =
+            $"function foo() {{\n  {directiveLine}\n  return this !== undefined;\n}};";
+
+        var program = engine.Parse(definition);
+        var function = Assert.IsType<FunctionDeclaration>(program.Body.OfType<FunctionDeclaration>().First());
+        Assert.False(function.Function.Body.IsStrict);
+
+        await engine.Evaluate(definition);
+        var fooValue = await engine.Evaluate("foo;");
+        var metadata = Assert.IsAssignableFrom<ICallerInfo>(fooValue);
+        Assert.False(metadata.IsStrictFunction);
+
+        var result = await engine.Evaluate("foo.call(undefined);");
+
+        Assert.True(result is bool b && b);
     }
 }

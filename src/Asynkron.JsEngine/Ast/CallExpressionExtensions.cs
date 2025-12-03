@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -163,6 +164,16 @@ public static partial class TypedAstEvaluator
                 superBindingForCall = ExpectSuperBinding(environment, context);
             }
 
+            EvalHostFunction? evalHost = null;
+            var isDirectEvalCall = false;
+            if (callable is EvalHostFunction evalHostFunction)
+            {
+                evalHost = evalHostFunction;
+                isDirectEvalCall = expression.Callee is IdentifierExpression { Name.Name: "eval" } &&
+                                   ReferenceEquals(thisValue, Symbol.Undefined);
+                evalHost.IsDirectCall = isDirectEvalCall;
+            }
+
             JsEnvironment? thisInitializationEnvironment = null;
             object? thisInitializationValue = null;
             if (expression.Callee is SuperExpression &&
@@ -258,6 +269,11 @@ public static partial class TypedAstEvaluator
             }
             finally
             {
+                if (evalHost is not null)
+                {
+                    evalHost.IsDirectCall = false;
+                }
+
                 context.CallDepth--;
 
                 debugFunction?.CurrentJsEnvironment = null;

@@ -2074,8 +2074,15 @@ public sealed class TypedAstParser(
 
             if (Match(TokenType.Identifier))
             {
-                var symbol = Symbol.Intern(Previous().Lexeme);
-                expr = new IdentifierExpression(CreateSourceReference(Previous()), symbol);
+                var token = Previous();
+                if (IsStrictModeReservedWord(token))
+                {
+                    throw new ParseException($"Unexpected reserved identifier '{token.Lexeme}' in strict mode.", token,
+                        _source);
+                }
+
+                var symbol = Symbol.Intern(token.Lexeme);
+                expr = new IdentifierExpression(CreateSourceReference(token), symbol);
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
@@ -2096,8 +2103,15 @@ public sealed class TypedAstParser(
 
             if (Match(TokenType.Yield))
             {
-                var symbol = Symbol.Intern(Previous().Lexeme);
-                expr = new IdentifierExpression(CreateSourceReference(Previous()), symbol);
+                var token = Previous();
+                if (IsStrictModeReservedWord(token))
+                {
+                    throw new ParseException("Unexpected use of reserved identifier 'yield' in strict mode.",
+                        token, _source);
+                }
+
+                var symbol = Symbol.Intern(token.Lexeme);
+                expr = new IdentifierExpression(CreateSourceReference(token), symbol);
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
 

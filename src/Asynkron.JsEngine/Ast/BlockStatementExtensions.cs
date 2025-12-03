@@ -168,7 +168,8 @@ public static partial class TypedAstEvaluator
                     blocksFunctionScopeOverride: true,
                     globalVarConfigurable: globalVarConfigurable,
                     allowExistingGlobalFunctionRedeclaration: true,
-                    isAnnexBFunction: true);
+                    isAnnexBFunction: true,
+                    canDelete: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false });
 
                 // B.3.3.4: When the declaration is evaluated, copy the block-scoped
                 // function object into the var/global binding so callers see the
@@ -183,7 +184,8 @@ public static partial class TypedAstEvaluator
                     blocksFunctionScopeOverride: true,
                     globalVarConfigurable: null,
                     allowExistingGlobalFunctionRedeclaration: true,
-                    isAnnexBFunction: true);
+                    isAnnexBFunction: true,
+                    canDelete: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false });
             }
         }
 

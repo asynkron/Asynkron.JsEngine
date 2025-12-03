@@ -38,14 +38,29 @@ public static partial class TypedAstEvaluator
                     break;
                 case BindingMode.DefineVar:
                 {
+                    if (!hasInitializer)
+                    {
+                        // Runtime evaluation of `var` without an initializer is a no-op;
+                        // bindings are created during declaration instantiation. If the
+                        // binding was removed (e.g., deletable eval var), do not recreate it.
+                        if (environment.HasFunctionScopedBinding(identifier.Name))
+                        {
+                            return;
+                        }
+
+                        if (skipBlockedBindingLookup)
+                        {
+                            return;
+                        }
+
+                        return;
+                    }
+
                     if (skipBlockedBindingLookup)
                     {
                         EnsureFunctionScopedVarBinding(environment, identifier.Name, context);
-                        if (hasInitializer)
-                        {
-                            var functionScope = environment.GetFunctionScope();
-                            functionScope.Assign(identifier.Name, value);
-                        }
+                        var functionScope = environment.GetFunctionScope();
+                        functionScope.Assign(identifier.Name, value);
 
                         break;
                     }
@@ -56,7 +71,7 @@ public static partial class TypedAstEvaluator
 
                     EnsureFunctionScopedVarBinding(environment, identifier.Name, context);
 
-                    if (hasInitializer && !assignedBlockedBinding)
+                    if (!assignedBlockedBinding)
                     {
                         environment.Assign(identifier.Name, value);
                     }

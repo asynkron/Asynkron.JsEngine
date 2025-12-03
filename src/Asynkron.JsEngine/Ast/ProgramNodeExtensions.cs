@@ -56,6 +56,12 @@ public static partial class TypedAstEvaluator
             context.BlockedFunctionVarNames = bodyLexicalNames;
             executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
             var functionScope = executionEnvironment.GetFunctionScope();
+            functionScope.SetBodyLexicalNames(bodyLexicalNames);
+            if (functionScope.IsGlobalFunctionScope &&
+                functionScope.Enclosing is { IsGlobalFunctionScope: true } enclosingGlobal)
+            {
+                enclosingGlobal.SetBodyLexicalNames(bodyLexicalNames);
+            }
             if (functionScope.IsGlobalFunctionScope)
             {
                 foreach (var blockedName in bodyLexicalNames)

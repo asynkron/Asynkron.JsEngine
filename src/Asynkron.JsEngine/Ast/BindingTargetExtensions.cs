@@ -47,7 +47,8 @@ public static partial class TypedAstEvaluator
                         return;
                     }
 
-                    environment.DefineFunctionScoped(identifier.Name, Symbol.Undefined, false, context: context);
+                    environment.DefineFunctionScoped(identifier.Name, Symbol.Undefined, false, context: context,
+                        canDelete: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false });
                 });
         }
 

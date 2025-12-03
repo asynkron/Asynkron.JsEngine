@@ -234,7 +234,8 @@ public static partial class TypedAstEvaluator
                                 blocksFunctionScopeOverride: true,
                                 globalVarConfigurable: null,
                                 allowExistingGlobalFunctionRedeclaration: true,
-                                isAnnexBFunction: true);
+                                isAnnexBFunction: true,
+                                canDelete: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false });
 
                             break;
                         }
@@ -253,7 +254,8 @@ public static partial class TypedAstEvaluator
                                 true,
                                 true,
                                 context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false },
-                                context);
+                                context,
+                                canDelete: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false });
                         }
 
                         break;

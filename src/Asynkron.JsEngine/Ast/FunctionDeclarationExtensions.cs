@@ -42,7 +42,8 @@ public static partial class TypedAstEvaluator
                     blocksFunctionScopeOverride: true,
                     globalVarConfigurable: globalVarConfigurable,
                     allowExistingGlobalFunctionRedeclaration: true,
-                    isAnnexBFunction: true);
+                    isAnnexBFunction: true,
+                    canDelete: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false });
             }
 
             return EmptyCompletion;

@@ -43,6 +43,14 @@ public sealed class EvaluationContext(
     public HashSet<Symbol> BlockedFunctionVarNames { get; set; } = new(ReferenceEqualityComparer<Symbol>.Instance);
 
     /// <summary>
+    ///     Tracks Annex B applicable function declarations (reference-equality) so
+    ///     runtime copies (B.3.3.4) only run for the declarations that actually
+    ///     produced a var/global binding.
+    /// </summary>
+    public HashSet<FunctionDeclaration> AnnexBApplicableFunctions { get; } =
+        new(ReferenceEqualityComparer<FunctionDeclaration>.Instance);
+
+    /// <summary>
     ///     Indicates whether the current execution originated from script code or eval.
     /// </summary>
     public ExecutionKind ExecutionKind { get; } = executionKind;

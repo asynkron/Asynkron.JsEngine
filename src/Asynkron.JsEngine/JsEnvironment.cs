@@ -20,6 +20,7 @@ public sealed class JsEnvironment
     private HashSet<Symbol>? _bodyLexicalNames;
     private HashSet<Symbol>? _simpleCatchParameters;
     private HashSet<Symbol>? _annexBFunctionNames;
+    private HashSet<Symbol>? _annexBApplicableFunctions;
 
     internal RealmState? RealmState { get; private set; }
 
@@ -564,6 +565,18 @@ public sealed class JsEnvironment
         }
 
         return false;
+    }
+
+    internal void MarkAnnexBApplicableFunction(Symbol name)
+    {
+        _annexBApplicableFunctions ??=
+            new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+        _annexBApplicableFunctions.Add(name);
+    }
+
+    internal bool IsAnnexBApplicableFunction(Symbol name)
+    {
+        return _annexBApplicableFunctions is not null && _annexBApplicableFunctions.Contains(name);
     }
 
     internal void SetBodyLexicalNames(HashSet<Symbol> names)

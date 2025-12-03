@@ -92,8 +92,10 @@ public static partial class TypedAstEvaluator
                                              !functionScope.HasBodyLexicalName(functionDeclaration.Name);
                 var blockedByParameters = context.BlockedFunctionVarNames is { } blocked &&
                                           blocked.Contains(functionDeclaration.Name);
+                // B.3.3.1 checks for conflicting *lexical* declarations only; existing
+                // var hoists in the function scope must not block Annex B var creation.
                 var hasLexicalBeforeFunctionScope =
-                    blockEnvironment.HasBindingBeforeFunctionScope(functionDeclaration.Name);
+                    blockEnvironment.HasLexicalBindingBeforeFunctionScope(functionDeclaration.Name);
                 var hasBlockingLexicalBeforeFunctionScope = hasLexicalBeforeFunctionScope &&
                                                             !simpleCatchParameterNames.Contains(
                                                                 functionDeclaration.Name) &&
@@ -139,20 +141,28 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
-                var allowConfigurableFunctions =
-                    context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false };
-                bool? globalFunctionConfigurable = functionScope.IsGlobalFunctionScope
-                    ? allowConfigurableFunctions
-                    : null;
+                // Remember the specific declaration so runtime copying (B.3.3.4)
+                // only applies to functions that actually produced a var/global binding.
+                context.AnnexBApplicableFunctions.Add(functionDeclaration);
+
+                // Track which block-level functions received Annex B var bindings so
+                // the runtime copy (B.3.3.4) only applies to applicable declarations.
+                blockEnvironment.MarkAnnexBApplicableFunction(functionDeclaration.Name);
+
+                // Annex B.3.3.3 (function/global code): create/update the var/global
+                // binding with the function object when allowed. For global code,
+                // CreateGlobalVarBinding is invoked with configurable:true.
+                bool? globalFunctionConfigurable = functionScope.IsGlobalFunctionScope ? true : null;
+                bool? globalVarConfigurable = functionScope.IsGlobalFunctionScope ? true : null;
                 functionScope.DefineFunctionScoped(
                     functionDeclaration.Name,
-                    Symbol.Undefined,
-                    false,
+                    functionValue,
+                    true,
                     true,
                     globalFunctionConfigurable,
                     context,
                     blocksFunctionScopeOverride: true,
-                    globalVarConfigurable: null,
+                    globalVarConfigurable: globalVarConfigurable,
                     allowExistingGlobalFunctionRedeclaration: true,
                     isAnnexBFunction: true);
 

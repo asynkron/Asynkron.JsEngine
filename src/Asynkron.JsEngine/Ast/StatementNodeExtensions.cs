@@ -204,11 +204,19 @@ public static partial class TypedAstEvaluator
 
                         if (isAnnexBBlockFunction)
                         {
+                            lexicalNames.Add(functionDeclaration.Name);
+
                             if (hasNonCatchLexical ||
                                 functionScope.HasBodyLexicalName(functionDeclaration.Name))
                             {
                                 break;
                             }
+
+                            // B.3.3.1 allows Annex B function semantics for this declaration.
+                            // Track the specific node so the runtime copy only runs for
+                            // declarations that actually produced a var/global binding.
+                            context.AnnexBApplicableFunctions.Add(functionDeclaration);
+                            functionScope.MarkAnnexBApplicableFunction(functionDeclaration.Name);
 
                             var allowConfigurableFunctions =
                                 context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false };

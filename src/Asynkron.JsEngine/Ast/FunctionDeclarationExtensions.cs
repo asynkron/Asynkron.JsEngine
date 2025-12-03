@@ -8,20 +8,30 @@ public static partial class TypedAstEvaluator
             EvaluationContext context)
         {
             // FunctionDeclarationInstantiation handles most bindings up front.
-            // Annex B.3.3.4 (sloppy eval only) requires copying the block-scoped
+            // Annex B.3.3.4 (sloppy Annex B) requires copying the block-scoped
             // function object into the var/global binding when the declaration
             // is evaluated, mirroring the web‑compat behaviour described in the spec.
-            if (context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false } &&
-                context.CurrentScope.AllowAnnexB)
+            if (context.CurrentScope.AllowAnnexB && !context.CurrentScope.IsStrict)
             {
+                if (!context.AnnexBApplicableFunctions.Contains(declaration))
+                {
+                    return EmptyCompletion;
+                }
+
                 var functionScope = environment.GetFunctionScope();
                 if (!functionScope.HasFunctionScopedBinding(declaration.Name))
                 {
                     return EmptyCompletion;
                 }
 
+                if (context.BlockedFunctionVarNames is { } blocked && blocked.Contains(declaration.Name))
+                {
+                    return EmptyCompletion;
+                }
+
                 var functionValue = CreateFunctionValue(declaration.Function, environment, context);
                 bool? globalFunctionConfigurable = functionScope.IsGlobalFunctionScope ? true : null;
+                bool? globalVarConfigurable = functionScope.IsGlobalFunctionScope ? true : null;
                 functionScope.DefineFunctionScoped(
                     declaration.Name,
                     functionValue,
@@ -30,7 +40,7 @@ public static partial class TypedAstEvaluator
                     globalFunctionConfigurable: globalFunctionConfigurable,
                     context: context,
                     blocksFunctionScopeOverride: true,
-                    globalVarConfigurable: null,
+                    globalVarConfigurable: globalVarConfigurable,
                     allowExistingGlobalFunctionRedeclaration: true,
                     isAnnexBFunction: true);
             }

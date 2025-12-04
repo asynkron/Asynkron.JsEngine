@@ -119,6 +119,10 @@ public static partial class TypedAstEvaluator
 
         public bool IsAsyncFunction { get; }
 
+        internal bool IsClassConstructor => _isClassConstructor;
+
+        internal bool IsDerivedClassConstructor => _isClassConstructor && _isDerivedClassConstructor;
+
         public bool IsAsyncLike => IsAsyncFunction || _wasAsyncFunction;
         public PrivateNameScope? PrivateNameScope { get; private set; }
 
@@ -697,8 +701,11 @@ public static partial class TypedAstEvaluator
                         {
                             try
                             {
-                                if (executionEnvironment.TryGet(Symbol.This, out var currentThis))
+                                if (functionEnvironment.TryGet(Symbol.This, out var currentThis))
                                 {
+                                    _realmState.Logger?.LogInformation(
+                                        "Class constructor returning this type={Type}",
+                                        currentThis?.GetType().Name ?? "null");
                                     return currentThis;
                                 }
                             }
@@ -710,6 +717,16 @@ public static partial class TypedAstEvaluator
                                 // If the `this` binding was marked initialized but is still
                                 // uninitialized in the environment, fall back to the original
                                 // construction receiver instead of surfacing a spurious TDZ error.
+                                _realmState.Logger?.LogInformation(
+                                    "Class constructor fell back to receiver type={Type} reason={Reason}",
+                                    thisValue?.GetType().Name ?? "null",
+                                    ex.Message);
+                                if (context.LastConstructedThis is not null &&
+                                    !ReferenceEquals(context.LastConstructedThis, JsEnvironment.Uninitialized))
+                                {
+                                    return context.LastConstructedThis;
+                                }
+
                                 return thisValue;
                             }
                         }

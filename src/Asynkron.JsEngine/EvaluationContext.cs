@@ -168,6 +168,8 @@ public sealed class EvaluationContext(
         IsThisInitialized = true;
     }
 
+    public object? LastConstructedThis { get; set; }
+
     /// <summary>
     ///     Throws if the current evaluation has been cancelled (e.g. timed out).
     /// </summary>

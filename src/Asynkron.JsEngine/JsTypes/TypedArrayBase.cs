@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Globalization;
+using Microsoft.Extensions.Logging;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -113,7 +114,18 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
     /// <summary>
     ///     Gets the offset in bytes from the start of the ArrayBuffer.
     /// </summary>
-    public int ByteOffset => _byteOffset;
+    public int ByteOffset
+    {
+        get
+        {
+            if (_buffer.IsDetached || IsDetachedOrOutOfBounds())
+            {
+                return 0;
+            }
+
+            return _byteOffset;
+        }
+    }
 
     /// <summary>
     ///     Gets the length in bytes of the typed array.
@@ -144,12 +156,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
     {
         get
         {
-            if (IsDetachedOrOutOfBounds())
-            {
-                return 0;
-            }
-
-            return GetCurrentLength();
+            return ComputeLength();
         }
     }
 
@@ -162,6 +169,8 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
     ///     True when this typed array stores BigInt elements.
     /// </summary>
     public virtual bool IsBigIntArray => false;
+
+    internal bool IsLengthTracking => _isLengthTracking;
 
     public bool IsExtensible => _properties.IsExtensible;
 
@@ -386,13 +395,13 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
     public IEnumerable<string> GetOwnPropertyKeysInOrder(bool includeSymbols = true, bool includeNonEnumerable = true)
     {
-        if (IsDetachedOrOutOfBounds())
+        if (_buffer.IsDetached)
         {
             return _properties.GetOwnPropertyKeysInOrder(includeSymbols, includeNonEnumerable);
         }
 
         var keys = new List<string>();
-        var length = Length;
+        var length = ComputeLength();
         for (var i = 0; i < length; i++)
         {
             keys.Add(i.ToString(CultureInfo.InvariantCulture));
@@ -404,13 +413,13 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
     public IEnumerable<string> GetEnumerablePropertyNames()
     {
-        if (IsDetachedOrOutOfBounds())
+        if (_buffer.IsDetached)
         {
             return _properties.GetEnumerablePropertyNames();
         }
 
         var keys = new List<string>();
-        var length = Length;
+        var length = ComputeLength();
         for (var i = 0; i < length; i++)
         {
             keys.Add(i.ToString(CultureInfo.InvariantCulture));
@@ -420,20 +429,36 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         return keys;
     }
 
-    protected int GetCurrentLength()
+    private int ComputeLength()
     {
         if (_buffer.IsDetached)
         {
             return 0;
         }
 
+        int length;
         if (_isLengthTracking)
         {
             var availableBytes = Math.Max(_buffer.ByteLength - _byteOffset, 0);
-            return availableBytes / _bytesPerElement;
+            length = availableBytes / _bytesPerElement;
+        }
+        else
+        {
+            // Fixed-length view on resizable buffer stays at initial length when in-bounds.
+            var requiredBytes = _byteOffset + _initialLength * _bytesPerElement;
+            length = _buffer.ByteLength >= requiredBytes ? _initialLength : 0;
         }
 
-        return _initialLength;
+        _buffer.RealmState?.Logger?.LogInformation(
+            "TypedArray.ComputeLength tracking={Tracking} initial={Initial} byteLength={ByteLength} offset={Offset} bpe={Bpe} result={Result}",
+            _isLengthTracking,
+            _initialLength,
+            _buffer.ByteLength,
+            _byteOffset,
+            _bytesPerElement,
+            length);
+
+        return length;
     }
 
     private static double ToIntegerOrInfinity(object? value, EvaluationContext? context)
@@ -734,7 +759,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             throw CreateOutOfBoundsTypeError();
         }
 
-        var currentLength = GetCurrentLength();
+        var currentLength = ComputeLength();
         if (index >= currentLength)
         {
             return Symbol.Undefined;
@@ -896,7 +921,8 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             return _byteOffset > _buffer.ByteLength;
         }
 
-        return _buffer.ByteLength < _byteOffset + _initialLength * _bytesPerElement;
+        // Fixed-length view is out-of-bounds only when required bytes exceed current buffer length.
+        return _byteOffset + _initialLength * _bytesPerElement > _buffer.ByteLength;
     }
 
     private static bool SameValueZero(object? left, object? right)

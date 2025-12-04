@@ -4,6 +4,7 @@ using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -190,6 +191,14 @@ public static partial class TypedAstEvaluator
                     callResult = typedFunction.InvokeWithContext(frozenArguments, thisValue, context,
                         newTargetForCall);
                 }
+                else if (callable is HostFunction hostFunction)
+                {
+                    callResult = hostFunction.InvokeWithContext(
+                        frozenArguments,
+                        thisValue,
+                        context,
+                        newTargetForCall);
+                }
                 else
                 {
                     callResult = callable.Invoke(frozenArguments, thisValue);
@@ -203,6 +212,15 @@ public static partial class TypedAstEvaluator
                         thisAfterSuper = thisValue;
                     }
 
+                    if (context is not null)
+                    {
+                        context.LastConstructedThis = thisAfterSuper;
+                    }
+
+                    context.RealmState?.Logger?.LogInformation(
+                        "Super call produced this type={Type}",
+                        thisAfterSuper?.GetType().Name ?? "null");
+
                     if (thisInitializationEnvironment is not null &&
                         thisInitializationEnvironment.TryGet(Symbol.ThisInitialized, out var alreadyInitialized) &&
                         JsOps.ToBoolean(alreadyInitialized))
@@ -212,7 +230,33 @@ public static partial class TypedAstEvaluator
                     }
 
                     var targetEnvironment = thisInitializationEnvironment ?? environment;
+                    bool hasThisBinding = targetEnvironment.HasBinding(Symbol.This);
+                    string beforeType;
+                    try
+                    {
+                        targetEnvironment.TryGet(Symbol.This, out var existingThis);
+                        beforeType = existingThis?.GetType().Name ?? "null";
+                    }
+                    catch (Exception ex)
+                    {
+                        beforeType = ex.GetType().Name;
+                    }
+                    context.RealmState?.Logger?.LogInformation(
+                        "Super assigning this (hasBinding={HasBinding}, beforeType={BeforeType})",
+                        hasThisBinding,
+                        beforeType);
                     targetEnvironment.Assign(Symbol.This, thisAfterSuper);
+                    try
+                    {
+                        targetEnvironment.TryGet(Symbol.This, out var afterThis);
+                        context.RealmState?.Logger?.LogInformation("Super assigned this now type={Type}",
+                            afterThis?.GetType().Name ?? "null");
+                    }
+                    catch (Exception ex)
+                    {
+                        context.RealmState?.Logger?.LogInformation("Super assigned this lookup failed {ErrorType}",
+                            ex.GetType().Name);
+                    }
 
                     if (targetEnvironment.TryGet(Symbol.Super, out var superBinding) &&
                         superBinding is SuperBinding binding)

@@ -39,11 +39,18 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(error);
             }
 
-            var instance = new JsObject();
-            if (TryGetPropertyValue(constructor, "prototype", out var prototype) &&
-                prototype is IJsPropertyAccessor protoAccessor)
+            var typedConstructor = constructor as TypedFunction;
+            var isDerivedClassCtor = typedConstructor?.IsDerivedClassConstructor == true;
+
+            JsObject? instance = null;
+            if (!isDerivedClassCtor)
             {
-                instance.SetPrototype(protoAccessor);
+                instance = new JsObject();
+                if (TryGetPropertyValue(constructor, "prototype", out var prototype) &&
+                    prototype is IJsPropertyAccessor protoAccessor)
+                {
+                    instance.SetPrototype(protoAccessor);
+                }
             }
 
             var args = ImmutableArray.CreateBuilder<object?>(expression.Arguments.Length);
@@ -57,17 +64,23 @@ public static partial class TypedAstEvaluator
             }
 
             object? result;
-            instance.BeginConstruction();
+            instance?.BeginConstruction();
             try
             {
-                if (callable is TypedFunction typedFunction)
+                object? receiver = isDerivedClassCtor ? Symbol.Undefined : instance;
+                if (typedConstructor is not null)
                 {
-                    result = typedFunction.InvokeWithContext(args.MoveToImmutable(), instance, context,
+                    result = typedConstructor.InvokeWithContext(args.MoveToImmutable(), receiver, context,
+                        constructor);
+                }
+                else if (callable is HostFunction hostFn)
+                {
+                    result = hostFn.InvokeWithContext(args.MoveToImmutable(), receiver, context,
                         constructor);
                 }
                 else
                 {
-                    result = callable.Invoke(args.MoveToImmutable(), instance);
+                    result = callable.Invoke(args.MoveToImmutable(), receiver);
                 }
             }
             catch (ThrowSignal signal)
@@ -77,7 +90,7 @@ public static partial class TypedAstEvaluator
             }
             finally
             {
-                instance.EndConstruction();
+                instance?.EndConstruction();
             }
 
             // In JavaScript, constructors can explicitly return an object to override the
@@ -90,7 +103,7 @@ public static partial class TypedAstEvaluator
             {
                 IJsPropertyAccessor => result,
                 IJsCallable => result,
-                _ => instance
+                _ => instance ?? result
             };
         }
     }

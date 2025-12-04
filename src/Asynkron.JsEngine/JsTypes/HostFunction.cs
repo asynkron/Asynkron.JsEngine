@@ -9,13 +9,14 @@ namespace Asynkron.JsEngine.JsTypes;
 /// <summary>
 ///     Represents a host function that can be called from JavaScript.
 /// </summary>
-public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl,
-    IPrototypeAccessorProvider,
-    IJsEnvironmentAwareCallable
-{
-    private readonly Func<object?, IReadOnlyList<object?>, object?> _handler;
-    private bool _isConstructor = true;
-    private RealmState? _realmState;
+    public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl,
+        IPrototypeAccessorProvider,
+        IJsEnvironmentAwareCallable
+    {
+        private readonly Func<object?, IReadOnlyList<object?>, object?> _handler;
+        private Func<IReadOnlyList<object?>, object?, EvaluationContext?, object?, object?>? _invokeWithContext;
+        private bool _isConstructor = true;
+        private RealmState? _realmState;
 
     public HostFunction(Func<IReadOnlyList<object?>, object?> handler, RealmState? realmState = null,
         bool isConstructor = true)
@@ -128,10 +129,30 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
         Properties.PreventExtensions();
     }
 
-    public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
-    {
-        return _handler(thisValue, arguments);
-    }
+        public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
+        {
+            return _handler(thisValue, arguments);
+        }
+
+        public object? InvokeWithContext(
+            IReadOnlyList<object?> arguments,
+            object? thisValue,
+            EvaluationContext? context,
+            object? newTarget = null)
+        {
+            if (_invokeWithContext is null)
+            {
+                return _handler(thisValue, arguments);
+            }
+
+            return _invokeWithContext(arguments, thisValue, context, newTarget);
+        }
+
+        public void SetInvokeWithContext(
+            Func<IReadOnlyList<object?>, object?, EvaluationContext?, object?, object?> handler)
+        {
+            _invokeWithContext = handler ?? throw new ArgumentNullException(nameof(handler));
+        }
 
     /// <summary>
     ///     Captures the environment that invoked this host function so nested

@@ -297,11 +297,18 @@ public static partial class StandardLibrary
             return new JsArray(moduleNamespace.OwnKeys(), realm);
         }
 
-        if (target is JsObject jsObject)
+        if (target is IJsPropertyAccessor accessor)
         {
             var ordered = new JsArray(realm);
-            foreach (var key in jsObject.GetOwnPropertyNames())
+            foreach (var key in accessor.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
             {
+                if (key.StartsWith("__getter__", StringComparison.Ordinal) ||
+                    key.StartsWith("__setter__", StringComparison.Ordinal) ||
+                    string.Equals(key, "__proto__", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
                 ordered.Push(key);
             }
 

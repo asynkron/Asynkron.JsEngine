@@ -1,5 +1,6 @@
 using System;
 using Asynkron.JsEngine.JsTypes;
+using Microsoft.Extensions.Logging;
 using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Ast;
@@ -71,6 +72,8 @@ public static partial class TypedAstEvaluator
     {
         if (IsNullish(target))
         {
+            context.RealmState?.Logger?.LogInformation("AssignPropertyValue nullish target property={PropertyName}",
+                propertyName);
             var error = StandardLibrary.CreateTypeError(
                 "Cannot set property on null or undefined.",
                 context,

@@ -76,7 +76,7 @@ public sealed class JsBigInt64Array(JsArrayBuffer buffer, int byteOffset, int le
             return Symbol.Undefined;
         }
 
-        var currentLength = GetCurrentLength();
+        var currentLength = Length;
         if (index < 0 || index >= currentLength)
         {
             return Symbol.Undefined;

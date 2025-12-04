@@ -34,43 +34,44 @@ public static partial class StandardLibrary
             var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
             var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
 
-            object? ProjectTypedArrayValue(IJsPropertyAccessor accessor, uint idx)
-            {
-                if (accessor is TypedArrayBase typed)
-                {
-                    return typed.GetValueForIndex((int)idx);
-                }
-
-                var key = idx.ToString(CultureInfo.InvariantCulture);
-                return JsOps.TryGetPropertyValue(accessor, key, out var value) ? value : Symbol.Undefined;
-            }
-
             var valuesIterator = new HostFunction((thisValue, _) =>
             {
-                var accessor = EnsureArrayLikeReceiver(thisValue, "%TypedArray%.prototype.values", realm);
-                return CreateArrayIteratorObject(accessor, idx => ProjectTypedArrayValue(accessor, idx), realm);
-            }, realm);
+                var typedArray = ValidateTypedArrayReceiver(thisValue, "%TypedArray%.prototype.values", realm);
+                return CreateArrayIteratorObject(typedArray, idx => typedArray.GetValueForIndex((int)idx), realm);
+            }, realm, isConstructor: false);
+            valuesIterator.DefineProperty("name",
+                new PropertyDescriptor { Value = "values", Writable = false, Enumerable = false, Configurable = true });
+            valuesIterator.DefineProperty("length",
+                new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
 
             var keysIterator = new HostFunction((thisValue, _) =>
-                CreateArrayIteratorObject(
-                    EnsureArrayLikeReceiver(thisValue, "%TypedArray%.prototype.keys", realm),
-                    idx => (double)idx,
-                    realm), realm);
+            {
+                var typedArray = ValidateTypedArrayReceiver(thisValue, "%TypedArray%.prototype.keys", realm);
+                return CreateArrayIteratorObject(typedArray, idx => (double)idx, realm);
+            }, realm, isConstructor: false);
+            keysIterator.DefineProperty("name",
+                new PropertyDescriptor { Value = "keys", Writable = false, Enumerable = false, Configurable = true });
+            keysIterator.DefineProperty("length",
+                new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
 
             var entriesIterator = new HostFunction((thisValue, _) =>
             {
-                var accessor = EnsureArrayLikeReceiver(thisValue, "%TypedArray%.prototype.entries", realm);
+                var typedArray = ValidateTypedArrayReceiver(thisValue, "%TypedArray%.prototype.entries", realm);
                 return CreateArrayIteratorObject(
-                    accessor,
+                    typedArray,
                     idx =>
                     {
                         var pair = new JsArray(realm);
                         pair.Push((double)idx);
-                        pair.Push(ProjectTypedArrayValue(accessor, idx));
+                        pair.Push(typedArray.GetValueForIndex((int)idx));
                         return pair;
                     },
                     realm);
-            }, realm);
+            }, realm, isConstructor: false);
+            entriesIterator.DefineProperty("name",
+                new PropertyDescriptor { Value = "entries", Writable = false, Enumerable = false, Configurable = true });
+            entriesIterator.DefineProperty("length",
+                new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
 
             proto.DefineProperty(iteratorKey,
                 new PropertyDescriptor
@@ -80,12 +81,19 @@ public static partial class StandardLibrary
                     Enumerable = false,
                     Configurable = true
                 });
-            proto.SetProperty("values", valuesIterator);
-            proto.SetProperty("keys", keysIterator);
-            proto.SetProperty("entries", entriesIterator);
+            proto.DefineProperty("values",
+                new PropertyDescriptor { Value = valuesIterator, Writable = true, Enumerable = false, Configurable = true });
+            proto.DefineProperty("keys",
+                new PropertyDescriptor { Value = keysIterator, Writable = true, Enumerable = false, Configurable = true });
+            proto.DefineProperty("entries",
+                new PropertyDescriptor { Value = entriesIterator, Writable = true, Enumerable = false, Configurable = true });
             DefineTypedArrayFunction(proto, "map", 1d, TypedArrayMap, realm);
             DefineTypedArrayFunction(proto, "filter", 1d, TypedArrayFilter, realm);
             DefineTypedArrayFunction(proto, "every", 1d, TypedArrayEvery, realm);
+            DefineTypedArrayFunction(proto, "find", 1d, TypedArrayFind, realm);
+            DefineTypedArrayFunction(proto, "findIndex", 1d, TypedArrayFindIndex, realm);
+            DefineTypedArrayFunction(proto, "findLast", 1d, TypedArrayFindLast, realm);
+            DefineTypedArrayFunction(proto, "findLastIndex", 1d, TypedArrayFindLastIndex, realm);
             DefineTypedArrayFunction(proto, "forEach", 1d, TypedArrayForEach, realm);
             DefineTypedArrayFunction(proto, "fill", 1d, TypedArrayFill, realm);
             DefineTypedArrayFunction(proto, "copyWithin", 2d, TypedArrayCopyWithin, realm);
@@ -233,18 +241,27 @@ public static partial class StandardLibrary
         Func<JsArray, RealmState?, T> fromArray,
         Func<JsArrayBuffer, int, int, bool, RealmState?, T> fromBuffer,
         int bytesPerElement,
+        string constructorName,
         RealmState realm) where T : TypedArrayBase
     {
         var sharedTypedArrayCtor = EnsureTypedArrayIntrinsic(realm);
         var sharedPrototype = realm.TypedArrayPrototype;
         var prototype = new JsObject();
 
-        var constructor = new HostFunction(TypedArrayCtor);
+        HostFunction constructor = null!;
+        constructor = new HostFunction((thisValue, args) => ConstructTypedArray(args, thisValue ?? constructor));
         constructor.RealmState = realm;
+        constructor.SetInvokeWithContext(
+            (args, _, _, newTarget) => ConstructTypedArray(args, newTarget ?? constructor));
 
         constructor.SetProperty("BYTES_PER_ELEMENT", (double)bytesPerElement);
         prototype.SetPrototype(realm.ObjectPrototype);
         prototype.SetProperty("constructor", constructor);
+        constructor.DefineProperty("name",
+            new PropertyDescriptor
+            {
+                Value = constructorName, Writable = false, Enumerable = false, Configurable = true
+            });
         constructor.DefineProperty("of",
             new PropertyDescriptor
             {
@@ -286,30 +303,117 @@ public static partial class StandardLibrary
 
         return constructor;
 
-        object? TypedArrayCtor(object? _, IReadOnlyList<object?> args)
+        IJsPropertyAccessor ResolvePrototype(object? newTarget)
+        {
+            if (newTarget is IJsPropertyAccessor accessor &&
+                accessor.TryGetProperty("prototype", out var protoVal) &&
+                protoVal is IJsPropertyAccessor protoObj)
+            {
+                return protoObj;
+            }
+
+            if (newTarget is not null &&
+                TryGetRealmInfo(newTarget, out var newTargetRealmState, out var newTargetRealmObject))
+            {
+                var realmGlobal = newTargetRealmObject ?? newTargetRealmState?.Engine?.GlobalObject;
+                if (realmGlobal is not null &&
+                    realmGlobal.TryGetProperty(constructorName, out var realmCtor) &&
+                    realmCtor is IJsPropertyAccessor realmCtorAccessor &&
+                    realmCtorAccessor.TryGetProperty("prototype", out var realmProtoVal) &&
+                    realmProtoVal is IJsPropertyAccessor realmProto)
+                {
+                    return realmProto;
+                }
+
+                if (newTargetRealmState?.TypedArrayPrototype is IJsPropertyAccessor typedProto)
+                {
+                    return typedProto;
+                }
+            }
+
+            return prototype;
+        }
+
+        T CreateTargetFromLength(int length, object? newTarget)
+        {
+            var target = fromLength(length, realm);
+            target.SetPrototype(ResolvePrototype(newTarget));
+            return target;
+        }
+
+        object? ConstructTypedArray(IReadOnlyList<object?> args, object? newTarget)
         {
             if (args.Count == 0)
             {
-                var ta = fromLength(0, realm);
-                ta.SetPrototype(prototype);
-                return ta;
+                return CreateTargetFromLength(0, newTarget);
             }
 
             var firstArg = args[0];
+            realm.Logger?.LogInformation(
+                "TypedArray ctor entry {Ctor} arg0Type={ArgType} newTargetType={NewTargetType}",
+                constructorName,
+                firstArg?.GetType().Name ?? "null",
+                newTarget?.GetType().Name ?? "null");
 
             // TypedArray(length)
             if (firstArg is double d)
             {
-                var ta = fromLength((int)d, realm);
-                ta.SetPrototype(prototype);
-                return ta;
+                return CreateTargetFromLength((int)d, newTarget);
             }
 
             // TypedArray(array)
             if (firstArg is JsArray array)
             {
                 var ta = fromArray(array, realm);
-                ta.SetPrototype(prototype);
+                ta.SetPrototype(ResolvePrototype(newTarget));
+                return ta;
+            }
+
+            // TypedArray(typedArray)
+            if (firstArg is TypedArrayBase srcTypedArray)
+            {
+                if (srcTypedArray.IsDetachedOrOutOfBounds())
+                {
+                    throw srcTypedArray.CreateOutOfBoundsTypeError();
+                }
+
+                var length = srcTypedArray.Length;
+                realm.Logger?.LogInformation(
+                    "TypedArray ctor from typed array: srcLength={Length} srcType={Type} bufferLength={BufferLength} offset={Offset} tracking={Tracking} resizable={Resizable}",
+                    length,
+                    srcTypedArray.GetType().Name,
+                    srcTypedArray.Buffer.ByteLength,
+                    srcTypedArray.ByteOffset,
+                    srcTypedArray.IsLengthTracking,
+                    srcTypedArray.Buffer.Resizable);
+                var ta = CreateTargetFromLength(length, newTarget);
+                realm.Logger?.LogInformation("TypedArray ctor target length={Length} newTarget={NewTargetType}", ta.Length,
+                    newTarget?.GetType().Name ?? "null");
+                if (length == 0)
+                {
+                    realm.Logger?.LogInformation(
+                        "TypedArray ctor from typed array zero-length source type={Type} bufferLength={BufferLength} offset={Offset} resizable={Resizable}",
+                        srcTypedArray.GetType().Name,
+                        srcTypedArray.Buffer.ByteLength,
+                        srcTypedArray.ByteOffset,
+                        srcTypedArray.Buffer.Resizable);
+                }
+
+                for (var i = 0; i < length; i++)
+                {
+                    object? value = srcTypedArray switch
+                    {
+                        JsBigInt64Array bi64 => bi64.GetBigIntElement(i),
+                        JsBigUint64Array bu64 => bu64.GetBigIntElement(i),
+                        _ => srcTypedArray.GetValueForIndex(i)
+                    };
+                    if (i < 8)
+                    {
+                        realm.Logger?.LogInformation("TypedArray ctor copy [{Index}]={Value}", i, value);
+                    }
+                    ta.SetValue(i, value);
+                }
+
                 return ta;
             }
 
@@ -325,13 +429,11 @@ public static partial class StandardLibrary
                 var isLengthTracking = buffer.Resizable && !lengthProvided;
 
                 var ta = fromBuffer(buffer, byteOffset, length, isLengthTracking, realm);
-                ta.SetPrototype(prototype);
+                ta.SetPrototype(ResolvePrototype(newTarget));
                 return ta;
             }
 
-            var fallback = fromLength(0, realm);
-            fallback.SetPrototype(prototype);
-            return fallback;
+            return CreateTargetFromLength(0, newTarget);
         }
 
         object? TypedArrayOf(object? thisValue, IReadOnlyList<object?> args)
@@ -359,6 +461,7 @@ public static partial class StandardLibrary
         object? TypedArrayFrom(object? thisValue, IReadOnlyList<object?> args)
         {
             var callingEnv = (thisValue as HostFunction)?.CallingJsEnvironment;
+            var targetProtoSource = thisValue ?? constructor;
             IJsCallable? mapFn = null;
             object? mapThis = Symbol.Undefined;
 
@@ -513,7 +616,7 @@ public static partial class StandardLibrary
             TypedArrayBase CreateTarget(int length)
             {
                 var target = fromLength(length, realm);
-                target.SetPrototype(prototype);
+                target.SetPrototype(ResolvePrototype(targetProtoSource));
                 return target;
             }
 
@@ -531,6 +634,7 @@ public static partial class StandardLibrary
             JsInt8Array.FromArray,
             (buffer, offset, length, isLengthTracking, _) => new JsInt8Array(buffer, offset, length, isLengthTracking),
             JsInt8Array.BYTES_PER_ELEMENT,
+            "Int8Array",
             realm);
     }
 
@@ -542,6 +646,7 @@ public static partial class StandardLibrary
             (buffer, offset, length, isLengthTracking, _) =>
                 new JsUint8Array(buffer, offset, length, isLengthTracking),
             JsUint8Array.BYTES_PER_ELEMENT,
+            "Uint8Array",
             realm);
     }
 
@@ -553,6 +658,7 @@ public static partial class StandardLibrary
             (buffer, offset, length, isLengthTracking, _) =>
                 new JsUint8ClampedArray(buffer, offset, length, isLengthTracking),
             JsUint8ClampedArray.BYTES_PER_ELEMENT,
+            "Uint8ClampedArray",
             realm);
     }
 
@@ -564,6 +670,7 @@ public static partial class StandardLibrary
             (buffer, offset, length, isLengthTracking, _) =>
                 new JsInt16Array(buffer, offset, length, isLengthTracking),
             JsInt16Array.BYTES_PER_ELEMENT,
+            "Int16Array",
             realm);
     }
 
@@ -575,6 +682,7 @@ public static partial class StandardLibrary
             (buffer, offset, length, isLengthTracking, _) =>
                 new JsUint16Array(buffer, offset, length, isLengthTracking),
             JsUint16Array.BYTES_PER_ELEMENT,
+            "Uint16Array",
             realm);
     }
 
@@ -586,6 +694,7 @@ public static partial class StandardLibrary
             (buffer, offset, length, isLengthTracking, _) =>
                 new JsInt32Array(buffer, offset, length, isLengthTracking),
             JsInt32Array.BYTES_PER_ELEMENT,
+            "Int32Array",
             realm);
     }
 
@@ -597,6 +706,7 @@ public static partial class StandardLibrary
             (buffer, offset, length, isLengthTracking, _) =>
                 new JsUint32Array(buffer, offset, length, isLengthTracking),
             JsUint32Array.BYTES_PER_ELEMENT,
+            "Uint32Array",
             realm);
     }
 
@@ -608,6 +718,7 @@ public static partial class StandardLibrary
             (buffer, offset, length, isLengthTracking, _) =>
                 new JsFloat32Array(buffer, offset, length, isLengthTracking),
             JsFloat32Array.BYTES_PER_ELEMENT,
+            "Float32Array",
             realm);
     }
 
@@ -619,6 +730,7 @@ public static partial class StandardLibrary
             (buffer, offset, length, isLengthTracking, _) =>
                 new JsFloat64Array(buffer, offset, length, isLengthTracking),
             JsFloat64Array.BYTES_PER_ELEMENT,
+            "Float64Array",
             realm);
     }
 
@@ -630,6 +742,7 @@ public static partial class StandardLibrary
             (buffer, offset, length, isLengthTracking, _) =>
                 new JsBigInt64Array(buffer, offset, length, isLengthTracking),
             JsBigInt64Array.BYTES_PER_ELEMENT,
+            "BigInt64Array",
             realm);
     }
 
@@ -641,6 +754,7 @@ public static partial class StandardLibrary
             (buffer, offset, length, isLengthTracking, _) =>
                 new JsBigUint64Array(buffer, offset, length, isLengthTracking),
             JsBigUint64Array.BYTES_PER_ELEMENT,
+            "BigUint64Array",
             realm);
     }
 
@@ -865,6 +979,158 @@ public static partial class StandardLibrary
         }
 
         return true;
+    }
+
+    private static object? TypedArrayFind(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (thisValue is not TypedArrayBase typedArray)
+        {
+            throw ThrowTypeError("TypedArray.prototype.find called on incompatible receiver", realm: realm);
+        }
+
+        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            throw ThrowTypeError("TypedArray.prototype.find expects a callable callback", realm: realm);
+        }
+
+        var thisArg = args.GetArgument(1);
+        if (callback is IJsEnvironmentAwareCallable envAware && realm?.Engine?.GlobalEnvironment is { } globalEnv)
+        {
+            envAware.CallingJsEnvironment = globalEnv;
+        }
+
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            throw typedArray.CreateOutOfBoundsTypeError();
+        }
+
+        var length = typedArray.Length;
+        for (var k = 0; k < length; k++)
+        {
+            var key = k.ToString(CultureInfo.InvariantCulture);
+            var value = typedArray.TryGetProperty(key, typedArray, out var candidate) ? candidate : Symbol.Undefined;
+            var match = callback.Invoke([value, (double)k, typedArray], thisArg);
+            if (IsTruthy(match))
+            {
+                return value;
+            }
+        }
+
+        return Symbol.Undefined;
+    }
+
+    private static object? TypedArrayFindIndex(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (thisValue is not TypedArrayBase typedArray)
+        {
+            throw ThrowTypeError("TypedArray.prototype.findIndex called on incompatible receiver", realm: realm);
+        }
+
+        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            throw ThrowTypeError("TypedArray.prototype.findIndex expects a callable callback", realm: realm);
+        }
+
+        var thisArg = args.GetArgument(1);
+        if (callback is IJsEnvironmentAwareCallable envAware && realm?.Engine?.GlobalEnvironment is { } globalEnv)
+        {
+            envAware.CallingJsEnvironment = globalEnv;
+        }
+
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            throw typedArray.CreateOutOfBoundsTypeError();
+        }
+
+        var length = typedArray.Length;
+        for (var k = 0; k < length; k++)
+        {
+            var key = k.ToString(CultureInfo.InvariantCulture);
+            var value = typedArray.TryGetProperty(key, typedArray, out var candidate) ? candidate : Symbol.Undefined;
+            var match = callback.Invoke([value, (double)k, typedArray], thisArg);
+            if (IsTruthy(match))
+            {
+                return (double)k;
+            }
+        }
+
+        return -1d;
+    }
+
+    private static object? TypedArrayFindLast(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (thisValue is not TypedArrayBase typedArray)
+        {
+            throw ThrowTypeError("TypedArray.prototype.findLast called on incompatible receiver", realm: realm);
+        }
+
+        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            throw ThrowTypeError("TypedArray.prototype.findLast expects a callable callback", realm: realm);
+        }
+
+        var thisArg = args.GetArgument(1);
+        if (callback is IJsEnvironmentAwareCallable envAware && realm?.Engine?.GlobalEnvironment is { } globalEnv)
+        {
+            envAware.CallingJsEnvironment = globalEnv;
+        }
+
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            throw typedArray.CreateOutOfBoundsTypeError();
+        }
+
+        var length = typedArray.Length;
+        for (var k = length - 1; k >= 0; k--)
+        {
+            var key = k.ToString(CultureInfo.InvariantCulture);
+            var value = typedArray.TryGetProperty(key, typedArray, out var candidate) ? candidate : Symbol.Undefined;
+            var match = callback.Invoke([value, (double)k, typedArray], thisArg);
+            if (IsTruthy(match))
+            {
+                return value;
+            }
+        }
+
+        return Symbol.Undefined;
+    }
+
+    private static object? TypedArrayFindLastIndex(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        if (thisValue is not TypedArrayBase typedArray)
+        {
+            throw ThrowTypeError("TypedArray.prototype.findLastIndex called on incompatible receiver", realm: realm);
+        }
+
+        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        {
+            throw ThrowTypeError("TypedArray.prototype.findLastIndex expects a callable callback", realm: realm);
+        }
+
+        var thisArg = args.GetArgument(1);
+        if (callback is IJsEnvironmentAwareCallable envAware && realm?.Engine?.GlobalEnvironment is { } globalEnv)
+        {
+            envAware.CallingJsEnvironment = globalEnv;
+        }
+
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            throw typedArray.CreateOutOfBoundsTypeError();
+        }
+
+        var length = typedArray.Length;
+        for (var k = length - 1; k >= 0; k--)
+        {
+            var key = k.ToString(CultureInfo.InvariantCulture);
+            var value = typedArray.TryGetProperty(key, typedArray, out var candidate) ? candidate : Symbol.Undefined;
+            var match = callback.Invoke([value, (double)k, typedArray], thisArg);
+            if (IsTruthy(match))
+            {
+                return (double)k;
+            }
+        }
+
+        return -1d;
     }
 
     private static object? TypedArrayForEach(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
@@ -1320,6 +1586,21 @@ public static partial class StandardLibrary
         }
 
         return TypedArrayBase.IncludesInternal(typed, args);
+    }
+
+    private static TypedArrayBase ValidateTypedArrayReceiver(object? thisValue, string methodName, RealmState? realm)
+    {
+        if (thisValue is not TypedArrayBase typedArray)
+        {
+            throw ThrowTypeError($"{methodName} called on incompatible receiver", realm: realm);
+        }
+
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            throw typedArray.CreateOutOfBoundsTypeError();
+        }
+
+        return typedArray;
     }
 
     private static TypedArrayBase TypedArraySpeciesCreate(TypedArrayBase exemplar, int length, RealmState? realm)

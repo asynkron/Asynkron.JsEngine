@@ -104,7 +104,8 @@ assert.compareArray = function(actual, expected, message) {
           ctor: expected.constructor && expected.constructor.name
         }
       : { type: typeof expected };
-    throw new Error(`Actual ${format(actual)} and expected ${format(expected)} should have the same contents. ${message} (mismatch=${mismatch}, actualTypes=${actualTypes}, lengths=${actual.length}/${expected.length}, lengthTypes=${actualLengthType}/${expectedLengthType}, perIndex=${perIndex.join(',')}, comparisonDebug=${JSON.stringify(comparisonDebug)}, actualInfo=${JSON.stringify(actualInfo)}, expectedInfo=${JSON.stringify(expectedInfo)}, compareArraySource=${compareArray.toString()}, patched=${compareArray.__patchedByAsynkron}, failure=${JSON.stringify(compareArray.__lastFailure)}, lastResult=${compareArray.__lastResult}, callCount=${compareArray.__callCount})`);
+    var stack = new Error().stack;
+    throw new Error(`Actual ${format(actual)} and expected ${format(expected)} should have the same contents. ${message} (mismatch=${mismatch}, actualTypes=${actualTypes}, lengths=${actual.length}/${expected.length}, lengthTypes=${actualLengthType}/${expectedLengthType}, perIndex=${perIndex.join(',')}, comparisonDebug=${JSON.stringify(comparisonDebug)}, actualInfo=${JSON.stringify(actualInfo)}, expectedInfo=${JSON.stringify(expectedInfo)}, compareArraySource=${compareArray.toString()}, patched=${compareArray.__patchedByAsynkron}, failure=${JSON.stringify(compareArray.__lastFailure)}, lastResult=${compareArray.__lastResult}, callCount=${compareArray.__callCount}, stack=${stack})`);
   }
 };
 

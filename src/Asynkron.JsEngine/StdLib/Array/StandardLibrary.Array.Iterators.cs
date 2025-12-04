@@ -32,17 +32,17 @@ public static partial class StandardLibrary
 
         object? Next(object? _, IReadOnlyList<object?> __, RealmState? ___)
         {
-            if (typedAccessor is not null && typedAccessor.IsDetachedOrOutOfBounds())
-            {
-                throw typedAccessor.CreateOutOfBoundsTypeError();
-            }
-
             if (exhausted)
             {
                 var doneResult = new JsObject(realm?.ObjectPrototype);
                 doneResult.SetProperty("value", Symbol.Undefined);
                 doneResult.SetProperty("done", true);
                 return doneResult;
+            }
+
+            if (typedAccessor is not null && typedAccessor.IsDetachedOrOutOfBounds())
+            {
+                throw typedAccessor.CreateOutOfBoundsTypeError();
             }
 
             var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;

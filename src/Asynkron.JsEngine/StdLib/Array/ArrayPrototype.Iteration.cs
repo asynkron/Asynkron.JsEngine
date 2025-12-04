@@ -101,10 +101,8 @@ public sealed partial class ArrayPrototype
 
         for (long k = 0; k < length; k++)
         {
-            if (!TryGetExistingElement(accessor, k, out var value))
-            {
-                continue;
-            }
+            var key = ToIndexString(k);
+            var value = accessor.TryGetProperty(key, out var candidate) ? candidate : Symbol.Undefined;
 
             var match = callback.Invoke([value, (double)k, accessor], thisArg);
             if (IsTruthy(match))
@@ -124,10 +122,8 @@ public sealed partial class ArrayPrototype
 
         for (long k = 0; k < length; k++)
         {
-            if (!TryGetExistingElement(accessor, k, out var value))
-            {
-                continue;
-            }
+            var key = ToIndexString(k);
+            var value = accessor.TryGetProperty(key, out var candidate) ? candidate : Symbol.Undefined;
 
             var match = callback.Invoke([value, (double)k, accessor], thisArg);
             if (IsTruthy(match))
@@ -178,10 +174,8 @@ public sealed partial class ArrayPrototype
 
         for (var k = length - 1; k >= 0; k--)
         {
-            if (!TryGetExistingElement(accessor, k, out var value))
-            {
-                continue;
-            }
+            var key = ToIndexString(k);
+            var value = accessor.TryGetProperty(key, out var candidate) ? candidate : Symbol.Undefined;
 
             var matches = callback.Invoke([value, (double)k, accessor], thisArg);
             if (IsTruthy(matches))
@@ -201,10 +195,8 @@ public sealed partial class ArrayPrototype
 
         for (var k = length - 1; k >= 0; k--)
         {
-            if (!TryGetExistingElement(accessor, k, out var value))
-            {
-                continue;
-            }
+            var key = ToIndexString(k);
+            var value = accessor.TryGetProperty(key, out var candidate) ? candidate : Symbol.Undefined;
 
             var matches = callback.Invoke([value, (double)k, accessor], thisArg);
             if (IsTruthy(matches))

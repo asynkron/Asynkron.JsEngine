@@ -14,6 +14,7 @@ namespace Asynkron.JsEngine;
 /// </summary>
 public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationContextAwareCallable, IJsPropertyAccessor
 {
+    internal static readonly Symbol FieldInitializerEvalFlag = Symbol.Intern("#classFieldInitializerEval");
     private readonly JsEngine _engine;
     private readonly JsObject _properties = new();
 
@@ -32,6 +33,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
     ///     This allows eval to execute code in the caller's scope.
     /// </summary>
     public JsEnvironment? CallingJsEnvironment { get; set; }
+
+    internal bool InClassFieldInitializer { get; set; }
 
     internal bool IsDirectCall { get; set; }
 
@@ -86,6 +89,18 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             throw StandardLibrary.ThrowSyntaxError(
                 "Cannot use module declarations within eval code.",
+                CallingContext,
+                environment.RealmState);
+        }
+
+        var insideClassFieldInitializer = InClassFieldInitializer ||
+                                          CallingContext?.InClassFieldInitializer == true ||
+                                          (CallingJsEnvironment?.HasBinding(FieldInitializerEvalFlag) ?? false);
+        var containsSuperInInitializer = ContainsSuperReference(program.Typed.Body, includeFunctionBodies: true);
+        if (insideClassFieldInitializer && containsSuperInInitializer)
+        {
+            throw StandardLibrary.ThrowSyntaxError(
+                "super references are not allowed in eval inside class field initializers.",
                 CallingContext,
                 environment.RealmState);
         }
@@ -938,11 +953,13 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         return false;
     }
 
-    private static bool ContainsSuperReference(ImmutableArray<StatementNode> statements)
+    private static bool ContainsSuperReference(
+        ImmutableArray<StatementNode> statements,
+        bool includeFunctionBodies = false)
     {
         foreach (var statement in statements)
         {
-            if (StatementContainsSuper(statement))
+            if (StatementContainsSuper(statement, includeFunctionBodies))
             {
                 return true;
             }
@@ -951,11 +968,13 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         return false;
     }
 
-    private static bool ContainsSuperCall(ImmutableArray<StatementNode> statements)
+    private static bool ContainsSuperCall(
+        ImmutableArray<StatementNode> statements,
+        bool includeFunctionBodies = false)
     {
         foreach (var statement in statements)
         {
-            if (StatementContainsSuperCall(statement))
+            if (StatementContainsSuperCall(statement, includeFunctionBodies))
             {
                 return true;
             }
@@ -1063,18 +1082,18 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
     }
 
-    private static bool StatementContainsSuperCall(StatementNode statement)
+    private static bool StatementContainsSuperCall(StatementNode statement, bool includeFunctionBodies)
     {
         while (true)
         {
             switch (statement)
             {
                 case ExpressionStatement expressionStatement:
-                    return ExpressionContainsSuperCall(expressionStatement.Expression);
+                    return ExpressionContainsSuperCall(expressionStatement.Expression, includeFunctionBodies);
                 case BlockStatement block:
                     foreach (var inner in block.Statements)
                     {
-                        if (StatementContainsSuperCall(inner))
+                        if (StatementContainsSuperCall(inner, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1082,8 +1101,9 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     return false;
                 case IfStatement ifStatement:
-                    return StatementContainsSuperCall(ifStatement.Then) ||
-                           (ifStatement.Else is not null && StatementContainsSuperCall(ifStatement.Else));
+                    return StatementContainsSuperCall(ifStatement.Then, includeFunctionBodies) ||
+                           (ifStatement.Else is not null &&
+                            StatementContainsSuperCall(ifStatement.Else, includeFunctionBodies));
                 case WhileStatement whileStatement:
                     statement = whileStatement.Body;
                     continue;
@@ -1095,17 +1115,24 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     continue;
                 case ForStatement forStatement:
                     if (forStatement.Initializer is ExpressionStatement initExpression &&
-                        ExpressionContainsSuperCall(initExpression.Expression))
+                        ExpressionContainsSuperCall(initExpression.Expression, includeFunctionBodies))
+                    {
+                        return true;
+                    }
+                    if (forStatement.Initializer is VariableDeclaration initVarDecl &&
+                        StatementContainsSuperCall(initVarDecl, includeFunctionBodies))
                     {
                         return true;
                     }
 
-                    if (forStatement.Condition is not null && ExpressionContainsSuperCall(forStatement.Condition))
+                    if (forStatement.Condition is not null &&
+                        ExpressionContainsSuperCall(forStatement.Condition, includeFunctionBodies))
                     {
                         return true;
                     }
 
-                    if (forStatement.Increment is not null && ExpressionContainsSuperCall(forStatement.Increment))
+                    if (forStatement.Increment is not null &&
+                        ExpressionContainsSuperCall(forStatement.Increment, includeFunctionBodies))
                     {
                         return true;
                     }
@@ -1113,7 +1140,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     statement = forStatement.Body;
                     continue;
                 case ForEachStatement forEachStatement:
-                    if (ExpressionContainsSuperCall(forEachStatement.Iterable))
+                    if (ExpressionContainsSuperCall(forEachStatement.Iterable, includeFunctionBodies))
                     {
                         return true;
                     }
@@ -1123,7 +1150,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case SwitchStatement switchStatement:
                     foreach (var switchCase in switchStatement.Cases)
                     {
-                        if (StatementContainsSuperCall(switchCase.Body))
+                        if (StatementContainsSuperCall(switchCase.Body, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1131,13 +1158,13 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     return false;
                 case TryStatement tryStatement:
-                    if (StatementContainsSuperCall(tryStatement.TryBlock))
+                    if (StatementContainsSuperCall(tryStatement.TryBlock, includeFunctionBodies))
                     {
                         return true;
                     }
 
                     if (tryStatement.Catch is { Body: not null } catchClause &&
-                        StatementContainsSuperCall(catchClause.Body))
+                        StatementContainsSuperCall(catchClause.Body, includeFunctionBodies))
                     {
                         return true;
                     }
@@ -1152,6 +1179,21 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case LabeledStatement labeledStatement:
                     statement = labeledStatement.Statement;
                     continue;
+                case ReturnStatement returnStatement when returnStatement.Expression is not null:
+                    return ExpressionContainsSuperCall(returnStatement.Expression, includeFunctionBodies);
+                case VariableDeclaration varDecl:
+                    foreach (var declarator in varDecl.Declarators)
+                    {
+                        if (declarator.Initializer is not null &&
+                            ExpressionContainsSuperCall(declarator.Initializer, includeFunctionBodies))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case FunctionDeclaration functionDeclaration when includeFunctionBodies:
+                    return ContainsSuperReference(functionDeclaration.Function.Body.Statements, true);
                 case FunctionDeclaration:
                 case ClassDeclaration:
                     return false;
@@ -1161,18 +1203,18 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
     }
 
-    private static bool StatementContainsSuper(StatementNode statement)
+    private static bool StatementContainsSuper(StatementNode statement, bool includeFunctionBodies)
     {
         while (true)
         {
             switch (statement)
             {
                 case ExpressionStatement expressionStatement:
-                    return ExpressionContainsSuper(expressionStatement.Expression);
+                    return ExpressionContainsSuper(expressionStatement.Expression, includeFunctionBodies);
                 case BlockStatement block:
                     foreach (var inner in block.Statements)
                     {
-                        if (StatementContainsSuper(inner))
+                        if (StatementContainsSuper(inner, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1180,8 +1222,9 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     return false;
                 case IfStatement ifStatement:
-                    return StatementContainsSuper(ifStatement.Then) ||
-                           (ifStatement.Else is not null && StatementContainsSuper(ifStatement.Else));
+                    return StatementContainsSuper(ifStatement.Then, includeFunctionBodies) ||
+                           (ifStatement.Else is not null &&
+                            StatementContainsSuper(ifStatement.Else, includeFunctionBodies));
                 case WhileStatement whileStatement:
                     statement = whileStatement.Body;
                     continue;
@@ -1193,17 +1236,24 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     continue;
                 case ForStatement forStatement:
                     if (forStatement.Initializer is ExpressionStatement initExpression &&
-                        ExpressionContainsSuper(initExpression.Expression))
+                        ExpressionContainsSuper(initExpression.Expression, includeFunctionBodies))
+                    {
+                        return true;
+                    }
+                    if (forStatement.Initializer is VariableDeclaration initVarDecl &&
+                        StatementContainsSuper(initVarDecl, includeFunctionBodies))
                     {
                         return true;
                     }
 
-                    if (forStatement.Condition is not null && ExpressionContainsSuper(forStatement.Condition))
+                    if (forStatement.Condition is not null &&
+                        ExpressionContainsSuper(forStatement.Condition, includeFunctionBodies))
                     {
                         return true;
                     }
 
-                    if (forStatement.Increment is not null && ExpressionContainsSuper(forStatement.Increment))
+                    if (forStatement.Increment is not null &&
+                        ExpressionContainsSuper(forStatement.Increment, includeFunctionBodies))
                     {
                         return true;
                     }
@@ -1211,7 +1261,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     statement = forStatement.Body;
                     continue;
                 case ForEachStatement forEachStatement:
-                    if (ExpressionContainsSuper(forEachStatement.Iterable))
+                    if (ExpressionContainsSuper(forEachStatement.Iterable, includeFunctionBodies))
                     {
                         return true;
                     }
@@ -1221,7 +1271,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case SwitchStatement switchStatement:
                     foreach (var switchCase in switchStatement.Cases)
                     {
-                        if (StatementContainsSuper(switchCase.Body))
+                        if (StatementContainsSuper(switchCase.Body, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1229,13 +1279,13 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     return false;
                 case TryStatement tryStatement:
-                    if (StatementContainsSuper(tryStatement.TryBlock))
+                    if (StatementContainsSuper(tryStatement.TryBlock, includeFunctionBodies))
                     {
                         return true;
                     }
 
                     if (tryStatement.Catch is { Body: not null } catchClause &&
-                        StatementContainsSuper(catchClause.Body))
+                        StatementContainsSuper(catchClause.Body, includeFunctionBodies))
                     {
                         return true;
                     }
@@ -1250,6 +1300,21 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case LabeledStatement labeledStatement:
                     statement = labeledStatement.Statement;
                     continue;
+                case ReturnStatement returnStatement when returnStatement.Expression is not null:
+                    return ExpressionContainsSuper(returnStatement.Expression, includeFunctionBodies);
+                case VariableDeclaration varDecl:
+                    foreach (var declarator in varDecl.Declarators)
+                    {
+                        if (declarator.Initializer is not null &&
+                            ExpressionContainsSuper(declarator.Initializer, includeFunctionBodies))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case FunctionDeclaration functionDeclaration when includeFunctionBodies:
+                    return ContainsSuperReference(functionDeclaration.Function.Body.Statements, true);
                 case FunctionDeclaration:
                 case ClassDeclaration:
                     return false;
@@ -1417,7 +1482,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
     }
 
-    private static bool ExpressionContainsSuperCall(ExpressionNode expression)
+    private static bool ExpressionContainsSuperCall(ExpressionNode expression, bool includeFunctionBodies)
     {
         while (true)
         {
@@ -1426,14 +1491,14 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case CallExpression call when IsSuperCallee(call.Callee):
                     return true;
                 case CallExpression call:
-                    if (ExpressionContainsSuperCall(call.Callee))
+                    if (ExpressionContainsSuperCall(call.Callee, includeFunctionBodies))
                     {
                         return true;
                     }
 
                     foreach (var argument in call.Arguments)
                     {
-                        if (ExpressionContainsSuperCall(argument.Expression))
+                        if (ExpressionContainsSuperCall(argument.Expression, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1441,14 +1506,14 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     return false;
                 case NewExpression newExpression:
-                    if (ExpressionContainsSuperCall(newExpression.Constructor))
+                    if (ExpressionContainsSuperCall(newExpression.Constructor, includeFunctionBodies))
                     {
                         return true;
                     }
 
                     foreach (var argument in newExpression.Arguments)
                     {
-                        if (ExpressionContainsSuperCall(argument))
+                        if (ExpressionContainsSuperCall(argument, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1459,34 +1524,37 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     expression = member.Target;
                     continue;
                 case BinaryExpression binary:
-                    return ExpressionContainsSuperCall(binary.Left) || ExpressionContainsSuperCall(binary.Right);
+                    return ExpressionContainsSuperCall(binary.Left, includeFunctionBodies) ||
+                           ExpressionContainsSuperCall(binary.Right, includeFunctionBodies);
                 case UnaryExpression unary:
                     expression = unary.Operand;
                     continue;
                 case ConditionalExpression conditional:
-                    return ExpressionContainsSuperCall(conditional.Test) ||
-                           ExpressionContainsSuperCall(conditional.Consequent) ||
-                           ExpressionContainsSuperCall(conditional.Alternate);
+                    return ExpressionContainsSuperCall(conditional.Test, includeFunctionBodies) ||
+                           ExpressionContainsSuperCall(conditional.Consequent, includeFunctionBodies) ||
+                           ExpressionContainsSuperCall(conditional.Alternate, includeFunctionBodies);
                 case AssignmentExpression assignment:
                     expression = assignment.Value;
                     continue;
                 case PropertyAssignmentExpression propertyAssignment:
-                    return ExpressionContainsSuperCall(propertyAssignment.Target) ||
-                           ExpressionContainsSuperCall(propertyAssignment.Property) ||
-                           ExpressionContainsSuperCall(propertyAssignment.Value);
+                    return ExpressionContainsSuperCall(propertyAssignment.Target, includeFunctionBodies) ||
+                           ExpressionContainsSuperCall(propertyAssignment.Property, includeFunctionBodies) ||
+                           ExpressionContainsSuperCall(propertyAssignment.Value, includeFunctionBodies);
                 case IndexAssignmentExpression indexAssignment:
-                    return ExpressionContainsSuperCall(indexAssignment.Target) ||
-                           ExpressionContainsSuperCall(indexAssignment.Index) ||
-                           ExpressionContainsSuperCall(indexAssignment.Value);
+                    return ExpressionContainsSuperCall(indexAssignment.Target, includeFunctionBodies) ||
+                           ExpressionContainsSuperCall(indexAssignment.Index, includeFunctionBodies) ||
+                           ExpressionContainsSuperCall(indexAssignment.Value, includeFunctionBodies);
                 case SequenceExpression sequence:
-                    return ExpressionContainsSuperCall(sequence.Left) || ExpressionContainsSuperCall(sequence.Right);
+                    return ExpressionContainsSuperCall(sequence.Left, includeFunctionBodies) ||
+                           ExpressionContainsSuperCall(sequence.Right, includeFunctionBodies);
                 case DestructuringAssignmentExpression destructuringAssignment:
                     expression = destructuringAssignment.Value;
                     continue;
                 case ArrayExpression arrayExpression:
                     foreach (var element in arrayExpression.Elements)
                     {
-                        if (element.Expression is not null && ExpressionContainsSuperCall(element.Expression))
+                        if (element.Expression is not null &&
+                            ExpressionContainsSuperCall(element.Expression, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1497,13 +1565,13 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     foreach (var member in objectExpression.Members)
                     {
                         if (member.IsComputed && member.Key is ExpressionNode computedKey &&
-                            ExpressionContainsSuperCall(computedKey))
+                            ExpressionContainsSuperCall(computedKey, includeFunctionBodies))
                         {
                             return true;
                         }
 
                         if (member.Kind == ObjectMemberKind.Spread && member.Value is not null &&
-                            ExpressionContainsSuperCall(member.Value))
+                            ExpressionContainsSuperCall(member.Value, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1512,7 +1580,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                             or ObjectMemberKind.Getter or ObjectMemberKind.Setter)
                         {
                             if (member.IsComputed && member.Value is not null &&
-                                ExpressionContainsSuperCall(member.Value))
+                                ExpressionContainsSuperCall(member.Value, includeFunctionBodies))
                             {
                                 return true;
                             }
@@ -1520,7 +1588,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                             continue;
                         }
 
-                        if (member.Value is not null && ExpressionContainsSuperCall(member.Value))
+                        if (member.Value is not null &&
+                            ExpressionContainsSuperCall(member.Value, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1530,7 +1599,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case TemplateLiteralExpression template:
                     foreach (var part in template.Parts)
                     {
-                        if (part.Expression is not null && ExpressionContainsSuperCall(part.Expression))
+                        if (part.Expression is not null &&
+                            ExpressionContainsSuperCall(part.Expression, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1538,16 +1608,16 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     return false;
                 case TaggedTemplateExpression taggedTemplate:
-                    if (ExpressionContainsSuperCall(taggedTemplate.Tag) ||
-                        ExpressionContainsSuperCall(taggedTemplate.StringsArray) ||
-                        ExpressionContainsSuperCall(taggedTemplate.RawStringsArray))
+                    if (ExpressionContainsSuperCall(taggedTemplate.Tag, includeFunctionBodies) ||
+                        ExpressionContainsSuperCall(taggedTemplate.StringsArray, includeFunctionBodies) ||
+                        ExpressionContainsSuperCall(taggedTemplate.RawStringsArray, includeFunctionBodies))
                     {
                         return true;
                     }
 
                     foreach (var expr in taggedTemplate.Expressions)
                     {
-                        if (ExpressionContainsSuperCall(expr))
+                        if (ExpressionContainsSuperCall(expr, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1560,6 +1630,17 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case AwaitExpression awaitExpression:
                     expression = awaitExpression.Expression;
                     continue;
+                case FunctionExpression functionExpression when includeFunctionBodies:
+                    foreach (var parameter in functionExpression.Parameters)
+                    {
+                        if (parameter.DefaultValue is not null &&
+                            ExpressionContainsSuperCall(parameter.DefaultValue, true))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return ContainsSuperCall(functionExpression.Body.Statements, true);
                 case ClassExpression:
                 case FunctionExpression:
                     return false;
@@ -1579,7 +1660,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         return callee is SuperExpression || callee is MemberExpression { Target: SuperExpression };
     }
 
-    private static bool ExpressionContainsSuper(ExpressionNode expression)
+    private static bool ExpressionContainsSuper(ExpressionNode expression, bool includeFunctionBodies)
     {
         while (true)
         {
@@ -1590,21 +1671,22 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case MemberExpression member when member.Target is SuperExpression:
                     return true;
                 case MemberExpression member:
-                    return ExpressionContainsSuper(member.Target) || ExpressionContainsSuper(member.Property);
+                    return ExpressionContainsSuper(member.Target, includeFunctionBodies) ||
+                           ExpressionContainsSuper(member.Property, includeFunctionBodies);
                 case CallExpression call:
                     if (call.Callee is SuperExpression)
                     {
                         return true;
                     }
 
-                    if (ExpressionContainsSuper(call.Callee))
+                    if (ExpressionContainsSuper(call.Callee, includeFunctionBodies))
                     {
                         return true;
                     }
 
                     foreach (var argument in call.Arguments)
                     {
-                        if (ExpressionContainsSuper(argument.Expression))
+                        if (ExpressionContainsSuper(argument.Expression, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1612,14 +1694,14 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     return false;
                 case NewExpression newExpression:
-                    if (ExpressionContainsSuper(newExpression.Constructor))
+                    if (ExpressionContainsSuper(newExpression.Constructor, includeFunctionBodies))
                     {
                         return true;
                     }
 
                     foreach (var argument in newExpression.Arguments)
                     {
-                        if (ExpressionContainsSuper(argument))
+                        if (ExpressionContainsSuper(argument, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1627,30 +1709,33 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     return false;
                 case BinaryExpression binary:
-                    return ExpressionContainsSuper(binary.Left) || ExpressionContainsSuper(binary.Right);
+                    return ExpressionContainsSuper(binary.Left, includeFunctionBodies) ||
+                           ExpressionContainsSuper(binary.Right, includeFunctionBodies);
                 case UnaryExpression unary:
                     expression = unary.Operand;
                     continue;
                 case ConditionalExpression conditional:
-                    return ExpressionContainsSuper(conditional.Test) ||
-                           ExpressionContainsSuper(conditional.Consequent) ||
-                           ExpressionContainsSuper(conditional.Alternate);
+                    return ExpressionContainsSuper(conditional.Test, includeFunctionBodies) ||
+                           ExpressionContainsSuper(conditional.Consequent, includeFunctionBodies) ||
+                           ExpressionContainsSuper(conditional.Alternate, includeFunctionBodies);
                 case PropertyAssignmentExpression propertyAssignment:
-                    return ExpressionContainsSuper(propertyAssignment.Target) ||
-                           ExpressionContainsSuper(propertyAssignment.Property) ||
-                           ExpressionContainsSuper(propertyAssignment.Value);
+                    return ExpressionContainsSuper(propertyAssignment.Target, includeFunctionBodies) ||
+                           ExpressionContainsSuper(propertyAssignment.Property, includeFunctionBodies) ||
+                           ExpressionContainsSuper(propertyAssignment.Value, includeFunctionBodies);
                 case IndexAssignmentExpression indexAssignment:
-                    return ExpressionContainsSuper(indexAssignment.Target) ||
-                           ExpressionContainsSuper(indexAssignment.Index) ||
-                           ExpressionContainsSuper(indexAssignment.Value);
+                    return ExpressionContainsSuper(indexAssignment.Target, includeFunctionBodies) ||
+                           ExpressionContainsSuper(indexAssignment.Index, includeFunctionBodies) ||
+                           ExpressionContainsSuper(indexAssignment.Value, includeFunctionBodies);
                 case SequenceExpression sequence:
-                    return ExpressionContainsSuper(sequence.Left) || ExpressionContainsSuper(sequence.Right);
+                    return ExpressionContainsSuper(sequence.Left, includeFunctionBodies) ||
+                           ExpressionContainsSuper(sequence.Right, includeFunctionBodies);
                 case DestructuringAssignmentExpression destructuringAssignment:
-                    return ExpressionContainsSuper(destructuringAssignment.Value);
+                    return ExpressionContainsSuper(destructuringAssignment.Value, includeFunctionBodies);
                 case ArrayExpression arrayExpression:
                     foreach (var element in arrayExpression.Elements)
                     {
-                        if (element.Expression is not null && ExpressionContainsSuper(element.Expression))
+                        if (element.Expression is not null &&
+                            ExpressionContainsSuper(element.Expression, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1661,7 +1746,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     foreach (var member in objectExpression.Members)
                     {
                         if (member.IsComputed && member.Key is ExpressionNode computedKey &&
-                            ExpressionContainsSuper(computedKey))
+                            ExpressionContainsSuper(computedKey, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1670,7 +1755,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                             member.Kind is ObjectMemberKind.Method or ObjectMemberKind.Getter or ObjectMemberKind.Setter)
                         {
                             if (member.IsComputed && member.Value is not null &&
-                                ExpressionContainsSuper(member.Value))
+                                ExpressionContainsSuper(member.Value, includeFunctionBodies))
                             {
                                 return true;
                             }
@@ -1678,7 +1763,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                             continue;
                         }
 
-                        if (member.Value is not null && ExpressionContainsSuper(member.Value))
+                        if (member.Value is not null &&
+                            ExpressionContainsSuper(member.Value, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1688,7 +1774,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case TemplateLiteralExpression template:
                     foreach (var part in template.Parts)
                     {
-                        if (part.Expression is not null && ExpressionContainsSuper(part.Expression))
+                        if (part.Expression is not null &&
+                            ExpressionContainsSuper(part.Expression, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1696,16 +1783,16 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     return false;
                 case TaggedTemplateExpression tagged:
-                    if (ExpressionContainsSuper(tagged.Tag) ||
-                        ExpressionContainsSuper(tagged.StringsArray) ||
-                        ExpressionContainsSuper(tagged.RawStringsArray))
+                    if (ExpressionContainsSuper(tagged.Tag, includeFunctionBodies) ||
+                        ExpressionContainsSuper(tagged.StringsArray, includeFunctionBodies) ||
+                        ExpressionContainsSuper(tagged.RawStringsArray, includeFunctionBodies))
                     {
                         return true;
                     }
 
                     foreach (var expr in tagged.Expressions)
                     {
-                        if (ExpressionContainsSuper(expr))
+                        if (ExpressionContainsSuper(expr, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1718,6 +1805,17 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case AwaitExpression awaitExpression:
                     expression = awaitExpression.Expression;
                     continue;
+                case FunctionExpression functionExpression when includeFunctionBodies:
+                    foreach (var parameter in functionExpression.Parameters)
+                    {
+                        if (parameter.DefaultValue is not null &&
+                            ExpressionContainsSuper(parameter.DefaultValue, true))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return ContainsSuperReference(functionExpression.Body.Statements, true);
                 case ClassExpression:
                 case FunctionExpression:
                     return false;

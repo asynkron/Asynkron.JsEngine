@@ -2027,6 +2027,12 @@ public sealed class TypedAstParser(
         {
             ExpressionNode expr;
 
+            if (Check(TokenType.At))
+            {
+                expr = ParseDecoratedClassExpression();
+                return ApplyCallSuffix(expr, allowCallSuffix);
+            }
+
             if (Match(TokenType.Number))
             {
                 var token = Previous();
@@ -2250,6 +2256,21 @@ public sealed class TypedAstParser(
             }
 
             throw new ParseException($"Unexpected token '{Peek().Lexeme}'.", Peek(), _source);
+        }
+
+        private ExpressionNode ParseDecoratedClassExpression()
+        {
+            SkipDecorators();
+
+            if (!Match(TokenType.Class))
+            {
+                throw new ParseException("Decorators may only be applied to class expressions.",
+                    Previous(), _source);
+            }
+
+            var classToken = Previous();
+            var definition = ParseClassDefinition(null, classToken);
+            return new ClassExpression(definition.Source ?? CreateSourceReference(classToken), null, definition);
         }
 
         private void EnsureNumericLiteralAllowed(Token token)
@@ -3928,37 +3949,31 @@ public sealed class TypedAstParser(
         private bool IsYieldOrAwaitUsedAsIdentifier()
         {
             var currentToken = Peek();
-            if (currentToken.Type == TokenType.Yield && InGeneratorContext)
+            if (currentToken.Type == TokenType.Yield)
             {
-                return false;
+                if (InGeneratorContext || InStrictContext)
+                {
+                    return false;
+                }
+
+                // Outside generators and strict mode, `yield` is an IdentifierReference
+                // (e.g. in decorator expressions), so treat it as such regardless of
+                // the following token.
+                return true;
             }
 
-            if (currentToken.Type == TokenType.Yield && InStrictContext)
+            if (currentToken.Type == TokenType.Await)
             {
-                return false;
+                if (IsAwaitAllowed)
+                {
+                    return false;
+                }
+
+                // When await-as-keyword is not permitted, it is parsed as an identifier.
+                return true;
             }
 
-            if (currentToken.Type == TokenType.Await && IsAwaitAllowed)
-            {
-                return false;
-            }
-
-            var nextType = PeekNext().Type;
-            return nextType is TokenType.Semicolon or TokenType.Comma or TokenType.RightParen or
-                TokenType.RightBracket or TokenType.RightBrace or TokenType.Colon or
-                TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash or
-                TokenType.Percent or TokenType.StarStar or TokenType.Equal or TokenType.PlusEqual or
-                TokenType.MinusEqual or TokenType.StarEqual or TokenType.SlashEqual or
-                TokenType.PercentEqual or TokenType.StarStarEqual or TokenType.EqualEqual or
-                TokenType.EqualEqualEqual or TokenType.BangEqual or TokenType.BangEqualEqual or
-                TokenType.Greater or TokenType.GreaterEqual or TokenType.Less or TokenType.LessEqual or
-                TokenType.AmpAmp or TokenType.PipePipe or TokenType.Amp or TokenType.Pipe or TokenType.Caret or
-                TokenType.LessLess or TokenType.GreaterGreater or TokenType.GreaterGreaterGreater or
-                TokenType.AmpAmpEqual or TokenType.PipePipeEqual or TokenType.AmpEqual or TokenType.PipeEqual or
-                TokenType.CaretEqual or TokenType.LessLessEqual or TokenType.GreaterGreaterEqual or
-                TokenType.GreaterGreaterGreaterEqual or TokenType.QuestionQuestion or
-                TokenType.QuestionQuestionEqual or TokenType.Question or TokenType.Dot or TokenType.Arrow or
-                TokenType.QuestionDot or TokenType.LeftBracket or TokenType.PlusPlus or TokenType.MinusMinus;
+            return false;
         }
 
         private FunctionContextScope EnterFunctionContext(bool isAsync, bool isGenerator)

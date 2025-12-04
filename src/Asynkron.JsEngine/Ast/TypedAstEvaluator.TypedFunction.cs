@@ -3,6 +3,7 @@ using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
+using Asynkron.JsEngine;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -901,7 +902,10 @@ public static partial class TypedAstEvaluator
 
             foreach (var field in _instanceFields)
             {
+                using var classFieldInitScope = context.EnterClassFieldInitializer();
                 var initEnv = new JsEnvironment(environment, isStrict: true);
+                initEnv.Define(EvalHostFunction.FieldInitializerEvalFlag, true, isConst: true, isLexical: true,
+                    blocksFunctionScopeOverride: true);
                 initEnv.Define(Symbol.This, instance);
 
                 var fieldSuperBinding = ResolveInstanceFieldSuperBinding(environment, instance);

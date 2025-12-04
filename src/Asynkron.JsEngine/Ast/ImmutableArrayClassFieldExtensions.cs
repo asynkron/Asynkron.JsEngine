@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -10,7 +11,10 @@ public static partial class TypedAstEvaluator
         JsEnvironment environment,
         EvaluationContext context)
     {
+        using var classFieldInitScope = context.EnterClassFieldInitializer();
         var initEnv = CreateStaticInitializationEnvironment(constructorAccessor, environment, out var superBinding);
+        initEnv.Define(EvalHostFunction.FieldInitializerEvalFlag, true, isConst: true, isLexical: true,
+            blocksFunctionScopeOverride: true);
         var result = EvaluateExpression(expression, initEnv, context);
         if (result is TypedFunction typedFunction &&
             typedFunction.IsArrowFunction &&

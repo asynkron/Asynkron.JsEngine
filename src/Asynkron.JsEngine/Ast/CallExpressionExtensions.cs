@@ -176,6 +176,7 @@ public static partial class TypedAstEvaluator
                                    ReferenceEquals(thisValue, Symbol.Undefined) &&
                                    ReferenceEquals(evalHostFunction.Engine, environment.RealmState?.Engine);
                 evalHost.IsDirectCall = isDirectEvalCall;
+                evalHost.InClassFieldInitializer = context.InClassFieldInitializer;
             }
 
             JsEnvironment? thisInitializationEnvironment = null;
@@ -352,6 +353,7 @@ public static partial class TypedAstEvaluator
                 if (evalHost is not null)
                 {
                     evalHost.IsDirectCall = false;
+                    evalHost.InClassFieldInitializer = false;
                 }
 
                 context.CallDepth--;

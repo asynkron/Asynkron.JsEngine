@@ -34,6 +34,7 @@ public sealed class EvaluationContext(
 
     private readonly Stack<ScopeFrame> _scopeStack = new();
     private readonly Stack<PendingClassFieldInitialization> _pendingClassFieldInitializers = new();
+    private int _classFieldInitializerDepth;
 
     /// <summary>
     ///     Realm-specific state (prototypes/constructors) for the current execution.
@@ -90,6 +91,12 @@ public sealed class EvaluationContext(
     ///     The current source reference for error reporting.
     /// </summary>
     public SourceReference? SourceReference { get; set; }
+
+    /// <summary>
+    ///     True while evaluating a class field initializer (instance or static).
+    ///     Used to apply PerformEval's extra early errors for initializers.
+    /// </summary>
+    public bool InClassFieldInitializer => _classFieldInitializerDepth > 0;
 
     /// <summary>
     ///     Returns the current innermost label, or null if not in a labeled context.
@@ -190,6 +197,12 @@ public sealed class EvaluationContext(
     {
         _privateNameScopes.Push(scope);
         return new PrivateNameScopeHandle(_privateNameScopes);
+    }
+
+    public IDisposable EnterClassFieldInitializer()
+    {
+        _classFieldInitializerDepth++;
+        return new ClassFieldInitializerHandle(this);
     }
 
     /// <summary>
@@ -339,6 +352,32 @@ public sealed class EvaluationContext(
             if (scopes.Count > 0)
             {
                 scopes.Pop();
+            }
+
+            _disposed = true;
+        }
+    }
+
+    private sealed class ClassFieldInitializerHandle : IDisposable
+    {
+        private readonly EvaluationContext _context;
+        private bool _disposed;
+
+        public ClassFieldInitializerHandle(EvaluationContext context)
+        {
+            _context = context;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (_context._classFieldInitializerDepth > 0)
+            {
+                _context._classFieldInitializerDepth--;
             }
 
             _disposed = true;

@@ -497,6 +497,10 @@ public static partial class TypedAstEvaluator
 
                 if (lexicalSuperBinding is not null)
                 {
+                    functionEnvironment.RealmState?.Logger?.LogInformation(
+                        "SuperBinding: define lexical for arrow/lexical this protoNull={ProtoNull} thisInit={ThisInit}",
+                        lexicalSuperBinding.Prototype is null,
+                        lexicalSuperBinding.IsThisInitialized);
                     functionEnvironment.Define(Symbol.Super, lexicalSuperBinding, false, isLexical: true,
                         blocksFunctionScopeOverride: true);
                     if (!hasCopiedInitialization)
@@ -550,14 +554,17 @@ public static partial class TypedAstEvaluator
                 }
 
                 object? initialThisValue;
+                var initialThisInitialized = true;
                 if (_isDerivedClassConstructor && _superConstructor is not null)
                 {
                     context.MarkThisUninitialized();
+                    initialThisInitialized = false;
                     initialThisValue = JsEnvironment.Uninitialized;
                 }
                 else
                 {
                     context.MarkThisInitialized();
+                    initialThisInitialized = true;
                     initialThisValue = boundThis;
                     if (!_isStrict && initialThisValue is null)
                     {
@@ -567,24 +574,36 @@ public static partial class TypedAstEvaluator
                     boundThis = initialThisValue;
                 }
 
-                SetThisInitializationStatus(functionEnvironment, context.IsThisInitialized);
+                SetThisInitializationStatus(functionEnvironment, initialThisInitialized);
                 functionEnvironment.Define(Symbol.This, initialThisValue);
 
-                var prototypeForSuper = _superPrototype;
-                if (prototypeForSuper is null && _homeObject is not null)
+                IJsPropertyAccessor? prototypeForSuper = null;
+                if (_homeObject is not null)
                 {
+                    // Super property resolution is based on the current [[Prototype]] of the home object,
+                    // even if it has been mutated after class definition (e.g. Object.setPrototypeOf).
                     prototypeForSuper = _homeObject.Prototype;
                 }
-
-                if (prototypeForSuper is null && thisValue is JsObject thisObj)
+                else
                 {
-                    prototypeForSuper = thisObj.Prototype;
+                    prototypeForSuper = _superPrototype;
+                    if (prototypeForSuper is null && thisValue is JsObject thisObj)
+                    {
+                        prototypeForSuper = thisObj.Prototype;
+                    }
                 }
 
                 if (_homeObject is not null || _superConstructor is not null || prototypeForSuper is not null)
                 {
                     var binding = new SuperBinding(_superConstructor, prototypeForSuper, boundThis,
-                        context.IsThisInitialized);
+                        initialThisInitialized);
+                    functionEnvironment.RealmState?.Logger?.LogInformation(
+                        "SuperBinding: define in function env env={Env} isCtor={IsCtor} isDerivedCtor={IsDerivedCtor} protoNull={ProtoNull} thisInit={ThisInit}",
+                        functionEnvironment.GetHashCode(),
+                        _isClassConstructor,
+                        _isDerivedClassConstructor,
+                        prototypeForSuper is null,
+                        initialThisInitialized);
                     functionEnvironment.Define(Symbol.Super, binding);
                 }
 

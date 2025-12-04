@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -10,14 +11,26 @@ public static partial class TypedAstEvaluator
         private object? EvaluatePropertyAssignment(JsEnvironment environment,
             EvaluationContext context)
         {
-            if (expression.Target is MemberExpression { Target: SuperExpression } superMember)
+            ExpressionNode? superPropertyExpression = expression.Target switch
             {
-                if (!context.IsThisInitialized)
-                {
-                    throw CreateSuperReferenceError(environment, context, null);
-                }
+                MemberExpression { Target: SuperExpression } member => member.Property,
+                SuperExpression => expression.Property,
+                _ => null
+            };
 
-                var propertyKey = EvaluateExpression(superMember.Property, environment, context);
+            if (superPropertyExpression is not null)
+            {
+                var logger = environment.RealmState?.Logger;
+                var hasOwnSuper = environment.HasBinding(Symbol.Super);
+                var hasOwnThis = environment.HasBinding(Symbol.This);
+                logger?.LogInformation(
+                    "SuperAssignment: start env={Env} thisInit={ThisInit} hasOwnSuper={HasSuper} hasOwnThis={HasThis}",
+                    environment.GetHashCode(),
+                    context.IsThisInitialized,
+                    hasOwnSuper,
+                    hasOwnThis);
+
+                var propertyKey = EvaluateExpression(superPropertyExpression, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return Symbol.Undefined;
@@ -36,6 +49,15 @@ public static partial class TypedAstEvaluator
                 }
 
                 var binding = ExpectSuperBinding(environment, context);
+                environment.RealmState?.Logger?.LogInformation(
+                    "SuperBinding: assign super property protoNull={ProtoNull} thisInit={ThisInit}",
+                    binding.Prototype is null,
+                    binding.IsThisInitialized);
+                if (!binding.IsThisInitialized)
+                {
+                    throw CreateSuperReferenceError(environment, context, null);
+                }
+
                 if (binding.Prototype is null)
                 {
                     throw StandardLibrary.ThrowTypeError(

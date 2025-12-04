@@ -4,6 +4,7 @@ using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -224,6 +225,12 @@ public static partial class TypedAstEvaluator
         {
             if (callee is SuperExpression superExpression)
             {
+                var logger = environment.RealmState?.Logger;
+                logger?.LogInformation(
+                    "Super call target env={Env} hasThisInit={HasThisInit} hasSuper={HasSuper}",
+                    environment.GetHashCode(),
+                    environment.HasBinding(Symbol.ThisInitialized),
+                    environment.HasBinding(Symbol.Super));
                 var binding = ExpectSuperBinding(environment, context);
                 if (binding.Constructor is null)
                 {

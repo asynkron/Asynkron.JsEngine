@@ -177,11 +177,33 @@ public static partial class TypedAstEvaluator
 
             JsEnvironment? thisInitializationEnvironment = null;
             object? thisInitializationValue = null;
-            if (expression.Callee is SuperExpression &&
-                environment.TryFindBinding(Symbol.ThisInitialized, out var foundEnv, out var foundValue))
+            if (expression.Callee is SuperExpression)
             {
-                thisInitializationEnvironment = foundEnv;
-                thisInitializationValue = foundValue;
+                // Prefer the environment that owns the current `this` binding; the [[ThisInitialized]]
+                // marker is defined alongside it for derived constructors.
+                try
+                {
+                    if (environment.TryFindBinding(Symbol.This, out var thisEnv, out _))
+                    {
+                        thisInitializationEnvironment = thisEnv;
+                        if (thisEnv.TryGet(Symbol.ThisInitialized, out var initValue))
+                        {
+                            thisInitializationValue = initValue;
+                        }
+                    }
+                }
+                catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError: this",
+                             StringComparison.Ordinal))
+                {
+                    // `this` exists but is currently uninitialized (derived constructor before super()).
+                }
+
+                if (thisInitializationEnvironment is null &&
+                    environment.TryFindBinding(Symbol.ThisInitialized, out var foundEnv, out var foundValue))
+                {
+                    thisInitializationEnvironment = foundEnv;
+                    thisInitializationValue = foundValue;
+                }
             }
 
             try
@@ -222,11 +244,20 @@ public static partial class TypedAstEvaluator
                         thisAfterSuper?.GetType().Name ?? "null");
 
                     if (thisInitializationEnvironment is not null &&
-                        thisInitializationEnvironment.TryGet(Symbol.ThisInitialized, out var alreadyInitialized) &&
-                        JsOps.ToBoolean(alreadyInitialized))
+                        (thisInitializationValue ??
+                         (thisInitializationEnvironment.TryGet(Symbol.ThisInitialized, out var initValue)
+                             ? initValue
+                             : null)) is { } alreadyInitialized)
                     {
-                        throw StandardLibrary.ThrowReferenceError(
-                            "Super constructor may only be called once.", context, context.RealmState);
+                        context.RealmState?.Logger?.LogInformation(
+                            "Super call pre-check thisInit env={Env} value={Value}",
+                            thisInitializationEnvironment.GetHashCode(),
+                            alreadyInitialized);
+                        if (JsOps.ToBoolean(alreadyInitialized))
+                        {
+                            throw StandardLibrary.ThrowReferenceError(
+                                "Super constructor may only be called once.", context, context.RealmState);
+                        }
                     }
 
                     var targetEnvironment = thisInitializationEnvironment ?? environment;

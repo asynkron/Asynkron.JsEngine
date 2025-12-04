@@ -503,11 +503,14 @@ public static partial class StandardLibrary
                     return target;
                 case ModuleNamespace:
                     throw ThrowTypeError("Cannot set prototype on module namespace", realm: realm);
+                case JsArray array:
+                    array.SetPrototype(proto);
+                    break;
                 case JsObject obj:
                     obj.SetPrototype(proto);
                     break;
-                case JsArray array:
-                    array.SetPrototype(proto);
+                case IJsObjectLike objectLike:
+                    objectLike.SetPrototype(proto);
                     break;
             }
 

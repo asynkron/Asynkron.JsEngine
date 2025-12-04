@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -37,6 +38,10 @@ public static partial class TypedAstEvaluator
                 }
 
                 var binding = ExpectSuperBinding(environment, context);
+                environment.RealmState?.Logger?.LogInformation(
+                    "SuperBinding: assign super index protoNull={ProtoNull} thisInit={ThisInit}",
+                    binding.Prototype is null,
+                    binding.IsThisInitialized);
                 if (!binding.IsThisInitialized)
                 {
                     throw CreateSuperReferenceError(environment, context, null);

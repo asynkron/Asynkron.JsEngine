@@ -16,6 +16,7 @@ public static partial class TypedAstEvaluator
 
             foreach (var property in binding.Properties)
             {
+                AssignmentReference? preResolvedReference = null;
                 var propertyName = property.Name;
                 if (property.NameExpression is not null)
                 {
@@ -26,6 +27,19 @@ public static partial class TypedAstEvaluator
                     }
 
                     propertyName = JsOps.GetRequiredPropertyName(propertyKeyValue, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return;
+                    }
+                }
+
+                if (mode == BindingMode.Assign && property.Target is AssignmentTargetBinding assignmentTarget)
+                {
+                    preResolvedReference = AssignmentReferenceResolver.ResolveForDestructuring(
+                        assignmentTarget.Expression,
+                        environment,
+                        context,
+                        EvaluateExpression);
                     if (context.ShouldStopEvaluation)
                     {
                         return;
@@ -65,8 +79,15 @@ public static partial class TypedAstEvaluator
                 var skipBlockedLookup = mode == BindingMode.DefineVar &&
                                         property.Target is IdentifierBinding;
 
-                ApplyBindingTarget(property.Target, propertyValue, environment, context, mode,
-                    allowNameInference: false, skipBlockedBindingLookup: skipBlockedLookup);
+                if (preResolvedReference is { } resolvedReference)
+                {
+                    resolvedReference.SetValue(propertyValue);
+                }
+                else
+                {
+                    ApplyBindingTarget(property.Target, propertyValue, environment, context, mode,
+                        allowNameInference: false, skipBlockedBindingLookup: skipBlockedLookup);
+                }
             }
 
             if (binding.RestElement is null)

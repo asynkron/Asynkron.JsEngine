@@ -14,10 +14,30 @@ internal static class AssignmentReferenceResolver
         EvaluationContext context,
         Func<ExpressionNode, JsEnvironment, EvaluationContext, object?> evaluateExpression)
     {
+        return Resolve(expression, environment, context, evaluateExpression, deferPropertyKeyConversion: false);
+    }
+
+    public static AssignmentReference ResolveForDestructuring(
+        ExpressionNode expression,
+        JsEnvironment environment,
+        EvaluationContext context,
+        Func<ExpressionNode, JsEnvironment, EvaluationContext, object?> evaluateExpression)
+    {
+        return Resolve(expression, environment, context, evaluateExpression, deferPropertyKeyConversion: true);
+    }
+
+    private static AssignmentReference Resolve(
+        ExpressionNode expression,
+        JsEnvironment environment,
+        EvaluationContext context,
+        Func<ExpressionNode, JsEnvironment, EvaluationContext, object?> evaluateExpression,
+        bool deferPropertyKeyConversion)
+    {
         return expression switch
         {
             IdentifierExpression identifier => ResolveIdentifier(identifier, environment, context),
-            MemberExpression member => ResolveMember(member, environment, context, evaluateExpression),
+            MemberExpression member => ResolveMember(member, environment, context, evaluateExpression,
+                deferPropertyKeyConversion),
             UnaryExpression { Operator: "++" or "--" } unary =>
                 Resolve(unary.Operand, environment, context, evaluateExpression),
             _ => throw new NotSupportedException("Unsupported assignment target.")
@@ -70,7 +90,8 @@ internal static class AssignmentReferenceResolver
         MemberExpression member,
         JsEnvironment environment,
         EvaluationContext context,
-        Func<ExpressionNode, JsEnvironment, EvaluationContext, object?> evaluateExpression)
+        Func<ExpressionNode, JsEnvironment, EvaluationContext, object?> evaluateExpression,
+        bool deferPropertyKeyConversion)
     {
         var target = evaluateExpression(member.Target, environment, context);
         if (context.ShouldStopEvaluation)
@@ -82,6 +103,71 @@ internal static class AssignmentReferenceResolver
         if (context.ShouldStopEvaluation)
         {
             return new AssignmentReference(() => Symbol.Undefined, _ => { });
+        }
+
+        if (deferPropertyKeyConversion)
+        {
+            string? propertyNameCache = null;
+            string GetPropertyName()
+            {
+                propertyNameCache ??= JsOps.GetRequiredPropertyName(propertyValue, context);
+                return propertyNameCache;
+            }
+
+            return new AssignmentReference(
+                () =>
+                {
+                    var propertyName = GetPropertyName();
+
+                    if (target is JsArray jsArray &&
+                        JsOps.TryResolveArrayIndex(propertyName, out var arrayIndex, context))
+                    {
+                        return jsArray.GetElement(arrayIndex);
+                    }
+
+                    if (target is TypedArrayBase typedArray &&
+                        JsOps.TryResolveArrayIndex(propertyName, out var typedIndex, context))
+                    {
+                        return typedIndex >= 0 && typedIndex < typedArray.Length
+                            ? typedArray.GetElement(typedIndex)
+                            : Symbol.Undefined;
+                    }
+
+                    return JsOps.TryGetPropertyValue(target, propertyName, out var value)
+                        ? value
+                        : Symbol.Undefined;
+                },
+                newValue =>
+                {
+                    var propertyName = GetPropertyName();
+
+                    if (target is JsArray jsArray &&
+                        JsOps.TryResolveArrayIndex(propertyName, out var arrayIndex, context))
+                    {
+                        jsArray.SetElement(arrayIndex, newValue);
+                        return;
+                    }
+
+                    if (target is TypedArrayBase typedArray &&
+                        JsOps.TryResolveArrayIndex(propertyName, out var typedIndex, context))
+                    {
+                        if (typedIndex >= 0 && typedIndex < typedArray.Length)
+                        {
+                            typedArray.SetElement(typedIndex, JsOps.ToNumber(newValue));
+                        }
+
+                        return;
+                    }
+
+                    if (target is JsObject jsObject)
+                    {
+                        AssignObjectProperty(jsObject, propertyName, newValue, context.CurrentScope.IsStrict, context,
+                            context.RealmState, target);
+                        return;
+                    }
+
+                    JsOps.AssignPropertyValueByName(target, propertyName, newValue);
+                });
         }
 
         if (target is JsArray jsArray && JsOps.TryResolveArrayIndex(propertyValue, out var arrayIndex, context))

@@ -581,7 +581,7 @@ public static partial class TypedAstEvaluator
                     prototypeForSuper = thisObj.Prototype;
                 }
 
-                if (_superConstructor is not null || prototypeForSuper is not null)
+                if (_homeObject is not null || _superConstructor is not null || prototypeForSuper is not null)
                 {
                     var binding = new SuperBinding(_superConstructor, prototypeForSuper, boundThis,
                         context.IsThisInitialized);

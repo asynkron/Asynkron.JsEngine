@@ -23,19 +23,27 @@ public static partial class TypedAstEvaluator
                     return Symbol.Undefined;
                 }
 
-                var superPropertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
-                if (context.ShouldStopEvaluation)
-                {
-                    return Symbol.Undefined;
-                }
-
                 var superAssignedValue = EvaluateExpression(expression.Value, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return superAssignedValue;
                 }
 
+                var superPropertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return Symbol.Undefined;
+                }
+
                 var binding = ExpectSuperBinding(environment, context);
+                if (binding.Prototype is null)
+                {
+                    throw StandardLibrary.ThrowTypeError(
+                        "Cannot assign to super property when prototype is null or undefined.",
+                        context,
+                        context.RealmState);
+                }
+
                 binding.SetProperty(superPropertyName, superAssignedValue);
                 return superAssignedValue;
             }
@@ -52,25 +60,26 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
-            var propertyName = JsOps.GetRequiredPropertyName(property, context);
-            if (context.ShouldStopEvaluation)
+            if (expression.IsCompoundAssignment)
             {
-                return Symbol.Undefined;
-            }
-
-            var reference = CreatePropertyReference(target, propertyName, context);
-
-            if (expression.IsCompoundAssignment &&
-                TryEvaluateCompoundAssignmentValue(expression.Value, reference, environment, context,
-                    out var compoundValue))
-            {
+                var propertyName = JsOps.GetRequiredPropertyName(property, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return compoundValue;
+                    return Symbol.Undefined;
                 }
 
-                reference.SetValue(compoundValue);
-                return compoundValue;
+                var reference = CreatePropertyReference(target, propertyName, context);
+                if (TryEvaluateCompoundAssignmentValue(expression.Value, reference, environment, context,
+                        out var compoundValue))
+                {
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return compoundValue;
+                    }
+
+                    reference.SetValue(compoundValue);
+                    return compoundValue;
+                }
             }
 
             var assignedValue = EvaluateExpression(expression.Value, environment, context);
@@ -80,12 +89,19 @@ public static partial class TypedAstEvaluator
             }
 
             if (assignedValue is IFunctionNameTarget nameTarget &&
-                expression.Value is FunctionExpression or ClassExpression)
+                expression.Value is FunctionExpression { Name: null } or ClassExpression { Name: null })
             {
-                nameTarget.EnsureHasName(propertyName);
+                nameTarget.EnsureHasName(string.Empty);
             }
 
-            reference.SetValue(assignedValue);
+            var finalPropertyName = JsOps.GetRequiredPropertyName(property, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return Symbol.Undefined;
+            }
+
+            var finalReference = CreatePropertyReference(target, finalPropertyName, context);
+            finalReference.SetValue(assignedValue);
             return assignedValue;
         }
     }

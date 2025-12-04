@@ -69,7 +69,7 @@ public static partial class TypedAstEvaluator
                     AssignmentReference? preResolvedReference = null;
                     if (mode == BindingMode.Assign && element.Target is AssignmentTargetBinding assignmentTarget)
                     {
-                        preResolvedReference = AssignmentReferenceResolver.Resolve(
+                        preResolvedReference = AssignmentReferenceResolver.ResolveForDestructuring(
                             assignmentTarget.Expression,
                             environment,
                             context,
@@ -211,7 +211,7 @@ public static partial class TypedAstEvaluator
                     AssignmentReference? preResolvedRest = null;
                     if (mode == BindingMode.Assign && binding.RestElement is AssignmentTargetBinding restTarget)
                     {
-                        preResolvedRest = AssignmentReferenceResolver.Resolve(
+                        preResolvedRest = AssignmentReferenceResolver.ResolveForDestructuring(
                             restTarget.Expression,
                             environment,
                             context,

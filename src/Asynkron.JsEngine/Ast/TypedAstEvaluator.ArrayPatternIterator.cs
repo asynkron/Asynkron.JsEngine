@@ -23,11 +23,16 @@ public static partial class TypedAstEvaluator
             var done = result.TryGetProperty("done", out var doneValue) &&
                        doneValue is bool and true;
 
+            if (done)
+            {
+                return (Symbol.Undefined, true);
+            }
+
             var value = result.TryGetProperty("value", out var yielded)
                 ? yielded
                 : Symbol.Undefined;
 
-            return (done ? Symbol.Undefined : value, done);
+            return (value, false);
         }
     }
 }

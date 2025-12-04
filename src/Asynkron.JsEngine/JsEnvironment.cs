@@ -585,11 +585,6 @@ public sealed class JsEnvironment
 
         while (current is not null && hops++ < maxLookupDepth)
         {
-            if (current._values.ContainsKey(name))
-            {
-                break;
-            }
-
             if (current._withObject is not null &&
                 TryResolveObjectBinding(
                     current._withObject,
@@ -603,6 +598,11 @@ public sealed class JsEnvironment
                     isStrictReference,
                     allowMissingAssignment);
                 return true;
+            }
+
+            if (current._values.ContainsKey(name))
+            {
+                break;
             }
 
             current = current.Enclosing;
@@ -1292,7 +1292,7 @@ public sealed class JsEnvironment
             prototype = prototype.Prototype;
         }
 
-        return target.TryGetProperty(name, out _);
+        return false;
     }
 
     internal static object? GetWithBindingValue(in ObjectEnvironmentBinding binding)
@@ -1318,16 +1318,11 @@ public sealed class JsEnvironment
         var propertyName = binding.PropertyName;
         var bindingObject = binding.BindingObject;
         var stillExists = HasProperty(bindingObject, propertyName);
-        if (!stillExists)
+        if (!stillExists && !binding.AllowMissingAssignment)
         {
             if (binding.IsStrictReference)
             {
                 throw new InvalidOperationException($"ReferenceError: {propertyName} is not defined");
-            }
-
-            if (!binding.AllowMissingAssignment)
-            {
-                return false;
             }
         }
 

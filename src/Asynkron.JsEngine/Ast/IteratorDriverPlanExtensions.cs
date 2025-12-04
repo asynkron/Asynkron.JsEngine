@@ -65,6 +65,11 @@ public static partial class TypedAstEvaluator
 
                     AssignLoopBinding(plan.Target, value, iterationEnvironment, outerEnvironment, context,
                         plan.DeclarationKind);
+                    if (context.IsThrow)
+                    {
+                        break;
+                    }
+
                     lastValue = EvaluateStatement(plan.Body, iterationEnvironment, context, loopLabel);
                 }
                 else
@@ -105,6 +110,10 @@ public static partial class TypedAstEvaluator
             if (state.IteratorObject is not null && !iteratorDone)
             {
                 IteratorClose(state.IteratorObject, context, context.IsThrow);
+                if (context.IsThrow)
+                {
+                    return lastValue;
+                }
             }
 
             return lastValue;

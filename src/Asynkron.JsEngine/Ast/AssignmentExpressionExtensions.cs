@@ -32,6 +32,13 @@ public static partial class TypedAstEvaluator
                 return targetValue;
             }
 
+            if (targetValue is IFunctionNameTarget nameTarget &&
+                expression.Value is FunctionExpression or ClassExpression &&
+                !IsParenthesizedIdentifierAssignment(expression))
+            {
+                nameTarget.EnsureHasName(expression.Target.Name);
+            }
+
             try
             {
                 reference.SetValue(targetValue);
@@ -55,6 +62,26 @@ public static partial class TypedAstEvaluator
                 return errorObject;
             }
         }
+    }
+
+    private static bool IsParenthesizedIdentifierAssignment(AssignmentExpression expression)
+    {
+        if (expression.Source is null)
+        {
+            return false;
+        }
+
+        // Heuristic: if the identifier token is immediately preceded (ignoring
+        // whitespace) by a '(', it came from a CoverParenthesizedExpression
+        // and should not trigger SetFunctionName inference.
+        var source = expression.Source.Source;
+        var index = expression.Source.StartPosition - 1;
+        while (index >= 0 && char.IsWhiteSpace(source, index))
+        {
+            index--;
+        }
+
+        return index >= 0 && source[index] == '(';
     }
 
     private static bool TryEvaluateCompoundAssignmentValue(

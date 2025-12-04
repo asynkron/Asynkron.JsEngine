@@ -1,6 +1,7 @@
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -49,33 +50,35 @@ public static partial class TypedAstEvaluator
 
         private void IteratorClose(EvaluationContext context, bool preserveExistingThrow = false)
         {
-            try
+            if (!TryInvokeIteratorMethod(
+                    iterator,
+                    "return",
+                    Symbol.Undefined,
+                    context,
+                    out var closeResult,
+                    false))
             {
-                if (!TryInvokeIteratorMethod(
-                        iterator,
-                        "return",
-                        Symbol.Undefined,
-                        context,
-                        out var closeResult,
-                        false))
+                return;
+            }
+
+            if (closeResult is not JsObject returnObject)
+            {
+                if (preserveExistingThrow && context.IsThrow)
                 {
                     return;
                 }
 
-                if (closeResult is not JsObject returnObject)
-                {
-                    throw new ThrowSignal(StandardLibrary.CreateTypeError("Iterator.return() must return an object",
-                        context, context.RealmState));
-                }
-
-                if (IsPromiseLike(returnObject))
-                {
-                    AwaitScheduler.TryAwaitPromiseSync(returnObject, context, out _);
-                }
+                var typeError = StandardLibrary.CreateTypeError("Iterator.return() must return an object",
+                    context, context.RealmState);
+                context.SetThrow(typeError);
+                context.RealmState.Logger?.LogInformation(
+                    "IteratorClose set throw: type={Type}", typeError?.GetType().Name ?? "null");
+                return;
             }
-            catch (ThrowSignal) when (preserveExistingThrow || context.IsThrow)
+
+            if (IsPromiseLike(returnObject))
             {
-                // Preserve the original abrupt completion per IteratorClose when completion is already throw.
+                AwaitScheduler.TryAwaitPromiseSync(returnObject, context, out _);
             }
         }
     }

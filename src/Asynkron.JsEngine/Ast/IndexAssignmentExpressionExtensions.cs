@@ -54,6 +54,12 @@ public static partial class TypedAstEvaluator
                 return assignedValue;
             }
 
+            if (assignedValue is IFunctionNameTarget nameTarget &&
+                expression.Value is FunctionExpression or ClassExpression)
+            {
+                nameTarget.EnsureHasName(propertyName);
+            }
+
             reference.SetValue(assignedValue);
             return assignedValue;
         }

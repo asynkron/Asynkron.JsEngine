@@ -166,10 +166,20 @@ internal sealed class SyncGeneratorIrBuilder
                         return true;
                     }
 
-                    if (AstShapeAnalyzer.ContainsYield(expressionStatement.Expression))
+                    var expressionShape = AstShapeAnalyzer.AnalyzeExpression(expressionStatement.Expression);
+                    if (expressionShape.DelegatedYieldCount > 0 ||
+                        expressionShape.YieldOperandContainsYield ||
+                        expressionShape.YieldCount > 1)
                     {
                         entryIndex = -1;
+                        _failureReason ??= "Expression statement contains unsupported yield shape.";
                         return false;
+                    }
+
+                    if (expressionShape.YieldCount == 1)
+                    {
+                        entryIndex = Append(new StatementInstruction(nextIndex, expressionStatement));
+                        return true;
                     }
 
                     entryIndex = Append(new StatementInstruction(nextIndex, expressionStatement));

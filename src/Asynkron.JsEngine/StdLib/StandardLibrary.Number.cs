@@ -496,29 +496,21 @@ public static partial class StandardLibrary
 
         numberConstructor.SetHostedProperty("parseInt", NumberParseInt);
 
-        // Number.EPSILON
-        numberConstructor.SetProperty("EPSILON", double.Epsilon);
+        DefineConstantProperty(numberConstructor, "EPSILON", double.Epsilon);
 
-        // Number.MAX_SAFE_INTEGER
-        numberConstructor.SetProperty("MAX_SAFE_INTEGER", 9007199254740991d);
+        DefineConstantProperty(numberConstructor, "MAX_SAFE_INTEGER", 9007199254740991d);
 
-        // Number.MIN_SAFE_INTEGER
-        numberConstructor.SetProperty("MIN_SAFE_INTEGER", -9007199254740991d);
+        DefineConstantProperty(numberConstructor, "MIN_SAFE_INTEGER", -9007199254740991d);
 
-        // Number.MAX_VALUE
-        numberConstructor.SetProperty("MAX_VALUE", double.MaxValue);
+        DefineConstantProperty(numberConstructor, "MAX_VALUE", double.MaxValue);
 
-        // Number.MIN_VALUE
-        numberConstructor.SetProperty("MIN_VALUE", double.MinValue);
+        DefineConstantProperty(numberConstructor, "MIN_VALUE", double.MinValue);
 
-        // Number.POSITIVE_INFINITY
-        numberConstructor.SetProperty("POSITIVE_INFINITY", double.PositiveInfinity);
+        DefineConstantProperty(numberConstructor, "POSITIVE_INFINITY", double.PositiveInfinity);
 
-        // Number.NEGATIVE_INFINITY
-        numberConstructor.SetProperty("NEGATIVE_INFINITY", double.NegativeInfinity);
+        DefineConstantProperty(numberConstructor, "NEGATIVE_INFINITY", double.NegativeInfinity);
 
-        // Number.NaN
-        numberConstructor.SetProperty("NaN", double.NaN);
+        DefineConstantProperty(numberConstructor, "NaN", double.NaN);
 
         return numberConstructor;
 

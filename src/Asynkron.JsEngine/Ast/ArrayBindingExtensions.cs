@@ -10,7 +10,18 @@ public static partial class TypedAstEvaluator
         private void BindArrayPattern(object? value, JsEnvironment environment,
             EvaluationContext context, BindingMode mode)
         {
-            if (!TryGetIteratorForDestructuring(value, context, out var iterator, out var enumerator))
+            var stateKey = GetArrayPatternStateKey(binding);
+            ArrayPatternState? resumeState = null;
+            if (stateKey is { } && environment.TryGet(stateKey, out var existing) &&
+                existing is ArrayPatternState savedState)
+            {
+                resumeState = savedState;
+            }
+
+            JsObject? iterator = resumeState?.Iterator;
+            IEnumerator<object?>? enumerator = resumeState?.Enumerator;
+            if (iterator is null && enumerator is null &&
+                !TryGetIteratorForDestructuring(value, context, out iterator, out enumerator))
             {
                 throw StandardLibrary.ThrowTypeError(
                     $"Cannot destructure non-iterable value.{GetSourceInfo(context)}", context);
@@ -24,12 +35,17 @@ public static partial class TypedAstEvaluator
 
             var iteratorRecord = new ArrayPatternIterator(iterator, enumerator);
             var iteratorThrew = false;
-            var iteratorDone = false;
+            var iteratorDone = resumeState?.IteratorDone ?? false;
+            var startIndex = resumeState?.NextElementIndex ?? 0;
+            var hasPendingElement = resumeState?.HasPendingElement == true;
+            var pendingValue = resumeState?.PendingValue;
+            var pendingDone = resumeState?.PendingDone ?? false;
 
             try
             {
-                foreach (var element in binding.Elements)
+                for (var elementIndex = startIndex; elementIndex < binding.Elements.Length; elementIndex++)
                 {
+                    var element = binding.Elements[elementIndex];
                     AssignmentReference? preResolvedReference = null;
                     if (mode == BindingMode.Assign && element.Target is AssignmentTargetBinding assignmentTarget)
                     {
@@ -40,7 +56,12 @@ public static partial class TypedAstEvaluator
                             EvaluateExpression);
                         if (context.ShouldStopEvaluation)
                         {
-                            if (iterator is not null)
+                            if (context.IsYield && stateKey is { })
+                            {
+                                SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
+                                    elementIndex, pendingValue, pendingDone, false, null);
+                            }
+                            else if (iterator is not null)
                             {
                                 IteratorClose(iterator, context);
                             }
@@ -49,22 +70,47 @@ public static partial class TypedAstEvaluator
                         }
                     }
 
-                    (object? nextValue, bool done) next;
-                    try
+                    var usePending = hasPendingElement && elementIndex == startIndex;
+                    if (usePending)
                     {
-                        next = iteratorRecord.Next(context);
+                        hasPendingElement = false;
                     }
-                    catch (ThrowSignal)
+
+                    (object? nextValue, bool done) next;
+                    if (usePending)
                     {
-                        iteratorThrew = true;
-                        throw;
+                        next = (pendingValue, pendingDone);
+                    }
+                    else
+                    {
+                        try
+                        {
+                            next = iteratorRecord.Next(context);
+                        }
+                        catch (ThrowSignal)
+                        {
+                            iteratorThrew = true;
+                            throw;
+                        }
+
+                        if (context.IsYield && stateKey is { })
+                        {
+                            SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
+                                elementIndex, next.Item1, next.Item2, false, null);
+                            return;
+                        }
                     }
 
                     var (nextValue, done) = next;
                     iteratorDone = done;
                     if (context.ShouldStopEvaluation)
                     {
-                        if (iterator is not null)
+                        if (context.IsYield && stateKey is { })
+                        {
+                            SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
+                                elementIndex, nextValue, done, false, null);
+                        }
+                        else if (iterator is not null)
                         {
                             IteratorClose(iterator, context);
                         }
@@ -87,7 +133,12 @@ public static partial class TypedAstEvaluator
                         elementValue = EvaluateExpression(element.DefaultValue, environment, context);
                         if (context.ShouldStopEvaluation)
                         {
-                            if (iterator is not null)
+                            if (context.IsYield && stateKey is { })
+                            {
+                                SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
+                                    elementIndex, elementValue, done, false, null);
+                            }
+                            else if (iterator is not null)
                             {
                                 IteratorClose(iterator, context);
                             }
@@ -122,7 +173,12 @@ public static partial class TypedAstEvaluator
                         continue;
                     }
 
-                    if (iterator is not null)
+                    if (context.IsYield && stateKey is { })
+                    {
+                        SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
+                            elementIndex + 1, null, iteratorDone, false, null);
+                    }
+                    else if (iterator is not null)
                     {
                         IteratorClose(iterator, context);
                     }
@@ -142,7 +198,12 @@ public static partial class TypedAstEvaluator
                             EvaluateExpression);
                         if (context.ShouldStopEvaluation)
                         {
-                            if (iterator is not null)
+                            if (context.IsYield && stateKey is { })
+                            {
+                                SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
+                                    binding.Elements.Length, null, iteratorDone, true, null);
+                            }
+                            else if (iterator is not null)
                             {
                                 IteratorClose(iterator, context);
                             }
@@ -151,25 +212,48 @@ public static partial class TypedAstEvaluator
                         }
                     }
 
-                    var restArray = new JsArray(context.RealmState);
+                    var restArray = resumeState?.RestArray ?? new JsArray(context.RealmState);
+                    var consumePendingRest = resumeState?.ConsumingRest == true && resumeState.HasPendingElement;
+                    var pendingRestValue = consumePendingRest ? resumeState!.PendingValue : null;
+                    var pendingRestDone = consumePendingRest && resumeState!.PendingDone;
                     while (true)
                     {
                         (object? restValue, bool done) restNext;
-                        try
+                        if (consumePendingRest)
                         {
-                            restNext = iteratorRecord.Next(context);
+                            restNext = (pendingRestValue, pendingRestDone);
+                            consumePendingRest = false;
                         }
-                        catch (ThrowSignal)
+                        else
                         {
-                            iteratorThrew = true;
-                            throw;
+                            try
+                            {
+                                restNext = iteratorRecord.Next(context);
+                            }
+                            catch (ThrowSignal)
+                            {
+                                iteratorThrew = true;
+                                throw;
+                            }
+
+                            if (context.IsYield && stateKey is { })
+                            {
+                                SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
+                                    binding.Elements.Length, restNext.Item1, restNext.Item2, true, restArray);
+                                return;
+                            }
                         }
 
                         var (restValue, done) = restNext;
                         iteratorDone = done;
                         if (context.ShouldStopEvaluation)
                         {
-                            if (iterator is not null)
+                            if (context.IsYield && stateKey is { })
+                            {
+                                SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
+                                    binding.Elements.Length, restValue, done, true, restArray);
+                            }
+                            else if (iterator is not null)
                             {
                                 IteratorClose(iterator, context);
                             }
@@ -198,7 +282,7 @@ public static partial class TypedAstEvaluator
             }
             catch (ThrowSignal)
             {
-                if (iterator is not null && !iteratorThrew)
+                if (iterator is not null && !iteratorThrew && !iteratorDone)
                 {
                     IteratorClose(iterator, context, true);
                 }
@@ -207,9 +291,13 @@ public static partial class TypedAstEvaluator
             }
             catch
             {
-                if (iterator is not null)
+                if (iterator is not null && !iteratorDone)
                 {
                     IteratorClose(iterator, context);
+                    if (context.IsThrow)
+                    {
+                        return;
+                    }
                 }
 
                 throw;
@@ -219,6 +307,83 @@ public static partial class TypedAstEvaluator
             {
                 IteratorClose(iterator, context);
             }
+
+            if (stateKey is { })
+            {
+                ClearArrayPatternState(stateKey, environment);
+            }
         }
     }
+
+    private static Symbol? GetArrayPatternStateKey(ArrayBinding binding)
+    {
+        if (binding.Source is null)
+        {
+            return Symbol.Intern($"__array_pattern_state_{binding.GetHashCode()}");
+        }
+
+        return Symbol.Intern(
+            $"__array_pattern_state_{binding.Source.StartPosition}_{binding.Source.EndPosition}");
+    }
+
+    private static void SaveArrayPatternState(Symbol stateKey, JsEnvironment environment,
+        JsObject? iterator,
+        IEnumerator<object?>? enumerator,
+        bool iteratorDone,
+        int nextElementIndex,
+        object? pendingValue,
+        bool pendingDone,
+        bool consumingRest,
+        JsArray? restArray)
+    {
+        var state = environment.TryGet(stateKey, out var existing) && existing is ArrayPatternState existingState
+            ? existingState
+            : new ArrayPatternState();
+
+        state.Iterator = iterator;
+        state.Enumerator = enumerator;
+        state.IteratorDone = iteratorDone;
+        state.NextElementIndex = nextElementIndex;
+        state.HasPendingElement = true;
+        state.PendingValue = pendingValue;
+        state.PendingDone = pendingDone;
+        state.RestArray = restArray;
+        state.ConsumingRest = consumingRest;
+
+        if (environment.HasOwnBinding(stateKey))
+        {
+            environment.Assign(stateKey, state);
+        }
+        else
+        {
+            environment.Define(stateKey, state, isConst: false, isLexical: true, canDelete: true);
+        }
+    }
+
+    private static void ClearArrayPatternState(Symbol stateKey, JsEnvironment environment)
+    {
+        environment.DeleteBinding(stateKey);
+    }
+
+    private sealed class ArrayPatternState
+    {
+        public bool ConsumingRest { get; set; }
+
+        public IEnumerator<object?>? Enumerator { get; set; }
+
+        public bool HasPendingElement { get; set; }
+
+        public JsObject? Iterator { get; set; }
+
+        public bool IteratorDone { get; set; }
+
+        public int NextElementIndex { get; set; }
+
+        public bool PendingDone { get; set; }
+
+        public object? PendingValue { get; set; }
+
+        public JsArray? RestArray { get; set; }
+    }
+
 }

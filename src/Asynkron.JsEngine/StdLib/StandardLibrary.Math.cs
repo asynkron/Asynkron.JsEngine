@@ -24,14 +24,14 @@ public static partial class StandardLibrary
             new PropertyDescriptor { Value = "Math", Writable = false, Enumerable = false, Configurable = true });
 
         // Constants
-        math["E"] = Math.E;
-        math["PI"] = Math.PI;
-        math["LN2"] = Math.Log(2);
-        math["LN10"] = Math.Log(10);
-        math["LOG2E"] = Math.Log2(Math.E);
-        math["LOG10E"] = Math.Log10(Math.E);
-        math["SQRT1_2"] = Math.Sqrt(0.5);
-        math["SQRT2"] = Math.Sqrt(2);
+        DefineConstantProperty(math, "E", Math.E);
+        DefineConstantProperty(math, "PI", Math.PI);
+        DefineConstantProperty(math, "LN2", Math.Log(2));
+        DefineConstantProperty(math, "LN10", Math.Log(10));
+        DefineConstantProperty(math, "LOG2E", Math.Log2(Math.E));
+        DefineConstantProperty(math, "LOG10E", Math.Log10(Math.E));
+        DefineConstantProperty(math, "SQRT1_2", Math.Sqrt(0.5));
+        DefineConstantProperty(math, "SQRT2", Math.Sqrt(2));
 
         // Methods
         math["abs"] = new HostFunction(args =>

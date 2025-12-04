@@ -223,6 +223,62 @@ internal static class AssignmentReferenceResolver
             return;
         }
 
+        var prototype = target.Prototype;
+        while (prototype is not null)
+        {
+            var inheritedDescriptor = prototype.GetOwnPropertyDescriptor(propertyName);
+            if (inheritedDescriptor is not null)
+            {
+                if (inheritedDescriptor.IsAccessorDescriptor)
+                {
+                    if (inheritedDescriptor.Set is null)
+                    {
+                        if (isStrict)
+                        {
+                            throw StandardLibrary.ThrowTypeError(
+                                $"Cannot set property '{propertyName}' that has only a getter.",
+                                context,
+                                realmState);
+                        }
+
+                        return;
+                    }
+
+                    inheritedDescriptor.Set.Invoke([value], receiver);
+                    return;
+                }
+
+                if (!inheritedDescriptor.Writable)
+                {
+                    if (isStrict)
+                    {
+                        throw StandardLibrary.ThrowTypeError(
+                            $"Cannot assign to read only property '{propertyName}'.",
+                            context,
+                            realmState);
+                    }
+
+                    return;
+                }
+
+                // Writable inherited data property: create/update own data property
+                target.DefineProperty(propertyName, new PropertyDescriptor
+                {
+                    Value = value,
+                    Writable = true,
+                    Enumerable = inheritedDescriptor.Enumerable,
+                    Configurable = inheritedDescriptor.Configurable,
+                    HasValue = true,
+                    HasWritable = true,
+                    HasEnumerable = inheritedDescriptor.HasEnumerable,
+                    HasConfigurable = inheritedDescriptor.HasConfigurable
+                });
+                return;
+            }
+
+            prototype = prototype.Prototype;
+        }
+
         if (!target.IsExtensible)
         {
             if (isStrict)

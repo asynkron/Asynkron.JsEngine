@@ -102,6 +102,38 @@ public static partial class StandardLibrary
         return new ThrowSignal(CreateSyntaxError(message, context, realm));
     }
 
+    internal static void DefineConstantProperty(
+        IJsPropertyAccessor target,
+        string name,
+        object? value,
+        bool configurable = false)
+    {
+        var descriptor = new PropertyDescriptor
+        {
+            Value = value,
+            Writable = false,
+            Enumerable = false,
+            Configurable = configurable,
+            HasValue = true,
+            HasWritable = true,
+            HasEnumerable = true,
+            HasConfigurable = true
+        };
+
+        if (target is IPropertyDefinitionHost definable && definable.TryDefineProperty(name, descriptor))
+        {
+            return;
+        }
+
+        if (target is IJsObjectLike objectLike)
+        {
+            objectLike.DefineProperty(name, descriptor);
+            return;
+        }
+
+        target.SetProperty(name, value);
+    }
+
     internal static void DefineBuiltinFunction(
         JsObject target,
         string name,

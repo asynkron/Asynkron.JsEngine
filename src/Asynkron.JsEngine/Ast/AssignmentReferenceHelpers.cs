@@ -82,6 +82,74 @@ public static partial class TypedAstEvaluator
             return;
         }
 
+        if (target is JsObject jsObject)
+        {
+            AssignmentReferenceResolver.AssignObjectProperty(
+                jsObject,
+                propertyName,
+                value,
+                context.CurrentScope.IsStrict,
+                context,
+                context.RealmState,
+                target);
+            return;
+        }
+
+        if (target is IJsPropertyAccessor accessor)
+        {
+            var descriptor = accessor.GetOwnPropertyDescriptor(propertyName);
+            if (descriptor is not null)
+            {
+                if (descriptor.IsAccessorDescriptor)
+                {
+                    if (descriptor.Set is null)
+                    {
+                        if (context.CurrentScope.IsStrict)
+                        {
+                            throw StandardLibrary.ThrowTypeError(
+                                $"Cannot set property '{propertyName}' that has only a getter.",
+                                context,
+                                context.RealmState);
+                        }
+
+                        return;
+                    }
+
+                    descriptor.Set.Invoke([value], target);
+                    return;
+                }
+
+                if (!descriptor.Writable)
+                {
+                    if (context.CurrentScope.IsStrict)
+                    {
+                        throw StandardLibrary.ThrowTypeError(
+                            $"Cannot assign to read only property '{propertyName}'.",
+                            context,
+                            context.RealmState);
+                    }
+
+                    return;
+                }
+
+                accessor.SetProperty(propertyName, value, target);
+                return;
+            }
+
+            if (target is IExtensibilityControl extensibility && !extensibility.IsExtensible)
+            {
+                if (context.CurrentScope.IsStrict)
+                {
+                    throw StandardLibrary.ThrowTypeError(
+                        $"Cannot add property '{propertyName}', object is not extensible.",
+                        context,
+                        context.RealmState);
+                }
+
+                return;
+            }
+        }
+
         AssignPropertyValue(target, propertyName, value, context);
     }
 }

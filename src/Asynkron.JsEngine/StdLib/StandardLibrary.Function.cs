@@ -84,6 +84,8 @@ public static partial class StandardLibrary
         callHelper.Realm = functionConstructor.Realm;
         callHelper.RealmState = functionConstructor.RealmState;
 
+        DefineConstantProperty(functionConstructor, "length", 1d, configurable: true);
+
         functionConstructor.SetProperty("call", callHelper);
 
         // Provide a minimal `Function.prototype` object that exposes the

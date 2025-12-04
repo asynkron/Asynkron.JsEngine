@@ -419,7 +419,7 @@ public sealed class TypedAstParser(
                 ExpressionNode? defaultValue = null;
                 if (Match(TokenType.Equal))
                 {
-                    defaultValue = ParseAssignment();
+                    defaultValue = ParseAssignment(validateCoverInitializedName: false);
                 }
 
                 elements.Add(new ArrayBindingElement(elementTarget.Source, elementTarget, defaultValue));
@@ -465,7 +465,7 @@ public sealed class TypedAstParser(
                 if (Match(TokenType.LeftBracket))
                 {
                     var start = Previous();
-                    nameExpression = ParseAssignment();
+                    nameExpression = ParseAssignment(validateCoverInitializedName: false);
                     Consume(TokenType.RightBracket, "Expected ']' after computed property name.");
                     name = string.Empty;
                     canUseShorthand = false;
@@ -501,7 +501,7 @@ public sealed class TypedAstParser(
                 ExpressionNode? defaultValue = null;
                 if (Match(TokenType.Equal))
                 {
-                    defaultValue = ParseAssignment();
+                    defaultValue = ParseAssignment(validateCoverInitializedName: false);
                 }
 
                 properties.Add(new ObjectBindingProperty(source, name, target, defaultValue, nameExpression));
@@ -1372,6 +1372,8 @@ public sealed class TypedAstParser(
             VariableDeclaration? initializerDeclaration = null;
             var firstClauseTerminated = false;
 
+            ExpressionNode? initializerExpression = null;
+
             if (Match(TokenType.Semicolon))
             {
                 firstClauseTerminated = true;
@@ -1431,7 +1433,8 @@ public sealed class TypedAstParser(
                     _allowInExpressions = false;
                     try
                     {
-                        var initExpr = ParseExpression();
+                        var initExpr = ParseExpression(validateCoverInitializedName: false);
+                        initializerExpression = initExpr;
                         initializer = new ExpressionStatement(initExpr.Source, initExpr);
                     }
                     finally
@@ -1443,6 +1446,16 @@ public sealed class TypedAstParser(
 
             var isForEach = false;
             var eachKind = ForEachKind.Of;
+
+            var initializerAllowsCoverNames =
+                initializerExpression is not null && !firstClauseTerminated &&
+                (isAwait || Check(TokenType.Of) || Check(TokenType.In));
+
+            if (!initializerAllowsCoverNames && initializerExpression is { } expressionInitializer)
+            {
+                var validated = ValidateExpression(expressionInitializer);
+                initializer = new ExpressionStatement(validated.Source ?? initializer.Source, validated);
+            }
 
             if (!firstClauseTerminated)
             {
@@ -1522,9 +1535,9 @@ public sealed class TypedAstParser(
 
         #region Expressions
 
-        private ExpressionNode ParseExpression(bool allowSequence = true)
+        private ExpressionNode ParseExpression(bool allowSequence = true, bool validateCoverInitializedName = true)
         {
-            var expression = ParseAssignment();
+            var expression = ParseAssignment(validateCoverInitializedName);
 
             if (!allowSequence)
             {
@@ -1533,7 +1546,7 @@ public sealed class TypedAstParser(
 
             while (Match(TokenType.Comma))
             {
-                var right = ParseAssignment();
+                var right = ParseAssignment(validateCoverInitializedName);
                 var source = expression.Source ?? right.Source ?? CreateSourceReference(Previous());
                 expression = new SequenceExpression(source, expression, right);
             }
@@ -1541,7 +1554,7 @@ public sealed class TypedAstParser(
             return expression;
         }
 
-        private ExpressionNode ParseAssignment()
+        private ExpressionNode ParseAssignment(bool validateCoverInitializedName = true)
         {
             if (TryParseAsyncArrowFunction(out var asyncArrow))
             {
@@ -1553,11 +1566,11 @@ public sealed class TypedAstParser(
                 return parenthesizedArrow;
             }
 
-            var expr = ParseConditional();
+            var expr = ParseConditional(validateCoverInitializedName);
 
             if (Match(TokenType.Equal))
             {
-                var value = ParseAssignment();
+                var value = ParseAssignment(validateCoverInitializedName);
                 if (expr is IdentifierExpression identifier)
                 {
                     if (InStrictContext &&
@@ -1577,27 +1590,26 @@ public sealed class TypedAstParser(
                             "Assignment to eval or arguments is not allowed in strict mode.", Previous(), _source);
                     }
 
-                    return ValidateExpression(
-                        new AssignmentExpression(expr.Source ?? value.Source, identifier.Name, value));
+                    var assignment = new AssignmentExpression(expr.Source ?? value.Source, identifier.Name, value);
+                    return validateCoverInitializedName ? ValidateExpression(assignment) : assignment;
                 }
 
                 if (expr is MemberExpression member)
                 {
-                    return ValidateExpression(CreateMemberAssignment(member, value));
+                    var memberAssignment = CreateMemberAssignment(member, value);
+                    return validateCoverInitializedName ? ValidateExpression(memberAssignment) : memberAssignment;
                 }
 
                 if (expr is ArrayExpression arrayPattern)
                 {
                     var binding = ConvertArrayExpressionToBinding(arrayPattern);
-                    return ValidateExpression(
-                        new DestructuringAssignmentExpression(expr.Source ?? value.Source, binding, value));
+                    return new DestructuringAssignmentExpression(expr.Source ?? value.Source, binding, value);
                 }
 
                 if (expr is ObjectExpression objectPattern)
                 {
                     var binding = ConvertObjectExpressionToBinding(objectPattern);
-                    return ValidateExpression(
-                        new DestructuringAssignmentExpression(expr.Source ?? value.Source, binding, value));
+                    return new DestructuringAssignmentExpression(expr.Source ?? value.Source, binding, value);
                 }
 
                 throw new NotSupportedException("Unsupported assignment target.");
@@ -1610,7 +1622,7 @@ public sealed class TypedAstParser(
                     TokenType.QuestionQuestionEqual))
             {
                 var opToken = Previous();
-                var value = ParseAssignment();
+                var value = ParseAssignment(validateCoverInitializedName);
 
                 ExpressionNode combined = opToken.Type switch
                 {
@@ -1635,14 +1647,15 @@ public sealed class TypedAstParser(
                     }, expr, value)
                 };
 
-                return expr switch
+                var result = expr switch
                 {
-                    IdentifierExpression identifier => ValidateExpression(
-                        new AssignmentExpression(expr.Source ?? combined.Source, identifier.Name, combined, true)),
-                    MemberExpression member => ValidateExpression(
-                        CreateMemberAssignment(member, combined, true)),
+                    IdentifierExpression identifier => new AssignmentExpression(
+                        expr.Source ?? combined.Source, identifier.Name, combined, true),
+                    MemberExpression member => CreateMemberAssignment(member, combined, true),
                     _ => throw new NotSupportedException("Unsupported assignment target.")
                 };
+
+                return validateCoverInitializedName ? ValidateExpression(result) : result;
             }
 
             if (Match(TokenType.Arrow))
@@ -1650,18 +1663,18 @@ public sealed class TypedAstParser(
                 return FinishArrowFunction(expr, false, Previous());
             }
 
-            return ValidateExpression(expr);
+            return validateCoverInitializedName ? ValidateExpression(expr) : expr;
         }
 
-        private ExpressionNode ParseConditional()
+        private ExpressionNode ParseConditional(bool validateCoverInitializedName = true)
         {
             var expr = ParseLogicalOr();
 
             if (Match(TokenType.Question))
             {
-                var consequent = ParseExpression();
+                var consequent = ParseExpression(validateCoverInitializedName: validateCoverInitializedName);
                 Consume(TokenType.Colon, "Expected ':' after conditional expression.");
-                var alternate = ParseAssignment();
+                var alternate = ParseAssignment(validateCoverInitializedName);
                 return new ConditionalExpression(expr.Source ?? consequent.Source ?? alternate.Source, expr, consequent,
                     alternate);
             }
@@ -2422,7 +2435,7 @@ public sealed class TypedAstParser(
                 }
 
                 var isSpread = Match(TokenType.DotDotDot);
-                var expr = ParseExpression(false);
+                var expr = ParseExpression(false, validateCoverInitializedName: false);
                 elements.Add(new ArrayElement(expr.Source, expr, isSpread));
                 expectElement = false;
 
@@ -2465,7 +2478,7 @@ public sealed class TypedAstParser(
 
                 if (Match(TokenType.DotDotDot))
                 {
-                    var spreadExpr = ParseExpression(false);
+                    var spreadExpr = ParseExpression(false, validateCoverInitializedName: false);
                     members.Add(new ObjectMember(spreadExpr.Source, ObjectMemberKind.Spread, string.Empty, spreadExpr,
                         null, false, false, null));
                     continue;
@@ -2556,7 +2569,7 @@ public sealed class TypedAstParser(
                             Peek(), _source);
                     }
 
-                    value = ParseExpression(false);
+                    value = ParseExpression(false, validateCoverInitializedName: false);
                 }
                 else
                 {
@@ -2573,7 +2586,7 @@ public sealed class TypedAstParser(
                     var symbol = Symbol.Intern(shorthandName);
                     if (Match(TokenType.Equal))
                     {
-                        var initializer = ParseAssignment();
+                        var initializer = ParseAssignment(validateCoverInitializedName: false);
                         value = new AssignmentExpression(initializer.Source ?? keySource, symbol, initializer);
                         hasCoverInitializedName = true;
                     }
@@ -2797,7 +2810,7 @@ public sealed class TypedAstParser(
                 ExpressionNode? defaultValue = null;
                 if (!isRest && Match(TokenType.Equal))
                 {
-                    defaultValue = ParseAssignment();
+                    defaultValue = ParseAssignment(validateCoverInitializedName: false);
                 }
                 else if (isRest && Check(TokenType.Equal))
                 {
@@ -2964,10 +2977,25 @@ public sealed class TypedAstParser(
                             "Multiple rest elements are not allowed in destructuring patterns.");
                     }
 
+                    if (element.Expression is DestructuringAssignmentExpression destructuringRest)
+                    {
+                        restTarget = destructuringRest.Target;
+                        continue;
+                    }
+
                     var restBinding = ConvertExpressionToBindingTarget(element.Expression)
                                       ?? throw new NotSupportedException("Invalid rest binding target.");
 
                     restTarget = restBinding;
+                    continue;
+                }
+
+                if (element.Expression is DestructuringAssignmentExpression destructuringElement)
+                {
+                    elements.Add(new ArrayBindingElement(
+                        element.Source ?? destructuringElement.Source ?? array.Source,
+                        destructuringElement.Target,
+                        destructuringElement.Value));
                     continue;
                 }
 
@@ -3043,6 +3071,15 @@ public sealed class TypedAstParser(
 
                 ExpressionNode? defaultValue = null;
                 var valueExpression = member.Value;
+                if (valueExpression is DestructuringAssignmentExpression destructuringValue)
+                {
+                    var bindingTarget = destructuringValue.Target
+                                       ?? throw new NotSupportedException("Invalid object destructuring target.");
+                    properties.Add(new ObjectBindingProperty(member.Source ?? obj.Source, name, bindingTarget,
+                        destructuringValue.Value, nameExpression));
+                    continue;
+                }
+
                 if (TryExtractDefaultedAssignment(valueExpression, out var extractedTarget, out var initializer))
                 {
                     valueExpression = extractedTarget;
@@ -3374,7 +3411,7 @@ public sealed class TypedAstParser(
                         ExpressionNode? defaultValue = null;
                         if (!isRest && Match(TokenType.Equal))
                         {
-                            defaultValue = ParseAssignment();
+                            defaultValue = ParseAssignment(validateCoverInitializedName: false);
                         }
                         else if (isRest && Check(TokenType.Equal))
                         {
@@ -3410,7 +3447,7 @@ public sealed class TypedAstParser(
                         ExpressionNode? defaultValue = null;
                         if (!isRest && Match(TokenType.Equal))
                         {
-                            defaultValue = ParseAssignment();
+                            defaultValue = ParseAssignment(validateCoverInitializedName: false);
                         }
                         else if (isRest && Check(TokenType.Equal))
                         {

@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -11,8 +12,46 @@ public static partial class TypedAstEvaluator
         {
             if (expression.Target is SuperExpression)
             {
-                throw new InvalidOperationException(
-                    $"Assigning through super is not supported.{GetSourceInfo(context, expression.Source)}");
+                var superIndex = EvaluateExpression(expression.Index, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return Symbol.Undefined;
+                }
+
+                var superAssignedValue = EvaluateExpression(expression.Value, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return superAssignedValue;
+                }
+
+                if (superAssignedValue is IFunctionNameTarget superNameTarget &&
+                    expression.Value is FunctionExpression { Name: null } or ClassExpression { Name: null })
+                {
+                    superNameTarget.EnsureHasName(string.Empty);
+                }
+
+                var propertyName = JsOps.GetRequiredPropertyName(superIndex, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return Symbol.Undefined;
+                }
+
+                var binding = ExpectSuperBinding(environment, context);
+                if (!binding.IsThisInitialized)
+                {
+                    throw CreateSuperReferenceError(environment, context, null);
+                }
+
+                if (binding.Prototype is null)
+                {
+                    throw StandardLibrary.ThrowTypeError(
+                        "Cannot assign to super property when prototype is null or undefined.",
+                        context,
+                        context.RealmState);
+                }
+
+                binding.SetProperty(propertyName, superAssignedValue);
+                return superAssignedValue;
             }
 
             var target = EvaluateExpression(expression.Target, environment, context);

@@ -71,19 +71,17 @@ internal static class AssignmentReferenceResolver
                 });
         }
 
-        return new AssignmentReference(
-            () => ReadIdentifierValue(() => environment.GetDeclarative(identifier.Name), context),
-            value =>
-            {
-                if (isStrictTarget)
-                {
-                    throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
-                        "Assignment to eval or arguments is not allowed in strict mode.", context,
-                        context.RealmState));
-                }
+        var reference = environment.ResolveIdentifierAssignmentReference(identifier.Name, context);
+        if (!isStrictTarget)
+        {
+            return reference;
+        }
 
-                environment.Assign(identifier.Name, value);
-            });
+        return new AssignmentReference(
+            reference.GetValue,
+            _ => throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
+                "Assignment to eval or arguments is not allowed in strict mode.", context,
+                context.RealmState)));
     }
 
     private static AssignmentReference ResolveMember(
@@ -230,7 +228,7 @@ internal static class AssignmentReferenceResolver
             });
     }
 
-    private static object? ReadIdentifierValue(Func<object?> getter, EvaluationContext context)
+    internal static object? ReadIdentifierValue(Func<object?> getter, EvaluationContext context)
     {
         try
         {

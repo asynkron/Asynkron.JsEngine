@@ -612,6 +612,152 @@ public sealed class JsEnvironment
         return false;
     }
 
+    internal AssignmentReference ResolveIdentifierAssignmentReference(Symbol name, EvaluationContext context)
+    {
+        var strictContext = context.CurrentScope.IsStrict;
+        var visited = new HashSet<JsEnvironment>(ReferenceEqualityComparer.Instance);
+
+        if (TryLocateBinding(name, visited, out var bindingEnvironment, out var binding))
+        {
+            return new AssignmentReference(
+                () => AssignmentReferenceResolver.ReadIdentifierValue(
+                    () => ReadResolvedBindingValue(bindingEnvironment, binding, name), context),
+                newValue =>
+                {
+                    WriteResolvedBindingValue(bindingEnvironment, binding, name, newValue, strictContext);
+                });
+        }
+
+        return new AssignmentReference(
+            () => AssignmentReferenceResolver.ReadIdentifierValue(
+                () => ReadUnresolvable(name), context),
+            newValue => AssignUnresolvable(name, newValue, strictContext, context));
+    }
+
+    private static object? ReadResolvedBindingValue(JsEnvironment bindingEnvironment, Binding binding, Symbol name)
+    {
+        if (ReferenceEquals(binding.Value, Uninitialized))
+        {
+            throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+        }
+
+        if (bindingEnvironment.IsGlobalFunctionScope && !binding.IsLexical)
+        {
+            var globalObject = bindingEnvironment.GetRootGlobalObject();
+            if (globalObject is not null && globalObject.TryGetProperty(name.Name, out var globalValue))
+            {
+                return globalValue;
+            }
+        }
+
+        return binding.Value;
+    }
+
+    private void WriteResolvedBindingValue(
+        JsEnvironment bindingEnvironment,
+        Binding binding,
+        Symbol name,
+        object? value,
+        bool isStrictContext)
+    {
+        var realm = bindingEnvironment.RealmState ?? bindingEnvironment.Enclosing?.RealmState;
+
+        if (ReferenceEquals(binding.Value, Uninitialized) &&
+            binding.IsLexical &&
+            !Symbol.Equals(name, Symbol.This))
+        {
+            throw StandardLibrary.ThrowReferenceError($"ReferenceError: {name.Name} is not defined", null, realm);
+        }
+
+        if (binding.IsConst)
+        {
+            throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                $"Cannot reassign constant '{name.Name}'.", realm: realm));
+        }
+
+        if (binding.IsGlobalConstant)
+        {
+            if (isStrictContext)
+            {
+                throw new ThrowSignal(
+                    StandardLibrary.CreateTypeError($"ReferenceError: {name.Name} is not writable", realm: realm));
+            }
+
+            return;
+        }
+
+        binding.Value = value;
+        if (!binding.IsLexical)
+        {
+            bindingEnvironment.GetRootGlobalObject()?.SetProperty(name.Name, value);
+        }
+
+        bindingEnvironment.NotifyBindingObservers(name, value);
+    }
+
+    private static object ReadUnresolvable(Symbol name)
+    {
+        throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+    }
+
+    private void AssignUnresolvable(Symbol name, object? value, bool isStrictContext, EvaluationContext context)
+    {
+        var realm = RealmState ?? Enclosing?.RealmState;
+        if (isStrictContext)
+        {
+            throw StandardLibrary.ThrowReferenceError($"ReferenceError: {name.Name} is not defined", null, realm);
+        }
+
+        var globalObject = GetRootGlobalObject();
+        globalObject?.SetProperty(name.Name, value);
+        LogRealm("Assign created global via sloppy assignment name={Name} valueType={ValueType}", name.Name,
+            value?.GetType().Name ?? "null");
+        context.RealmState?.Logger?.LogInformation(
+            "Sloppy assignment created unresolvable binding name={Name} valueType={ValueType}",
+            name.Name,
+            value?.GetType().Name ?? "null");
+    }
+
+    private bool TryLocateBinding(
+        Symbol name,
+        HashSet<JsEnvironment> visited,
+        out JsEnvironment bindingEnvironment,
+        out Binding binding)
+    {
+        var current = this;
+        var hops = 0;
+        const int maxLookupDepth = 10_000;
+
+        while (current is not null && hops++ < maxLookupDepth)
+        {
+            if (!visited.Add(current))
+            {
+                current = current.Enclosing;
+                continue;
+            }
+
+            if (current._values.TryGetValue(name, out binding))
+            {
+                bindingEnvironment = current;
+                return true;
+            }
+
+            if (current._varEnvironmentOverride is not null &&
+                current._varEnvironmentOverride != current &&
+                !visited.Contains(current._varEnvironmentOverride) &&
+                current._varEnvironmentOverride.TryLocateBinding(name, visited, out bindingEnvironment, out binding))
+            {
+                return true;
+            }
+
+            current = current.Enclosing;
+        }
+
+        bindingEnvironment = null!;
+        binding = null!;
+        return false;
+    }
+
     internal bool HasLexicalBinding(Symbol name)
     {
         if (_values.TryGetValue(name, out var binding) && binding.IsLexical)

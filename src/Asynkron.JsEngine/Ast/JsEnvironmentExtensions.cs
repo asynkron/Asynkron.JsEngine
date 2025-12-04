@@ -142,7 +142,7 @@ public static partial class TypedAstEvaluator
 
             // Fall back to a best-effort binding so evaluation order (property/key/value)
             // can proceed before any prototype-based errors are raised.
-            object? thisValue = JsEnvironment.Uninitialized;
+            var thisValue = JsEnvironment.Uninitialized;
             try
             {
                 environment.TryGet(Symbol.This, out thisValue);

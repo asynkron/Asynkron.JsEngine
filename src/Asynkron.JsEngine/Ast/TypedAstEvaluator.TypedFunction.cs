@@ -859,7 +859,7 @@ public static partial class TypedAstEvaluator
                 return binding;
             }
 
-            IJsPropertyAccessor? prototypeForSuper = _superPrototype;
+            var prototypeForSuper = _superPrototype;
             if (prototypeForSuper is null)
             {
                 prototypeForSuper = instance.Prototype?.Prototype;

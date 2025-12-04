@@ -11,7 +11,7 @@ public static partial class TypedAstEvaluator
         private object? EvaluatePropertyAssignment(JsEnvironment environment,
             EvaluationContext context)
         {
-            ExpressionNode? superPropertyExpression = expression.Target switch
+            var superPropertyExpression = expression.Target switch
             {
                 MemberExpression { Target: SuperExpression } member => member.Property,
                 SuperExpression => expression.Property,

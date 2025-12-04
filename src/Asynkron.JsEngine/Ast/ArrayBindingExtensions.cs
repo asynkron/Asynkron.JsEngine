@@ -18,8 +18,8 @@ public static partial class TypedAstEvaluator
                 resumeState = savedState;
             }
 
-            JsObject? iterator = resumeState?.Iterator;
-            IEnumerator<object?>? enumerator = resumeState?.Enumerator;
+            var iterator = resumeState?.Iterator;
+            var enumerator = resumeState?.Enumerator;
             if (iterator is null && enumerator is null &&
                 !TryGetIteratorForDestructuring(value, context, out iterator, out enumerator))
             {

@@ -112,7 +112,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("unshift", Length = 1d)]
     public object? Unshift(object? thisValue, IReadOnlyList<object?> args)
     {
-        RealmState? realm = Realm;
+        var realm = Realm;
         const string MethodName = "Array.prototype.unshift";
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, realm);
         var objectLike = accessor as IJsObjectLike;
@@ -125,7 +125,7 @@ public sealed partial class ArrayPrototype
             throw ThrowTypeError("Array.prototype.unshift cannot exceed 2^32 - 1 elements", realm: realm);
         }
 
-        for (long k = length - 1; k >= 0; k--)
+        for (var k = length - 1; k >= 0; k--)
         {
             var fromKey = ToIndexString(k);
             var toKey = ToIndexString(k + argCount);
@@ -211,7 +211,7 @@ public sealed partial class ArrayPrototype
 
         if (insertCount < actualDeleteCount)
         {
-            for (long k = actualStart; k < length - actualDeleteCount; k++)
+            for (var k = actualStart; k < length - actualDeleteCount; k++)
             {
                 var from = k + actualDeleteCount;
                 var to = k + insertCount;
@@ -229,7 +229,7 @@ public sealed partial class ArrayPrototype
                 }
             }
 
-            for (long k = length; k > length - (actualDeleteCount - insertCount); k--)
+            for (var k = length; k > length - (actualDeleteCount - insertCount); k--)
             {
                 var key = ToIndexString(k - 1);
                 var existed = HasProperty(accessor, key);
@@ -238,7 +238,7 @@ public sealed partial class ArrayPrototype
         }
         else if (insertCount > actualDeleteCount)
         {
-            for (long k = length - actualDeleteCount; k > actualStart; k--)
+            for (var k = length - actualDeleteCount; k > actualStart; k--)
             {
                 var from = k + actualDeleteCount - 1;
                 var to = k + insertCount - 1;
@@ -269,7 +269,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("concat", Length = 1d)]
     public object? Concat(object? thisValue, IReadOnlyList<object?> args)
     {
-        RealmState? realm = Realm;
+        var realm = Realm;
         const string MethodName = "Array.prototype.concat";
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, realm);
         var result = ArraySpeciesCreate(thisValue, 0, realm);
@@ -380,7 +380,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("sort", Length = 1d)]
     public object? Sort(object? thisValue, IReadOnlyList<object?> args)
     {
-        RealmState? realm = Realm;
+        var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.sort", realm);
         var objectLike = accessor as IJsObjectLike;
 

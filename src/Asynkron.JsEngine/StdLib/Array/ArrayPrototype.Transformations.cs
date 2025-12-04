@@ -15,7 +15,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("join", Length = 1d)]
     public object? Join(object? thisValue, IReadOnlyList<object?> args)
     {
-        RealmState? realm = Realm;
+        var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.join", realm);
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
@@ -61,7 +61,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("includes", Length = 1d)]
     public object? Includes(object? thisValue, IReadOnlyList<object?> args)
     {
-        RealmState? realm = Realm;
+        var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.includes", realm);
 
         var searchElement = args.GetArgument(0);
@@ -160,7 +160,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("lastIndexOf", Length = 1d)]
     public object? LastIndexOf(object? thisValue, IReadOnlyList<object?> args)
     {
-        RealmState? realm = Realm;
+        var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.lastIndexOf", realm);
         var evalContext = realm?.CreateContext();
         var searchElement = args.GetArgument(0);
@@ -257,7 +257,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("slice", Length = 2d)]
     public object? Slice(object? thisValue, IReadOnlyList<object?> args)
     {
-        RealmState? realm = Realm;
+        var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.slice", realm);
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
@@ -308,7 +308,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("flat", Length = 0d)]
     public object? Flat(object? thisValue, IReadOnlyList<object?> args)
     {
-        RealmState? realm = Realm;
+        var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.flat", realm);
         var depthNum = args.Count > 0 ? ToIntegerOrInfinity(args[0]) : 1;
         long depth;
@@ -355,7 +355,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("fill", Length = 1d)]
     public object? Fill(object? thisValue, IReadOnlyList<object?> args)
     {
-        RealmState? realm = Realm;
+        var realm = Realm;
         var target = EnsureArrayLikeReceiver(thisValue, "Array.prototype.fill", realm);
         var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
@@ -432,7 +432,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("toSorted", Length = 1d)]
     public object? ToSorted(object? thisValue, IReadOnlyList<object?> args)
     {
-        RealmState? realm = Realm;
+        var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toSorted", realm);
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
@@ -514,7 +514,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("toSpliced", Length = 2d)]
     public object? ToSpliced(object? thisValue, IReadOnlyList<object?> args)
     {
-        RealmState? realm = Realm;
+        var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toSpliced", realm);
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);

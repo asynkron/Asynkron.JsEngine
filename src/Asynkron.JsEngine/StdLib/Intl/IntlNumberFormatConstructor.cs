@@ -54,8 +54,8 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
         var numberingSystem = ResolveNumberingSystem(options);
         var culture = IntlUtilities.ResolveCulture(locale);
         string? currency = null;
-        string currencyDisplay = "symbol";
-        string currencySign = "standard";
+        var currencyDisplay = "symbol";
+        var currencySign = "standard";
         if (style == "currency")
         {
             currency = ResolveCurrency(options);

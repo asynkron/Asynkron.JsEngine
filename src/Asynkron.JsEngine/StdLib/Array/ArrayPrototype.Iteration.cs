@@ -34,7 +34,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("filter", Length = 1d)]
     public object? Filter(object? thisValue, IReadOnlyList<object?> args)
     {
-        RealmState? realm = Realm;
+        var realm = Realm;
         var (accessor, length, callback, thisArg) =
             PrepareArrayIteration(thisValue, args, realm, "Array.prototype.filter");
         var result = ArraySpeciesCreate(thisValue, 0, realm);
@@ -69,7 +69,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("reduceRight", Length = 1d)]
     public object? ReduceRight(object? thisValue, IReadOnlyList<object?> args)
     {
-        RealmState? realm = Realm;
+        var realm = Realm;
         return ReduceLike(thisValue, args, realm, "Array.prototype.reduceRight", true);
     }
 
@@ -95,7 +95,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("find", Length = 1d)]
     public object? Find(object? thisValue, IReadOnlyList<object?> args)
     {
-        RealmState? realm = Realm;
+        var realm = Realm;
         var (accessor, length, callback, thisArg) =
             PrepareArrayIteration(thisValue, args, realm, "Array.prototype.find");
 
@@ -138,7 +138,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("some", Length = 1d)]
     public object? Some(object? thisValue, IReadOnlyList<object?> args)
     {
-        RealmState? realm = Realm;
+        var realm = Realm;
         return SomeLike(thisValue, args, realm, "Array.prototype.some");
     }
 
@@ -168,7 +168,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("findLast", Length = 1d)]
     public object? FindLast(object? thisValue, IReadOnlyList<object?> args)
     {
-        RealmState? realm = Realm;
+        var realm = Realm;
         var (accessor, length, callback, thisArg) =
             PrepareArrayIteration(thisValue, args, realm, "Array.prototype.findLast");
 

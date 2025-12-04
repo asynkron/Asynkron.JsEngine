@@ -1952,7 +1952,11 @@ public sealed class TypedAstParser(
                 ExpressionNode? value = null;
                 if (isDelegated)
                 {
-                    if (Check(TokenType.Semicolon) || CanInsertSemicolon())
+                    // Yield* always requires an operand and the grammar does not
+                    // carry the [no LineTerminator here] restriction that plain
+                    // `yield` has, so allow line breaks before parsing the
+                    // assignment expression.
+                    if (Check(TokenType.Semicolon) || Check(TokenType.RightBrace) || Check(TokenType.Eof))
                     {
                         throw new ParseException("yield* requires an expression.", keyword, _source);
                     }

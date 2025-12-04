@@ -293,10 +293,29 @@ internal static class GeneratorYieldLowerer
                 return false;
             }
 
-            if (!AstShapeAnalyzer.ContainsYield(expressionStatement.Expression) ||
-                expressionStatement.Expression is YieldExpression)
+            if (!AstShapeAnalyzer.ContainsYield(expressionStatement.Expression))
             {
                 return false;
+            }
+
+            // If the statement is a bare `yield <expr>` and the operand itself contains
+            // yields, lower the operand into temporaries so the outer yield can proceed.
+            if (expressionStatement.Expression is YieldExpression yieldExpression &&
+                AstShapeAnalyzer.ContainsYield(yieldExpression.Expression))
+            {
+                var nestedPrefix = ImmutableArray.CreateBuilder<StatementNode>();
+                var nestedChanged = false;
+                var rewrittenOperand =
+                    RewriteExpressionForComplexYields(yieldExpression.Expression, nestedPrefix, ref nestedChanged);
+                if (nestedChanged)
+                {
+                    var rewrittenYield = yieldExpression with { Expression = rewrittenOperand };
+                    var nestedResult = ImmutableArray.CreateBuilder<StatementNode>();
+                    nestedResult.AddRange(nestedPrefix);
+                    nestedResult.Add(expressionStatement with { Expression = rewrittenYield });
+                    replacement = nestedResult.ToImmutable();
+                    return true;
+                }
             }
 
             var prefixStatements = ImmutableArray.CreateBuilder<StatementNode>();
@@ -531,7 +550,7 @@ internal static class GeneratorYieldLowerer
                     var membersChanged = false;
                     foreach (var member in objectExpression.Members)
                     {
-                        ExpressionNode? value = member.Value;
+                        var value = member.Value;
                         if (value is not null)
                         {
                             var rewrittenValue =
@@ -648,30 +667,70 @@ internal static class GeneratorYieldLowerer
         private bool TryRewriteReturnWithYield(StatementNode statement,
             out ImmutableArray<StatementNode> replacement)
         {
-            if (statement is not ReturnStatement { Expression: YieldExpression yieldExpression })
+            if (statement is not ReturnStatement { Expression: { } } returnStatement)
             {
                 replacement = default;
                 return false;
             }
 
-            if (AstShapeAnalyzer.ContainsYield(yieldExpression.Expression))
+            // General case: return expression contains yields somewhere inside.
+            if (returnStatement.Expression is not YieldExpression &&
+                AstShapeAnalyzer.ContainsYield(returnStatement.Expression))
+            {
+                var prefix = ImmutableArray.CreateBuilder<StatementNode>();
+                var changed = false;
+                var rewritten =
+                    RewriteExpressionForComplexYields(returnStatement.Expression, prefix, ref changed);
+                if (changed)
+                {
+                    prefix.Add(returnStatement with { Expression = rewritten });
+                    replacement = prefix.ToImmutable();
+                    return true;
+                }
+            }
+
+            if (returnStatement.Expression is not YieldExpression yieldExpression)
             {
                 replacement = default;
                 return false;
             }
 
             var resumeIdentifier = CreateResumeIdentifier();
-            var declareResume = new VariableDeclaration(statement.Source, VariableKind.Let,
-                [new VariableDeclarator(statement.Source, resumeIdentifier, null)]);
+            var operand = yieldExpression.Expression;
+            if (AstShapeAnalyzer.ContainsYield(operand))
+            {
+                var nestedPrefix = ImmutableArray.CreateBuilder<StatementNode>();
+                var nestedChanged = false;
+                operand = RewriteExpressionForComplexYields(operand, nestedPrefix, ref nestedChanged);
+                if (nestedChanged)
+                {
+                    var loweredReturn = BuildReturnWithYield(yieldExpression with { Expression = operand },
+                        resumeIdentifier,
+                        statement.Source);
+                    nestedPrefix.AddRange(loweredReturn);
+                    replacement = nestedPrefix.ToImmutable();
+                    return true;
+                }
+            }
+
+            replacement = BuildReturnWithYield(yieldExpression, resumeIdentifier, statement.Source);
+            return true;
+        }
+
+        private ImmutableArray<StatementNode> BuildReturnWithYield(
+            YieldExpression yieldExpression,
+            IdentifierBinding resumeIdentifier,
+            SourceReference? returnSource)
+        {
+            var declareResume = new VariableDeclaration(returnSource, VariableKind.Let,
+                [new VariableDeclarator(returnSource, resumeIdentifier, null)]);
             var assignResume = new ExpressionStatement(yieldExpression.Source,
                 new AssignmentExpression(yieldExpression.Source, resumeIdentifier.Name,
                     new YieldExpression(yieldExpression.Source, yieldExpression.Expression,
                         yieldExpression.IsDelegated)));
-            var loweredReturn = new ReturnStatement(statement.Source,
+            var loweredReturn = new ReturnStatement(returnSource,
                 new IdentifierExpression(yieldExpression.Source, resumeIdentifier.Name));
-
-            replacement = [declareResume, assignResume, loweredReturn];
-            return true;
+            return [declareResume, assignResume, loweredReturn];
         }
 
         private bool TryRewriteYieldingDeclaration(StatementNode statement,
@@ -685,10 +744,33 @@ internal static class GeneratorYieldLowerer
                 return false;
             }
 
-            if (AstShapeAnalyzer.ContainsYield(yieldExpression.Expression))
+            var initializer = yieldExpression.Expression;
+            if (AstShapeAnalyzer.ContainsYield(initializer))
             {
-                replacement = default;
-                return false;
+                var nestedPrefix = ImmutableArray.CreateBuilder<StatementNode>();
+                var nestedChanged = false;
+                initializer = RewriteExpressionForComplexYields(initializer, nestedPrefix, ref nestedChanged);
+                if (nestedChanged)
+                {
+                    var nestedResume = CreateResumeIdentifier();
+                    var nestedDeclarator = declarator with
+                    {
+                        Initializer = new IdentifierExpression(yieldExpression.Source, nestedResume.Name)
+                    };
+                    var nestedDeclaration = declaration with { Declarators = [nestedDeclarator] };
+
+                    var declareResume = new VariableDeclaration(statement.Source, VariableKind.Let,
+                        [new VariableDeclarator(statement.Source, nestedResume, null)]);
+                    var assignResume = new ExpressionStatement(yieldExpression.Source,
+                        new AssignmentExpression(yieldExpression.Source, nestedResume.Name,
+                            new YieldExpression(yieldExpression.Source, initializer, yieldExpression.IsDelegated)));
+
+                    nestedPrefix.Add(declareResume);
+                    nestedPrefix.Add(assignResume);
+                    nestedPrefix.Add(nestedDeclaration);
+                    replacement = nestedPrefix.ToImmutable();
+                    return true;
+                }
             }
 
             var resumeIdentifier = CreateResumeIdentifier();

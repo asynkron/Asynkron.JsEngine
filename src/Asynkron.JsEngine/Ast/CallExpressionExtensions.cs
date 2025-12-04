@@ -261,7 +261,7 @@ public static partial class TypedAstEvaluator
                     }
 
                     var targetEnvironment = thisInitializationEnvironment ?? environment;
-                    bool hasThisBinding = targetEnvironment.HasBinding(Symbol.This);
+                    var hasThisBinding = targetEnvironment.HasBinding(Symbol.This);
                     string beforeType;
                     try
                     {

@@ -247,7 +247,7 @@ public static partial class StandardLibrary
             }
 
             var value = stepAccessor.TryGetProperty("value", out var entryValue) ? entryValue : Symbol.Undefined;
-            object? mappedValue = value;
+            var mappedValue = value;
             if (mapping && mapper is not null)
             {
                 try

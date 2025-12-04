@@ -66,7 +66,7 @@ public static partial class StandardLibrary
             useDefaultConstructor = true;
         }
 
-        object? constructor = constructorValue;
+        var constructor = constructorValue;
 
         if (!useDefaultConstructor && constructor is IJsPropertyAccessor ctorAccessor)
         {
@@ -380,7 +380,7 @@ public static partial class StandardLibrary
                 continue;
             }
 
-            object? mapped = element;
+            var mapped = element;
             if (mapper is not null)
             {
                 mapped = mapper.Invoke([element, (double)k, source], thisArg);
@@ -394,8 +394,8 @@ public static partial class StandardLibrary
             var newDepth = depth == double.PositiveInfinity ? depth : depth - 1;
                 var elementLengthValue = mappedAccessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
                 var elementLength = (long)ToLengthOrZero(elementLengthValue);
-                IJsCallable? nextMapper = mapper is not null ? null : mapper;
-                object? nextThisArg = mapper is not null ? null : thisArg;
+                var nextMapper = mapper is not null ? null : mapper;
+                var nextThisArg = mapper is not null ? null : thisArg;
                 targetIndex = FlattenIntoArray(target, mappedAccessor, elementLength, targetIndex, newDepth,
                     nextMapper, nextThisArg, realm, operation);
             }

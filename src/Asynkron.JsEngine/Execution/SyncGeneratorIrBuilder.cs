@@ -318,6 +318,18 @@ internal sealed class SyncGeneratorIrBuilder
                 case ContinueStatement continueStatement:
                     return TryBuildContinue(continueStatement, out entryIndex);
 
+                case WithStatement withStatement:
+                    if (AstShapeAnalyzer.ContainsYield(withStatement.Object) ||
+                        AstShapeAnalyzer.StatementContainsYield(withStatement.Body))
+                    {
+                        entryIndex = -1;
+                        _failureReason ??= "With statement contains unsupported yield shape.";
+                        return false;
+                    }
+
+                    entryIndex = Append(new StatementInstruction(nextIndex, withStatement));
+                    return true;
+
                 case ThrowStatement throwStatement:
                     if (throwStatement.Expression is not null &&
                         AstShapeAnalyzer.ContainsYield(throwStatement.Expression))

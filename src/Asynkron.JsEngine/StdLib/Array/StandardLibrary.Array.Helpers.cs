@@ -185,7 +185,7 @@ public static partial class StandardLibrary
         }
 
         var hasInitial = args.Count > 1;
-        object? accumulator = hasInitial ? args[1] : Symbol.Undefined;
+        var accumulator = hasInitial ? args[1] : Symbol.Undefined;
         var start = fromRight ? length - 1 : 0;
         var step = fromRight ? -1 : 1;
 

@@ -401,7 +401,7 @@ public static partial class StandardLibrary
 
                 for (var i = 0; i < length; i++)
                 {
-                    object? value = srcTypedArray switch
+                    var value = srcTypedArray switch
                     {
                         JsBigInt64Array bi64 => bi64.GetBigIntElement(i),
                         JsBigUint64Array bu64 => bu64.GetBigIntElement(i),
@@ -1241,7 +1241,7 @@ public static partial class StandardLibrary
             return typedArray;
         }
 
-        int direction = 1;
+        var direction = 1;
         if (from < to && to < from + count)
         {
             direction = -1;

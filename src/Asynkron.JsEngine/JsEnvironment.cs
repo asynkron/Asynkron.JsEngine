@@ -687,7 +687,7 @@ public sealed class JsEnvironment
         }
 
         binding.Value = value;
-        if (!binding.IsLexical)
+        if (!binding.IsLexical && bindingEnvironment.IsGlobalFunctionScope)
         {
             bindingEnvironment.GetRootGlobalObject()?.SetProperty(name.Name, value);
         }
@@ -705,7 +705,28 @@ public sealed class JsEnvironment
         var realm = RealmState ?? Enclosing?.RealmState;
         if (isStrictContext)
         {
+            context.RealmState?.Logger?.LogInformation(
+                "AssignUnresolvable strict throw name={Name} scopeStrict={ScopeStrict} functionScopeStrict={FnStrict} env={Env}",
+                name.Name,
+                context.CurrentScope.IsStrict,
+                GetFunctionScope().IsStrict,
+                GetHashCode());
             throw StandardLibrary.ThrowReferenceError($"ReferenceError: {name.Name} is not defined", null, realm);
+        }
+
+        var globalScope = this;
+        while (globalScope.Enclosing is not null)
+        {
+            globalScope = globalScope.Enclosing;
+        }
+
+        if (!globalScope._values.ContainsKey(name))
+        {
+            globalScope.Define(name, value, isLexical: false, canDelete: true);
+        }
+        else
+        {
+            globalScope.AssignInternal(name, value, isStrictContext, new HashSet<JsEnvironment>(ReferenceEqualityComparer.Instance));
         }
 
         var globalObject = GetRootGlobalObject();
@@ -1189,8 +1210,11 @@ public sealed class JsEnvironment
         // In strict mode, assignment to undefined variable is an error
         // In non-strict mode, create the variable as a global
         var functionScope = GetFunctionScope();
-        if (functionScope.HasBodyLexicalName(name))
+        if (functionScope.HasBodyLexicalName(name) && functionScope.HasOwnLexicalBinding(name))
         {
+            RealmState?.Logger?.LogInformation(
+                "AssignUnresolvable blocked by body lexical name={Name} strict={Strict} env={Env}",
+                name.Name, isStrictContext, GetHashCode());
             throw StandardLibrary.ThrowReferenceError($"ReferenceError: {name.Name} is not defined", null, realm);
         }
 

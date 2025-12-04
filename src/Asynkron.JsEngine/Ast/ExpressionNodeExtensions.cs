@@ -69,7 +69,8 @@ public static partial class TypedAstEvaluator
                 UnaryExpression unary => EvaluateUnary(unary, environment, context),
                 ConditionalExpression conditional => EvaluateConditional(conditional, environment, context),
                 CallExpression call => EvaluateCall(call, environment, context),
-                FunctionExpression functionExpression => CreateFunctionValue(functionExpression, environment, context),
+                FunctionExpression functionExpression => CreateFunctionValue(functionExpression, environment, context,
+                    createFunctionNameEnvironment: true),
                 AssignmentExpression assignment => EvaluateAssignment(assignment, environment, context),
                 DestructuringAssignmentExpression destructuringAssignment =>
                     EvaluateDestructuringAssignment(destructuringAssignment, environment, context),
@@ -268,16 +269,40 @@ public static partial class TypedAstEvaluator
                     return (null, null, true);
                 }
 
-                var property = EvaluateExpression(member.Property, environment, context);
-                if (context.ShouldStopEvaluation)
+                if (IsNullish(target))
                 {
+                    var error = StandardLibrary.CreateTypeError(
+                        "Cannot read properties of null or undefined",
+                        context,
+                        context.RealmState);
+                    context.SetThrow(error);
                     return (Symbol.Undefined, null, true);
                 }
 
-                var propertyName = JsOps.GetRequiredPropertyName(property, context);
-                if (context.ShouldStopEvaluation)
+                string propertyName;
+                if (member.IsComputed)
                 {
-                    return (Symbol.Undefined, null, true);
+                    var property = EvaluateExpression(member.Property, environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return (Symbol.Undefined, null, true);
+                    }
+
+                    propertyName = JsOps.GetRequiredPropertyName(property, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return (Symbol.Undefined, null, true);
+                    }
+                }
+                else
+                {
+                    propertyName = member.Property switch
+                    {
+                        IdentifierExpression id => id.Name.Name,
+                        LiteralExpression { Value: string s } => s,
+                        _ => JsOps.GetRequiredPropertyName(EvaluateExpression(member.Property, environment, context),
+                            context)
+                    };
                 }
 
                 if (!TryGetPropertyValue(target, propertyName, out var value, context))
@@ -293,6 +318,23 @@ public static partial class TypedAstEvaluator
                 }
 
                 return (value, target, false);
+            }
+
+            if (callee is IdentifierExpression identifier)
+            {
+                if (environment.TryResolveWithBinding(identifier.Name, context, out var withBinding))
+                {
+                    var withValue = JsEnvironment.GetWithBindingValue(withBinding);
+                    return (withValue, withBinding.BindingObject, false);
+                }
+
+                var calleeValue = EvaluateIdentifier(identifier, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return (Symbol.Undefined, null, true);
+                }
+
+                return (calleeValue, Symbol.Undefined, false);
             }
 
             var directCallee = EvaluateExpression(callee, environment, context);

@@ -36,6 +36,34 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
+            var arguments = ImmutableArray.CreateBuilder<object?>(expression.Arguments.Length);
+            foreach (var argument in expression.Arguments)
+            {
+                if (argument.IsSpread)
+                {
+                    var spreadValue = EvaluateExpression(argument.Expression, environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        context.CallDepth--;
+                        return Symbol.Undefined;
+                    }
+
+                    foreach (var item in EnumerateSpread(spreadValue, context))
+                    {
+                        arguments.Add(item);
+                    }
+
+                    continue;
+                }
+
+                arguments.Add(EvaluateExpression(argument.Expression, environment, context));
+                if (context.ShouldStopEvaluation)
+                {
+                    context.CallDepth--;
+                    return Symbol.Undefined;
+                }
+            }
+
             if (callee is not IJsCallable callable)
             {
                 // Special-case Function.prototype.apply / call patterns such as
@@ -99,32 +127,6 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
-            var arguments = ImmutableArray.CreateBuilder<object?>(expression.Arguments.Length);
-            foreach (var argument in expression.Arguments)
-            {
-                if (argument.IsSpread)
-                {
-                    var spreadValue = EvaluateExpression(argument.Expression, environment, context);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return Symbol.Undefined;
-                    }
-
-                    foreach (var item in EnumerateSpread(spreadValue, context))
-                    {
-                        arguments.Add(item);
-                    }
-
-                    continue;
-                }
-
-                arguments.Add(EvaluateExpression(argument.Expression, environment, context));
-                if (context.ShouldStopEvaluation)
-                {
-                    return Symbol.Undefined;
-                }
-            }
-
             var isAsyncCallable = callable is TypedFunction { IsAsyncLike: true };
 
             IJsEnvironmentAwareCallable? envAwareHandle = null;
@@ -171,7 +173,8 @@ public static partial class TypedAstEvaluator
             {
                 evalHost = evalHostFunction;
                 isDirectEvalCall = expression.Callee is IdentifierExpression { Name.Name: "eval" } &&
-                                   ReferenceEquals(thisValue, Symbol.Undefined);
+                                   ReferenceEquals(thisValue, Symbol.Undefined) &&
+                                   ReferenceEquals(evalHostFunction.Engine, environment.RealmState?.Engine);
                 evalHost.IsDirectCall = isDirectEvalCall;
             }
 

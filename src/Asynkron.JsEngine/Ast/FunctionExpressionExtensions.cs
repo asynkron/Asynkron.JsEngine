@@ -344,17 +344,44 @@ public static partial class TypedAstEvaluator
     extension(FunctionExpression functionExpression)
     {
         private IJsCallable CreateFunctionValue(JsEnvironment environment,
-            EvaluationContext context)
+            EvaluationContext context,
+            bool createFunctionNameEnvironment = false)
         {
-            return functionExpression.IsGenerator switch
+            var closureEnvironment = environment;
+            JsEnvironment? functionNameEnvironment = null;
+            if (createFunctionNameEnvironment &&
+                functionExpression.Name is { } functionName &&
+                !functionExpression.IsArrow)
             {
-                true when functionExpression.IsAsync => new AsyncGeneratorFactory(functionExpression, environment,
+                functionNameEnvironment = new JsEnvironment(
+                    environment,
+                    isFunctionScope: false,
+                    isStrict: context.CurrentScope.IsStrict,
+                    creatingSource: functionExpression.Source,
+                    description: $"FunctionExpression:{functionName.Name}");
+                closureEnvironment = functionNameEnvironment;
+            }
+
+            IJsCallable callable = functionExpression.IsGenerator switch
+            {
+                true when functionExpression.IsAsync => new AsyncGeneratorFactory(functionExpression,
+                    closureEnvironment,
                     context.RealmState, context.CurrentScope.IsStrict),
-                true => new TypedGeneratorFactory(functionExpression, environment, context.RealmState,
+                true => new TypedGeneratorFactory(functionExpression, closureEnvironment, context.RealmState,
                     context.CurrentScope.IsStrict),
-                _ => new TypedFunction(functionExpression, environment, context.RealmState,
-                    context.CurrentScope.IsStrict)
+                _ => new TypedFunction(functionExpression, closureEnvironment, context.RealmState,
+                    context.CurrentScope.IsStrict, functionNameEnvironment is not null)
             };
+
+            if (functionNameEnvironment is not null)
+            {
+                functionNameEnvironment.Define(functionExpression.Name!, callable,
+                    isConst: true,
+                    isLexical: true,
+                    blocksFunctionScopeOverride: true);
+            }
+
+            return callable;
         }
     }
 }

@@ -23,6 +23,7 @@ public static partial class TypedAstEvaluator
         private readonly RealmState _realmState;
         private readonly bool _isStrict;
         private readonly bool _wasAsyncFunction;
+        private readonly bool _hasFunctionNameEnvironment;
         private IJsCallable? _caller;
         private IJsObjectLike? _homeObject;
         private ImmutableArray<ClassField> _instanceFields = ImmutableArray<ClassField>.Empty;
@@ -35,7 +36,8 @@ public static partial class TypedAstEvaluator
             FunctionExpression function,
             JsEnvironment closure,
             RealmState realmState,
-            bool isLexicallyStrict)
+            bool isLexicallyStrict,
+            bool hasFunctionNameEnvironment = false)
         {
             if (function.IsGenerator)
             {
@@ -49,6 +51,7 @@ public static partial class TypedAstEvaluator
             _isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
             IsAsyncFunction = function.IsAsync;
             _wasAsyncFunction = function.WasAsync;
+            _hasFunctionNameEnvironment = hasFunctionNameEnvironment;
             IsArrowFunction = function.IsArrow;
             _bodyLexicalNames = CollectLexicalNames(function.Body).ToArray();
             _hasHoistableDeclarations = HasHoistableDeclarations(function.Body);
@@ -652,7 +655,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 // Named function expressions should see their name inside the body.
-                if (!IsArrowFunction && _function.Name is { } functionName)
+                if (!IsArrowFunction && _function.Name is { } functionName && !_hasFunctionNameEnvironment)
                 {
                     parameterEnvironment.Define(functionName, this);
                 }
@@ -687,6 +690,14 @@ public static partial class TypedAstEvaluator
                         lexicalNames: lexicalNames,
                         catchParameterNames: catchParameterNames,
                         simpleCatchParameterNames: simpleCatchParameterNames);
+                }
+
+                if (_hasFunctionNameEnvironment &&
+                    _function.Name is { } hoistedName &&
+                    ContainsVarDeclaration(_function, hoistedName) &&
+                    !functionEnvironment.TryGet(hoistedName, out _))
+                {
+                    functionEnvironment.DefineFunctionScoped(hoistedName, Symbol.Undefined, false, context: context);
                 }
 
                 try
@@ -955,6 +966,138 @@ public static partial class TypedAstEvaluator
 
                 instance.SetProperty(propertyName, value);
             }
+        }
+
+        private static bool ContainsVarDeclaration(FunctionExpression function, Symbol name)
+        {
+            var work = new Stack<StatementNode>();
+            work.Push(function.Body);
+
+            while (work.Count > 0)
+            {
+                var statement = work.Pop();
+                switch (statement)
+                {
+                    case VariableDeclaration { Kind: VariableKind.Var } varDecl:
+                        foreach (var declarator in varDecl.Declarators)
+                        {
+                            if (BindingTargetContainsName(declarator.Target, name))
+                            {
+                                return true;
+                            }
+                        }
+
+                        break;
+                    case BlockStatement block:
+                        foreach (var inner in block.Statements)
+                        {
+                            work.Push(inner);
+                        }
+
+                        break;
+                    case IfStatement ifStatement:
+                        work.Push(ifStatement.Then);
+                        if (ifStatement.Else is { } elseBranch)
+                        {
+                            work.Push(elseBranch);
+                        }
+
+                        break;
+                    case WhileStatement whileStatement:
+                        work.Push(whileStatement.Body);
+                        break;
+                    case DoWhileStatement doWhileStatement:
+                        work.Push(doWhileStatement.Body);
+                        break;
+                    case WithStatement withStatement:
+                        work.Push(withStatement.Body);
+                        break;
+                    case ForStatement forStatement:
+                        if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar)
+                        {
+                            work.Push(initVar);
+                        }
+
+                        if (forStatement.Body is not null)
+                        {
+                            work.Push(forStatement.Body);
+                        }
+
+                        break;
+                    case ForEachStatement forEachStatement:
+                        if (forEachStatement.DeclarationKind == VariableKind.Var &&
+                            BindingTargetContainsName(forEachStatement.Target, name))
+                        {
+                            return true;
+                        }
+
+                        work.Push(forEachStatement.Body);
+                        break;
+                    case LabeledStatement labeled:
+                        work.Push(labeled.Statement);
+                        break;
+                    case TryStatement tryStatement:
+                        work.Push(tryStatement.TryBlock);
+                        if (tryStatement.Catch is { } catchClause)
+                        {
+                            work.Push(catchClause.Body);
+                        }
+
+                        if (tryStatement.Finally is { } finallyBlock)
+                        {
+                            work.Push(finallyBlock);
+                        }
+
+                        break;
+                    case SwitchStatement switchStatement:
+                        foreach (var switchCase in switchStatement.Cases)
+                        {
+                            work.Push(switchCase.Body);
+                        }
+
+                        break;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool BindingTargetContainsName(BindingTarget? target, Symbol name)
+        {
+            while (target is not null)
+            {
+                switch (target)
+                {
+                    case IdentifierBinding id:
+                        return Symbol.Equals(id.Name, name);
+                    case ArrayBinding array:
+                        foreach (var element in array.Elements)
+                        {
+                            if (BindingTargetContainsName(element.Target, name))
+                            {
+                                return true;
+                            }
+                        }
+
+                        target = array.RestElement;
+                        continue;
+                    case ObjectBinding obj:
+                        foreach (var property in obj.Properties)
+                        {
+                            if (BindingTargetContainsName(property.Target, name))
+                            {
+                                return true;
+                            }
+                        }
+
+                        target = obj.RestElement;
+                        continue;
+                    default:
+                        return false;
+                }
+            }
+
+            return false;
         }
     }
 }

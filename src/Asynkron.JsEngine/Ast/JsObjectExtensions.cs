@@ -48,8 +48,23 @@ public static partial class TypedAstEvaluator
             return true;
         }
 
-        private void IteratorClose(EvaluationContext context, bool preserveExistingThrow = false)
+        private void IteratorClose(EvaluationContext context, bool preserveExistingThrow = false,
+            object? existingThrowOverride = null)
         {
+            var savedSignal = preserveExistingThrow ? context.CurrentSignal : null;
+            context.RealmState.Logger?.LogInformation(
+                "IteratorClose enter preserveExistingThrow={Preserve} savedSignal={SavedSignalType} savedValueType={SavedValueType}",
+                preserveExistingThrow,
+                savedSignal?.GetType().Name ?? "null",
+                savedSignal switch
+                {
+                    ThrowFlowSignal throwSignal => throwSignal.Value?.GetType().Name ?? "null",
+                    ReturnSignal returnSignal => returnSignal.Value?.GetType().Name ?? "null",
+                    BreakSignal => "Break",
+                    ContinueSignal => "Continue",
+                    _ => "null"
+                });
+
             if (!TryInvokeIteratorMethod(
                     iterator,
                     "return",
@@ -58,28 +73,64 @@ public static partial class TypedAstEvaluator
                     out var closeResult,
                     false))
             {
+                if (preserveExistingThrow)
+                {
+                    RestoreSignal(context, savedSignal);
+                }
+
                 return;
             }
 
-            if (closeResult is not JsObject returnObject)
+            try
             {
-                if (preserveExistingThrow && context.IsThrow)
+                if (closeResult is not JsObject returnObject)
                 {
+                    context.RealmState.Logger?.LogInformation(
+                        "IteratorClose return non-object preserveExistingThrow={Preserve}",
+                        preserveExistingThrow);
+                    if (preserveExistingThrow)
+                    {
+                        RestoreSignal(context, savedSignal);
+                        return;
+                    }
+
+                    var typeError = StandardLibrary.CreateTypeError("Iterator.return() must return an object",
+                        context, context.RealmState);
+                    context.SetThrow(typeError);
+                    context.RealmState.Logger?.LogInformation(
+                        "IteratorClose set throw: type={Type}", typeError?.GetType().Name ?? "null");
                     return;
                 }
 
-                var typeError = StandardLibrary.CreateTypeError("Iterator.return() must return an object",
-                    context, context.RealmState);
-                context.SetThrow(typeError);
+                if (IsPromiseLike(returnObject))
+                {
+                    AwaitScheduler.TryAwaitPromiseSync(returnObject, context, out _);
+                }
+            }
+            catch (ThrowSignal)
+            {
                 context.RealmState.Logger?.LogInformation(
-                    "IteratorClose set throw: type={Type}", typeError?.GetType().Name ?? "null");
-                return;
+                    "IteratorClose caught ThrowSignal preserveExistingThrow={Preserve}",
+                    preserveExistingThrow);
+                if (preserveExistingThrow)
+                {
+                    RestoreSignal(context, savedSignal);
+                    return;
+                }
+
+                throw;
             }
 
-            if (IsPromiseLike(returnObject))
+            if (preserveExistingThrow)
             {
-                AwaitScheduler.TryAwaitPromiseSync(returnObject, context, out _);
+                RestoreSignal(context, savedSignal);
             }
+
+            context.RealmState.Logger?.LogInformation(
+                "IteratorClose exit preserveExistingThrow={Preserve} currentSignal={SignalType} valueType={ValueType}",
+                preserveExistingThrow,
+                context.CurrentSignal?.GetType().Name ?? "null",
+                context.FlowValue?.GetType().Name ?? "null");
         }
     }
 

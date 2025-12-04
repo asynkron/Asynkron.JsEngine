@@ -29,7 +29,7 @@ public static partial class TypedAstEvaluator
 
             if (iterator is not null && binding.Elements.Length == 0 && binding.RestElement is null)
             {
-                IteratorClose(iterator, context);
+                CloseIterator(context.IsThrow);
                 return;
             }
 
@@ -40,6 +40,26 @@ public static partial class TypedAstEvaluator
             var hasPendingElement = resumeState?.HasPendingElement == true;
             var pendingValue = resumeState?.PendingValue;
             var pendingDone = resumeState?.PendingDone ?? false;
+            void CloseIterator(bool preserveExistingThrow, object? existingThrowOverride = null)
+            {
+                if (iterator is null)
+                {
+                    return;
+                }
+
+                try
+                {
+                    IteratorClose(iterator, context, preserveExistingThrow, existingThrowOverride);
+                }
+                catch (ThrowSignal)
+                {
+                    iteratorThrew = true;
+                    if (!preserveExistingThrow)
+                    {
+                        throw;
+                    }
+                }
+            }
 
             try
             {
@@ -59,11 +79,11 @@ public static partial class TypedAstEvaluator
                             if (context.IsYield && stateKey is { })
                             {
                                 SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
-                                    elementIndex, pendingValue, pendingDone, false, null);
+                                    elementIndex, pendingValue, pendingDone, false, null, false);
                             }
                             else if (iterator is not null)
                             {
-                                IteratorClose(iterator, context);
+                                CloseIterator(context.IsThrow);
                             }
 
                             return;
@@ -96,7 +116,7 @@ public static partial class TypedAstEvaluator
                         if (context.IsYield && stateKey is { })
                         {
                             SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
-                                elementIndex, next.Item1, next.Item2, false, null);
+                                elementIndex, next.Item1, next.Item2, false, null, false);
                             return;
                         }
                     }
@@ -108,11 +128,11 @@ public static partial class TypedAstEvaluator
                         if (context.IsYield && stateKey is { })
                         {
                             SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
-                                elementIndex, nextValue, done, false, null);
+                                elementIndex, nextValue, done, false, null, false);
                         }
                         else if (iterator is not null)
                         {
-                            IteratorClose(iterator, context);
+                            CloseIterator(context.IsThrow);
                         }
 
                         return;
@@ -136,11 +156,11 @@ public static partial class TypedAstEvaluator
                             if (context.IsYield && stateKey is { })
                             {
                                 SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
-                                    elementIndex, elementValue, done, false, null);
+                                    elementIndex, elementValue, done, false, null, true);
                             }
                             else if (iterator is not null)
                             {
-                                IteratorClose(iterator, context);
+                                CloseIterator(context.IsThrow);
                             }
 
                             return;
@@ -176,11 +196,11 @@ public static partial class TypedAstEvaluator
                     if (context.IsYield && stateKey is { })
                     {
                         SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
-                            elementIndex + 1, null, iteratorDone, false, null);
+                            elementIndex, elementValue, iteratorDone, false, null, true);
                     }
                     else if (iterator is not null)
                     {
-                        IteratorClose(iterator, context);
+                        CloseIterator(context.IsThrow);
                     }
 
                     return;
@@ -201,11 +221,11 @@ public static partial class TypedAstEvaluator
                             if (context.IsYield && stateKey is { })
                             {
                                 SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
-                                    binding.Elements.Length, null, iteratorDone, true, null);
+                                    binding.Elements.Length, null, iteratorDone, true, null, false);
                             }
                             else if (iterator is not null)
                             {
-                                IteratorClose(iterator, context);
+                                CloseIterator(context.IsThrow);
                             }
 
                             return;
@@ -239,7 +259,7 @@ public static partial class TypedAstEvaluator
                             if (context.IsYield && stateKey is { })
                             {
                                 SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
-                                    binding.Elements.Length, restNext.Item1, restNext.Item2, true, restArray);
+                                    binding.Elements.Length, restNext.Item1, restNext.Item2, true, restArray, true);
                                 return;
                             }
                         }
@@ -248,15 +268,15 @@ public static partial class TypedAstEvaluator
                         iteratorDone = done;
                         if (context.ShouldStopEvaluation)
                         {
-                            if (context.IsYield && stateKey is { })
-                            {
-                                SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
-                                    binding.Elements.Length, restValue, done, true, restArray);
-                            }
-                            else if (iterator is not null)
-                            {
-                                IteratorClose(iterator, context);
-                            }
+                        if (context.IsYield && stateKey is { })
+                        {
+                            SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
+                                binding.Elements.Length, restValue, done, true, restArray, true);
+                        }
+                        else if (iterator is not null)
+                        {
+                            CloseIterator(context.IsThrow);
+                        }
 
                             return;
                         }
@@ -280,11 +300,16 @@ public static partial class TypedAstEvaluator
                     }
                 }
             }
-            catch (ThrowSignal)
+            catch (ThrowSignal signal)
             {
+                if (!context.IsThrow)
+                {
+                    context.SetThrow(signal.ThrownValue);
+                }
+
                 if (iterator is not null && !iteratorThrew && !iteratorDone)
                 {
-                    IteratorClose(iterator, context, true);
+                    CloseIterator(true, signal.ThrownValue);
                 }
 
                 throw;
@@ -293,7 +318,7 @@ public static partial class TypedAstEvaluator
             {
                 if (iterator is not null && !iteratorDone)
                 {
-                    IteratorClose(iterator, context);
+                    CloseIterator(context.IsThrow);
                     if (context.IsThrow)
                     {
                         return;
@@ -305,7 +330,7 @@ public static partial class TypedAstEvaluator
 
             if (iterator is not null && !iteratorDone)
             {
-                IteratorClose(iterator, context);
+                CloseIterator(context.IsThrow);
             }
 
             if (stateKey is { })
@@ -334,7 +359,8 @@ public static partial class TypedAstEvaluator
         object? pendingValue,
         bool pendingDone,
         bool consumingRest,
-        JsArray? restArray)
+        JsArray? restArray,
+        bool hasPendingElement)
     {
         var state = environment.TryGet(stateKey, out var existing) && existing is ArrayPatternState existingState
             ? existingState
@@ -344,7 +370,7 @@ public static partial class TypedAstEvaluator
         state.Enumerator = enumerator;
         state.IteratorDone = iteratorDone;
         state.NextElementIndex = nextElementIndex;
-        state.HasPendingElement = true;
+        state.HasPendingElement = hasPendingElement;
         state.PendingValue = pendingValue;
         state.PendingDone = pendingDone;
         state.RestArray = restArray;

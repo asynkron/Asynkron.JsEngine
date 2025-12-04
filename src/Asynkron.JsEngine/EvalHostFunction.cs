@@ -96,8 +96,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         var insideClassFieldInitializer = InClassFieldInitializer ||
                                           CallingContext?.InClassFieldInitializer == true ||
                                           (CallingJsEnvironment?.HasBinding(FieldInitializerEvalFlag) ?? false);
-        var containsSuperInInitializer = ContainsSuperReference(program.Typed.Body, includeFunctionBodies: true);
-        if (insideClassFieldInitializer && containsSuperInInitializer)
+        var containsSuperCallInInitializer = ContainsSuperCall(program.Typed.Body, includeFunctionBodies: true);
+        if (insideClassFieldInitializer && containsSuperCallInInitializer)
         {
             throw StandardLibrary.ThrowSyntaxError(
                 "super references are not allowed in eval inside class field initializers.",
@@ -1193,7 +1193,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     return false;
                 case FunctionDeclaration functionDeclaration when includeFunctionBodies:
-                    return ContainsSuperReference(functionDeclaration.Function.Body.Statements, true);
+                    return ContainsSuperCall(functionDeclaration.Function.Body.Statements, true);
                 case FunctionDeclaration:
                 case ClassDeclaration:
                     return false;

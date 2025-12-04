@@ -23,6 +23,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         _properties.SetProperty("prototype", new JsObject());
     }
 
+    internal JsEngine Engine => _engine;
+
     public EvaluationContext? CallingContext { get; set; }
 
     /// <summary>

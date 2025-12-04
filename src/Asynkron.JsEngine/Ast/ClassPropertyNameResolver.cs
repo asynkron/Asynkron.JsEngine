@@ -1,3 +1,4 @@
+using System.Globalization;
 using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.Ast;
@@ -32,6 +33,12 @@ internal static class ClassPropertyNameResolver
             if (propertyName.Length > 0 && propertyName[0] == '#' && privateNameScope is not null)
             {
                 propertyName = privateNameScope.GetKey(propertyName);
+                return true;
+            }
+
+            if (double.TryParse(propertyName, NumberStyles.Float, CultureInfo.InvariantCulture, out var numericKey))
+            {
+                propertyName = JsOps.ToCanonicalNumberString(numericKey);
             }
 
             return true;
@@ -66,6 +73,12 @@ internal static class ClassPropertyNameResolver
             if (field.IsPrivate && privateNameScope is not null)
             {
                 propertyName = privateNameScope.GetKey(propertyName);
+                return true;
+            }
+
+            if (double.TryParse(propertyName, NumberStyles.Float, CultureInfo.InvariantCulture, out var numericKey))
+            {
+                propertyName = JsOps.ToCanonicalNumberString(numericKey);
             }
 
             return true;

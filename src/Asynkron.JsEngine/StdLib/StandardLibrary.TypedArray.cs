@@ -31,6 +31,58 @@ public static partial class StandardLibrary
                 (thisValue, reduceArgs, realmState) =>
                     TypedArrayReduce(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduceRight", true),
                 realm);
+            var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
+            var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
+
+            object? ProjectTypedArrayValue(IJsPropertyAccessor accessor, uint idx)
+            {
+                if (accessor is TypedArrayBase typed)
+                {
+                    return typed.GetValueForIndex((int)idx);
+                }
+
+                var key = idx.ToString(CultureInfo.InvariantCulture);
+                return JsOps.TryGetPropertyValue(accessor, key, out var value) ? value : Symbol.Undefined;
+            }
+
+            var valuesIterator = new HostFunction((thisValue, _) =>
+            {
+                var accessor = EnsureArrayLikeReceiver(thisValue, "%TypedArray%.prototype.values", realm);
+                return CreateArrayIteratorObject(accessor, idx => ProjectTypedArrayValue(accessor, idx), realm);
+            }, realm);
+
+            var keysIterator = new HostFunction((thisValue, _) =>
+                CreateArrayIteratorObject(
+                    EnsureArrayLikeReceiver(thisValue, "%TypedArray%.prototype.keys", realm),
+                    idx => (double)idx,
+                    realm), realm);
+
+            var entriesIterator = new HostFunction((thisValue, _) =>
+            {
+                var accessor = EnsureArrayLikeReceiver(thisValue, "%TypedArray%.prototype.entries", realm);
+                return CreateArrayIteratorObject(
+                    accessor,
+                    idx =>
+                    {
+                        var pair = new JsArray(realm);
+                        pair.Push((double)idx);
+                        pair.Push(ProjectTypedArrayValue(accessor, idx));
+                        return pair;
+                    },
+                    realm);
+            }, realm);
+
+            proto.DefineProperty(iteratorKey,
+                new PropertyDescriptor
+                {
+                    Value = valuesIterator,
+                    Writable = false,
+                    Enumerable = false,
+                    Configurable = true
+                });
+            proto.SetProperty("values", valuesIterator);
+            proto.SetProperty("keys", keysIterator);
+            proto.SetProperty("entries", entriesIterator);
             DefineTypedArrayFunction(proto, "map", 1d, TypedArrayMap, realm);
             DefineTypedArrayFunction(proto, "filter", 1d, TypedArrayFilter, realm);
             DefineTypedArrayFunction(proto, "every", 1d, TypedArrayEvery, realm);

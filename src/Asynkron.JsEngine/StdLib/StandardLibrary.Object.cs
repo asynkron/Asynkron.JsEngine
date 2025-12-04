@@ -738,6 +738,11 @@ public static partial class StandardLibrary
                 throw ThrowTypeError("Cannot freeze module namespace", realm: realm);
             }
 
+            if (args[0] is TypedArrayBase typedArray && typedArray.Buffer.Resizable)
+            {
+                throw ThrowTypeError("Cannot freeze a typed array backed by a resizable ArrayBuffer", realm: realm);
+            }
+
             if (args[0] is not JsObject obj)
             {
                 return args[0];

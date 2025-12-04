@@ -693,9 +693,25 @@ public static partial class TypedAstEvaluator
                 {
                     if (!context.IsReturn)
                     {
-                        if (_isClassConstructor && executionEnvironment.TryGet(Symbol.This, out var currentThis))
+                        if (_isClassConstructor)
                         {
-                            return currentThis;
+                            try
+                            {
+                                if (executionEnvironment.TryGet(Symbol.This, out var currentThis))
+                                {
+                                    return currentThis;
+                                }
+                            }
+                            catch (InvalidOperationException ex) when (context.IsThisInitialized &&
+                                                                       ex.Message.StartsWith(
+                                                                           "ReferenceError: this",
+                                                                           StringComparison.Ordinal))
+                            {
+                                // If the `this` binding was marked initialized but is still
+                                // uninitialized in the environment, fall back to the original
+                                // construction receiver instead of surfacing a spurious TDZ error.
+                                return thisValue;
+                            }
                         }
 
                         return Symbol.Undefined;

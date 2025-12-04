@@ -24,6 +24,7 @@ public static partial class StandardLibrary
 
         uint index = 0;
         var exhausted = false;
+        var typedAccessor = accessor as TypedArrayBase;
 
         iterator.SetHostedProperty("next", Next, realm);
         iterator.SetHostedProperty(iteratorKey, ReturnIterator, realm);
@@ -31,6 +32,11 @@ public static partial class StandardLibrary
 
         object? Next(object? _, IReadOnlyList<object?> __, RealmState? ___)
         {
+            if (typedAccessor is not null && typedAccessor.IsDetachedOrOutOfBounds())
+            {
+                throw typedAccessor.CreateOutOfBoundsTypeError();
+            }
+
             if (exhausted)
             {
                 var doneResult = new JsObject(realm?.ObjectPrototype);

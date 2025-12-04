@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
@@ -277,16 +278,6 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
                 throw new InvalidOperationException($"Invalid typed array index '{name}'.");
             }
 
-            if (IsDetachedOrOutOfBounds())
-            {
-                throw CreateOutOfBoundsTypeError();
-            }
-
-            if (index >= Length)
-            {
-                throw CreateOutOfBoundsTypeError();
-            }
-
             SetValue(index, value);
             return;
         }
@@ -304,7 +295,11 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
     {
-        _properties.DefineProperty(name, descriptor);
+        if (!TryDefineProperty(name, descriptor))
+        {
+            throw StandardLibrary.ThrowTypeError("Cannot redefine property on typed array",
+                realm: _buffer.RealmState);
+        }
     }
 
     public void Seal()
@@ -319,7 +314,110 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
     public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
     {
+        if (TryParseIndex(name, out var index))
+        {
+            if (index < 0)
+            {
+                return false;
+            }
+
+            // Integer-indexed exotic objects reject accessor descriptors and
+            // attribute changes that would make the property non-writable,
+            // non-enumerable, or configurable.
+            if (descriptor.IsAccessorDescriptor ||
+                descriptor is { HasWritable: true, Writable: false } ||
+                descriptor is { HasEnumerable: true, Enumerable: false } ||
+                descriptor is { HasConfigurable: true, Configurable: true })
+            {
+                return false;
+            }
+
+            if (_buffer.IsDetached || IsDetachedOrOutOfBounds() || index >= Length)
+            {
+                throw CreateOutOfBoundsTypeError();
+            }
+
+            var value = descriptor.HasValue ? descriptor.Value : Symbol.Undefined;
+            SetValue(index, value);
+            return true;
+        }
+
         return _properties.TryDefineProperty(name, descriptor);
+    }
+
+    public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
+    {
+        if (TryParseIndex(name, out var index) && index >= 0)
+        {
+            if (IsDetachedOrOutOfBounds() || index >= Length)
+            {
+                return null;
+            }
+
+            return new PropertyDescriptor
+            {
+                Value = GetValueForIndex(index),
+                Writable = true,
+                Enumerable = true,
+                Configurable = false
+            };
+        }
+
+        return _properties.GetOwnPropertyDescriptor(name);
+    }
+
+    public IEnumerable<string> GetOwnPropertyNames()
+    {
+        if (IsDetachedOrOutOfBounds())
+        {
+            return _properties.GetOwnPropertyNames();
+        }
+
+        var keys = new List<string>();
+        var length = Length;
+        for (var i = 0; i < length; i++)
+        {
+            keys.Add(i.ToString(CultureInfo.InvariantCulture));
+        }
+
+        keys.AddRange(_properties.GetOwnPropertyNames());
+        return keys;
+    }
+
+    public IEnumerable<string> GetOwnPropertyKeysInOrder(bool includeSymbols = true, bool includeNonEnumerable = true)
+    {
+        if (IsDetachedOrOutOfBounds())
+        {
+            return _properties.GetOwnPropertyKeysInOrder(includeSymbols, includeNonEnumerable);
+        }
+
+        var keys = new List<string>();
+        var length = Length;
+        for (var i = 0; i < length; i++)
+        {
+            keys.Add(i.ToString(CultureInfo.InvariantCulture));
+        }
+
+        keys.AddRange(_properties.GetOwnPropertyKeysInOrder(includeSymbols, includeNonEnumerable));
+        return keys;
+    }
+
+    public IEnumerable<string> GetEnumerablePropertyNames()
+    {
+        if (IsDetachedOrOutOfBounds())
+        {
+            return _properties.GetEnumerablePropertyNames();
+        }
+
+        var keys = new List<string>();
+        var length = Length;
+        for (var i = 0; i < length; i++)
+        {
+            keys.Add(i.ToString(CultureInfo.InvariantCulture));
+        }
+
+        keys.AddRange(_properties.GetEnumerablePropertyNames());
+        return keys;
     }
 
     protected int GetCurrentLength()
@@ -626,9 +724,14 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             return Symbol.Undefined;
         }
 
-        if (_buffer.IsDetached || IsDetachedOrOutOfBounds())
+        if (_buffer.IsDetached)
         {
             return Symbol.Undefined;
+        }
+
+        if (IsDetachedOrOutOfBounds())
+        {
+            throw CreateOutOfBoundsTypeError();
         }
 
         var currentLength = GetCurrentLength();

@@ -1154,11 +1154,6 @@ internal static class JsOps
 
         if (target is TypedArrayBase typedArray && TryResolveArrayIndex(propertyKey, out var typedIndex, context))
         {
-            if (typedIndex < 0 || typedIndex >= typedArray.Length)
-            {
-                return true;
-            }
-
             typedArray.SetValue(typedIndex, value);
             return true;
         }

@@ -1135,47 +1135,10 @@ public static partial class StandardLibrary
     /// </summary>
     public static HostFunction CreateStringConstructor(RealmState realm)
     {
-        // String constructor
-        var stringConstructor = new HostFunction((thisValue, args) =>
-        {
-            var value = args.GetArgument(0);
-            var context = realm?.CreateContext();
-            string str;
-            if (value is TypedAstSymbol typedSymbol)
-            {
-                str = typedSymbol.ToString();
-            }
-            else
-            {
-                str = JsOps.ToJsString(value, context);
-            }
-
-            if (thisValue is not JsObject obj)
-            {
-                return str;
-            }
-
-            obj.SetProperty("__value__", str);
-            obj.DefineProperty("length",
-                new PropertyDescriptor
-                {
-                    Value = (double)str.Length,
-                    Writable = false,
-                    Enumerable = false,
-                    Configurable = false,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
-                });
-            obj.SetVirtualPropertyProvider(new StringVirtualPropertyProvider(str));
-            if (realm.StringPrototype is not null)
-            {
-                obj.SetPrototype(realm.StringPrototype);
-            }
-
-            return obj;
-        });
+        HostFunction stringConstructor = null!;
+        stringConstructor = new HostFunction((_, args) => StringConstructorImpl(args, null));
+        stringConstructor.SetInvokeWithContext((args, _, _, newTarget) =>
+            StringConstructorImpl(args, newTarget as IJsCallable ?? stringConstructor));
 
         // Remember String.prototype so that string wrapper objects can see
         // methods attached from user code (e.g. String.prototype.toJSONString),
@@ -1220,6 +1183,45 @@ public static partial class StandardLibrary
         stringConstructor.SetHostedProperty("escape", StringEscape);
 
         return stringConstructor;
+
+        object? StringConstructorImpl(IReadOnlyList<object?> args, IJsCallable? newTarget)
+        {
+            var value = args.GetArgument(0);
+            var context = realm?.CreateContext();
+            var str = value is TypedAstSymbol typedSymbol ? typedSymbol.ToString() : JsOps.ToJsString(value, context);
+
+            if (newTarget is null)
+            {
+                return str;
+            }
+
+            var wrapper = new JsObject();
+            wrapper.SetProperty("__value__", str);
+            wrapper.DefineProperty("length",
+                new PropertyDescriptor
+                {
+                    Value = (double)str.Length,
+                    Writable = false,
+                    Enumerable = false,
+                    Configurable = false,
+                    HasValue = true,
+                    HasWritable = true,
+                    HasEnumerable = true,
+                    HasConfigurable = true
+                });
+            wrapper.SetVirtualPropertyProvider(new StringVirtualPropertyProvider(str));
+
+            var proto = realm is null
+                ? realm?.StringPrototype
+                : StandardLibrary.ResolveConstructPrototype(newTarget, stringConstructor, realm) ??
+                  realm.StringPrototype;
+            if (proto is not null)
+            {
+                wrapper.SetPrototype(proto);
+            }
+
+            return wrapper;
+        }
 
         object? StringPrototypeToString(object? thisValue, IReadOnlyList<object?> _)
         {

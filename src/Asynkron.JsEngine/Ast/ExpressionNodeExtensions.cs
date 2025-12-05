@@ -13,7 +13,7 @@ public static partial class TypedAstEvaluator
 {
     extension(ExpressionNode? extendsExpression)
     {
-        private (IJsEnvironmentAwareCallable? Constructor, JsObject? Prototype) ResolveSuperclass(
+        private (IJsEnvironmentAwareCallable? Constructor, IJsPropertyAccessor? Prototype) ResolveSuperclass(
             JsEnvironment environment, EvaluationContext context)
         {
             if (extendsExpression is null)
@@ -41,7 +41,7 @@ public static partial class TypedAstEvaluator
             }
 
             if (TryGetPropertyValue(baseValue, "prototype", out var prototypeValue) &&
-                prototypeValue is JsObject prototype)
+                prototypeValue is IJsPropertyAccessor prototype)
             {
                 return (callable, prototype);
             }

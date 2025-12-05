@@ -12,48 +12,12 @@ public static partial class StandardLibrary
     {
         HostFunction functionConstructor = null!;
 
-        functionConstructor = new HostFunction((_, args) =>
+        functionConstructor = new HostFunction((_, args) => FunctionConstructorBody(args, functionConstructor))
         {
-            var evalContext = realm.CreateContext();
-            var argCount = args.Count;
-            var bodyValue = argCount > 0 ? args[argCount - 1] : string.Empty;
-            var parameterCount = Math.Max(argCount - 1, 0);
-
-            var parameters = new string[parameterCount];
-            for (var i = 0; i < parameterCount; i++)
-            {
-                var paramText = ToFunctionArgumentString(args[i], evalContext, realm);
-                parameters[i] = paramText;
-            }
-
-            var bodySource = ToFunctionArgumentString(bodyValue, evalContext, realm);
-            var paramList = string.Join(",", parameters);
-            var hasDanglingClose = ContainsHtmlCloseCommentWithoutLineTerminator(paramList);
-            if (hasDanglingClose)
-            {
-                throw ThrowSyntaxError("Invalid function parameter list", evalContext, realm);
-            }
-
-            // ECMAScript builds the source with line feeds around the parameter list and body,
-            // so HTML-like comments (<!--/-->) are recognized using the Script goal rules.
-            var functionSource = $"(function anonymous({paramList}\n) {{\n{bodySource}\n}})";
-
-            ParsedProgram program;
-            try
-            {
-                program = engine.ParseForExecution(functionSource);
-            }
-            catch (ParseException parseException)
-            {
-                var message = parseException.Message ?? "SyntaxError";
-                throw new ThrowSignal(CreateSyntaxError(message, evalContext, realm));
-            }
-
-            return engine.ExecuteProgram(
-                program,
-                engine.GlobalEnvironment,
-                CancellationToken.None);
-        }) { RealmState = realm };
+            RealmState = realm
+        };
+        functionConstructor.SetInvokeWithContext((args, _, _, newTarget) =>
+            FunctionConstructorBody(args, newTarget as IJsCallable ?? functionConstructor));
 
         // Function.call: when used as `fn.call(thisArg, ...args)` the
         // target function is `fn` (the `this` value). We implement this
@@ -284,6 +248,60 @@ public static partial class StandardLibrary
             }
 
             return false;
+        }
+
+        object? FunctionConstructorBody(IReadOnlyList<object?> args, IJsCallable newTarget)
+        {
+            var evalContext = realm.CreateContext();
+            var argCount = args.Count;
+            var bodyValue = argCount > 0 ? args[argCount - 1] : string.Empty;
+            var parameterCount = Math.Max(argCount - 1, 0);
+
+            var parameters = new string[parameterCount];
+            for (var i = 0; i < parameterCount; i++)
+            {
+                var paramText = ToFunctionArgumentString(args[i], evalContext, realm);
+                parameters[i] = paramText;
+            }
+
+            var bodySource = ToFunctionArgumentString(bodyValue, evalContext, realm);
+            var paramList = string.Join(",", parameters);
+            var hasDanglingClose = ContainsHtmlCloseCommentWithoutLineTerminator(paramList);
+            if (hasDanglingClose)
+            {
+                throw ThrowSyntaxError("Invalid function parameter list", evalContext, realm);
+            }
+
+            // ECMAScript builds the source with line feeds around the parameter list and body,
+            // so HTML-like comments (<!--/-->) are recognized using the Script goal rules.
+            var functionSource = $"(function anonymous({paramList}\n) {{\n{bodySource}\n}})";
+
+            ParsedProgram program;
+            try
+            {
+                program = engine.ParseForExecution(functionSource);
+            }
+            catch (ParseException parseException)
+            {
+                var message = parseException.Message ?? "SyntaxError";
+                throw new ThrowSignal(CreateSyntaxError(message, evalContext, realm));
+            }
+
+            var created = engine.ExecuteProgram(
+                program,
+                engine.GlobalEnvironment,
+                CancellationToken.None);
+
+            if (created is IJsObjectLike objectLike)
+            {
+                var proto = StandardLibrary.ResolveConstructPrototype(newTarget, functionConstructor, realm);
+                if (proto is not null)
+                {
+                    objectLike.SetPrototype(proto);
+                }
+            }
+
+            return created;
         }
     }
 }

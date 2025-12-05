@@ -393,7 +393,7 @@ public static partial class StandardLibrary
         }
     }
 
-    private static IJsObjectLike? ResolveConstructPrototype(IJsCallable newTarget, IJsCallable target,
+    internal static IJsObjectLike? ResolveConstructPrototype(IJsCallable newTarget, IJsCallable target,
         RealmState realmState)
     {
         // Step 1: use newTarget.prototype if it is an object
@@ -503,7 +503,14 @@ public static partial class StandardLibrary
         prototype = ctorName switch
         {
             "Array" => realmState.ArrayPrototype,
+            "ArrayBuffer" => realmState.ArrayBufferPrototype,
+            "SharedArrayBuffer" => realmState.SharedArrayBufferPrototype,
+            "Boolean" => realmState.BooleanPrototype,
             "Date" => realmState.DatePrototype,
+            "Function" => realmState.FunctionPrototype,
+            "Number" => realmState.NumberPrototype,
+            "Object" => realmState.ObjectPrototype,
+            "String" => realmState.StringPrototype,
             _ => null
         };
 

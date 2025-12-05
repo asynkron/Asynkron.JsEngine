@@ -191,6 +191,7 @@ public sealed class JsEngine : IAsyncDisposable
 
         // Register ArrayBuffer and TypedArray constructors
         SetGlobal("ArrayBuffer", StandardLibrary.CreateArrayBufferConstructor(RealmState));
+        SetGlobal("SharedArrayBuffer", StandardLibrary.CreateSharedArrayBufferConstructor(RealmState));
         SetGlobal("DataView", StandardLibrary.CreateDataViewConstructor(RealmState));
         SetGlobal("Int8Array", StandardLibrary.CreateInt8ArrayConstructor(RealmState));
         SetGlobal("Uint8Array", StandardLibrary.CreateUint8ArrayConstructor(RealmState));

@@ -210,6 +210,43 @@ public static partial class StandardLibrary
         }
     }
 
+    public static HostFunction CreateSharedArrayBufferConstructor(RealmState realm)
+    {
+        var prototype = new JsObject(realm.ObjectPrototype);
+        var tagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
+        prototype.DefineProperty(tagKey,
+            new PropertyDescriptor
+            {
+                Value = "SharedArrayBuffer", Writable = false, Enumerable = false, Configurable = true
+            });
+
+        var constructor = new HostFunction(SharedArrayBufferCtor, realm) { IsConstructor = true };
+        constructor.DefineProperty("prototype",
+            new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });
+        prototype.DefineProperty("constructor",
+            new PropertyDescriptor { Value = constructor, Writable = true, Enumerable = false, Configurable = true });
+
+        realm.SharedArrayBufferPrototype ??= prototype;
+        realm.SharedArrayBufferConstructor ??= constructor;
+
+        return constructor;
+
+        object? SharedArrayBufferCtor(object? _, IReadOnlyList<object?> args)
+        {
+            var length = args.Count > 0 ? args[0] : 0d;
+            var byteLength = length switch
+            {
+                double d => (int)d,
+                int i => i,
+                _ => 0
+            };
+
+            var buffer = new JsArrayBuffer(byteLength, null, realm);
+            buffer.SetPrototype(prototype);
+            return buffer;
+        }
+    }
+
     /// <summary>
     ///     Creates the DataView constructor.
     /// </summary>

@@ -35,6 +35,8 @@ public sealed class RealmState
     public HostFunction? TypedArrayConstructor { get; set; }
     public JsObject? ArrayBufferPrototype { get; set; }
     public HostFunction? ArrayBufferConstructor { get; set; }
+    public JsObject? SharedArrayBufferPrototype { get; set; }
+    public HostFunction? SharedArrayBufferConstructor { get; set; }
     public HostFunction? RegExpConstructor { get; set; }
     public RegExpStatics RegExpStatics { get; } = new();
 

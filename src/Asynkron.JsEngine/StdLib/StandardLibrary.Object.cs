@@ -178,7 +178,8 @@ public static partial class StandardLibrary
 
     public static HostFunction CreateObjectConstructor(RealmState realm)
     {
-        var objectConstructor = new HostFunction(ObjectConstructor);
+        HostFunction objectConstructor = null!;
+        objectConstructor = new HostFunction(args => ObjectConstructor(args, objectConstructor));
 
         // Capture Object.prototype so Object.prototype methods can be attached
         // and used with call/apply patterns.
@@ -269,13 +270,16 @@ public static partial class StandardLibrary
 
         objectConstructor.SetHostedProperty("defineProperty", ObjectDefineProperty);
 
+        objectConstructor.SetInvokeWithContext((args, _, _, newTarget) =>
+            ObjectConstructor(args, newTarget as IJsCallable ?? objectConstructor));
+
         return objectConstructor;
 
-        object? ObjectConstructor(IReadOnlyList<object?> args)
+        object? ObjectConstructor(IReadOnlyList<object?> args, IJsCallable newTarget)
         {
             if (args.Count == 0 || args[0] == null || args[0] == Symbol.Undefined)
             {
-                return CreateBlank();
+                return CreateBlank(newTarget);
             }
 
             if (args[0] is JsObject jsObj)
@@ -292,13 +296,14 @@ public static partial class StandardLibrary
                 TypedAstSymbol sym => CreateSymbolWrapper(sym, realm: realm),
                 double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte =>
                     CreateNumberWrapper(JsOps.ToNumber(value), realm: realm),
-                _ => CreateBlank()
+                _ => CreateBlank(newTarget)
             };
 
-            JsObject CreateBlank()
+            JsObject CreateBlank(IJsCallable target)
             {
                 var obj = new JsObject();
-                var proto = realm.ObjectPrototype;
+                var proto = StandardLibrary.ResolveConstructPrototype(target, objectConstructor, realm) ??
+                            realm.ObjectPrototype;
                 if (proto is not null)
                 {
                     obj.SetPrototype(proto);

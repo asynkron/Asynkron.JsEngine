@@ -10,7 +10,7 @@ public static partial class TypedAstEvaluator
     extension(ImmutableArray<ClassMember> members)
     {
         private void AssignClassMembers(IJsPropertyAccessor constructorAccessor,
-            JsObject prototype, IJsEnvironmentAwareCallable? superConstructor, JsObject? superPrototype,
+            JsObject prototype, IJsEnvironmentAwareCallable? superConstructor, IJsPropertyAccessor? superPrototype,
             JsEnvironment environment, EvaluationContext context, PrivateNameScope? privateNameScope)
         {
             foreach (var member in members)

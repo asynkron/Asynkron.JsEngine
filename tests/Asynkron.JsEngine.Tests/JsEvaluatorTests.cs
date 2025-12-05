@@ -1827,4 +1827,33 @@ public class JsEvaluatorTests
                                            """);
         Assert.Equal("[1,2,3]", result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task ArraySubclassUsesNewTargetPrototype()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+                                           (() => {
+                                               class SubArray extends Array {}
+                                               const sub = new SubArray();
+                                               return {
+                                                   a: sub instanceof SubArray,
+                                                   b: sub instanceof Array,
+                                                   proto: Object.getPrototypeOf(sub) === SubArray.prototype,
+                                                   parentProto: Object.getPrototypeOf(SubArray.prototype) === Array.prototype
+                                               };
+                                           })();
+                                           """);
+
+        var obj = Assert.IsType<JsObject>(result);
+        var a = JsOps.ToBoolean(obj["a"]);
+        var b = JsOps.ToBoolean(obj["b"]);
+        var proto = JsOps.ToBoolean(obj["proto"]);
+        var parentProto = JsOps.ToBoolean(obj["parentProto"]);
+
+        Assert.True(a, $"a={a}, b={b}, proto={proto}, parentProto={parentProto}");
+        Assert.True(b, $"a={a}, b={b}, proto={proto}, parentProto={parentProto}");
+        Assert.True(proto, $"a={a}, b={b}, proto={proto}, parentProto={parentProto}");
+        Assert.True(parentProto, $"a={a}, b={b}, proto={proto}, parentProto={parentProto}");
+    }
 }

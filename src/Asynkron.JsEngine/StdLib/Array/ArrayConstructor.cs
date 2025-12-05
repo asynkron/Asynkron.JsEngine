@@ -24,6 +24,22 @@ public sealed partial class ArrayConstructor : JsConstructor
         Realm.ArrayConstructor ??= constructor;
         Realm.ArrayPrototype ??= Prototype;
 
+        constructor.SetInvokeWithContext((args, _, _, newTarget) =>
+        {
+            var targetCtor = Realm.ArrayConstructor ?? constructor;
+            var newTargetCallable = newTarget as IJsCallable ?? targetCtor;
+            var proto = StandardLibrary.ResolveConstructPrototype(newTargetCallable, targetCtor, Realm) ??
+                        Prototype;
+            var array = new JsArray(Realm);
+            if (proto is not null)
+            {
+                array.SetPrototype(proto);
+            }
+
+            InitializeArrayLength(array, args);
+            return array;
+        });
+
         AttachIsArray(constructor);
         AttachFrom(constructor);
         AttachFromAsync(constructor);

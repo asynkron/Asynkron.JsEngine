@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.JsTypes;
 /// <summary>
 ///     Represents a JavaScript ArrayBuffer - a fixed-length raw binary data buffer.
 /// </summary>
-public sealed class JsArrayBuffer : IJsPropertyAccessor
+public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvider
 {
     private readonly JsObject _properties = new();
 
@@ -79,6 +79,8 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor
     public bool Resizable { get; }
 
     public int MaxByteLength { get; }
+
+    public IJsPropertyAccessor? PrototypeAccessor => _properties.PrototypeAccessor;
 
     public bool TryGetProperty(string name, object? receiver, out object? value)
     {

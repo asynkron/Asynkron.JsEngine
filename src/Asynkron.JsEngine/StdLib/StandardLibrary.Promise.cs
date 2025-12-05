@@ -11,7 +11,9 @@ public static partial class StandardLibrary
     {
         JsObject? promisePrototype = null;
         HostFunction promiseConstructor = null!;
-        promiseConstructor = new HostFunction(PromiseConstructor);
+        promiseConstructor = new HostFunction(args => PromiseConstructor(args, promiseConstructor));
+        promiseConstructor.SetInvokeWithContext((args, _, _, newTarget) =>
+            PromiseConstructor(args, newTarget as IJsCallable ?? promiseConstructor));
         if (promiseConstructor.TryGetProperty("prototype", out var proto) && proto is JsObject protoObj)
         {
             promisePrototype = protoObj;
@@ -25,9 +27,13 @@ public static partial class StandardLibrary
 
         promiseConstructor.SetHostedProperty("race", PromiseRace);
 
-        void AssignPromisePrototype(JsObject promiseObj)
+        void AssignPromisePrototype(JsObject promiseObj, IJsPropertyAccessor? overridePrototype = null)
         {
-            if (promisePrototype is not null)
+            if (overridePrototype is not null)
+            {
+                promiseObj.SetPrototype(overridePrototype);
+            }
+            else if (promisePrototype is not null)
             {
                 promiseObj.SetPrototype(promisePrototype);
             }
@@ -35,7 +41,7 @@ public static partial class StandardLibrary
 
         return promiseConstructor;
 
-        object? PromiseConstructor(object? _, IReadOnlyList<object?> args)
+        object? PromiseConstructor(IReadOnlyList<object?> args, IJsCallable newTarget)
         {
             if (args.Count == 0 || args[0] is not IJsCallable executor)
             {
@@ -44,7 +50,11 @@ public static partial class StandardLibrary
 
             var promise = new JsPromise(engine);
             var promiseObj = promise.JsObject;
-            AssignPromisePrototype(promiseObj);
+            var realmState = engine.RealmState;
+            var proto = realmState is null
+                ? promisePrototype
+                : StandardLibrary.ResolveConstructPrototype(newTarget, promiseConstructor, realmState);
+            AssignPromisePrototype(promiseObj, proto as IJsPropertyAccessor);
             AddPromiseInstanceMethods(promiseObj, promise, engine);
 
             var resolve = new HostFunction(Resolve);

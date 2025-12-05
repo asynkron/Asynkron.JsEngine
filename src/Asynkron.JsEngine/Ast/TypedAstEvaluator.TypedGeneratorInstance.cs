@@ -434,6 +434,7 @@ public static partial class TypedAstEvaluator
 
                         case YieldInstruction yieldInstruction:
                             object? yieldedValue = Symbol.Undefined;
+                            var yieldedDuringOperand = false;
                             if (yieldInstruction.YieldExpression is not null)
                             {
                                 yieldedValue = EvaluateExpression(yieldInstruction.YieldExpression, environment,
@@ -450,9 +451,19 @@ public static partial class TypedAstEvaluator
                                     _tryStack.Clear();
                                     throw new ThrowSignal(thrown);
                                 }
+
+                                if (context.IsYield)
+                                {
+                                    yieldedValue = context.FlowValue;
+                                    context.Clear();
+                                    yieldedDuringOperand = true;
+                                }
                             }
 
-                            _programCounter = yieldInstruction.Next;
+                            _programCounter = yieldedDuringOperand
+                                ? _currentInstructionIndex
+                                : yieldInstruction.Next;
+                            _currentYieldIndex++;
                             _state = GeneratorState.Suspended;
                             return CreateIteratorResult(yieldedValue, false);
 

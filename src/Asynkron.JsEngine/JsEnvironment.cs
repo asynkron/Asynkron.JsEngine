@@ -1238,7 +1238,7 @@ public sealed class JsEnvironment
         // In strict mode, assignment to undefined variable is an error
         // In non-strict mode, create the variable as a global
         var functionScope = GetFunctionScope();
-        if (functionScope.HasBodyLexicalName(name) && functionScope.HasOwnLexicalBinding(name))
+        if (functionScope.HasBodyLexicalName(name))
         {
             RealmState?.Logger?.LogInformation(
                 "AssignUnresolvable blocked by body lexical name={Name} strict={Strict} env={Env}",

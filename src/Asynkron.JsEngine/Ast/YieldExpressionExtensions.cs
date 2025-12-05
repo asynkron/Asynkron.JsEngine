@@ -15,9 +15,17 @@ public static partial class TypedAstEvaluator
         private object? EvaluateSimpleYield(JsEnvironment environment,
             EvaluationContext context)
         {
+            var yieldedValue = expression.Expression is null
+                ? Symbol.Undefined
+                : EvaluateExpression(expression.Expression, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return yieldedValue;
+            }
+
             var yieldTracker = GetYieldTracker(environment);
-            var shouldYield = yieldTracker.ShouldYield(out var yieldIndex);
-            if (!shouldYield)
+            var yieldIndex = yieldTracker.Advance();
+            if (yieldIndex < yieldTracker.SkipCount)
             {
                 var payload = GetResumePayload(environment, yieldIndex);
                 if (!payload.HasValue)
@@ -38,14 +46,6 @@ public static partial class TypedAstEvaluator
                 }
 
                 return payload.Value;
-            }
-
-            var yieldedValue = expression.Expression is null
-                ? Symbol.Undefined
-                : EvaluateExpression(expression.Expression, environment, context);
-            if (context.ShouldStopEvaluation)
-            {
-                return yieldedValue;
             }
 
             context.SetYield(yieldedValue);

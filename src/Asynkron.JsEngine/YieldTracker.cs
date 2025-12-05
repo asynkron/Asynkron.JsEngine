@@ -6,7 +6,16 @@ namespace Asynkron.JsEngine;
 /// </summary>
 public sealed class YieldTracker(int skipCount)
 {
+    public int SkipCount { get; } = skipCount;
+
     private int _currentIndex;
+
+    public int CurrentIndex => _currentIndex;
+
+    public int Advance()
+    {
+        return _currentIndex++;
+    }
 
     /// <summary>
     ///     Returns <c>true</c> when the current execution pass should emit the
@@ -15,7 +24,7 @@ public sealed class YieldTracker(int skipCount)
     public bool ShouldYield(out int yieldIndex)
     {
         yieldIndex = _currentIndex;
-        var should = _currentIndex >= skipCount;
+        var should = _currentIndex >= SkipCount;
         _currentIndex++;
         return should;
     }

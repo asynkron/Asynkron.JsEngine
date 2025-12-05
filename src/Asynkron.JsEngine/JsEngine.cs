@@ -139,6 +139,16 @@ public sealed class JsEngine : IAsyncDisposable
         // Register RegExp constructor
         SetGlobal("RegExp", StandardLibrary.CreateRegExpConstructor(RealmState));
 
+        // Error constructors
+        SetGlobal("Error", StandardLibrary.CreateErrorConstructor(RealmState));
+        SetGlobal("TypeError", StandardLibrary.CreateErrorConstructor(RealmState, "TypeError"));
+        SetGlobal("RangeError", StandardLibrary.CreateErrorConstructor(RealmState, "RangeError"));
+        SetGlobal("ReferenceError", StandardLibrary.CreateErrorConstructor(RealmState, "ReferenceError"));
+        SetGlobal("SyntaxError", StandardLibrary.CreateErrorConstructor(RealmState, "SyntaxError"));
+        SetGlobal("EvalError", StandardLibrary.CreateErrorConstructor(RealmState, "EvalError"));
+        SetGlobal("URIError", StandardLibrary.CreateErrorConstructor(RealmState, "URIError"));
+        SetGlobal("AggregateError", StandardLibrary.CreateErrorConstructor(RealmState, "AggregateError"));
+
         // Register Promise constructor
         SetGlobal("Promise", StandardLibrary.CreatePromiseConstructor(this));
 
@@ -159,6 +169,8 @@ public sealed class JsEngine : IAsyncDisposable
 
         // Register WeakSet constructor
         SetGlobal("WeakSet", StandardLibrary.CreateWeakSetConstructor());
+
+        SetGlobal("WeakRef", StandardLibrary.CreateWeakRefConstructor(RealmState));
 
         // Annex B escape/unescape
         var escapeFn = StandardLibrary.CreateEscapeFunction(RealmState);

@@ -889,7 +889,7 @@ public sealed class TypedAstParser(
                         }
                         else
                         {
-                            if (string.Equals(asyncMethodName, "constructor", StringComparison.Ordinal))
+                            if (string.Equals(asyncMethodName, "constructor", StringComparison.Ordinal) && !isStatic)
                             {
                                 throw new ParseException("Constructor cannot be async.", asyncMethodNameToken,
                                     _source);
@@ -982,13 +982,8 @@ public sealed class TypedAstParser(
                         continue;
                     }
 
-                    if (string.Equals(methodName, "constructor", StringComparison.Ordinal))
+                    if (string.Equals(methodName, "constructor", StringComparison.Ordinal) && !isStatic)
                     {
-                        if (isStatic)
-                        {
-                            throw new ParseException("Constructor cannot be static.", Peek(), _source);
-                        }
-
                         if (constructor is not null)
                         {
                             throw new ParseException("Class cannot declare multiple constructors.", Peek(), _source);

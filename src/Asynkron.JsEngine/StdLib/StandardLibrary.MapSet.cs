@@ -7,9 +7,21 @@ public static partial class StandardLibrary
 {
     public static IJsCallable CreateMapConstructor()
     {
-        var mapConstructor = new HostFunction(args =>
+        var mapPrototype = new JsObject();
+        AddMapMethods(mapPrototype);
+
+        var mapConstructor = new HostFunction((thisValue, args) =>
         {
-            var map = new JsMap();
+            var map = thisValue as JsMap ?? new JsMap();
+
+            if (thisValue is JsObject { Prototype: { } providedProto })
+            {
+                map.SetPrototype(providedProto);
+            }
+            else if (map.Prototype is null)
+            {
+                map.SetPrototype(mapPrototype);
+            }
 
             // If an iterable is provided, populate the map
             if (args.Count > 0 && args[0] is JsArray entries)
@@ -23,9 +35,11 @@ public static partial class StandardLibrary
                 }
             }
 
-            AddMapMethods(map);
             return map;
-        });
+        }, isConstructor: true);
+
+        mapConstructor.SetProperty("prototype", mapPrototype);
+        mapPrototype.SetProperty("constructor", mapConstructor);
 
         return mapConstructor;
     }
@@ -33,22 +47,22 @@ public static partial class StandardLibrary
     /// <summary>
     ///     Adds instance methods to a Map object.
     /// </summary>
-    private static void AddMapMethods(JsMap map)
+    private static void AddMapMethods(IJsPropertyAccessor target)
     {
         // Note: size needs special handling as a getter - for now we'll just access it dynamically in the methods
         var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
         var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
 
-        map.SetHostedProperty("set", MapSet_Set);
-        map.SetHostedProperty("get", MapSet_Get);
-        map.SetHostedProperty("has", MapSet_Has);
-        map.SetHostedProperty("delete", MapSet_Delete);
-        map.SetHostedProperty("clear", MapSet_Clear);
-        map.SetHostedProperty("forEach", MapSet_ForEach);
-        map.SetHostedProperty("entries", MapSet_Entries);
-        map.SetHostedProperty("keys", MapSet_Keys);
-        map.SetHostedProperty("values", MapSet_Values);
-        map.SetHostedProperty(iteratorKey, MapSet_Entries);
+        target.SetHostedProperty("set", MapSet_Set);
+        target.SetHostedProperty("get", MapSet_Get);
+        target.SetHostedProperty("has", MapSet_Has);
+        target.SetHostedProperty("delete", MapSet_Delete);
+        target.SetHostedProperty("clear", MapSet_Clear);
+        target.SetHostedProperty("forEach", MapSet_ForEach);
+        target.SetHostedProperty("entries", MapSet_Entries);
+        target.SetHostedProperty("keys", MapSet_Keys);
+        target.SetHostedProperty("values", MapSet_Values);
+        target.SetHostedProperty(iteratorKey, MapSet_Entries);
     }
 
     /// <summary>
@@ -56,9 +70,21 @@ public static partial class StandardLibrary
     /// </summary>
     public static IJsCallable CreateSetConstructor()
     {
-        var setConstructor = new HostFunction(args =>
+        var setPrototype = new JsObject();
+        AddSetMethods(setPrototype);
+
+        var setConstructor = new HostFunction((thisValue, args) =>
         {
-            var set = new JsSet();
+            var set = thisValue as JsSet ?? new JsSet();
+
+            if (thisValue is JsObject { Prototype: { } providedProto })
+            {
+                set.SetPrototype(providedProto);
+            }
+            else if (set.Prototype is null)
+            {
+                set.SetPrototype(setPrototype);
+            }
 
             // If an iterable is provided, populate the set
             if (args.Count > 0 && args[0] is JsArray values)
@@ -69,9 +95,11 @@ public static partial class StandardLibrary
                 }
             }
 
-            AddSetMethods(set);
             return set;
-        });
+        }, isConstructor: true);
+
+        setConstructor.SetProperty("prototype", setPrototype);
+        setPrototype.SetProperty("constructor", setConstructor);
 
         return setConstructor;
     }
@@ -79,32 +107,32 @@ public static partial class StandardLibrary
     /// <summary>
     ///     Adds instance methods to a Set object.
     /// </summary>
-    private static void AddSetMethods(JsSet set)
+    private static void AddSetMethods(IJsPropertyAccessor target)
     {
         // Note: size needs special handling as a getter - handled in Evaluator.TryGetPropertyValue
         var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
         var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
 
-        set.SetHostedProperty("add", Set_Add);
+        target.SetHostedProperty("add", Set_Add);
 
-        set.SetHostedProperty("has", Set_Has);
+        target.SetHostedProperty("has", Set_Has);
 
-        set.SetHostedProperty("delete", Set_Delete);
-        set.SetHostedProperty("clear", Set_Clear);
+        target.SetHostedProperty("delete", Set_Delete);
+        target.SetHostedProperty("clear", Set_Clear);
 
         // forEach(callback, thisArg)
-        set.SetHostedProperty("forEach", Set_ForEach);
+        target.SetHostedProperty("forEach", Set_ForEach);
 
         // entries()
-        set.SetHostedProperty("entries", Set_Entries);
+        target.SetHostedProperty("entries", Set_Entries);
 
         // keys()
-        set.SetHostedProperty("keys", Set_Keys);
+        target.SetHostedProperty("keys", Set_Keys);
 
         // values()
-        set.SetHostedProperty("values", Set_Values);
+        target.SetHostedProperty("values", Set_Values);
 
-        set.SetHostedProperty(iteratorKey, Set_Values);
+        target.SetHostedProperty(iteratorKey, Set_Values);
     }
 
     /// <summary>
@@ -112,9 +140,21 @@ public static partial class StandardLibrary
     /// </summary>
     public static IJsCallable CreateWeakMapConstructor()
     {
-        var weakMapConstructor = new HostFunction(args =>
+        var weakMapPrototype = new JsObject();
+        AddWeakMapMethods(weakMapPrototype);
+
+        var weakMapConstructor = new HostFunction((thisValue, args) =>
         {
-            var weakMap = new JsWeakMap();
+            var weakMap = thisValue as JsWeakMap ?? new JsWeakMap();
+
+            if (thisValue is JsObject { Prototype: { } providedProto })
+            {
+                weakMap.SetPrototype(providedProto);
+            }
+            else if (weakMap.Prototype is null)
+            {
+                weakMap.SetPrototype(weakMapPrototype);
+            }
 
             // Note: WeakMap constructor can accept an iterable, but we'll start with basic support
             // If an iterable is provided, populate the weak map
@@ -136,9 +176,11 @@ public static partial class StandardLibrary
                 }
             }
 
-            AddWeakMapMethods(weakMap);
             return weakMap;
-        });
+        }, isConstructor: true);
+
+        weakMapConstructor.SetProperty("prototype", weakMapPrototype);
+        weakMapPrototype.SetProperty("constructor", weakMapConstructor);
 
         return weakMapConstructor;
     }
@@ -146,12 +188,12 @@ public static partial class StandardLibrary
     /// <summary>
     ///     Adds instance methods to a WeakMap object.
     /// </summary>
-    private static void AddWeakMapMethods(JsWeakMap weakMap)
+    private static void AddWeakMapMethods(IJsPropertyAccessor target)
     {
-        weakMap.SetHostedProperty("set", WeakMap_Set);
-        weakMap.SetHostedProperty("get", WeakMap_Get);
-        weakMap.SetHostedProperty("has", WeakMap_Has);
-        weakMap.SetHostedProperty("delete", WeakMap_Delete);
+        target.SetHostedProperty("set", WeakMap_Set);
+        target.SetHostedProperty("get", WeakMap_Get);
+        target.SetHostedProperty("has", WeakMap_Has);
+        target.SetHostedProperty("delete", WeakMap_Delete);
     }
 
     /// <summary>
@@ -159,9 +201,21 @@ public static partial class StandardLibrary
     /// </summary>
     public static IJsCallable CreateWeakSetConstructor()
     {
-        var weakSetConstructor = new HostFunction(args =>
+        var weakSetPrototype = new JsObject();
+        AddWeakSetMethods(weakSetPrototype);
+
+        var weakSetConstructor = new HostFunction((thisValue, args) =>
         {
-            var weakSet = new JsWeakSet();
+            var weakSet = thisValue as JsWeakSet ?? new JsWeakSet();
+
+            if (thisValue is JsObject { Prototype: { } providedProto })
+            {
+                weakSet.SetPrototype(providedProto);
+            }
+            else if (weakSet.Prototype is null)
+            {
+                weakSet.SetPrototype(weakSetPrototype);
+            }
 
             // If an iterable is provided, populate the weak set
             if (args.Count > 0 && args[0] is JsArray values)
@@ -179,9 +233,11 @@ public static partial class StandardLibrary
                 }
             }
 
-            AddWeakSetMethods(weakSet);
             return weakSet;
-        });
+        }, isConstructor: true);
+
+        weakSetConstructor.SetProperty("prototype", weakSetPrototype);
+        weakSetPrototype.SetProperty("constructor", weakSetConstructor);
 
         return weakSetConstructor;
     }
@@ -189,11 +245,11 @@ public static partial class StandardLibrary
     /// <summary>
     ///     Adds instance methods to a WeakSet object.
     /// </summary>
-    private static void AddWeakSetMethods(JsWeakSet weakSet)
+    private static void AddWeakSetMethods(IJsPropertyAccessor target)
     {
-        weakSet.SetHostedProperty("add", WeakSet_Add);
-        weakSet.SetHostedProperty("has", WeakSet_Has);
-        weakSet.SetHostedProperty("delete", WeakSet_Delete);
+        target.SetHostedProperty("add", WeakSet_Add);
+        target.SetHostedProperty("has", WeakSet_Has);
+        target.SetHostedProperty("delete", WeakSet_Delete);
     }
 
     private static object? MapSet_Set(object? thisValue, IReadOnlyList<object?> args)

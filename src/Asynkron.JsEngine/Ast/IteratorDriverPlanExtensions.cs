@@ -102,8 +102,16 @@ public static partial class TypedAstEvaluator
                 {
                     if (state.IteratorObject is not null)
                     {
-                        throw new ThrowSignal(StandardLibrary.CreateTypeError(
-                            "Iterator.next() did not return an object", context, context.RealmState));
+                        var typeError = StandardLibrary.CreateTypeError(
+                            "Iterator.next() did not return an object", context, context.RealmState);
+                        if (!iteratorDone)
+                        {
+                            IteratorClose(state.IteratorObject, context, preserveExistingThrow: true);
+                            iteratorDone = true;
+                        }
+
+                        context.SetThrow(typeError);
+                        return EmptyCompletion;
                     }
 
                     // Enumerator path (non-object next)

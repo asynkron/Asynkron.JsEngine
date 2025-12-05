@@ -1,7 +1,7 @@
 # Language Suite Next Steps
 
 ## Current State
-- Array built-ins are split into focused partials and `%Array.prototype%` is generator-backed; build stayed green with that layout.
+- Array built-ins split into focused partials and `%Array.prototype%` is generator-backed; build stayed green with that layout.
 - Eval direct/indirect handling is spec-aligned again (including Annex B quirks).
 - TypedArray constructors honor new-target for prototype resolution, set `name`, and `TypedArray.from` uses the calling constructor for targets. Resizable length logic goes through `ComputeLength` and iterator/enumeration flows respect detached/out-of-bounds views.
 - Derived typed array constructors were returning `undefined`; fixed by routing host super calls through `InvokeWithContext` (new-target aware), skipping preconstructed receivers for derived `new`, and falling back to the captured super `this` when the environment TDZs `this`. The resizable-buffer constructor test `built-ins/TypedArrayConstructors/ctors/typedarray-arg/src-typedarray-resizable-buffer.js` now passes in both strict/sloppy.
@@ -12,8 +12,10 @@
 - Private name lookups now honor the branded scope encoded in resolved keys (e.g. `#x@id` no longer falls back to the innermost scope), and class member functions use the source private identifier as their display name, so private method `name` properties no longer leak the internal brand suffix.
 - Anonymous function/class initializers for class fields (instance and static) now pick up the field’s lexical name (including private names), and optional chaining over private fields short-circuits correctly across chained accesses.
 - Private accessors without a getter/setter now throw a proper JS `TypeError` with the active realm (instance/prototype creation stamps RealmState), and shadowing tests like `private-setter-shadowed-by-getter-on-nested-class` are green alongside the intercalated computed field cases.
+- `Expressions_delete` is green again: sloppy globals now create deletable global properties (no declarative binding), super deletes throw ReferenceError, and deleting null/undefined targets throws TypeError.
+- For-of loops now return `undefined` when the body completion is empty, and destructuring initializers in for-of heads allow `in` expressions (fixed `obj-prop-elem-init-in` parse error).
 
 ## Next Iteration Plan
-1. Re-run the Language suite to surface any remaining failures (class elements should now be green). Prioritize any clusters that still trip realm/private-name handling.
-2. If failures remain in other areas, use the realm logger to trace binding/property resolution at the failing points and add focused debug tests where helpful.
-3. Once the failure list is small again, clean up any remaining Array/TypedArray/property enumeration gaps.
+1. Re-run the Language suite; remaining visible cluster is `Statements_forOf` (~23 fails) covering iterator result validation and string traversal over astral/truncated pairs.
+2. Fix for-of iterator result validation so non-object `next` results throw TypeError consistently, and tighten string iteration to walk UTF-16 code units (not surrogate pairs) per spec.
+3. If further stragglers appear, use realm logger traces and focused internal tests to chase them down, then return to any outstanding Array/TypedArray gaps.

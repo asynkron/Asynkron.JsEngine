@@ -110,10 +110,7 @@ public static partial class TypedAstEvaluator
             {
                 context.ThrowIfCancellationRequested();
                 var completion = EvaluateStatement(statement, executionEnvironment, context);
-                if (!ReferenceEquals(completion, EmptyCompletion))
-                {
-                    result = completion;
-                }
+                result = completion;
 
                 if (context.ShouldStopEvaluation)
                 {

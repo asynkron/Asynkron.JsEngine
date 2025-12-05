@@ -2476,8 +2476,17 @@ public sealed class TypedAstParser(
                 }
 
                 var isSpread = Match(TokenType.DotDotDot);
-                var expr = ParseExpression(false, validateCoverInitializedName: false);
-                elements.Add(new ArrayElement(expr.Source, expr, isSpread));
+                var previousAllowIn = _allowInExpressions;
+                _allowInExpressions = true;
+                try
+                {
+                    var expr = ParseExpression(false, validateCoverInitializedName: false);
+                    elements.Add(new ArrayElement(expr.Source, expr, isSpread));
+                }
+                finally
+                {
+                    _allowInExpressions = previousAllowIn;
+                }
                 expectElement = false;
 
                 if (!Match(TokenType.Comma))
@@ -2610,7 +2619,16 @@ public sealed class TypedAstParser(
                             Peek(), _source);
                     }
 
-                    value = ParseExpression(false, validateCoverInitializedName: false);
+                    var previousAllowIn = _allowInExpressions;
+                    _allowInExpressions = true;
+                    try
+                    {
+                        value = ParseExpression(false, validateCoverInitializedName: false);
+                    }
+                    finally
+                    {
+                        _allowInExpressions = previousAllowIn;
+                    }
                 }
                 else
                 {
@@ -2627,8 +2645,17 @@ public sealed class TypedAstParser(
                     var symbol = Symbol.Intern(shorthandName);
                     if (Match(TokenType.Equal))
                     {
-                        var initializer = ParseAssignment(validateCoverInitializedName: false);
-                        value = new AssignmentExpression(initializer.Source ?? keySource, symbol, initializer);
+                        var previousAllowIn = _allowInExpressions;
+                        _allowInExpressions = true;
+                        try
+                        {
+                            var initializer = ParseAssignment(validateCoverInitializedName: false);
+                            value = new AssignmentExpression(initializer.Source ?? keySource, symbol, initializer);
+                        }
+                        finally
+                        {
+                            _allowInExpressions = previousAllowIn;
+                        }
                         hasCoverInitializedName = true;
                     }
                     else

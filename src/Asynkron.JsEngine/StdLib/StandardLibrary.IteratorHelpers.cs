@@ -83,16 +83,31 @@ public static partial class StandardLibrary
             static JsObject CreateStringIterator(string str)
             {
                 var iteratorObj = new JsObject();
-                var runeEnumerator = str.EnumerateRunes().GetEnumerator();
+                var index = 0;
                 iteratorObj.SetHostedProperty("next", Next);
                 return iteratorObj;
 
                 object? Next(IReadOnlyList<object?> _)
                 {
                     var result = new JsObject();
-                    if (runeEnumerator.MoveNext())
+                    if (index < str.Length)
                     {
-                        result.SetProperty("value", runeEnumerator.Current.ToString());
+                        var first = str[index];
+                        string value;
+                        if (char.IsHighSurrogate(first) &&
+                            index + 1 < str.Length &&
+                            char.IsLowSurrogate(str[index + 1]))
+                        {
+                            value = new string(new[] { first, str[index + 1] });
+                            index += 2;
+                        }
+                        else
+                        {
+                            value = first.ToString();
+                            index++;
+                        }
+
+                        result.SetProperty("value", value);
                         result.SetProperty("done", false);
                     }
                     else

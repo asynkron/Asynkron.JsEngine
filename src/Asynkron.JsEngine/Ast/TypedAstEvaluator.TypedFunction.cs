@@ -637,11 +637,8 @@ public static partial class TypedAstEvaluator
                             if (context.IsThrow)
                             {
                                 var thrownDuringInitialization = context.FlowValue;
-                                context.Clear();
-
                                 callingContext?.SetThrow(thrownDuringInitialization);
-
-                                throw new ThrowSignal(thrownDuringInitialization);
+                                return thrownDuringInitialization;
                             }
 
                             return Symbol.Undefined;
@@ -677,8 +674,6 @@ public static partial class TypedAstEvaluator
                     if (context.IsThrow)
                     {
                         var thrownDuringBinding = context.FlowValue;
-                        context.Clear();
-
                         if (IsAsyncFunction || _wasAsyncFunction)
                         {
                             // Async functions must reject instead of throwing synchronously.
@@ -689,7 +684,7 @@ public static partial class TypedAstEvaluator
 
                         callingContext?.SetThrow(thrownDuringBinding);
 
-                        throw new ThrowSignal(thrownDuringBinding);
+                        return thrownDuringBinding;
                     }
 
                     return Symbol.Undefined;
@@ -722,7 +717,6 @@ public static partial class TypedAstEvaluator
                 if (context.IsThrow)
                 {
                     var thrown = context.FlowValue;
-                    context.Clear();
 
                     if (IsAsyncFunction || _wasAsyncFunction)
                     {
@@ -731,7 +725,7 @@ public static partial class TypedAstEvaluator
 
                     callingContext?.SetThrow(thrown);
 
-                    throw new ThrowSignal(thrown);
+                    return thrown;
                 }
 
                 if (!IsAsyncFunction)

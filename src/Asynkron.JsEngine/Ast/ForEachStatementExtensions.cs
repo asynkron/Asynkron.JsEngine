@@ -64,8 +64,9 @@ public static partial class TypedAstEvaluator
                         statement.Body is BlockStatement b
                             ? b
                             : new BlockStatement(statement.Source, [statement.Body], IsStrictBlock(statement.Body)));
-                    return ExecuteIteratorDriver(plan, iterator, null, loopEnvironment, environment, context,
+                    var completion = ExecuteIteratorDriver(plan, iterator, null, loopEnvironment, environment, context,
                         loopLabel);
+                    return ReferenceEquals(completion, EmptyCompletion) ? Symbol.Undefined : completion;
                 }
 
                 throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
@@ -144,7 +145,9 @@ public static partial class TypedAstEvaluator
                     statement.Body is BlockStatement b
                         ? b
                         : new BlockStatement(statement.Source, [statement.Body], IsStrictBlock(statement.Body)));
-                return ExecuteIteratorDriver(plan, iterator!, null, loopEnvironment, environment, context, loopLabel);
+                var completion =
+                    ExecuteIteratorDriver(plan, iterator!, null, loopEnvironment, environment, context, loopLabel);
+                return ReferenceEquals(completion, EmptyCompletion) ? Symbol.Undefined : completion;
             }
 
             throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);

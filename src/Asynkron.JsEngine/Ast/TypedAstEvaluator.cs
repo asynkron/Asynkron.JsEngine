@@ -8,6 +8,7 @@ using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using JetBrains.Annotations;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -326,10 +327,16 @@ public static partial class TypedAstEvaluator
             throw new ThrowSignal(context.FlowValue);
         }
 
+        var logger = context.RealmState?.Logger;
+        logger?.LogInformation("EnumerateSpread start valueType={Type} hasIterator={HasIterator} hasEnumerator={HasEnum}",
+            value?.GetType().Name ?? "null",
+            iterator is not null,
+            enumerator is not null);
         var iteratorRecord = new ArrayPatternIterator(iterator, enumerator);
 
         try
         {
+            var index = 0;
             while (true)
             {
                 var (item, done) = iteratorRecord.Next(context);
@@ -345,10 +352,18 @@ public static partial class TypedAstEvaluator
 
                 if (done)
                 {
+                    logger?.LogInformation("EnumerateSpread done at index={Index}", index);
                     yield break;
                 }
 
+                if (index < 5 || index % 1000 == 0)
+                {
+                    logger?.LogInformation("EnumerateSpread yield index={Index} type={Type}", index,
+                        item?.GetType().Name ?? "null");
+                }
+
                 yield return item;
+                index++;
             }
         }
         finally
@@ -874,18 +889,18 @@ public static partial class TypedAstEvaluator
 
         if (iteratorTarget is not null)
         {
-            if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iteratorCandidate))
+            var gotIterator = TryGetIteratorFromProtocols(iteratorTarget, context, out var iteratorCandidate);
+            if (context.ShouldStopEvaluation)
             {
-                if (context.ShouldStopEvaluation)
-                {
-                    return false;
-                }
+                iterator = null;
+                enumerator = null;
+                return false;
+            }
 
-                if (iteratorCandidate is not null)
-                {
-                    iterator = iteratorCandidate;
-                    return true;
-                }
+            if (gotIterator && iteratorCandidate is not null)
+            {
+                iterator = iteratorCandidate;
+                return true;
             }
 
             // Fallback: treat objects with a callable `next` as iterators even if

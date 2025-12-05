@@ -33,7 +33,7 @@ public static partial class TypedAstEvaluator
                 throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);
             }
 
-            var done = result.TryGetProperty("done", out var doneValue) &&
+            var done = result.TryGetProperty("done", result, context, out var doneValue) &&
                        JsOps.ToBoolean(doneValue);
 
             if (done)
@@ -41,7 +41,7 @@ public static partial class TypedAstEvaluator
                 return (Symbol.Undefined, true);
             }
 
-            var value = result.TryGetProperty("value", out var yielded)
+            var value = result.TryGetProperty("value", result, context, out var yielded)
                 ? yielded
                 : Symbol.Undefined;
 

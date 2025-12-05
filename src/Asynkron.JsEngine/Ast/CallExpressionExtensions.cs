@@ -22,6 +22,11 @@ public static partial class TypedAstEvaluator
             var (callee, thisValue, skippedOptional) = EvaluateCallTarget(expression.Callee, environment, context);
             if (context.ShouldStopEvaluation || skippedOptional)
             {
+                context.RealmState.Logger?.LogInformation(
+                    "EvaluateCall short-circuit callee={CalleeType} stopped={Stopped} optionalSkipped={Skipped}",
+                    expression.Callee.GetType().Name,
+                    context.ShouldStopEvaluation,
+                    skippedOptional);
                 return Symbol.Undefined;
             }
 
@@ -330,6 +335,10 @@ public static partial class TypedAstEvaluator
             }
             catch (ThrowSignal signal)
             {
+                context.RealmState.Logger?.LogInformation(
+                    "EvaluateCall caught ThrowSignal type={Type} calleeType={CalleeType}",
+                    signal.ThrownValue?.GetType().Name ?? "null",
+                    callable.GetType().Name);
                 if (isAsyncCallable)
                 {
                     context.Clear();

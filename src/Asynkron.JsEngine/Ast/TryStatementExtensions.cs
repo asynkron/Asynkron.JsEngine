@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.JsTypes;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -8,9 +9,28 @@ public static partial class TypedAstEvaluator
     {
         private object? EvaluateTry(JsEnvironment environment, EvaluationContext context)
         {
-            var result = EvaluateBlock(statement.TryBlock, environment, context);
+            context.RealmState.Logger?.LogInformation(
+                "EvaluateTry enter (catch={HasCatch}, finally={HasFinally}) throwFlag={ThrowFlag}",
+                statement.Catch is not null,
+                statement.Finally is not null,
+                context.IsThrow);
+            object? result;
+            try
+            {
+                result = EvaluateBlock(statement.TryBlock, environment, context);
+            }
+            catch (ThrowSignal signal)
+            {
+                // Normalize abrupt throws into the current context so catch/finally
+                // handling runs in the standard completion-flow path.
+                context.SetThrow(signal.ThrownValue);
+                result = signal.ThrownValue;
+            }
             if (context.IsThrow && statement.Catch is not null)
             {
+                context.RealmState.Logger?.LogInformation(
+                    "EvaluateTry handling catch; throw type={ThrowType}",
+                    context.FlowValue?.GetType().Name ?? "null");
                 var thrownValue = context.FlowValue;
                 context.Clear();
                 var catchEnv = new JsEnvironment(environment, creatingSource: statement.Catch.Body.Source,
@@ -27,6 +47,9 @@ public static partial class TypedAstEvaluator
 
             if (statement.Finally is null)
             {
+                context.RealmState.Logger?.LogInformation(
+                    "EvaluateTry exit (no finally) throwFlag={ThrowFlag}",
+                    context.IsThrow);
                 return result;
             }
 
@@ -82,6 +105,9 @@ public static partial class TypedAstEvaluator
                 RestoreSignal(context, savedSignal);
             }
 
+            context.RealmState.Logger?.LogInformation(
+                "EvaluateTry exit (with finally) throwFlag={ThrowFlag}",
+                context.IsThrow);
             return result;
         }
     }

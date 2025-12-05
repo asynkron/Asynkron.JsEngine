@@ -2,6 +2,7 @@ using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -114,8 +115,11 @@ public static partial class TypedAstEvaluator
                     {
                         var typeError = StandardLibrary.CreateTypeError(
                             "Iterator.next() did not return an object", context, context.RealmState);
-                        iteratorDone = true;
+                        context.RealmState.Logger?.LogInformation(
+                            "Iterator.next non-object result; throwing TypeError (label={Label})",
+                            loopLabel?.Name ?? "<none>");
                         context.SetThrow(typeError);
+                        iteratorDone = true;
                         return EmptyCompletion;
                     }
 

@@ -29,6 +29,7 @@ internal static class JsOps
             double d => !double.IsNaN(d) && Math.Abs(d) > double.Epsilon,
             float f => !float.IsNaN(f) && Math.Abs(f) > float.Epsilon,
             string s => s.Length > 0,
+            JsBigInt bi => !bi.Value.IsZero,
             _ => true
         };
     }
@@ -407,30 +408,19 @@ internal static class JsOps
     {
         while (true)
         {
-            var leftIsHtmlDda = left is IIsHtmlDda;
-            var rightIsHtmlDda = right is IIsHtmlDda;
-
-            if (leftIsHtmlDda || rightIsHtmlDda)
-            {
-                var leftNullish = IsNullish(left);
-                var rightNullish = IsNullish(right);
-                if ((leftIsHtmlDda && rightNullish) || (rightIsHtmlDda && leftNullish))
-                {
-                    return true;
-                }
-
-                if (leftIsHtmlDda && rightIsHtmlDda)
-                {
-                    return ReferenceEquals(left, right);
-                }
-            }
-
-            if (IsNullish(left) && IsNullish(right))
+            if (ReferenceEquals(left, right))
             {
                 return true;
             }
 
-            if (IsNullish(left) || IsNullish(right))
+            var leftNullish = IsNullish(left);
+            var rightNullish = IsNullish(right);
+            if (leftNullish || rightNullish)
+            {
+                return leftNullish && rightNullish;
+            }
+
+            if (left is IIsHtmlDda || right is IIsHtmlDda)
             {
                 return false;
             }
@@ -440,74 +430,10 @@ internal static class JsOps
                 return StrictEquals(left, right);
             }
 
-            if (left is JsBigInt lbi && IsNumeric(right))
+            if (left is bool)
             {
-                var rn = ToNumber(right, context);
-                if (double.IsNaN(rn) || double.IsInfinity(rn))
-                {
-                    return false;
-                }
-
-                if (rn == Math.Floor(rn))
-                {
-                    return lbi.Value == new BigInteger(rn);
-                }
-
-                return false;
-            }
-
-            if (IsNumeric(left) && right is JsBigInt rbi)
-            {
-                var ln = ToNumber(left, context);
-                if (double.IsNaN(ln) || double.IsInfinity(ln))
-                {
-                    return false;
-                }
-
-                if (ln == Math.Floor(ln))
-                {
-                    return new BigInteger(ln) == rbi.Value;
-                }
-
-                return false;
-            }
-
-            switch (left)
-            {
-                case JsBigInt lbi2 when right is string rs:
-                    try
-                    {
-                        var converted = new JsBigInt(rs.Trim());
-                        return lbi2 == converted;
-                    }
-                    catch
-                    {
-                        return false;
-                    }
-                case string ls when right is JsBigInt rbi2:
-                    try
-                    {
-                        var converted = new JsBigInt(ls.Trim());
-                        return converted == rbi2;
-                    }
-                    catch
-                    {
-                        return false;
-                    }
-            }
-
-            if (IsNumeric(left) && right is string)
-            {
-                return ToNumber(left, context).Equals(ToNumber(right, context));
-            }
-
-            switch (left)
-            {
-                case string when IsNumeric(right):
-                    return ToNumber(left, context).Equals(ToNumber(right, context));
-                case bool:
-                    left = ToNumber(left, context);
-                    continue;
+                left = ToNumber(left, context);
+                continue;
             }
 
             if (right is bool)
@@ -516,32 +442,78 @@ internal static class JsOps
                 continue;
             }
 
-            if (left is JsObject or JsArray)
+            if (left is JsBigInt lbi && right is string rightString)
             {
-                if (IsNumeric(right))
+                try
                 {
-                    return ToNumber(left, context).Equals(ToNumber(right, context));
+                    return lbi == new JsBigInt(rightString.Trim());
                 }
-
-                if (right is string rs2)
+                catch
                 {
-                    return string.Equals(ToJsString(left), rs2, StringComparison.Ordinal);
+                    return false;
                 }
             }
 
-            if (right is not (JsObject or JsArray))
+            if (left is string leftString && right is JsBigInt rbi2)
             {
-                return StrictEquals(left, right);
+                try
+                {
+                    return new JsBigInt(leftString.Trim()) == rbi2;
+                }
+                catch
+                {
+                    return false;
+                }
             }
 
-            if (IsNumeric(left))
+            if (left is JsBigInt lbiNumeric && IsNumeric(right))
+            {
+                var rn = ToNumber(right, context);
+                if (double.IsNaN(rn) || double.IsInfinity(rn) || rn != Math.Floor(rn))
+                {
+                    return false;
+                }
+
+                return lbiNumeric.Value == new BigInteger(rn);
+            }
+
+            if (IsNumeric(left) && right is JsBigInt rbiNumeric)
+            {
+                var ln = ToNumber(left, context);
+                if (double.IsNaN(ln) || double.IsInfinity(ln) || ln != Math.Floor(ln))
+                {
+                    return false;
+                }
+
+                return new BigInteger(ln) == rbiNumeric.Value;
+            }
+
+            if (left is string && IsNumeric(right) ||
+                IsNumeric(left) && right is string)
             {
                 return ToNumber(left, context).Equals(ToNumber(right, context));
             }
 
-            if (left is string ls2)
+            if (left is IJsPropertyAccessor leftObj)
             {
-                return string.Equals(ls2, ToJsString(right), StringComparison.Ordinal);
+                left = ToPrimitive(leftObj, "default", context);
+                if (context?.IsThrow == true)
+                {
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (right is IJsPropertyAccessor rightObj)
+            {
+                right = ToPrimitive(rightObj, "default", context);
+                if (context?.IsThrow == true)
+                {
+                    return false;
+                }
+
+                continue;
             }
 
             return StrictEquals(left, right);
@@ -592,37 +564,33 @@ internal static class JsOps
         Func<double, double, bool> numericOp,
         EvaluationContext? context)
     {
-        switch (left)
+        var leftNumeric = ToNumeric(left, context);
+        if (context?.IsThrow == true)
         {
-            case JsBigInt leftBigInt when right is JsBigInt rightBigInt:
-                return bigIntOp(leftBigInt, rightBigInt);
-            case JsBigInt lbi:
-            {
-                var rightNum = ToNumber(right, context);
-                if (double.IsNaN(rightNum))
-                {
-                    return false;
-                }
-
-                return mixedOp(lbi.Value, new BigInteger(rightNum));
-            }
+            return false;
         }
 
-        switch (right)
+        var rightNumeric = ToNumeric(right, context);
+        if (context?.IsThrow == true)
         {
-            case JsBigInt rbi:
-            {
-                var leftNum = ToNumber(left, context);
-                if (double.IsNaN(leftNum))
-                {
-                    return false;
-                }
-
-                return mixedOp(new BigInteger(leftNum), rbi.Value);
-            }
-            default:
-                return numericOp(ToNumber(left, context), ToNumber(right, context));
+            return false;
         }
+
+        if (leftNumeric is JsBigInt leftBigInt && rightNumeric is JsBigInt rightBigInt)
+        {
+            return bigIntOp(leftBigInt, rightBigInt);
+        }
+
+        var leftNum = ToNumber(leftNumeric, context);
+        var rightNum = ToNumber(rightNumeric, context);
+        if (double.IsNaN(leftNum) || double.IsNaN(rightNum))
+        {
+            return false;
+        }
+
+        // Mixed BigInt/Number comparisons follow the numeric ordering rules
+        // (after ToNumeric/ToNumber), so precision loss is tolerated here.
+        return numericOp(leftNum, rightNum);
     }
 
     public static string? ToPropertyName(object? value, EvaluationContext? context = null)

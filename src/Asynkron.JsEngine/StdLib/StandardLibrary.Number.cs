@@ -504,7 +504,8 @@ public static partial class StandardLibrary
 
         DefineConstantProperty(numberConstructor, "MAX_VALUE", double.MaxValue);
 
-        DefineConstantProperty(numberConstructor, "MIN_VALUE", double.MinValue);
+        // Smallest positive, non-zero double per ECMA-262
+        DefineConstantProperty(numberConstructor, "MIN_VALUE", double.Epsilon);
 
         DefineConstantProperty(numberConstructor, "POSITIVE_INFINITY", double.PositiveInfinity);
 

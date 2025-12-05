@@ -1319,7 +1319,6 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             TokenType.LeftParen or
             TokenType.LeftBracket or
             TokenType.LeftBrace or
-            TokenType.RightBrace or
             TokenType.Comma or
             TokenType.Colon or
             TokenType.Semicolon or

@@ -3861,7 +3861,7 @@ public sealed class TypedAstParser(
 
         private static bool IsContextualIdentifierToken(Token token)
         {
-            return token.Type is TokenType.Get or TokenType.Set;
+            return token.Type is TokenType.Get or TokenType.Set or TokenType.Of;
         }
 
         private string GetStringLiteralValue(Token token)

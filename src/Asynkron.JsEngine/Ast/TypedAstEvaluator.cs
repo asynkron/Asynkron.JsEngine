@@ -393,7 +393,7 @@ public static partial class TypedAstEvaluator
     private static object Subtract(object? left, object? right, EvaluationContext context)
     {
         return PerformBigIntOrNumericOperation(left, right,
-            (l, r) => l - r,
+            (l, r, _) => l - r,
             (l, r) => l - r,
             context);
     }
@@ -401,7 +401,7 @@ public static partial class TypedAstEvaluator
     private static object Multiply(object? left, object? right, EvaluationContext context)
     {
         return PerformBigIntOrNumericOperation(left, right,
-            (l, r) => l * r,
+            (l, r, _) => l * r,
             (l, r) => l * r,
             context);
     }
@@ -409,7 +409,15 @@ public static partial class TypedAstEvaluator
     private static object Divide(object? left, object? right, EvaluationContext context)
     {
         return PerformBigIntOrNumericOperation(left, right,
-            (l, r) => l / r,
+            (l, r, ctx) =>
+            {
+                if (r.Value.IsZero)
+                {
+                    throw StandardLibrary.ThrowRangeError("Division by zero", ctx);
+                }
+
+                return l / r;
+            },
             (l, r) => l / r,
             context);
     }
@@ -417,7 +425,15 @@ public static partial class TypedAstEvaluator
     private static object Modulo(object? left, object? right, EvaluationContext context)
     {
         return PerformBigIntOrNumericOperation(left, right,
-            (l, r) => l % r,
+            (l, r, ctx) =>
+            {
+                if (r.Value.IsZero)
+                {
+                    throw StandardLibrary.ThrowRangeError("Division by zero", ctx);
+                }
+
+                return l % r;
+            },
             (l, r) => l % r,
             context);
     }
@@ -425,7 +441,7 @@ public static partial class TypedAstEvaluator
     private static object Power(object? left, object? right, EvaluationContext context)
     {
         return PerformBigIntOrNumericOperation(left, right,
-            JsBigInt.Pow,
+            (l, r, _) => JsBigInt.Pow(l, r),
             (l, r) => Math.Pow(l, r),
             context);
     }
@@ -433,7 +449,7 @@ public static partial class TypedAstEvaluator
     private static object PerformBigIntOrNumericOperation(
         object? left,
         object? right,
-        Func<JsBigInt, JsBigInt, object> bigIntOp,
+        Func<JsBigInt, JsBigInt, EvaluationContext, object> bigIntOp,
         Func<double, double, object> numericOp,
         EvaluationContext context)
     {
@@ -451,7 +467,7 @@ public static partial class TypedAstEvaluator
 
         if (leftNumeric is JsBigInt leftBigInt && rightNumeric is JsBigInt rightBigInt)
         {
-            return bigIntOp(leftBigInt, rightBigInt);
+            return bigIntOp(leftBigInt, rightBigInt, context);
         }
 
         if (leftNumeric is JsBigInt || rightNumeric is JsBigInt)

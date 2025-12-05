@@ -187,7 +187,17 @@ internal static class JsOps
         {
             try
             {
-                var result = toPrimFn.Invoke(["number"], accessor);
+                var result = TypedAstEvaluator.InvokeCallable(
+                    toPrimFn,
+                    new object?[] { "number" },
+                    accessor,
+                    context,
+                    accessor is JsObject obj ? obj.RealmState?.Engine?.GlobalEnvironment : null);
+                if (context?.IsThrow == true)
+                {
+                    return false;
+                }
+
                 if ((result is not IJsPropertyAccessor || result is TypedAstSymbol or Symbol) &&
                     result is not JsObject)
                 {
@@ -408,16 +418,28 @@ internal static class JsOps
     {
         while (true)
         {
+            if (context?.IsThrow == true)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+
+            var leftType = GetJsType(left);
+            var rightType = GetJsType(right);
+
             if (ReferenceEquals(left, right))
             {
                 return true;
             }
 
-            var leftNullish = IsNullish(left);
-            var rightNullish = IsNullish(right);
-            if (leftNullish || rightNullish)
+            if (leftType == rightType)
             {
-                return leftNullish && rightNullish;
+                return StrictEquals(left, right);
+            }
+
+            if ((leftType == JsValueType.Null && rightType == JsValueType.Undefined) ||
+                (leftType == JsValueType.Undefined && rightType == JsValueType.Null))
+            {
+                return true;
             }
 
             if (left is IIsHtmlDda || right is IIsHtmlDda)
@@ -425,98 +447,66 @@ internal static class JsOps
                 return false;
             }
 
-            if (left?.GetType() == right?.GetType())
-            {
-                return StrictEquals(left, right);
-            }
-
-            if (left is bool)
-            {
-                left = ToNumber(left, context);
-                continue;
-            }
-
-            if (right is bool)
+            if (leftType == JsValueType.Number && rightType == JsValueType.String)
             {
                 right = ToNumber(right, context);
                 continue;
             }
 
-            if (left is JsBigInt lbi && right is string rightString)
+            if (leftType == JsValueType.String && rightType == JsValueType.Number)
             {
-                try
-                {
-                    return lbi == new JsBigInt(rightString.Trim());
-                }
-                catch
-                {
-                    return false;
-                }
-            }
-
-            if (left is string leftString && right is JsBigInt rbi2)
-            {
-                try
-                {
-                    return new JsBigInt(leftString.Trim()) == rbi2;
-                }
-                catch
-                {
-                    return false;
-                }
-            }
-
-            if (left is JsBigInt lbiNumeric && IsNumeric(right))
-            {
-                var rn = ToNumber(right, context);
-                if (double.IsNaN(rn) || double.IsInfinity(rn) || rn != Math.Floor(rn))
-                {
-                    return false;
-                }
-
-                return lbiNumeric.Value == new BigInteger(rn);
-            }
-
-            if (IsNumeric(left) && right is JsBigInt rbiNumeric)
-            {
-                var ln = ToNumber(left, context);
-                if (double.IsNaN(ln) || double.IsInfinity(ln) || ln != Math.Floor(ln))
-                {
-                    return false;
-                }
-
-                return new BigInteger(ln) == rbiNumeric.Value;
-            }
-
-            if (left is string && IsNumeric(right) ||
-                IsNumeric(left) && right is string)
-            {
-                return ToNumber(left, context).Equals(ToNumber(right, context));
-            }
-
-            if (left is IJsPropertyAccessor leftObj)
-            {
-                left = ToPrimitive(leftObj, "default", context);
-                if (context?.IsThrow == true)
-                {
-                    return false;
-                }
-
+                left = ToNumber(left, context);
                 continue;
             }
 
-            if (right is IJsPropertyAccessor rightObj)
+            if (leftType == JsValueType.BigInt && rightType == JsValueType.String)
             {
-                right = ToPrimitive(rightObj, "default", context);
-                if (context?.IsThrow == true)
-                {
-                    return false;
-                }
+                return TryParseJsBigInt((string)right!, out var parsed) && StrictEquals(left, parsed);
+            }
 
+            if (leftType == JsValueType.String && rightType == JsValueType.BigInt)
+            {
+                return TryParseJsBigInt((string)left!, out var parsed) && StrictEquals(parsed, right);
+            }
+
+            if (leftType == JsValueType.Boolean)
+            {
+                left = ToNumber(left, context);
                 continue;
             }
 
-            return StrictEquals(left, right);
+            if (rightType == JsValueType.Boolean)
+            {
+                right = ToNumber(right, context);
+                continue;
+            }
+
+            if ((leftType == JsValueType.String || leftType == JsValueType.Number || leftType == JsValueType.BigInt ||
+                 leftType == JsValueType.Symbol) && rightType == JsValueType.Object)
+            {
+                right = ToPrimitive((IJsPropertyAccessor)right!, "default", context);
+                continue;
+            }
+
+            if (leftType == JsValueType.Object &&
+                (rightType == JsValueType.String || rightType == JsValueType.Number ||
+                 rightType == JsValueType.BigInt || rightType == JsValueType.Symbol))
+            {
+                left = ToPrimitive((IJsPropertyAccessor)left!, "default", context);
+                continue;
+            }
+
+            if (leftType == JsValueType.Number && rightType == JsValueType.BigInt)
+            {
+                return NumberEqualsBigInt(left, (JsBigInt)right!);
+            }
+
+            if (leftType == JsValueType.BigInt && rightType == JsValueType.Number)
+            {
+                return NumberEqualsBigInt(right, (JsBigInt)left!);
+            }
+
+            return false;
         }
     }
 
@@ -564,6 +554,7 @@ internal static class JsOps
         Func<double, double, bool> numericOp,
         EvaluationContext? context)
     {
+        _ = mixedOp;
         var leftNumeric = ToNumeric(left, context);
         if (context?.IsThrow == true)
         {
@@ -762,7 +753,8 @@ internal static class JsOps
 
         try
         {
-            result = callable.Invoke([], accessor);
+            result = TypedAstEvaluator.InvokeCallable(callable, Array.Empty<object?>(), accessor, context,
+                accessor is JsObject obj ? obj.RealmState?.Engine?.GlobalEnvironment : null);
             return context?.IsThrow != true;
         }
         catch (ThrowSignal signal)
@@ -892,6 +884,171 @@ internal static class JsOps
     private static bool IsNumeric(object? value)
     {
         return value is sbyte or byte or short or ushort or int or uint or long or ulong or float or double or decimal;
+    }
+
+    private static JsValueType GetJsType(object? value)
+    {
+        return value switch
+        {
+            null => JsValueType.Null,
+            Symbol sym when ReferenceEquals(sym, Symbol.Undefined) => JsValueType.Undefined,
+            TypedAstSymbol => JsValueType.Symbol,
+            IIsHtmlDda => JsValueType.Undefined,
+            bool => JsValueType.Boolean,
+            JsBigInt => JsValueType.BigInt,
+            double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte =>
+                JsValueType.Number,
+            string => JsValueType.String,
+            _ => JsValueType.Object
+        };
+    }
+
+    private static bool NumberEqualsBigInt(object? numberValue, JsBigInt bigInt)
+    {
+        var num = ToNumber(numberValue);
+        if (double.IsNaN(num) || double.IsInfinity(num))
+        {
+            return false;
+        }
+
+        if (num != Math.Floor(num))
+        {
+            return false;
+        }
+
+        return new BigInteger(num) == bigInt.Value;
+    }
+
+    private static bool TryParseJsBigInt(string text, out JsBigInt? value)
+    {
+        value = null;
+        var trimmed = text.Trim();
+        if (trimmed.Length == 0)
+        {
+            value = JsBigInt.Zero;
+            return true;
+        }
+
+        var span = trimmed.AsSpan();
+        var isNegative = false;
+        if (span.Length > 0 && (span[0] == '+' || span[0] == '-'))
+        {
+            isNegative = span[0] == '-';
+            span = span[1..];
+        }
+
+        if (TryParsePrefixedBigInt(span, 16, NumberStyles.AllowHexSpecifier, out var parsed) ||
+            TryParseBinaryBigInt(span, out parsed) ||
+            TryParseOctalBigInt(span, out parsed))
+        {
+            value = new JsBigInt(isNegative ? BigInteger.Negate(parsed) : parsed);
+            return true;
+        }
+
+        if (BigInteger.TryParse(span, NumberStyles.None, CultureInfo.InvariantCulture, out parsed))
+        {
+            value = new JsBigInt(isNegative ? BigInteger.Negate(parsed) : parsed);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryParsePrefixedBigInt(ReadOnlySpan<char> span, int radix, NumberStyles styles,
+        out BigInteger value)
+    {
+        value = BigInteger.Zero;
+        if (span.Length <= 2 || span[0] != '0')
+        {
+            return false;
+        }
+
+        var prefixChar = span[1];
+        var expected = radix switch
+        {
+            16 => ('x', 'X'),
+            _ => ('?', '?')
+        };
+
+        if (prefixChar != expected.Item1 && prefixChar != expected.Item2)
+        {
+            return false;
+        }
+
+        var digits = span[2..];
+        return digits.Length > 0 &&
+               BigInteger.TryParse(digits, styles, CultureInfo.InvariantCulture, out value);
+    }
+
+    private static bool TryParseBinaryBigInt(ReadOnlySpan<char> span, out BigInteger value)
+    {
+        value = BigInteger.Zero;
+        if (span.Length <= 2 || span[0] != '0' || span[1] is not ('b' or 'B'))
+        {
+            return false;
+        }
+
+        var digits = span[2..];
+        if (digits.Length == 0)
+        {
+            return false;
+        }
+
+        foreach (var ch in digits)
+        {
+            value <<= 1;
+            switch (ch)
+            {
+                case '0':
+                    break;
+                case '1':
+                    value += BigInteger.One;
+                    break;
+                default:
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryParseOctalBigInt(ReadOnlySpan<char> span, out BigInteger value)
+    {
+        value = BigInteger.Zero;
+        if (span.Length <= 2 || span[0] != '0' || span[1] is not ('o' or 'O'))
+        {
+            return false;
+        }
+
+        var digits = span[2..];
+        if (digits.Length == 0)
+        {
+            return false;
+        }
+
+        foreach (var ch in digits)
+        {
+            if (ch is < '0' or > '7')
+            {
+                return false;
+            }
+
+            value = (value << 3) + (ch - '0');
+        }
+
+        return true;
+    }
+
+    private enum JsValueType
+    {
+        Undefined,
+        Null,
+        Boolean,
+        Number,
+        String,
+        Symbol,
+        BigInt,
+        Object
     }
 
     public static bool TryGetPropertyValue(object? target, string propertyName, out object? value,

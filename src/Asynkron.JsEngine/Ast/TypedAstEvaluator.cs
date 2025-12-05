@@ -2,6 +2,7 @@ using System;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Numerics;
+using System.Linq;
 using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
@@ -80,8 +81,24 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
+        var logger = context.RealmState?.Logger;
+        var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
+        var iteratorHash = iteratorSymbol.GetHashCode();
+        var iteratorKey = $"@@symbol:{iteratorHash}";
+        logger?.LogInformation("TryGetIteratorFromProtocols start targetType={Type} iteratorKey={Key}",
+            iterable?.GetType().Name ?? "null",
+            iteratorKey);
+        if (accessor is IJsObjectLike objectLike)
+        {
+            var keysPreview = string.Join(",", objectLike.Keys.Take(8));
+            logger?.LogInformation("TryGetIteratorFromProtocols keys={Keys}", keysPreview);
+        }
+
         if (TryInvokeSymbolMethod(accessor, iterable, "Symbol.asyncIterator", context, out var asyncIterator))
         {
+            logger?.LogInformation("TryGetIteratorFromProtocols asyncIterator invoked stop={Stop} type={IterType}",
+                context.ShouldStopEvaluation,
+                asyncIterator?.GetType().Name ?? "null");
             if (context.ShouldStopEvaluation)
             {
                 return false;
@@ -100,6 +117,9 @@ public static partial class TypedAstEvaluator
 
         if (TryInvokeSymbolMethod(accessor, iterable, "Symbol.iterator", context, out var iteratorValue))
         {
+            logger?.LogInformation("TryGetIteratorFromProtocols iterator invoked stop={Stop} type={IterType}",
+                context.ShouldStopEvaluation,
+                iteratorValue?.GetType().Name ?? "null");
             if (context.ShouldStopEvaluation)
             {
                 return false;

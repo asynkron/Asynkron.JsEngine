@@ -2,6 +2,7 @@ using System;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -16,23 +17,33 @@ public static partial class TypedAstEvaluator
             var symbol = TypedAstSymbol.For(symbolName);
             var hashedName = $"@@symbol:{symbol.GetHashCode()}";
             var realm = context.RealmState;
+            realm?.Logger?.LogInformation("TryInvokeSymbolMethod name={Name} thisType={Type}", symbolName,
+                thisArg?.GetType().Name ?? "null");
 
-            if (TryGetCallable(hashedName, out var callable) ||
+            if (TryGetCallable(symbol, out var callable) ||
+                TryGetCallable(hashedName, out callable) ||
                 TryGetCallable(symbolName, out callable) ||
                 TryGetCallable(symbol.ToString(), out callable))
             {
                 if (context.ShouldStopEvaluation)
                 {
+                    realm?.Logger?.LogInformation("TryInvokeSymbolMethod stopDuringLookup flowType={FlowType}",
+                        context.FlowValue?.GetType().Name ?? "null");
                     result = callable;
                     return true;
                 }
 
+                realm?.Logger?.LogInformation("TryInvokeSymbolMethod invoking callableType={CallableType}",
+                    callable?.GetType().Name ?? "null");
                 result = InvokeCallable(
                     callable!,
                     Array.Empty<object?>(),
                     thisArg,
                     context,
                     context.RealmState?.Engine?.GlobalEnvironment);
+                realm?.Logger?.LogInformation("TryInvokeSymbolMethod completed stop={Stop} resultType={ResultType}",
+                    context.ShouldStopEvaluation,
+                    result?.GetType().Name ?? "null");
                 return true;
             }
 
@@ -40,6 +51,8 @@ public static partial class TypedAstEvaluator
             // semantics by surfacing a TypeError instead of silently skipping it.
             if (context.ShouldStopEvaluation)
             {
+                realm?.Logger?.LogInformation("TryInvokeSymbolMethod stopAfterLookup flowType={FlowType}",
+                    context.FlowValue?.GetType().Name ?? "null");
                 result = context.FlowValue;
                 return true;
             }
@@ -47,9 +60,9 @@ public static partial class TypedAstEvaluator
             result = null;
             return false;
 
-            bool TryGetCallable(string propertyName, out IJsCallable? callable)
+            bool TryGetCallable(object propertyKey, out IJsCallable? callable)
             {
-                if (JsOps.TryGetPropertyValue(target, propertyName, out var candidate, context) &&
+                if (JsOps.TryGetPropertyValue(target, propertyKey, out var candidate, context) &&
                     candidate is IJsCallable found)
                 {
                     callable = found;

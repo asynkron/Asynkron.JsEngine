@@ -1,4 +1,6 @@
 using System.Text;
+using System.Globalization;
+using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 
@@ -92,20 +94,8 @@ public static partial class StandardLibrary
                     var result = new JsObject();
                     if (index < str.Length)
                     {
-                        var first = str[index];
-                        string value;
-                        if (char.IsHighSurrogate(first) &&
-                            index + 1 < str.Length &&
-                            char.IsLowSurrogate(str[index + 1]))
-                        {
-                            value = new string(new[] { first, str[index + 1] });
-                            index += 2;
-                        }
-                        else
-                        {
-                            value = first.ToString();
-                            index++;
-                        }
+                        var value = str[index].ToString();
+                        index++;
 
                         result.SetProperty("value", value);
                         result.SetProperty("done", false);
@@ -123,15 +113,16 @@ public static partial class StandardLibrary
             {
                 var iteratorObj = new JsObject();
                 var index = 0;
-                iteratorObj.SetHostedProperty("next", Next);
-                return iteratorObj;
-
-                object? Next(IReadOnlyList<object?> _)
+                var next = new HostFunction((_, _) => null!, isConstructor: false);
+                next.SetInvokeWithContext((_, __, context, _) =>
                 {
                     var result = new JsObject();
                     if (index < array.Length)
                     {
-                        result.SetProperty("value", array.GetElement(index));
+                        object? value = Symbol.Undefined;
+                        var propertyName = index.ToString(CultureInfo.InvariantCulture);
+                        JsOps.TryGetPropertyValue(array, propertyName, out value, context);
+                        result.SetProperty("value", value);
                         result.SetProperty("done", false);
                         index++;
                     }
@@ -141,7 +132,9 @@ public static partial class StandardLibrary
                     }
 
                     return result;
-                }
+                });
+                iteratorObj.SetHostedProperty("next", next);
+                return iteratorObj;
             }
 
             static bool HasCallableNext(object? candidate)

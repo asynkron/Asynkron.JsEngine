@@ -1093,7 +1093,7 @@ public static partial class StandardLibrary
         object? CreateIterator(object? thisValue, IReadOnlyList<object?> _)
         {
             var value = ResolveString(thisValue);
-            var runeEnumerator = value.EnumerateRunes().GetEnumerator();
+            var index = 0;
             var iterator = new JsObject();
 
             iterator.SetHostedProperty("next", Next);
@@ -1103,10 +1103,12 @@ public static partial class StandardLibrary
             object? Next(object? _, IReadOnlyList<object?> __)
             {
                 var result = new JsObject();
-                if (runeEnumerator.MoveNext())
+                if (index < value.Length)
                 {
-                    result.SetProperty("value", runeEnumerator.Current.ToString());
+                    var current = value[index];
+                    result.SetProperty("value", current.ToString());
                     result.SetProperty("done", false);
+                    index++;
                 }
                 else
                 {

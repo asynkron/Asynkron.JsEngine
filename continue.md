@@ -14,8 +14,9 @@
 - Private accessors without a getter/setter now throw a proper JS `TypeError` with the active realm (instance/prototype creation stamps RealmState), and shadowing tests like `private-setter-shadowed-by-getter-on-nested-class` are green alongside the intercalated computed field cases.
 - `Expressions_delete` is green again: sloppy globals now create deletable global properties (no declarative binding), super deletes throw ReferenceError, and deleting null/undefined targets throws TypeError.
 - For-of loops now return `undefined` when the body completion is empty, and destructuring initializers in for-of heads allow `in` expressions (fixed `obj-prop-elem-init-in` parse error).
+- Destructuring iterator error propagation is in place for array bindings/assignments: iterator property getters use the evaluation context, `TryGetIteratorForDestructuring` aborts with the pending throw, and iterator throws no longer trigger `IteratorClose` for assignment patterns (`Expressions_arrowFunction_dstr` and `Expressions_assignment_dstr` are green).
 
 ## Next Iteration Plan
-1. Re-run the Language suite; remaining visible cluster is `Statements_forOf` (~23 fails) covering iterator result validation and string traversal over astral/truncated pairs.
-2. Fix for-of iterator result validation so non-object `next` results throw TypeError consistently, and tighten string iteration to walk UTF-16 code units (not surrogate pairs) per spec.
-3. If further stragglers appear, use realm logger traces and focused internal tests to chase them down, then return to any outstanding Array/TypedArray gaps.
+1. Re-run the Language suite to refresh the current failure set (previously `Statements_forOf` looked hottest) now that destructuring is fixed.
+2. Chase the top remaining cluster (likely for-of): ensure iterator result validation matches spec and string iteration walks UTF-16 code units (astral/truncated pairs).
+3. Use realm logger traces and focused internal tests to pin any remaining stragglers, then circle back to residual Array/TypedArray gaps surfaced by the refreshed run.

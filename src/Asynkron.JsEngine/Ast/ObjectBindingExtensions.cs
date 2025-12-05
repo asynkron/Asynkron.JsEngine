@@ -1,3 +1,4 @@
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
@@ -54,7 +55,12 @@ public static partial class TypedAstEvaluator
                 }
 
                 usedKeys.Add(propertyName);
-                var hasProperty = obj.TryGetProperty(propertyName, out var val);
+                var hasProperty = obj.TryGetProperty(propertyName, obj, context, out var val);
+                if (context.ShouldStopEvaluation)
+                {
+                    throw new ThrowSignal(context.FlowValue);
+                }
+
                 var propertyValue = hasProperty ? val : Symbol.Undefined;
 
                 var usedDefault = false;
@@ -105,9 +111,13 @@ public static partial class TypedAstEvaluator
             {
                 if (!usedKeys.Contains(key))
                 {
-                    if (obj.TryGetProperty(key, out var restValue))
+                    if (obj.TryGetProperty(key, obj, context, out var restValue))
                     {
                         restObject.SetProperty(key, restValue);
+                    }
+                    else if (context.ShouldStopEvaluation)
+                    {
+                        throw new ThrowSignal(context.FlowValue);
                     }
                 }
             }

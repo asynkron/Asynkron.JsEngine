@@ -1,3 +1,4 @@
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
 
@@ -23,6 +24,11 @@ public static partial class TypedAstEvaluator
             if (iterator is null && enumerator is null &&
                 !TryGetIteratorForDestructuring(value, context, out iterator, out enumerator))
             {
+                if (context.ShouldStopEvaluation)
+                {
+                    throw new ThrowSignal(context.FlowValue);
+                }
+
                 throw StandardLibrary.ThrowTypeError(
                     $"Cannot destructure non-iterable value.{GetSourceInfo(context)}", context);
             }
@@ -103,6 +109,7 @@ public static partial class TypedAstEvaluator
                     }
                     else
                     {
+                        var throwBeforeNext = context.IsThrow;
                         try
                         {
                             next = iteratorRecord.Next(context);
@@ -111,6 +118,10 @@ public static partial class TypedAstEvaluator
                         {
                             iteratorThrew = true;
                             throw;
+                        }
+                        if (!throwBeforeNext && context.IsThrow)
+                        {
+                            iteratorThrew = true;
                         }
 
                         if (context.IsYield && stateKey is { })
@@ -130,7 +141,7 @@ public static partial class TypedAstEvaluator
                             SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
                                 elementIndex, nextValue, done, false, null, false);
                         }
-                        else if (iterator is not null)
+                        else if (iterator is not null && !iteratorThrew)
                         {
                             CloseIterator(context.IsThrow);
                         }
@@ -246,6 +257,7 @@ public static partial class TypedAstEvaluator
                         }
                         else
                         {
+                            var throwBeforeNext = context.IsThrow;
                             try
                             {
                                 restNext = iteratorRecord.Next(context);
@@ -254,6 +266,10 @@ public static partial class TypedAstEvaluator
                             {
                                 iteratorThrew = true;
                                 throw;
+                            }
+                            if (!throwBeforeNext && context.IsThrow)
+                            {
+                                iteratorThrew = true;
                             }
 
                             if (context.IsYield && stateKey is { })
@@ -268,15 +284,15 @@ public static partial class TypedAstEvaluator
                         iteratorDone = done;
                         if (context.ShouldStopEvaluation)
                         {
-                        if (context.IsYield && stateKey is { })
-                        {
-                            SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
-                                binding.Elements.Length, restValue, done, true, restArray, true);
-                        }
-                        else if (iterator is not null)
-                        {
-                            CloseIterator(context.IsThrow);
-                        }
+                            if (context.IsYield && stateKey is { })
+                            {
+                                SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
+                                    binding.Elements.Length, restValue, done, true, restArray, true);
+                            }
+                            else if (iterator is not null && !iteratorThrew)
+                            {
+                                CloseIterator(context.IsThrow);
+                            }
 
                             return;
                         }

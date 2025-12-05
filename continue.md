@@ -11,8 +11,9 @@
 - Class field computed property names now resolve at class definition time; non-callable or non-primitive `@@toPrimitive` results throw TypeError (including computed-name-toprimitive Test262 cases).
 - Private name lookups now honor the branded scope encoded in resolved keys (e.g. `#x@id` no longer falls back to the innermost scope), and class member functions use the source private identifier as their display name, so private method `name` properties no longer leak the internal brand suffix.
 - Anonymous function/class initializers for class fields (instance and static) now pick up the field’s lexical name (including private names), and optional chaining over private fields short-circuits correctly across chained accesses.
+- Private accessors without a getter now throw a proper JS `TypeError` (using the realm logger path), and new function/class instances/prototypes are stamped with the current realm so thrown errors come from the right constructors. The `intercalated-static-non-static-computed-fields` and private shadowing class element tests are passing in both strict/sloppy.
 
 ## Next Iteration Plan
-1. Re-run the `LanguageTests.Expressions_class_elements`/`Statements_class_elements` slices to see what remains after the private-name/name/optional-chaining fixes.
-2. For any remaining class-element failures, compare thrown error types to spec expectations (SyntaxError vs TypeError) and expand traversal/logging to any missed AST shapes (e.g., class expressions/static blocks).
-3. Once class-element eval errors are green, return to the outstanding resizable Array/TypedArray enumeration/ownKeys failures and retune any noisy realm logging.
+1. Re-run the Language suite to surface any remaining failures (class elements should now be green). Prioritize any clusters that still trip realm/private-name handling.
+2. If failures remain in other areas, use the realm logger to trace binding/property resolution at the failing points and add focused debug tests where helpful.
+3. Once the failure list is small again, clean up any remaining Array/TypedArray/property enumeration gaps.

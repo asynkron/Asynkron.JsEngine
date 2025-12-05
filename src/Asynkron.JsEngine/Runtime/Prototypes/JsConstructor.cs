@@ -31,6 +31,7 @@ public abstract class JsConstructor(IJsObjectLike prototype, RealmState realm)
         }
 
         var instance = new JsObject();
+        instance.RealmState = Realm;
         if (assignPrototype)
         {
             instance.SetPrototype(Prototype);

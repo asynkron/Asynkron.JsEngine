@@ -50,6 +50,7 @@ public static partial class TypedAstEvaluator
             _function = function;
             _closure = closure;
             _realmState = realmState;
+            _properties.RealmState = _realmState;
             _isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
             IsAsyncFunction = function.IsAsync;
             _wasAsyncFunction = function.WasAsync;
@@ -88,6 +89,7 @@ public static partial class TypedAstEvaluator
             if (!IsArrowFunction)
             {
                 var functionPrototype = new JsObject();
+                functionPrototype.RealmState = _realmState;
                 functionPrototype.SetPrototype(_realmState.ObjectPrototype);
                 functionPrototype.DefineProperty("constructor",
                     new PropertyDescriptor { Value = this, Writable = true, Enumerable = false, Configurable = true });
@@ -524,6 +526,7 @@ public static partial class TypedAstEvaluator
                     newTarget is not null)
                 {
                     var constructedThis = new JsObject();
+                    constructedThis.RealmState = _realmState;
                     if (newTarget is IJsPropertyAccessor prototypeSource &&
                         JsOps.TryGetPropertyValue(prototypeSource, "prototype", out var protoVal) &&
                         protoVal is IJsPropertyAccessor protoAccessor)
@@ -576,7 +579,10 @@ public static partial class TypedAstEvaluator
                     initialThisValue = boundThis;
                     if (!_isStrict && initialThisValue is null)
                     {
-                        initialThisValue = new JsObject();
+                        initialThisValue = new JsObject
+                        {
+                            RealmState = _realmState
+                        };
                     }
 
                     boundThis = initialThisValue;

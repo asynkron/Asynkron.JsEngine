@@ -547,8 +547,19 @@ public sealed class JsEnvironment
     internal bool TryAssignBlockedBinding(Symbol name, object? value)
     {
         var current = this;
+        var passedFunctionBoundary = false;
         while (current is not null)
         {
+            if (current.IsFunctionScope)
+            {
+                if (passedFunctionBoundary)
+                {
+                    break;
+                }
+
+                passedFunctionBoundary = true;
+            }
+
             if (current._values.TryGetValue(name, out var binding) && binding.BlocksFunctionScopeOverride)
             {
                 binding.Value = value;
@@ -641,6 +652,14 @@ public sealed class JsEnvironment
             throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
         }
 
+        bindingEnvironment.RealmState?.Logger?.LogInformation(
+            "Read binding '{Name}' (envDepth={Depth}, lexical={Lexical}, bindingHash={Hash}) -> {Value}",
+            name.Name,
+            bindingEnvironment.Depth,
+            binding.IsLexical,
+            binding.GetHashCode(),
+            binding.Value);
+
         if (bindingEnvironment.IsGlobalFunctionScope && !binding.IsLexical)
         {
             var globalObject = bindingEnvironment.GetRootGlobalObject();
@@ -660,6 +679,15 @@ public sealed class JsEnvironment
         object? value,
         bool isStrictContext)
     {
+        RealmState?.Logger?.LogInformation(
+            "Write binding '{Name}' (envDepth={Depth}, lexical={Lexical}, const={Const}, strictCtx={StrictCtx}, bindingHash={Hash}) = {Value}",
+            name.Name,
+            bindingEnvironment.Depth,
+            binding.IsLexical,
+            binding.IsConst,
+            isStrictContext,
+            binding.GetHashCode(),
+            value);
         var realm = bindingEnvironment.RealmState ?? bindingEnvironment.Enclosing?.RealmState;
 
         if (ReferenceEquals(binding.Value, Uninitialized) &&

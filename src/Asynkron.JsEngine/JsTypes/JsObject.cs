@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.JsTypes;
@@ -943,8 +944,9 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
                                 return true;
                             }
 
-                            value = Symbol.Undefined;
-                            return true;
+                            throw StandardLibrary.ThrowTypeError(
+                                "Private accessor does not have a getter",
+                                realm: RealmState);
                         }
 
                         value = desc.HasValue ? desc.Value : Symbol.Undefined;

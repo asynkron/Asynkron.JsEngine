@@ -1,4 +1,5 @@
 using Asynkron.JsEngine;
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using NUnit.Framework;
@@ -7,6 +8,63 @@ namespace Asynkron.JsEngine.Tests.Test262;
 
 public class DebugClassFieldTests
 {
+    [Test]
+    public async Task GlobalLetDoesNotLeakToGlobalObject()
+    {
+        await using var engine = new JsEngine
+        {
+            ExecutionTimeout = null
+        };
+
+        var result = await engine.Evaluate("""
+                                           let i = 0;
+                                           ({
+                                             hasOwn: Object.prototype.hasOwnProperty.call(this, "i"),
+                                             value: this.i
+                                           });
+                                           """);
+
+        Assert.That(result, Is.InstanceOf<IDictionary<string, object?>>());
+        var snapshot = (IDictionary<string, object?>)result;
+        Assert.That(snapshot?["hasOwn"], Is.EqualTo(false));
+        Assert.That(snapshot?["value"], Is.EqualTo(Symbol.Undefined));
+    }
+
+    [Test]
+    public async Task VerifyPropertyDoesNotClobberGlobalLets()
+    {
+        await using var engine = new JsEngine
+        {
+            ExecutionTimeout = null
+        };
+
+        await engine.Evaluate(State.Sources["assert.js"]);
+        await engine.Evaluate(State.Sources["propertyHelper.js"]);
+
+        var result = await engine.Evaluate("""
+                                           let i = 123;
+                                           verifyProperty({ 0: 1 }, "0", {
+                                             value: 1,
+                                             enumerable: true,
+                                             writable: true,
+                                             configurable: true
+                                           });
+                                           ({
+                                             i,
+                                             hasGlobalI: Object.prototype.hasOwnProperty.call(this, "i"),
+                                             globalValue: this.i
+                                           });
+                                           """);
+
+        Assert.That(result, Is.InstanceOf<IDictionary<string, object?>>());
+        var snapshot = (IDictionary<string, object?>)result;
+        TestContext.Progress.WriteLine(
+            $"verifyProperty snapshot: i={snapshot?["i"]}, hasGlobalI={snapshot?["hasGlobalI"]}, globalValue={snapshot?["globalValue"]}");
+        Assert.That(snapshot?["i"], Is.EqualTo(123d));
+        Assert.That(snapshot?["hasGlobalI"], Is.EqualTo(false));
+        Assert.That(snapshot?["globalValue"], Is.EqualTo(Symbol.Undefined));
+    }
+
     [Test]
     public async Task IntercalatedComputedFieldsMatchSpecOrdering()
     {

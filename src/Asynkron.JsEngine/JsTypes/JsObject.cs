@@ -153,8 +153,29 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
                     IsAccessorDescriptor: true
                 } desc)
             {
-                desc.Set?.Invoke([value], receiver ?? this);
+                if (desc.Set is null)
+                {
+                    throw StandardLibrary.ThrowTypeError(
+                        "Private accessor does not have a setter",
+                        realm: ResolveRealmState(receiver));
+                }
 
+                desc.Set.Invoke([value], receiver ?? this);
+
+                return;
+            }
+
+            if (_privateFields.TryGetValue(name, out existing) && existing is PropertyDescriptor dataDesc)
+            {
+                if (!dataDesc.Writable)
+                {
+                    throw StandardLibrary.ThrowTypeError(
+                        "Private field is read-only",
+                        realm: ResolveRealmState(receiver));
+                }
+
+                dataDesc.Value = value;
+                _privateFields[name] = dataDesc;
                 return;
             }
 
@@ -163,12 +184,34 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
             var prototype = Prototype;
             while (prototype is not null)
             {
-                if (prototype._privateFields.TryGetValue(name, out var inherited) &&
-                    inherited is PropertyDescriptor { IsAccessorDescriptor: true } inheritedDesc)
+                if (prototype._privateFields.TryGetValue(name, out var inherited))
                 {
-                    inheritedDesc.Set?.Invoke([value], receiver ?? this);
+                    if (inherited is PropertyDescriptor { IsAccessorDescriptor: true } inheritedDesc)
+                    {
+                        if (inheritedDesc.Set is null)
+                        {
+                            throw StandardLibrary.ThrowTypeError(
+                                "Private accessor does not have a setter",
+                                realm: ResolveRealmState(receiver));
+                        }
 
-                    return;
+                        inheritedDesc.Set.Invoke([value], receiver ?? this);
+                        return;
+                    }
+
+                    if (inherited is PropertyDescriptor dataDescriptor)
+                    {
+                        if (!dataDescriptor.Writable)
+                        {
+                            throw StandardLibrary.ThrowTypeError(
+                                "Private field is read-only",
+                                realm: ResolveRealmState(receiver));
+                        }
+
+                        dataDescriptor.Value = value;
+                        prototype._privateFields[name] = dataDescriptor;
+                        return;
+                    }
                 }
 
                 prototype = prototype.Prototype;
@@ -938,16 +981,16 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
                     case PropertyDescriptor desc:
                         if (desc.IsAccessorDescriptor)
                         {
-                            if (desc.Get != null)
-                            {
-                                value = desc.Get.Invoke([], receiver ?? this);
-                                return true;
-                            }
-
-                            throw StandardLibrary.ThrowTypeError(
-                                "Private accessor does not have a getter",
-                                realm: RealmState);
+                        if (desc.Get != null)
+                        {
+                            value = desc.Get.Invoke([], receiver ?? this);
+                            return true;
                         }
+
+                    throw StandardLibrary.ThrowTypeError(
+                        "Private accessor does not have a getter",
+                        realm: ResolveRealmState(receiver));
+                }
 
                         value = desc.HasValue ? desc.Value : Symbol.Undefined;
                         return true;
@@ -1216,5 +1259,31 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
                       index != uint.MaxValue &&
                       string.Equals(index.ToString(CultureInfo.InvariantCulture), key, StringComparison.Ordinal);
         return isIndex;
+    }
+
+    private RealmState? ResolveRealmState(object? receiver)
+    {
+        if (RealmState is { } ownRealm)
+        {
+            return ownRealm;
+        }
+
+        if (receiver is JsObject receiverObj && receiverObj.RealmState is { } receiverRealm)
+        {
+            return receiverRealm;
+        }
+
+        var proto = Prototype;
+        while (proto is not null)
+        {
+            if (proto.RealmState is { } realm)
+            {
+                return realm;
+            }
+
+            proto = proto.Prototype;
+        }
+
+        return null;
     }
 }

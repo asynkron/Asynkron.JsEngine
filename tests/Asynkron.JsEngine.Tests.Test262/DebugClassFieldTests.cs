@@ -172,4 +172,41 @@ public class DebugClassFieldTests
                 $"Harness run produced i={result["i"]}, c0={result["c0"]}, c2={result["c2"]}, s1={result["s1"]}, cHas1={result["cHas1"]}, sHas0={result["sHas0"]}, sHas2={result["sHas2"]}, staticKeys={JoinKeys(result["staticKeys"])}, protoKeys={JoinKeys(result["protoKeys"])}, hasGlobalI={result["hasGlobalI"]}, iDescriptorValue={result["iDescriptorValue"]}, iDescriptorWritable={result["iDescriptorWritable"]}, iDescriptorEnumerable={result["iDescriptorEnumerable"]}, iDescriptorConfigurable={result["iDescriptorConfigurable"]}");
         }
     }
+
+    [Test]
+    public async Task PrivateSetterShadowedByGetterThrowsTypeError()
+    {
+        await using var engine = new JsEngine
+        {
+            ExecutionTimeout = null
+        };
+
+        try
+        {
+            await engine.Evaluate("""
+                                  (function() {
+                                    class C {
+                                      set #m(v) { this._v = v; }
+                                      method(v) { this.#m = v; }
+                                      B = class {
+                                        method(o, v) { o.#m = v; }
+                                        get #m() { return 'test262'; }
+                                      }
+                                    }
+                                    let c = new C();
+                                    let innerB = new c.B();
+                                    innerB.method(innerB);
+                                  })();
+                                  """);
+            Assert.Fail("Expected TypeError to be thrown");
+        }
+        catch (ThrowSignal signal)
+        {
+            var thrown = signal.ThrownValue;
+            Assert.That(thrown, Is.InstanceOf<JsObject>(), "Thrown value should be a JS error object");
+            var error = (JsObject)thrown;
+            error.TryGetProperty("name", out var name);
+            Assert.That(name?.ToString(), Is.EqualTo("TypeError"));
+        }
+    }
 }

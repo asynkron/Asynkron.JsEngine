@@ -11,7 +11,7 @@
 - Class field computed property names now resolve at class definition time; non-callable or non-primitive `@@toPrimitive` results throw TypeError (including computed-name-toprimitive Test262 cases).
 - Private name lookups now honor the branded scope encoded in resolved keys (e.g. `#x@id` no longer falls back to the innermost scope), and class member functions use the source private identifier as their display name, so private method `name` properties no longer leak the internal brand suffix.
 - Anonymous function/class initializers for class fields (instance and static) now pick up the field’s lexical name (including private names), and optional chaining over private fields short-circuits correctly across chained accesses.
-- Private accessors without a getter now throw a proper JS `TypeError` (using the realm logger path), and new function/class instances/prototypes are stamped with the current realm so thrown errors come from the right constructors. The `intercalated-static-non-static-computed-fields` and private shadowing class element tests are passing in both strict/sloppy.
+- Private accessors without a getter/setter now throw a proper JS `TypeError` with the active realm (instance/prototype creation stamps RealmState), and shadowing tests like `private-setter-shadowed-by-getter-on-nested-class` are green alongside the intercalated computed field cases.
 
 ## Next Iteration Plan
 1. Re-run the Language suite to surface any remaining failures (class elements should now be green). Prioritize any clusters that still trip realm/private-name handling.

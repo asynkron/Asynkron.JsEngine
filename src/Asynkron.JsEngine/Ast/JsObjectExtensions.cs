@@ -11,13 +11,31 @@ public static partial class TypedAstEvaluator
     {
         private object? InvokeIteratorNext(object? sendValue = null, bool hasSendValue = false)
         {
-            if (!iterator.TryGetProperty("next", out var nextValue) || nextValue is not IJsCallable callable)
+            var nextCallable = iterator.GetIteratorNextCallable(context: null);
+            return iterator.InvokeIteratorNext(nextCallable, sendValue, hasSendValue);
+        }
+
+        private object? InvokeIteratorNext(IJsCallable nextMethod,
+            object? sendValue = null,
+            bool hasSendValue = false)
+        {
+            var args = hasSendValue ? new[] { sendValue } : Array.Empty<object?>();
+            return nextMethod.Invoke(args, iterator);
+        }
+
+        private IJsCallable GetIteratorNextCallable(EvaluationContext? context)
+        {
+            if (!iterator.TryGetProperty("next", out var nextValue))
             {
-                throw new InvalidOperationException("Iterator must expose a 'next' method.");
+                throw StandardLibrary.ThrowTypeError("Iterator must expose a 'next' method.", context, context?.RealmState);
             }
 
-            var args = hasSendValue ? new[] { sendValue } : Array.Empty<object?>();
-            return callable.Invoke(args, iterator);
+            if (nextValue is not IJsCallable callable)
+            {
+                throw StandardLibrary.ThrowTypeError("Iterator.next is not callable.", context, context?.RealmState);
+            }
+
+            return callable;
         }
 
         private bool TryInvokeIteratorMethod(string methodName,
@@ -65,8 +83,7 @@ public static partial class TypedAstEvaluator
                     _ => "null"
                 });
 
-            if (!TryInvokeIteratorMethod(
-                    iterator,
+            if (!iterator.TryInvokeIteratorMethod(
                     "return",
                     Symbol.Undefined,
                     context,

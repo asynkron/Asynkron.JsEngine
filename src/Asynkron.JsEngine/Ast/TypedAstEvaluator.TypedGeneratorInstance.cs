@@ -277,23 +277,21 @@ public static partial class TypedAstEvaluator
             IteratorDriverKind kind,
             EvaluationContext context)
         {
-            EnsureObjectCoercibleForIteration(iterable, context);
+            var iteratorTarget = NormalizeIterableTarget(iterable, context);
 
-            if (TryGetIteratorFromProtocols(iterable, out var iterator) && iterator is not null)
+            if (TryGetIteratorFromProtocols(iteratorTarget, out var iterator) && iterator is not null)
             {
+                var nextMethod = iterator.GetIteratorNextCallable(context);
                 return new IteratorDriverState
                 {
-                    IteratorObject = iterator, Enumerator = null, IsAsyncIterator = kind == IteratorDriverKind.Await
+                    IteratorObject = iterator,
+                    Enumerator = null,
+                    IsAsyncIterator = kind == IteratorDriverKind.Await,
+                    NextMethod = nextMethod
                 };
             }
 
-            var enumerable = EnumerateValues(iterable, context);
-            return new IteratorDriverState
-            {
-                IteratorObject = null,
-                Enumerator = enumerable.GetEnumerator(),
-                IsAsyncIterator = kind == IteratorDriverKind.Await
-            };
+            throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
         }
 
         private static void StoreSymbolValue(JsEnvironment environment, Symbol symbol, object? value)
@@ -795,7 +793,8 @@ public static partial class TypedAstEvaluator
                                 object? currentValue;
                                 if (driverState.IteratorObject is JsObject iteratorObj)
                                 {
-                                    var nextResult = InvokeIteratorNext(iteratorObj);
+                                    driverState.NextMethod ??= iteratorObj.GetIteratorNextCallable(context);
+                                    var nextResult = iteratorObj.InvokeIteratorNext(driverState.NextMethod!);
                                     if (nextResult is not JsObject resultObj)
                                     {
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
@@ -884,7 +883,8 @@ public static partial class TypedAstEvaluator
                             {
                                 if (awaitedNextResult is null)
                                 {
-                                    var nextResult = InvokeIteratorNext(awaitIteratorObj);
+                                    driverState.NextMethod ??= awaitIteratorObj.GetIteratorNextCallable(context);
+                                    var nextResult = awaitIteratorObj.InvokeIteratorNext(driverState.NextMethod!);
                                     if (!TryAwaitPromiseOrSchedule(nextResult, context, out var awaitedNext))
                                     {
                                         if (_asyncStepMode && _pendingPromise is JsObject)

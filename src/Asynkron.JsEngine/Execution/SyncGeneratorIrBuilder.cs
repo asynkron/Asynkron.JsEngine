@@ -842,8 +842,23 @@ internal sealed class SyncGeneratorIrBuilder
             IdentifierBinding identifier => new AssignmentExpression(target.Source, identifier.Name, valueExpression),
             ArrayBinding or ObjectBinding => new DestructuringAssignmentExpression(target.Source, target,
                 valueExpression),
+            AssignmentTargetBinding atb => CreateAssignmentExpressionFromLhs(atb.Expression, valueExpression),
             _ => throw new NotSupportedException($"Unsupported for-of binding target '{target.GetType().Name}'.")
         };
+    }
+
+    private static ExpressionNode CreateAssignmentExpressionFromLhs(ExpressionNode lhs, ExpressionNode value)
+    {
+        switch (lhs)
+        {
+            case IdentifierExpression id:
+                return new AssignmentExpression(lhs.Source, id.Name, value);
+            case MemberExpression member:
+                return new PropertyAssignmentExpression(lhs.Source, member.Target, member.Property, value,
+                    member.IsComputed);
+            default:
+                throw new NotSupportedException($"Unsupported for-of assignment target '{lhs.GetType().Name}'.");
+        }
     }
 
     private static bool IsLowererTemp(BindingTarget target)

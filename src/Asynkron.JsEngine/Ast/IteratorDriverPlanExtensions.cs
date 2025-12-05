@@ -22,7 +22,8 @@ public static partial class TypedAstEvaluator
             {
                 IteratorObject = iterator,
                 Enumerator = enumerator,
-                IsAsyncIterator = plan.Kind == IteratorDriverKind.Await
+                IsAsyncIterator = plan.Kind == IteratorDriverKind.Await,
+                NextMethod = iterator.GetIteratorNextCallable(context)
             };
 
             while (!context.ShouldStopEvaluation)
@@ -32,7 +33,7 @@ public static partial class TypedAstEvaluator
                 object? nextResult = null;
                 if (state.IteratorObject is not null)
                 {
-                    nextResult = InvokeIteratorNext(state.IteratorObject);
+                    nextResult = state.IteratorObject.InvokeIteratorNext(state.NextMethod!);
                 }
                 else if (state.Enumerator is not null)
                 {
@@ -54,23 +55,48 @@ public static partial class TypedAstEvaluator
                         break;
                     }
 
-                    var value = resultObj.TryGetProperty("value", out var yielded)
-                        ? yielded
-                        : Symbol.Undefined;
+                    object? value;
+                    try
+                    {
+                        value = resultObj.TryGetProperty("value", out var yielded)
+                            ? yielded
+                            : Symbol.Undefined;
+                    }
+                    catch (ThrowSignal)
+                    {
+                        // IteratorValue abrupts do not trigger IteratorClose (per 7.4.4).
+                        throw;
+                    }
 
                     var iterationEnvironment = plan.DeclarationKind is VariableKind.Let or VariableKind.Const
                         ? new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source,
                             description: "for-each-iteration")
                         : loopEnvironment;
 
-                    AssignLoopBinding(plan.Target, value, iterationEnvironment, outerEnvironment, context,
-                        plan.DeclarationKind);
-                    if (context.IsThrow)
+                    try
                     {
-                        break;
-                    }
+                        AssignLoopBinding(plan.Target, value, iterationEnvironment, outerEnvironment, context,
+                            plan.DeclarationKind);
+                        if (context.IsThrow)
+                        {
+                            throw new ThrowSignal(context.FlowValue);
+                        }
 
-                    lastValue = EvaluateStatement(plan.Body, iterationEnvironment, context, loopLabel);
+                        lastValue = EvaluateStatement(plan.Body, iterationEnvironment, context, loopLabel);
+                        if (context.IsThrow)
+                        {
+                            throw new ThrowSignal(context.FlowValue);
+                        }
+                    }
+                    catch (ThrowSignal)
+                    {
+                        if (state.IteratorObject is not null && !iteratorDone)
+                        {
+                            IteratorClose(state.IteratorObject, context, preserveExistingThrow: true);
+                        }
+
+                        throw;
+                    }
                 }
                 else
                 {
@@ -88,7 +114,16 @@ public static partial class TypedAstEvaluator
 
                     AssignLoopBinding(plan.Target, nextResult, iterationEnvironment, outerEnvironment, context,
                         plan.DeclarationKind);
+                    if (context.IsThrow)
+                    {
+                        throw new ThrowSignal(context.FlowValue);
+                    }
+
                     lastValue = EvaluateStatement(plan.Body, iterationEnvironment, context, loopLabel);
+                    if (context.IsThrow)
+                    {
+                        throw new ThrowSignal(context.FlowValue);
+                    }
                 }
 
                 if (context.IsReturn || context.IsThrow)

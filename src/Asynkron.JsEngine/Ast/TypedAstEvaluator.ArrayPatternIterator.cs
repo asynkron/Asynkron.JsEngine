@@ -5,16 +5,28 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    private readonly struct ArrayPatternIterator(JsObject? iterator, IEnumerator<object?>? enumerator)
+    private struct ArrayPatternIterator
     {
+        private readonly JsObject? _iterator;
+        private readonly IEnumerator<object?>? _enumerator;
+        private IJsCallable? _nextMethod;
+
+        public ArrayPatternIterator(JsObject? iterator, IEnumerator<object?>? enumerator)
+        {
+            _iterator = iterator;
+            _enumerator = enumerator;
+            _nextMethod = null;
+        }
+
         public (object? Value, bool Done) Next(EvaluationContext context)
         {
-            if (iterator is null)
+            if (_iterator is null)
             {
-                return enumerator?.MoveNext() != true ? (Symbol.Undefined, true) : (enumerator.Current, false);
+                return _enumerator?.MoveNext() != true ? (Symbol.Undefined, true) : (_enumerator.Current, false);
             }
 
-            var candidate = InvokeIteratorNext(iterator);
+            _nextMethod ??= _iterator.GetIteratorNextCallable(context);
+            var candidate = _iterator.InvokeIteratorNext(_nextMethod);
             if (candidate is not JsObject result)
             {
                 throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);

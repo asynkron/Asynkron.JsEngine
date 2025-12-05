@@ -11,6 +11,7 @@ public static partial class TypedAstEvaluator
         private readonly IEnumerator<object?>? _enumerator;
         private readonly bool _isGeneratorObject;
         private readonly JsObject? _iterator;
+        private IJsCallable? _nextMethod;
 
         private DelegatedYieldState(JsObject? iterator, IEnumerator<object?>? enumerator, bool isGeneratorObject)
         {
@@ -45,8 +46,7 @@ public static partial class TypedAstEvaluator
                 var methodInvoked = false;
                 if (propagateThrow)
                 {
-                    methodInvoked = TryInvokeIteratorMethod(
-                        _iterator,
+                    methodInvoked = _iterator.TryInvokeIteratorMethod(
                         "throw",
                         sendValue ?? Symbol.Undefined,
                         context,
@@ -54,8 +54,7 @@ public static partial class TypedAstEvaluator
                 }
                 else if (propagateReturn)
                 {
-                    methodInvoked = TryInvokeIteratorMethod(
-                        _iterator,
+                    methodInvoked = _iterator.TryInvokeIteratorMethod(
                         "return",
                         sendValue ?? Symbol.Undefined,
                         context,
@@ -63,7 +62,8 @@ public static partial class TypedAstEvaluator
                 }
                 else
                 {
-                    candidate = InvokeIteratorNext(_iterator, sendValue, hasSendValue);
+                    _nextMethod ??= _iterator.GetIteratorNextCallable(context);
+                    candidate = _iterator.InvokeIteratorNext(_nextMethod, sendValue, hasSendValue);
                 }
 
                 if (!methodInvoked && candidate is null)

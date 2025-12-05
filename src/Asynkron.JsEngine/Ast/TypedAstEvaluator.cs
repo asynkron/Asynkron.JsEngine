@@ -111,6 +111,19 @@ public static partial class TypedAstEvaluator
         }
     }
 
+    // ToObject for iteration lookup: primitives must be wrapped so @@iterator can be
+    // found on their prototypes (ES2024 GetIterator/ToObject step).
+    private static object NormalizeIterableTarget(object? value, EvaluationContext context)
+    {
+        EnsureObjectCoercibleForIteration(value, context);
+
+        return value switch
+        {
+            IJsPropertyAccessor => value,
+            _ => ToObjectForDestructuring(value, context)
+        };
+    }
+
     // WAITING ON FULL ASYNC/AWAIT + ASYNC GENERATOR IR SUPPORT:
     // This helper synchronously blocks on promise resolution using TaskCompletionSource.
     // It keeps async/await and async iteration usable for now but must be replaced by
@@ -204,15 +217,13 @@ public static partial class TypedAstEvaluator
 
     private static DelegatedYieldState CreateDelegatedState(object? iterable, EvaluationContext context)
     {
-        EnsureObjectCoercibleForIteration(iterable, context);
-
-        if (TryGetIteratorFromProtocols(iterable, out var iterator) && iterator is not null)
+        var iteratorTarget = NormalizeIterableTarget(iterable, context);
+        if (TryGetIteratorFromProtocols(iteratorTarget, out var iterator) && iterator is not null)
         {
             return DelegatedYieldState.FromIterator(iterator);
         }
 
-        var values = EnumerateValues(iterable, context);
-        return DelegatedYieldState.FromEnumerable(values);
+        throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
     }
 
 

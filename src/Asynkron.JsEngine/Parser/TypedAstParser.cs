@@ -2990,13 +2990,7 @@ public sealed class TypedAstParser(
 
         private BindingTarget? TryConvertExpressionToBindingTarget(ExpressionNode expression)
         {
-            return expression switch
-            {
-                IdentifierExpression identifier => new IdentifierBinding(expression.Source, identifier.Name),
-                ArrayExpression array => ConvertArrayExpressionToBinding(array),
-                ObjectExpression obj => ConvertObjectExpressionToBinding(obj),
-                _ => null
-            };
+            return ConvertExpressionToBindingTarget(expression);
         }
 
         private ArrayBinding ConvertArrayExpressionToBinding(ArrayExpression array)

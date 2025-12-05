@@ -1,3 +1,4 @@
+using System.Text;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 
@@ -82,18 +83,17 @@ public static partial class StandardLibrary
             static JsObject CreateStringIterator(string str)
             {
                 var iteratorObj = new JsObject();
-                var index = 0;
+                var runeEnumerator = str.EnumerateRunes().GetEnumerator();
                 iteratorObj.SetHostedProperty("next", Next);
                 return iteratorObj;
 
                 object? Next(IReadOnlyList<object?> _)
                 {
                     var result = new JsObject();
-                    if (index < str.Length)
+                    if (runeEnumerator.MoveNext())
                     {
-                        result.SetProperty("value", str[index].ToString());
+                        result.SetProperty("value", runeEnumerator.Current.ToString());
                         result.SetProperty("done", false);
-                        index++;
                     }
                     else
                     {

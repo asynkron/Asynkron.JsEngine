@@ -23,4 +23,5 @@ internal sealed class IteratorDriverState
     public bool IsAsyncIterator { get; init; }
     public bool AwaitingNextResult { get; set; }
     public bool AwaitingValue { get; set; }
+    public IJsCallable? NextMethod { get; set; }
 }

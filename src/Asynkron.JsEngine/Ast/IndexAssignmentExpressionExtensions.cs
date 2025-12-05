@@ -73,6 +73,12 @@ public static partial class TypedAstEvaluator
 
             if (expression.IsCompoundAssignment)
             {
+                if (target.IsNullish())
+                {
+                    throw StandardLibrary.ThrowTypeError("Cannot read properties of null or undefined", context,
+                        context.RealmState);
+                }
+
                 var propertyName = JsOps.GetRequiredPropertyName(index, context);
                 if (context.ShouldStopEvaluation)
                 {
@@ -104,6 +110,12 @@ public static partial class TypedAstEvaluator
                 expression.Value is FunctionExpression { Name: null } or ClassExpression { Name: null })
             {
                 nameTarget.EnsureHasName(string.Empty);
+            }
+
+            if (target.IsNullish())
+            {
+                throw StandardLibrary.ThrowTypeError("Cannot read properties of null or undefined", context,
+                    context.RealmState);
             }
 
             var finalPropertyName = JsOps.GetRequiredPropertyName(index, context);

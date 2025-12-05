@@ -592,7 +592,7 @@ public sealed class JsEnvironment
         var current = this;
         var hops = 0;
         const int maxLookupDepth = 10_000;
-        var isStrictReference = context.CurrentScope.IsStrict;
+        var isStrictReference = IsStrict || context.CurrentScope.IsStrict || context.IsStrictSource;
 
         while (current is not null && hops++ < maxLookupDepth)
         {
@@ -637,6 +637,14 @@ public sealed class JsEnvironment
                 {
                     WriteResolvedBindingValue(bindingEnvironment, binding, name, newValue, strictContext);
                 });
+        }
+
+        if (TryResolveGlobalObjectBinding(name, context, out var globalBinding))
+        {
+            return new AssignmentReference(
+                () => AssignmentReferenceResolver.ReadIdentifierValue(
+                    () => GetWithBindingValue(globalBinding), context),
+                newValue => TrySetWithBindingValue(globalBinding, newValue, context.RealmState));
         }
 
         return new AssignmentReference(
@@ -805,6 +813,28 @@ public sealed class JsEnvironment
         bindingEnvironment = null!;
         binding = null!;
         return false;
+    }
+
+    private bool TryResolveGlobalObjectBinding(
+        Symbol name,
+        EvaluationContext context,
+        out ObjectEnvironmentBinding binding)
+    {
+        binding = default;
+        var globalObject = GetRootGlobalObject();
+        if (globalObject is null)
+        {
+            return false;
+        }
+
+        if (!HasProperty(globalObject, name.Name))
+        {
+            return false;
+        }
+
+        var isStrictReference = IsStrict || context.CurrentScope.IsStrict || context.IsStrictSource;
+        binding = new ObjectEnvironmentBinding(globalObject, name.Name, isStrictReference, AllowMissingAssignment: false);
+        return true;
     }
 
     internal bool HasLexicalBinding(Symbol name)
@@ -1511,7 +1541,8 @@ public sealed class JsEnvironment
             : Symbol.Undefined;
     }
 
-    internal static bool TrySetWithBindingValue(in ObjectEnvironmentBinding binding, object? value)
+    internal static bool TrySetWithBindingValue(in ObjectEnvironmentBinding binding, object? value,
+        RealmState? realm = null)
     {
         var propertyName = binding.PropertyName;
         var bindingObject = binding.BindingObject;
@@ -1520,7 +1551,9 @@ public sealed class JsEnvironment
         {
             if (binding.IsStrictReference)
             {
-                throw new InvalidOperationException($"ReferenceError: {propertyName} is not defined");
+                realm ??= (bindingObject as JsObject)?.RealmState;
+                throw StandardLibrary.ThrowReferenceError($"ReferenceError: {propertyName} is not defined",
+                    realm: realm);
             }
         }
 

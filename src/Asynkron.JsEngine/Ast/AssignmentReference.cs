@@ -65,7 +65,7 @@ internal static class AssignmentReferenceResolver
                             context.RealmState));
                     }
 
-                    if (!JsEnvironment.TrySetWithBindingValue(withBinding, newValue))
+                    if (!JsEnvironment.TrySetWithBindingValue(withBinding, newValue, context.RealmState))
                     {
                         environment.Assign(identifier.Name, newValue);
                     }
@@ -102,6 +102,12 @@ internal static class AssignmentReferenceResolver
         if (context.ShouldStopEvaluation)
         {
             return new AssignmentReference(() => Symbol.Undefined, _ => { });
+        }
+
+        if (target.IsNullish())
+        {
+            throw StandardLibrary.ThrowTypeError("Cannot read properties of null or undefined", context,
+                context.RealmState);
         }
 
         if (deferPropertyKeyConversion)

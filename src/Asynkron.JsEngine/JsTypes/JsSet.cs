@@ -78,6 +78,13 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         return _properties.DeleteOwnProperty(name);
     }
 
+    internal int ValueCount => _values.Count;
+
+    internal object? GetValue(int index)
+    {
+        return _values[index];
+    }
+
     public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
     {
         return _properties.TryDefineProperty(name, descriptor);

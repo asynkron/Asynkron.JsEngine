@@ -81,6 +81,13 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         return _properties.DeleteOwnProperty(name);
     }
 
+    internal int EntryCount => _entries.Count;
+
+    internal KeyValuePair<object?, object?> GetEntry(int index)
+    {
+        return _entries[index];
+    }
+
     public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
     {
         return _properties.TryDefineProperty(name, descriptor);

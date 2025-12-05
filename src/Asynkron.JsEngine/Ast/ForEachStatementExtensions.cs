@@ -15,7 +15,16 @@ public static partial class TypedAstEvaluator
                 return EvaluateForAwaitOf(statement, environment, context, loopLabel);
             }
 
-            var iterable = EvaluateExpression(statement.Iterable, environment, context);
+            var iterableEnvironment = environment;
+            if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const)
+            {
+                iterableEnvironment = new JsEnvironment(environment, creatingSource: statement.Source,
+                    description: "for-each-head-tdz");
+                statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment,
+                    statement.DeclarationKind == VariableKind.Const);
+            }
+
+            var iterable = EvaluateExpression(statement.Iterable, iterableEnvironment, context);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
@@ -101,7 +110,16 @@ public static partial class TypedAstEvaluator
         private object? EvaluateForAwaitOf(JsEnvironment environment,
             EvaluationContext context, Symbol? loopLabel)
         {
-            var iterable = EvaluateExpression(statement.Iterable, environment, context);
+            var iterableEnvironment = environment;
+            if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const)
+            {
+                iterableEnvironment = new JsEnvironment(environment, creatingSource: statement.Source,
+                    description: "for-each-head-tdz");
+                statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment,
+                    statement.DeclarationKind == VariableKind.Const);
+            }
+
+            var iterable = EvaluateExpression(statement.Iterable, iterableEnvironment, context);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;

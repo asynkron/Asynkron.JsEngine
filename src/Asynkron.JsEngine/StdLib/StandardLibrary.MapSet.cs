@@ -36,6 +36,8 @@ public static partial class StandardLibrary
     private static void AddMapMethods(JsMap map)
     {
         // Note: size needs special handling as a getter - for now we'll just access it dynamically in the methods
+        var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
+        var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
 
         map.SetHostedProperty("set", MapSet_Set);
         map.SetHostedProperty("get", MapSet_Get);
@@ -46,6 +48,7 @@ public static partial class StandardLibrary
         map.SetHostedProperty("entries", MapSet_Entries);
         map.SetHostedProperty("keys", MapSet_Keys);
         map.SetHostedProperty("values", MapSet_Values);
+        map.SetHostedProperty(iteratorKey, MapSet_Entries);
     }
 
     /// <summary>
@@ -79,6 +82,8 @@ public static partial class StandardLibrary
     private static void AddSetMethods(JsSet set)
     {
         // Note: size needs special handling as a getter - handled in Evaluator.TryGetPropertyValue
+        var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
+        var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
 
         set.SetHostedProperty("add", Set_Add);
 
@@ -98,6 +103,8 @@ public static partial class StandardLibrary
 
         // values()
         set.SetHostedProperty("values", Set_Values);
+
+        set.SetHostedProperty(iteratorKey, Set_Values);
     }
 
     /// <summary>
@@ -263,17 +270,32 @@ public static partial class StandardLibrary
 
     private static object? MapSet_Entries(object? thisValue, IReadOnlyList<object?> _)
     {
-        return thisValue is JsMap map ? map.Entries() : Symbol.Undefined;
+        if (thisValue is not JsMap map)
+        {
+            return Symbol.Undefined;
+        }
+
+        return CreateMapIterator(map, MapIterationKind.Entries);
     }
 
     private static object? MapSet_Keys(object? thisValue, IReadOnlyList<object?> _)
     {
-        return thisValue is JsMap map ? map.Keys() : Symbol.Undefined;
+        if (thisValue is not JsMap map)
+        {
+            return Symbol.Undefined;
+        }
+
+        return CreateMapIterator(map, MapIterationKind.Keys);
     }
 
     private static object? MapSet_Values(object? thisValue, IReadOnlyList<object?> _)
     {
-        return thisValue is JsMap map ? map.Values() : Symbol.Undefined;
+        if (thisValue is not JsMap map)
+        {
+            return Symbol.Undefined;
+        }
+
+        return CreateMapIterator(map, MapIterationKind.Values);
     }
 
     private static object? Set_Add(object? thisValue, IReadOnlyList<object?> args)
@@ -338,17 +360,125 @@ public static partial class StandardLibrary
 
     private static object? Set_Entries(object? thisValue, IReadOnlyList<object?> _)
     {
-        return thisValue is JsSet set ? set.Entries() : Symbol.Undefined;
+        if (thisValue is not JsSet set)
+        {
+            return Symbol.Undefined;
+        }
+
+        return CreateSetIterator(set, SetIterationKind.Entries);
     }
 
     private static object? Set_Keys(object? thisValue, IReadOnlyList<object?> _)
     {
-        return thisValue is JsSet set ? set.Keys() : Symbol.Undefined;
+        if (thisValue is not JsSet set)
+        {
+            return Symbol.Undefined;
+        }
+
+        return CreateSetIterator(set, SetIterationKind.Keys);
     }
 
     private static object? Set_Values(object? thisValue, IReadOnlyList<object?> _)
     {
-        return thisValue is JsSet set ? set.Values() : Symbol.Undefined;
+        if (thisValue is not JsSet set)
+        {
+            return Symbol.Undefined;
+        }
+
+        return CreateSetIterator(set, SetIterationKind.Values);
+    }
+
+    private enum MapIterationKind
+    {
+        Entries,
+        Keys,
+        Values
+    }
+
+    private static JsObject CreateMapIterator(JsMap map, MapIterationKind kind)
+    {
+        var iterator = new JsObject();
+        var index = 0;
+
+        iterator.SetHostedProperty("next", (_, _) =>
+        {
+            var result = new JsObject();
+            if (index < map.EntryCount)
+            {
+                var entry = map.GetEntry(index++);
+                var value = kind switch
+                {
+                    MapIterationKind.Keys => entry.Key,
+                    MapIterationKind.Values => entry.Value,
+                    _ => CreateEntryPair(entry.Key, entry.Value)
+                };
+
+                result.SetProperty("value", value);
+                result.SetProperty("done", false);
+            }
+            else
+            {
+                result.SetProperty("value", Symbol.Undefined);
+                result.SetProperty("done", true);
+            }
+
+            return result;
+        });
+
+        var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
+        var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
+        iterator.SetHostedProperty(iteratorKey, (_, _) => iterator);
+        return iterator;
+    }
+
+    private enum SetIterationKind
+    {
+        Entries,
+        Keys,
+        Values
+    }
+
+    private static JsObject CreateSetIterator(JsSet set, SetIterationKind kind)
+    {
+        var iterator = new JsObject();
+        var index = 0;
+
+        iterator.SetHostedProperty("next", (_, _) =>
+        {
+            var result = new JsObject();
+            if (index < set.ValueCount)
+            {
+                var current = set.GetValue(index++);
+                var value = kind switch
+                {
+                    SetIterationKind.Entries => CreateEntryPair(current, current),
+                    _ => current
+                };
+
+                result.SetProperty("value", value);
+                result.SetProperty("done", false);
+            }
+            else
+            {
+                result.SetProperty("value", Symbol.Undefined);
+                result.SetProperty("done", true);
+            }
+
+            return result;
+        });
+
+        var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
+        var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
+        iterator.SetHostedProperty(iteratorKey, (_, _) => iterator);
+        return iterator;
+    }
+
+    private static JsArray CreateEntryPair(object? first, object? second)
+    {
+        var pair = new JsArray();
+        pair.SetElement(0, first);
+        pair.SetElement(1, second);
+        return pair;
     }
 
     private static object? WeakMap_Set(object? thisValue, IReadOnlyList<object?> args)

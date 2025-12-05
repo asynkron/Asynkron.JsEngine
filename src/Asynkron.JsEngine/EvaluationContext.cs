@@ -34,6 +34,7 @@ public sealed class EvaluationContext(
 
     private readonly Stack<ScopeFrame> _scopeStack = new();
     private readonly Stack<PendingClassFieldInitialization> _pendingClassFieldInitializers = new();
+    private readonly Stack<Symbol> _functionNameHints = new();
     private int _classFieldInitializerDepth;
 
     /// <summary>
@@ -97,6 +98,12 @@ public sealed class EvaluationContext(
     ///     Used to apply PerformEval's extra early errors for initializers.
     /// </summary>
     public bool InClassFieldInitializer => _classFieldInitializerDepth > 0;
+
+    /// <summary>
+    ///     The innermost inferred function/class name hint (for name inference on
+    ///     anonymous class/function expressions).
+    /// </summary>
+    public Symbol? CurrentFunctionNameHint => _functionNameHints.Count > 0 ? _functionNameHints.Peek() : null;
 
     /// <summary>
     ///     Returns the current innermost label, or null if not in a labeled context.
@@ -203,6 +210,12 @@ public sealed class EvaluationContext(
     {
         _classFieldInitializerDepth++;
         return new ClassFieldInitializerHandle(this);
+    }
+
+    public IDisposable EnterFunctionNameHint(Symbol name)
+    {
+        _functionNameHints.Push(name);
+        return new FunctionNameHintHandle(_functionNameHints);
     }
 
     /// <summary>
@@ -378,6 +391,26 @@ public sealed class EvaluationContext(
             if (_context._classFieldInitializerDepth > 0)
             {
                 _context._classFieldInitializerDepth--;
+            }
+
+            _disposed = true;
+        }
+    }
+
+    private sealed class FunctionNameHintHandle(Stack<Symbol> hints) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (hints.Count > 0)
+            {
+                hints.Pop();
             }
 
             _disposed = true;

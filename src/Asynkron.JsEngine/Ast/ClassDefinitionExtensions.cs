@@ -89,6 +89,11 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
+            if (constructorValue is IFunctionNameTarget nameTarget && className is not null)
+            {
+                nameTarget.EnsureHasName(className.Name);
+            }
+
             InitializeStaticElements(definition, constructorAccessor, evaluationEnvironment, context, privateNameScope);
             if (context.ShouldStopEvaluation)
             {

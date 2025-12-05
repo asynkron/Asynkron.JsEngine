@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
@@ -224,14 +225,7 @@ public static partial class TypedAstEvaluator
         {
             environment.RealmState?.Logger?.LogInformation("SuperBinding: reference error thisInit? {ThisInit}", context.IsThisInitialized);
             var message = $"Super is not available in this context.{GetSourceInfo(context)}";
-            if (!environment.TryGet(Symbol.SyntaxErrorIdentifier, out var ctorVal) ||
-                ctorVal is not IJsCallable ctor)
-            {
-                return new InvalidOperationException(message, inner);
-            }
-
-            var error = ctor.Invoke([message], Symbol.Undefined);
-            return new ThrowSignal(error);
+            return StandardLibrary.ThrowReferenceError(message, context, context.RealmState);
         }
 
         private void SetThisInitializationStatus(bool initialized)

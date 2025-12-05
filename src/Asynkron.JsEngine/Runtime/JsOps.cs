@@ -648,25 +648,14 @@ internal static class JsOps
 
             if (value is IJsPropertyAccessor accessor)
             {
-                if (TryConvertObjectToPropertyKey(accessor, out var primitive, context))
-                {
-                    value = primitive;
-                    continue;
-                }
-
+                // ToPropertyKey delegates to ToPrimitive with string hint
+                // and then converts the resulting primitive to a property name.
+                value = ToPrimitive(accessor, "string", context);
                 if (context?.IsThrow == true)
                 {
                     return null;
                 }
 
-                // Fallback: use general ToPrimitive(string) semantics before converting to string
-                var primitiveValue = ToPrimitive(accessor, "string", context);
-                if (context?.IsThrow == true)
-                {
-                    return null;
-                }
-
-                value = primitiveValue;
                 continue;
             }
 

@@ -7,6 +7,11 @@ public static partial class TypedAstEvaluator
         private void EvaluateVariableDeclarator(VariableDeclarator declarator,
             JsEnvironment environment, EvaluationContext context)
         {
+            using var functionNameHint = declarator.Initializer is ClassExpression { Name: null }
+                                         && declarator.Target is IdentifierBinding identifier
+                ? context.EnterFunctionNameHint(identifier.Name)
+                : null;
+
             var value = declarator.Initializer is null
                 ? Symbol.Undefined
                 : EvaluateExpression(declarator.Initializer, environment, context);

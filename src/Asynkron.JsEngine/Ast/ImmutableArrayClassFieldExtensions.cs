@@ -33,9 +33,9 @@ public static partial class TypedAstEvaluator
     {
         var initEnv = new JsEnvironment(environment, isStrict: true);
         initEnv.Define(Symbol.This, constructorAccessor);
-        initEnv.Define(Symbol.NewTarget, constructorAccessor, true, isLexical: true,
+        // Field/static initializers are evaluated outside any constructor body; shadow new.target with undefined.
+        initEnv.Define(Symbol.NewTarget, Symbol.Undefined, true, isLexical: true,
             blocksFunctionScopeOverride: true);
-
         if (environment.TryGet(Symbol.Arguments, out var argumentsValue))
         {
             initEnv.Define(Symbol.Arguments, argumentsValue, isLexical: false);

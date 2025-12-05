@@ -917,7 +917,8 @@ public static partial class TypedAstEvaluator
 
                 if (environment.TryGet(Symbol.NewTarget, out var newTargetValue))
                 {
-                    initEnv.Define(Symbol.NewTarget, newTargetValue, true, isLexical: true,
+                    // Class field initializers execute outside of any function body; shadow new.target with undefined.
+                    initEnv.Define(Symbol.NewTarget, Symbol.Undefined, true, isLexical: true,
                         blocksFunctionScopeOverride: true);
                 }
 

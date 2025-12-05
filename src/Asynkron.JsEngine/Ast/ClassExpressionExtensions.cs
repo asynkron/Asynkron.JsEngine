@@ -7,7 +7,8 @@ public static partial class TypedAstEvaluator
         private object? EvaluateClassExpression(JsEnvironment environment,
             EvaluationContext context)
         {
-            return CreateClassValue(expression.Definition, environment, context, expression.Name);
+            var inferredName = expression.Name ?? context.CurrentFunctionNameHint;
+            return CreateClassValue(expression.Definition, environment, context, inferredName);
         }
     }
 }

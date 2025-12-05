@@ -97,7 +97,18 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                                           CallingContext?.InClassFieldInitializer == true ||
                                           (CallingJsEnvironment?.HasBinding(FieldInitializerEvalFlag) ?? false);
         var containsSuperCallInInitializer = ContainsSuperCall(program.Typed.Body, includeFunctionBodies: true);
+        var containsSuperReferenceInInitializer = ContainsSuperReference(program.Typed.Body, includeFunctionBodies: true);
+        var containsArgumentsInInitializer = insideClassFieldInitializer &&
+                                             ContainsArguments(program.Typed.Body, includeFunctionBodies: true);
         if (insideClassFieldInitializer && containsSuperCallInInitializer)
+        {
+            throw StandardLibrary.ThrowSyntaxError(
+                "super calls are not allowed in eval inside class field initializers.",
+                CallingContext,
+                environment.RealmState);
+        }
+
+        if (insideClassFieldInitializer && !isDirectEval && containsSuperReferenceInInitializer)
         {
             throw StandardLibrary.ThrowSyntaxError(
                 "super references are not allowed in eval inside class field initializers.",
@@ -105,7 +116,15 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 environment.RealmState);
         }
 
-        if (!isDirectEval && ContainsNewTarget(program.Typed.Body))
+        if (isDirectEval && containsArgumentsInInitializer)
+        {
+            throw StandardLibrary.ThrowSyntaxError(
+                "'arguments' is not allowed in eval inside class field initializers.",
+                CallingContext,
+                environment.RealmState);
+        }
+
+        if (!isDirectEval && ContainsNewTarget(program.Typed.Body, includeFunctionBodies: true))
         {
             throw StandardLibrary.ThrowSyntaxError(
                 "new.target is not allowed in indirect eval code.",
@@ -940,11 +959,13 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
     }
 
-    private static bool ContainsNewTarget(ImmutableArray<StatementNode> statements)
+    private static bool ContainsNewTarget(
+        ImmutableArray<StatementNode> statements,
+        bool includeFunctionBodies = false)
     {
         foreach (var statement in statements)
         {
-            if (StatementContainsNewTarget(statement))
+            if (StatementContainsNewTarget(statement, includeFunctionBodies))
             {
                 return true;
             }
@@ -983,18 +1004,46 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         return false;
     }
 
-    private static bool StatementContainsNewTarget(StatementNode statement)
+    private static bool ContainsArguments(
+        ImmutableArray<StatementNode> statements,
+        bool includeFunctionBodies = false)
+    {
+        foreach (var statement in statements)
+        {
+            if (StatementContainsArguments(statement, includeFunctionBodies))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool StatementContainsNewTarget(StatementNode statement, bool includeFunctionBodies)
     {
         while (true)
         {
             switch (statement)
             {
                 case ExpressionStatement expressionStatement:
-                    return ExpressionContainsNewTarget(expressionStatement.Expression);
+                    return ExpressionContainsNewTarget(expressionStatement.Expression, includeFunctionBodies);
+                case ReturnStatement returnStatement when returnStatement.Expression is not null:
+                    return ExpressionContainsNewTarget(returnStatement.Expression, includeFunctionBodies);
+                case VariableDeclaration varDecl:
+                    foreach (var declarator in varDecl.Declarators)
+                    {
+                        if (declarator.Initializer is not null &&
+                            ExpressionContainsNewTarget(declarator.Initializer, includeFunctionBodies))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
                 case BlockStatement block:
                     foreach (var inner in block.Statements)
                     {
-                        if (StatementContainsNewTarget(inner))
+                        if (StatementContainsNewTarget(inner, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1002,8 +1051,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     return false;
                 case IfStatement ifStatement:
-                    return StatementContainsNewTarget(ifStatement.Then) ||
-                           (ifStatement.Else is not null && StatementContainsNewTarget(ifStatement.Else));
+                    return StatementContainsNewTarget(ifStatement.Then, includeFunctionBodies) ||
+                           (ifStatement.Else is not null && StatementContainsNewTarget(ifStatement.Else, includeFunctionBodies));
                 case WhileStatement whileStatement:
                     statement = whileStatement.Body;
                     continue;
@@ -1015,17 +1064,24 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     continue;
                 case ForStatement forStatement:
                     if (forStatement.Initializer is ExpressionStatement initExpression &&
-                        ExpressionContainsNewTarget(initExpression.Expression))
+                        ExpressionContainsNewTarget(initExpression.Expression, includeFunctionBodies))
+                    {
+                        return true;
+                    }
+                    if (forStatement.Initializer is VariableDeclaration initVarDecl &&
+                        StatementContainsNewTarget(initVarDecl, includeFunctionBodies))
                     {
                         return true;
                     }
 
-                    if (forStatement.Condition is not null && ExpressionContainsNewTarget(forStatement.Condition))
+                    if (forStatement.Condition is not null &&
+                        ExpressionContainsNewTarget(forStatement.Condition, includeFunctionBodies))
                     {
                         return true;
                     }
 
-                    if (forStatement.Increment is not null && ExpressionContainsNewTarget(forStatement.Increment))
+                    if (forStatement.Increment is not null &&
+                        ExpressionContainsNewTarget(forStatement.Increment, includeFunctionBodies))
                     {
                         return true;
                     }
@@ -1033,7 +1089,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     statement = forStatement.Body;
                     continue;
                 case ForEachStatement forEachStatement:
-                    if (ExpressionContainsNewTarget(forEachStatement.Iterable))
+                    if (ExpressionContainsNewTarget(forEachStatement.Iterable, includeFunctionBodies))
                     {
                         return true;
                     }
@@ -1043,7 +1099,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case SwitchStatement switchStatement:
                     foreach (var switchCase in switchStatement.Cases)
                     {
-                        if (StatementContainsNewTarget(switchCase.Body))
+                        if (StatementContainsNewTarget(switchCase.Body, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1051,13 +1107,13 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     return false;
                 case TryStatement tryStatement:
-                    if (StatementContainsNewTarget(tryStatement.TryBlock))
+                    if (StatementContainsNewTarget(tryStatement.TryBlock, includeFunctionBodies))
                     {
                         return true;
                     }
 
                     if (tryStatement.Catch is { Body: not null } catchClause &&
-                        StatementContainsNewTarget(catchClause.Body))
+                        StatementContainsNewTarget(catchClause.Body, includeFunctionBodies))
                     {
                         return true;
                     }
@@ -1072,6 +1128,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case LabeledStatement labeledStatement:
                     statement = labeledStatement.Statement;
                     continue;
+                case FunctionDeclaration functionDeclaration when includeFunctionBodies:
+                    return ContainsNewTarget(functionDeclaration.Function.Body.Statements, true);
                 case FunctionDeclaration:
                 case ClassDeclaration:
                     // new.target is allowed inside function/class bodies; skip nested scopes.
@@ -1324,7 +1382,128 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
     }
 
-    private static bool ExpressionContainsNewTarget(ExpressionNode expression)
+    private static bool StatementContainsArguments(StatementNode statement, bool includeFunctionBodies)
+    {
+        while (true)
+        {
+            switch (statement)
+            {
+                case ExpressionStatement expressionStatement:
+                    return ExpressionContainsArguments(expressionStatement.Expression, includeFunctionBodies);
+                case BlockStatement block:
+                    foreach (var inner in block.Statements)
+                    {
+                        if (StatementContainsArguments(inner, includeFunctionBodies))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case IfStatement ifStatement:
+                    return StatementContainsArguments(ifStatement.Then, includeFunctionBodies) ||
+                           (ifStatement.Else is not null &&
+                            StatementContainsArguments(ifStatement.Else, includeFunctionBodies));
+                case WhileStatement whileStatement:
+                    statement = whileStatement.Body;
+                    continue;
+                case DoWhileStatement doWhileStatement:
+                    statement = doWhileStatement.Body;
+                    continue;
+                case WithStatement withStatement:
+                    statement = withStatement.Body;
+                    continue;
+                case ForStatement forStatement:
+                    if (forStatement.Initializer is ExpressionStatement initExpression &&
+                        ExpressionContainsArguments(initExpression.Expression, includeFunctionBodies))
+                    {
+                        return true;
+                    }
+                    if (forStatement.Initializer is VariableDeclaration initVarDecl &&
+                        StatementContainsArguments(initVarDecl, includeFunctionBodies))
+                    {
+                        return true;
+                    }
+
+                    if (forStatement.Condition is not null &&
+                        ExpressionContainsArguments(forStatement.Condition, includeFunctionBodies))
+                    {
+                        return true;
+                    }
+
+                    if (forStatement.Increment is not null &&
+                        ExpressionContainsArguments(forStatement.Increment, includeFunctionBodies))
+                    {
+                        return true;
+                    }
+
+                    statement = forStatement.Body;
+                    continue;
+                case ForEachStatement forEachStatement:
+                    if (ExpressionContainsArguments(forEachStatement.Iterable, includeFunctionBodies))
+                    {
+                        return true;
+                    }
+
+                    statement = forEachStatement.Body;
+                    continue;
+                case SwitchStatement switchStatement:
+                    foreach (var switchCase in switchStatement.Cases)
+                    {
+                        if (StatementContainsArguments(switchCase.Body, includeFunctionBodies))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case TryStatement tryStatement:
+                    if (StatementContainsArguments(tryStatement.TryBlock, includeFunctionBodies))
+                    {
+                        return true;
+                    }
+
+                    if (tryStatement.Catch is { Body: not null } catchClause &&
+                        StatementContainsArguments(catchClause.Body, includeFunctionBodies))
+                    {
+                        return true;
+                    }
+
+                    if (tryStatement.Finally is not null)
+                    {
+                        statement = tryStatement.Finally;
+                        continue;
+                    }
+
+                    return false;
+                case LabeledStatement labeledStatement:
+                    statement = labeledStatement.Statement;
+                    continue;
+                case ReturnStatement returnStatement when returnStatement.Expression is not null:
+                    return ExpressionContainsArguments(returnStatement.Expression, includeFunctionBodies);
+                case VariableDeclaration varDecl:
+                    foreach (var declarator in varDecl.Declarators)
+                    {
+                        if (declarator.Initializer is not null &&
+                            ExpressionContainsArguments(declarator.Initializer, includeFunctionBodies))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case FunctionDeclaration functionDeclaration when includeFunctionBodies:
+                    return ContainsArguments(functionDeclaration.Function.Body.Statements, true);
+                case FunctionDeclaration:
+                case ClassDeclaration:
+                    return false;
+                default:
+                    return false;
+            }
+        }
+    }
+
+    private static bool ExpressionContainsNewTarget(ExpressionNode expression, bool includeFunctionBodies)
     {
         while (true)
         {
@@ -1333,24 +1512,24 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case NewTargetExpression:
                     return true;
                 case BinaryExpression binary:
-                    return ExpressionContainsNewTarget(binary.Left) ||
-                           ExpressionContainsNewTarget(binary.Right);
+                    return ExpressionContainsNewTarget(binary.Left, includeFunctionBodies) ||
+                           ExpressionContainsNewTarget(binary.Right, includeFunctionBodies);
                 case UnaryExpression unary:
                     expression = unary.Operand;
                     continue;
                 case ConditionalExpression conditional:
-                    return ExpressionContainsNewTarget(conditional.Test) ||
-                           ExpressionContainsNewTarget(conditional.Consequent) ||
-                           ExpressionContainsNewTarget(conditional.Alternate);
+                    return ExpressionContainsNewTarget(conditional.Test, includeFunctionBodies) ||
+                           ExpressionContainsNewTarget(conditional.Consequent, includeFunctionBodies) ||
+                           ExpressionContainsNewTarget(conditional.Alternate, includeFunctionBodies);
                 case CallExpression call:
-                    if (ExpressionContainsNewTarget(call.Callee))
+                    if (ExpressionContainsNewTarget(call.Callee, includeFunctionBodies))
                     {
                         return true;
                     }
 
                     foreach (var argument in call.Arguments)
                     {
-                        if (ExpressionContainsNewTarget(argument.Expression))
+                        if (ExpressionContainsNewTarget(argument.Expression, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1358,14 +1537,14 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     return false;
                 case NewExpression newExpression:
-                    if (ExpressionContainsNewTarget(newExpression.Constructor))
+                    if (ExpressionContainsNewTarget(newExpression.Constructor, includeFunctionBodies))
                     {
                         return true;
                     }
 
                     foreach (var argument in newExpression.Arguments)
                     {
-                        if (ExpressionContainsNewTarget(argument))
+                        if (ExpressionContainsNewTarget(argument, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1373,27 +1552,28 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     return false;
                 case MemberExpression member:
-                    return ExpressionContainsNewTarget(member.Target) ||
-                           ExpressionContainsNewTarget(member.Property);
+                    return ExpressionContainsNewTarget(member.Target, includeFunctionBodies) ||
+                           ExpressionContainsNewTarget(member.Property, includeFunctionBodies);
                 case AssignmentExpression assignment:
-                    return ExpressionContainsNewTarget(assignment.Value);
+                    return ExpressionContainsNewTarget(assignment.Value, includeFunctionBodies);
                 case PropertyAssignmentExpression propertyAssignment:
-                    return ExpressionContainsNewTarget(propertyAssignment.Target) ||
-                           ExpressionContainsNewTarget(propertyAssignment.Property) ||
-                           ExpressionContainsNewTarget(propertyAssignment.Value);
+                    return ExpressionContainsNewTarget(propertyAssignment.Target, includeFunctionBodies) ||
+                           ExpressionContainsNewTarget(propertyAssignment.Property, includeFunctionBodies) ||
+                           ExpressionContainsNewTarget(propertyAssignment.Value, includeFunctionBodies);
                 case IndexAssignmentExpression indexAssignment:
-                    return ExpressionContainsNewTarget(indexAssignment.Target) ||
-                           ExpressionContainsNewTarget(indexAssignment.Index) ||
-                           ExpressionContainsNewTarget(indexAssignment.Value);
+                    return ExpressionContainsNewTarget(indexAssignment.Target, includeFunctionBodies) ||
+                           ExpressionContainsNewTarget(indexAssignment.Index, includeFunctionBodies) ||
+                           ExpressionContainsNewTarget(indexAssignment.Value, includeFunctionBodies);
                 case SequenceExpression sequence:
-                    return ExpressionContainsNewTarget(sequence.Left) ||
-                           ExpressionContainsNewTarget(sequence.Right);
+                    return ExpressionContainsNewTarget(sequence.Left, includeFunctionBodies) ||
+                           ExpressionContainsNewTarget(sequence.Right, includeFunctionBodies);
                 case DestructuringAssignmentExpression destructuringAssignment:
-                    return ExpressionContainsNewTarget(destructuringAssignment.Value);
+                    return ExpressionContainsNewTarget(destructuringAssignment.Value, includeFunctionBodies);
                 case ArrayExpression arrayExpression:
                     foreach (var element in arrayExpression.Elements)
                     {
-                        if (element.Expression is not null && ExpressionContainsNewTarget(element.Expression))
+                        if (element.Expression is not null &&
+                            ExpressionContainsNewTarget(element.Expression, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1404,13 +1584,13 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     foreach (var member in objectExpression.Members)
                     {
                         if (member.IsComputed && member.Key is ExpressionNode computedKey &&
-                            ExpressionContainsNewTarget(computedKey))
+                            ExpressionContainsNewTarget(computedKey, includeFunctionBodies))
                         {
                             return true;
                         }
 
                         if (member.Kind == ObjectMemberKind.Spread && member.Value is not null &&
-                            ExpressionContainsNewTarget(member.Value))
+                            ExpressionContainsNewTarget(member.Value, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1418,17 +1598,34 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         if (member.Function is not null || member.Kind is ObjectMemberKind.Method
                             or ObjectMemberKind.Getter or ObjectMemberKind.Setter)
                         {
-                            // new.target inside the method body is valid; skip nested functions.
                             if (member.IsComputed && member.Value is not null &&
-                                ExpressionContainsNewTarget(member.Value))
+                                ExpressionContainsNewTarget(member.Value, includeFunctionBodies))
                             {
                                 return true;
+                            }
+
+                            if (includeFunctionBodies && member.Function is not null)
+                            {
+                                foreach (var parameter in member.Function.Parameters)
+                                {
+                                    if (parameter.DefaultValue is not null &&
+                                        ExpressionContainsNewTarget(parameter.DefaultValue, true))
+                                    {
+                                        return true;
+                                    }
+                                }
+
+                                if (ContainsNewTarget(member.Function.Body.Statements, true))
+                                {
+                                    return true;
+                                }
                             }
 
                             continue;
                         }
 
-                        if (member.Value is not null && ExpressionContainsNewTarget(member.Value))
+                        if (member.Value is not null &&
+                            ExpressionContainsNewTarget(member.Value, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1438,7 +1635,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case TemplateLiteralExpression template:
                     foreach (var part in template.Parts)
                     {
-                        if (part.Expression is not null && ExpressionContainsNewTarget(part.Expression))
+                        if (part.Expression is not null &&
+                            ExpressionContainsNewTarget(part.Expression, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1446,16 +1644,16 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     return false;
                 case TaggedTemplateExpression taggedTemplate:
-                    if (ExpressionContainsNewTarget(taggedTemplate.Tag) ||
-                        ExpressionContainsNewTarget(taggedTemplate.StringsArray) ||
-                        ExpressionContainsNewTarget(taggedTemplate.RawStringsArray))
+                    if (ExpressionContainsNewTarget(taggedTemplate.Tag, includeFunctionBodies) ||
+                        ExpressionContainsNewTarget(taggedTemplate.StringsArray, includeFunctionBodies) ||
+                        ExpressionContainsNewTarget(taggedTemplate.RawStringsArray, includeFunctionBodies))
                     {
                         return true;
                     }
 
                     foreach (var expr in taggedTemplate.Expressions)
                     {
-                        if (ExpressionContainsNewTarget(expr))
+                        if (ExpressionContainsNewTarget(expr, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1468,6 +1666,17 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case AwaitExpression awaitExpression:
                     expression = awaitExpression.Expression;
                     continue;
+                case FunctionExpression functionExpression when includeFunctionBodies:
+                    foreach (var parameter in functionExpression.Parameters)
+                    {
+                        if (parameter.DefaultValue is not null &&
+                            ExpressionContainsNewTarget(parameter.DefaultValue, true))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return ContainsNewTarget(functionExpression.Body.Statements, true);
                 case ClassExpression:
                 case FunctionExpression:
                     // new.target is permitted inside function/class bodies.
@@ -1475,6 +1684,193 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case LiteralExpression:
                 case IdentifierExpression:
                 case ThisExpression:
+                    return false;
+                default:
+                    return false;
+            }
+        }
+    }
+
+    private static bool ExpressionContainsArguments(ExpressionNode expression, bool includeFunctionBodies)
+    {
+        while (true)
+        {
+            switch (expression)
+            {
+                case IdentifierExpression identifier when identifier.Name.Name == "arguments":
+                    return true;
+                case BinaryExpression binary:
+                    return ExpressionContainsArguments(binary.Left, includeFunctionBodies) ||
+                           ExpressionContainsArguments(binary.Right, includeFunctionBodies);
+                case UnaryExpression unary:
+                    expression = unary.Operand;
+                    continue;
+                case ConditionalExpression conditional:
+                    return ExpressionContainsArguments(conditional.Test, includeFunctionBodies) ||
+                           ExpressionContainsArguments(conditional.Consequent, includeFunctionBodies) ||
+                           ExpressionContainsArguments(conditional.Alternate, includeFunctionBodies);
+                case CallExpression call:
+                    if (ExpressionContainsArguments(call.Callee, includeFunctionBodies))
+                    {
+                        return true;
+                    }
+
+                    foreach (var argument in call.Arguments)
+                    {
+                        if (ExpressionContainsArguments(argument.Expression, includeFunctionBodies))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case NewExpression newExpression:
+                    if (ExpressionContainsArguments(newExpression.Constructor, includeFunctionBodies))
+                    {
+                        return true;
+                    }
+
+                    foreach (var argument in newExpression.Arguments)
+                    {
+                        if (ExpressionContainsArguments(argument, includeFunctionBodies))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case MemberExpression member:
+                    return ExpressionContainsArguments(member.Target, includeFunctionBodies) ||
+                           ExpressionContainsArguments(member.Property, includeFunctionBodies);
+                case AssignmentExpression assignment:
+                    return ExpressionContainsArguments(assignment.Value, includeFunctionBodies);
+                case PropertyAssignmentExpression propertyAssignment:
+                    return ExpressionContainsArguments(propertyAssignment.Target, includeFunctionBodies) ||
+                           ExpressionContainsArguments(propertyAssignment.Property, includeFunctionBodies) ||
+                           ExpressionContainsArguments(propertyAssignment.Value, includeFunctionBodies);
+                case IndexAssignmentExpression indexAssignment:
+                    return ExpressionContainsArguments(indexAssignment.Target, includeFunctionBodies) ||
+                           ExpressionContainsArguments(indexAssignment.Index, includeFunctionBodies) ||
+                           ExpressionContainsArguments(indexAssignment.Value, includeFunctionBodies);
+                case SequenceExpression sequence:
+                    return ExpressionContainsArguments(sequence.Left, includeFunctionBodies) ||
+                           ExpressionContainsArguments(sequence.Right, includeFunctionBodies);
+                case DestructuringAssignmentExpression destructuringAssignment:
+                    return ExpressionContainsArguments(destructuringAssignment.Value, includeFunctionBodies);
+                case ArrayExpression arrayExpression:
+                    foreach (var element in arrayExpression.Elements)
+                    {
+                        if (element.Expression is not null &&
+                            ExpressionContainsArguments(element.Expression, includeFunctionBodies))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case ObjectExpression objectExpression:
+                    foreach (var member in objectExpression.Members)
+                    {
+                        if (member.IsComputed && member.Key is ExpressionNode computedKey &&
+                            ExpressionContainsArguments(computedKey, includeFunctionBodies))
+                        {
+                            return true;
+                        }
+
+                        if (member.Kind == ObjectMemberKind.Spread && member.Value is not null &&
+                            ExpressionContainsArguments(member.Value, includeFunctionBodies))
+                        {
+                            return true;
+                        }
+
+                        if (member.Function is not null || member.Kind is ObjectMemberKind.Method
+                            or ObjectMemberKind.Getter or ObjectMemberKind.Setter)
+                        {
+                            if (member.IsComputed && member.Value is not null &&
+                                ExpressionContainsArguments(member.Value, includeFunctionBodies))
+                            {
+                                return true;
+                            }
+
+                            if (includeFunctionBodies && member.Function is not null)
+                            {
+                                foreach (var parameter in member.Function.Parameters)
+                                {
+                                    if (parameter.DefaultValue is not null &&
+                                        ExpressionContainsArguments(parameter.DefaultValue, true))
+                                    {
+                                        return true;
+                                    }
+                                }
+
+                                if (ContainsArguments(member.Function.Body.Statements, true))
+                                {
+                                    return true;
+                                }
+                            }
+
+                            continue;
+                        }
+
+                        if (member.Value is not null &&
+                            ExpressionContainsArguments(member.Value, includeFunctionBodies))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case TemplateLiteralExpression template:
+                    foreach (var part in template.Parts)
+                    {
+                        if (part.Expression is not null &&
+                            ExpressionContainsArguments(part.Expression, includeFunctionBodies))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case TaggedTemplateExpression taggedTemplate:
+                    if (ExpressionContainsArguments(taggedTemplate.Tag, includeFunctionBodies) ||
+                        ExpressionContainsArguments(taggedTemplate.StringsArray, includeFunctionBodies) ||
+                        ExpressionContainsArguments(taggedTemplate.RawStringsArray, includeFunctionBodies))
+                    {
+                        return true;
+                    }
+
+                    foreach (var expr in taggedTemplate.Expressions)
+                    {
+                        if (ExpressionContainsArguments(expr, includeFunctionBodies))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case YieldExpression { Expression: not null } yieldExpression:
+                    expression = yieldExpression.Expression;
+                    continue;
+                case AwaitExpression awaitExpression:
+                    expression = awaitExpression.Expression;
+                    continue;
+                case FunctionExpression functionExpression when includeFunctionBodies:
+                    foreach (var parameter in functionExpression.Parameters)
+                    {
+                        if (parameter.DefaultValue is not null &&
+                            ExpressionContainsArguments(parameter.DefaultValue, true))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return ContainsArguments(functionExpression.Body.Statements, true);
+                case FunctionExpression:
+                case ClassExpression:
+                    return false;
+                case LiteralExpression:
+                case ThisExpression:
+                case SuperExpression:
                     return false;
                 default:
                     return false;
@@ -1583,6 +1979,23 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                                 ExpressionContainsSuperCall(member.Value, includeFunctionBodies))
                             {
                                 return true;
+                            }
+
+                            if (includeFunctionBodies && member.Function is not null)
+                            {
+                                foreach (var parameter in member.Function.Parameters)
+                                {
+                                    if (parameter.DefaultValue is not null &&
+                                        ExpressionContainsSuperCall(parameter.DefaultValue, true))
+                                    {
+                                        return true;
+                                    }
+                                }
+
+                                if (ContainsSuperCall(member.Function.Body.Statements, true))
+                                {
+                                    return true;
+                                }
                             }
 
                             continue;
@@ -1758,6 +2171,23 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                                 ExpressionContainsSuper(member.Value, includeFunctionBodies))
                             {
                                 return true;
+                            }
+
+                            if (includeFunctionBodies && member.Function is not null)
+                            {
+                                foreach (var parameter in member.Function.Parameters)
+                                {
+                                    if (parameter.DefaultValue is not null &&
+                                        ExpressionContainsSuper(parameter.DefaultValue, true))
+                                    {
+                                        return true;
+                                    }
+                                }
+
+                                if (ContainsSuperReference(member.Function.Body.Statements, true))
+                                {
+                                    return true;
+                                }
                             }
 
                             continue;

@@ -26,6 +26,11 @@ public static partial class TypedAstEvaluator
                 return compoundValue;
             }
 
+            using var functionNameHint = expression.Value is ClassExpression { Name: null }
+                                         && !IsParenthesizedIdentifierAssignment(expression)
+                ? context.EnterFunctionNameHint(expression.Target)
+                : null;
+
             var targetValue = EvaluateExpression(expression.Value, environment, context);
             if (context.ShouldStopEvaluation)
             {

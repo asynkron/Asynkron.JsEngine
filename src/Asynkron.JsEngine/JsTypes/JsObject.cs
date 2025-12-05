@@ -327,12 +327,13 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
 
     public bool TryGetProperty(string name, out object? value)
     {
-        return TryGetProperty(name, this, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), out value);
+        return TryGetProperty(name, this, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), null,
+            out value);
     }
 
     public bool TryGetProperty(string name, object? receiver, out object? value)
     {
-        return TryGetProperty(name, receiver, new HashSet<object>(ReferenceEqualityComparer<object>.Instance),
+        return TryGetProperty(name, receiver, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), null,
             out value);
     }
 
@@ -980,7 +981,15 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
         }
     }
 
-    private bool TryGetProperty(string name, object? receiver, HashSet<object> visited, out object? value)
+    internal bool TryGetProperty(string name, object? receiver, EvaluationContext? context,
+        out object? value)
+    {
+        return TryGetProperty(name, receiver, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), context,
+            out value);
+    }
+
+    private bool TryGetProperty(string name, object? receiver, HashSet<object> visited,
+        EvaluationContext? context, out object? value)
     {
         if (name.IsPrivateName())
         {
@@ -993,7 +1002,27 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
                         {
                         if (desc.Get != null)
                         {
-                            value = desc.Get.Invoke([], receiver ?? this);
+                            try
+                            {
+                                value = TypedAstEvaluator.InvokeCallable(
+                                    desc.Get,
+                                    Array.Empty<object?>(),
+                                    receiver ?? this,
+                                    context,
+                                    ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
+                            }
+                            catch (ThrowSignal signal)
+                            {
+                                if (context is not null)
+                                {
+                                    context.SetThrow(signal.ThrownValue);
+                                    value = signal.ThrownValue;
+                                    return true;
+                                }
+
+                                throw;
+                            }
+
                             return true;
                         }
 
@@ -1010,7 +1039,8 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
                 }
             }
 
-            if (Prototype is not null && Prototype.TryGetProperty(name, receiver ?? this, visited, out value))
+            if (Prototype is not null &&
+                Prototype.TryGetProperty(name, receiver ?? this, visited, context, out value))
             {
                 return true;
             }
@@ -1019,7 +1049,7 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
             return false;
         }
 
-        if (TryGetOwnProperty(name, receiver ?? this, out value))
+        if (TryGetOwnProperty(name, receiver ?? this, context, out value))
         {
             return true;
         }
@@ -1038,7 +1068,14 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
         }
         while (prototype is not null)
         {
-            if (prototype.TryGetProperty(name, receiver ?? this, out value))
+            if (prototype is JsObject jsProto)
+            {
+                if (jsProto.TryGetProperty(name, receiver ?? this, context, out value))
+                {
+                    return true;
+                }
+            }
+            else if (prototype.TryGetProperty(name, receiver ?? this, out value))
             {
                 return true;
             }
@@ -1055,11 +1092,11 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
         continue;
     }
 
-    if (prototype is JsObject jsObj && jsObj.Prototype is { } jsProto)
-    {
-        prototype = jsProto;
-        continue;
-    }
+            if (prototype is JsObject jsObj && jsObj.Prototype is { } jsObjProto)
+            {
+                prototype = jsObjProto;
+                continue;
+            }
 
             break;
         }
@@ -1068,7 +1105,7 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
         return false;
     }
 
-    private bool TryGetOwnProperty(string name, object? receiver, out object? value)
+    private bool TryGetOwnProperty(string name, object? receiver, EvaluationContext? context, out object? value)
     {
         if (_virtualPropertyProvider is not null &&
             !_descriptors.ContainsKey(name) &&
@@ -1082,7 +1119,26 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
 
             if (virtualDescriptor.Get != null)
             {
-                value = virtualDescriptor.Get.Invoke([], receiver ?? this);
+                try
+                {
+                    value = TypedAstEvaluator.InvokeCallable(
+                        virtualDescriptor.Get,
+                        Array.Empty<object?>(),
+                        receiver ?? this,
+                        context,
+                        ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
+                }
+                catch (ThrowSignal signal)
+                {
+                    if (context is not null)
+                    {
+                        context.SetThrow(signal.ThrownValue);
+                        value = signal.ThrownValue;
+                        return true;
+                    }
+
+                    throw;
+                }
             }
 
             return true;
@@ -1095,7 +1151,27 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
             {
                 if (descriptor.Get != null)
                 {
-                    value = descriptor.Get.Invoke([], receiver);
+                    try
+                    {
+                        value = TypedAstEvaluator.InvokeCallable(
+                            descriptor.Get,
+                            Array.Empty<object?>(),
+                            receiver ?? this,
+                            context,
+                            ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        if (context is not null)
+                        {
+                            context.SetThrow(signal.ThrownValue);
+                            value = signal.ThrownValue;
+                            return true;
+                        }
+
+                        throw;
+                    }
+
                     return true;
                 }
 

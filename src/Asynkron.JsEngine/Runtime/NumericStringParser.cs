@@ -83,8 +83,21 @@ internal static class NumericStringParser
         }
 
         var digits = span[2..];
-        return digits.Length > 0 &&
-               BigInteger.TryParse(digits, styles, CultureInfo.InvariantCulture, out value);
+        if (digits.Length == 0)
+        {
+            return false;
+        }
+
+        // BigInteger.Parse treats hex input as a two's complement value, so
+        // leading 0xFF would parse as -1. Prefix a zero to force a positive
+        // interpretation that matches ECMAScript string-to-number semantics.
+        if ((styles & NumberStyles.AllowHexSpecifier) != 0)
+        {
+            var padded = string.Concat("0", digits.ToString());
+            return BigInteger.TryParse(padded, styles, CultureInfo.InvariantCulture, out value);
+        }
+
+        return BigInteger.TryParse(digits, styles, CultureInfo.InvariantCulture, out value);
     }
 
     private static bool TryParseBinary(ReadOnlySpan<char> span, out BigInteger value)

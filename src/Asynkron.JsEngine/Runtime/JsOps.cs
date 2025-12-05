@@ -183,32 +183,40 @@ internal static class JsOps
 
         var toPrimitiveKey = TypedAstSymbol.For("Symbol.toPrimitive");
         var symbolPropertyName = $"@@symbol:{toPrimitiveKey.GetHashCode()}";
-        if (accessor.TryGetProperty(symbolPropertyName, out var toPrimitive) && toPrimitive is IJsCallable toPrimFn)
+        if (TryGetPropertyValue(accessor, symbolPropertyName, out var toPrimitive, context))
         {
-            try
+            if (context?.IsThrow == true)
             {
-                var result = TypedAstEvaluator.InvokeCallable(
-                    toPrimFn,
-                    new object?[] { "number" },
-                    accessor,
-                    context,
-                    accessor is JsObject obj ? obj.RealmState?.Engine?.GlobalEnvironment : null);
-                if (context?.IsThrow == true)
+                return false;
+            }
+
+            if (toPrimitive is IJsCallable toPrimFn)
+            {
+                try
                 {
+                    var result = TypedAstEvaluator.InvokeCallable(
+                        toPrimFn,
+                        new object?[] { "number" },
+                        accessor,
+                        context,
+                        accessor is JsObject obj ? obj.RealmState?.Engine?.GlobalEnvironment : null);
+                    if (context?.IsThrow == true)
+                    {
+                        return false;
+                    }
+
+                    if ((result is not IJsPropertyAccessor || result is TypedAstSymbol or Symbol) &&
+                        result is not JsObject)
+                    {
+                        primitive = result;
+                        return true;
+                    }
+                }
+                catch (ThrowSignal signal) when (context is not null)
+                {
+                    context.SetThrow(signal.ThrownValue);
                     return false;
                 }
-
-                if ((result is not IJsPropertyAccessor || result is TypedAstSymbol or Symbol) &&
-                    result is not JsObject)
-                {
-                    primitive = result;
-                    return true;
-                }
-            }
-            catch (ThrowSignal signal) when (context is not null)
-            {
-                context.SetThrow(signal.ThrownValue);
-                return false;
             }
         }
 
@@ -279,17 +287,23 @@ internal static class JsOps
         var symbolPropertyName = $"@@symbol:{toPrimitiveKey.GetHashCode()}";
         object? toPrimitive = null;
 
-        if (accessor is JsObject valueObject && valueObject.TryGetValue(symbolPropertyName, out var ownToPrimitive))
+        if (TryGetPropertyValue(accessor, symbolPropertyName, out var ownOrInheritedToPrimitive, context))
         {
-            toPrimitive = ownToPrimitive;
-        }
-        else if (accessor.TryGetProperty(symbolPropertyName, out var inheritedToPrimitive))
-        {
-            toPrimitive = inheritedToPrimitive;
+            if (context?.IsThrow == true)
+            {
+                return value;
+            }
+
+            toPrimitive = ownOrInheritedToPrimitive;
         }
 
         if (toPrimitive is not null)
         {
+            if (context?.IsThrow == true)
+            {
+                return value;
+            }
+
             if (!IsNullish(toPrimitive) && toPrimitive is not IJsCallable)
             {
                 throw StandardLibrary.ThrowTypeError("Cannot convert object to primitive value", context);
@@ -299,7 +313,17 @@ internal static class JsOps
             {
                 try
                 {
-                    var result = toPrimFn.Invoke([hint], accessor);
+                    var result = TypedAstEvaluator.InvokeCallable(
+                        toPrimFn,
+                        new object?[] { hint },
+                        accessor,
+                        context,
+                        accessor is JsObject obj ? obj.RealmState?.Engine?.GlobalEnvironment : null);
+                    if (context?.IsThrow == true)
+                    {
+                        return value;
+                    }
+
                     if (result is JsObject ||
                         result is IJsPropertyAccessor { } and not TypedAstSymbol)
                     {
@@ -420,16 +444,12 @@ internal static class JsOps
         {
             if (context?.IsThrow == true)
             {
+                // Propagate the abrupt completion set by ToPrimitive/ToNumber/etc.
                 throw new ThrowSignal(context.FlowValue);
             }
 
             var leftType = GetJsType(left);
             var rightType = GetJsType(right);
-
-            if (ReferenceEquals(left, right))
-            {
-                return true;
-            }
 
             if (leftType == rightType)
             {
@@ -976,8 +996,20 @@ internal static class JsOps
         }
 
         var digits = span[2..];
-        return digits.Length > 0 &&
-               BigInteger.TryParse(digits, styles, CultureInfo.InvariantCulture, out value);
+        if (digits.Length == 0)
+        {
+            return false;
+        }
+
+        // BigInteger.Parse interprets hex input as two's complement; prefix
+        // a zero nibble so 0xFF produces 255 instead of -1.
+        if ((styles & NumberStyles.AllowHexSpecifier) != 0)
+        {
+            var padded = string.Concat("0", digits.ToString());
+            return BigInteger.TryParse(padded, styles, CultureInfo.InvariantCulture, out value);
+        }
+
+        return BigInteger.TryParse(digits, styles, CultureInfo.InvariantCulture, out value);
     }
 
     private static bool TryParseBinaryBigInt(ReadOnlySpan<char> span, out BigInteger value)
@@ -1064,7 +1096,26 @@ internal static class JsOps
 
         if (target is IJsPropertyAccessor propertyAccessor)
         {
-            return propertyAccessor.TryGetProperty(propertyName, target, out value);
+            try
+            {
+                if (propertyAccessor is JsObject jsObject)
+                {
+                    return jsObject.TryGetProperty(propertyName, target, context, out value);
+                }
+
+                return propertyAccessor.TryGetProperty(propertyName, target, out value);
+            }
+            catch (ThrowSignal signal)
+            {
+                if (context is not null)
+                {
+                    context.SetThrow(signal.ThrownValue);
+                    value = signal.ThrownValue;
+                    return true;
+                }
+
+                throw;
+            }
         }
 
         switch (target)
@@ -1157,7 +1208,21 @@ internal static class JsOps
             return true;
         }
 
-        return TryGetPropertyValue(target, propertyName, out value, context);
+        try
+        {
+            return TryGetPropertyValue(target, propertyName, out value, context);
+        }
+        catch (ThrowSignal signal)
+        {
+            if (context is not null)
+            {
+                context.SetThrow(signal.ThrownValue);
+                value = signal.ThrownValue;
+                return true;
+            }
+
+            throw;
+        }
     }
 
     public static bool IsConstructor(object? value)

@@ -127,7 +127,7 @@ public static partial class StandardLibrary
             return clipped;
         }, realm);
 
-        dateConstructor = new HostFunction((thisValue, args) =>
+        object? DateCtorCore(object? thisValue, IReadOnlyList<object?> args, EvaluationContext? context)
         {
             // For `new Date(...)`, the typed evaluator creates the instance
             // object and passes it as `thisValue`. Reuse that object so it
@@ -156,20 +156,30 @@ public static partial class StandardLibrary
                 }
                 else
                 {
-                    var ms = JsOps.ToNumber(arg);
+                    var ms = JsOps.ToNumber(arg, context);
+                    if (context?.IsThrow == true)
+                    {
+                        return context.FlowValue;
+                    }
+
                     timeValue = TimeClip(ms);
                 }
             }
             else
             {
                 // Multiple arguments: year, month, day, hour, minute, second, millisecond
-                var yearNum = MakeFullYear(JsOps.ToNumber(args[0]));
-                var monthNum = args.Count > 1 ? JsOps.ToNumber(args[1]) : 0;
-                var dayNum = args.Count > 2 ? JsOps.ToNumber(args[2]) : 1;
-                var hourNum = args.Count > 3 ? JsOps.ToNumber(args[3]) : 0;
-                var minuteNum = args.Count > 4 ? JsOps.ToNumber(args[4]) : 0;
-                var secondNum = args.Count > 5 ? JsOps.ToNumber(args[5]) : 0;
-                var millisecondNum = args.Count > 6 ? JsOps.ToNumber(args[6]) : 0;
+                var yearNum = MakeFullYear(JsOps.ToNumber(args[0], context));
+                var monthNum = args.Count > 1 ? JsOps.ToNumber(args[1], context) : 0;
+                var dayNum = args.Count > 2 ? JsOps.ToNumber(args[2], context) : 1;
+                var hourNum = args.Count > 3 ? JsOps.ToNumber(args[3], context) : 0;
+                var minuteNum = args.Count > 4 ? JsOps.ToNumber(args[4], context) : 0;
+                var secondNum = args.Count > 5 ? JsOps.ToNumber(args[5], context) : 0;
+                var millisecondNum = args.Count > 6 ? JsOps.ToNumber(args[6], context) : 0;
+
+                if (context?.IsThrow == true)
+                {
+                    return context.FlowValue;
+                }
 
                 if (double.IsNaN(yearNum) || double.IsNaN(monthNum) || double.IsNaN(dayNum) ||
                     double.IsNaN(hourNum) || double.IsNaN(minuteNum) || double.IsNaN(secondNum) ||
@@ -205,7 +215,12 @@ public static partial class StandardLibrary
             StoreInternalDateValue(dateInstance, timeValue);
 
             return dateInstance;
-        });
+        }
+
+        dateConstructor = new HostFunction((thisValue, args) => DateCtorCore(thisValue, args, null),
+            isConstructor: true);
+        dateConstructor.SetInvokeWithContext((arguments, thisValue, context, _) =>
+            DateCtorCore(thisValue, arguments, context));
 
         dateConstructor.RealmState = realm;
         if (realm.FunctionPrototype is not null)

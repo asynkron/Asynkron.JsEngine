@@ -26,6 +26,11 @@ public static partial class TypedAstEvaluator
                         array.Push(item);
                     }
 
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return Symbol.Undefined;
+                    }
+
                     continue;
                 }
 

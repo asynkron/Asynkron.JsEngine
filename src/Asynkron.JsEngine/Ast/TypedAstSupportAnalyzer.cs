@@ -275,7 +275,7 @@ internal static class TypedAstSupportAnalyzer
 
                         foreach (var argument in newExpression.Arguments)
                         {
-                            if (!VisitExpression(argument))
+                            if (!VisitExpression(argument.Expression))
                             {
                                 return false;
                             }

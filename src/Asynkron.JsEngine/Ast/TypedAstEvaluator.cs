@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Numerics;
@@ -70,7 +71,7 @@ public static partial class TypedAstEvaluator
 
 
     // Per ECMA-262 §7.4.1/§7.4.2 (GetIterator / GetAsyncIterator) via @@iterator/@@asyncIterator.
-    private static bool TryGetIteratorFromProtocols(object? iterable, out JsObject? iterator)
+    private static bool TryGetIteratorFromProtocols(object? iterable, EvaluationContext context, out JsObject? iterator)
     {
         iterator = null;
         if (iterable is not IJsPropertyAccessor accessor)
@@ -78,21 +79,43 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        if (TryInvokeSymbolMethod(accessor, iterable, "Symbol.asyncIterator", out var asyncIterator) &&
-            asyncIterator is JsObject asyncObj)
+        if (TryInvokeSymbolMethod(accessor, iterable, "Symbol.asyncIterator", context, out var asyncIterator))
         {
-            iterator = asyncObj;
-            return true;
-        }
+            if (context.ShouldStopEvaluation)
+            {
+                return false;
+            }
 
-        if (!TryInvokeSymbolMethod(accessor, iterable, "Symbol.iterator", out var iteratorValue) ||
-            iteratorValue is not JsObject iteratorObj)
-        {
+            if (asyncIterator is JsObject asyncObj)
+            {
+                iterator = asyncObj;
+                return true;
+            }
+
+            var typeError = StandardLibrary.CreateTypeError("Iterator is not an object", context, context.RealmState);
+            context.SetThrow(typeError);
             return false;
         }
 
-        iterator = iteratorObj;
-        return true;
+        if (TryInvokeSymbolMethod(accessor, iterable, "Symbol.iterator", context, out var iteratorValue))
+        {
+            if (context.ShouldStopEvaluation)
+            {
+                return false;
+            }
+
+            if (iteratorValue is JsObject iteratorObj)
+            {
+                iterator = iteratorObj;
+                return true;
+            }
+
+            var typeError = StandardLibrary.CreateTypeError("Iterator is not an object", context, context.RealmState);
+            context.SetThrow(typeError);
+            return false;
+        }
+
+        return false;
     }
 
 
@@ -218,9 +241,19 @@ public static partial class TypedAstEvaluator
     private static DelegatedYieldState CreateDelegatedState(object? iterable, EvaluationContext context)
     {
         var iteratorTarget = NormalizeIterableTarget(iterable, context);
-        if (TryGetIteratorFromProtocols(iteratorTarget, out var iterator) && iterator is not null)
+        if (context.ShouldStopEvaluation)
+        {
+            return DelegatedYieldState.FromEnumerable(Array.Empty<object?>());
+        }
+
+        if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
         {
             return DelegatedYieldState.FromIterator(iterator);
+        }
+
+        if (context.ShouldStopEvaluation)
+        {
+            return DelegatedYieldState.FromEnumerable(Array.Empty<object?>());
         }
 
         throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
@@ -280,7 +313,17 @@ public static partial class TypedAstEvaluator
     {
         if (!TryGetIteratorForDestructuring(value, context, out var iterator, out var enumerator))
         {
+            if (context.ShouldStopEvaluation)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+
             throw StandardLibrary.ThrowTypeError("Value is not iterable.", context, context.RealmState);
+        }
+
+        if (context.ShouldStopEvaluation)
+        {
+            throw new ThrowSignal(context.FlowValue);
         }
 
         var iteratorRecord = new ArrayPatternIterator(iterator, enumerator);
@@ -297,7 +340,7 @@ public static partial class TypedAstEvaluator
                         IteratorClose(iterator, context);
                     }
 
-                    yield break;
+                    throw new ThrowSignal(context.FlowValue);
                 }
 
                 if (done)
@@ -831,11 +874,18 @@ public static partial class TypedAstEvaluator
 
         if (iteratorTarget is not null)
         {
-            if (TryGetIteratorFromProtocols(iteratorTarget, out var iteratorCandidate) &&
-                iteratorCandidate is not null)
+            if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iteratorCandidate))
             {
-                iterator = iteratorCandidate;
-                return true;
+                if (context.ShouldStopEvaluation)
+                {
+                    return false;
+                }
+
+                if (iteratorCandidate is not null)
+                {
+                    iterator = iteratorCandidate;
+                    return true;
+                }
             }
 
             // Fallback: treat objects with a callable `next` as iterators even if

@@ -2942,21 +2942,14 @@ public sealed class TypedAstParser(
                 break;
             }
 
-            ImmutableArray<ExpressionNode> args;
+            ImmutableArray<CallArgument> args;
             if (Match(TokenType.LeftParen))
             {
-                var callArgs = ParseArgumentList();
-                var builder = ImmutableArray.CreateBuilder<ExpressionNode>(callArgs.Length);
-                foreach (var arg in callArgs)
-                {
-                    builder.Add(arg.Expression);
-                }
-
-                args = builder.ToImmutable();
+                args = ParseArgumentList();
             }
             else
             {
-                args = ImmutableArray<ExpressionNode>.Empty;
+                args = ImmutableArray<CallArgument>.Empty;
             }
 
             return new NewExpression(constructor.Source, constructor, args);
@@ -3250,7 +3243,7 @@ public sealed class TypedAstParser(
                         stack.Push(newExpression.Constructor);
                         foreach (var argument in newExpression.Arguments)
                         {
-                            stack.Push(argument);
+                            stack.Push(argument.Expression);
                         }
 
                         break;

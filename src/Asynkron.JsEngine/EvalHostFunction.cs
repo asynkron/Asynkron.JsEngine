@@ -1544,7 +1544,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     foreach (var argument in newExpression.Arguments)
                     {
-                        if (ExpressionContainsNewTarget(argument, includeFunctionBodies))
+                        if (ExpressionContainsNewTarget(argument.Expression, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1732,7 +1732,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     foreach (var argument in newExpression.Arguments)
                     {
-                        if (ExpressionContainsArguments(argument, includeFunctionBodies))
+                        if (ExpressionContainsArguments(argument.Expression, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -1909,7 +1909,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     foreach (var argument in newExpression.Arguments)
                     {
-                        if (ExpressionContainsSuperCall(argument, includeFunctionBodies))
+                        if (ExpressionContainsSuperCall(argument.Expression, includeFunctionBodies))
                         {
                             return true;
                         }
@@ -2114,7 +2114,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     foreach (var argument in newExpression.Arguments)
                     {
-                        if (ExpressionContainsSuper(argument, includeFunctionBodies))
+                        if (ExpressionContainsSuper(argument.Expression, includeFunctionBodies))
                         {
                             return true;
                         }

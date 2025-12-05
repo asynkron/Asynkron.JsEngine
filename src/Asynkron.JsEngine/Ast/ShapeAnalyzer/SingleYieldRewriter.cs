@@ -24,7 +24,7 @@ public sealed class SingleYieldRewriter(Symbol replacementSymbol)
             },
             NewExpression @new => @new with
             {
-                Constructor = Rewrite(@new.Constructor), Arguments = RewriteExpressions(@new.Arguments)
+                Constructor = Rewrite(@new.Constructor), Arguments = RewriteArguments(@new.Arguments)
             },
             MemberExpression member => member with
             {

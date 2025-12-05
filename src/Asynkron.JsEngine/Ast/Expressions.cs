@@ -82,7 +82,7 @@ public sealed record CallArgument(SourceReference? Source, ExpressionNode Expres
 public sealed record NewExpression(
     SourceReference? Source,
     ExpressionNode Constructor,
-    ImmutableArray<ExpressionNode> Arguments) : ExpressionNode(Source);
+    ImmutableArray<CallArgument> Arguments) : ExpressionNode(Source);
 
 /// <summary>
 ///     Represents a property access (dot or computed) expression.

@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
@@ -18,9 +19,44 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
+            // ArgumentListEvaluation must run before the IsConstructor check (ES2024 12.3.3.1.1 step 6-7).
+            var argsBuilder = ImmutableArray.CreateBuilder<object?>(expression.Arguments.Length);
+            foreach (var argument in expression.Arguments)
+            {
+                if (argument.IsSpread)
+                {
+                    var spreadValue = EvaluateExpression(argument.Expression, environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return Symbol.Undefined;
+                    }
+
+                    foreach (var item in EnumerateSpread(spreadValue, context))
+                    {
+                        argsBuilder.Add(item);
+                    }
+
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return Symbol.Undefined;
+                    }
+
+                    continue;
+                }
+
+                argsBuilder.Add(EvaluateExpression(argument.Expression, environment, context));
+                if (context.ShouldStopEvaluation)
+                {
+                    return Symbol.Undefined;
+                }
+            }
+
+            var args = argsBuilder.ToImmutable();
+
             if (constructor is not IJsCallable callable)
             {
-                throw new InvalidOperationException("Attempted to construct a non-callable value.");
+                var notCtor = StandardLibrary.CreateTypeError("Target is not a constructor", context, realm);
+                throw new ThrowSignal(notCtor);
             }
 
             if (constructor is HostFunction hostFunction &&
@@ -63,16 +99,6 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            var args = ImmutableArray.CreateBuilder<object?>(expression.Arguments.Length);
-            foreach (var argument in expression.Arguments)
-            {
-                args.Add(EvaluateExpression(argument, environment, context));
-                if (context.ShouldStopEvaluation)
-                {
-                    return Symbol.Undefined;
-                }
-            }
-
             object? result;
             instance?.BeginConstruction();
             try
@@ -80,17 +106,17 @@ public static partial class TypedAstEvaluator
                 object? receiver = isDerivedClassCtor ? Symbol.Undefined : instance;
                 if (typedConstructor is not null)
                 {
-                    result = typedConstructor.InvokeWithContext(args.MoveToImmutable(), receiver, context,
+                    result = typedConstructor.InvokeWithContext(args, receiver, context,
                         constructor);
                 }
                 else if (callable is HostFunction hostFn)
                 {
-                    result = hostFn.InvokeWithContext(args.MoveToImmutable(), receiver, context,
+                    result = hostFn.InvokeWithContext(args, receiver, context,
                         constructor);
                 }
                 else
                 {
-                    result = callable.Invoke(args.MoveToImmutable(), receiver);
+                    result = callable.Invoke(args, receiver);
                 }
             }
             catch (ThrowSignal signal)

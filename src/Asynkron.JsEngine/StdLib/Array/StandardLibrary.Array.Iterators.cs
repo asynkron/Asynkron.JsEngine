@@ -2,6 +2,7 @@ using System;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -32,6 +33,7 @@ public static partial class StandardLibrary
 
         object? Next(object? _, IReadOnlyList<object?> __, RealmState? ___)
         {
+            realm?.Logger?.LogInformation("ArrayIterator.next index={Index}", index);
             if (exhausted)
             {
                 var doneResult = new JsObject(realm?.ObjectPrototype);

@@ -58,7 +58,7 @@ public static partial class TypedAstEvaluator
             if (statement.Kind == ForEachKind.Of)
             {
                 var iteratorTarget = NormalizeIterableTarget(iterable, context);
-                if (TryGetIteratorFromProtocols(iteratorTarget, out var iterator) && iterator is not null)
+                if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
                 {
                     var plan = IteratorDriverFactory.CreatePlan(statement,
                         statement.Body is BlockStatement b
@@ -139,7 +139,7 @@ public static partial class TypedAstEvaluator
                 new JsEnvironment(environment, creatingSource: statement.Source, description: "for-await-of loop");
             object? lastValue = Symbol.Undefined;
 
-            if (TryGetIteratorFromProtocols(iteratorTarget, out var iterator) && iterator is not null)
+            if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
             {
                 var plan = IteratorDriverFactory.CreatePlan(statement,
                     statement.Body is BlockStatement b

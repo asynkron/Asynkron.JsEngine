@@ -52,8 +52,22 @@ public static partial class TypedAstEvaluator
 
                 if (context.IsThrow)
                 {
-                    iteratorDone = true;
-                    return lastValue;
+                    var thrown = context.FlowValue;
+                    context.Clear();
+
+                    if (state.IteratorObject is not null && !iteratorDone)
+                    {
+                        IteratorClose(state.IteratorObject, context, preserveExistingThrow: true,
+                            existingThrowOverride: thrown);
+
+                        if (context.IsThrow)
+                        {
+                            thrown = context.FlowValue;
+                            context.Clear();
+                        }
+                    }
+
+                    throw new ThrowSignal(thrown);
                 }
 
                 if (nextResult is JsObject resultObj)

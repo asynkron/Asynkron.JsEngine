@@ -527,7 +527,7 @@ public sealed class TypedConstantExpressionTransformer
     private ExpressionNode TransformNew(NewExpression expression)
     {
         var constructor = TransformExpression(expression.Constructor);
-        var arguments = TransformImmutableArray(expression.Arguments, TransformExpression, out var changed);
+        var arguments = TransformImmutableArray(expression.Arguments, TransformCallArgument, out var changed);
 
         if (ReferenceEquals(constructor, expression.Constructor) && !changed)
         {

@@ -38,7 +38,7 @@ public sealed class SingleYieldLocator
                     VisitExpression(@new.Constructor);
                     foreach (var argument in @new.Arguments)
                     {
-                        VisitExpression(argument);
+                        VisitExpression(argument.Expression);
                         if (FoundYield is not null)
                         {
                             return;

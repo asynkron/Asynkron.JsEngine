@@ -473,14 +473,14 @@ internal static class GeneratorYieldLowerer
                 {
                     var ctor = RewriteExpressionForComplexYields(newExpression.Constructor, prefixStatements,
                         ref changed);
-                    var argsBuilder = ImmutableArray.CreateBuilder<ExpressionNode>(newExpression.Arguments.Length);
+                    var argsBuilder = ImmutableArray.CreateBuilder<CallArgument>(newExpression.Arguments.Length);
                     var argsChanged = false;
                     foreach (var argument in newExpression.Arguments)
                     {
                         var rewrittenArgument =
-                            RewriteExpressionForComplexYields(argument, prefixStatements, ref changed);
-                        argsChanged |= !ReferenceEquals(argument, rewrittenArgument);
-                        argsBuilder.Add(rewrittenArgument);
+                            RewriteExpressionForComplexYields(argument.Expression, prefixStatements, ref changed);
+                        argsChanged |= !ReferenceEquals(argument.Expression, rewrittenArgument);
+                        argsBuilder.Add(argument with { Expression = rewrittenArgument });
                     }
 
                     if (!ReferenceEquals(ctor, newExpression.Constructor) || argsChanged)

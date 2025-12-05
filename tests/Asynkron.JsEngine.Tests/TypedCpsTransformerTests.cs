@@ -37,7 +37,7 @@ public class TypedCpsTransformerTests
         var newExpression = Assert.IsType<NewExpression>(returnStatement.Expression);
         AssertPromiseConstructor(newExpression.Constructor);
 
-        var executor = Assert.IsType<FunctionExpression>(Assert.Single(newExpression.Arguments));
+        var executor = Assert.IsType<FunctionExpression>(Assert.Single(newExpression.Arguments).Expression);
         var tryStatement = Assert.IsType<TryStatement>(Assert.Single(executor.Body.Statements));
         var promiseReturn = Assert.IsType<ReturnStatement>(Assert.Single(tryStatement.TryBlock.Statements));
         var catchCall = Assert.IsType<CallExpression>(promiseReturn.Expression);
@@ -90,7 +90,7 @@ public class TypedCpsTransformerTests
         var newExpression = Assert.IsType<NewExpression>(functionReturn.Expression);
         AssertPromiseConstructor(newExpression.Constructor);
 
-        var executor = Assert.IsType<FunctionExpression>(Assert.Single(newExpression.Arguments));
+        var executor = Assert.IsType<FunctionExpression>(Assert.Single(newExpression.Arguments).Expression);
         var tryStatement = Assert.IsType<TryStatement>(Assert.Single(executor.Body.Statements));
         Assert.Contains(tryStatement.TryBlock.Statements, statement => statement is ReturnStatement);
 

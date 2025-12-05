@@ -34,6 +34,11 @@ public static partial class TypedAstEvaluator
                 {
                     argsBuilder.Add(item);
                 }
+
+                if (context.ShouldStopEvaluation)
+                {
+                    return Symbol.Undefined;
+                }
             }
 
             if (targetFunction is IJsEnvironmentAwareCallable envAware)

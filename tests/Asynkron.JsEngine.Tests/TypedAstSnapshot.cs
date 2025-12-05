@@ -258,7 +258,12 @@ internal static class TypedAstSnapshot
                 foreach (var argument in newExpression.Arguments)
                 {
                     builder.Append(' ');
-                    AppendExpression(argument, builder);
+                    if (argument.IsSpread)
+                    {
+                        builder.Append("...");
+                    }
+
+                    AppendExpression(argument.Expression, builder);
                 }
 
                 builder.Append(')');

@@ -253,7 +253,7 @@ public sealed class ShapeCounter(bool includeNestedFunctions)
                     VisitExpression(@new.Constructor);
                     foreach (var argument in @new.Arguments)
                     {
-                        VisitExpression(argument);
+                        VisitExpression(argument.Expression);
                     }
 
                     return;

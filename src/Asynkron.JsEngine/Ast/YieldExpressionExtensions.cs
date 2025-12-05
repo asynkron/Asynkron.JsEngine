@@ -84,6 +84,11 @@ public static partial class TypedAstEvaluator
                     }
 
                     state = CreateDelegatedState(iterable, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return context.FlowValue;
+                    }
+
                     StoreDelegatedState(stateKey, environment, state);
                 }
 

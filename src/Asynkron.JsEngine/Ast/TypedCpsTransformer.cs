@@ -181,7 +181,7 @@ public sealed class TypedCpsTransformer
                         return true;
                     }
 
-                    if (Enumerable.Any(newExpression.Arguments, ExpressionNeedsTransformation))
+                    if (Enumerable.Any(newExpression.Arguments, argument => ExpressionNeedsTransformation(argument.Expression)))
                     {
                         return true;
                     }
@@ -594,14 +594,14 @@ public sealed class TypedCpsTransformer
     private ExpressionNode TransformNewExpression(NewExpression expression)
     {
         var constructor = TransformExpression(expression.Constructor);
-        var builder = ImmutableArray.CreateBuilder<ExpressionNode>(expression.Arguments.Length);
+        var builder = ImmutableArray.CreateBuilder<CallArgument>(expression.Arguments.Length);
         var changed = !ReferenceEquals(constructor, expression.Constructor);
         foreach (var argument in expression.Arguments)
         {
-            var value = TransformExpression(argument);
-            if (!ReferenceEquals(value, argument))
+            var value = TransformExpression(argument.Expression);
+            if (!ReferenceEquals(value, argument.Expression))
             {
-                builder.Add(value);
+                builder.Add(argument with { Expression = value });
                 changed = true;
             }
             else
@@ -756,7 +756,7 @@ public sealed class TypedCpsTransformer
             ],
             executorBody, false, false);
         var promise = new NewExpression(null, new IdentifierExpression(null, Symbol.PromiseIdentifier),
-            [executor]);
+            [new CallArgument(null, executor, false)]);
         var returnPromise = new ReturnStatement(null, promise);
         return body with { Statements = [returnPromise] };
     }
@@ -1976,7 +1976,7 @@ public sealed class TypedCpsTransformer
                     for (var i = 0; i < newExpression.Arguments.Length; i++)
                     {
                         var argument = newExpression.Arguments[i];
-                        if (!TryExtractAwait(argument, out awaitExpression, out var argumentRebuild))
+                        if (!TryExtractAwait(argument.Expression, out awaitExpression, out var argumentRebuild))
                         {
                             continue;
                         }
@@ -1984,7 +1984,7 @@ public sealed class TypedCpsTransformer
                         rebuild = value =>
                         {
                             var args = newExpression.Arguments.ToBuilder();
-                            args[i] = argumentRebuild(value);
+                            args[i] = argument with { Expression = argumentRebuild(value) };
                             return newExpression with { Arguments = args.ToImmutable() };
                         };
                         return true;

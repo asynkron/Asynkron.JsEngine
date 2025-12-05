@@ -58,6 +58,12 @@ public static partial class TypedAstEvaluator
                         arguments.Add(item);
                     }
 
+                    if (context.ShouldStopEvaluation)
+                    {
+                        context.CallDepth--;
+                        return Symbol.Undefined;
+                    }
+
                     continue;
                 }
 

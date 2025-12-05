@@ -279,7 +279,7 @@ public static partial class TypedAstEvaluator
         {
             var iteratorTarget = NormalizeIterableTarget(iterable, context);
 
-            if (TryGetIteratorFromProtocols(iteratorTarget, out var iterator) && iterator is not null)
+            if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
             {
                 var nextMethod = iterator.GetIteratorNextCallable(context);
                 return new IteratorDriverState

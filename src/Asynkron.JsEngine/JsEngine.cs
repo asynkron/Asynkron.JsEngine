@@ -1414,7 +1414,13 @@ public sealed class JsEngine : IAsyncDisposable
     {
         return statement.Value switch
         {
-            ExportDefaultExpression expression => ExecuteTypedExpression(expression.Expression, moduleEnv, isStrict),
+            ExportDefaultExpression expression => ExecuteTypedExpression(
+                expression.Expression,
+                moduleEnv,
+                isStrict,
+                expression.Expression is ClassExpression { Name: null } or FunctionExpression { Name: null }
+                    ? Symbol.Intern("default")
+                    : null),
             ExportDefaultDeclaration declaration => EvaluateExportDefaultDeclaration(declaration, moduleEnv, isStrict),
             _ => Symbol.Undefined
         };
@@ -1519,20 +1525,26 @@ public sealed class JsEngine : IAsyncDisposable
         }
     }
 
-    private object? ExecuteTypedExpression(ExpressionNode expression, JsEnvironment environment, bool isStrict)
+    private object? ExecuteTypedExpression(
+        ExpressionNode expression,
+        JsEnvironment environment,
+        bool isStrict,
+        Symbol? functionNameHint = null)
     {
         var statement = new ExpressionStatement(expression.Source, expression);
-        return ExecuteTypedStatement(statement, environment, isStrict);
+        return ExecuteTypedStatement(statement, environment, isStrict, functionNameHint: functionNameHint);
     }
 
     private object? ExecuteTypedStatement(
         StatementNode statement,
         JsEnvironment environment,
         bool isStrict,
-        bool createStrictEnvironment = true)
+        bool createStrictEnvironment = true,
+        Symbol? functionNameHint = null)
     {
         var program = new ProgramNode(statement.Source, [statement], isStrict);
         return program.EvaluateProgram(environment, RealmState,
-            executionKind: ExecutionKind.Script, createStrictEnvironment: createStrictEnvironment);
+            executionKind: ExecutionKind.Script, createStrictEnvironment: createStrictEnvironment,
+            functionNameHint: functionNameHint);
     }
 }

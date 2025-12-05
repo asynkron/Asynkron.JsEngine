@@ -25,6 +25,7 @@ public static partial class TypedAstEvaluator
         private readonly bool _isStrict;
         private readonly bool _wasAsyncFunction;
         private readonly bool _hasFunctionNameEnvironment;
+        private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
         private IJsCallable? _caller;
         private IJsObjectLike? _homeObject;
         private ImmutableArray<ClassField> _instanceFields = ImmutableArray<ClassField>.Empty;
@@ -430,6 +431,9 @@ public static partial class TypedAstEvaluator
             var executionEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict,
                 _function.Source, description, isBodyEnvironment: true);
             executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+            using var capturedPrivateScopes = !_capturedPrivateNameScopes.IsDefaultOrEmpty
+                ? context.EnterPrivateNameScopes(_capturedPrivateNameScopes)
+                : null;
             using var privateScope = PrivateNameScope is not null
                 ? context.EnterPrivateNameScope(PrivateNameScope)
                 : null;
@@ -831,6 +835,11 @@ public static partial class TypedAstEvaluator
         public void SetPrivateNameScope(PrivateNameScope? scope)
         {
             PrivateNameScope = scope;
+        }
+
+        public void SetCapturedPrivateNameScopes(ImmutableArray<PrivateNameScope> scopes)
+        {
+            _capturedPrivateNameScopes = scopes;
         }
 
         public void SetSuperBinding(IJsEnvironmentAwareCallable? superConstructor, IJsPropertyAccessor? superPrototype)

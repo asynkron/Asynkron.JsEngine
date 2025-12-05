@@ -1,5 +1,6 @@
 using System;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -17,6 +18,12 @@ internal static class ClassFieldInitializer
             if (!field.TryResolveFieldName(evaluateExpression, context, privateNameScope, out var propertyName))
             {
                 return false;
+            }
+
+            if (string.Equals(propertyName, "prototype", StringComparison.Ordinal))
+            {
+                throw StandardLibrary.ThrowTypeError("Cannot redefine constructor prototype via static member", context,
+                    context.RealmState);
             }
 
             object? value = Symbol.Undefined;

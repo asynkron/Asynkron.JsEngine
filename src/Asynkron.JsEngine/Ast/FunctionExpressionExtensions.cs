@@ -379,6 +379,11 @@ public static partial class TypedAstEvaluator
                 typed.SetPrivateNameScope(context.CurrentPrivateNameScope);
             }
 
+            if (callable is TypedFunction typedWithCapturedScopes)
+            {
+                typedWithCapturedScopes.SetCapturedPrivateNameScopes(context.CapturePrivateNameScopes());
+            }
+
             if (functionNameEnvironment is not null)
             {
                 functionNameEnvironment.Define(functionExpression.Name!, callable,

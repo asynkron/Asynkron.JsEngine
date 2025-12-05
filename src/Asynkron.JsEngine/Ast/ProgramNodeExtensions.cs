@@ -15,7 +15,8 @@ public static partial class TypedAstEvaluator
             RealmState realmState,
             CancellationToken cancellationToken = default,
             ExecutionKind executionKind = ExecutionKind.Script,
-            bool createStrictEnvironment = true)
+            bool createStrictEnvironment = true,
+            Symbol? functionNameHint = null)
         {
             var context = realmState.CreateContext(
                 ScopeKind.Program,
@@ -26,6 +27,9 @@ public static partial class TypedAstEvaluator
                 false);
             context.SourceReference = program.Source;
             context.IsStrictSource = program.IsStrict;
+            using var nameHintHandle = functionNameHint is not null
+                ? context.EnterFunctionNameHint(functionNameHint)
+                : null;
             using var programActivity =
                 Activity.Current?.StartEvaluatorActivity("Program", context, program.Source);
             programActivity?.SetTag("js.program.strict", program.IsStrict);

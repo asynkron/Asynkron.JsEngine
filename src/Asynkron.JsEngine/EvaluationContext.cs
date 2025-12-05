@@ -1,8 +1,10 @@
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
     using Asynkron.JsEngine.Runtime;
+using System.Linq;
 
 namespace Asynkron.JsEngine;
 
@@ -155,6 +157,25 @@ public sealed class EvaluationContext(
 
     public PrivateNameScope? CurrentPrivateNameScope => _privateNameScopes.Count > 0 ? _privateNameScopes.Peek() : null;
 
+    public ImmutableArray<PrivateNameScope> CapturePrivateNameScopes()
+    {
+        // Stack enumerates from top to bottom; reverse to preserve outer-to-inner order.
+        return _privateNameScopes.Reverse().ToImmutableArray();
+    }
+
+    public string? ResolvePrivateNameKey(string lexeme)
+    {
+        foreach (var scope in _privateNameScopes)
+        {
+            if (scope.TryGetKey(lexeme, out var key))
+            {
+                return key;
+            }
+        }
+
+        return null;
+    }
+
     public IDisposable PushScope(
         ScopeKind kind,
         ScopeMode mode,
@@ -204,6 +225,16 @@ public sealed class EvaluationContext(
     {
         _privateNameScopes.Push(scope);
         return new PrivateNameScopeHandle(_privateNameScopes);
+    }
+
+    public IDisposable EnterPrivateNameScopes(IReadOnlyList<PrivateNameScope> scopes)
+    {
+        foreach (var scope in scopes)
+        {
+            _privateNameScopes.Push(scope);
+        }
+
+        return new PrivateNameScopeHandle(_privateNameScopes, scopes.Count);
     }
 
     public IDisposable EnterClassFieldInitializer()
@@ -351,7 +382,7 @@ public sealed class EvaluationContext(
         CurrentSignal = null;
     }
 
-    private sealed class PrivateNameScopeHandle(Stack<PrivateNameScope> scopes) : IDisposable
+    private sealed class PrivateNameScopeHandle(Stack<PrivateNameScope> scopes, int count = 1) : IDisposable
     {
         private bool _disposed;
 
@@ -362,7 +393,8 @@ public sealed class EvaluationContext(
                 return;
             }
 
-            if (scopes.Count > 0)
+            var remaining = count;
+            while (remaining-- > 0 && scopes.Count > 0)
             {
                 scopes.Pop();
             }
@@ -518,6 +550,11 @@ public sealed class PrivateNameScope
     }
 
     public object BrandToken { get; } = new();
+
+    public bool TryGetKey(string lexeme, out string key)
+    {
+        return _map.TryGetValue(lexeme, out key!);
+    }
 
     public string GetKey(string lexeme)
     {

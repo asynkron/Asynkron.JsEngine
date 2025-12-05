@@ -631,10 +631,18 @@ internal static class JsOps
         {
             if (value is string { Length: > 0 } privateName &&
                 privateName[0] == '#' &&
-                context?.CurrentPrivateNameScope is { } privateScope &&
                 !privateName.Contains('@'))
             {
-                return privateScope.GetKey(privateName);
+                var resolved = context?.ResolvePrivateNameKey(privateName);
+                if (resolved is not null)
+                {
+                    return resolved;
+                }
+
+                if (context?.CurrentPrivateNameScope is { } privateScope)
+                {
+                    return privateScope.GetKey(privateName);
+                }
             }
 
             switch (value)

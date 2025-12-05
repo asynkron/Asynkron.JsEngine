@@ -76,7 +76,19 @@ public static partial class TypedAstEvaluator
             PrivateNameScope? privateScopeForAccess = null;
             if (isPrivateName)
             {
-                privateScopeForAccess = context.CurrentPrivateNameScope;
+                var resolvedKey = context.ResolvePrivateNameKey(propertyName);
+                if (resolvedKey is not null && PrivateNameScope.TryResolveScope(resolvedKey, out var resolvedScope))
+                {
+                    propertyName = resolvedKey;
+                    privateScopeForAccess = resolvedScope;
+                }
+
+                if (privateScopeForAccess is null && propertyName.Contains("@", StringComparison.Ordinal))
+                {
+                    PrivateNameScope.TryResolveScope(propertyName, out privateScopeForAccess);
+                }
+
+                privateScopeForAccess ??= context.CurrentPrivateNameScope;
                 if (privateScopeForAccess is null)
                 {
                     PrivateNameScope.TryResolveScope(propertyName, out privateScopeForAccess);
@@ -88,7 +100,7 @@ public static partial class TypedAstEvaluator
                         context.RealmState);
                 }
 
-                if (!propertyName.Contains("@", StringComparison.Ordinal))
+                if (resolvedKey is null && !propertyName.Contains("@", StringComparison.Ordinal))
                 {
                     propertyName = privateScopeForAccess.GetKey(propertyName);
                 }

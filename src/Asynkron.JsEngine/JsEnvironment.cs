@@ -756,17 +756,17 @@ public sealed class JsEnvironment
             globalScope = globalScope.Enclosing;
         }
 
-        if (!globalScope._values.ContainsKey(name))
+        var globalObject = GetRootGlobalObject();
+        if (globalObject is null)
         {
             globalScope.Define(name, value, isLexical: false, canDelete: true);
-        }
-        else
-        {
-            globalScope.AssignInternal(name, value, isStrictContext, new HashSet<JsEnvironment>(ReferenceEqualityComparer.Instance));
+            return;
         }
 
-        var globalObject = GetRootGlobalObject();
-        globalObject?.SetProperty(name.Name, value);
+        // Sloppy assignment to an unresolvable reference creates a new
+        // configurable property on the global object rather than a declarative
+        // binding so that `delete` can remove it (ES2024 9.1.1.3.4 SetMutableBinding).
+        globalObject.SetProperty(name.Name, value);
         LogRealm("Assign created global via sloppy assignment name={Name} valueType={ValueType}", name.Name,
             value?.GetType().Name ?? "null");
         context.RealmState?.Logger?.LogInformation(

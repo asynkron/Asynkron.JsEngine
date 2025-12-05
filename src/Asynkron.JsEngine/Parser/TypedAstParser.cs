@@ -1685,7 +1685,10 @@ public sealed class TypedAstParser(
 
             if (Match(TokenType.Question))
             {
-                var consequent = ParseExpression(validateCoverInitializedName: validateCoverInitializedName);
+                var previousAllowIn = _allowInExpressions;
+                _allowInExpressions = true; // AssignmentExpression[+In]
+                var consequent = ParseAssignment(validateCoverInitializedName);
+                _allowInExpressions = previousAllowIn; // alternate uses caller's In setting
                 Consume(TokenType.Colon, "Expected ':' after conditional expression.");
                 var alternate = ParseAssignment(validateCoverInitializedName);
                 return new ConditionalExpression(expr.Source ?? consequent.Source ?? alternate.Source, expr, consequent,

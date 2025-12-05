@@ -405,6 +405,14 @@ public static partial class TypedAstEvaluator
             {
                 case MemberExpression member:
                 {
+                    if (member.Target is SuperExpression)
+                    {
+                        throw StandardLibrary.ThrowReferenceError(
+                            "Cannot delete property on super reference",
+                            context,
+                            context.RealmState);
+                    }
+
                     var target = EvaluateExpression(member.Target, environment, context);
                     if (context.ShouldStopEvaluation)
                     {

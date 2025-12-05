@@ -1155,6 +1155,12 @@ internal static class JsOps
 
     public static bool DeletePropertyValue(object? target, object? propertyKey, EvaluationContext? context = null)
     {
+        if (target is null || ReferenceEquals(target, Symbol.Undefined))
+        {
+            throw StandardLibrary.ThrowTypeError("Cannot delete property on null or undefined", context,
+                context?.RealmState);
+        }
+
         if (target is JsArray jsArray)
         {
             var propertyName = ToPropertyName(propertyKey, context);

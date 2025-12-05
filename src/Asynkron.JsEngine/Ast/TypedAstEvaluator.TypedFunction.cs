@@ -976,9 +976,37 @@ public static partial class TypedAstEvaluator
                     {
                         typedFunction.SetSuperBinding(fieldSuperBinding.Constructor, fieldSuperBinding.Prototype);
                     }
+
+                    if (IsAnonymousFunctionDefinitionNode(field.Initializer))
+                    {
+                        var displayName = field.IsComputed ? propertyName : field.Name;
+                        var atIndex = displayName.IndexOf('@');
+                        if (atIndex > 0)
+                        {
+                            displayName = displayName[..atIndex];
+                        }
+
+                        SetAnonymousFunctionName(value, displayName);
+                    }
                 }
 
                 instance.SetProperty(propertyName, value);
+            }
+        }
+
+        private static void SetAnonymousFunctionName(object? value, string displayName)
+        {
+            switch (value)
+            {
+                case TypedFunction typedFunction:
+                    typedFunction.EnsureHasName(displayName);
+                    break;
+                case TypedGeneratorFactory generatorFactory:
+                    generatorFactory.EnsureHasName(displayName);
+                    break;
+                case AsyncGeneratorFactory asyncGeneratorFactory:
+                    asyncGeneratorFactory.EnsureHasName(displayName);
+                    break;
             }
         }
 

@@ -4,7 +4,7 @@ using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Ast;
 
-internal static class ClassFieldInitializer
+public static partial class TypedAstEvaluator
 {
     extension(ClassField field)
     {
@@ -27,6 +27,12 @@ internal static class ClassFieldInitializer
             }
 
             object? value = Symbol.Undefined;
+            var displayName = field.IsComputed ? propertyName : field.Name;
+            var atIndex = displayName.IndexOf('@');
+            if (atIndex > 0)
+            {
+                displayName = displayName[..atIndex];
+            }
             if (field.Initializer is not null)
             {
                 using var handle = privateScopeFactory?.Invoke();
@@ -35,10 +41,31 @@ internal static class ClassFieldInitializer
                 {
                     return false;
                 }
+
+                if (IsAnonymousFunctionDefinitionNode(field.Initializer))
+                {
+                    SetAnonymousFunctionName(value, displayName);
+                }
             }
 
             constructorAccessor.SetProperty(propertyName, value);
             return true;
+        }
+
+        private static void SetAnonymousFunctionName(object? value, string displayName)
+        {
+            switch (value)
+            {
+                case TypedFunction typedFunction:
+                    typedFunction.EnsureHasName(displayName);
+                    break;
+                case TypedGeneratorFactory generatorFactory:
+                    generatorFactory.EnsureHasName(displayName);
+                    break;
+                case AsyncGeneratorFactory asyncGeneratorFactory:
+                    asyncGeneratorFactory.EnsureHasName(displayName);
+                    break;
+            }
         }
     }
 }

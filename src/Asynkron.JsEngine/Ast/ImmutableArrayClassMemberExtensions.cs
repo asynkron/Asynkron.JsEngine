@@ -22,6 +22,12 @@ public static partial class TypedAstEvaluator
                     return;
                 }
 
+                var displayName = propertyName;
+                if (member.Name.Length > 0 && member.Name[0] == '#')
+                {
+                    displayName = member.Name;
+                }
+
                 if (member.IsStatic &&
                     string.Equals(propertyName, "prototype", StringComparison.Ordinal))
                 {
@@ -57,7 +63,7 @@ public static partial class TypedAstEvaluator
                         typedFunction.SetHomeObject(homeObject);
                     }
 
-                    typedFunction.EnsureHasName(propertyName);
+                    typedFunction.EnsureHasName(displayName);
                 }
 
                 member.DefineMember(propertyName, callable, constructorAccessor, prototype);

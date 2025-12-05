@@ -112,9 +112,12 @@ public static partial class TypedAstEvaluator
             };
         }
 
-        private bool IsAnonymousFunctionDefinition()
+        private bool IsAnonymousFunctionDefinition() =>
+            IsAnonymousFunctionDefinitionNode(expression);
+
+        internal static bool IsAnonymousFunctionDefinitionNode(ExpressionNode node)
         {
-            return expression switch
+            return node switch
             {
                 FunctionExpression func => func.Name is null,
                 ClassExpression classExpression => classExpression.Name is null,

@@ -25,6 +25,14 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
+            var privateNameScope = CreatePrivateNameScope(definition);
+            var resolvedFields =
+                ResolveFieldNames(definition, definition.Fields, evaluationEnvironment, context, privateNameScope);
+            if (context.ShouldStopEvaluation)
+            {
+                return Symbol.Undefined;
+            }
+
             var constructorValue = EvaluateExpression(definition.Constructor, evaluationEnvironment, context);
             if (context.ShouldStopEvaluation)
             {
@@ -52,14 +60,12 @@ public static partial class TypedAstEvaluator
                 ctorForOrdering.SeedIntrinsicConstructorKeys();
             }
 
-            var privateNameScope = CreatePrivateNameScope(definition);
             if (constructorValue is TypedFunction typedFunction)
             {
                 typedFunction.SetSuperBinding(superConstructor, superPrototype);
-                var instanceFields = definition.Fields.Where(field => !field.IsStatic).ToImmutableArray();
+                var instanceFields = resolvedFields.Where(field => !field.IsStatic).ToImmutableArray();
                 var resolvedInstanceFields =
-                    ResolveInstanceFieldNames(definition, instanceFields, evaluationEnvironment, context,
-                        privateNameScope);
+                    ResolveInstanceFieldNames(instanceFields, evaluationEnvironment, context, privateNameScope);
                 if (context.ShouldStopEvaluation)
                 {
                     return Symbol.Undefined;
@@ -102,7 +108,8 @@ public static partial class TypedAstEvaluator
                 nameTarget.EnsureHasName(className.Name);
             }
 
-            InitializeStaticElements(definition, constructorAccessor, evaluationEnvironment, context, privateNameScope);
+            InitializeStaticElements(definition, resolvedFields, constructorAccessor, evaluationEnvironment, context,
+                privateNameScope);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
@@ -124,8 +131,8 @@ public static partial class TypedAstEvaluator
         }
 
         // ClassFieldDefinitionEvaluation evaluates computed field names during class evaluation,
-        // so resolve instance field keys eagerly instead of per-construction.
-        private ImmutableArray<ClassField> ResolveInstanceFieldNames(
+        // so resolve all field keys eagerly in declaration order (static + instance).
+        private ImmutableArray<ClassField> ResolveFieldNames(
             ImmutableArray<ClassField> fields,
             JsEnvironment environment,
             EvaluationContext context,
@@ -159,6 +166,20 @@ public static partial class TypedAstEvaluator
 
             return builder.ToImmutable();
         }
+
+        // Instance field keys must already be resolved; this simply returns
+        // the provided collection (kept for clarity / future adjustments).
+        private static ImmutableArray<ClassField> ResolveInstanceFieldNames(
+            ImmutableArray<ClassField> fields,
+            JsEnvironment environment,
+            EvaluationContext context,
+            PrivateNameScope? privateNameScope)
+        {
+            _ = environment;
+            _ = context;
+            _ = privateNameScope;
+            return fields;
+        }
     }
 
     private static (JsEnvironment EvaluationEnvironment, JsEnvironment? ClassScope) CreateClassScopeIfNeeded(
@@ -178,6 +199,7 @@ public static partial class TypedAstEvaluator
 
     private static void InitializeStaticElements(
         ClassDefinition definition,
+        ImmutableArray<ClassField> resolvedFields,
         IJsPropertyAccessor constructorAccessor,
         JsEnvironment environment,
         EvaluationContext context,
@@ -203,7 +225,7 @@ public static partial class TypedAstEvaluator
             switch (element.Kind)
             {
                 case ClassStaticElementKind.Field:
-                    var field = definition.Fields[element.Index];
+                    var field = resolvedFields[element.Index];
                     if (!field.TryInitializeStaticField(
                             constructorAccessor,
                             expr => EvaluateStaticFieldExpression(expr, constructorAccessor, environment, context),

@@ -15,10 +15,7 @@ public static partial class TypedAstEvaluator
             PrivateNameScope? privateNameScope,
             Func<IDisposable?>? privateScopeFactory)
         {
-            if (!field.TryResolveFieldName(evaluateExpression, context, privateNameScope, out var propertyName))
-            {
-                return false;
-            }
+            var propertyName = field.Name;
 
             if (string.Equals(propertyName, "prototype", StringComparison.Ordinal))
             {

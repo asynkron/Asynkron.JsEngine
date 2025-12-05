@@ -29,6 +29,8 @@ public sealed class FakeLogger : ILogger
         public void Add(LogRecord record) => _records.Enqueue(record);
 
         public LogRecord? LatestRecord => _records.LastOrDefault();
+
+        public LogRecord[] Snapshot() => _records.ToArray();
     }
 
     private sealed class NullScope : IDisposable

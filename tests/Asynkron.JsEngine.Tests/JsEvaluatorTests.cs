@@ -1,3 +1,5 @@
+using System.Linq;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -391,6 +393,79 @@ public class JsEvaluatorTests
         var result = await engine.Evaluate(source);
 
         Assert.Equal("hi Alice", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ClassMethodsRemainVisibleWhenPrivateFieldsArePresent()
+    {
+        await using var engine = new JsEngine();
+        var fakeLogger = new Microsoft.Extensions.Logging.Testing.FakeLogger();
+        engine.RealmState.Logger = fakeLogger;
+        await engine.Evaluate("""
+                              var C = class {
+                                #x = 1;
+                                x() { return this.#x; }
+                              };
+                              """);
+
+        var ctorValue = Assert.IsAssignableFrom<IJsPropertyAccessor>(await engine.Evaluate("C"));
+        Assert.True(ctorValue.TryGetProperty("prototype", out var ctorProto));
+        var ctorProtoObject = Assert.IsAssignableFrom<JsObject>(ctorProto);
+        var ctorProtoHasX = ctorProtoObject.TryGetProperty("x", out _);
+        Assert.True(ctorProtoHasX);
+        var ctorProtoHash = RuntimeHelpers.GetHashCode(ctorProtoObject);
+        var proxyProtoHash =
+            RuntimeHelpers.GetHashCode(Assert.IsAssignableFrom<JsObject>(await engine.Evaluate("Proxy.prototype")));
+        Assert.True(JsOps.TryGetPropertyValue(ctorValue, "prototype", out var ctorProtoViaOps));
+        var ctorProtoViaOpsObject = Assert.IsAssignableFrom<JsObject>(ctorProtoViaOps);
+        var ctorProtoViaOpsHasX = ctorProtoViaOpsObject.TryGetProperty("x", out _);
+        Assert.True(ctorProtoViaOpsHasX);
+
+        await engine.Evaluate("var c = new C();");
+        await engine.Evaluate("var p = new Proxy(c, {});");
+
+        var prototypeDescriptor = await engine.Evaluate("Object.getOwnPropertyDescriptor(C, 'prototype')");
+        Assert.IsType<JsObject>(prototypeDescriptor);
+
+        var protoHasX = JsOps.ToBoolean(await engine.Evaluate("Object.prototype.hasOwnProperty.call(C.prototype, 'x')"));
+        Assert.True(protoHasX);
+
+        var typeOfX = await engine.Evaluate("typeof C.prototype.x");
+        Assert.Equal("function", typeOfX as string);
+
+        var cHasX = JsOps.ToBoolean(await engine.Evaluate("Object.prototype.hasOwnProperty.call(c, 'x')"));
+        Assert.False(cHasX);
+
+        var protoMatches = JsOps.ToBoolean(await engine.Evaluate("Object.getPrototypeOf(c) === C.prototype"));
+        var protoIsObjectProto = JsOps.ToBoolean(await engine.Evaluate("Object.getPrototypeOf(c) === Object.prototype"));
+        var protoIsNull = JsOps.ToBoolean(await engine.Evaluate("Object.getPrototypeOf(c) === null"));
+        var protoIsUndefined = JsOps.ToBoolean(await engine.Evaluate("Object.getPrototypeOf(c) === undefined"));
+        var protoType = await engine.Evaluate("typeof Object.getPrototypeOf(c)");
+        var protoValue = await engine.Evaluate("Object.getPrototypeOf(c)");
+        var protoObject = Assert.IsAssignableFrom<JsObject>(protoValue);
+        var protoHasXOnValue = protoObject.TryGetProperty("x", out _);
+        var classProto = Assert.IsAssignableFrom<JsObject>(await engine.Evaluate("C.prototype"));
+        var objectProto = Assert.IsAssignableFrom<JsObject>(await engine.Evaluate("Object.prototype"));
+        var sameAsClassProto = ReferenceEquals(protoObject, classProto);
+        var sameAsObjectProto = ReferenceEquals(protoObject, objectProto);
+        var cValue = Assert.IsAssignableFrom<JsObject>(await engine.Evaluate("c"));
+        var protoFromInstance = cValue.Prototype ?? cValue.PrototypeAccessor as JsObject;
+        var protoCtorName = await engine.Evaluate("Object.getPrototypeOf(c)?.constructor?.name");
+        var protoIsSelf = JsOps.ToBoolean(await engine.Evaluate("Object.getPrototypeOf(c) === c"));
+        var protoKeys = string.Join(",", protoObject.Keys);
+        var matchesInstanceProto = ReferenceEquals(protoFromInstance, protoObject);
+        var protoProtoIsNull = JsOps.ToBoolean(await engine.Evaluate("Object.getPrototypeOf(Object.getPrototypeOf(c)) === null"));
+        var protoProto = protoObject.Prototype ?? protoObject.PrototypeAccessor as JsObject;
+        var protoProtoKeys = protoProto is null ? "null" : string.Join(",", protoProto.Keys);
+        var logSummary = string.Join(" | ", fakeLogger.Collector.Snapshot().Select(r => r.Message));
+        Assert.True(protoMatches,
+            $"Prototype link missing. Proto is Object.prototype? {protoIsObjectProto}; null? {protoIsNull}; undefined? {protoIsUndefined}; typeof={protoType}; protoHasXOnValue={protoHasXOnValue}; sameAsClassProto={sameAsClassProto}; sameAsObjectProto={sameAsObjectProto}; instanceProtoNull={protoFromInstance is null}; protoCtorName={protoCtorName}; protoIsSelf={protoIsSelf}; protoKeys={protoKeys}; matchesInstanceProto={matchesInstanceProto}; protoProtoIsNull={protoProtoIsNull}; protoProtoKeys={protoProtoKeys}; ctorProtoHash={ctorProtoHash}; protoObjectHash={RuntimeHelpers.GetHashCode(protoObject)}; proxyProtoHash={proxyProtoHash}; instanceHash={RuntimeHelpers.GetHashCode(cValue)}; lastLog={fakeLogger.Collector.LatestRecord?.Message ?? "none"}; logs={logSummary}");
+
+        var result = await engine.Evaluate("c.x()");
+        Assert.Equal(1d, JsOps.ToNumber(result));
+
+        var proxyThrows = JsOps.ToBoolean(await engine.Evaluate("(function(){ try { p.x(); return false; } catch (e) { return e instanceof TypeError; } })()"));
+        Assert.True(proxyThrows);
     }
 
     [Fact(Timeout = 2000)]

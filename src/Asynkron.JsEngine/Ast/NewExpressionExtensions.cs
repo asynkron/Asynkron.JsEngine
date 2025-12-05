@@ -1,5 +1,7 @@
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -41,6 +43,7 @@ public static partial class TypedAstEvaluator
 
             var typedConstructor = constructor as TypedFunction;
             var isDerivedClassCtor = typedConstructor?.IsDerivedClassConstructor == true;
+            var logger = realm?.Logger;
 
             JsObject? instance = null;
             if (!isDerivedClassCtor)
@@ -50,6 +53,13 @@ public static partial class TypedAstEvaluator
                     prototype is IJsPropertyAccessor protoAccessor)
                 {
                     instance.SetPrototype(protoAccessor);
+                    logger?.LogInformation("new: pre-call prototype set hash={Hash} derived={Derived}",
+                        RuntimeHelpers.GetHashCode(protoAccessor),
+                        isDerivedClassCtor);
+                }
+                else
+                {
+                    logger?.LogInformation("new: pre-call prototype missing derived={Derived}", isDerivedClassCtor);
                 }
             }
 
@@ -91,6 +101,22 @@ public static partial class TypedAstEvaluator
             finally
             {
                 instance?.EndConstruction();
+            }
+
+            if (!isDerivedClassCtor &&
+                instance is not null &&
+                TryGetPropertyValue(constructor, "prototype", out var finalPrototype, context) &&
+                finalPrototype is IJsPropertyAccessor finalProtoAccessor)
+            {
+                instance.SetPrototype(finalProtoAccessor);
+                logger?.LogInformation(
+                    "new: final prototype set hash={Hash} derived={Derived}",
+                    RuntimeHelpers.GetHashCode(finalProtoAccessor),
+                    isDerivedClassCtor);
+            }
+            else if (!isDerivedClassCtor && instance is not null)
+            {
+                logger?.LogInformation("new: final prototype missing derived={Derived}", isDerivedClassCtor);
             }
 
             // In JavaScript, constructors can explicitly return an object to override the

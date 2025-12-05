@@ -29,4 +29,8 @@
         <EmbeddedResource Include="Scripts\*.js" />
     </ItemGroup>
 
+    <ItemGroup>
+        <Compile Include="..\Asynkron.JsEngine.Tests.Test262\FakeLogger.cs" Link="FakeLogger.cs" />
+    </ItemGroup>
+
 </Project>

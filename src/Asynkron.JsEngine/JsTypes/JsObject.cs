@@ -415,7 +415,21 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
     {
         if (name.IsPrivateName())
         {
-            _privateFields[name] = descriptor;
+            if (_privateFields.TryGetValue(name, out var existing) && existing is PropertyDescriptor existingDescriptor)
+            {
+                if (!ValidateDescriptorChange(descriptor, existingDescriptor))
+                {
+                    return false;
+                }
+
+                ApplyDescriptorChange(descriptor, existingDescriptor);
+                _privateFields[name] = existingDescriptor;
+                return true;
+            }
+
+            var newDescriptor = descriptor.Clone();
+            CompleteDescriptorForNewProperty(newDescriptor);
+            _privateFields[name] = newDescriptor;
             return true;
         }
 

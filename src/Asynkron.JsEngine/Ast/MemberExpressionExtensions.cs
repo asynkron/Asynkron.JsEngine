@@ -1,3 +1,4 @@
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -79,7 +80,7 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
-            var isPrivateName = propertyName.Length > 0 && propertyName[0] == '#';
+            var isPrivateName = propertyName.IsPrivateName();
             PrivateNameScope? privateScopeForAccess = null;
             if (isPrivateName)
             {

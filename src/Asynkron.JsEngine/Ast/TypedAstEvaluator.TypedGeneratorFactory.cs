@@ -1,3 +1,4 @@
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
@@ -128,7 +129,7 @@ public static partial class TypedAstEvaluator
 
         public bool TryGetProperty(string name, object? receiver, out object? value)
         {
-            if (name.Length > 0 && name[0] == '#')
+            if (name.IsPrivateName())
             {
                 if (_privateSlots.TryGetValue(name, out value))
                 {
@@ -207,7 +208,7 @@ public static partial class TypedAstEvaluator
 
         public void SetProperty(string name, object? value, object? receiver)
         {
-            if (name.Length > 0 && name[0] == '#')
+            if (name.IsPrivateName())
             {
                 _privateSlots[name] = value;
                 return;

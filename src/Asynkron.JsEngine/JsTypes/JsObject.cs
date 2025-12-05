@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -103,7 +104,7 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
     {
-        if (IsPrivateName(name))
+        if (name.IsPrivateName())
         {
             return null;
         }
@@ -146,7 +147,7 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
             return;
         }
 
-        if (IsPrivateName(name))
+        if (name.IsPrivateName())
         {
             if (_privateFields.TryGetValue(name, out var existing) && existing is PropertyDescriptor
                 {
@@ -410,14 +411,9 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
         TrackArrayIndexWriteIfNeeded(name);
     }
 
-    private static bool IsPrivateName(string name)
-    {
-        return name.Length > 0 && name[0] == '#';
-    }
-
     private bool DefinePropertyInternal(string name, PropertyDescriptor descriptor)
     {
-        if (IsPrivateName(name))
+        if (name.IsPrivateName())
         {
             _privateFields[name] = descriptor;
             return true;
@@ -821,7 +817,7 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
 
     public bool HasProperty(string name)
     {
-        if (IsPrivateName(name))
+        if (name.IsPrivateName())
         {
             return false;
         }
@@ -972,7 +968,7 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
 
     private bool TryGetProperty(string name, object? receiver, HashSet<object> visited, out object? value)
     {
-        if (IsPrivateName(name))
+        if (name.IsPrivateName())
         {
             if (_privateFields.TryGetValue(name, out var slot))
             {

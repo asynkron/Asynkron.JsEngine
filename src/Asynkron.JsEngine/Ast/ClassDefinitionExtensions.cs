@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Immutable;
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Microsoft.Extensions.Logging;
@@ -133,7 +134,7 @@ public static partial class TypedAstEvaluator
         private PrivateNameScope? CreatePrivateNameScope()
         {
             var hasPrivateFields = definition.Fields.Any(f => f.IsPrivate);
-            var hasPrivateMembers = definition.Members.Any(m => m.Name.Length > 0 && m.Name[0] == '#');
+            var hasPrivateMembers = definition.Members.Any(m => m.Name.IsPrivateName());
             return hasPrivateFields || hasPrivateMembers ? new PrivateNameScope() : null;
         }
 

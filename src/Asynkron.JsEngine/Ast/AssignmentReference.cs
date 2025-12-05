@@ -1,3 +1,4 @@
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -192,7 +193,7 @@ internal static class AssignmentReferenceResolver
         }
 
         var propertyName = JsOps.GetRequiredPropertyName(propertyValue, context);
-        var isPrivateName = propertyName.Length > 0 && propertyName[0] == '#';
+        var isPrivateName = propertyName.IsPrivateName();
         if (isPrivateName)
         {
             var privateScope = context.CurrentPrivateNameScope;
@@ -259,7 +260,7 @@ internal static class AssignmentReferenceResolver
         receiver ??= target;
         realmState ??= context?.RealmState ?? target.RealmState;
 
-        if (propertyName.Length > 0 && propertyName[0] == '#')
+        if (propertyName.IsPrivateName())
         {
             target.SetProperty(propertyName, value, receiver);
             return;

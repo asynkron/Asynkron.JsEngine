@@ -1,4 +1,5 @@
 using System.Globalization;
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.Ast;
@@ -30,7 +31,7 @@ internal static class ClassPropertyNameResolver
                 return !context.ShouldStopEvaluation;
             }
 
-            if (propertyName.Length > 0 && propertyName[0] == '#' && privateNameScope is not null)
+            if (propertyName.IsPrivateName() && privateNameScope is not null)
             {
                 propertyName = privateNameScope.GetKey(propertyName);
                 return true;

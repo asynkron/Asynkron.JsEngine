@@ -1,3 +1,4 @@
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
 
@@ -33,9 +34,9 @@ internal static class ClassMemberEmitter
             var descriptor = new PropertyDescriptor
             {
                 Value = callable,
-                Writable = propertyName.Length > 0 && propertyName[0] == '#' ? false : true,
+                Writable = propertyName.IsPrivateName() ? false : true,
                 Enumerable = false,
-                Configurable = propertyName.Length > 0 && propertyName[0] == '#' ? false : true,
+                Configurable = propertyName.IsPrivateName() ? false : true,
                 HasValue = true,
                 HasWritable = true,
                 HasEnumerable = true,

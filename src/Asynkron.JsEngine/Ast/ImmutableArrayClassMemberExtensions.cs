@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
 
@@ -23,7 +24,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 var displayName = propertyName;
-                if (member.Name.Length > 0 && member.Name[0] == '#')
+                if (member.Name.IsPrivateName())
                 {
                     displayName = member.Name;
                 }

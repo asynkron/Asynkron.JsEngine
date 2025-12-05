@@ -1,4 +1,5 @@
 using System;
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Microsoft.Extensions.Logging;
 using Asynkron.JsEngine.StdLib;
@@ -12,7 +13,7 @@ public static partial class TypedAstEvaluator
         string propertyName,
         EvaluationContext context)
     {
-        if (propertyName.Length > 0 && propertyName[0] == '#')
+        if (propertyName.IsPrivateName())
         {
             var privateScope = context.CurrentPrivateNameScope;
             if (privateScope is null)

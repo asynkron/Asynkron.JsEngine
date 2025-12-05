@@ -3873,7 +3873,7 @@ public sealed class TypedAstParser(
                     JsBigInt bigInt => bigInt.Value.ToString(CultureInfo.InvariantCulture),
                     _ => Convert.ToString(token.Literal, CultureInfo.InvariantCulture) ?? token.Lexeme
                 },
-                TokenType.PrivateIdentifier => token.Lexeme.Length > 0 && token.Lexeme[0] == '#'
+                TokenType.PrivateIdentifier => token.Lexeme.IsPrivateName()
                     ? token.Lexeme
                     : "#" + token.Lexeme,
                 _ => token.Lexeme

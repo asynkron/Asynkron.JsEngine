@@ -272,8 +272,13 @@ public static partial class TypedAstEvaluator
             return result;
         }
 
-        private static IteratorDriverState CreateIteratorDriverState(object? iterable, IteratorDriverKind kind)
+        private static IteratorDriverState CreateIteratorDriverState(
+            object? iterable,
+            IteratorDriverKind kind,
+            EvaluationContext context)
         {
+            EnsureObjectCoercibleForIteration(iterable, context);
+
             if (TryGetIteratorFromProtocols(iterable, out var iterator) && iterator is not null)
             {
                 return new IteratorDriverState
@@ -282,7 +287,7 @@ public static partial class TypedAstEvaluator
                 };
             }
 
-            var enumerable = EnumerateValues(iterable);
+            var enumerable = EnumerateValues(iterable, context);
             return new IteratorDriverState
             {
                 IteratorObject = null,
@@ -532,7 +537,7 @@ public static partial class TypedAstEvaluator
                                     throw new ThrowSignal(thrown);
                                 }
 
-                                yieldStarState.State = CreateDelegatedState(yieldStarIterable);
+                                yieldStarState.State = CreateDelegatedState(yieldStarIterable, context);
                                 yieldStarState.AwaitingResume = false;
                             }
 
@@ -769,7 +774,8 @@ public static partial class TypedAstEvaluator
                                 throw new ThrowSignal(initThrown);
                             }
 
-                            var iteratorState = CreateIteratorDriverState(iterableValue, iteratorInitInstruction.Kind);
+                            var iteratorState =
+                                CreateIteratorDriverState(iterableValue, iteratorInitInstruction.Kind, context);
                             StoreSymbolValue(environment, iteratorInitInstruction.IteratorSlot, iteratorState);
                             _programCounter = iteratorInitInstruction.Next;
                             continue;

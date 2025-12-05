@@ -21,6 +21,11 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
+            if (statement.Kind == ForEachKind.Of)
+            {
+                EnsureObjectCoercibleForIteration(iterable, context);
+            }
+
             // In JavaScript, `for...in` requires an object value; iterating
             // over `null` or `undefined` throws a TypeError. Treat other
             // non-object values as errors as well so engine bugs surface
@@ -53,7 +58,7 @@ public static partial class TypedAstEvaluator
             var values = statement.Kind switch
             {
                 ForEachKind.In => EnumeratePropertyKeys(iterable),
-                ForEachKind.Of => EnumerateValues(iterable),
+                ForEachKind.Of => EnumerateValues(iterable, context),
                 _ => throw new ArgumentOutOfRangeException()
             };
 
@@ -102,6 +107,8 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
+            EnsureObjectCoercibleForIteration(iterable, context);
+
             var loopEnvironment =
                 new JsEnvironment(environment, creatingSource: statement.Source, description: "for-await-of loop");
             object? lastValue = Symbol.Undefined;
@@ -115,7 +122,7 @@ public static partial class TypedAstEvaluator
                 return ExecuteIteratorDriver(plan, iterator!, null, loopEnvironment, environment, context, loopLabel);
             }
 
-            var values = EnumerateValues(iterable);
+            var values = EnumerateValues(iterable, context);
             foreach (var value in values)
             {
                 if (context.ShouldStopEvaluation)

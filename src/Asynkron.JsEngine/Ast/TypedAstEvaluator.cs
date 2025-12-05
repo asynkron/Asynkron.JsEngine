@@ -101,6 +101,16 @@ public static partial class TypedAstEvaluator
         return AwaitScheduler.IsPromiseLike(candidate);
     }
 
+    // RequireObjectCoercible for iteration heads so null/undefined throw a JS TypeError
+    // before attempting iterator resolution (ES2024 14.7.5.1, 14.7.5.2).
+    private static void EnsureObjectCoercibleForIteration(object? value, EvaluationContext context)
+    {
+        if (value is null || ReferenceEquals(value, Symbol.Undefined) || value is IIsHtmlDda)
+        {
+            throw StandardLibrary.ThrowTypeError("Cannot iterate over undefined or null", context, context.RealmState);
+        }
+    }
+
     // WAITING ON FULL ASYNC/AWAIT + ASYNC GENERATOR IR SUPPORT:
     // This helper synchronously blocks on promise resolution using TaskCompletionSource.
     // It keeps async/await and async iteration usable for now but must be replaced by
@@ -156,7 +166,7 @@ public static partial class TypedAstEvaluator
         throw new InvalidOperationException("Cannot iterate properties of non-object value.");
     }
 
-    private static IEnumerable<object?> EnumerateValues(object? value)
+    private static IEnumerable<object?> EnumerateValues(object? value, EvaluationContext context)
     {
         switch (value)
         {
@@ -183,7 +193,7 @@ public static partial class TypedAstEvaluator
                 yield break;
         }
 
-        throw new InvalidOperationException("Value is not iterable.");
+        throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
     }
 
 
@@ -192,14 +202,16 @@ public static partial class TypedAstEvaluator
         return ReferenceEquals(completion, EmptyCompletion) ? Symbol.Undefined : completion;
     }
 
-    private static DelegatedYieldState CreateDelegatedState(object? iterable)
+    private static DelegatedYieldState CreateDelegatedState(object? iterable, EvaluationContext context)
     {
+        EnsureObjectCoercibleForIteration(iterable, context);
+
         if (TryGetIteratorFromProtocols(iterable, out var iterator) && iterator is not null)
         {
             return DelegatedYieldState.FromIterator(iterator);
         }
 
-        var values = EnumerateValues(iterable);
+        var values = EnumerateValues(iterable, context);
         return DelegatedYieldState.FromEnumerable(values);
     }
 

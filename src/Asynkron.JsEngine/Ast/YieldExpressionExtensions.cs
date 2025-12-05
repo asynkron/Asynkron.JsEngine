@@ -75,17 +75,17 @@ public static partial class TypedAstEvaluator
             var stateKey = GetDelegatedStateKey(expression);
             var state = GetDelegatedState(stateKey, environment);
 
-            if (state is null)
-            {
-                var iterable = EvaluateExpression(expression.Expression, environment, context);
-                if (context.ShouldStopEvaluation)
+                if (state is null)
                 {
-                    return iterable;
-                }
+                    var iterable = EvaluateExpression(expression.Expression, environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return iterable;
+                    }
 
-                state = CreateDelegatedState(iterable);
-                StoreDelegatedState(stateKey, environment, state);
-            }
+                    state = CreateDelegatedState(iterable, context);
+                    StoreDelegatedState(stateKey, environment, state);
+                }
 
             var tracker = GetYieldTracker(environment);
             object? pendingSend = null;

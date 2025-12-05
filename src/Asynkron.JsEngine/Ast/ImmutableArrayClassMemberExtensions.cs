@@ -65,6 +65,10 @@ public static partial class TypedAstEvaluator
 
                     typedFunction.EnsureHasName(displayName);
                 }
+                else if (value is IFunctionNameTarget nameTarget)
+                {
+                    nameTarget.EnsureHasName(displayName);
+                }
 
                 member.DefineMember(propertyName, callable, constructorAccessor, prototype);
             }

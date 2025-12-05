@@ -629,22 +629,6 @@ internal static class JsOps
     {
         while (true)
         {
-            if (value is string { Length: > 0 } privateName &&
-                privateName[0] == '#' &&
-                !privateName.Contains('@'))
-            {
-                var resolved = context?.ResolvePrivateNameKey(privateName);
-                if (resolved is not null)
-                {
-                    return resolved;
-                }
-
-                if (context?.CurrentPrivateNameScope is { } privateScope)
-                {
-                    return privateScope.GetKey(privateName);
-                }
-            }
-
             switch (value)
             {
                 case null:

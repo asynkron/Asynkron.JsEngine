@@ -308,11 +308,62 @@ public static partial class TypedAstEvaluator
                     };
                 }
 
+                var isPrivateName = propertyName.Length > 0 && propertyName[0] == '#';
+                PrivateNameScope? privateScopeForAccess = null;
+                if (isPrivateName)
+                {
+                    var resolvedKey = context.ResolvePrivateNameKey(propertyName);
+                    if (resolvedKey is not null &&
+                        PrivateNameScope.TryResolveScope(resolvedKey, out var resolvedScope))
+                    {
+                        propertyName = resolvedKey;
+                        privateScopeForAccess = resolvedScope;
+                    }
+
+                    if (privateScopeForAccess is null && propertyName.Contains("@", StringComparison.Ordinal))
+                    {
+                        PrivateNameScope.TryResolveScope(propertyName, out privateScopeForAccess);
+                    }
+
+                    privateScopeForAccess ??= context.CurrentPrivateNameScope;
+                    if (privateScopeForAccess is null)
+                    {
+                        PrivateNameScope.TryResolveScope(propertyName, out privateScopeForAccess);
+                    }
+
+                    if (privateScopeForAccess is null)
+                    {
+                        throw StandardLibrary.ThrowTypeError("Invalid access of private member", context,
+                            context.RealmState);
+                    }
+
+                    if (resolvedKey is null && !propertyName.Contains("@", StringComparison.Ordinal))
+                    {
+                        propertyName = privateScopeForAccess.GetKey(propertyName);
+                    }
+
+                    var brandToken = privateScopeForAccess.BrandToken;
+                    if (target is not IPrivateBrandHolder brandHolder || !brandHolder.HasPrivateBrand(brandToken))
+                    {
+                        throw StandardLibrary.ThrowTypeError("Invalid access of private member", context,
+                            context.RealmState);
+                    }
+                }
+
                 if (!TryGetPropertyValue(target, propertyName, out var value, context))
                 {
-                    return context.ShouldStopEvaluation
-                        ? (Symbol.Undefined, null, true)
-                        : (Symbol.Undefined, target, false);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return (Symbol.Undefined, null, true);
+                    }
+
+                    if (privateScopeForAccess is not null)
+                    {
+                        throw StandardLibrary.ThrowTypeError("Invalid access of private member", context,
+                            context.RealmState);
+                    }
+
+                    return (Symbol.Undefined, target, false);
                 }
 
                 if (context.ShouldStopEvaluation)

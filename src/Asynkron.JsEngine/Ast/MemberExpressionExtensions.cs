@@ -50,6 +50,13 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
+            if (IsNullish(target) &&
+                (expression.Target is MemberExpression { IsOptional: true } ||
+                 expression.Target is CallExpression { IsOptional: true }))
+            {
+                return Symbol.Undefined;
+            }
+
             if (IsNullish(target))
             {
                 var error = StandardLibrary.CreateTypeError(

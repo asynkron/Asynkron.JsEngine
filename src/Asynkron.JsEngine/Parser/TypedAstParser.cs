@@ -743,6 +743,24 @@ public sealed class TypedAstParser(
 
                 var isStatic = Match(TokenType.Static);
 
+                if (isStatic && (Check(TokenType.Semicolon) || Check(TokenType.Equal)))
+                {
+                    // `static;` or `static = initializer;` should be parsed as an
+                    // instance field whose name is literally "static", not as a
+                    // static member declaration.
+                    ExpressionNode? initializer = null;
+                    if (Match(TokenType.Equal))
+                    {
+                        initializer = ParseExpression(false);
+                    }
+
+                    Match(TokenType.Semicolon);
+                    var fieldToken = Previous();
+                    var field = new ClassField(CreateSourceReference(fieldToken), "static", initializer, false, false);
+                    fields.Add(field);
+                    continue;
+                }
+
                 if (isStatic && Check(TokenType.LeftBrace))
                 {
                     var block = ParseBlock();

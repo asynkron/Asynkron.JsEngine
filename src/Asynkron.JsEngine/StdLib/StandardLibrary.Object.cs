@@ -218,6 +218,8 @@ public static partial class StandardLibrary
 
             // Object.prototype.isPrototypeOf
             objectProtoObj.SetHostedProperty("isPrototypeOf", ObjectPrototypeIsPrototypeOf);
+            objectProtoObj.SetHostedProperty("__lookupGetter__", ObjectPrototypeLookupGetter);
+            objectProtoObj.SetHostedProperty("__lookupSetter__", ObjectPrototypeLookupSetter);
 
             // Also expose Object.hasOwnProperty so patterns like
             // Object.hasOwnProperty.call(obj, key) behave as expected.
@@ -389,6 +391,72 @@ public static partial class StandardLibrary
 
             var desc = accessor.GetOwnPropertyDescriptor(propertyName);
             return desc?.Enumerable == true;
+        }
+
+        object? ObjectPrototypeLookupGetter(object? thisValue, IReadOnlyList<object?> args)
+        {
+            if (!TryGetObject(thisValue, realm, out var obj))
+            {
+                throw ThrowTypeError("__lookupGetter__ called on null or undefined", realm: realm);
+            }
+
+            var propertyName = JsOps.ToPropertyName(args.GetArgument(0));
+            if (propertyName is null)
+            {
+                return Symbol.Undefined;
+            }
+
+            var cursor = obj;
+            while (cursor is not null)
+            {
+                var desc = cursor.GetOwnPropertyDescriptor(propertyName);
+                if (desc is not null)
+                {
+                    if (!desc.IsAccessorDescriptor)
+                    {
+                        return Symbol.Undefined;
+                    }
+
+                    return desc.Get is null ? Symbol.Undefined : desc.Get;
+                }
+
+                cursor = cursor.Prototype;
+            }
+
+            return Symbol.Undefined;
+        }
+
+        object? ObjectPrototypeLookupSetter(object? thisValue, IReadOnlyList<object?> args)
+        {
+            if (!TryGetObject(thisValue, realm, out var obj))
+            {
+                throw ThrowTypeError("__lookupSetter__ called on null or undefined", realm: realm);
+            }
+
+            var propertyName = JsOps.ToPropertyName(args.GetArgument(0));
+            if (propertyName is null)
+            {
+                return Symbol.Undefined;
+            }
+
+            var cursor = obj;
+            while (cursor is not null)
+            {
+                var desc = cursor.GetOwnPropertyDescriptor(propertyName);
+                if (desc is not null)
+                {
+                    if (!desc.IsAccessorDescriptor)
+                    {
+                        return Symbol.Undefined;
+                    }
+
+                    return desc.Set is null ? Symbol.Undefined : desc.Set;
+                }
+
+                cursor = cursor.Prototype;
+            }
+
+            return Symbol.Undefined;
         }
 
         object? ObjectPrototypeIsPrototypeOf(object? thisValue, IReadOnlyList<object?> args)

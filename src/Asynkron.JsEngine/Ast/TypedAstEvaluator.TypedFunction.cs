@@ -682,9 +682,13 @@ public static partial class TypedAstEvaluator
                             return CreateRejectedPromise(thrownDuringBinding, parameterEnvironment);
                         }
 
-                        callingContext?.SetThrow(thrownDuringBinding);
+                        if (callingContext is not null)
+                        {
+                            callingContext.SetThrow(thrownDuringBinding);
+                            return thrownDuringBinding;
+                        }
 
-                        return thrownDuringBinding;
+                        throw new ThrowSignal(thrownDuringBinding);
                     }
 
                     return Symbol.Undefined;
@@ -717,15 +721,24 @@ public static partial class TypedAstEvaluator
                 if (context.IsThrow)
                 {
                     var thrown = context.FlowValue;
+                    _realmState.Logger?.LogInformation(
+                        "InvokeWithContext propagating throw type={ThrowType} callerHasContext={HasCaller} func={FunctionName}",
+                        thrown?.GetType().Name ?? "null",
+                        callingContext is not null,
+                        _function.Name?.Name ?? "<anonymous>");
 
                     if (IsAsyncFunction || _wasAsyncFunction)
                     {
                         return CreateRejectedPromise(thrown, executionEnvironment);
                     }
 
-                    callingContext?.SetThrow(thrown);
+                    if (callingContext is not null)
+                    {
+                        callingContext.SetThrow(thrown);
+                        return thrown;
+                    }
 
-                    return thrown;
+                    throw new ThrowSignal(thrown);
                 }
 
                 if (!IsAsyncFunction)

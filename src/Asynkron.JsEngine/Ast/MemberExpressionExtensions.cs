@@ -2,6 +2,7 @@ using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -114,6 +115,11 @@ public static partial class TypedAstEvaluator
                 }
 
                 var brandToken = privateScopeForAccess.BrandToken;
+                context.RealmState.Logger?.LogInformation(
+                    "Private member access targetType={TargetType} prop={PropertyName} hasBrand={HasBrand}",
+                    target?.GetType().Name ?? "null",
+                    propertyName,
+                    target is IPrivateBrandHolder brandCheck && brandCheck.HasPrivateBrand(brandToken));
                 if (target is not IPrivateBrandHolder brandHolder || !brandHolder.HasPrivateBrand(brandToken))
                 {
                     throw StandardLibrary.ThrowTypeError("Invalid access of private member", context,

@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using Asynkron.JsEngine;
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Xunit;
 
@@ -20,6 +21,11 @@ public class GeneratorYieldSendTests
             [first, second, third];
         ");
 
+        if (result is string error)
+        {
+            throw new Exception($"script error: {error}");
+        }
+
         var steps = Assert.IsType<JsArray>(result);
         var first = Assert.IsType<JsObject>(steps.Items[0]);
         var second = Assert.IsType<JsObject>(steps.Items[1]);
@@ -36,5 +42,54 @@ public class GeneratorYieldSendTests
         Assert.True(third.TryGetProperty("done", out var thirdDone) && thirdDone is bool { } thirdDoneBool &&
                     thirdDoneBool);
         Assert.True(third.TryGetProperty("value", out _));
+    }
+
+    [Fact]
+    public async Task YieldYieldSpreadSuspendsAcrossOperandAndOuterYield()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            let steps;
+            try {
+              function* g(){ yield [...yield yield]; }
+              const iter = g();
+              steps = [iter.next(false), iter.next(['a','b','c']), iter.next('ignored'), iter.next()];
+            } catch (e) {
+              steps = 'err:' + e?.message;
+            }
+            steps;
+        ");
+
+        var steps = Assert.IsType<JsArray>(result);
+        Assert.Equal(4, steps.Items.Count);
+
+        var first = Assert.IsType<JsObject>(steps.Items[0]);
+        var second = Assert.IsType<JsObject>(steps.Items[1]);
+        var third = Assert.IsType<JsObject>(steps.Items[2]);
+        var fourth = Assert.IsType<JsObject>(steps.Items[3]);
+
+        Assert.True(first.TryGetProperty("done", out var firstDone) && firstDone is bool { } fd && fd == false);
+        Assert.True(first.TryGetProperty("value", out var firstValue) && ReferenceEquals(firstValue, Symbol.Undefined));
+
+        if (!second.TryGetProperty("value", out var secondValue))
+        {
+            throw new Exception($"second keys: {string.Join(",", second.Keys)}");
+        }
+        var secondArr = Assert.IsType<JsArray>(secondValue);
+        Assert.Equal(new object?[] { "a", "b", "c" }, secondArr.Items);
+        if (!(second.TryGetProperty("done", out var secondDone) && secondDone is bool { } sd && sd == false))
+        {
+            throw new Exception($"second keys: {string.Join(",", second.Keys)}");
+        }
+
+        Assert.True(third.TryGetProperty("value", out var thirdValue));
+        var thirdArr = Assert.IsType<JsArray>(thirdValue);
+        Assert.Equal(new object?[] { "i", "g", "n", "o", "r", "e", "d" }, thirdArr.Items);
+        Assert.True(third.TryGetProperty("done", out var thirdDone) && thirdDone is bool { } td && td == false);
+
+        if (!(fourth.TryGetProperty("done", out var fourthDone) && fourthDone is bool { } fod && fod))
+        {
+            throw new Exception($"fourth keys: {string.Join(",", fourth.Keys)} value={(fourth.TryGetProperty("value", out var v) ? v : null)}");
+        }
     }
 }

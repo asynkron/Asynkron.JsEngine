@@ -2,6 +2,7 @@ using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -17,15 +18,18 @@ public static partial class TypedAstEvaluator
         private readonly bool _isStrict;
         private readonly RealmState _realmState;
         private readonly YieldResumeContext _resumeContext = new();
+        // Track yield slots that have already produced a value so re-running the body after a
+        // nested suspension skips only those slots (per the generator resumption rules).
+        private readonly HashSet<int> _consumedYieldIndices = new();
         private readonly object? _thisValue;
         private readonly Stack<TryFrame> _tryStack = new();
         private HashSet<Symbol>? _blockedFunctionVarNames;
         private bool _asyncStepMode;
         private EvaluationContext? _context;
         private int _currentInstructionIndex;
-        private int _currentYieldIndex;
         private bool _done;
         private JsEnvironment? _executionEnvironment;
+        private int _lastYieldIndex = -1;
 
         private Symbol? _pendingAwaitKey;
         private object? _pendingPromise;
@@ -351,7 +355,7 @@ public static partial class TypedAstEvaluator
 
             var environment = EnsureExecutionEnvironment();
             var context = EnsureEvaluationContext();
-            StoreSymbolValue(environment, Symbol.YieldTrackerSymbol, new YieldTracker(_currentYieldIndex));
+            StoreSymbolValue(environment, Symbol.YieldTrackerSymbol, new YieldTracker(_consumedYieldIndices));
 
             // If we are resuming after a pending await, thread the resolved
             // value into the per-site await state so subsequent evaluations
@@ -423,9 +427,9 @@ public static partial class TypedAstEvaluator
                             if (context.IsYield)
                             {
                                 var yieldedSignalValue = context.FlowValue;
+                                RecordYield(context);
                                 context.Clear();
                                 _state = GeneratorState.Suspended;
-                                _currentYieldIndex++;
                                 return CreateIteratorResult(yieldedSignalValue, false);
                             }
 
@@ -463,7 +467,7 @@ public static partial class TypedAstEvaluator
                             _programCounter = yieldedDuringOperand
                                 ? _currentInstructionIndex
                                 : yieldInstruction.Next;
-                            _currentYieldIndex++;
+                            RecordYield(context);
                             _state = GeneratorState.Suspended;
                             return CreateIteratorResult(yieldedValue, false);
 
@@ -1179,18 +1183,18 @@ public static partial class TypedAstEvaluator
 
                 _executionEnvironment ??= CreateExecutionEnvironment();
 
-                if (!wasStart && _currentYieldIndex > 0)
+                if (!wasStart && _lastYieldIndex >= 0)
                 {
                     switch (mode)
                     {
                         case ResumeMode.Throw:
-                            _resumeContext.SetException(_currentYieldIndex - 1, value);
+                            _resumeContext.SetException(_lastYieldIndex, value);
                             break;
                         case ResumeMode.Return:
-                            _resumeContext.SetReturn(_currentYieldIndex - 1, value);
+                            _resumeContext.SetReturn(_lastYieldIndex, value);
                             break;
                         default:
-                            _resumeContext.SetValue(_currentYieldIndex - 1, value);
+                            _resumeContext.SetValue(_lastYieldIndex, value);
                             break;
                     }
                 }
@@ -1199,7 +1203,7 @@ public static partial class TypedAstEvaluator
                     ScopeKind.Function,
                     DetermineGeneratorScopeMode(),
                     true);
-                _executionEnvironment.Define(Symbol.YieldTrackerSymbol, new YieldTracker(_currentYieldIndex));
+                _executionEnvironment.Define(Symbol.YieldTrackerSymbol, new YieldTracker(_consumedYieldIndices));
 
                 var result = EvaluateBlock(
                     _function.Body,
@@ -1220,9 +1224,9 @@ public static partial class TypedAstEvaluator
                 if (context.IsYield)
                 {
                     var yielded = context.FlowValue;
+                    RecordYield(context);
                     context.Clear();
                     _state = GeneratorState.Suspended;
-                    _currentYieldIndex++;
                     return CreateIteratorResult(yielded, false);
                 }
 
@@ -1348,6 +1352,17 @@ public static partial class TypedAstEvaluator
             return result;
         }
 
+        private void RecordYield(EvaluationContext context)
+        {
+            // Remember the active yield slot so the next resume value is applied to the
+            // right YieldExpression (ECMA-262 GeneratorResume, step threading of sent values).
+            _lastYieldIndex = context.LastYieldIndex;
+            if (_lastYieldIndex >= 0)
+            {
+                _consumedYieldIndices.Add(_lastYieldIndex);
+            }
+        }
+
 
         private void PreparePendingResumeValue(ResumeMode mode, object? resumeValue, bool wasStart)
         {
@@ -1373,12 +1388,18 @@ public static partial class TypedAstEvaluator
 
             _pendingResumeValue = resumeValue;
 
-            if (_currentYieldIndex <= 0)
+            _realmState.Logger?.LogInformation(
+                "PrepareResume yieldIndex={YieldIndex} kind={Kind} valueType={Type}",
+                _lastYieldIndex,
+                _pendingResumeKind,
+                resumeValue?.GetType().Name ?? "null");
+
+            if (_lastYieldIndex < 0)
             {
                 return;
             }
 
-            var resumeSlotIndex = _currentYieldIndex - 1;
+            var resumeSlotIndex = _lastYieldIndex;
             switch (_pendingResumeKind)
             {
                 case ResumePayloadKind.Throw:

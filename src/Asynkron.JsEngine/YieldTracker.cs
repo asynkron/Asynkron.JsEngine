@@ -1,13 +1,14 @@
+using System.Collections.Generic;
+
 namespace Asynkron.JsEngine;
 
 /// <summary>
 ///     Tracks progress through a generator's yield points so re-executing the
 ///     generator body can skip values that have already been produced.
 /// </summary>
-public sealed class YieldTracker(int skipCount)
+public sealed class YieldTracker(ISet<int> consumedYieldIndices)
 {
-    public int SkipCount { get; } = skipCount;
-
+    private readonly ISet<int> _consumed = consumedYieldIndices;
     private int _currentIndex;
 
     public int CurrentIndex => _currentIndex;
@@ -24,8 +25,12 @@ public sealed class YieldTracker(int skipCount)
     public bool ShouldYield(out int yieldIndex)
     {
         yieldIndex = _currentIndex;
-        var should = _currentIndex >= SkipCount;
         _currentIndex++;
-        return should;
+        return !_consumed.Contains(yieldIndex);
+    }
+
+    public void MarkConsumed(int yieldIndex)
+    {
+        _consumed.Add(yieldIndex);
     }
 }

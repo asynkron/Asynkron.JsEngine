@@ -75,6 +75,11 @@ public sealed class EvaluationContext(
     public ISignal? CurrentSignal { get; private set; }
 
     /// <summary>
+    ///     The yield slot index that produced the most recent suspension.
+    /// </summary>
+    public int LastYieldIndex { get; private set; } = -1;
+
+    /// <summary>
     ///     Tracks dynamic call depth to guard against uncontrolled recursion.
     /// </summary>
     public int CallDepth { get; set; }
@@ -303,8 +308,9 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     Sets the context to Yield state with the given value.
     /// </summary>
-    public void SetYield(object? value)
+    public void SetYield(object? value, int yieldIndex)
     {
+        LastYieldIndex = yieldIndex;
         CurrentSignal = new YieldSignal(value);
     }
 

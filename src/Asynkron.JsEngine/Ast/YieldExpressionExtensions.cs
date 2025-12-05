@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
@@ -15,23 +17,24 @@ public static partial class TypedAstEvaluator
         private object? EvaluateSimpleYield(JsEnvironment environment,
             EvaluationContext context)
         {
-            var yieldedValue = expression.Expression is null
-                ? Symbol.Undefined
-                : EvaluateExpression(expression.Expression, environment, context);
-            if (context.ShouldStopEvaluation)
-            {
-                return yieldedValue;
-            }
-
+            var logger = environment.RealmState?.Logger;
             var yieldTracker = GetYieldTracker(environment);
-            var yieldIndex = yieldTracker.Advance();
-            if (yieldIndex < yieldTracker.SkipCount)
+            var shouldYield = yieldTracker.ShouldYield(out var yieldIndex);
+            if (!shouldYield)
             {
                 var payload = GetResumePayload(environment, yieldIndex);
                 if (!payload.HasValue)
                 {
+                    logger?.LogInformation("Yield skip without payload index={Index}", yieldIndex);
                     return Symbol.Undefined;
                 }
+
+                logger?.LogInformation(
+                    "Yield skip uses payload index={Index} throw={Throw} return={Return} type={Type}",
+                    yieldIndex,
+                    payload.IsThrow,
+                    payload.IsReturn,
+                    payload.Value?.GetType().Name ?? "null");
 
                 if (payload.IsThrow)
                 {
@@ -48,7 +51,16 @@ public static partial class TypedAstEvaluator
                 return payload.Value;
             }
 
-            context.SetYield(yieldedValue);
+            var yieldedValue = expression.Expression is null
+                ? Symbol.Undefined
+                : EvaluateExpression(expression.Expression, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return yieldedValue;
+            }
+
+            context.SetYield(yieldedValue, yieldIndex);
+            yieldTracker.MarkConsumed(yieldIndex);
             return yieldedValue;
         }
 
@@ -149,7 +161,8 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
-                context.SetYield(value);
+                context.SetYield(value, yieldIndex);
+                tracker.MarkConsumed(yieldIndex);
                 return value;
             }
         }
@@ -164,5 +177,6 @@ public static partial class TypedAstEvaluator
             var key = $"__yield_delegate_{expression.Source.StartPosition}_{expression.Source.EndPosition}";
             return Symbol.Intern(key);
         }
+
     }
 }

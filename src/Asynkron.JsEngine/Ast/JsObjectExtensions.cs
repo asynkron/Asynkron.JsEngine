@@ -9,18 +9,21 @@ public static partial class TypedAstEvaluator
 {
     extension(JsObject iterator)
     {
-        private object? InvokeIteratorNext(object? sendValue = null, bool hasSendValue = false)
+        private object? InvokeIteratorNext(object? sendValue = null, bool hasSendValue = false,
+            EvaluationContext? context = null, JsEnvironment? callingEnvironment = null)
         {
-            var nextCallable = iterator.GetIteratorNextCallable(context: null);
-            return iterator.InvokeIteratorNext(nextCallable, sendValue, hasSendValue);
+            var nextCallable = iterator.GetIteratorNextCallable(context);
+            return iterator.InvokeIteratorNext(nextCallable, sendValue, hasSendValue, context, callingEnvironment);
         }
 
         private object? InvokeIteratorNext(IJsCallable nextMethod,
             object? sendValue = null,
-            bool hasSendValue = false)
+            bool hasSendValue = false,
+            EvaluationContext? context = null,
+            JsEnvironment? callingEnvironment = null)
         {
             var args = hasSendValue ? new[] { sendValue } : Array.Empty<object?>();
-            return nextMethod.Invoke(args, iterator);
+            return InvokeCallable(nextMethod, args, iterator, context, callingEnvironment);
         }
 
         private IJsCallable GetIteratorNextCallable(EvaluationContext? context)
@@ -62,7 +65,7 @@ public static partial class TypedAstEvaluator
             }
 
             var args = hasArgument ? new[] { argument } : Array.Empty<object?>();
-            result = callable.Invoke(args, iterator);
+            result = InvokeCallable(callable, args, iterator, context, iterator.RealmState?.Engine?.GlobalEnvironment);
             return true;
         }
 

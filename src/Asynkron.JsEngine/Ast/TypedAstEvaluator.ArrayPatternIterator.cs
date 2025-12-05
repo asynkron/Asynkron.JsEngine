@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Ast;
@@ -26,14 +27,14 @@ public static partial class TypedAstEvaluator
             }
 
             _nextMethod ??= _iterator.GetIteratorNextCallable(context);
-            var candidate = _iterator.InvokeIteratorNext(_nextMethod);
+            var candidate = _iterator.InvokeIteratorNext(_nextMethod, context: context);
             if (candidate is not JsObject result)
             {
                 throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);
             }
 
             var done = result.TryGetProperty("done", out var doneValue) &&
-                       doneValue is bool and true;
+                       JsOps.ToBoolean(doneValue);
 
             if (done)
             {

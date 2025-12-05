@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Ast;
@@ -33,7 +34,10 @@ public static partial class TypedAstEvaluator
                 object? nextResult = null;
                 if (state.IteratorObject is not null)
                 {
-                    nextResult = state.IteratorObject.InvokeIteratorNext(state.NextMethod!);
+                    nextResult = state.IteratorObject.InvokeIteratorNext(
+                        state.NextMethod!,
+                        context: context,
+                        callingEnvironment: loopEnvironment);
                 }
                 else if (state.Enumerator is not null)
                 {
@@ -45,10 +49,16 @@ public static partial class TypedAstEvaluator
                     nextResult = state.Enumerator.Current;
                 }
 
+                if (context.IsThrow)
+                {
+                    iteratorDone = true;
+                    return lastValue;
+                }
+
                 if (nextResult is JsObject resultObj)
                 {
                     var done = resultObj.TryGetProperty("done", out var doneValue) &&
-                               doneValue is bool and true;
+                               JsOps.ToBoolean(doneValue);
                     if (done)
                     {
                         iteratorDone = true;
@@ -104,12 +114,7 @@ public static partial class TypedAstEvaluator
                     {
                         var typeError = StandardLibrary.CreateTypeError(
                             "Iterator.next() did not return an object", context, context.RealmState);
-                        if (!iteratorDone)
-                        {
-                            IteratorClose(state.IteratorObject, context, preserveExistingThrow: true);
-                            iteratorDone = true;
-                        }
-
+                        iteratorDone = true;
                         context.SetThrow(typeError);
                         return EmptyCompletion;
                     }

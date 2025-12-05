@@ -288,7 +288,7 @@ internal static class AssignmentReferenceResolver
                     return;
                 }
 
-                ownDescriptor.Set.Invoke([value], receiver);
+                TypedAstEvaluator.InvokeCallable(ownDescriptor.Set, [value], receiver, context);
                 return;
             }
 
@@ -310,7 +310,7 @@ internal static class AssignmentReferenceResolver
         var inheritedSetter = target.GetSetter(propertyName);
         if (inheritedSetter is not null)
         {
-            inheritedSetter.Invoke([value], receiver);
+            TypedAstEvaluator.InvokeCallable(inheritedSetter, [value], receiver, context);
             return;
         }
 
@@ -335,7 +335,7 @@ internal static class AssignmentReferenceResolver
                         return;
                     }
 
-                    inheritedDescriptor.Set.Invoke([value], receiver);
+                    TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [value], receiver, context);
                     return;
                 }
 

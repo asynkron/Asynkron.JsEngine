@@ -794,7 +794,10 @@ public static partial class TypedAstEvaluator
                                 if (driverState.IteratorObject is JsObject iteratorObj)
                                 {
                                     driverState.NextMethod ??= iteratorObj.GetIteratorNextCallable(context);
-                                    var nextResult = iteratorObj.InvokeIteratorNext(driverState.NextMethod!);
+                                    var nextResult = iteratorObj.InvokeIteratorNext(
+                                        driverState.NextMethod!,
+                                        context: context,
+                                        callingEnvironment: environment);
                                     if (nextResult is not JsObject resultObj)
                                     {
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
@@ -802,7 +805,7 @@ public static partial class TypedAstEvaluator
                                     }
 
                                     var done = resultObj.TryGetProperty("done", out var doneValue) &&
-                                               doneValue is bool and true;
+                                               JsOps.ToBoolean(doneValue);
                                     if (done)
                                     {
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
@@ -884,7 +887,10 @@ public static partial class TypedAstEvaluator
                                 if (awaitedNextResult is null)
                                 {
                                     driverState.NextMethod ??= awaitIteratorObj.GetIteratorNextCallable(context);
-                                    var nextResult = awaitIteratorObj.InvokeIteratorNext(driverState.NextMethod!);
+                                    var nextResult = awaitIteratorObj.InvokeIteratorNext(
+                                        driverState.NextMethod!,
+                                        context: context,
+                                        callingEnvironment: environment);
                                     if (!TryAwaitPromiseOrSchedule(nextResult, context, out var awaitedNext))
                                     {
                                         if (_asyncStepMode && _pendingPromise is JsObject)

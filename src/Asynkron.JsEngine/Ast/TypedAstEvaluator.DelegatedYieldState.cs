@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Ast;
@@ -63,7 +64,7 @@ public static partial class TypedAstEvaluator
                 else
                 {
                     _nextMethod ??= _iterator.GetIteratorNextCallable(context);
-                    candidate = _iterator.InvokeIteratorNext(_nextMethod, sendValue, hasSendValue);
+                    candidate = _iterator.InvokeIteratorNext(_nextMethod, sendValue, hasSendValue, context);
                 }
 
                 if (!methodInvoked && candidate is null)
@@ -99,7 +100,7 @@ public static partial class TypedAstEvaluator
                 nextResult = resolvedObject;
 
                 var done = nextResult.TryGetProperty("done", out var doneValue) &&
-                           doneValue is bool and true;
+                           JsOps.ToBoolean(doneValue);
                 var value = nextResult.TryGetProperty("value", out var yielded)
                     ? yielded
                     : Symbol.Undefined;

@@ -10,21 +10,30 @@ internal static class Program
         await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             (function () {
-              try {
-                const MyUint8Array = class MyUint8Array extends Uint8Array {};
-                const rab = new ArrayBuffer(4, { maxByteLength: 8 });
-                const view = new MyUint8Array(rab, 0, 4);
-                return {
-                  isView: ArrayBuffer.isView(view),
-                  length: view?.length,
-                  ctor: view?.constructor?.name,
-                  protoCtor: Object.getPrototypeOf(view)?.constructor?.name,
-                  hasBuffer: !!view?.buffer,
-                  bufferLength: view?.buffer?.byteLength
-                };
-              } catch (e) {
-                return { error: e?.message, stack: e?.stack, ctor: e?.constructor?.name };
+              function assertThrows(f) {
+                try { f(); }
+                catch (e) { return { caught: true, ctor: e?.constructor?.name, msg: e?.message }; }
+                return { caught: false };
               }
+
+              var iterable = {};
+              var firstIterResult;
+              iterable[Symbol.iterator] = function() {
+                var finalIterResult = { value: null, done: true };
+                var nextIterResult = firstIterResult;
+                return {
+                  next: function() {
+                    var iterResult = nextIterResult;
+                    nextIterResult = finalIterResult;
+                    return iterResult;
+                  }
+                };
+              };
+
+              firstIterResult = true;
+              return assertThrows(function() {
+                for (var x of iterable) {}
+              });
             })();
             """);
 

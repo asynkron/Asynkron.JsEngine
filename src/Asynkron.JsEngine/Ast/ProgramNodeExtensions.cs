@@ -109,8 +109,7 @@ public static partial class TypedAstEvaluator
             foreach (var statement in program.Body)
             {
                 context.ThrowIfCancellationRequested();
-                var completion = EvaluateStatement(statement, executionEnvironment, context);
-                result = completion;
+                result = EvaluateStatement(statement, executionEnvironment, context);
 
                 if (context.ShouldStopEvaluation)
                 {

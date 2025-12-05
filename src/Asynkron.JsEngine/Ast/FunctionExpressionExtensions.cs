@@ -373,6 +373,12 @@ public static partial class TypedAstEvaluator
                     context.CurrentScope.IsStrict, functionNameEnvironment is not null)
             };
 
+            if (callable is TypedFunction typed && context.CurrentPrivateNameScope is not null &&
+                typed.PrivateNameScope is null)
+            {
+                typed.SetPrivateNameScope(context.CurrentPrivateNameScope);
+            }
+
             if (functionNameEnvironment is not null)
             {
                 functionNameEnvironment.Define(functionExpression.Name!, callable,

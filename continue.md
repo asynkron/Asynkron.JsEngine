@@ -8,8 +8,9 @@
 - `%TypedArray%.prototype` iterators now ValidateTypedArray on entry, have correct property descriptors/length/name, and are non-constructors. Array iterator `next` skips out-of-bounds checks once exhausted and `byteOffset` reports 0 when detached/out-of-bounds. `TypedArray_prototype_entries/keys/values` resizable-buffer slices are passing.
 - Array `find`/`findIndex`/`findLast`/`findLastIndex` call the callback for every index in the initial `length` (including holes) and behave correctly with mutations. TypedArray gained spec-compliant `find`/`findIndex`/`findLast`/`findLastIndex`, including ValidateTypedArray upfront and tolerant mid-iteration detach/out-of-bounds (IntegerIndexedElementGet semantics). All related Test262 groups now green.
 - Eval early errors for class field initializers now traverse nested function/object bodies: we reject `super` calls/references, `arguments` (direct eval), and `new.target` (direct and indirect eval) when they appear anywhere in the eval code while running inside a field initializer.
+- Class field computed property names now resolve at class definition time; non-callable or non-primitive `@@toPrimitive` results throw TypeError (including computed-name-toprimitive Test262 cases).
 
 ## Next Iteration Plan
-1. Re-run the `LanguageTests.Expressions_class_elements` slice to confirm the broader early-error traversal fixes `super`/`new.target`/`arguments` eval failures in class fields.
-2. If failures remain, compare the thrown error types to spec expectations (SyntaxError vs TypeError) and expand the traversal to any missed AST shapes (e.g., class expressions/static blocks) with realm logger breadcrumbs.
+1. Re-run the `LanguageTests.Expressions_class_elements` slice to see what remains after the computed-name `@@toPrimitive` fixes (super/new.target/arguments early errors, private fields, etc.).
+2. For any remaining class-element failures, compare thrown error types to spec expectations (SyntaxError vs TypeError) and expand traversal/logging to any missed AST shapes (e.g., class expressions/static blocks).
 3. Once class-element eval errors are green, return to the outstanding resizable Array/TypedArray enumeration/ownKeys failures and retune any noisy realm logging.

@@ -266,7 +266,18 @@ internal static class JsOps
 
         var toPrimitiveKey = TypedAstSymbol.For("Symbol.toPrimitive");
         var symbolPropertyName = $"@@symbol:{toPrimitiveKey.GetHashCode()}";
-        if (accessor.TryGetProperty(symbolPropertyName, out var toPrimitive))
+        object? toPrimitive = null;
+
+        if (accessor is JsObject valueObject && valueObject.TryGetValue(symbolPropertyName, out var ownToPrimitive))
+        {
+            toPrimitive = ownToPrimitive;
+        }
+        else if (accessor.TryGetProperty(symbolPropertyName, out var inheritedToPrimitive))
+        {
+            toPrimitive = inheritedToPrimitive;
+        }
+
+        if (toPrimitive is not null)
         {
             if (!IsNullish(toPrimitive) && toPrimitive is not IJsCallable)
             {

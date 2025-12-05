@@ -57,7 +57,15 @@ public static partial class TypedAstEvaluator
             {
                 typedFunction.SetSuperBinding(superConstructor, superPrototype);
                 var instanceFields = definition.Fields.Where(field => !field.IsStatic).ToImmutableArray();
-                typedFunction.SetInstanceFields(instanceFields);
+                var resolvedInstanceFields =
+                    ResolveInstanceFieldNames(definition, instanceFields, evaluationEnvironment, context,
+                        privateNameScope);
+                if (context.ShouldStopEvaluation)
+                {
+                    return Symbol.Undefined;
+                }
+
+                typedFunction.SetInstanceFields(resolvedInstanceFields);
                 typedFunction.SetIsClassConstructor(superConstructor is not null);
                 typedFunction.SetPrivateNameScope(privateNameScope);
                 if (privateNameScope is not null)
@@ -113,6 +121,43 @@ public static partial class TypedAstEvaluator
             var hasPrivateFields = definition.Fields.Any(f => f.IsPrivate);
             var hasPrivateMembers = definition.Members.Any(m => m.Name.Length > 0 && m.Name[0] == '#');
             return hasPrivateFields || hasPrivateMembers ? new PrivateNameScope() : null;
+        }
+
+        // ClassFieldDefinitionEvaluation evaluates computed field names during class evaluation,
+        // so resolve instance field keys eagerly instead of per-construction.
+        private ImmutableArray<ClassField> ResolveInstanceFieldNames(
+            ImmutableArray<ClassField> fields,
+            JsEnvironment environment,
+            EvaluationContext context,
+            PrivateNameScope? privateNameScope)
+        {
+            if (fields.IsDefaultOrEmpty)
+            {
+                return fields;
+            }
+
+            var builder = ImmutableArray.CreateBuilder<ClassField>(fields.Length);
+            foreach (var field in fields)
+            {
+                var propertyName = field.Name;
+                if (!field.TryResolveFieldName(expr => EvaluateExpression(expr, environment, context),
+                        context,
+                        privateNameScope,
+                        out propertyName))
+                {
+                    return fields;
+                }
+
+                builder.Add(field with
+                {
+                    Name = propertyName,
+                    IsComputed = false,
+                    ComputedName = null,
+                    IsPrivate = false
+                });
+            }
+
+            return builder.ToImmutable();
         }
     }
 

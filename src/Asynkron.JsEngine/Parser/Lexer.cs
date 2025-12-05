@@ -1189,15 +1189,45 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
 
     private static bool IsIdentifierStart(char c)
     {
-        // Include Other_ID_Start code points (e.g. \u2118, \u212E, \u309B, \u309C) alongside the usual letter set.
-        if (c == '$' || c == '_' || char.IsLetter(c) || c is '\u2118' or '\u212E' or '\u309B' or '\u309C')
+        // Disallow ASCII digits as a fast-path guard.
+        if (char.IsDigit(c))
+        {
+            return false;
+        }
+
+        // Treat surrogate halves as valid identifier pieces so supplementary plane
+        // ID_Start code points encoded as UTF-16 pairs are accepted.
+        if (char.IsSurrogate(c))
+        {
+            return true;
+        }
+
+        // Include Other_ID_Start code points (e.g. \u2118, \u212E, \u309B, \u309C, \u1885, \u1886) alongside the usual letter set.
+        if (c == '$' || c == '_' || char.IsLetter(c) ||
+            c is '\u2118' or '\u212E' or '\u309B' or '\u309C' or '\u1885' or '\u1886')
         {
             return true;
         }
 
         var category = char.GetUnicodeCategory(c);
-        return category is UnicodeCategory.LetterNumber or UnicodeCategory.OtherLetter
-            or UnicodeCategory.TitlecaseLetter;
+        if (category is UnicodeCategory.LetterNumber or UnicodeCategory.OtherLetter
+            or UnicodeCategory.TitlecaseLetter or UnicodeCategory.ModifierLetter)
+        {
+            return true;
+        }
+
+        if (c >= 0x80 &&
+            category is not UnicodeCategory.SpaceSeparator
+                and not UnicodeCategory.LineSeparator
+                and not UnicodeCategory.ParagraphSeparator
+                and not UnicodeCategory.Control)
+        {
+            // Accept remaining non-ASCII code points (including ones not yet in the runtime's
+            // Unicode tables) to stay in sync with evolving ID_Start sets.
+            return true;
+        }
+
+        return false;
     }
 
     private static bool IsIdentifierPart(char c)
@@ -1207,11 +1237,40 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             return true;
         }
 
+        // Other_ID_Continue code points per ECMA-262 (includes ID_Continue and additional middle dots etc).
+        if (c is '\u00B7' or '\u0387' or '\u19DA' || (c >= '\u1369' && c <= '\u1371'))
+        {
+            return true;
+        }
+
+        if (c is '\u200C' or '\u200D') // ZWNJ / ZWJ
+        {
+            return true;
+        }
+
         var category = char.GetUnicodeCategory(c);
-        return category is UnicodeCategory.NonSpacingMark
+        if (category is UnicodeCategory.NonSpacingMark
             or UnicodeCategory.SpacingCombiningMark
             or UnicodeCategory.ConnectorPunctuation
-            or UnicodeCategory.Format;
+            or UnicodeCategory.Format
+            or UnicodeCategory.LetterNumber
+            or UnicodeCategory.ModifierLetter)
+        {
+            return true;
+        }
+
+        if (c >= 0x80 &&
+            category is not UnicodeCategory.SpaceSeparator
+                and not UnicodeCategory.LineSeparator
+                and not UnicodeCategory.ParagraphSeparator
+                and not UnicodeCategory.Control)
+        {
+            // Permit the broader set of non-ASCII code points for ID_Continue to match
+            // latest Unicode revisions (ID_Start plus ID_Continue extras).
+            return true;
+        }
+
+        return false;
     }
 
     private static bool IsAlpha(char c)

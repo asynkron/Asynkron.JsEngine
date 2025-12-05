@@ -489,6 +489,63 @@ public class JsEvaluatorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ComputedFieldsInterleaveStaticsAndInstancesInDeclarationOrder()
+    {
+        await using var engine = new JsEngine();
+        static void AssertIntercalation(object? outcome)
+        {
+            var result = Assert.IsAssignableFrom<IDictionary<string, object?>>(outcome);
+            Assert.Equal(6d, result["i"]);
+            Assert.Equal(4d, result["c0"]);
+            Assert.Equal(5d, result["c2"]);
+            Assert.Equal(3d, result["s1"]);
+            Assert.False(JsOps.ToBoolean(result["cHas1"]));
+            Assert.False(JsOps.ToBoolean(result["sHas0"]));
+            Assert.False(JsOps.ToBoolean(result["sHas2"]));
+        }
+
+        var declarationOutcome = await engine.Evaluate("""
+                                                       let i = 0;
+                                                       class C {
+                                                         [i++] = i++;
+                                                         static [i++] = i++;
+                                                         [i++] = i++;
+                                                       }
+                                                       let c = new C();
+                                                       ({
+                                                         i,
+                                                         c0: c[0],
+                                                         c2: c[2],
+                                                         s1: C[1],
+                                                         cHas1: c.hasOwnProperty('1'),
+                                                         sHas0: C.hasOwnProperty('0'),
+                                                         sHas2: C.hasOwnProperty('2')
+                                                       });
+                                                       """);
+        AssertIntercalation(declarationOutcome);
+
+        var expressionOutcome = await engine.Evaluate("""
+                                                      let i = 0;
+                                                      var C = class {
+                                                        [i++] = i++;
+                                                        static [i++] = i++;
+                                                        [i++] = i++;
+                                                      };
+                                                      let c = new C();
+                                                      ({
+                                                        i,
+                                                        c0: c[0],
+                                                        c2: c[2],
+                                                        s1: C[1],
+                                                        cHas1: c.hasOwnProperty('1'),
+                                                        sHas0: C.hasOwnProperty('0'),
+                                                        sHas2: C.hasOwnProperty('2')
+                                                      });
+                                                      """);
+        AssertIntercalation(expressionOutcome);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task MethodClosuresCanReachThisViaCapturedReference()
     {
         await using var engine = new JsEngine();

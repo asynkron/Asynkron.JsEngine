@@ -961,6 +961,12 @@ public static partial class TypedAstEvaluator
                     propertyName = PrivateNameScope.GetKey(propertyName);
                 }
 
+                context.RealmState.Logger?.LogInformation(
+                    "Initializing instance field '{PropertyName}' (computed={IsComputed}, private={IsPrivate})",
+                    propertyName,
+                    field.IsComputed,
+                    field.IsPrivate);
+
                 object? value = Symbol.Undefined;
                 if (field.Initializer is not null)
                 {

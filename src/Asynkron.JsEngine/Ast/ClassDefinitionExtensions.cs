@@ -2,6 +2,7 @@ using System;
 using System.Collections.Immutable;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -26,6 +27,12 @@ public static partial class TypedAstEvaluator
             }
 
             var privateNameScope = CreatePrivateNameScope(definition);
+            context.RealmState.Logger?.LogInformation(
+                "Class evaluation start: name='{Name}', fields={FieldCount}, staticElements={StaticCount}, envStrict={EnvStrict}",
+                className?.Name ?? "<anonymous>",
+                definition.Fields.Length,
+                definition.StaticElements.Length,
+                evaluationEnvironment.IsStrict);
             var resolvedFields =
                 ResolveFieldNames(definition, definition.Fields, evaluationEnvironment, context, privateNameScope);
             if (context.ShouldStopEvaluation)
@@ -152,8 +159,21 @@ public static partial class TypedAstEvaluator
                         privateNameScope,
                         out propertyName))
                 {
+                    context.RealmState.Logger?.LogInformation(
+                        "Class field name resolution aborted (computed={IsComputed}, static={IsStatic}, private={IsPrivate})",
+                        field.IsComputed,
+                        field.IsStatic,
+                        field.IsPrivate);
                     return fields;
                 }
+
+                context.RealmState.Logger?.LogInformation(
+                    "Class field resolved name: original='{Original}' resolved='{Resolved}' (computed={IsComputed}, static={IsStatic}, private={IsPrivate})",
+                    field.Name,
+                    propertyName,
+                    field.IsComputed,
+                    field.IsStatic,
+                    field.IsPrivate);
 
                 builder.Add(field with
                 {
@@ -226,6 +246,10 @@ public static partial class TypedAstEvaluator
             {
                 case ClassStaticElementKind.Field:
                     var field = resolvedFields[element.Index];
+                    context.RealmState.Logger?.LogInformation(
+                        "Initializing static field '{Name}' (index {Index})",
+                        field.Name,
+                        element.Index);
                     if (!field.TryInitializeStaticField(
                             constructorAccessor,
                             expr => EvaluateStaticFieldExpression(expr, constructorAccessor, environment, context),

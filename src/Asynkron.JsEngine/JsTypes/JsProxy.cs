@@ -129,7 +129,6 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public void SetPrototype(object? candidate)
     {
-        Target.SetPrototype(candidate);
         _meta.SetPrototype(candidate);
     }
 

@@ -119,59 +119,23 @@ internal static class AssignmentReferenceResolver
                 return propertyNameCache;
             }
 
+            TypedAstEvaluator.PropertyHandle GetHandle()
+            {
+                var propertyName = GetPropertyName();
+                return TypedAstEvaluator.PropertyHandle.Resolve(target, propertyName, context,
+                    context.CurrentScope.IsStrict);
+            }
+
             return new AssignmentReference(
                 () =>
                 {
-                    var propertyName = GetPropertyName();
-
-                    if (target is JsArray jsArray &&
-                        JsOps.TryResolveArrayIndex(propertyName, out var arrayIndex, context))
-                    {
-                        return jsArray.GetElement(arrayIndex);
-                    }
-
-                    if (target is TypedArrayBase typedArray &&
-                        JsOps.TryResolveArrayIndex(propertyName, out var typedIndex, context))
-                    {
-                        return typedIndex >= 0 && typedIndex < typedArray.Length
-                            ? typedArray.GetElement(typedIndex)
-                            : Symbol.Undefined;
-                    }
-
-                    return JsOps.TryGetPropertyValue(target, propertyName, out var value)
-                        ? value
-                        : Symbol.Undefined;
+                    var handle = GetHandle();
+                    return handle.GetValue();
                 },
                 newValue =>
                 {
-                    var propertyName = GetPropertyName();
-
-                    if (target is JsArray jsArray &&
-                        JsOps.TryResolveArrayIndex(propertyName, out var arrayIndex, context))
-                    {
-                        jsArray.SetElement(arrayIndex, newValue);
-                        return;
-                    }
-
-                    if (target is TypedArrayBase typedArray &&
-                        JsOps.TryResolveArrayIndex(propertyName, out var typedIndex, context))
-                    {
-                        if (typedIndex >= 0 && typedIndex < typedArray.Length)
-                        {
-                            typedArray.SetElement(typedIndex, JsOps.ToNumber(newValue));
-                        }
-
-                        return;
-                    }
-
-                    if (target is JsObject jsObject)
-                    {
-                        AssignObjectProperty(jsObject, propertyName, newValue, context.CurrentScope.IsStrict, context,
-                            context.RealmState, target);
-                        return;
-                    }
-
-                    JsOps.AssignPropertyValueByName(target, propertyName, newValue);
+                    var handle = GetHandle();
+                    handle.SetValue(newValue);
                 });
         }
 
@@ -198,41 +162,11 @@ internal static class AssignmentReferenceResolver
                 });
         }
 
-        var propertyName = JsOps.GetRequiredPropertyName(propertyValue, context);
-        var isPrivateName = propertyName.IsPrivateName();
-        if (isPrivateName)
-        {
-            var privateScope = context.CurrentPrivateNameScope;
-            if (privateScope is null)
-            {
-                PrivateNameScope.TryResolveScope(propertyName, out privateScope);
-            }
-
-            if (privateScope is null)
-            {
-                throw StandardLibrary.ThrowTypeError("Invalid access of private member", context, context.RealmState);
-            }
-
-            var brandToken = privateScope.BrandToken;
-            if (target is not IPrivateBrandHolder brandHolder || !brandHolder.HasPrivateBrand(brandToken))
-            {
-                throw StandardLibrary.ThrowTypeError("Invalid access of private member", context, context.RealmState);
-            }
-        }
-
+        var handle = TypedAstEvaluator.PropertyHandle.Resolve(target, propertyValue, context,
+            context.CurrentScope.IsStrict);
         return new AssignmentReference(
-            () => JsOps.TryGetPropertyValue(target, propertyName, out var value) ? value : Symbol.Undefined,
-            newValue =>
-            {
-                if (target is JsObject jsObject)
-                {
-                    AssignObjectProperty(jsObject, propertyName, newValue, context.CurrentScope.IsStrict, context,
-                        context.RealmState, target);
-                    return;
-                }
-
-                JsOps.AssignPropertyValueByName(target, propertyName, newValue);
-            });
+            () => handle.GetValue(),
+            newValue => handle.SetValue(newValue));
     }
 
     internal static object? ReadIdentifierValue(Func<object?> getter, EvaluationContext context)

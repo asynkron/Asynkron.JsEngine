@@ -81,63 +81,9 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
-            var isPrivateName = propertyName.IsPrivateName();
-            PrivateNameScope? privateScopeForAccess = null;
-            if (isPrivateName)
-            {
-                var resolvedKey = context.ResolvePrivateNameKey(propertyName);
-                if (resolvedKey is not null && PrivateNameScope.TryResolveScope(resolvedKey, out var resolvedScope))
-                {
-                    propertyName = resolvedKey;
-                    privateScopeForAccess = resolvedScope;
-                }
-
-                if (privateScopeForAccess is null && propertyName.Contains("@", StringComparison.Ordinal))
-                {
-                    PrivateNameScope.TryResolveScope(propertyName, out privateScopeForAccess);
-                }
-
-                privateScopeForAccess ??= context.CurrentPrivateNameScope;
-                if (privateScopeForAccess is null)
-                {
-                    PrivateNameScope.TryResolveScope(propertyName, out privateScopeForAccess);
-                }
-
-                if (privateScopeForAccess is null)
-                {
-                    throw StandardLibrary.ThrowTypeError("Invalid access of private member", context,
-                        context.RealmState);
-                }
-
-                if (resolvedKey is null && !propertyName.Contains("@", StringComparison.Ordinal))
-                {
-                    propertyName = privateScopeForAccess.GetKey(propertyName);
-                }
-
-                var brandToken = privateScopeForAccess.BrandToken;
-                context.RealmState.Logger?.LogInformation(
-                    "Private member access targetType={TargetType} prop={PropertyName} hasBrand={HasBrand}",
-                    target?.GetType().Name ?? "null",
-                    propertyName,
-                    target is IPrivateBrandHolder brandCheck && brandCheck.HasPrivateBrand(brandToken));
-                if (target is not IPrivateBrandHolder brandHolder || !brandHolder.HasPrivateBrand(brandToken))
-                {
-                    throw StandardLibrary.ThrowTypeError("Invalid access of private member", context,
-                        context.RealmState);
-                }
-            }
-
-            if (TryGetPropertyValue(target, propertyName, out var value, context))
-            {
-                return context.ShouldStopEvaluation ? Symbol.Undefined : value;
-            }
-
-            if (privateScopeForAccess is not null)
-            {
-                throw StandardLibrary.ThrowTypeError("Invalid access of private member", context, context.RealmState);
-            }
-
-            return Symbol.Undefined;
+            var handle = PropertyHandle.Resolve(target, propertyName, context, context.CurrentScope.IsStrict);
+            var value = handle.GetValue();
+            return context.ShouldStopEvaluation ? Symbol.Undefined : value;
         }
 
         private (object? Value, SuperBinding Binding) ResolveSuperMember(JsEnvironment environment,

@@ -10,17 +10,37 @@ internal static class Program
         try
         {
             var result = await engine.Evaluate(@"
+                // Test all the cases from the Test262 test
+                function* g1() { (yield) }
+                function* g2() { [yield] }
+                function* g3() { {yield} }
+                function* g4() { yield, yield; }
                 function* g5() { (yield) ? yield : yield; }
 
-                var iter = g5();
-                var result1 = iter.next();
-                console.log('First next:', JSON.stringify(result1));
+                // Test g1
+                var iter = g1();
+                var r1 = iter.next();
+                console.log('g1 first:', JSON.stringify(r1));
+                var r2 = iter.next();
+                console.log('g1 second:', JSON.stringify(r2));
 
-                var result2 = iter.next();
-                console.log('Second next:', JSON.stringify(result2));
+                // Test g5 (the problematic one)
+                iter = g5();
+                r1 = iter.next();
+                console.log('g5 first:', JSON.stringify(r1));
+                r2 = iter.next();
+                console.log('g5 second:', JSON.stringify(r2));
+                var r3 = iter.next();
+                console.log('g5 third:', JSON.stringify(r3));
 
-                var result3 = iter.next();
-                console.log('Third next:', JSON.stringify(result3));
+                // Verify the fix
+                if (r3.done === true && r3.value === undefined) {
+                    console.log('TEST PASSED: g5 completes correctly after two yields');
+                    'PASS';
+                } else {
+                    console.log('TEST FAILED: g5 should be done after third next()');
+                    throw new Error('Expected done=true after third next()');
+                }
                 ");
 
             Console.WriteLine($"Test completed! Result: {result}");

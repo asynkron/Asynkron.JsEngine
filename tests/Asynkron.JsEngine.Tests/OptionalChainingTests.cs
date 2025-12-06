@@ -138,4 +138,12 @@ public class OptionalChainingTests
                                            """);
         Assert.True(result is Symbol { Name: "undefined" });
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task OptionalChainingOnFunctionExpression()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("(function foo() {}?.name)");
+        Assert.Equal("foo", result);
+    }
 }

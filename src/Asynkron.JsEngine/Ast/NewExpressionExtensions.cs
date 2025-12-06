@@ -82,6 +82,29 @@ public static partial class TypedAstEvaluator
             var logger = realm?.Logger;
 
             JsObject? instance = null;
+            string DescribePrototype(object? proto)
+            {
+                if (proto is null)
+                {
+                    return "null";
+                }
+
+                if (proto is JsObject jsObj)
+                {
+                    var origin = string.IsNullOrEmpty(jsObj.Origin) ? "unknown" : jsObj.Origin;
+                    return $"JsObject@{RuntimeHelpers.GetHashCode(jsObj)} origin='{origin}'";
+                }
+
+                return $"{proto.GetType().Name}@{RuntimeHelpers.GetHashCode(proto)}";
+            }
+
+            string DescribeInstance(JsObject obj)
+            {
+                var proto = obj.PrototypeAccessor ?? obj.Prototype;
+                var origin = string.IsNullOrEmpty(obj.Origin) ? "unknown" : obj.Origin;
+                return $"JsObject@{RuntimeHelpers.GetHashCode(obj)} origin='{origin}' proto={DescribePrototype(proto)}";
+            }
+
             if (!isDerivedClassCtor)
             {
                 instance = new JsObject();
@@ -89,21 +112,28 @@ public static partial class TypedAstEvaluator
                 {
                     var protoObject = typedConstructor.GetOrCreatePrototypeObject();
                     instance.SetPrototype(protoObject);
-                    logger?.LogInformation("new: pre-call prototype set hash={Hash} derived={Derived}",
-                        RuntimeHelpers.GetHashCode(protoObject),
+                    logger?.LogInformation(
+                        "new: pre-call [[Prototype]] set instance={Instance} proto={Proto} derived={Derived}",
+                        DescribeInstance(instance),
+                        DescribePrototype(protoObject),
                         isDerivedClassCtor);
                 }
                 else if (TryGetPropertyValue(constructor, "prototype", out var prototype) &&
                          prototype is IJsPropertyAccessor protoAccessor)
                 {
                     instance.SetPrototype(protoAccessor);
-                    logger?.LogInformation("new: pre-call prototype set hash={Hash} derived={Derived}",
-                        RuntimeHelpers.GetHashCode(protoAccessor),
+                    logger?.LogInformation(
+                        "new: pre-call [[Prototype]] set instance={Instance} proto={Proto} derived={Derived}",
+                        DescribeInstance(instance),
+                        DescribePrototype(protoAccessor),
                         isDerivedClassCtor);
                 }
                 else
                 {
-                    logger?.LogInformation("new: pre-call prototype missing derived={Derived}", isDerivedClassCtor);
+                    logger?.LogInformation(
+                        "new: pre-call [[Prototype]] missing instance={Instance} derived={Derived}",
+                        DescribeInstance(instance),
+                        isDerivedClassCtor);
                 }
             }
 
@@ -151,8 +181,9 @@ public static partial class TypedAstEvaluator
                     }
 
                     logger?.LogInformation(
-                        "new: final prototype set hash={Hash} derived={Derived}",
-                        RuntimeHelpers.GetHashCode(finalProto),
+                        "new: final [[Prototype]] set instance={Instance} proto={Proto} derived={Derived}",
+                        DescribeInstance(instance),
+                        DescribePrototype(finalProto),
                         isDerivedClassCtor);
                 }
                 else if (TryGetPropertyValue(constructor, "prototype", out var finalPrototype, context) &&
@@ -164,13 +195,17 @@ public static partial class TypedAstEvaluator
                     }
 
                     logger?.LogInformation(
-                        "new: final prototype set hash={Hash} derived={Derived}",
-                        RuntimeHelpers.GetHashCode(finalProtoAccessor),
+                        "new: final [[Prototype]] set instance={Instance} proto={Proto} derived={Derived}",
+                        DescribeInstance(instance),
+                        DescribePrototype(finalProtoAccessor),
                         isDerivedClassCtor);
                 }
                 else
                 {
-                    logger?.LogInformation("new: final prototype missing derived={Derived}", isDerivedClassCtor);
+                    logger?.LogInformation(
+                        "new: final [[Prototype]] missing instance={Instance} derived={Derived}",
+                        DescribeInstance(instance),
+                        isDerivedClassCtor);
                 }
             }
 
@@ -199,6 +234,13 @@ public static partial class TypedAstEvaluator
                 {
                     constructedJsObj.SetPrototype(ctorProto);
                 }
+            }
+
+            if (logger is not null && constructedResult is JsObject constructed)
+            {
+                logger.LogInformation("new: returning instance={Instance} proto={Proto}",
+                    DescribeInstance(constructed),
+                    DescribePrototype(constructed.PrototypeAccessor ?? constructed.Prototype));
             }
 
             return constructedResult;

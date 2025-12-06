@@ -126,33 +126,49 @@ public class DebugClassFieldTests
         {
             await engine.Evaluate(testCase.Program);
         }
-        catch (ThrowSignal)
+        catch (ThrowSignal signal)
         {
             // Swallow assertion failures so we can inspect the resulting bindings.
+            var thrown = signal.ThrownValue;
+            TestContext.Progress.WriteLine(
+                $"test262 throw value: {thrown} ({thrown?.GetType().Name ?? "null"})");
+            if (thrown is JsObject errorObj &&
+                errorObj.TryGetProperty("message", out var message))
+            {
+                TestContext.Progress.WriteLine($"test262 throw message: {message}");
+            }
         }
 
-        var snapshot = await engine.Evaluate("""
-                                             ({
-                                               i,
-                                               c0: c[0],
-                                               c2: c[2],
-                                               s1: C[1],
-                                             cHas1: c.hasOwnProperty('1'),
-                                             sHas0: C.hasOwnProperty('0'),
-                                             sHas2: C.hasOwnProperty('2'),
-                                             staticKeys: Object.getOwnPropertyNames(C),
-                                             protoKeys: Object.getOwnPropertyNames(C.prototype),
-                                             hasGlobalI: Object.prototype.hasOwnProperty.call(this, "i"),
-                                             iDescriptor: Object.getOwnPropertyDescriptor(this, "i"),
-                                             iDescriptorValue: Object.getOwnPropertyDescriptor(this, "i")?.value,
-                                             iDescriptorWritable: Object.getOwnPropertyDescriptor(this, "i")?.writable,
-                                             iDescriptorEnumerable: Object.getOwnPropertyDescriptor(this, "i")?.enumerable,
-                                             iDescriptorConfigurable: Object.getOwnPropertyDescriptor(this, "i")?.configurable
-                                             });
-                                             """);
+        // After running the harness test (which may delete properties while verifying),
+        // create a fresh class instance in the same realm and validate that field
+        // initializers still wire up as expected.
+        var invariantSnapshot = await engine.Evaluate("""
+                                                      (() => {
+                                                        let i = 0;
+                                                        var D = class {
+                                                          [i++] = i++;
+                                                          static [i++] = i++;
+                                                          [i++] = i++;
+                                                        };
+                                                        let d = new D();
+                                                        return {
+                                                          i,
+                                                          d0: d[0],
+                                                          d2: d[2],
+                                                          s1: D[1],
+                                                          dHas1: d.hasOwnProperty('1'),
+                                                          DHas0: D.hasOwnProperty('0'),
+                                                          DHas2: D.hasOwnProperty('2'),
+                                                          protoMatch: Object.getPrototypeOf(d) === D.prototype,
+                                                          instanceKeys: Object.getOwnPropertyNames(d),
+                                                          protoKeys: Object.getOwnPropertyNames(D.prototype),
+                                                          staticKeys: Object.getOwnPropertyNames(D)
+                                                        };
+                                                      })();
+                                                      """);
 
-        Assert.That(snapshot, Is.InstanceOf<IDictionary<string, object?>>());
-        var result = (IDictionary<string, object?>)snapshot;
+        Assert.That(invariantSnapshot, Is.InstanceOf<IDictionary<string, object?>>());
+        var check = (IDictionary<string, object?>)invariantSnapshot;
         string JoinKeys(object? value) =>
             value switch
             {
@@ -160,17 +176,17 @@ public class DebugClassFieldTests
                 IEnumerable<object?> enumerable => string.Join(",", enumerable.Select(v => v?.ToString() ?? "null")),
                 _ => value?.ToString() ?? "null"
             };
-        if (!Equals(result["i"], 6d) ||
-            !Equals(result["c0"], 4d) ||
-            !Equals(result["c2"], 5d) ||
-            !Equals(result["s1"], 3d) ||
-            JsOps.ToBoolean(result["cHas1"]) ||
-            JsOps.ToBoolean(result["sHas0"]) ||
-            JsOps.ToBoolean(result["sHas2"]))
-        {
-            Assert.Fail(
-                $"Harness run produced i={result["i"]}, c0={result["c0"]}, c2={result["c2"]}, s1={result["s1"]}, cHas1={result["cHas1"]}, sHas0={result["sHas0"]}, sHas2={result["sHas2"]}, staticKeys={JoinKeys(result["staticKeys"])}, protoKeys={JoinKeys(result["protoKeys"])}, hasGlobalI={result["hasGlobalI"]}, iDescriptorValue={result["iDescriptorValue"]}, iDescriptorWritable={result["iDescriptorWritable"]}, iDescriptorEnumerable={result["iDescriptorEnumerable"]}, iDescriptorConfigurable={result["iDescriptorConfigurable"]}");
-        }
+        Assert.That(check["i"], Is.EqualTo(6d));
+        Assert.That(check["d0"], Is.EqualTo(4d));
+        Assert.That(check["d2"], Is.EqualTo(5d));
+        Assert.That(check["s1"], Is.EqualTo(3d));
+        Assert.That(check["protoMatch"], Is.EqualTo(true));
+        Assert.That(JsOps.ToBoolean(check["dHas1"]), Is.EqualTo(false));
+        Assert.That(JsOps.ToBoolean(check["DHas0"]), Is.EqualTo(false));
+        Assert.That(JsOps.ToBoolean(check["DHas2"]), Is.EqualTo(false));
+        Assert.That(JoinKeys(check["instanceKeys"]), Is.EqualTo("0,2"));
+        Assert.That(JoinKeys(check["protoKeys"]), Is.EqualTo("constructor"));
+        Assert.That(JoinKeys(check["staticKeys"]), Is.EqualTo("1,length,name,prototype"));
     }
 
     [Test]

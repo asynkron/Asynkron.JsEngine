@@ -1323,6 +1323,12 @@ namespace Asynkron.JsEngine.JsTypes;
         }
 
         var typeName = candidate.GetType().Name;
+        if (candidate is JsObject jsObj)
+        {
+            var origin = string.IsNullOrEmpty(jsObj.Origin) ? "unknown" : jsObj.Origin;
+            return $"{typeName}@{RuntimeHelpers.GetHashCode(candidate)} origin='{origin}'";
+        }
+
         return $"{typeName}@{RuntimeHelpers.GetHashCode(candidate)}";
     }
 

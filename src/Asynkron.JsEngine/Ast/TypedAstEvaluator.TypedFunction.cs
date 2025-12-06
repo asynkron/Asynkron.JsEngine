@@ -4,6 +4,7 @@ using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 using Asynkron.JsEngine;
+using System.Runtime.CompilerServices;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -357,6 +358,14 @@ public static partial class TypedAstEvaluator
             {
                 _caller = previousCaller;
             }
+            if (_realmState.Logger is { } entryLogger && _isClassConstructor)
+            {
+                entryLogger.LogInformation(
+                    "ctor entry func={Function} receiver={Receiver} newTarget={NewTarget}",
+                    _function.Name?.Name ?? "<anonymous>",
+                    DescribeValue(thisValue),
+                    DescribeValue(newTarget));
+            }
             if (_realmState.Logger is { } logger && _isStrict && !ReferenceEquals(thisValue, Symbol.Undefined))
             {
                 logger.LogInformation("TypedFunction strict received thisValue type={Type}",
@@ -542,6 +551,13 @@ public static partial class TypedAstEvaluator
                         constructedThis.SetPrototype(defaultProto);
                     }
 
+                    _realmState.Logger?.LogInformation(
+                        "ctor: synthesized receiver func={Function} receiver={Receiver} proto={Proto} newTargetType={NewTargetType}",
+                        _function.Name?.Name ?? "<anonymous>",
+                        DescribeValue(constructedThis),
+                        DescribePrototype(constructedThis.PrototypeAccessor ?? constructedThis.Prototype),
+                        newTarget.GetType().Name);
+
                     boundThis = constructedThis;
                 }
 
@@ -594,6 +610,16 @@ public static partial class TypedAstEvaluator
 
                 SetThisInitializationStatus(functionEnvironment, initialThisInitialized);
                 functionEnvironment.Define(Symbol.This, initialThisValue);
+
+                if (_isClassConstructor && initialThisValue is JsObject ctorThis)
+                {
+                    _realmState.Logger?.LogInformation(
+                        "ctor: bound this func={Function} this={This} proto={Proto} initialized={Initialized}",
+                        _function.Name?.Name ?? "<anonymous>",
+                        DescribeValue(ctorThis),
+                        DescribePrototype(ctorThis.PrototypeAccessor ?? ctorThis.Prototype),
+                        initialThisInitialized);
+                }
 
                 IJsPropertyAccessor? prototypeForSuper = null;
                 if (_homeObject is not null)
@@ -756,8 +782,8 @@ public static partial class TypedAstEvaluator
                                 if (functionEnvironment.TryGet(Symbol.This, out var currentThis))
                                 {
                                     _realmState.Logger?.LogInformation(
-                                        "Class constructor returning this type={Type}",
-                                        currentThis?.GetType().Name ?? "null");
+                                        "Class constructor returning this={This}",
+                                        DescribeValue(currentThis));
                                     return currentThis;
                                 }
                             }
@@ -770,8 +796,8 @@ public static partial class TypedAstEvaluator
                                 // uninitialized in the environment, fall back to the original
                                 // construction receiver instead of surfacing a spurious TDZ error.
                                 _realmState.Logger?.LogInformation(
-                                    "Class constructor fell back to receiver type={Type} reason={Reason}",
-                                    thisValue?.GetType().Name ?? "null",
+                                    "Class constructor fell back to receiver={Receiver} reason={Reason}",
+                                    DescribeValue(thisValue),
                                     ex.Message);
                                 if (context.LastConstructedThis is not null &&
                                     !ReferenceEquals(context.LastConstructedThis, JsEnvironment.Uninitialized))
@@ -1049,6 +1075,14 @@ public static partial class TypedAstEvaluator
                     }
                 }
 
+                context.RealmState.Logger?.LogInformation(
+                    "InitInstance: ctor={Ctor} instance={Instance} field={Field} valueType={ValueType} value={Value}",
+                    _function.Name?.Name ?? "<anonymous>",
+                    DescribeValue(instance),
+                    propertyName,
+                    value?.GetType().Name ?? "null",
+                    value);
+
                 var descriptor = new PropertyDescriptor
                 {
                     Value = value,
@@ -1073,6 +1107,12 @@ public static partial class TypedAstEvaluator
                     throw StandardLibrary.ThrowTypeError("Cannot define class field", context, context.RealmState);
                 }
             }
+
+            context.RealmState.Logger?.LogInformation(
+                "InitInstance complete: ctor={Ctor} instance={Instance} keys={Keys}",
+                _function.Name?.Name ?? "<anonymous>",
+                DescribeValue(instance),
+                string.Join(",", instance.GetOwnPropertyKeysInOrder().Select(k => k.ToString())));
         }
 
         private static void SetAnonymousFunctionName(object? value, string displayName)
@@ -1089,6 +1129,39 @@ public static partial class TypedAstEvaluator
                     asyncGeneratorFactory.EnsureHasName(displayName);
                     break;
             }
+        }
+
+        private static string DescribePrototype(object? proto)
+        {
+            if (proto is null)
+            {
+                return "null";
+            }
+
+            if (proto is JsObject jsObj)
+            {
+                var origin = string.IsNullOrEmpty(jsObj.Origin) ? "unknown" : jsObj.Origin;
+                return $"JsObject@{RuntimeHelpers.GetHashCode(jsObj)} origin='{origin}'";
+            }
+
+            return $"{proto.GetType().Name}@{RuntimeHelpers.GetHashCode(proto)}";
+        }
+
+        private static string DescribeValue(object? value)
+        {
+            if (value is JsObject jsObj)
+            {
+                var proto = jsObj.PrototypeAccessor ?? jsObj.Prototype;
+                var origin = string.IsNullOrEmpty(jsObj.Origin) ? "unknown" : jsObj.Origin;
+                return $"JsObject@{RuntimeHelpers.GetHashCode(jsObj)} origin='{origin}' proto={DescribePrototype(proto)}";
+            }
+
+            if (value is null)
+            {
+                return "null";
+            }
+
+            return $"{value.GetType().Name}@{RuntimeHelpers.GetHashCode(value)}";
         }
 
         private static bool ContainsVarDeclaration(FunctionExpression function, Symbol name)

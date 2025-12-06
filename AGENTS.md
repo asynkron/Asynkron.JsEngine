@@ -66,3 +66,7 @@ You have access powerful visualizations and debug outputs, check the ActivityTra
 
 - When adding evaluator logging, use the realm logger directly with null-propagation, e.g. `realm.Logger?.LogInformation(...)`. Do not wrap this in helper methods.
 - Never use `Console.WriteLine`/`Console.Error.WriteLine` for runtime logging; route diagnostics through `realm.Logger?.Log...`.
+
+## Compilation
+
+Never use "--no-build", always ensure you are working with the latest compiled code.

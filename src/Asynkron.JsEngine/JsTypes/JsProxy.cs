@@ -129,6 +129,21 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public void SetPrototype(object? candidate)
     {
+        if (TryGetTrap("setPrototypeOf", out var trap))
+        {
+            var args = new[] { Target, candidate };
+            var result = trap.Invoke(args, Handler);
+            if (!JsOps.ToBoolean(result))
+            {
+                throw StandardLibrary.ThrowTypeError("Proxy 'setPrototypeOf' trap returned a falsy value",
+                    realm: _realm);
+            }
+
+            _meta.SetPrototype(candidate);
+            return;
+        }
+
+        Target.SetPrototype(candidate);
         _meta.SetPrototype(candidate);
     }
 
@@ -214,6 +229,39 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
 
         return callableTarget.Invoke(arguments, thisValue);
+    }
+
+    internal object? GetPrototypeWithTrap()
+    {
+        if (TryGetTrap("getPrototypeOf", out var trap))
+        {
+            var args = new object?[] { Target };
+            var result = trap.Invoke(args, Handler);
+            if (result is null)
+            {
+                _meta.SetPrototype(null);
+                return null;
+            }
+
+            if (result is not IJsObjectLike && result is not IPrototypeAccessorProvider)
+            {
+                throw StandardLibrary.ThrowTypeError(
+                    "Proxy getPrototypeOf trap must return an object or null",
+                    realm: _realm);
+            }
+
+            _meta.SetPrototype(result);
+            return result;
+        }
+
+        object? proto = Target.Prototype;
+        if (proto is null && Target is IPrototypeAccessorProvider provider)
+        {
+            proto = provider.PrototypeAccessor;
+        }
+
+        _meta.SetPrototype(proto);
+        return proto;
     }
 
     private bool TryGetTrap(string trapName, out IJsCallable callable)

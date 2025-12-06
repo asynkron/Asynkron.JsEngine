@@ -222,6 +222,30 @@ public static partial class StandardLibrary
             objectProtoObj.SetHostedProperty("__lookupGetter__", ObjectPrototypeLookupGetter);
             objectProtoObj.SetHostedProperty("__lookupSetter__", ObjectPrototypeLookupSetter);
 
+            var protoGetter = new HostFunction(ObjectPrototypeGetProto, realm, isConstructor: false);
+            protoGetter.TryDefineProperty("name", new PropertyDescriptor
+            {
+                Value = "get __proto__",
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
+            var protoSetter = new HostFunction(ObjectPrototypeSetProto, realm, isConstructor: false);
+            protoSetter.TryDefineProperty("name", new PropertyDescriptor
+            {
+                Value = "set __proto__",
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
+            objectProtoObj.DefineProperty("__proto__", new PropertyDescriptor
+            {
+                Get = protoGetter,
+                Set = protoSetter,
+                Enumerable = false,
+                Configurable = true
+            });
+
             // Also expose Object.hasOwnProperty so patterns like
             // Object.hasOwnProperty.call(obj, key) behave as expected.
             objectConstructor.SetProperty("hasOwnProperty", hasOwn);
@@ -1024,13 +1048,16 @@ public static partial class StandardLibrary
                 return null;
             }
 
+            if (obj is JsProxy proxy)
+            {
+                return proxy.GetPrototypeWithTrap();
+            }
+
             object? proto = obj.Prototype;
             if (proto is null && obj is IPrototypeAccessorProvider provider)
             {
                 proto = provider.PrototypeAccessor;
             }
-
-            proto ??= Symbol.Undefined;
 
             if (proto is not IJsPropertyAccessor &&
                 obj is HostFunction { Realm: JsObject fnRealm } &&
@@ -1043,6 +1070,45 @@ public static partial class StandardLibrary
             }
 
             return proto;
+        }
+
+        object? ObjectPrototypeGetProto(object? thisValue, IReadOnlyList<object?> args)
+        {
+            _ = args;
+            if (!TryGetObject(thisValue, realm, out var obj))
+            {
+                throw ThrowTypeError("Object.prototype.__proto__ called on null or undefined", realm: realm);
+            }
+
+            if (obj is JsProxy proxy)
+            {
+                return proxy.GetPrototypeWithTrap();
+            }
+
+            object? proto = obj.Prototype;
+            if (proto is null && obj is IPrototypeAccessorProvider provider)
+            {
+                proto = provider.PrototypeAccessor;
+            }
+
+            return proto;
+        }
+
+        object? ObjectPrototypeSetProto(object? thisValue, IReadOnlyList<object?> args)
+        {
+            var newProto = args.GetArgument(0);
+            if (!TryGetObject(thisValue, realm, out var obj))
+            {
+                throw ThrowTypeError("Object.prototype.__proto__ called on null or undefined", realm: realm);
+            }
+
+            if (newProto is not IJsPropertyAccessor && newProto is not null)
+            {
+                return Symbol.Undefined;
+            }
+
+            obj.SetPrototype(newProto);
+            return Symbol.Undefined;
         }
 
         object? ObjectDefineProperty(IReadOnlyList<object?> args)

@@ -34,13 +34,19 @@ public static partial class TypedAstEvaluator
 
                         if (!member.IsComputed &&
                             string.Equals(name, "__proto__", StringComparison.Ordinal) &&
-                            !ReferenceEquals(value, Symbol.Undefined))
+                            member.Parameter is null)
                         {
-                            if (value is null || value is IJsPropertyAccessor)
+                            if (value is null)
                             {
                                 obj.SetPrototype(value);
-                                break;
                             }
+                            else if (value is IJsObjectLike || value is IPrototypeAccessorProvider)
+                            {
+                                obj.SetPrototype(value);
+                            }
+
+                            // Per B.3.1, __proto__ in object literals never creates a property.
+                            break;
                         }
 
                         obj.DefineProperty(name, new PropertyDescriptor

@@ -2662,6 +2662,10 @@ public sealed class TypedAstParser(
                     {
                         value = new IdentifierExpression(keySource, symbol);
                     }
+
+                    members.Add(new ObjectMember(method?.Source ?? value?.Source ?? keySource, kind, key, value, method,
+                        isComputed, false, symbol));
+                    continue;
                 }
 
                 members.Add(new ObjectMember(method?.Source ?? value?.Source ?? keySource, kind, key, value, method,

@@ -78,15 +78,6 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
         _prototypeAccessor = candidate as IJsPropertyAccessor;
         Prototype = candidate as JsObject;
 
-        if (candidate is not null)
-        {
-            this[PrototypeKey] = candidate;
-        }
-        else
-        {
-            Remove(PrototypeKey);
-        }
-
         if (!ReferenceEquals(previous, candidate))
         {
             RealmState?.Logger?.LogInformation(

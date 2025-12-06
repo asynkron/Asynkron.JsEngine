@@ -614,6 +614,8 @@ internal static class JsOps
                     return "null";
                 case string s:
                     return s;
+                case JsBigInt bigInt:
+                    return bigInt.Value.ToString(CultureInfo.InvariantCulture);
                 case Symbol symbol:
                     return symbol.Name;
                 case TypedAstSymbol jsSymbol:

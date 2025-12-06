@@ -49,6 +49,13 @@ public static partial class TypedAstEvaluator
                             break;
                         }
 
+                        if (value is IFunctionNameTarget nameTarget &&
+                            member.Value is FunctionExpression { Name: null } or ClassExpression { Name: null })
+                        {
+                            var displayName = BuildFunctionNameDisplay(name);
+                            nameTarget.EnsureHasName(displayName);
+                        }
+
                         obj.DefineProperty(name, new PropertyDescriptor
                         {
                             Value = value,

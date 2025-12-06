@@ -13,7 +13,7 @@ public static partial class TypedAstEvaluator
         {
             var stateKey = GetArrayPatternStateKey(binding);
             ArrayPatternState? resumeState = null;
-            if (stateKey is { } && environment.TryGet(stateKey, out var existing) &&
+            if (stateKey is not null && environment.TryGet(stateKey, out var existing) &&
                 existing is ArrayPatternState savedState)
             {
                 resumeState = savedState;

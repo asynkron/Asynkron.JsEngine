@@ -1,5 +1,6 @@
 using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -182,28 +183,9 @@ public static partial class StandardLibrary
 
             var value = args[0];
 
-            // Convert to number first (this is what JavaScript does)
-            if (value is double d)
-            {
-                return double.IsNaN(d);
-            }
-
-            if (value is int or long or float or decimal)
-            {
-                return false;
-            }
-
-            if (value is string s)
-            {
-                if (double.TryParse(s, out var parsed))
-                {
-                    return double.IsNaN(parsed);
-                }
-
-                return true; // Can't parse, so NaN
-            }
-
-            return true; // Everything else becomes NaN
+            // Per ECMAScript spec, isNaN must first convert the argument to Number using ToNumber
+            var numericValue = JsOps.ToNumber(value);
+            return double.IsNaN(numericValue);
         });
     }
 

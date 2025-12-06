@@ -56,9 +56,26 @@ internal static class NumericStringParser
             return (double)(isNegative ? -prefixed : prefixed);
         }
 
+        // ECMAScript requires case-sensitive "Infinity" - double.TryParse accepts any casing,
+        // so we must reject other casings like "INFINITY" or "infinity" before calling it.
+        if (ContainsInfinityWithWrongCasing(trimmed))
+        {
+            return double.NaN;
+        }
+
         return double.TryParse(trimmed, DecimalStyles, CultureInfo.InvariantCulture, out var parsed)
             ? parsed
             : double.NaN;
+    }
+
+    private static bool ContainsInfinityWithWrongCasing(string text)
+    {
+        // Check if the text would parse as Infinity with wrong casing
+        // We already handled the correct casings above, so any remaining match is wrong
+        return text.Equals("Infinity", StringComparison.OrdinalIgnoreCase) &&
+               !text.Equals("Infinity", StringComparison.Ordinal) &&
+               !text.Equals("+Infinity", StringComparison.Ordinal) &&
+               !text.Equals("-Infinity", StringComparison.Ordinal);
     }
 
     private static bool TryParsePrefixedInteger(ReadOnlySpan<char> span, int radix, NumberStyles styles,

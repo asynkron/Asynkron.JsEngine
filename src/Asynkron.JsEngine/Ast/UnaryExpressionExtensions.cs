@@ -31,12 +31,24 @@ public static partial class TypedAstEvaluator
                     }
                     case "delete":
                         return EvaluateDelete(expression.Operand, environment, context);
-                    case "typeof" when expression.Operand is IdentifierExpression identifier &&
-                                       !environment.TryGet(identifier.Name, out var value):
-                        return "undefined";
                     case "typeof":
                     {
+                        // The typeof operator has special semantics: it returns "undefined"
+                        // for unresolvable references instead of throwing ReferenceError.
+                        // Property getters MUST be invoked during evaluation (ES2024 13.5.3).
+
+                        // Always evaluate the operand to invoke GetValue (which triggers property getters)
                         var operandValue = EvaluateExpression(expression.Operand, environment, context);
+
+                        // If evaluation resulted in a ReferenceError for a simple identifier,
+                        // typeof should return "undefined" instead of propagating the error
+                        if (context.IsThrow && expression.Operand is IdentifierExpression)
+                        {
+                            // Clear the error and return "undefined" for unresolvable references
+                            context.Clear();
+                            return "undefined";
+                        }
+
                         if (context.ShouldStopEvaluation)
                         {
                             return Symbol.Undefined;

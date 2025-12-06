@@ -27,6 +27,11 @@ public static partial class StandardLibrary
 
         promiseConstructor.SetHostedProperty("race", PromiseRace);
 
+        if (promisePrototype is not null)
+        {
+            AttachPrototypeMethods(promisePrototype);
+        }
+
         void AssignPromisePrototype(JsObject promiseObj, IJsPropertyAccessor? overridePrototype = null)
         {
             if (overridePrototype is not null)
@@ -40,6 +45,67 @@ public static partial class StandardLibrary
         }
 
         return promiseConstructor;
+
+        void AttachPrototypeMethods(JsObject prototype)
+        {
+            prototype.SetHostedProperty("then", PromisePrototypeThen);
+            prototype.SetHostedProperty("catch", PromisePrototypeCatch);
+            prototype.SetHostedProperty("finally", PromisePrototypeFinally);
+        }
+
+        object? PromisePrototypeThen(object? thisValue, IReadOnlyList<object?> thenArgs)
+        {
+            if (!JsPromise.TryGetInternalPromise(thisValue, out var internalPromise) || internalPromise is null)
+            {
+                throw new InvalidOperationException("Promise.then called on a non-promise value.");
+            }
+
+            var onFulfilled = thenArgs.Count > 0 ? thenArgs[0] as IJsCallable : null;
+            var onRejected = thenArgs.Count > 1 ? thenArgs[1] as IJsCallable : null;
+            var result = internalPromise.Then(onFulfilled, onRejected);
+            AssignPromisePrototype(result.JsObject);
+            AddPromiseInstanceMethods(result.JsObject, result, engine);
+            return result.JsObject;
+        }
+
+        object? PromisePrototypeCatch(object? thisValue, IReadOnlyList<object?> catchArgs)
+        {
+            if (!JsPromise.TryGetInternalPromise(thisValue, out var internalPromise) || internalPromise is null)
+            {
+                throw new InvalidOperationException("Promise.catch called on a non-promise value.");
+            }
+
+            var onRejected = catchArgs.Count > 0 ? catchArgs[0] as IJsCallable : null;
+            var result = internalPromise.Then(null, onRejected);
+            AssignPromisePrototype(result.JsObject);
+            AddPromiseInstanceMethods(result.JsObject, result, engine);
+            return result.JsObject;
+        }
+
+        object? PromisePrototypeFinally(object? thisValue, IReadOnlyList<object?> finallyArgs)
+        {
+            if (!JsPromise.TryGetInternalPromise(thisValue, out var internalPromise) || internalPromise is null)
+            {
+                throw new InvalidOperationException("Promise.finally called on a non-promise value.");
+            }
+
+            var onFinally = finallyArgs.Count > 0 ? finallyArgs[0] as IJsCallable : null;
+            if (onFinally is null)
+            {
+                return thisValue;
+            }
+
+            var finallyWrapper = new HostFunction((object? _, IReadOnlyList<object?> wrapperArgs) =>
+            {
+                onFinally.Invoke([], null);
+                return wrapperArgs.Count > 0 ? wrapperArgs[0] : null;
+            });
+
+            var result = internalPromise.Then(finallyWrapper, finallyWrapper);
+            AssignPromisePrototype(result.JsObject);
+            AddPromiseInstanceMethods(result.JsObject, result, engine);
+            return result.JsObject;
+        }
 
         object? PromiseConstructor(IReadOnlyList<object?> args, IJsCallable newTarget)
         {
@@ -270,11 +336,20 @@ public static partial class StandardLibrary
     /// </summary>
     internal static void AddPromiseInstanceMethods(JsObject promiseObj, JsPromise promise, JsEngine engine)
     {
-        promiseObj.SetHostedProperty("then", PromiseThen);
+        if (!promiseObj.TryGetProperty("then", out _))
+        {
+            promiseObj.SetHostedProperty("then", PromiseThen);
+        }
 
-        promiseObj.SetHostedProperty("catch", PromiseCatch);
+        if (!promiseObj.TryGetProperty("catch", out _))
+        {
+            promiseObj.SetHostedProperty("catch", PromiseCatch);
+        }
 
-        promiseObj.SetHostedProperty("finally", PromiseFinally);
+        if (!promiseObj.TryGetProperty("finally", out _))
+        {
+            promiseObj.SetHostedProperty("finally", PromiseFinally);
+        }
         return;
 
         object? PromiseThen(object? _, IReadOnlyList<object?> thenArgs)

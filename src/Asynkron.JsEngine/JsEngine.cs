@@ -41,6 +41,7 @@ public sealed class JsEngine : IAsyncDisposable
         internal ProgramNode Program { get; }
         internal JsEnvironment Environment { get; }
         internal JsObject Exports { get; }
+        internal bool Instantiating { get; set; }
         internal bool Instantiated { get; set; }
         internal bool Evaluated { get; set; }
         internal bool Evaluating { get; set; }
@@ -815,15 +816,21 @@ public sealed class JsEngine : IAsyncDisposable
         return new ModuleEntry(modulePath ?? string.Empty, program, environment, exports);
     }
 
-    private void EnsureModuleInstantiated(ModuleEntry entry, ImportPhase phase = ImportPhase.Module)
+    private void EnsureModuleInstantiated(
+        ModuleEntry entry,
+        ImportPhase phase = ImportPhase.Module,
+        HashSet<string>? exportStarSet = null)
     {
-        if (entry.Instantiated)
+        if (entry.Instantiated || entry.Instantiating)
         {
             return;
         }
 
-        PredeclareExportNames(entry.Program, entry.Environment, entry.Exports, entry.Path, phase);
+        exportStarSet ??= new HashSet<string>(StringComparer.Ordinal);
+        entry.Instantiating = true;
+        PredeclareExportNames(entry.Program, entry.Environment, entry.Exports, entry.Path, phase, exportStarSet);
         entry.Instantiated = true;
+        entry.Instantiating = false;
     }
 
     private void EnsureModuleEvaluated(ModuleEntry entry)
@@ -1193,6 +1200,14 @@ public sealed class JsEngine : IAsyncDisposable
         var promise = new JsPromise(this);
         var promiseObj = promise.JsObject;
 
+        if (GlobalObject.TryGetProperty("Promise", out var promiseCtor) &&
+            promiseCtor is IJsPropertyAccessor promiseCtorAccessor &&
+            promiseCtorAccessor.TryGetProperty("prototype", out var promiseProto) &&
+            promiseProto is IJsPropertyAccessor promisePrototype)
+        {
+            promiseObj.SetPrototype(promisePrototype);
+        }
+
         // Add promise instance methods (then, catch, finally)
         StandardLibrary.AddPromiseInstanceMethods(promiseObj, promise, this);
 
@@ -1286,14 +1301,18 @@ public sealed class JsEngine : IAsyncDisposable
     ///     Loads and evaluates a module, returning its exports object.
     ///     If the module has already been loaded, returns the cached exports.
     /// </summary>
-    private ModuleEntry LoadModule(string modulePath, string? referrerPath = null, ImportPhase phase = ImportPhase.Module)
+    private ModuleEntry LoadModule(
+        string modulePath,
+        string? referrerPath = null,
+        ImportPhase phase = ImportPhase.Module,
+        HashSet<string>? exportStarSet = null)
     {
         var resolvedPath = NormalizeModulePath(modulePath, referrerPath);
 
         // Check if module is already loaded
         if (_moduleRegistry.TryGetValue(resolvedPath, out var cachedEntry))
         {
-            EnsureModuleInstantiated(cachedEntry, phase);
+            EnsureModuleInstantiated(cachedEntry, phase, exportStarSet);
             if (phase == ImportPhase.Module)
             {
                 EnsureModuleEvaluated(cachedEntry);
@@ -1323,7 +1342,7 @@ public sealed class JsEngine : IAsyncDisposable
         var entry = CreateModuleEntry(EnsureStrictProgram(program), moduleEnv, exports, resolvedPath);
         _moduleRegistry[resolvedPath] = entry;
 
-        EnsureModuleInstantiated(entry, phase);
+        EnsureModuleInstantiated(entry, phase, exportStarSet);
         if (phase == ImportPhase.Module)
         {
             EnsureModuleEvaluated(entry);
@@ -1451,8 +1470,13 @@ public sealed class JsEngine : IAsyncDisposable
         return ns;
     }
 
-    private void PredeclareExportNames(ProgramNode program, JsEnvironment moduleEnv, JsObject exports,
-        string? modulePath, ImportPhase phase)
+    private void PredeclareExportNames(
+        ProgramNode program,
+        JsEnvironment moduleEnv,
+        JsObject exports,
+        string? modulePath,
+        ImportPhase phase,
+        HashSet<string> exportStarSet)
     {
         foreach (var statement in program.Body)
         {
@@ -1501,7 +1525,14 @@ public sealed class JsEngine : IAsyncDisposable
 
                     break;
                 case ExportAllStatement exportAll:
-                    var sourceEntry = LoadModule(exportAll.ModulePath, modulePath, phase);
+                    var sourceEntry = LoadModule(exportAll.ModulePath, modulePath, phase, exportStarSet);
+                    if (exportStarSet.Contains(sourceEntry.Path))
+                    {
+                        break;
+                    }
+
+                    exportStarSet.Add(sourceEntry.Path);
+                    EnsureModuleInstantiated(sourceEntry, phase, exportStarSet);
                     foreach (var entry in sourceEntry.Exports.Keys)
                     {
                         if (string.Equals(entry, "default", StringComparison.Ordinal))
@@ -1512,9 +1543,10 @@ public sealed class JsEngine : IAsyncDisposable
                         exports[entry] = UninitializedExportMarker;
                     }
 
+                    exportStarSet.Remove(sourceEntry.Path);
                     break;
                 case ExportNamespaceAsStatement exportNamespace:
-                exports[exportNamespace.Exported.Name] = UninitializedExportMarker;
+                    exports[exportNamespace.Exported.Name] = UninitializedExportMarker;
                     break;
             }
         }
@@ -1572,7 +1604,8 @@ public sealed class JsEngine : IAsyncDisposable
         string? modulePath = null)
     {
         var typedProgram = EnsureStrictProgram(program);
-        PredeclareExportNames(typedProgram, moduleEnv, exports, modulePath, ImportPhase.Module);
+        PredeclareExportNames(typedProgram, moduleEnv, exports, modulePath, ImportPhase.Module,
+            new HashSet<string>(StringComparer.Ordinal));
         return ExecuteModuleBody(typedProgram, moduleEnv, exports, modulePath);
     }
 

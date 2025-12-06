@@ -15,8 +15,9 @@
 - `Expressions_delete` is green again: sloppy globals now create deletable global properties (no declarative binding), super deletes throw ReferenceError, and deleting null/undefined targets throws TypeError.
 - For-of loops now return `undefined` when the body completion is empty, and destructuring initializers in for-of heads allow `in` expressions (fixed `obj-prop-elem-init-in` parse error).
 - Destructuring iterator error propagation is in place for array bindings/assignments: iterator property getters use the evaluation context, `TryGetIteratorForDestructuring` aborts with the pending throw, and iterator throws no longer trigger `IteratorClose` for assignment patterns (`Expressions_arrowFunction_dstr` and `Expressions_assignment_dstr` are green).
+- Dynamic import/defer now flows through `ModuleEntry` so we track instantiation/evaluation per phase, cache deferred namespaces, and guard export\* cycles with an `Instantiating` flag plus `exportStarSet`. `import.defer`/`import.source` are exposed as host functions, deferred namespaces evaluate on first property read, and dynamic import promises pick up the realm Promise prototype with prototype `then/catch/finally` that wrap the underlying `JsPromise`. The export\* circular fixture (`instn-star-props-circular`) and the dynamic import syntax batch are passing.
 
 ## Next Iteration Plan
-1. Re-run the Language suite to refresh the current failure set (previously `Statements_forOf` looked hottest) now that destructuring is fixed.
-2. Chase the top remaining cluster (likely for-of): ensure iterator result validation matches spec and string iteration walks UTF-16 code units (astral/truncated pairs).
-3. Use realm logger traces and focused internal tests to pin any remaining stragglers, then circle back to residual Array/TypedArray gaps surfaced by the refreshed run.
+1. Re-run the Language suite to refresh the current failure set now that module/dynamic import handling changed.
+2. Triage any remaining module/import/defer regressions first (export\* aliases, namespace access, promise plumbing), adding realm logging if the failure isn’t obvious.
+3. Once modules are stable, move to the next hottest cluster from the refreshed run (previously for-of/iterator semantics) and close those out.

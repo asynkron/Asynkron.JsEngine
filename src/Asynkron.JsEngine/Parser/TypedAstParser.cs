@@ -1344,7 +1344,7 @@ public sealed class TypedAstParser(
                     new ExportDefaultDeclaration(exportSource, declaration));
             }
 
-            Consume(TokenType.Semicolon, "Expected ';' after export default expression.");
+            Match(TokenType.Semicolon);
             return new ExportDefaultStatement(exportSource,
                 new ExportDefaultExpression(exportSource, function));
         }

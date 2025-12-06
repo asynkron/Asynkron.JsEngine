@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public sealed class JsPromise
 {
-    private const string InternalPromiseKey = "__promise__";
+    internal const string InternalPromiseKey = "__promise__";
     private readonly JsEngine _engine;
     private readonly List<(IJsCallable? onFulfilled, IJsCallable? onRejected, JsPromise next)> _handlers = [];
     private bool _handlersScheduled;
@@ -19,6 +19,20 @@ public sealed class JsPromise
         JsObject = new JsObject();
         JsObject.DefineProperty(InternalPromiseKey,
             new PropertyDescriptor { Value = this, Writable = false, Enumerable = false, Configurable = false });
+    }
+
+    internal static bool TryGetInternalPromise(object? candidate, out JsPromise? promise)
+    {
+        if (candidate is JsObject jsObject &&
+            jsObject.TryGetProperty(InternalPromiseKey, out var inner) &&
+            inner is JsPromise jsPromise)
+        {
+            promise = jsPromise;
+            return true;
+        }
+
+        promise = null;
+        return false;
     }
 
     /// <summary>

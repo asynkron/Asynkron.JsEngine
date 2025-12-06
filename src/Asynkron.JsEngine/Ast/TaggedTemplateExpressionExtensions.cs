@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -18,7 +19,9 @@ public static partial class TypedAstEvaluator
 
             if (tagValue is not IJsCallable callable)
             {
-                throw new InvalidOperationException("Tag in tagged template must be a function.");
+                var error = StandardLibrary.CreateTypeError("Tag in tagged template must be a function.",
+                    context, environment.RealmState);
+                throw new ThrowSignal(error);
             }
 
             var stringsArrayValue = EvaluateExpression(expression.StringsArray, environment, context);

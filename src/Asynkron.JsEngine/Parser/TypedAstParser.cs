@@ -93,7 +93,8 @@ public sealed class TypedAstParser(
 
             if (Check(TokenType.Import))
             {
-                if (PeekNext().Type == TokenType.LeftParen)
+                var next = PeekNext().Type;
+                if (next == TokenType.LeftParen || next == TokenType.Dot)
                 {
                     return ParseExpressionStatement();
                 }

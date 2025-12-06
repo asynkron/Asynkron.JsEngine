@@ -244,7 +244,22 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobalFunction("clearInterval", ClearTimer);
 
         // Register dynamic import function
-        SetGlobalFunction("import", DynamicImport);
+        var importFunction = new HostFunction((_, args) => DynamicImport(args, null, ImportPhase.Module), RealmState)
+        {
+            IsConstructor = false
+        };
+        importFunction.SetInvokeWithContext(
+            (args, _, ctx, _) => DynamicImport(args, ctx, ImportPhase.Module));
+
+        var importSourceFunction =
+            new HostFunction((_, args) => DynamicImport(args, null, ImportPhase.Source), RealmState)
+            {
+                IsConstructor = false
+            };
+        importSourceFunction.SetInvokeWithContext(
+            (args, _, ctx, _) => DynamicImport(args, ctx, ImportPhase.Source));
+        importFunction.SetProperty("source", importSourceFunction);
+        SetGlobal("import", importFunction);
 
         // Provide a stable global object helper used by Test262 harness utilities.
         SetGlobal("fnGlobalObject",
@@ -1068,22 +1083,22 @@ public sealed class JsEngine : IAsyncDisposable
         return null;
     }
 
+    private enum ImportPhase
+    {
+        Module,
+        Source
+    }
+
     /// <summary>
     ///     Implements dynamic import() - loads a module and returns a Promise that resolves to the module's exports.
     /// </summary>
     private object? DynamicImport(IReadOnlyList<object?> args)
     {
-        if (args.Count == 0)
-        {
-            throw new Exception("import() requires a module specifier");
-        }
+        return DynamicImport(args, null, ImportPhase.Module);
+    }
 
-        var modulePath = args[0]?.ToString();
-        if (string.IsNullOrEmpty(modulePath))
-        {
-            throw new Exception("import() requires a valid module specifier");
-        }
-
+    private object? DynamicImport(IReadOnlyList<object?> args, EvaluationContext? context, ImportPhase phase)
+    {
         // Create a promise that will resolve with the module exports
         var promise = new JsPromise(this);
         var promiseObj = promise.JsObject;
@@ -1097,14 +1112,63 @@ public sealed class JsEngine : IAsyncDisposable
         {
             try
             {
-                // Load the module synchronously (it's cached if already loaded)
-                var exports = LoadModule(modulePath);
-                var namespaceObject = GetModuleNamespace(exports);
-                promise.Resolve(namespaceObject);
+                if (args.Count == 0)
+                {
+                    var typeError = StandardLibrary.CreateTypeError(
+                        "import() requires a module specifier",
+                        context,
+                        RealmState);
+                    promise.Reject(typeError);
+                    return;
+                }
+
+                object? specifierStringObj;
+                try
+                {
+                    var specifier = args.GetArgument(0);
+                    specifierStringObj = JsOps.ToJsString(specifier, context);
+                }
+                catch (ThrowSignal signal)
+                {
+                    promise.Reject(signal.ThrownValue);
+                    return;
+                }
+
+                if (context?.IsThrow == true)
+                {
+                    promise.Reject(context.FlowValue);
+                    return;
+                }
+
+                var specifierString = specifierStringObj?.ToString() ?? string.Empty;
+                if (phase == ImportPhase.Source)
+                {
+                    // Source phase imports are not supported by this host; reject with SyntaxError.
+                    var syntaxError = StandardLibrary.CreateSyntaxError(
+                        "Source phase imports are not supported",
+                        context,
+                        RealmState);
+                    promise.Reject(syntaxError);
+                    return;
+                }
+
+                try
+                {
+                    // Load the module synchronously (it's cached if already loaded)
+                    var exports = LoadModule(specifierString);
+                    var namespaceObject = GetModuleNamespace(exports);
+                    promise.Resolve(namespaceObject);
+                }
+                catch (Exception ex)
+                {
+                    var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
+                    promise.Reject(error);
+                }
             }
             catch (Exception ex)
             {
-                promise.Reject(ex.Message);
+                var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
+                promise.Reject(error);
             }
 
             await Task.CompletedTask.ConfigureAwait(false);

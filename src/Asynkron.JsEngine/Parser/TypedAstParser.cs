@@ -185,9 +185,20 @@ public sealed class TypedAstParser(
                 return ParseBlock(true);
             }
 
-            if (allowLexicalDeclarations && Match(TokenType.Let))
+            // In non-strict mode, 'let' can be an identifier in expression statements
+            // It's only a lexical declaration if followed by '[' or a binding identifier
+            // See: Statement : LexicalDeclaration [lookahead ∉ {let [}]
+            if (allowLexicalDeclarations && Check(TokenType.Let))
             {
-                return ParseVariableDeclaration(VariableKind.Let);
+                // In strict mode, 'let' is always a keyword for declarations
+                // In non-strict mode, check if it's followed by '[' or an identifier
+                if (InStrictContext || CheckAhead(TokenType.LeftBracket) ||
+                    (CheckAheadBindingIdentifier() && !CheckAhead(TokenType.Let)))
+                {
+                    Advance(); // consume 'let'
+                    return ParseVariableDeclaration(VariableKind.Let);
+                }
+                // Otherwise, fall through to parse as expression statement
             }
 
             if (allowLexicalDeclarations && Match(TokenType.Const))
@@ -1411,8 +1422,14 @@ public sealed class TypedAstParser(
             }
             else
             {
-                if (Match(TokenType.Let))
+                // In non-strict mode, 'for (let' is only a lexical declaration if followed by '['
+                // or a binding identifier. Otherwise 'let' is just an identifier expression.
+                // See: for ( [lookahead ∉ { let [ }] Expression
+                if (Check(TokenType.Let) &&
+                    (InStrictContext || CheckAhead(TokenType.LeftBracket) ||
+                     (CheckAheadBindingIdentifier() && !CheckAhead(TokenType.Let))))
                 {
+                    Advance(); // consume 'let'
                     var previousAllowIn = _allowInExpressions;
                     _allowInExpressions = false;
                     try
@@ -3692,6 +3709,26 @@ public sealed class TypedAstParser(
             var next = _tokens[_current + 1];
             var current = _tokens[_current];
             return next.Type == type && next.Line == current.Line;
+        }
+
+        private bool CheckAheadBindingIdentifier()
+        {
+            if (_current + 1 >= _tokens.Count)
+            {
+                return false;
+            }
+
+            var next = _tokens[_current + 1];
+
+            // Check if the next token can be a binding identifier
+            if (InStrictContext && IsStrictModeReservedWord(next))
+            {
+                return false;
+            }
+
+            return next.Type is TokenType.Identifier ||
+                   next.Type is TokenType.Async or TokenType.Await or TokenType.Yield ||
+                   IsContextualIdentifierToken(next);
         }
 
         private Token Advance()

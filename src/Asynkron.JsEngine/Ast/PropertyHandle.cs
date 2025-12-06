@@ -1,5 +1,3 @@
-using System;
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -150,18 +148,6 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            if (_target is JsObject jsObj && jsObj.HasPrivateField(_propertyName))
-            {
-                if (_privateScope is not null &&
-                    _target is IPrivateBrandHolder holder &&
-                    !holder.HasPrivateBrand(_privateScope.BrandToken))
-                {
-                    holder.AddPrivateBrand(_privateScope.BrandToken);
-                }
-
-                return;
-            }
-
             if (_privateScope is null)
             {
                 throw StandardLibrary.ThrowTypeError("Invalid access of private member", _context, _context.RealmState);
@@ -170,7 +156,7 @@ public static partial class TypedAstEvaluator
             var hasBrand = _target is IPrivateBrandHolder brandHolder &&
                            brandHolder.HasPrivateBrand(_privateScope.BrandToken);
 
-            _context.RealmState?.Logger?.LogInformation(
+            _context.RealmState.Logger?.LogInformation(
                 "Private member access targetType={TargetType} prop={PropertyName} hasBrand={HasBrand}",
                 _target?.GetType().Name ?? "null",
                 _propertyName,
@@ -203,7 +189,7 @@ public static partial class TypedAstEvaluator
                 resolvedFromContext = true;
             }
 
-            if (privateScope is null && propertyName.Contains("@", StringComparison.Ordinal))
+            if (privateScope is null && propertyName.Contains('@', StringComparison.Ordinal))
             {
                 PrivateNameScope.TryResolveScope(propertyName, out privateScope);
             }
@@ -219,7 +205,7 @@ public static partial class TypedAstEvaluator
                 throw StandardLibrary.ThrowTypeError("Invalid access of private member", context, context.RealmState);
             }
 
-            if (!resolvedFromContext && !propertyName.Contains("@", StringComparison.Ordinal))
+            if (!resolvedFromContext && !propertyName.Contains('@', StringComparison.Ordinal))
             {
                 resolvedKey = privateScope.GetKey(propertyName);
             }

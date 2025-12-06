@@ -138,6 +138,18 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
+            // Class constructors cannot be invoked without 'new'
+            if (callable is TypedFunction { IsClassConstructor: true })
+            {
+                var error = StandardLibrary.CreateTypeError(
+                    "Class constructor cannot be invoked without 'new'",
+                    context,
+                    context.RealmState);
+                context.SetThrow(error);
+                context.CallDepth--;
+                return Symbol.Undefined;
+            }
+
             var isAsyncCallable = callable is TypedFunction { IsAsyncLike: true };
 
             IJsEnvironmentAwareCallable? envAwareHandle = null;

@@ -13,6 +13,7 @@ public sealed class Symbol : IEquatable<Symbol>
     public static readonly Symbol NewTarget = Intern("new.target");
     public static readonly Symbol ThisInitialized = Intern("[[thisInitialized]]");
     public static readonly Symbol Arguments = Intern("arguments");
+    public static readonly Symbol Eval = Intern("eval");
     public static readonly Symbol YieldTrackerSymbol = Intern("__yieldTracker__");
     public static readonly Symbol YieldResumeContextSymbol = Intern("__yieldResume__");
     public static readonly Symbol GeneratorPendingCompletionSymbol = Intern("__generatorPending__");

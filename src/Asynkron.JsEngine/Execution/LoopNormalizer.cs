@@ -90,34 +90,45 @@ internal static class LoopNormalizer
 
     private static void CollectBindingNames(BindingTarget target, List<Symbol> names)
     {
-        switch (target)
+        while (true)
         {
-            case IdentifierBinding id:
-                names.Add(id.Name);
-                break;
-            case ArrayBinding arrayBinding:
-                foreach (var element in arrayBinding.Elements)
-                {
-                    if (element.Target is not null)
+            switch (target)
+            {
+                case IdentifierBinding id:
+                    names.Add(id.Name);
+                    break;
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
                     {
-                        CollectBindingNames(element.Target, names);
+                        if (element.Target is not null)
+                        {
+                            CollectBindingNames(element.Target, names);
+                        }
                     }
-                }
-                if (arrayBinding.RestElement is not null)
-                {
-                    CollectBindingNames(arrayBinding.RestElement, names);
-                }
-                break;
-            case ObjectBinding objectBinding:
-                foreach (var property in objectBinding.Properties)
-                {
-                    CollectBindingNames(property.Target, names);
-                }
-                if (objectBinding.RestElement is not null)
-                {
-                    CollectBindingNames(objectBinding.RestElement, names);
-                }
-                break;
+
+                    if (arrayBinding.RestElement is not null)
+                    {
+                        target = arrayBinding.RestElement;
+                        continue;
+                    }
+
+                    break;
+                case ObjectBinding objectBinding:
+                    foreach (var property in objectBinding.Properties)
+                    {
+                        CollectBindingNames(property.Target, names);
+                    }
+
+                    if (objectBinding.RestElement is not null)
+                    {
+                        target = objectBinding.RestElement;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            break;
         }
     }
 

@@ -186,13 +186,13 @@ public sealed class TypedAstParser(
             }
 
             // In non-strict mode, 'let' can be an identifier in expression statements
-            // It's only a lexical declaration if followed by '[' or a binding identifier
+            // It's only a lexical declaration if followed by '[', '{', or a binding identifier
             // See: Statement : LexicalDeclaration [lookahead ∉ {let [}]
             if (allowLexicalDeclarations && Check(TokenType.Let))
             {
                 // In strict mode, 'let' is always a keyword for declarations
-                // In non-strict mode, check if it's followed by '[' or an identifier
-                if (InStrictContext || CheckAhead(TokenType.LeftBracket) ||
+                // In non-strict mode, check if it's followed by '[', '{', or an identifier
+                if (InStrictContext || CheckAhead(TokenType.LeftBracket) || CheckAhead(TokenType.LeftBrace) ||
                     (CheckAheadBindingIdentifier() && !CheckAhead(TokenType.Let)))
                 {
                     Advance(); // consume 'let'
@@ -540,6 +540,16 @@ public sealed class TypedAstParser(
             {
                 var token = Previous();
                 var value = Convert.ToString(token.Literal, CultureInfo.InvariantCulture) ?? token.Lexeme;
+                return (value, false, token);
+            }
+
+            if (Match(TokenType.BigInt))
+            {
+                var token = Previous();
+                // Convert BigInt to string for property name (e.g., 1n becomes "1")
+                var value = token.Literal is JsBigInt bigInt
+                    ? bigInt.Value.ToString(CultureInfo.InvariantCulture)
+                    : token.Lexeme.TrimEnd('n');
                 return (value, false, token);
             }
 
@@ -2873,8 +2883,30 @@ public sealed class TypedAstParser(
             Consume(TokenType.LeftParen, "Expected '(' after function name.");
             var parameters = ParseParameterList();
             Consume(TokenType.RightParen, "Expected ')' after parameters.");
+
+            // Check if the function body will have "use strict" directive
+            Consume(TokenType.LeftBrace, "Expected '{' before function body.");
+            var hasUseStrict = CheckForUseStrictDirective();
+            var willBeStrict = InStrictContext || hasUseStrict;
+
+            // Validate function name and parameters against strict mode rules
+            if (willBeStrict)
+            {
+                // Check function name
+                if (name is not null && (name == Symbol.Eval || name == Symbol.Arguments))
+                {
+                    throw new ParseException(
+                        $"Function name '{name}' is not allowed in strict mode.",
+                        startToken,
+                        _source);
+                }
+
+                // Check parameters
+                ValidateStrictModeParameters(parameters);
+            }
+
             using var _ = EnterFunctionContext(isAsync, isGenerator);
-            var body = ParseBlock();
+            var body = ParseBlock(leftBraceConsumed: true);
             var source = body.Source ?? CreateSourceReference(startToken);
             return new FunctionExpression(source, name, parameters, body, isAsync, isGenerator, WasAsync: isAsync);
         }
@@ -2907,15 +2939,13 @@ public sealed class TypedAstParser(
                     source = CreateSourceReference(token);
                 }
 
-                ExpressionNode? defaultValue = null;
-                if (!isRest && Match(TokenType.Equal))
+                var defaultValue = isRest switch
                 {
-                    defaultValue = ParseAssignment(validateCoverInitializedName: false);
-                }
-                else if (isRest && Check(TokenType.Equal))
-                {
-                    throw new ParseException("Rest parameters cannot have default values.", Peek(), _source);
-                }
+                    false when Match(TokenType.Equal) => ParseAssignment(validateCoverInitializedName: false),
+                    true when Check(TokenType.Equal) => throw new ParseException(
+                        "Rest parameters cannot have default values.", Peek(), _source),
+                    _ => null
+                };
 
                 builder.Add(new FunctionParameter(source, name, isRest, pattern, defaultValue));
                 if (isRest)
@@ -2927,14 +2957,98 @@ public sealed class TypedAstParser(
                 {
                     break;
                 }
-
-                if (Check(TokenType.RightParen))
-                {
-                    break;
-                }
-            } while (true);
+            } while (!Check(TokenType.RightParen));
 
             return builder.ToImmutable();
+        }
+
+        private void ValidateStrictModeParameters(ImmutableArray<FunctionParameter> parameters)
+        {
+            var seenNames = new HashSet<Symbol>();
+
+            foreach (var param in parameters)
+            {
+                // Extract parameter names from both simple identifiers and binding patterns
+                var paramNames = new List<Symbol>();
+
+                if (param.Name is not null)
+                {
+                    paramNames.Add(param.Name);
+                }
+                else if (param.Pattern is not null)
+                {
+                    CollectBindingIdentifiers(param.Pattern, paramNames);
+                }
+
+                foreach (var paramName in paramNames)
+                {
+                    // Check for eval or arguments
+                    if (ReferenceEquals(paramName, Symbol.Eval) || ReferenceEquals(paramName, Symbol.Arguments))
+                    {
+                        var token = Previous();
+                        throw new ParseException(
+                            $"Parameter name '{paramName}' is not allowed in strict mode.",
+                            token,
+                            _source);
+                    }
+
+                    // Check for duplicate parameter names
+                    if (!seenNames.Add(paramName))
+                    {
+                        var token = Previous();
+                        throw new ParseException(
+                            $"Duplicate parameter name '{paramName}' is not allowed in strict mode.",
+                            token,
+                            _source);
+                    }
+                }
+            }
+        }
+
+        private static void CollectBindingIdentifiers(BindingTarget target, List<Symbol> names)
+        {
+            while (true)
+            {
+                switch (target)
+                {
+                    case IdentifierBinding identifier:
+                        names.Add(identifier.Name);
+                        break;
+
+                    case ArrayBinding arrayBinding:
+                        foreach (var element in arrayBinding.Elements)
+                        {
+                            if (element.Target is not null)
+                            {
+                                CollectBindingIdentifiers(element.Target, names);
+                            }
+                        }
+
+                        if (arrayBinding.RestElement is not null)
+                        {
+                            target = arrayBinding.RestElement;
+                            continue;
+                        }
+
+                        break;
+
+                    case ObjectBinding objectBinding:
+                        foreach (var property in objectBinding.Properties)
+                        {
+                            CollectBindingIdentifiers(property.Target, names);
+                        }
+
+                        if (objectBinding.RestElement is not null)
+                        {
+                            target = objectBinding.RestElement;
+                            continue;
+                        }
+
+                        break;
+                }
+
+                break;
+            }
         }
 
         private ImmutableArray<FunctionParameter> ParseSetterParameters()
@@ -3015,15 +3129,13 @@ public sealed class TypedAstParser(
 
         private BindingTarget? ExtractBindingTarget(StatementNode initializer)
         {
-            switch (initializer)
+            return initializer switch
             {
-                case VariableDeclaration { Declarators.Length: 1 } declaration:
-                    return declaration.Declarators[0].Target;
-                case ExpressionStatement { Expression: ExpressionNode expression }:
-                    return TryConvertExpressionToBindingTarget(expression);
-                default:
-                    return null;
-            }
+                VariableDeclaration { Declarators.Length: 1 } declaration => declaration.Declarators[0].Target,
+                ExpressionStatement { Expression: { } expression } => TryConvertExpressionToBindingTarget(
+                    expression),
+                _ => null
+            };
         }
 
         private static ExpressionNode CreateInitializerAssignment(BindingTarget target, ExpressionNode initializer)

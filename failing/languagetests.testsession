@@ -1,8 +1,61 @@
-tests (1068 tests) Aborted: 1060 tests failed
-  Asynkron.JsEngine.Tests.Test262 (1068 tests) Aborted: 1060 tests failed
-    Asynkron.JsEngine.Tests.Test262 (1068 tests) Aborted: 1060 tests failed
-      TestHarness (1068 tests) Aborted: One or more child tests had errors: 1060 tests failed
-        LanguageTests (1068 tests) Aborted: One or more child tests had errors: 1060 tests failed
+tests (1063 tests) Failed: 1063 tests failed
+  Asynkron.JsEngine.Tests (36 tests) Failed: 36 tests failed
+    Asynkron.JsEngine.Tests (36 tests) Failed: 36 tests failed
+      AdditionalArrayMethodsTests (1 test) Failed: One or more child tests failed: 1 test failed
+        Array_From_RespectsConstructor Failed: Assert.Equal() Failure: Values differ
+      AnnexBOptionsTests (1 test) Failed: One or more child tests failed: 1 test failed
+        AnnexBEvalRedeclaresNonConfigGlobal Failed: Asynkron.JsEngine.ThrowSignal: Unhandled JavaScript throw: TypeError: Cannot redeclare non-configurable global function
+      AsyncIterableDebugTests (5 tests) Failed: One or more child tests failed: 5 tests failed
+        ForAwaitOf_SimpleNoConditions_Debug Failed: Assert.Equal() Failure: Values differ
+        ForAwaitOf_WithArray_CompareWithString Failed: Assert.Equal() Failure: Values differ
+        ForAwaitOf_WithBreak_Debug Failed: Assert.Equal() Failure: Values differ
+        ForAwaitOf_WithContinue_Debug Failed: Assert.Equal() Failure: Values differ
+        ForAwaitOf_WithIfNoBreak_Debug Failed: Assert.Equal() Failure: Values differ
+      AsyncIterationTests (5 tests) Failed: One or more child tests failed: 5 tests failed
+        ForAwaitOf_WithArray Failed: Assert.Equal() Failure: Values differ
+        ForAwaitOf_WithArrayWithDebug Failed: Assert.Equal() Failure: Values differ
+        ForAwaitOf_WithBreak Failed: Assert.Equal() Failure: Values differ
+        ForAwaitOf_WithContinue Failed: Assert.Equal() Failure: Values differ
+        ForAwaitOf_WithPromiseArray Failed: Assert.Equal() Failure: Values differ
+      BigIntTests (3 tests) Failed: One or more child tests failed: 3 tests failed
+        BigIntDivisionByZeroThrows Failed: Assert.Throws() Failure: Exception type was not an exact match
+        BigIntModuloByZeroThrows Failed: Assert.Throws() Failure: Exception type was not an exact match
+        BigIntNegativeExponentiationThrows Failed: Assert.Throws() Failure: Exception type was not an exact match
+      ClassElementEvalTests (2 tests) Failed: One or more child tests failed: 2 tests failed
+        EvalProducedArrowFunctionCanUseSuper Failed: Asynkron.JsEngine.ThrowSignal: Unhandled JavaScript throw: SyntaxError: super calls are not allowed in eval inside class field initializers.
+        StaticFieldEvalCanAccessSuperProperty Failed: Assert.True() Failure
+      EvalFunctionTests (1 test) Failed: One or more child tests failed: 1 test failed
+        Eval_CreatesVariables Failed: Asynkron.JsEngine.ThrowSignal: Unhandled JavaScript throw: ReferenceError: ReferenceError: y is not defined
+      GeneratorTests (4 tests) Failed: One or more child tests failed: 4 tests failed
+        Generator_ForAwaitFallsBackIr Failed: Assert.Equal() Failure: Values differ
+        Generator_ForAwaitPromiseValuesAreAwaitedIr Failed: Assert.Equal() Failure: Values differ
+        Generator_YieldStarThrowAwaitedPromiseIr Failed: Assert.Equal() Failure: Values differ
+        Generator_YieldStarThrowContinuesWhenIteratorResumesIr Failed: Assert.Equal() Failure: Values differ
+      JsEvaluatorTests (2 tests) Failed: One or more child tests failed: 2 tests failed
+        ArrayPrototypeMethodsAreInheritedFromArrayPrototypeInstances Failed: Assert.Equal() Failure: Values differ
+        ClassMethodsRemainVisibleWhenPrivateFieldsArePresent Failed: Prototype link missing. Proto is Object.prototype? False; null? False; undefined? False; typeof=object; protoHasXOnValue=False; sameAsClassProto=False; sameAsObjectProto=False; instanceProtoNull=False…
+      MapTests (4 tests) Failed: One or more child tests failed: 4 tests failed
+        Map_Entries_Returns_Array_Of_Pairs Failed: Asynkron.JsEngine.ThrowSignal: Unhandled JavaScript throw: TypeError: Cannot read properties of null or undefined
+        Map_Keys_Returns_Array_Of_Keys Failed: Assert.Equal() Failure: Values differ
+        Map_Maintains_Insertion_Order Failed: Assert.Equal() Failure: Values differ
+        Map_Values_Returns_Array_Of_Values Failed: Assert.Equal() Failure: Values differ
+      NpmPackageTests (1 test) Failed: One or more child tests failed: 1 test failed
+        ArrayShuffle_MaintainsAllElements Failed: Assert.Equal() Failure: Values differ
+      SetTests (4 tests) Failed: One or more child tests failed: 4 tests failed
+        Set_Entries_Returns_Array_Of_Value_Value_Pairs Failed: Asynkron.JsEngine.ThrowSignal: Unhandled JavaScript throw: TypeError: Cannot read properties of null or undefined
+        Set_Keys_Returns_Array_Of_Values Failed: Assert.Equal() Failure: Values differ
+        Set_Maintains_Insertion_Order Failed: Assert.Equal() Failure: Values differ
+        Set_Values_Returns_Array_Of_Values Failed: Assert.Equal() Failure: Values differ
+      SourceReferenceInExceptionsTests (1 test) Failed: One or more child tests failed: 1 test failed
+        Exception_SuperNotAvailable_IncludesSourceReference Failed: Assert.Contains() Failure: Sub-string not found
+      SunSpiderTests (2 tests) Failed: One or more child tests failed: 2 tests failed
+        SunSpider_Scripts_behave_as_expected (2 tests) Failed: One or more child tests failed: 2 tests failed
+          SunSpider_Scripts_behave_as_expected(filename: "3d-raytrace.js") Failed: System.InvalidOperationException: JavaScript error: Error: bad result: expected length 20970 but got 19176
+          SunSpider_Scripts_behave_as_expected(filename: "string-tagcloud.js") Failed: System.InvalidOperationException: JavaScript error: ERROR: bad result: expected length at least 315000 but got 308060
+  Asynkron.JsEngine.Tests.Test262 (1027 tests) Failed: 1027 tests failed
+    Asynkron.JsEngine.Tests.Test262 (1027 tests) Failed: 1027 tests failed
+      TestHarness (1027 tests) Failed: One or more child tests had errors: 1027 tests failed
+        LanguageTests (1027 tests) Failed: One or more child tests had errors: 1027 tests failed
           EvalCode_direct (6 tests) Failed: One or more child tests had errors: 6 tests failed
             EvalCode_direct("language/eval-code/direct/lex-env-no-init-cls.js",False) Failed
             EvalCode_direct("language/eval-code/direct/lex-env-no-init-cls.js",True) Failed
@@ -92,18 +145,6 @@ tests (1068 tests) Aborted: 1060 tests failed
             Expressions_generators("language/expressions/generators/prototype-relation-to-function.js",True) Failed
             Expressions_generators("language/expressions/generators/scope-name-var-open-non-strict.js",False) Failed
             Expressions_generators("language/expressions/generators/scope-name-var-open-strict.js",True) Failed
-          Expressions_greaterThan (6 tests) Failed: One or more child tests had errors: 6 tests failed
-            Expressions_greaterThan("language/expressions/greater-than/bigint-and-incomparable-string.js",False) Failed
-            Expressions_greaterThan("language/expressions/greater-than/bigint-and-incomparable-string.js",True) Failed
-            Expressions_greaterThan("language/expressions/greater-than/bigint-and-number-extremes.js",False) Failed
-            Expressions_greaterThan("language/expressions/greater-than/bigint-and-number-extremes.js",True) Failed
-            Expressions_greaterThan("language/expressions/greater-than/bigint-and-string.js",False) Failed
-            Expressions_greaterThan("language/expressions/greater-than/bigint-and-string.js",True) Failed
-          Expressions_greaterThanOrEqual (4 tests) Failed: One or more child tests had errors: 4 tests failed
-            Expressions_greaterThanOrEqual("language/expressions/greater-than-or-equal/bigint-and-incomparable-string.js",False) Failed
-            Expressions_greaterThanOrEqual("language/expressions/greater-than-or-equal/bigint-and-incomparable-string.js",True) Failed
-            Expressions_greaterThanOrEqual("language/expressions/greater-than-or-equal/bigint-and-number-extremes.js",False) Failed
-            Expressions_greaterThanOrEqual("language/expressions/greater-than-or-equal/bigint-and-number-extremes.js",True) Failed
           Expressions_import_meta (3 tests) Failed: One or more child tests had errors: 3 tests failed
             Expressions_import_meta("language/expressions/import.meta/distinct-for-each-module.js",True) Failed
             Expressions_import_meta("language/expressions/import.meta/import-meta-is-an-ordinary-object.js",True) Failed
@@ -117,7 +158,7 @@ tests (1068 tests) Aborted: 1060 tests failed
             Expressions_import_meta_syntax("language/expressions/import.meta/syntax/goal-function-params-or-body.js",True) Failed
             Expressions_import_meta_syntax("language/expressions/import.meta/syntax/goal-generator-params-or-body.js",False) Failed
             Expressions_import_meta_syntax("language/expressions/import.meta/syntax/goal-generator-params-or-body.js",True) Failed
-          Expressions_in (28 tests) Failed: One or more child tests had errors: 28 tests failed
+          Expressions_in (22 tests) Failed: One or more child tests had errors: 22 tests failed
             Expressions_in("language/expressions/in/private-field-presence-accessor-shadowed.js",False) Failed
             Expressions_in("language/expressions/in/private-field-presence-accessor-shadowed.js",True) Failed
             Expressions_in("language/expressions/in/private-field-presence-accessor.js",False) Failed
@@ -140,24 +181,6 @@ tests (1068 tests) Aborted: 1060 tests failed
             Expressions_in("language/expressions/in/private-field-rhs-unresolvable.js",True) Failed
             Expressions_in("language/expressions/in/private-field-rhs-yield-present.js",False) Failed
             Expressions_in("language/expressions/in/private-field-rhs-yield-present.js",True) Failed
-            Expressions_in("language/expressions/in/S11.8.7_A3.js",False) Failed
-            Expressions_in("language/expressions/in/S11.8.7_A3.js",True) Failed
-            Expressions_in("language/expressions/in/S8.12.6_A2_T1.js",False) Failed
-            Expressions_in("language/expressions/in/S8.12.6_A2_T1.js",True) Failed
-            Expressions_in("language/expressions/in/S8.12.6_A2_T2.js",False) Failed
-            Expressions_in("language/expressions/in/S8.12.6_A2_T2.js",True) Failed
-          Expressions_lessThan (4 tests) Failed: One or more child tests had errors: 4 tests failed
-            Expressions_lessThan("language/expressions/less-than/bigint-and-incomparable-string.js",False) Failed
-            Expressions_lessThan("language/expressions/less-than/bigint-and-incomparable-string.js",True) Failed
-            Expressions_lessThan("language/expressions/less-than/bigint-and-number-extremes.js",False) Failed
-            Expressions_lessThan("language/expressions/less-than/bigint-and-number-extremes.js",True) Failed
-          Expressions_lessThanOrEqual (6 tests) Failed: One or more child tests had errors: 6 tests failed
-            Expressions_lessThanOrEqual("language/expressions/less-than-or-equal/bigint-and-incomparable-string.js",False) Failed
-            Expressions_lessThanOrEqual("language/expressions/less-than-or-equal/bigint-and-incomparable-string.js",True) Failed
-            Expressions_lessThanOrEqual("language/expressions/less-than-or-equal/bigint-and-number-extremes.js",False) Failed
-            Expressions_lessThanOrEqual("language/expressions/less-than-or-equal/bigint-and-number-extremes.js",True) Failed
-            Expressions_lessThanOrEqual("language/expressions/less-than-or-equal/bigint-and-string.js",False) Failed
-            Expressions_lessThanOrEqual("language/expressions/less-than-or-equal/bigint-and-string.js",True) Failed
           Expressions_logicalAssignment (41 tests) Failed: One or more child tests had errors: 41 tests failed
             Expressions_logicalAssignment("language/expressions/logical-assignment/left-hand-side-private-reference-accessor-property-short-circuit-and.js",False) Failed
             Expressions_logicalAssignment("language/expressions/logical-assignment/left-hand-side-private-reference-accessor-property-short-circuit-and.js",True) Failed
@@ -501,15 +524,6 @@ tests (1068 tests) Aborted: 1060 tests failed
             Import_importDefer_evaluationTriggers("language/import/import-defer/evaluation-triggers/trigger-not-exported-string-hasProperty.js",True) Failed
           Import_importDefer_syntax (1 test) Failed: One or more child tests had errors: 1 test failed
             Import_importDefer_syntax("language/import/import-defer/syntax/import-attributes.js",True) Failed
-          Literals_regexp (8 tests) Aborted
-            Literals_regexp("language/literals/regexp/S7.8.5_A1.1_T2.js",False) Aborted
-            Literals_regexp("language/literals/regexp/S7.8.5_A1.1_T2.js",True) Aborted
-            Literals_regexp("language/literals/regexp/S7.8.5_A1.4_T2.js",False) Aborted
-            Literals_regexp("language/literals/regexp/S7.8.5_A1.4_T2.js",True) Aborted
-            Literals_regexp("language/literals/regexp/S7.8.5_A2.1_T2.js",False) Aborted
-            Literals_regexp("language/literals/regexp/S7.8.5_A2.1_T2.js",True) Aborted
-            Literals_regexp("language/literals/regexp/S7.8.5_A2.4_T2.js",False) Aborted
-            Literals_regexp("language/literals/regexp/S7.8.5_A2.4_T2.js",True) Aborted
           Literals_regexp_namedGroups (2 tests) Failed: One or more child tests had errors: 2 tests failed
             Literals_regexp_namedGroups("language/literals/regexp/named-groups/forward-reference.js",False) Failed
             Literals_regexp_namedGroups("language/literals/regexp/named-groups/forward-reference.js",True) Failed
@@ -582,7 +596,7 @@ tests (1068 tests) Aborted: 1060 tests failed
           ModuleCode_namespace_internals (2 tests) Failed: One or more child tests had errors: 2 tests failed
             ModuleCode_namespace_internals("language/module-code/namespace/internals/own-property-keys-binding-types.js",True) Failed
             ModuleCode_namespace_internals("language/module-code/namespace/internals/set.js",True) Failed
-          ModuleCode_topLevelAwait (16 tests) Failed: One or more child tests had errors: 16 tests failed
+          ModuleCode_topLevelAwait (15 tests) Failed: One or more child tests had errors: 15 tests failed
             ModuleCode_topLevelAwait("language/module-code/top-level-await/async-module-does-not-block-sibling-modules.js",True) Failed
             ModuleCode_topLevelAwait("language/module-code/top-level-await/await-awaits-thenables-that-throw.js",True) Failed
             ModuleCode_topLevelAwait("language/module-code/top-level-await/await-awaits-thenables.js",True) Failed
@@ -597,7 +611,6 @@ tests (1068 tests) Aborted: 1060 tests failed
             ModuleCode_topLevelAwait("language/module-code/top-level-await/module-import-unwrapped.js",True) Failed
             ModuleCode_topLevelAwait("language/module-code/top-level-await/module-self-import-async-resolution-ticks.js",True) Failed
             ModuleCode_topLevelAwait("language/module-code/top-level-await/module-sync-import-async-resolution-ticks.js",True) Failed
-            ModuleCode_topLevelAwait("language/module-code/top-level-await/new-await-parens.js",True) Failed
             ModuleCode_topLevelAwait("language/module-code/top-level-await/while-dynamic-evaluation.js",True) Failed
           ModuleCode_topLevelAwait_syntax (17 tests) Failed: One or more child tests had errors: 17 tests failed
             ModuleCode_topLevelAwait_syntax("language/module-code/top-level-await/syntax/block-await-expr-regexp.js",True) Failed
@@ -906,9 +919,7 @@ tests (1068 tests) Aborted: 1060 tests failed
           Statements_class_subclass_builtinObjects_Set (2 tests) Failed: One or more child tests had errors: 2 tests failed
             Statements_class_subclass_builtinObjects_Set("language/statements/class/subclass/builtin-objects/Set/super-must-be-called.js",False) Failed
             Statements_class_subclass_builtinObjects_Set("language/statements/class/subclass/builtin-objects/Set/super-must-be-called.js",True) Failed
-          Statements_class_subclass_builtinObjects_String (4 tests) Failed: One or more child tests had errors: 4 tests failed
-            Statements_class_subclass_builtinObjects_String("language/statements/class/subclass/builtin-objects/String/length.js",False) Failed
-            Statements_class_subclass_builtinObjects_String("language/statements/class/subclass/builtin-objects/String/length.js",True) Failed
+          Statements_class_subclass_builtinObjects_String (2 tests) Failed: One or more child tests had errors: 2 tests failed
             Statements_class_subclass_builtinObjects_String("language/statements/class/subclass/builtin-objects/String/super-must-be-called.js",False) Failed
             Statements_class_subclass_builtinObjects_String("language/statements/class/subclass/builtin-objects/String/super-must-be-called.js",True) Failed
           Statements_class_subclass_builtinObjects_Symbol (2 tests) Failed: One or more child tests had errors: 2 tests failed
@@ -1164,11 +1175,6 @@ tests (1068 tests) Aborted: 1060 tests failed
             Types_reference("language/types/reference/put-value-prop-base-primitive-realm.js",True) Failed
             Types_reference("language/types/reference/put-value-prop-base-primitive.js",False) Failed
             Types_reference("language/types/reference/put-value-prop-base-primitive.js",True) Failed
-          Types_string (4 tests) Failed: One or more child tests had errors: 4 tests failed
-            Types_string("language/types/string/S8.4_A9_T2.js",False) Failed
-            Types_string("language/types/string/S8.4_A9_T2.js",True) Failed
-            Types_string("language/types/string/S8.4_A9_T3.js",False) Failed
-            Types_string("language/types/string/S8.4_A9_T3.js",True) Failed
           WhiteSpace (4 tests) Failed: One or more child tests had errors: 4 tests failed
             WhiteSpace("language/white-space/after-regular-expression-literal-zwnbsp.js",False) Failed
             WhiteSpace("language/white-space/after-regular-expression-literal-zwnbsp.js",True) Failed

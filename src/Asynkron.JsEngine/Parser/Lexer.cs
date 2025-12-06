@@ -1007,6 +1007,25 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                 // Skip the closing }
                 Advance();
             }
+            else if (Peek() == '\\')
+            {
+                // Handle escape sequences: append backslash and the next character
+                currentString.Append(Advance()); // append and consume '\'
+                if (!IsAtEnd)
+                {
+                    // For template literals, we need to preserve the raw content including
+                    // line continuations (backslash followed by line terminator)
+                    if (IsLineTerminator(Peek()))
+                    {
+                        AppendAndConsumeLineTerminator(currentString);
+                    }
+                    else
+                    {
+                        // Append the character after the backslash (could be `, $, or any other char)
+                        currentString.Append(Advance());
+                    }
+                }
+            }
             else
             {
                 if (IsLineTerminator(Peek()))

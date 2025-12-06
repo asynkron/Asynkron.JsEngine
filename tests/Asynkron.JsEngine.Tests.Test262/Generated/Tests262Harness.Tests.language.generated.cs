@@ -3,7 +3,7 @@
 //   Generated using the Test262Harness v1.0.3.0
 //   Suite Git SHA: a073f479f80b336256b7fc4e04700c827293e2fe
 //   Suite Directory: 
-//   Template SHA: 0AB194398FD3EF14A62832D70A77275850757328D9441341AC565E629DCCD1FE
+//   Template SHA: 1E56EF956B08932741F03B542C3C1CCF7F0A4B4F3A23FB555EA4F57450EA6091
 //   Command line: /Users/rogerjohansson/.nuget/packages/test262harness.console/1.0.3/tools/net8.0/any/Test262Harness.Console.dll generate
 //   Settings file: /Users/rogerjohansson/git/asynkron/Asynkron.JsEngine/tests/Asynkron.JsEngine.Tests.Test262/Test262Harness.settings.json
 // </auto-generated>
@@ -1836,7 +1836,7 @@ public class LanguageTests : Test262Test
     }
 
     [Test]
-    [Ignore("File language/expressions/tco-pos.js excluded (strict mode)")]
+    [Ignore("Feature tail-call-optimization excluded")]
     public void Expressions()
     {
     }
@@ -6190,12 +6190,12 @@ public class LanguageTests : Test262Test
     [TestCase("language/expressions/call/spread-sngl-literal.js", true, Category = "generated")]
     [TestCase("language/expressions/call/spread-sngl-obj-ident.js", false, Category = "object-spread,generated")]
     [TestCase("language/expressions/call/spread-sngl-obj-ident.js", true, Category = "object-spread,generated")]
-    [TestCase("language/expressions/call/tco-call-args.js", true, Category = "tail-call-optimization,onlyStrict", IgnoreReason = "File language/expressions/call/tco-call-args.js excluded (strict mode)")]
-    [TestCase("language/expressions/call/tco-member-args.js", true, Category = "tail-call-optimization,onlyStrict", IgnoreReason = "File language/expressions/call/tco-member-args.js excluded (strict mode)")]
-    [TestCase("language/expressions/call/tco-non-eval-function-dynamic.js", false, Category = "tail-call-optimization,noStrict", IgnoreReason = "File language/expressions/call/tco-non-eval-function-dynamic.js excluded (default)")]
-    [TestCase("language/expressions/call/tco-non-eval-function.js", false, Category = "tail-call-optimization,noStrict", IgnoreReason = "File language/expressions/call/tco-non-eval-function.js excluded (default)")]
-    [TestCase("language/expressions/call/tco-non-eval-global.js", false, Category = "tail-call-optimization,noStrict", IgnoreReason = "File language/expressions/call/tco-non-eval-global.js excluded (default)")]
-    [TestCase("language/expressions/call/tco-non-eval-with.js", false, Category = "tail-call-optimization,noStrict", IgnoreReason = "File language/expressions/call/tco-non-eval-with.js excluded (default)")]
+    [TestCase("language/expressions/call/tco-call-args.js", true, Category = "tail-call-optimization,onlyStrict", IgnoreReason = "Feature tail-call-optimization excluded")]
+    [TestCase("language/expressions/call/tco-member-args.js", true, Category = "tail-call-optimization,onlyStrict", IgnoreReason = "Feature tail-call-optimization excluded")]
+    [TestCase("language/expressions/call/tco-non-eval-function-dynamic.js", false, Category = "tail-call-optimization,noStrict", IgnoreReason = "Feature tail-call-optimization excluded")]
+    [TestCase("language/expressions/call/tco-non-eval-function.js", false, Category = "tail-call-optimization,noStrict", IgnoreReason = "Feature tail-call-optimization excluded")]
+    [TestCase("language/expressions/call/tco-non-eval-global.js", false, Category = "tail-call-optimization,noStrict", IgnoreReason = "Feature tail-call-optimization excluded")]
+    [TestCase("language/expressions/call/tco-non-eval-with.js", false, Category = "tail-call-optimization,noStrict", IgnoreReason = "Feature tail-call-optimization excluded")]
     [TestCase("language/expressions/call/trailing-comma.js", false)]
     [TestCase("language/expressions/call/trailing-comma.js", true)]
     [TestCase("language/expressions/call/with-base-obj.js", false, Category = "noStrict")]
@@ -14500,8 +14500,8 @@ public class LanguageTests : Test262Test
     [TestCase("language/expressions/coalesce/short-circuit-number-true.js", true, Category = "coalesce-expression")]
     [TestCase("language/expressions/coalesce/short-circuit-prevents-evaluation.js", false, Category = "coalesce-expression")]
     [TestCase("language/expressions/coalesce/short-circuit-prevents-evaluation.js", true, Category = "coalesce-expression")]
-    [TestCase("language/expressions/coalesce/tco-pos-null.js", true, Category = "tail-call-optimization,coalesce-expression,onlyStrict", IgnoreReason = "File language/expressions/coalesce/tco-pos-null.js excluded (strict mode)")]
-    [TestCase("language/expressions/coalesce/tco-pos-undefined.js", true, Category = "tail-call-optimization,coalesce-expression,onlyStrict", IgnoreReason = "File language/expressions/coalesce/tco-pos-undefined.js excluded (strict mode)")]
+    [TestCase("language/expressions/coalesce/tco-pos-null.js", true, Category = "tail-call-optimization,coalesce-expression,onlyStrict", IgnoreReason = "Feature tail-call-optimization excluded")]
+    [TestCase("language/expressions/coalesce/tco-pos-undefined.js", true, Category = "tail-call-optimization,coalesce-expression,onlyStrict", IgnoreReason = "Feature tail-call-optimization excluded")]
     public void Expressions_coalesce(string test, bool strict)
     {
         RunTestCode(test, strict);
@@ -14517,7 +14517,7 @@ public class LanguageTests : Test262Test
     [TestCase("language/expressions/comma/S11.14_A2.1_T3.js", true)]
     [TestCase("language/expressions/comma/S11.14_A3.js", false)]
     [TestCase("language/expressions/comma/S11.14_A3.js", true)]
-    [TestCase("language/expressions/comma/tco-final.js", true, Category = "tail-call-optimization,onlyStrict", IgnoreReason = "File language/expressions/comma/tco-final.js excluded (strict mode)")]
+    [TestCase("language/expressions/comma/tco-final.js", true, Category = "tail-call-optimization,onlyStrict", IgnoreReason = "Feature tail-call-optimization excluded")]
     public void Expressions_comma(string test, bool strict)
     {
         RunTestCode(test, strict);
@@ -15369,8 +15369,8 @@ public class LanguageTests : Test262Test
     [TestCase("language/expressions/conditional/S11.12_A4_T4.js", true)]
     [TestCase("language/expressions/conditional/symbol-conditional-evaluation.js", false, Category = "Symbol")]
     [TestCase("language/expressions/conditional/symbol-conditional-evaluation.js", true, Category = "Symbol")]
-    [TestCase("language/expressions/conditional/tco-cond.js", true, Category = "tail-call-optimization,onlyStrict", IgnoreReason = "File language/expressions/conditional/tco-cond.js excluded (strict mode)")]
-    [TestCase("language/expressions/conditional/tco-pos.js", true, Category = "tail-call-optimization,onlyStrict", IgnoreReason = "File language/expressions/conditional/tco-pos.js excluded (strict mode)")]
+    [TestCase("language/expressions/conditional/tco-cond.js", true, Category = "tail-call-optimization,onlyStrict", IgnoreReason = "Feature tail-call-optimization excluded")]
+    [TestCase("language/expressions/conditional/tco-pos.js", true, Category = "tail-call-optimization,onlyStrict", IgnoreReason = "Feature tail-call-optimization excluded")]
     public void Expressions_conditional(string test, bool strict)
     {
         RunTestCode(test, strict);
@@ -19087,12 +19087,12 @@ public class LanguageTests : Test262Test
     [TestCase("language/expressions/instanceof/primitive-prototype-with-object.js", true)]
     [TestCase("language/expressions/instanceof/primitive-prototype-with-primitive.js", false)]
     [TestCase("language/expressions/instanceof/primitive-prototype-with-primitive.js", true)]
-    [TestCase("language/expressions/instanceof/prototype-getter-with-object-throws.js", false, IgnoreReason = "File language/expressions/instanceof/prototype-getter-with-object-throws.js excluded (default)")]
-    [TestCase("language/expressions/instanceof/prototype-getter-with-object-throws.js", true, IgnoreReason = "File language/expressions/instanceof/prototype-getter-with-object-throws.js excluded (strict mode)")]
-    [TestCase("language/expressions/instanceof/prototype-getter-with-object.js", false, IgnoreReason = "File language/expressions/instanceof/prototype-getter-with-object.js excluded (default)")]
-    [TestCase("language/expressions/instanceof/prototype-getter-with-object.js", true, IgnoreReason = "File language/expressions/instanceof/prototype-getter-with-object.js excluded (strict mode)")]
-    [TestCase("language/expressions/instanceof/prototype-getter-with-primitive.js", false, IgnoreReason = "File language/expressions/instanceof/prototype-getter-with-primitive.js excluded (default)")]
-    [TestCase("language/expressions/instanceof/prototype-getter-with-primitive.js", true, IgnoreReason = "File language/expressions/instanceof/prototype-getter-with-primitive.js excluded (strict mode)")]
+    [TestCase("language/expressions/instanceof/prototype-getter-with-object-throws.js", false)]
+    [TestCase("language/expressions/instanceof/prototype-getter-with-object-throws.js", true)]
+    [TestCase("language/expressions/instanceof/prototype-getter-with-object.js", false)]
+    [TestCase("language/expressions/instanceof/prototype-getter-with-object.js", true)]
+    [TestCase("language/expressions/instanceof/prototype-getter-with-primitive.js", false)]
+    [TestCase("language/expressions/instanceof/prototype-getter-with-primitive.js", true)]
     [TestCase("language/expressions/instanceof/S11.8.6_A1.js", false)]
     [TestCase("language/expressions/instanceof/S11.8.6_A1.js", true)]
     [TestCase("language/expressions/instanceof/S11.8.6_A2.1_T1.js", false)]
@@ -19164,10 +19164,10 @@ public class LanguageTests : Test262Test
     [TestCase("language/expressions/instanceof/symbol-hasinstance-get-err.js", true, Category = "Symbol.hasInstance")]
     [TestCase("language/expressions/instanceof/symbol-hasinstance-invocation.js", false, Category = "Symbol.hasInstance")]
     [TestCase("language/expressions/instanceof/symbol-hasinstance-invocation.js", true, Category = "Symbol.hasInstance")]
-    [TestCase("language/expressions/instanceof/symbol-hasinstance-not-callable.js", false, Category = "Symbol.hasInstance", IgnoreReason = "File language/expressions/instanceof/symbol-hasinstance-not-callable.js excluded (default)")]
-    [TestCase("language/expressions/instanceof/symbol-hasinstance-not-callable.js", true, Category = "Symbol.hasInstance", IgnoreReason = "File language/expressions/instanceof/symbol-hasinstance-not-callable.js excluded (strict mode)")]
-    [TestCase("language/expressions/instanceof/symbol-hasinstance-to-boolean.js", false, Category = "Symbol,Symbol.hasInstance", IgnoreReason = "File language/expressions/instanceof/symbol-hasinstance-to-boolean.js excluded (default)")]
-    [TestCase("language/expressions/instanceof/symbol-hasinstance-to-boolean.js", true, Category = "Symbol,Symbol.hasInstance", IgnoreReason = "File language/expressions/instanceof/symbol-hasinstance-to-boolean.js excluded (strict mode)")]
+    [TestCase("language/expressions/instanceof/symbol-hasinstance-not-callable.js", false, Category = "Symbol.hasInstance")]
+    [TestCase("language/expressions/instanceof/symbol-hasinstance-not-callable.js", true, Category = "Symbol.hasInstance")]
+    [TestCase("language/expressions/instanceof/symbol-hasinstance-to-boolean.js", false, Category = "Symbol,Symbol.hasInstance")]
+    [TestCase("language/expressions/instanceof/symbol-hasinstance-to-boolean.js", true, Category = "Symbol,Symbol.hasInstance")]
     public void Expressions_instanceof(string test, bool strict)
     {
         RunTestCode(test, strict);
@@ -19492,7 +19492,7 @@ public class LanguageTests : Test262Test
     [TestCase("language/expressions/logical-and/S11.11.1_A4_T4.js", true)]
     [TestCase("language/expressions/logical-and/symbol-logical-and-evaluation.js", false, Category = "Symbol")]
     [TestCase("language/expressions/logical-and/symbol-logical-and-evaluation.js", true, Category = "Symbol")]
-    [TestCase("language/expressions/logical-and/tco-right.js", true, Category = "tail-call-optimization,onlyStrict", IgnoreReason = "File language/expressions/logical-and/tco-right.js excluded (strict mode)")]
+    [TestCase("language/expressions/logical-and/tco-right.js", true, Category = "tail-call-optimization,onlyStrict", IgnoreReason = "Feature tail-call-optimization excluded")]
     public void Expressions_logicalAnd(string test, bool strict)
     {
         RunTestCode(test, strict);
@@ -19711,7 +19711,7 @@ public class LanguageTests : Test262Test
     [TestCase("language/expressions/logical-or/S11.11.2_A4_T4.js", true)]
     [TestCase("language/expressions/logical-or/symbol-logical-or-evaluation.js", false, Category = "Symbol")]
     [TestCase("language/expressions/logical-or/symbol-logical-or-evaluation.js", true, Category = "Symbol")]
-    [TestCase("language/expressions/logical-or/tco-right.js", true, Category = "tail-call-optimization,onlyStrict", IgnoreReason = "File language/expressions/logical-or/tco-right.js excluded (strict mode)")]
+    [TestCase("language/expressions/logical-or/tco-right.js", true, Category = "tail-call-optimization,onlyStrict", IgnoreReason = "Feature tail-call-optimization excluded")]
     public void Expressions_logicalOr(string test, bool strict)
     {
         RunTestCode(test, strict);
@@ -23241,8 +23241,8 @@ public class LanguageTests : Test262Test
     [TestCase("language/expressions/tagged-template/member-expression-argument-list-evaluation.js", true)]
     [TestCase("language/expressions/tagged-template/member-expression-context.js", false)]
     [TestCase("language/expressions/tagged-template/member-expression-context.js", true)]
-    [TestCase("language/expressions/tagged-template/tco-call.js", true, Category = "tail-call-optimization,onlyStrict", IgnoreReason = "File language/expressions/tagged-template/tco-call.js excluded (strict mode)")]
-    [TestCase("language/expressions/tagged-template/tco-member.js", true, Category = "tail-call-optimization,onlyStrict", IgnoreReason = "File language/expressions/tagged-template/tco-member.js excluded (strict mode)")]
+    [TestCase("language/expressions/tagged-template/tco-call.js", true, Category = "tail-call-optimization,onlyStrict", IgnoreReason = "Feature tail-call-optimization excluded")]
+    [TestCase("language/expressions/tagged-template/tco-member.js", true, Category = "tail-call-optimization,onlyStrict", IgnoreReason = "Feature tail-call-optimization excluded")]
     [TestCase("language/expressions/tagged-template/template-object-frozen-non-strict.js", false, Category = "noStrict")]
     [TestCase("language/expressions/tagged-template/template-object-frozen-strict.js", true, Category = "onlyStrict")]
     [TestCase("language/expressions/tagged-template/template-object-template-map.js", false)]
@@ -27865,8 +27865,8 @@ public class LanguageTests : Test262Test
     [TestCase("language/statements/block/scope-lex-open.js", true, Category = "let")]
     [TestCase("language/statements/block/scope-var-none.js", false)]
     [TestCase("language/statements/block/scope-var-none.js", true)]
-    [TestCase("language/statements/block/tco-stmt-list.js", true, Category = "tail-call-optimization,onlyStrict", IgnoreReason = "File language/statements/block/tco-stmt-list.js excluded (strict mode)")]
-    [TestCase("language/statements/block/tco-stmt.js", true, Category = "tail-call-optimization,onlyStrict", IgnoreReason = "File language/statements/block/tco-stmt.js excluded (strict mode)")]
+    [TestCase("language/statements/block/tco-stmt-list.js", true, Category = "tail-call-optimization,onlyStrict", IgnoreReason = "Feature tail-call-optimization excluded")]
+    [TestCase("language/statements/block/tco-stmt.js", true, Category = "tail-call-optimization,onlyStrict", IgnoreReason = "Feature tail-call-optimization excluded")]
     public void Statements_block(string test, bool strict)
     {
         RunTestCode(test, strict);

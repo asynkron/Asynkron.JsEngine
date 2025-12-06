@@ -45,9 +45,23 @@ internal static class LoopNormalizer
         out LoopPlan plan, out string? failureReason)
     {
         var leadingStatements = ImmutableArray<StatementNode>.Empty;
+        var perIterationBindings = ImmutableArray<Symbol>.Empty;
+
         if (statement.Initializer is not null)
         {
             leadingStatements = [statement.Initializer];
+
+            // Check if the initializer contains let/const declarations
+            // These require per-iteration environment creation
+            if (statement.Initializer is VariableDeclaration { Kind: VariableKind.Let or VariableKind.Const } decl)
+            {
+                var bindingNames = new List<Symbol>();
+                foreach (var declarator in decl.Declarators)
+                {
+                    CollectBindingNames(declarator.Target, bindingNames);
+                }
+                perIterationBindings = bindingNames.ToImmutableArray();
+            }
         }
 
         var postIteration = ImmutableArray<StatementNode>.Empty;
@@ -68,9 +82,43 @@ internal static class LoopNormalizer
             condition,
             EnsureBlock(statement.Body, isStrict),
             postIteration,
-            false);
+            false,
+            perIterationBindings);
         failureReason = null;
         return true;
+    }
+
+    private static void CollectBindingNames(BindingTarget target, List<Symbol> names)
+    {
+        switch (target)
+        {
+            case IdentifierBinding id:
+                names.Add(id.Name);
+                break;
+            case ArrayBinding arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    if (element.Target is not null)
+                    {
+                        CollectBindingNames(element.Target, names);
+                    }
+                }
+                if (arrayBinding.RestElement is not null)
+                {
+                    CollectBindingNames(arrayBinding.RestElement, names);
+                }
+                break;
+            case ObjectBinding objectBinding:
+                foreach (var property in objectBinding.Properties)
+                {
+                    CollectBindingNames(property.Target, names);
+                }
+                if (objectBinding.RestElement is not null)
+                {
+                    CollectBindingNames(objectBinding.RestElement, names);
+                }
+                break;
+        }
     }
 
     private static LoopPlan CreateSimplePlan(
@@ -80,7 +128,8 @@ internal static class LoopNormalizer
         ExpressionNode condition,
         BlockStatement body,
         ImmutableArray<StatementNode> postIteration,
-        bool conditionAfterBody)
+        bool conditionAfterBody,
+        ImmutableArray<Symbol> perIterationBindings = default)
     {
         return new LoopPlan(
             kind,
@@ -89,7 +138,8 @@ internal static class LoopNormalizer
             condition,
             body,
             postIteration,
-            conditionAfterBody);
+            conditionAfterBody,
+            perIterationBindings);
     }
 
     private static BlockStatement EnsureBlock(StatementNode statement, bool isStrict)

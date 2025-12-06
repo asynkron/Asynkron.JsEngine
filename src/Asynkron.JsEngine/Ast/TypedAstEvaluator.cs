@@ -783,6 +783,7 @@ public static partial class TypedAstEvaluator
         return value switch
         {
             JsBigInt bigInt => new JsBigInt(bigInt.Value + BigInteger.One),
+            double d => d + 1,
             _ => JsOps.ToNumber(value, context) + 1
         };
     }
@@ -792,6 +793,7 @@ public static partial class TypedAstEvaluator
         return value switch
         {
             JsBigInt bigInt => new JsBigInt(bigInt.Value - BigInteger.One),
+            double d => d - 1,
             _ => JsOps.ToNumber(value, context) - 1
         };
     }

@@ -3,7 +3,7 @@
 //   Generated using the Test262Harness v1.0.3.0
 //   Suite Git SHA: a073f479f80b336256b7fc4e04700c827293e2fe
 //   Suite Directory: 
-//   Template SHA: 0AB194398FD3EF14A62832D70A77275850757328D9441341AC565E629DCCD1FE
+//   Template SHA: 1E56EF956B08932741F03B542C3C1CCF7F0A4B4F3A23FB555EA4F57450EA6091
 //   Command line: /Users/rogerjohansson/.nuget/packages/test262harness.console/1.0.3/tools/net8.0/any/Test262Harness.Console.dll generate
 //   Settings file: /Users/rogerjohansson/git/asynkron/Asynkron.JsEngine/tests/Asynkron.JsEngine.Tests.Test262/Test262Harness.settings.json
 // </auto-generated>
@@ -7030,8 +7030,8 @@ public class BuiltInsTests : Test262Test
     [TestCase("built-ins/AsyncFromSyncIteratorPrototype/next/absent-value-not-passed.js", true, Category = "async-iteration,async")]
     [TestCase("built-ins/AsyncFromSyncIteratorPrototype/next/for-await-iterator-next-rejected-promise-close.js", false, Category = "async-iteration,async")]
     [TestCase("built-ins/AsyncFromSyncIteratorPrototype/next/for-await-iterator-next-rejected-promise-close.js", true, Category = "async-iteration,async")]
-    [TestCase("built-ins/AsyncFromSyncIteratorPrototype/next/for-await-next-rejected-promise-close.js", false, Category = "async-iteration,async", IgnoreReason = "File built-ins/asyncfromsynciteratorprototype/next/for-await-next-rejected-promise-close.js excluded (default)")]
-    [TestCase("built-ins/AsyncFromSyncIteratorPrototype/next/for-await-next-rejected-promise-close.js", true, Category = "async-iteration,async", IgnoreReason = "File built-ins/asyncfromsynciteratorprototype/next/for-await-next-rejected-promise-close.js excluded (strict mode)")]
+    [TestCase("built-ins/AsyncFromSyncIteratorPrototype/next/for-await-next-rejected-promise-close.js", false, Category = "async-iteration,async")]
+    [TestCase("built-ins/AsyncFromSyncIteratorPrototype/next/for-await-next-rejected-promise-close.js", true, Category = "async-iteration,async")]
     [TestCase("built-ins/AsyncFromSyncIteratorPrototype/next/iterator-result-poisoned-done.js", false, Category = "async-iteration,async")]
     [TestCase("built-ins/AsyncFromSyncIteratorPrototype/next/iterator-result-poisoned-done.js", true, Category = "async-iteration,async")]
     [TestCase("built-ins/AsyncFromSyncIteratorPrototype/next/iterator-result-poisoned-value.js", false, Category = "async-iteration,async")]
@@ -7046,8 +7046,8 @@ public class BuiltInsTests : Test262Test
     [TestCase("built-ins/AsyncFromSyncIteratorPrototype/next/iterator-result-unwrap-promise.js", true, Category = "async-iteration,async")]
     [TestCase("built-ins/AsyncFromSyncIteratorPrototype/next/next-result-poisoned-wrapper.js", false, Category = "async-iteration,async")]
     [TestCase("built-ins/AsyncFromSyncIteratorPrototype/next/next-result-poisoned-wrapper.js", true, Category = "async-iteration,async")]
-    [TestCase("built-ins/AsyncFromSyncIteratorPrototype/next/return-promise.js", false, Category = "async-iteration", IgnoreReason = "File built-ins/asyncfromsynciteratorprototype/next/return-promise.js excluded (default)")]
-    [TestCase("built-ins/AsyncFromSyncIteratorPrototype/next/return-promise.js", true, Category = "async-iteration", IgnoreReason = "File built-ins/asyncfromsynciteratorprototype/next/return-promise.js excluded (strict mode)")]
+    [TestCase("built-ins/AsyncFromSyncIteratorPrototype/next/return-promise.js", false, Category = "async-iteration")]
+    [TestCase("built-ins/AsyncFromSyncIteratorPrototype/next/return-promise.js", true, Category = "async-iteration")]
     [TestCase("built-ins/AsyncFromSyncIteratorPrototype/next/yield-iterator-next-rejected-promise-close.js", false, Category = "async-iteration,async")]
     [TestCase("built-ins/AsyncFromSyncIteratorPrototype/next/yield-iterator-next-rejected-promise-close.js", true, Category = "async-iteration,async")]
     [TestCase("built-ins/AsyncFromSyncIteratorPrototype/next/yield-next-rejected-promise-close.js", false, Category = "async-iteration,async")]

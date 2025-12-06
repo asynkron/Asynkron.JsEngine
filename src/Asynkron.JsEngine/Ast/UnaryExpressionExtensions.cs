@@ -23,11 +23,23 @@ public static partial class TypedAstEvaluator
                             context,
                             EvaluateExpression);
                         var currentValue = reference.GetValue();
+
+                        // Per ES spec, convert to numeric first (handles both Number and BigInt)
+                        var oldNumeric = JsOps.ToNumeric(currentValue, context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            return context.FlowValue;
+                        }
+
+                        // Calculate new value (increment/decrement the already-converted numeric value)
                         var updatedValue = expression.Operator == "++"
-                            ? IncrementValue(currentValue, context)
-                            : DecrementValue(currentValue, context);
+                            ? IncrementValue(oldNumeric, context)
+                            : DecrementValue(oldNumeric, context);
                         reference.SetValue(updatedValue);
-                        return expression.IsPrefix ? updatedValue : currentValue;
+
+                        // Postfix returns the old numeric value (after conversion but before increment/decrement)
+                        // Prefix returns the new value (after increment/decrement)
+                        return expression.IsPrefix ? updatedValue : oldNumeric;
                     }
                     case "delete":
                         return EvaluateDelete(expression.Operand, environment, context);

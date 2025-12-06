@@ -39,6 +39,10 @@ public sealed class RealmState
     public HostFunction? SharedArrayBufferConstructor { get; set; }
     public HostFunction? RegExpConstructor { get; set; }
     public RegExpStatics RegExpStatics { get; } = new();
+    public JsObject? GeneratorFunctionPrototype { get; set; }
+    public JsObject? GeneratorPrototype { get; set; }
+    public JsObject? AsyncGeneratorFunctionPrototype { get; set; }
+    public JsObject? AsyncGeneratorPrototype { get; set; }
 
     // Internal flags to avoid re-attaching built-in surfaces per instance
     public bool StringPrototypeMethodsInitialized { get; set; }

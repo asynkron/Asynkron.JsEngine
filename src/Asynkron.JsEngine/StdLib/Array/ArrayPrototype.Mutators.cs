@@ -266,6 +266,79 @@ public sealed partial class ArrayPrototype
         return result;
     }
 
+    [JsHostMethod("reverse", Length = 0d)]
+    public object? Reverse(object? thisValue, IReadOnlyList<object?> args)
+    {
+        const string MethodName = "Array.prototype.reverse";
+        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
+
+        // Re-entrancy guard: prevent infinite recursion when length getter calls reverse
+        const string ReentrancyKey = "__inReverse__";
+        if (accessor.TryGetProperty(ReentrancyKey, out var inReverseFlag) && !ReferenceEquals(inReverseFlag, Symbol.Undefined))
+        {
+            // Already in reverse, return the array to break recursion
+            return accessor;
+        }
+
+        try
+        {
+            accessor.SetProperty(ReentrancyKey, true);
+            var objectLike = accessor as IJsObjectLike;
+            var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+            var length = (long)ToLengthOrZero(lengthValue);
+            var middle = length / 2;
+
+            for (long lower = 0; lower < middle; lower++)
+            {
+                var upper = length - lower - 1;
+                var lowerKey = ToIndexString(lower);
+                var upperKey = ToIndexString(upper);
+
+                var lowerExists = TryGetExistingElement(accessor, lowerKey, out var lowerValue);
+                if (!lowerExists)
+                {
+                    lowerValue = Symbol.Undefined;
+                }
+
+                var upperExists = TryGetExistingElement(accessor, upperKey, out var upperValue);
+                if (!upperExists)
+                {
+                    upperValue = Symbol.Undefined;
+                }
+
+                if (lowerExists && upperExists)
+                {
+                    accessor.SetProperty(lowerKey, upperValue);
+                    accessor.SetProperty(upperKey, lowerValue);
+                    continue;
+                }
+
+                if (!lowerExists && upperExists)
+                {
+                    accessor.SetProperty(lowerKey, upperValue);
+                    DeletePropertyOrThrow(objectLike, upperKey, upperExists, MethodName, Realm);
+                    continue;
+                }
+
+                if (lowerExists && !upperExists)
+                {
+                    DeletePropertyOrThrow(objectLike, lowerKey, lowerExists, MethodName, Realm);
+                    accessor.SetProperty(upperKey, lowerValue);
+                    continue;
+                }
+
+                DeletePropertyOrThrow(objectLike, lowerKey, lowerExists, MethodName, Realm);
+                DeletePropertyOrThrow(objectLike, upperKey, upperExists, MethodName, Realm);
+            }
+
+            return accessor;
+        }
+        finally
+        {
+            accessor.SetProperty(ReentrancyKey, Symbol.Undefined);
+        }
+    }
+
     [JsHostMethod("concat", Length = 1d)]
     public object? Concat(object? thisValue, IReadOnlyList<object?> args)
     {
@@ -319,62 +392,6 @@ public sealed partial class ArrayPrototype
 
         SetArrayLikeLength(result, resultIndex);
         return result;
-    }
-
-    [JsHostMethod("reverse", Length = 0d)]
-    public object? Reverse(object? thisValue, IReadOnlyList<object?> args)
-    {
-        const string MethodName = "Array.prototype.reverse";
-        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
-        var objectLike = accessor as IJsObjectLike;
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-        var length = (long)ToLengthOrZero(lengthValue);
-        var middle = length / 2;
-
-        for (long lower = 0; lower < middle; lower++)
-        {
-            var upper = length - lower - 1;
-            var lowerKey = ToIndexString(lower);
-            var upperKey = ToIndexString(upper);
-
-            var lowerExists = TryGetExistingElement(accessor, lowerKey, out var lowerValue);
-            if (!lowerExists)
-            {
-                lowerValue = Symbol.Undefined;
-            }
-
-            var upperExists = TryGetExistingElement(accessor, upperKey, out var upperValue);
-            if (!upperExists)
-            {
-                upperValue = Symbol.Undefined;
-            }
-
-            if (lowerExists && upperExists)
-            {
-                accessor.SetProperty(lowerKey, upperValue);
-                accessor.SetProperty(upperKey, lowerValue);
-                continue;
-            }
-
-            if (!lowerExists && upperExists)
-            {
-                accessor.SetProperty(lowerKey, upperValue);
-                DeletePropertyOrThrow(objectLike, upperKey, upperExists, MethodName, Realm);
-                continue;
-            }
-
-            if (lowerExists && !upperExists)
-            {
-                DeletePropertyOrThrow(objectLike, lowerKey, lowerExists, MethodName, Realm);
-                accessor.SetProperty(upperKey, lowerValue);
-                continue;
-            }
-
-            DeletePropertyOrThrow(objectLike, lowerKey, lowerExists, MethodName, Realm);
-            DeletePropertyOrThrow(objectLike, upperKey, upperExists, MethodName, Realm);
-        }
-
-        return accessor;
     }
 
     [JsHostMethod("sort", Length = 1d)]

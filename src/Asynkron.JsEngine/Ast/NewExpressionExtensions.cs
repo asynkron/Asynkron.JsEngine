@@ -77,6 +77,14 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(error);
             }
 
+            if (constructor is TypedAstEvaluator.TypedGeneratorFactory)
+            {
+                var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
+                    ? typeErrorCtor.Invoke(["Generator functions cannot be constructed with 'new'"], null)
+                    : new InvalidOperationException("Generator functions cannot be constructed with 'new'.");
+                throw new ThrowSignal(error);
+            }
+
             var typedConstructor = constructor as TypedFunction;
             var isDerivedClassCtor = typedConstructor?.IsDerivedClassConstructor == true;
             var logger = realm?.Logger;

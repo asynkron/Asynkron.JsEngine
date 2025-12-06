@@ -112,6 +112,10 @@ public static partial class TypedAstEvaluator
 
         private JsObject? ResolveGeneratorPrototype()
         {
+            // Per spec: OrdinaryCreateFromConstructor with intrinsicDefaultProto = "%GeneratorPrototype%"
+            // 1. Try to get the generator function's .prototype property
+            // 2. If it's an object, use it
+            // 3. Otherwise, fall back to %GeneratorPrototype% (the intrinsic default)
             if (_callable is IJsPropertyAccessor accessor &&
                 accessor.TryGetProperty("prototype", out var protoValue) &&
                 protoValue is JsObject prototypeObject)
@@ -119,7 +123,8 @@ public static partial class TypedAstEvaluator
                 return prototypeObject;
             }
 
-            return _realmState.ObjectPrototype;
+            // Fall back to %GeneratorPrototype% if the function's .prototype is not an object
+            return _realmState.GeneratorPrototype ?? _realmState.ObjectPrototype;
         }
 
         internal AsyncGeneratorStepResult ExecuteAsyncStep(ResumeMode mode, object? resumeValue)

@@ -1,31 +1,8 @@
-tests (1015 tests) Failed: 1015 tests failed
-  Asynkron.JsEngine.Tests.Test262 (1015 tests) Failed: 1015 tests failed
-    Asynkron.JsEngine.Tests.Test262 (1015 tests) Failed: 1015 tests failed
-      TestHarness (1015 tests) Failed: One or more child tests had errors: 1015 tests failed
-        LanguageTests (1015 tests) Failed: One or more child tests had errors: 1015 tests failed
-          EvalCode_direct (6 tests) Failed: One or more child tests had errors: 6 tests failed
-            EvalCode_direct("language/eval-code/direct/lex-env-no-init-cls.js",False) Failed
-            EvalCode_direct("language/eval-code/direct/lex-env-no-init-cls.js",True) Failed
-            EvalCode_direct("language/eval-code/direct/lex-env-no-init-const.js",False) Failed
-            EvalCode_direct("language/eval-code/direct/lex-env-no-init-const.js",True) Failed
-            EvalCode_direct("language/eval-code/direct/lex-env-no-init-let.js",False) Failed
-            EvalCode_direct("language/eval-code/direct/lex-env-no-init-let.js",True) Failed
-          EvalCode_indirect (6 tests) Failed: One or more child tests had errors: 6 tests failed
-            EvalCode_indirect("language/eval-code/indirect/lex-env-no-init-cls.js",False) Failed
-            EvalCode_indirect("language/eval-code/indirect/lex-env-no-init-cls.js",True) Failed
-            EvalCode_indirect("language/eval-code/indirect/lex-env-no-init-const.js",False) Failed
-            EvalCode_indirect("language/eval-code/indirect/lex-env-no-init-const.js",True) Failed
-            EvalCode_indirect("language/eval-code/indirect/lex-env-no-init-let.js",False) Failed
-            EvalCode_indirect("language/eval-code/indirect/lex-env-no-init-let.js",True) Failed
-          Expressions_bitwiseAnd (2 tests) Failed: One or more child tests had errors: 2 tests failed
-            Expressions_bitwiseAnd("language/expressions/bitwise-and/bigint-toprimitive.js",False) Failed
-            Expressions_bitwiseAnd("language/expressions/bitwise-and/bigint-toprimitive.js",True) Failed
-          Expressions_bitwiseOr (2 tests) Failed: One or more child tests had errors: 2 tests failed
-            Expressions_bitwiseOr("language/expressions/bitwise-or/bigint-toprimitive.js",False) Failed
-            Expressions_bitwiseOr("language/expressions/bitwise-or/bigint-toprimitive.js",True) Failed
-          Expressions_bitwiseXor (2 tests) Failed: One or more child tests had errors: 2 tests failed
-            Expressions_bitwiseXor("language/expressions/bitwise-xor/bigint-toprimitive.js",False) Failed
-            Expressions_bitwiseXor("language/expressions/bitwise-xor/bigint-toprimitive.js",True) Failed
+tests (943 tests) Failed: 943 tests failed
+  Asynkron.JsEngine.Tests.Test262 (943 tests) Failed: 943 tests failed
+    Asynkron.JsEngine.Tests.Test262 (943 tests) Failed: 943 tests failed
+      TestHarness (943 tests) Failed: One or more child tests had errors: 943 tests failed
+        LanguageTests (943 tests) Failed: One or more child tests had errors: 943 tests failed
           Expressions_class_elements (24 tests) Failed: One or more child tests had errors: 24 tests failed
             Expressions_class_elements("language/expressions/class/elements/private-async-generator-method-name.js",False) Failed
             Expressions_class_elements("language/expressions/class/elements/private-async-generator-method-name.js",True) Failed
@@ -60,9 +37,6 @@ tests (1015 tests) Failed: 1015 tests failed
             Expressions_class_elements_privateMethods("language/expressions/class/elements/private-methods/prod-private-generator.js",True) Failed
             Expressions_class_elements_privateMethods("language/expressions/class/elements/private-methods/prod-private-method.js",False) Failed
             Expressions_class_elements_privateMethods("language/expressions/class/elements/private-methods/prod-private-method.js",True) Failed
-          Expressions_division (2 tests) Failed: One or more child tests had errors: 2 tests failed
-            Expressions_division("language/expressions/division/bigint-toprimitive.js",False) Failed
-            Expressions_division("language/expressions/division/bigint-toprimitive.js",True) Failed
           Expressions_dynamicImport (4 tests) Failed: One or more child tests had errors: 4 tests failed
             Expressions_dynamicImport("language/expressions/dynamic-import/returns-promise.js",False) Failed
             Expressions_dynamicImport("language/expressions/dynamic-import/returns-promise.js",True) Failed
@@ -77,36 +51,21 @@ tests (1015 tests) Failed: 1015 tests failed
             Expressions_dynamicImport_importAttributes("language/expressions/dynamic-import/import-attributes/2nd-param-in.js",True) Failed
             Expressions_dynamicImport_importAttributes("language/expressions/dynamic-import/import-attributes/2nd-param-with-enumeration-enumerable.js",False) Failed
             Expressions_dynamicImport_importAttributes("language/expressions/dynamic-import/import-attributes/2nd-param-with-enumeration-enumerable.js",True) Failed
-          Expressions_exponentiation (2 tests) Failed: One or more child tests had errors: 2 tests failed
-            Expressions_exponentiation("language/expressions/exponentiation/bigint-toprimitive.js",False) Failed
-            Expressions_exponentiation("language/expressions/exponentiation/bigint-toprimitive.js",True) Failed
-          Expressions_function (7 tests) Failed: One or more child tests had errors: 7 tests failed
+          Expressions_function (3 tests) Failed: One or more child tests had errors: 3 tests failed
             Expressions_function("language/expressions/function/name-eval-stricteval.js",False) Failed
-            Expressions_function("language/expressions/function/named-no-strict-reassign-fn-name-in-body-in-arrow.js",False) Failed
-            Expressions_function("language/expressions/function/named-no-strict-reassign-fn-name-in-body-in-eval.js",False) Failed
-            Expressions_function("language/expressions/function/named-no-strict-reassign-fn-name-in-body.js",False) Failed
             Expressions_function("language/expressions/function/param-dflt-yield-non-strict.js",False) Failed
             Expressions_function("language/expressions/function/param-eval-stricteval.js",False) Failed
-            Expressions_function("language/expressions/function/scope-name-var-open-non-strict.js",False) Failed
-          Expressions_generators (18 tests) Failed: One or more child tests had errors: 18 tests failed
+          Expressions_generators (10 tests) Failed: One or more child tests had errors: 10 tests failed
             Expressions_generators("language/expressions/generators/default-proto.js",False) Failed
             Expressions_generators("language/expressions/generators/default-proto.js",True) Failed
             Expressions_generators("language/expressions/generators/invoke-as-constructor.js",False) Failed
             Expressions_generators("language/expressions/generators/invoke-as-constructor.js",True) Failed
-            Expressions_generators("language/expressions/generators/named-no-strict-reassign-fn-name-in-body-in-arrow.js",False) Failed
-            Expressions_generators("language/expressions/generators/named-no-strict-reassign-fn-name-in-body-in-eval.js",False) Failed
-            Expressions_generators("language/expressions/generators/named-no-strict-reassign-fn-name-in-body.js",False) Failed
-            Expressions_generators("language/expressions/generators/named-strict-error-reassign-fn-name-in-body-in-arrow.js",True) Failed
-            Expressions_generators("language/expressions/generators/named-strict-error-reassign-fn-name-in-body-in-eval.js",True) Failed
-            Expressions_generators("language/expressions/generators/named-strict-error-reassign-fn-name-in-body.js",True) Failed
             Expressions_generators("language/expressions/generators/prototype-own-properties.js",False) Failed
             Expressions_generators("language/expressions/generators/prototype-own-properties.js",True) Failed
             Expressions_generators("language/expressions/generators/prototype-property-descriptor.js",False) Failed
             Expressions_generators("language/expressions/generators/prototype-property-descriptor.js",True) Failed
             Expressions_generators("language/expressions/generators/prototype-relation-to-function.js",False) Failed
             Expressions_generators("language/expressions/generators/prototype-relation-to-function.js",True) Failed
-            Expressions_generators("language/expressions/generators/scope-name-var-open-non-strict.js",False) Failed
-            Expressions_generators("language/expressions/generators/scope-name-var-open-strict.js",True) Failed
           Expressions_import_meta (3 tests) Failed: One or more child tests had errors: 3 tests failed
             Expressions_import_meta("language/expressions/import.meta/distinct-for-each-module.js",True) Failed
             Expressions_import_meta("language/expressions/import.meta/import-meta-is-an-ordinary-object.js",True) Failed
@@ -143,9 +102,6 @@ tests (1015 tests) Failed: 1015 tests failed
             Expressions_in("language/expressions/in/private-field-rhs-unresolvable.js",True) Failed
             Expressions_in("language/expressions/in/private-field-rhs-yield-present.js",False) Failed
             Expressions_in("language/expressions/in/private-field-rhs-yield-present.js",True) Failed
-          Expressions_leftShift (2 tests) Failed: One or more child tests had errors: 2 tests failed
-            Expressions_leftShift("language/expressions/left-shift/bigint-toprimitive.js",False) Failed
-            Expressions_leftShift("language/expressions/left-shift/bigint-toprimitive.js",True) Failed
           Expressions_logicalAssignment (41 tests) Failed: One or more child tests had errors: 41 tests failed
             Expressions_logicalAssignment("language/expressions/logical-assignment/left-hand-side-private-reference-accessor-property-short-circuit-and.js",False) Failed
             Expressions_logicalAssignment("language/expressions/logical-assignment/left-hand-side-private-reference-accessor-property-short-circuit-and.js",True) Failed
@@ -188,12 +144,6 @@ tests (1015 tests) Failed: 1015 tests failed
             Expressions_logicalAssignment("language/expressions/logical-assignment/lgcl-or-assignment-operator-namedevaluation-function.js",True) Failed
             Expressions_logicalAssignment("language/expressions/logical-assignment/lgcl-or-assignment-operator-no-set.js",True) Failed
             Expressions_logicalAssignment("language/expressions/logical-assignment/lgcl-or-assignment-operator-non-writeable.js",True) Failed
-          Expressions_modulus (2 tests) Failed: One or more child tests had errors: 2 tests failed
-            Expressions_modulus("language/expressions/modulus/bigint-toprimitive.js",False) Failed
-            Expressions_modulus("language/expressions/modulus/bigint-toprimitive.js",True) Failed
-          Expressions_multiplication (2 tests) Failed: One or more child tests had errors: 2 tests failed
-            Expressions_multiplication("language/expressions/multiplication/bigint-toprimitive.js",False) Failed
-            Expressions_multiplication("language/expressions/multiplication/bigint-toprimitive.js",True) Failed
           Expressions_object (6 tests) Failed: One or more child tests had errors: 6 tests failed
             Expressions_object("language/expressions/object/__proto__-permitted-dup-shorthand.js",False) Failed
             Expressions_object("language/expressions/object/__proto__-permitted-dup-shorthand.js",True) Failed
@@ -227,7 +177,7 @@ tests (1015 tests) Failed: 1015 tests failed
             Expressions_object_methodDefinition("language/expressions/object/method-definition/yield-as-expression-with-rhs.js",True) Failed
             Expressions_object_methodDefinition("language/expressions/object/method-definition/yield-as-expression-without-rhs.js",False) Failed
             Expressions_object_methodDefinition("language/expressions/object/method-definition/yield-as-expression-without-rhs.js",True) Failed
-          Expressions_optionalChaining (10 tests) Failed: One or more child tests had errors: 10 tests failed
+          Expressions_optionalChaining (8 tests) Failed: One or more child tests had errors: 8 tests failed
             Expressions_optionalChaining("language/expressions/optional-chaining/eval-optional-call.js",False) Failed
             Expressions_optionalChaining("language/expressions/optional-chaining/eval-optional-call.js",True) Failed
             Expressions_optionalChaining("language/expressions/optional-chaining/member-expression.js",False) Failed
@@ -236,8 +186,6 @@ tests (1015 tests) Failed: 1015 tests failed
             Expressions_optionalChaining("language/expressions/optional-chaining/new-target-optional-call.js",True) Failed
             Expressions_optionalChaining("language/expressions/optional-chaining/punctuator-decimal-lookahead.js",False) Failed
             Expressions_optionalChaining("language/expressions/optional-chaining/punctuator-decimal-lookahead.js",True) Failed
-            Expressions_optionalChaining("language/expressions/optional-chaining/short-circuiting.js",False) Failed
-            Expressions_optionalChaining("language/expressions/optional-chaining/short-circuiting.js",True) Failed
           Expressions_postfixDecrement (1 test) Failed: One or more child tests had errors: 1 test failed
             Expressions_postfixDecrement("language/expressions/postfix-decrement/eval-nostrict.js",False) Failed
           Expressions_postfixIncrement (1 test) Failed: One or more child tests had errors: 1 test failed
@@ -253,13 +201,7 @@ tests (1015 tests) Failed: 1015 tests failed
             Expressions_propertyAccessors("language/expressions/property-accessors/S11.2.1_A4_T3.js",True) Failed
             Expressions_propertyAccessors("language/expressions/property-accessors/S11.2.1_A4_T5.js",False) Failed
             Expressions_propertyAccessors("language/expressions/property-accessors/S11.2.1_A4_T5.js",True) Failed
-          Expressions_rightShift (2 tests) Failed: One or more child tests had errors: 2 tests failed
-            Expressions_rightShift("language/expressions/right-shift/bigint-toprimitive.js",False) Failed
-            Expressions_rightShift("language/expressions/right-shift/bigint-toprimitive.js",True) Failed
-          Expressions_subtraction (2 tests) Failed: One or more child tests had errors: 2 tests failed
-            Expressions_subtraction("language/expressions/subtraction/bigint-toprimitive.js",False) Failed
-            Expressions_subtraction("language/expressions/subtraction/bigint-toprimitive.js",True) Failed
-          Expressions_super (34 tests) Failed: One or more child tests had errors: 34 tests failed
+          Expressions_super (28 tests) Failed: One or more child tests had errors: 28 tests failed
             Expressions_super("language/expressions/super/call-arg-evaluation-err.js",False) Failed
             Expressions_super("language/expressions/super/call-arg-evaluation-err.js",True) Failed
             Expressions_super("language/expressions/super/call-proto-not-ctor.js",False) Failed
@@ -288,13 +230,7 @@ tests (1015 tests) Failed: 1015 tests failed
             Expressions_super("language/expressions/super/prop-expr-obj-null-proto.js",False) Failed
             Expressions_super("language/expressions/super/prop-expr-obj-null-proto.js",True) Failed
             Expressions_super("language/expressions/super/prop-expr-obj-ref-strict.js",True) Failed
-            Expressions_super("language/expressions/super/prop-expr-uninitialized-this-putvalue-compound-assign.js",False) Failed
-            Expressions_super("language/expressions/super/prop-expr-uninitialized-this-putvalue-compound-assign.js",True) Failed
-            Expressions_super("language/expressions/super/prop-expr-uninitialized-this-putvalue-increment.js",False) Failed
-            Expressions_super("language/expressions/super/prop-expr-uninitialized-this-putvalue-increment.js",True) Failed
-            Expressions_super("language/expressions/super/prop-expr-uninitialized-this-putvalue.js",False) Failed
-            Expressions_super("language/expressions/super/prop-expr-uninitialized-this-putvalue.js",True) Failed
-          Expressions_taggedTemplate (18 tests) Failed: One or more child tests had errors: 18 tests failed
+          Expressions_taggedTemplate (14 tests) Failed: One or more child tests had errors: 14 tests failed
             Expressions_taggedTemplate("language/expressions/tagged-template/cache-different-functions-same-site.js",False) Failed
             Expressions_taggedTemplate("language/expressions/tagged-template/cache-different-functions-same-site.js",True) Failed
             Expressions_taggedTemplate("language/expressions/tagged-template/cache-eval-inner-function.js",False) Failed
@@ -307,12 +243,8 @@ tests (1015 tests) Failed: 1015 tests failed
             Expressions_taggedTemplate("language/expressions/tagged-template/constructor-invocation.js",True) Failed
             Expressions_taggedTemplate("language/expressions/tagged-template/invalid-escape-sequences.js",False) Failed
             Expressions_taggedTemplate("language/expressions/tagged-template/invalid-escape-sequences.js",True) Failed
-            Expressions_taggedTemplate("language/expressions/tagged-template/template-object-frozen-non-strict.js",False) Failed
-            Expressions_taggedTemplate("language/expressions/tagged-template/template-object-frozen-strict.js",True) Failed
             Expressions_taggedTemplate("language/expressions/tagged-template/template-object-template-map.js",False) Failed
             Expressions_taggedTemplate("language/expressions/tagged-template/template-object-template-map.js",True) Failed
-            Expressions_taggedTemplate("language/expressions/tagged-template/template-object.js",False) Failed
-            Expressions_taggedTemplate("language/expressions/tagged-template/template-object.js",True) Failed
           Expressions_templateLiteral (10 tests) Failed: One or more child tests had errors: 10 tests failed
             Expressions_templateLiteral("language/expressions/template-literal/literal-expr-abrupt.js",False) Failed
             Expressions_templateLiteral("language/expressions/template-literal/literal-expr-abrupt.js",True) Failed
@@ -329,9 +261,6 @@ tests (1015 tests) Failed: 1015 tests failed
             Expressions_typeof("language/expressions/typeof/proxy.js",True) Failed
             Expressions_typeof("language/expressions/typeof/string.js",False) Failed
             Expressions_typeof("language/expressions/typeof/string.js",True) Failed
-          Expressions_unsignedRightShift (2 tests) Failed: One or more child tests had errors: 2 tests failed
-            Expressions_unsignedRightShift("language/expressions/unsigned-right-shift/bigint-toprimitive.js",False) Failed
-            Expressions_unsignedRightShift("language/expressions/unsigned-right-shift/bigint-toprimitive.js",True) Failed
           Expressions_yield (81 tests) Failed: One or more child tests had errors: 81 tests failed
             Expressions_yield("language/expressions/yield/from-with.js",False) Failed
             Expressions_yield("language/expressions/yield/rhs-omitted.js",False) Failed
@@ -482,9 +411,6 @@ tests (1015 tests) Failed: 1015 tests failed
             Import_importDefer_evaluationTriggers("language/import/import-defer/evaluation-triggers/trigger-not-exported-string-hasProperty.js",True) Failed
           Import_importDefer_syntax (1 test) Failed: One or more child tests had errors: 1 test failed
             Import_importDefer_syntax("language/import/import-defer/syntax/import-attributes.js",True) Failed
-          Literals_regexp_namedGroups (2 tests) Failed: One or more child tests had errors: 2 tests failed
-            Literals_regexp_namedGroups("language/literals/regexp/named-groups/forward-reference.js",False) Failed
-            Literals_regexp_namedGroups("language/literals/regexp/named-groups/forward-reference.js",True) Failed
           ModuleCode (63 tests) Failed: One or more child tests had errors: 63 tests failed
             ModuleCode("language/module-code/eval-gtbndng-indirect-update-as.js",True) Failed
             ModuleCode("language/module-code/eval-gtbndng-indirect-update-dflt.js",True) Failed
@@ -899,7 +825,7 @@ tests (1015 tests) Failed: 1015 tests failed
             Statements_for("language/statements/for/head-lhs-let.js",False) Failed
             Statements_for("language/statements/for/scope-body-lex-open.js",False) Failed
             Statements_for("language/statements/for/scope-body-lex-open.js",True) Failed
-          Statements_forIn (18 tests) Failed: One or more child tests had errors: 18 tests failed
+          Statements_forIn (12 tests) Failed: One or more child tests had errors: 12 tests failed
             Statements_forIn("language/statements/for-in/head-lhs-let.js",False) Failed
             Statements_forIn("language/statements/for-in/identifier-let-allowed-as-lefthandside-expression-not-strict.js",False) Failed
             Statements_forIn("language/statements/for-in/order-after-define-property.js",False) Failed
@@ -912,13 +838,7 @@ tests (1015 tests) Failed: 1015 tests failed
             Statements_forIn("language/statements/for-in/S12.6.4_A6.js",True) Failed
             Statements_forIn("language/statements/for-in/S12.6.4_A7_T2.js",False) Failed
             Statements_forIn("language/statements/for-in/S12.6.4_A7_T2.js",True) Failed
-            Statements_forIn("language/statements/for-in/scope-body-lex-open.js",False) Failed
-            Statements_forIn("language/statements/for-in/scope-body-lex-open.js",True) Failed
-            Statements_forIn("language/statements/for-in/scope-head-lex-close.js",False) Failed
-            Statements_forIn("language/statements/for-in/scope-head-lex-close.js",True) Failed
-            Statements_forIn("language/statements/for-in/scope-head-lex-open.js",False) Failed
-            Statements_forIn("language/statements/for-in/scope-head-lex-open.js",True) Failed
-          Statements_forOf (25 tests) Failed: One or more child tests had errors: 25 tests failed
+          Statements_forOf (19 tests) Failed: One or more child tests had errors: 19 tests failed
             Statements_forOf("language/statements/for-of/head-await-using-bound-names-fordecl-tdz.js",False) Failed
             Statements_forOf("language/statements/for-of/head-await-using-bound-names-fordecl-tdz.js",True) Failed
             Statements_forOf("language/statements/for-of/head-await-using-fresh-binding-per-iteration.js",True) Failed
@@ -936,12 +856,6 @@ tests (1015 tests) Failed: 1015 tests failed
             Statements_forOf("language/statements/for-of/iterator-next-error.js",True) Failed
             Statements_forOf("language/statements/for-of/iterator-next-result-type.js",False) Failed
             Statements_forOf("language/statements/for-of/iterator-next-result-type.js",True) Failed
-            Statements_forOf("language/statements/for-of/scope-body-lex-open.js",False) Failed
-            Statements_forOf("language/statements/for-of/scope-body-lex-open.js",True) Failed
-            Statements_forOf("language/statements/for-of/scope-head-lex-close.js",False) Failed
-            Statements_forOf("language/statements/for-of/scope-head-lex-close.js",True) Failed
-            Statements_forOf("language/statements/for-of/scope-head-lex-open.js",False) Failed
-            Statements_forOf("language/statements/for-of/scope-head-lex-open.js",True) Failed
             Statements_forOf("language/statements/for-of/string-astral.js",False) Failed
             Statements_forOf("language/statements/for-of/string-astral.js",True) Failed
           Statements_function (29 tests) Failed: One or more child tests had errors: 29 tests failed

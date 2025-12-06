@@ -14,7 +14,8 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
-            object? lastValue = Symbol.Undefined;
+            // V = undefined (spec step 1)
+            object? completionValue = Symbol.Undefined;
             var hasMatched = false;
 
             foreach (var switchCase in statement.Cases)
@@ -30,7 +31,7 @@ public static partial class TypedAstEvaluator
                         var test = EvaluateExpression(switchCase.Test, environment, context);
                         if (context.ShouldStopEvaluation)
                         {
-                            return lastValue;
+                            return completionValue;
                         }
 
                         hasMatched = StrictEquals(discriminant, test);
@@ -42,9 +43,20 @@ public static partial class TypedAstEvaluator
                     }
                 }
 
-                lastValue = EvaluateBlock(switchCase.Body, environment, context);
+                // Evaluate the case clause body
+                var caseCompletion = EvaluateBlock(switchCase.Body, environment, context);
+
+                // If R.[[value]] is not empty, let V = R.[[value]] (spec step 4.b.ii)
+                // UpdateEmpty semantics: only update V if the completion is not empty
+                if (!ReferenceEquals(caseCompletion, EmptyCompletion))
+                {
+                    completionValue = caseCompletion;
+                }
+
                 if (context.TryClearBreak(targetLabel))
                 {
+                    // Return Completion(UpdateEmpty(R, V)) (spec step 4.b.iii)
+                    // Break already happened, return the accumulated value
                     break;
                 }
 
@@ -54,7 +66,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            return lastValue;
+            return completionValue;
         }
     }
 }

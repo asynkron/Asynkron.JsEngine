@@ -276,22 +276,37 @@ public static partial class TypedAstEvaluator
                 : "[GeneratorFunction]";
         }
 
-        private void InitializeProperties()
+        private void EnsureGeneratorIntrinsics()
         {
-            if (_realmState.FunctionPrototype is JsObject functionPrototype)
+            // Lazily initialize the GeneratorFunction.prototype and Generator.prototype intrinsics
+            // if they haven't been created yet.
+
+            // First create %GeneratorPrototype% if needed
+            if (_realmState.GeneratorPrototype is null)
             {
-                _properties.SetPrototype(functionPrototype);
+                var generatorProto = new JsObject();
+                // %GeneratorPrototype% inherits from %IteratorPrototype%, which inherits from %Object.prototype%
+                // For now, we'll just inherit from Object.prototype directly
+                if (_realmState.ObjectPrototype is not null)
+                {
+                    generatorProto.SetPrototype(_realmState.ObjectPrototype);
+                }
+
+                _realmState.GeneratorPrototype = generatorProto;
             }
 
-            if (_realmState.ObjectPrototype is not null)
+            // Then create %GeneratorFunction.prototype% and link it to %GeneratorPrototype%
+            if (_realmState.GeneratorFunctionPrototype is null && _realmState.FunctionPrototype is not null)
             {
-                var generatorPrototype = new JsObject();
-                generatorPrototype.SetPrototype(_realmState.ObjectPrototype);
-                generatorPrototype.DefineProperty("constructor",
+                var genFuncProto = new JsObject();
+                genFuncProto.SetPrototype(_realmState.FunctionPrototype);
+
+                // %GeneratorFunction.prototype% should have a .prototype property pointing to %GeneratorPrototype%
+                genFuncProto.DefineProperty("prototype",
                     new PropertyDescriptor
                     {
-                        Value = this,
-                        Writable = true,
+                        Value = _realmState.GeneratorPrototype,
+                        Writable = false,
                         Enumerable = false,
                         Configurable = true,
                         HasValue = true,
@@ -299,7 +314,48 @@ public static partial class TypedAstEvaluator
                         HasEnumerable = true,
                         HasConfigurable = true
                     });
-                _properties.SetProperty("prototype", generatorPrototype);
+
+                _realmState.GeneratorFunctionPrototype = genFuncProto;
+            }
+        }
+
+        private void InitializeProperties()
+        {
+            // Set up the generator function's [[Prototype]] chain.
+            // According to the spec, generator functions should inherit from %GeneratorFunction.prototype%,
+            // which in turn inherits from %Function.prototype%.
+            EnsureGeneratorIntrinsics();
+
+            if (_realmState.GeneratorFunctionPrototype is JsObject genFuncProto)
+            {
+                _properties.SetPrototype(genFuncProto);
+            }
+            else if (_realmState.FunctionPrototype is JsObject functionPrototype)
+            {
+                _properties.SetPrototype(functionPrototype);
+            }
+
+            // Set up the generator function's .prototype property.
+            // Each generator function instance gets its own .prototype object that inherits
+            // from %GeneratorPrototype%.
+            // Per spec 25.2.4.2: The prototype property is created as a plain object with
+            // no own properties (the constructor property is inherited from %GeneratorPrototype%).
+            if (_realmState.GeneratorPrototype is not null)
+            {
+                var generatorPrototype = new JsObject();
+                generatorPrototype.SetPrototype(_realmState.GeneratorPrototype);
+                _properties.DefineProperty("prototype",
+                    new PropertyDescriptor
+                    {
+                        Value = generatorPrototype,
+                        Writable = true,
+                        Enumerable = false,
+                        Configurable = false,
+                        HasValue = true,
+                        HasWritable = true,
+                        HasEnumerable = true,
+                        HasConfigurable = true
+                    });
             }
 
             var paramCount = GetExpectedParameterCount(_function.Parameters);

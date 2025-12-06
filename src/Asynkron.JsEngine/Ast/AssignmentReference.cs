@@ -92,6 +92,20 @@ internal static class AssignmentReferenceResolver
         Func<ExpressionNode, JsEnvironment, EvaluationContext, object?> evaluateExpression,
         bool deferPropertyKeyConversion)
     {
+        // According to ES spec 13.3.7.1, for super property access, GetThisBinding must be evaluated
+        // BEFORE the property expression to ensure ReferenceError is thrown if this is uninitialized
+        // before any side effects occur
+        if (member.Target is SuperExpression)
+        {
+            if (!context.IsThisInitialized)
+            {
+                throw StandardLibrary.ThrowReferenceError(
+                    "Super is not available in this context.",
+                    context,
+                    context.RealmState);
+            }
+        }
+
         var target = evaluateExpression(member.Target, environment, context);
         if (context.ShouldStopEvaluation)
         {

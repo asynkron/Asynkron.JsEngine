@@ -46,27 +46,53 @@ public static partial class TypedAstEvaluator
                     case "typeof":
                     {
                         // The typeof operator has special semantics: it returns "undefined"
-                        // for unresolvable references instead of throwing ReferenceError.
+                        // for UNDECLARED references instead of throwing ReferenceError.
+                        // However, it MUST throw for bindings in the Temporal Dead Zone (TDZ).
                         // Property getters MUST be invoked during evaluation (ES2024 13.5.3).
 
-                        // Always evaluate the operand to invoke GetValue (which triggers property getters)
-                        var operandValue = EvaluateExpression(expression.Operand, environment, context);
-
-                        // If evaluation resulted in a ReferenceError for a simple identifier,
-                        // typeof should return "undefined" instead of propagating the error
-                        if (context.IsThrow && expression.Operand is IdentifierExpression)
+                        // For simple identifiers, check if the binding exists to distinguish
+                        // between undeclared variables and TDZ variables
+                        if (expression.Operand is IdentifierExpression identifier)
                         {
-                            // Clear the error and return "undefined" for unresolvable references
-                            context.Clear();
-                            return "undefined";
+                            // Check if this identifier has a binding (even if uninitialized)
+                            var hasBinding = environment.HasBinding(identifier.Name);
+
+                            // Evaluate the operand (which will throw if in TDZ)
+                            var operandValue = EvaluateExpression(expression.Operand, environment, context);
+
+                            // If evaluation threw a ReferenceError
+                            if (context.IsThrow)
+                            {
+                                // Only suppress the error if the variable was truly undeclared
+                                // (no binding exists). If a binding exists, it's a TDZ error
+                                // and should propagate.
+                                if (!hasBinding)
+                                {
+                                    // Clear the error and return "undefined" for undeclared variables
+                                    context.Clear();
+                                    return "undefined";
+                                }
+
+                                // Let TDZ errors propagate
+                                return Symbol.Undefined;
+                            }
+
+                            if (context.ShouldStopEvaluation)
+                            {
+                                return Symbol.Undefined;
+                            }
+
+                            return GetTypeofString(operandValue);
                         }
 
+                        // For non-identifier operands, evaluate normally
+                        var value = EvaluateExpression(expression.Operand, environment, context);
                         if (context.ShouldStopEvaluation)
                         {
                             return Symbol.Undefined;
                         }
 
-                        return GetTypeofString(operandValue);
+                        return GetTypeofString(value);
                     }
                 }
 

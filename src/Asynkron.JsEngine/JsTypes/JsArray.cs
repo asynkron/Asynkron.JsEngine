@@ -72,6 +72,11 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         _properties.PreventExtensions();
     }
 
+    public void Freeze()
+    {
+        _properties.Freeze();
+    }
+
     public void SetPrototype(object? candidate)
     {
         _properties.SetPrototype(candidate);
@@ -156,6 +161,13 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
     {
+        // First check if there's an explicit descriptor in _properties (e.g., for frozen/sealed arrays or custom descriptors)
+        var explicitDescriptor = _properties.GetOwnPropertyDescriptor(name);
+        if (explicitDescriptor is not null)
+        {
+            return explicitDescriptor;
+        }
+
         if (TryParseArrayIndex(name, out var index))
         {
             if (index < _length && TryGetOwnIndex(index, out var value))
@@ -167,7 +179,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             }
         }
 
-        return _properties.GetOwnPropertyDescriptor(name);
+        return null;
     }
 
     public IEnumerable<string> GetOwnPropertyNames()

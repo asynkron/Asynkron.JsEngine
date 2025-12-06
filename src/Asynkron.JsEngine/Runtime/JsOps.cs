@@ -277,15 +277,19 @@ internal static class JsOps
             }
         }
 
-        if (TryInvokePropertyMethod(accessor, "valueOf", out var valueOfResult, context))
+        // Check if valueOf exists and track whether we attempted to use it
+        var valueOfExists = accessor.TryGetProperty("valueOf", out var valueOfMethod);
+        if (valueOfExists)
         {
             attempted = true;
-
-            if ((valueOfResult is not IJsPropertyAccessor || valueOfResult is TypedAstSymbol or Symbol) &&
-                valueOfResult is not JsObject)
+            if (TryInvokePropertyMethod(accessor, "valueOf", out var valueOfResult, context))
             {
-                primitive = valueOfResult;
-                return true;
+                if ((valueOfResult is not IJsPropertyAccessor || valueOfResult is TypedAstSymbol or Symbol) &&
+                    valueOfResult is not JsObject)
+                {
+                    primitive = valueOfResult;
+                    return true;
+                }
             }
         }
 
@@ -294,32 +298,44 @@ internal static class JsOps
             return false;
         }
 
-        var toStringAttempted = TryInvokePropertyMethod(accessor, "toString", out var toStringResult, context);
-        attempted = attempted || toStringAttempted;
-        if (!toStringAttempted ||
-            (toStringResult is IJsPropertyAccessor && toStringResult is not TypedAstSymbol &&
-             toStringResult is not Symbol) ||
-            toStringResult is JsObject)
+        // Check if toString exists and track whether we attempted to use it
+        var toStringExists = accessor.TryGetProperty("toString", out var toStringMethod);
+        var toStringAttempted = false;
+        if (toStringExists)
         {
-            if (!attempted)
+            attempted = true;
+            toStringAttempted = TryInvokePropertyMethod(accessor, "toString", out var toStringResult, context);
+            if (toStringAttempted)
             {
-                return false;
+                if ((toStringResult is not IJsPropertyAccessor || toStringResult is TypedAstSymbol or Symbol) &&
+                    toStringResult is not JsObject)
+                {
+                    primitive = toStringResult;
+                    return true;
+                }
             }
+        }
 
-            // OrdinaryToPrimitive failure path should be an abrupt completion.
-            var error = CreateTypeError("Cannot convert object to primitive value", context);
-            if (context is null)
-            {
-                throw new ThrowSignal(error);
-            }
-
-            context.SetThrow(error);
-
+        if (context?.IsThrow == true)
+        {
             return false;
         }
 
-        primitive = toStringResult;
-        return true;
+        if (!attempted)
+        {
+            return false;
+        }
+
+        // OrdinaryToPrimitive failure path should be an abrupt completion.
+        var error = CreateTypeError("Cannot convert object to primitive value", context);
+        if (context is null)
+        {
+            throw new ThrowSignal(error);
+        }
+
+        context.SetThrow(error);
+
+        return false;
     }
 
     public static object? ToPrimitive(object? value, string hint, EvaluationContext? context = null)

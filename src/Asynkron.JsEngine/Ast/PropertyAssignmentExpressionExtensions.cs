@@ -30,6 +30,13 @@ public static partial class TypedAstEvaluator
                     hasOwnSuper,
                     hasOwnThis);
 
+                // According to ES spec 13.3.7.1, GetThisBinding must be evaluated BEFORE the property expression
+                // to ensure ReferenceError is thrown if this is uninitialized before any side effects occur
+                if (!context.IsThisInitialized)
+                {
+                    throw CreateSuperReferenceError(environment, context, null);
+                }
+
                 var propertyKey = EvaluateExpression(superPropertyExpression, environment, context);
                 if (context.ShouldStopEvaluation)
                 {

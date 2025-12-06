@@ -52,9 +52,7 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
-            if (IsNullish(target) &&
-                (expression.Target is MemberExpression { IsOptional: true } ||
-                 expression.Target is CallExpression { IsOptional: true }))
+            if (IsNullish(target) && HasOptionalChaining(expression.Target))
             {
                 return Symbol.Undefined;
             }

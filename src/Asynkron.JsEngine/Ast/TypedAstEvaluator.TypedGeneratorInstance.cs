@@ -258,7 +258,7 @@ public static partial class TypedAstEvaluator
 
             if (_function.Name is { } functionName)
             {
-                parameterEnvironment.Define(functionName, _callable);
+                parameterEnvironment.Define(functionName, _callable, isConst: true, isLexical: true, blocksFunctionScopeOverride: true);
             }
 
             var generatorContext = _realmState.CreateContext(

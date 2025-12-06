@@ -280,6 +280,11 @@ public static partial class TypedAstEvaluator
                     return (null, null, true);
                 }
 
+                if (IsNullish(target) && HasOptionalChaining(member.Target))
+                {
+                    return (Symbol.Undefined, null, true);
+                }
+
                 if (IsNullish(target))
                 {
                     var error = StandardLibrary.CreateTypeError(

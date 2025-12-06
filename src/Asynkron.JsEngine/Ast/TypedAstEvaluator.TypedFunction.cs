@@ -695,7 +695,7 @@ public static partial class TypedAstEvaluator
                 // Named function expressions should see their name inside the body.
                 if (!IsArrowFunction && _function.Name is { } functionName && !_hasFunctionNameEnvironment)
                 {
-                    parameterEnvironment.Define(functionName, this);
+                    parameterEnvironment.Define(functionName, this, isConst: true, isLexical: true, blocksFunctionScopeOverride: true);
                 }
 
                 BindFunctionParameters(_function, arguments, parameterEnvironment, context);

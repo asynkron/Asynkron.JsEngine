@@ -408,6 +408,28 @@ public static partial class TypedAstEvaluator
         return value.IsNullish();
     }
 
+    private static bool HasOptionalChaining(ExpressionNode? expression)
+    {
+        while (expression is not null)
+        {
+            switch (expression)
+            {
+                case MemberExpression { IsOptional: true }:
+                case CallExpression { IsOptional: true }:
+                    return true;
+                case MemberExpression member:
+                    expression = member.Target;
+                    break;
+                case CallExpression call:
+                    expression = call.Callee;
+                    break;
+                default:
+                    return false;
+            }
+        }
+        return false;
+    }
+
     private static bool IsTruthy(object? value)
     {
         return JsOps.IsTruthy(value);

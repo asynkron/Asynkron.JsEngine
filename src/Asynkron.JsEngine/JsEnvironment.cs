@@ -707,8 +707,13 @@ public sealed class JsEnvironment
 
         if (binding.IsConst)
         {
-            throw new ThrowSignal(StandardLibrary.CreateTypeError(
-                $"Cannot reassign constant '{name.Name}'.", realm: realm));
+            if (isStrictContext)
+            {
+                throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                    $"Cannot reassign constant '{name.Name}'.", realm: realm));
+            }
+
+            return;
         }
 
         if (binding.IsGlobalConstant)

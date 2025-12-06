@@ -406,15 +406,20 @@ public class JsRegExp
 
                     if (definedSoFar.Contains(normalizedName))
                     {
+                        // Backward reference: group already defined
                         builder.Append(pattern, i, end - i + 1);
                     }
                     else
                     {
-                        // Forward reference behaves like an empty string in JS.
-                        builder.Append("(?:)");
+                        // Forward reference: use conditional to match empty string if group not yet captured
+                        // (?(name)\k<name>|) - if group captured use backreference, else match empty
+                        builder.Append("(?(");
+                        builder.Append(normalizedName);
+                        builder.Append(")\\k<");
+                        builder.Append(normalizedName);
+                        builder.Append(">|)");
                     }
 
-                    definedSoFar.Add(normalizedName);
                     i = end;
                     continue;
                 }
@@ -545,6 +550,8 @@ public class JsRegExp
             return pattern ?? string.Empty;
         }
 
+        var allGroupNames = CollectGroupNames(pattern);
+        var definedSoFar = new HashSet<string>();
         var builder = new StringBuilder();
         var inCharClass = false;
         var escaped = false;
@@ -636,6 +643,47 @@ public class JsRegExp
 
                         // Invalid control escape: treat the backslash and 'c' as literals.
                         builder.Append("\\\\c");
+                        continue;
+
+                    case 'k':
+                        // Handle named backreferences: \k<name>
+                        if (i + 1 < pattern.Length && pattern[i + 1] == '<')
+                        {
+                            var endBracket = pattern.IndexOf('>', i + 2);
+                            if (endBracket != -1)
+                            {
+                                var name = pattern.Substring(i + 2, endBracket - (i + 2));
+                                var normalizedName = NormalizeGroupNameToken(name);
+                                if (allGroupNames.Contains(normalizedName))
+                                {
+                                    if (definedSoFar.Contains(normalizedName))
+                                    {
+                                        // Backward reference: group already defined
+                                        builder.Append('\\');
+                                        builder.Append('k');
+                                        builder.Append('<');
+                                        builder.Append(normalizedName);
+                                        builder.Append('>');
+                                    }
+                                    else
+                                    {
+                                        // Forward reference: use conditional to match empty string if group not yet captured
+                                        // (?(name)\k<name>|) - if group captured use backreference, else match empty
+                                        builder.Append("(?(");
+                                        builder.Append(normalizedName);
+                                        builder.Append(")\\k<");
+                                        builder.Append(normalizedName);
+                                        builder.Append(">|)");
+                                    }
+                                    i = endBracket;
+                                    continue;
+                                }
+                            }
+                        }
+
+                        // Not a valid named backreference, treat as literal
+                        builder.Append('\\');
+                        builder.Append('k');
                         continue;
 
                     case var _ when char.IsDigit(c):
@@ -740,6 +788,18 @@ public class JsRegExp
                 if (!hasQuestion || isNamedCapture)
                 {
                     captureCount++;
+                }
+
+                // Track named groups as they are defined
+                if (isNamedCapture)
+                {
+                    var end = pattern.IndexOf('>', i + 3);
+                    if (end != -1)
+                    {
+                        var name = pattern.Substring(i + 3, end - (i + 3));
+                        var normalizedName = NormalizeGroupNameToken(name);
+                        definedSoFar.Add(normalizedName);
+                    }
                 }
             }
 

@@ -68,6 +68,26 @@ public static partial class TypedAstEvaluator
 
                     typedFunction.EnsureHasName(displayName);
                 }
+                else if (value is TypedGeneratorFactory generatorFactory)
+                {
+                    generatorFactory.SetPrivateNameScope(privateNameScope);
+                    if (homeObject is not null)
+                    {
+                        generatorFactory.SetHomeObject(homeObject);
+                    }
+
+                    generatorFactory.EnsureHasName(displayName);
+                }
+                else if (value is AsyncGeneratorFactory asyncGeneratorFactory)
+                {
+                    asyncGeneratorFactory.SetPrivateNameScope(privateNameScope);
+                    if (homeObject is not null)
+                    {
+                        asyncGeneratorFactory.SetHomeObject(homeObject);
+                    }
+
+                    asyncGeneratorFactory.EnsureHasName(displayName);
+                }
                 else if (value is IFunctionNameTarget nameTarget)
                 {
                     nameTarget.EnsureHasName(displayName);

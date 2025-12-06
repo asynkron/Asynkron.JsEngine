@@ -373,15 +373,33 @@ public static partial class TypedAstEvaluator
                     context.CurrentScope.IsStrict, functionNameEnvironment is not null)
             };
 
-            if (callable is TypedFunction typed && context.CurrentPrivateNameScope is not null &&
-                typed.PrivateNameScope is null)
+            var capturedPrivateScopes = context.CapturePrivateNameScopes();
+            switch (callable)
             {
-                typed.SetPrivateNameScope(context.CurrentPrivateNameScope);
-            }
-
-            if (callable is TypedFunction typedWithCapturedScopes)
-            {
-                typedWithCapturedScopes.SetCapturedPrivateNameScopes(context.CapturePrivateNameScopes());
+                case TypedFunction typed when context.CurrentPrivateNameScope is not null &&
+                                              typed.PrivateNameScope is null:
+                    typed.SetPrivateNameScope(context.CurrentPrivateNameScope);
+                    typed.SetCapturedPrivateNameScopes(capturedPrivateScopes);
+                    break;
+                case TypedFunction typed:
+                    typed.SetCapturedPrivateNameScopes(capturedPrivateScopes);
+                    break;
+                case TypedGeneratorFactory generatorFactory when context.CurrentPrivateNameScope is not null &&
+                                                                 generatorFactory.PrivateNameScope is null:
+                    generatorFactory.SetPrivateNameScope(context.CurrentPrivateNameScope);
+                    generatorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
+                    break;
+                case TypedGeneratorFactory generatorFactory:
+                    generatorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
+                    break;
+                case AsyncGeneratorFactory asyncGeneratorFactory when context.CurrentPrivateNameScope is not null &&
+                                                                      asyncGeneratorFactory.PrivateNameScope is null:
+                    asyncGeneratorFactory.SetPrivateNameScope(context.CurrentPrivateNameScope);
+                    asyncGeneratorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
+                    break;
+                case AsyncGeneratorFactory asyncGeneratorFactory:
+                    asyncGeneratorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
+                    break;
             }
 
             if (functionNameEnvironment is not null)

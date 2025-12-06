@@ -751,12 +751,6 @@ public static partial class TypedAstEvaluator
         JsOps.AssignPropertyValue(target, propertyKey, value, context);
     }
 
-    private static bool DeletePropertyValue(object? target, object? propertyKey, EvaluationContext? context = null)
-    {
-        return JsOps.DeletePropertyValue(target, propertyKey, context);
-    }
-
-
     private static bool InOperator(object? property, object? target, EvaluationContext context)
     {
         var propertyName = JsOps.GetRequiredPropertyName(property, context);
@@ -768,6 +762,17 @@ public static partial class TypedAstEvaluator
         if (target is ModuleNamespace moduleNamespace)
         {
             return moduleNamespace.HasExport(propertyName);
+        }
+
+        if (propertyName.IsPrivateName())
+        {
+            var handle = PropertyHandle.Resolve(target, propertyName, context, context.CurrentScope.IsStrict);
+            if (context.ShouldStopEvaluation)
+            {
+                return false;
+            }
+
+            return handle.Exists();
         }
 
         return TryGetPropertyValue(target, propertyName, out _, context);
@@ -840,7 +845,7 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        var current = GetPrototypePointer(candidate);
+        var current = JsOps.GetPrototypePointer(candidate);
 
         while (current is not null)
         {
@@ -849,30 +854,10 @@ public static partial class TypedAstEvaluator
                 return true;
             }
 
-            current = GetPrototypePointer(current);
+            current = JsOps.GetPrototypePointer(current);
         }
 
         return false;
-
-        static IJsPropertyAccessor? GetPrototypePointer(object? value)
-        {
-            if (value is IPrototypeAccessorProvider provider && provider.PrototypeAccessor is { } protoAccessor)
-            {
-                return protoAccessor;
-            }
-
-            if (value is IJsObjectLike objectLike && objectLike.Prototype is { } proto)
-            {
-                return proto;
-            }
-
-            if (value is JsObject jsObject && jsObject.Prototype is { } jsProto)
-            {
-                return jsProto;
-            }
-
-            return null;
-        }
     }
 
     private static string GetTypeofString(object? value)

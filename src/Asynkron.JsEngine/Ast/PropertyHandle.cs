@@ -108,10 +108,57 @@ public static partial class TypedAstEvaluator
             AssignPropertyValueWithNullCheck(_target, _propertyName, value, _context, _isStrict);
         }
 
+        public bool Delete()
+        {
+            if (_context.ShouldStopEvaluation)
+            {
+                return false;
+            }
+
+            EnsurePrivateBrand();
+
+            if (IsNullish(_target))
+            {
+                throw StandardLibrary.ThrowTypeError("Cannot delete property on null or undefined", _context,
+                    _context.RealmState);
+            }
+
+            var deleted = JsOps.DeletePropertyValue(_target, _propertyName, _context);
+            if (!deleted && _isStrict)
+            {
+                throw StandardLibrary.ThrowTypeError("Cannot delete property", _context, _context.RealmState);
+            }
+
+            return deleted;
+        }
+
+        public bool Exists()
+        {
+            if (_context.ShouldStopEvaluation)
+            {
+                return false;
+            }
+
+            EnsurePrivateBrand();
+            return TryGetPropertyValue(_target, _propertyName, out _, _context);
+        }
+
         private void EnsurePrivateBrand()
         {
             if (!_isPrivate)
             {
+                return;
+            }
+
+            if (_target is JsObject jsObj && jsObj.HasPrivateField(_propertyName))
+            {
+                if (_privateScope is not null &&
+                    _target is IPrivateBrandHolder holder &&
+                    !holder.HasPrivateBrand(_privateScope.BrandToken))
+                {
+                    holder.AddPrivateBrand(_privateScope.BrandToken);
+                }
+
                 return;
             }
 

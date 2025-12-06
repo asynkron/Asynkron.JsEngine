@@ -369,13 +369,8 @@ public static partial class TypedAstEvaluator
                         return false;
                     }
 
-                    var deleted = DeletePropertyValue(target, propertyValue, context);
-                    if (!deleted && context.CurrentScope.IsStrict)
-                    {
-                        throw StandardLibrary.ThrowTypeError("Cannot delete property", context, context.RealmState);
-                    }
-
-                    return deleted;
+                    var handle = PropertyHandle.Resolve(target, propertyValue, context, context.CurrentScope.IsStrict);
+                    return handle.Delete();
                 }
                 case IdentifierExpression identifier when context.CurrentScope.IsStrict:
                     throw StandardLibrary.ThrowSyntaxError(

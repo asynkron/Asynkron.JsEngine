@@ -797,6 +797,26 @@ internal static class JsOps
         return StandardLibrary.CreateTypeError(message, context, realm);
     }
 
+    public static IJsPropertyAccessor? GetPrototypePointer(object? value)
+    {
+        if (value is IPrototypeAccessorProvider { PrototypeAccessor: { } protoAccessor })
+        {
+            return protoAccessor;
+        }
+
+        if (value is IJsObjectLike { Prototype: { } proto })
+        {
+            return proto;
+        }
+
+        if (value is JsObject { Prototype: { } jsProto })
+        {
+            return jsProto;
+        }
+
+        return null;
+    }
+
     public static string GetRequiredPropertyName(object? value, EvaluationContext? context = null)
     {
         var name = ToPropertyName(value, context);

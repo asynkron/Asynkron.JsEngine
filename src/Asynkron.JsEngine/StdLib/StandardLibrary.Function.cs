@@ -131,7 +131,7 @@ public static partial class StandardLibrary
                 throw ThrowTypeError("Function has non-object prototype in instanceof check", null, realm);
             }
 
-            var cursor = GetPrototypePointer(candidate);
+            var cursor = JsOps.GetPrototypePointer(candidate);
 
             while (cursor is not null)
             {
@@ -140,30 +140,10 @@ public static partial class StandardLibrary
                     return true;
                 }
 
-                cursor = GetPrototypePointer(cursor);
+                cursor = JsOps.GetPrototypePointer(cursor);
             }
 
             return false;
-
-            static IJsPropertyAccessor? GetPrototypePointer(object? value)
-            {
-                if (value is IPrototypeAccessorProvider provider && provider.PrototypeAccessor is { } protoAccessor)
-                {
-                    return protoAccessor;
-                }
-
-                if (value is IJsObjectLike objectLike && objectLike.Prototype is { } proto)
-                {
-                    return proto;
-                }
-
-                if (value is JsObject jsObject && jsObject.Prototype is { } jsProto)
-                {
-                    return jsProto;
-                }
-
-                return null;
-            }
         }) { RealmState = realm };
         functionPrototype.SetProperty(hasInstanceKey, hasInstance);
         realm.FunctionPrototype ??= functionPrototype;

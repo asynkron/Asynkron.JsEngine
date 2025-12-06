@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -16,9 +18,11 @@ public static partial class TypedAstEvaluator
         private readonly FunctionExpression _function;
         private readonly GeneratorPlan? _plan;
         private readonly bool _isStrict;
+        private readonly ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes;
         private readonly RealmState _realmState;
         private readonly YieldResumeContext _resumeContext = new();
         private readonly IJsObjectLike? _homeObject;
+        private readonly PrivateNameScope? _privateNameScope;
         // Track yield slots that have already produced a value so re-running the body after a
         // nested suspension skips only those slots (per the generator resumption rules).
         private readonly HashSet<int> _consumedYieldIndices = new();
@@ -37,6 +41,7 @@ public static partial class TypedAstEvaluator
         private ResumePayloadKind _pendingResumeKind;
         private object? _pendingResumeValue = Symbol.Undefined;
         private int _programCounter;
+        private bool _privateScopesApplied;
         private GeneratorState _state = GeneratorState.Start;
 
         public TypedGeneratorInstance(
@@ -47,7 +52,9 @@ public static partial class TypedAstEvaluator
             IJsCallable callable,
             RealmState realmState,
             bool isLexicallyStrict,
-            IJsObjectLike? homeObject)
+            IJsObjectLike? homeObject,
+            PrivateNameScope? privateNameScope,
+            ImmutableArray<PrivateNameScope> capturedPrivateNameScopes)
         {
             _function = function;
             _closure = closure;
@@ -56,6 +63,8 @@ public static partial class TypedAstEvaluator
             _callable = callable;
             _realmState = realmState;
             _homeObject = homeObject;
+            _privateNameScope = privateNameScope;
+            _capturedPrivateNameScopes = capturedPrivateNameScopes;
             _isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
 
             if (!GeneratorIrBuilder.TryBuild(function, out var plan, out var failureReason))
@@ -1168,10 +1177,31 @@ public static partial class TypedAstEvaluator
                 _context.Clear();
             }
 
+            ApplyPrivateNameScopes();
             _context.BlockedFunctionVarNames = _blockedFunctionVarNames ??
                                                new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
 
             return _context;
+        }
+
+        private void ApplyPrivateNameScopes()
+        {
+            if (_privateScopesApplied || _context is null)
+            {
+                return;
+            }
+
+            if (!_capturedPrivateNameScopes.IsDefaultOrEmpty)
+            {
+                _context.EnterPrivateNameScopes(_capturedPrivateNameScopes);
+            }
+
+            if (_privateNameScope is not null)
+            {
+                _context.EnterPrivateNameScope(_privateNameScope);
+            }
+
+            _privateScopesApplied = true;
         }
 
         private ScopeMode DetermineGeneratorScopeMode()

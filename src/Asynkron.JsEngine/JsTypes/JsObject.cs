@@ -11,10 +11,10 @@ namespace Asynkron.JsEngine.JsTypes;
 /// <summary>
 ///     Simple JavaScript-like object that supports prototype chaining for property lookups.
 /// </summary>
-public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
-    IPrivateBrandHolder,
-    IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider
-{
+    public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
+        IPrivateBrandHolder,
+        IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider
+    {
     private const string PrototypeKey = "__proto__";
     private const string GetterPrefix = "__getter__";
     private const string SetterPrefix = "__setter__";
@@ -977,6 +977,11 @@ public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
     {
         return TryGetProperty(name, receiver, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), context,
             out value);
+    }
+
+    internal bool HasPrivateField(string name)
+    {
+        return _privateFields.ContainsKey(name);
     }
 
     private bool TryGetProperty(string name, object? receiver, HashSet<object> visited,

@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -16,6 +17,8 @@ public static partial class TypedAstEvaluator
         private readonly Dictionary<string, object?> _privateSlots = new(StringComparer.Ordinal);
         private readonly JsObject _properties = new();
         private readonly RealmState _realmState;
+        private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
+        private PrivateNameScope? _privateNameScope;
         private IJsObjectLike? _homeObject;
 
         public TypedGeneratorFactory(
@@ -98,7 +101,9 @@ public static partial class TypedAstEvaluator
                 this,
                 _realmState,
                 _isLexicallyStrict,
-                _homeObject);
+                _homeObject,
+                _privateNameScope,
+                _capturedPrivateNameScopes);
             instance.Initialize();
             return instance.CreateGeneratorObject();
         }
@@ -122,6 +127,18 @@ public static partial class TypedAstEvaluator
         public void Seal()
         {
             _properties.Seal();
+        }
+
+        public PrivateNameScope? PrivateNameScope => _privateNameScope;
+
+        public void SetPrivateNameScope(PrivateNameScope? scope)
+        {
+            _privateNameScope = scope;
+        }
+
+        public void SetCapturedPrivateNameScopes(ImmutableArray<PrivateNameScope> scopes)
+        {
+            _capturedPrivateNameScopes = scopes;
         }
 
         public void SetHomeObject(IJsObjectLike homeObject)

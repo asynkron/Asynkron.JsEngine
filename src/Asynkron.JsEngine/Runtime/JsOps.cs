@@ -8,6 +8,63 @@ namespace Asynkron.JsEngine.Runtime;
 
 internal static class JsOps
 {
+    internal const double NegativeZero = -0.0d;
+
+    internal static double MathPow(double baseValue, double exponent)
+    {
+        if (double.IsNaN(exponent))
+        {
+            return double.NaN;
+        }
+
+        if (exponent == 0)
+        {
+            // Covers both +0 and -0 exponents.
+            return 1;
+        }
+
+        if (double.IsNaN(baseValue))
+        {
+            return double.NaN;
+        }
+
+        if (double.IsInfinity(exponent))
+        {
+            var abs = Math.Abs(baseValue);
+            if (abs == 1)
+            {
+                return double.NaN;
+            }
+
+            if (abs > 1)
+            {
+                return exponent > 0 ? double.PositiveInfinity : 0.0;
+            }
+
+            return exponent > 0 ? 0.0 : double.PositiveInfinity;
+        }
+
+        if (double.IsInfinity(baseValue))
+        {
+            var sign = Math.Sign(baseValue);
+            if (exponent > 0)
+            {
+                return sign < 0 && IsOddInteger(exponent)
+                    ? double.NegativeInfinity
+                    : double.PositiveInfinity;
+            }
+
+            return sign < 0 && IsOddInteger(exponent) ? NegativeZero : 0.0;
+        }
+
+        return Math.Pow(baseValue, exponent);
+    }
+
+    private static bool IsOddInteger(double value)
+    {
+        return double.IsFinite(value) && value % 1 == 0 && Math.Abs(value % 2) == 1;
+    }
+
     public static bool IsNullish(this object? value)
     {
         return value is null ||
@@ -26,8 +83,8 @@ internal static class JsOps
             Symbol sym when ReferenceEquals(sym, Symbol.Undefined) => false,
             IIsHtmlDda => false,
             bool b => b,
-            double d => !double.IsNaN(d) && Math.Abs(d) > double.Epsilon,
-            float f => !float.IsNaN(f) && Math.Abs(f) > float.Epsilon,
+            double d => !double.IsNaN(d) && d != 0,
+            float f => !float.IsNaN(f) && f != 0,
             string s => s.Length > 0,
             JsBigInt bi => !bi.Value.IsZero,
             _ => true

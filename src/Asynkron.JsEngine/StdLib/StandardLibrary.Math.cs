@@ -110,7 +110,7 @@ public static partial class StandardLibrary
 
             var baseValue = args[0] as double? ?? double.NaN;
             var exponent = args[1] as double? ?? double.NaN;
-            return Math.Pow(baseValue, exponent);
+            return JsOps.MathPow(baseValue, exponent);
         });
 
         math["max"] = new HostFunction(args =>

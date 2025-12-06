@@ -519,8 +519,18 @@ public static partial class TypedAstEvaluator
     private static object Power(object? left, object? right, EvaluationContext context)
     {
         return PerformBigIntOrNumericOperation(left, right,
-            (l, r, _) => JsBigInt.Pow(l, r),
-            (l, r) => Math.Pow(l, r),
+            (l, r, ctx) =>
+            {
+                try
+                {
+                    return JsBigInt.Pow(l, r);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    throw StandardLibrary.ThrowRangeError(ex.Message, ctx);
+                }
+            },
+            (l, r) => JsOps.MathPow(l, r),
             context);
     }
 

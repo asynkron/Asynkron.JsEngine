@@ -105,7 +105,7 @@ public static partial class StandardLibrary
             null => false,
             Symbol sym when ReferenceEquals(sym, Symbol.Undefined) => false,
             bool b => b,
-            double d => !double.IsNaN(d) && Math.Abs(d) > double.Epsilon,
+            double d => !double.IsNaN(d) && d != 0,
             string s => s.Length > 0,
             _ => true
         };

@@ -848,7 +848,7 @@ public sealed class TypedConstantExpressionTransformer
         value = null;
         if (left is double leftNum && right is double rightNum)
         {
-            value = Math.Pow(leftNum, rightNum);
+            value = JsOps.MathPow(leftNum, rightNum);
             return true;
         }
 

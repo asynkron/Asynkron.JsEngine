@@ -658,6 +658,44 @@ internal static class JsOps
             };
         }
 
+        // Step 4b: If one is a string and the other is BigInt, try to convert string to BigInt
+        // Per spec: when comparing String with BigInt, convert String to BigInt, not Number
+        if (leftPrimitive is string leftString && rightPrimitive is JsBigInt rightBi)
+        {
+            if (!TryParseJsBigInt(leftString, out var leftAsBigInt))
+            {
+                // String cannot be parsed as BigInt, return undefined (false)
+                return false;
+            }
+
+            return op switch
+            {
+                ComparisonOperator.LessThan => leftAsBigInt! < rightBi,
+                ComparisonOperator.LessThanOrEqual => leftAsBigInt! <= rightBi,
+                ComparisonOperator.GreaterThan => leftAsBigInt! > rightBi,
+                ComparisonOperator.GreaterThanOrEqual => leftAsBigInt! >= rightBi,
+                _ => false
+            };
+        }
+
+        if (leftPrimitive is JsBigInt leftBi && rightPrimitive is string rightString)
+        {
+            if (!TryParseJsBigInt(rightString, out var rightAsBigInt))
+            {
+                // String cannot be parsed as BigInt, return undefined (false)
+                return false;
+            }
+
+            return op switch
+            {
+                ComparisonOperator.LessThan => leftBi < rightAsBigInt!,
+                ComparisonOperator.LessThanOrEqual => leftBi <= rightAsBigInt!,
+                ComparisonOperator.GreaterThan => leftBi > rightAsBigInt!,
+                ComparisonOperator.GreaterThanOrEqual => leftBi >= rightAsBigInt!,
+                _ => false
+            };
+        }
+
         // Step 5: Otherwise, convert both to numeric values and compare
         var leftNumeric = ToNumeric(leftPrimitive, context);
         if (context?.IsThrow == true)
@@ -671,6 +709,7 @@ internal static class JsOps
             return false;
         }
 
+        // Step 5a: If both are BigInt, do BigInt comparison
         if (leftNumeric is JsBigInt leftBigInt && rightNumeric is JsBigInt rightBigInt)
         {
             return op switch
@@ -683,6 +722,121 @@ internal static class JsOps
             };
         }
 
+        // Step 5b: If one is BigInt and the other is Number, do mixed-type comparison
+        if ((leftNumeric is JsBigInt && rightNumeric is double) ||
+            (leftNumeric is double && rightNumeric is JsBigInt))
+        {
+            JsBigInt bigIntValue;
+            double numberValue;
+            bool bigIntIsLeft;
+
+            if (leftNumeric is JsBigInt)
+            {
+                bigIntValue = (JsBigInt)leftNumeric;
+                numberValue = (double)rightNumeric;
+                bigIntIsLeft = true;
+            }
+            else
+            {
+                bigIntValue = (JsBigInt)rightNumeric;
+                numberValue = (double)leftNumeric;
+                bigIntIsLeft = false;
+            }
+
+            // If the Number is NaN, return false
+            if (double.IsNaN(numberValue))
+            {
+                return false;
+            }
+
+            // If the Number is ±Infinity, handle specially
+            if (double.IsPositiveInfinity(numberValue))
+            {
+                // BigInt < +Infinity is always true, BigInt >= +Infinity is always false
+                if (bigIntIsLeft)
+                {
+                    return op is ComparisonOperator.LessThan or ComparisonOperator.LessThanOrEqual;
+                }
+                else
+                {
+                    return op is ComparisonOperator.GreaterThan or ComparisonOperator.GreaterThanOrEqual;
+                }
+            }
+
+            if (double.IsNegativeInfinity(numberValue))
+            {
+                // BigInt > -Infinity is always true, BigInt <= -Infinity is always false
+                if (bigIntIsLeft)
+                {
+                    return op is ComparisonOperator.GreaterThan or ComparisonOperator.GreaterThanOrEqual;
+                }
+                else
+                {
+                    return op is ComparisonOperator.LessThan or ComparisonOperator.LessThanOrEqual;
+                }
+            }
+
+            // Compare mathematical values without precision loss
+            // Convert the Number to BigInteger if it's an integer value
+            if (numberValue != Math.Floor(numberValue))
+            {
+                // Number is not an integer, use decimal comparison
+                // For non-integer doubles, we need to compare against the BigInt's value
+                var comparison = CompareBigIntToDouble(bigIntValue.Value, numberValue);
+                if (bigIntIsLeft)
+                {
+                    return op switch
+                    {
+                        ComparisonOperator.LessThan => comparison < 0,
+                        ComparisonOperator.LessThanOrEqual => comparison <= 0,
+                        ComparisonOperator.GreaterThan => comparison > 0,
+                        ComparisonOperator.GreaterThanOrEqual => comparison >= 0,
+                        _ => false
+                    };
+                }
+                else
+                {
+                    return op switch
+                    {
+                        ComparisonOperator.LessThan => comparison > 0,
+                        ComparisonOperator.LessThanOrEqual => comparison >= 0,
+                        ComparisonOperator.GreaterThan => comparison < 0,
+                        ComparisonOperator.GreaterThanOrEqual => comparison <= 0,
+                        _ => false
+                    };
+                }
+            }
+            else
+            {
+                // Number is an integer, convert to BigInteger for exact comparison
+                var numberAsBigInt = new BigInteger(numberValue);
+                var comparison = bigIntValue.Value.CompareTo(numberAsBigInt);
+                if (bigIntIsLeft)
+                {
+                    return op switch
+                    {
+                        ComparisonOperator.LessThan => comparison < 0,
+                        ComparisonOperator.LessThanOrEqual => comparison <= 0,
+                        ComparisonOperator.GreaterThan => comparison > 0,
+                        ComparisonOperator.GreaterThanOrEqual => comparison >= 0,
+                        _ => false
+                    };
+                }
+                else
+                {
+                    return op switch
+                    {
+                        ComparisonOperator.LessThan => comparison > 0,
+                        ComparisonOperator.LessThanOrEqual => comparison >= 0,
+                        ComparisonOperator.GreaterThan => comparison < 0,
+                        ComparisonOperator.GreaterThanOrEqual => comparison <= 0,
+                        _ => false
+                    };
+                }
+            }
+        }
+
+        // Step 5c: Both are Numbers, do Number comparison
         var leftNum = ToNumber(leftNumeric, context);
         var rightNum = ToNumber(rightNumeric, context);
         if (double.IsNaN(leftNum) || double.IsNaN(rightNum))
@@ -690,8 +844,6 @@ internal static class JsOps
             return false;
         }
 
-        // Mixed BigInt/Number comparisons follow the numeric ordering rules
-        // (after ToNumeric/ToNumber), so precision loss is tolerated here.
         return op switch
         {
             ComparisonOperator.LessThan => leftNum < rightNum,
@@ -700,6 +852,38 @@ internal static class JsOps
             ComparisonOperator.GreaterThanOrEqual => leftNum >= rightNum,
             _ => false
         };
+    }
+
+    // Helper method to compare a BigInteger to a double without precision loss
+    private static int CompareBigIntToDouble(BigInteger bigInt, double number)
+    {
+        // For non-integer doubles, we need to be careful about the comparison
+        // We can't convert the BigInteger to double because that might lose precision
+        // Instead, we compare the BigInteger to the floor and ceiling of the double
+
+        var floor = Math.Floor(number);
+        var ceiling = Math.Ceiling(number);
+
+        var floorAsBigInt = new BigInteger(floor);
+        var ceilingAsBigInt = new BigInteger(ceiling);
+
+        // If bigInt < floor, then bigInt < number
+        if (bigInt.CompareTo(floorAsBigInt) < 0)
+        {
+            return -1;
+        }
+
+        // If bigInt >= ceiling, then bigInt > number
+        if (bigInt.CompareTo(ceilingAsBigInt) >= 0)
+        {
+            return 1;
+        }
+
+        // Otherwise, floor <= bigInt < ceiling, which means bigInt is between floor and ceiling
+        // Since number is also between floor and ceiling, and bigInt is an integer,
+        // bigInt must equal floor, and number is between floor and ceiling
+        // Therefore bigInt < number
+        return -1;
     }
 
     public static string? ToPropertyName(object? value, EvaluationContext? context = null)
@@ -1201,6 +1385,16 @@ internal static class JsOps
         Symbol,
         BigInt,
         Object
+    }
+
+    /// <summary>
+    /// Implements [[HasProperty]] internal method for the 'in' operator.
+    /// Returns true if the property exists on the object or its prototype chain.
+    /// </summary>
+    public static bool HasProperty(object? target, string propertyName, EvaluationContext? context = null)
+    {
+        // For objects, check if property exists (TryGetPropertyValue returning true means property exists)
+        return TryGetPropertyValue(target, propertyName, out _, context);
     }
 
     public static bool TryGetPropertyValue(object? target, string propertyName, out object? value,

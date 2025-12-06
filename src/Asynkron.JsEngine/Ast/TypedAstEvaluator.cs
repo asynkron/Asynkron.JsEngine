@@ -820,6 +820,17 @@ public static partial class TypedAstEvaluator
 
     private static bool InOperator(object? property, object? target, EvaluationContext context)
     {
+        // Per ECMA-262 §13.10.2, the right-hand side of 'in' must be an object
+        // Throw TypeError for primitives (boolean, number, string, null, undefined)
+        if (target is not IJsPropertyAccessor)
+        {
+            context.SetThrow(StandardLibrary.CreateTypeError(
+                "Right-hand side of 'in' is not an object",
+                context,
+                context.RealmState));
+            return false;
+        }
+
         var propertyName = JsOps.GetRequiredPropertyName(property, context);
         if (context.ShouldStopEvaluation)
         {
@@ -842,7 +853,8 @@ public static partial class TypedAstEvaluator
             return handle.Exists();
         }
 
-        return TryGetPropertyValue(target, propertyName, out _, context);
+        // Use [[HasProperty]] semantics - check if property exists in object or its prototype chain
+        return JsOps.HasProperty(target, propertyName, context);
     }
 
     private static bool InstanceofOperator(object? left, object? right, EvaluationContext context)

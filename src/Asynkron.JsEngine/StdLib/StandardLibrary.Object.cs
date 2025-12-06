@@ -210,6 +210,9 @@ public static partial class StandardLibrary
             // Object.prototype.toString
             objectProtoObj.SetHostedProperty("toString", ObjectPrototypeToString);
 
+            // Object.prototype.valueOf
+            objectProtoObj.SetHostedProperty("valueOf", ObjectPrototypeValueOf);
+
             var hasOwn = new HostFunction(ObjectPrototypeHasOwnProperty);
 
             objectProtoObj.SetProperty("hasOwnProperty", hasOwn);
@@ -372,6 +375,13 @@ public static partial class StandardLibrary
             };
 
             return $"[object {tag}]";
+        }
+
+        object? ObjectPrototypeValueOf(object? thisValue, IReadOnlyList<object?> _)
+        {
+            // Per ECMA-262 §20.1.3.7, Object.prototype.valueOf returns ToObject(this value)
+            // For objects, it just returns the object itself
+            return thisValue;
         }
 
         object? ObjectPrototypeHasOwnProperty(object? thisValue, IReadOnlyList<object?> args)

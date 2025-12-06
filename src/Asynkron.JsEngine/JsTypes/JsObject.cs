@@ -1069,7 +1069,7 @@ namespace Asynkron.JsEngine.JsTypes;
         {
             if (prototype is JsObject jsProto)
             {
-                if (jsProto.TryGetProperty(name, receiver ?? this, context, out value))
+                if (jsProto.TryGetProperty(name, receiver ?? this, visited, context, out value))
                 {
                     return true;
                 }

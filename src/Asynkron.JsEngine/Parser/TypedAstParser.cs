@@ -3085,6 +3085,13 @@ public sealed class TypedAstParser(
                     continue;
                 }
 
+                if (Check(TokenType.TemplateLiteral))
+                {
+                    var templateToken = Advance();
+                    constructor = ParseTaggedTemplateExpression(constructor, templateToken);
+                    continue;
+                }
+
                 break;
             }
 

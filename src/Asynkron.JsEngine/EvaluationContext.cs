@@ -3,8 +3,7 @@ using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
-    using Asynkron.JsEngine.Runtime;
-using System.Linq;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine;
 
@@ -165,7 +164,7 @@ public sealed class EvaluationContext(
     public ImmutableArray<PrivateNameScope> CapturePrivateNameScopes()
     {
         // Stack enumerates from top to bottom; reverse to preserve outer-to-inner order.
-        return _privateNameScopes.Reverse().ToImmutableArray();
+        return [.._privateNameScopes.Reverse()];
     }
 
     public string? ResolvePrivateNameKey(string lexeme)

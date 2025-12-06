@@ -130,15 +130,13 @@ internal static class GeneratorYieldLowerer
         {
             replacement = default;
 
-            switch (statement)
+            return statement switch
             {
-                case VariableDeclaration declaration:
-                    return TryRewriteClassExpressionDeclaration(declaration, out replacement);
-                case ExpressionStatement expressionStatement:
-                    return TryRewriteClassExpressionExpression(expressionStatement, out replacement);
-                default:
-                    return false;
-            }
+                VariableDeclaration declaration => TryRewriteClassExpressionDeclaration(declaration, out replacement),
+                ExpressionStatement expressionStatement => TryRewriteClassExpressionExpression(expressionStatement,
+                    out replacement),
+                _ => false
+            };
         }
 
         private bool TryRewriteClassExpressionDeclaration(
@@ -244,8 +242,7 @@ internal static class GeneratorYieldLowerer
             for (var i = 0; i < members.Count; i++)
             {
                 var member = members[i];
-                if (member.IsComputed &&
-                    member.ComputedName is YieldExpression computedYield)
+                if (member is { IsComputed: true, ComputedName: YieldExpression computedYield })
                 {
                     var tempBinding = CreateResumeIdentifier();
                     prefixStatements.Add(CreateYieldDeclaration(computedYield.Source, tempBinding, computedYield));
@@ -367,24 +364,15 @@ internal static class GeneratorYieldLowerer
 
                 case ConditionalExpression conditionalExpression:
                 {
+                    // Only rewrite the test expression. The consequent and alternate should NOT
+                    // be rewritten here because only one of them will execute. If we extract yields
+                    // from both branches, we'd execute yields that shouldn't run.
                     var test =
                         RewriteExpressionForComplexYields(conditionalExpression.Test, prefixStatements, ref changed);
-                    var consequent = RewriteExpressionForComplexYields(
-                        conditionalExpression.Consequent,
-                        prefixStatements,
-                        ref changed);
-                    var alternate = RewriteExpressionForComplexYields(
-                        conditionalExpression.Alternate,
-                        prefixStatements,
-                        ref changed);
-                    if (!ReferenceEquals(test, conditionalExpression.Test) ||
-                        !ReferenceEquals(consequent, conditionalExpression.Consequent) ||
-                        !ReferenceEquals(alternate, conditionalExpression.Alternate))
+
+                    if (!ReferenceEquals(test, conditionalExpression.Test))
                     {
-                        return conditionalExpression with
-                        {
-                            Test = test, Consequent = consequent, Alternate = alternate
-                        };
+                        return conditionalExpression with { Test = test };
                     }
 
                     return conditionalExpression;

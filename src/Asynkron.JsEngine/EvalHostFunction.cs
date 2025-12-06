@@ -5,6 +5,7 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine;
 
@@ -358,8 +359,28 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         try
         {
             // Evaluate directly in the constructed eval environment (direct eval is synchronous).
+            ImmutableArray<PrivateNameScope>? inheritedPrivateNameScopes = null;
+            if (isDirectEval && CallingContext is not null)
+            {
+                var capturedScopes = CallingContext.CapturePrivateNameScopes();
+                if (!capturedScopes.IsDefaultOrEmpty)
+                {
+                    inheritedPrivateNameScopes = capturedScopes;
+                }
+                else if (CallingContext.CurrentPrivateNameScope is not null)
+                {
+                    inheritedPrivateNameScopes = ImmutableArray.Create(CallingContext.CurrentPrivateNameScope);
+                }
+                var scopeCount = inheritedPrivateNameScopes.HasValue && !inheritedPrivateNameScopes.Value.IsDefaultOrEmpty
+                    ? inheritedPrivateNameScopes.Value.Length
+                    : 0;
+                CallingContext.RealmState.Logger?.LogInformation(
+                    "Eval direct: captured {PrivateScopeCount} private scopes (class initializer={InInitializer})",
+                    scopeCount,
+                    insideClassFieldInitializer);
+            }
             var result = program.Typed.EvaluateProgram(evalEnvironment, _engine.RealmState, CancellationToken.None,
-                ExecutionKind.Eval, createStrictEnvironment: false);
+                ExecutionKind.Eval, createStrictEnvironment: false, inheritedPrivateNameScopes: inheritedPrivateNameScopes);
 
             return result;
         }

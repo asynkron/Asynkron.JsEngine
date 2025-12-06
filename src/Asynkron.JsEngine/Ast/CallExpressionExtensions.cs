@@ -317,7 +317,7 @@ public static partial class TypedAstEvaluator
                     SetThisInitializationStatus(targetEnvironment,
                         context.IsThisInitialized);
 
-                    if (thisAfterSuper is JsObject initializedThis &&
+                    if (thisAfterSuper is IJsObjectLike initializedThis &&
                         context.TryPopClassFieldInitializer(out var pendingInitializer) &&
                         pendingInitializer.Constructor is TypedFunction pendingConstructor)
                     {

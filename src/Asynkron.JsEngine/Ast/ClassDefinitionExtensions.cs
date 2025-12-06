@@ -180,8 +180,7 @@ public static partial class TypedAstEvaluator
                 {
                     Name = propertyName,
                     IsComputed = false,
-                    ComputedName = null,
-                    IsPrivate = false
+                    ComputedName = null
                 });
             }
 

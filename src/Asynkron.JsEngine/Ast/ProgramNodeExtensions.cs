@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -13,23 +14,31 @@ public static partial class TypedAstEvaluator
         public object? EvaluateProgram(
             JsEnvironment environment,
             RealmState realmState,
-            CancellationToken cancellationToken = default,
-            ExecutionKind executionKind = ExecutionKind.Script,
-            bool createStrictEnvironment = true,
-            Symbol? functionNameHint = null)
+        CancellationToken cancellationToken = default,
+        ExecutionKind executionKind = ExecutionKind.Script,
+        bool createStrictEnvironment = true,
+        Symbol? functionNameHint = null,
+        ImmutableArray<PrivateNameScope>? inheritedPrivateNameScopes = null)
+    {
+        var context = realmState.CreateContext(
+            ScopeKind.Program,
+            program.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy,
+            false,
+            cancellationToken,
+            executionKind,
+            false);
+        if (inheritedPrivateNameScopes is { IsDefault: false } scopes && scopes.Length > 0)
         {
-            var context = realmState.CreateContext(
-                ScopeKind.Program,
-                program.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy,
-                false,
-                cancellationToken,
-                executionKind,
-                false);
-            context.SourceReference = program.Source;
-            context.IsStrictSource = program.IsStrict;
-            using var nameHintHandle = functionNameHint is not null
-                ? context.EnterFunctionNameHint(functionNameHint)
-                : null;
+            context.EnterPrivateNameScopes(scopes);
+            context.RealmState.Logger?.LogInformation(
+                "Program inherited {PrivateScopeCount} private scopes",
+                scopes.Length);
+        }
+        context.SourceReference = program.Source;
+        context.IsStrictSource = program.IsStrict;
+        using var nameHintHandle = functionNameHint is not null
+            ? context.EnterFunctionNameHint(functionNameHint)
+            : null;
             using var programActivity =
                 Activity.Current?.StartEvaluatorActivity("Program", context, program.Source);
             programActivity?.SetTag("js.program.strict", program.IsStrict);

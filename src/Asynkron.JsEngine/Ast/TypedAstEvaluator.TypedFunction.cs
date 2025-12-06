@@ -885,7 +885,8 @@ public static partial class TypedAstEvaluator
             _instanceFields = fields;
         }
 
-        private SuperBinding? ResolveInstanceFieldSuperBinding(JsEnvironment constructorEnvironment, JsObject instance)
+        private SuperBinding? ResolveInstanceFieldSuperBinding(JsEnvironment constructorEnvironment,
+            IJsObjectLike instance)
         {
             if (constructorEnvironment.TryGet(Symbol.Super, out var existingBinding) &&
                 existingBinding is SuperBinding binding)
@@ -907,7 +908,7 @@ public static partial class TypedAstEvaluator
             return new SuperBinding(_superConstructor, prototypeForSuper, instance, true);
         }
 
-        public void InitializeInstance(JsObject instance, JsEnvironment environment, EvaluationContext context)
+        public void InitializeInstance(IJsObjectLike instance, JsEnvironment environment, EvaluationContext context)
         {
             if (PrivateNameScope is not null && instance is IPrivateBrandHolder brandHolder)
             {
@@ -924,6 +925,11 @@ public static partial class TypedAstEvaluator
 
             foreach (var field in _instanceFields)
             {
+                if (field.IsPrivate && PrivateNameScope is not null && instance is not IPrivateBrandHolder)
+                {
+                    throw StandardLibrary.ThrowTypeError("Invalid private field receiver", context, context.RealmState);
+                }
+
                 using var classFieldInitScope = context.EnterClassFieldInitializer();
                 var initEnv = new JsEnvironment(environment, isStrict: true);
                 initEnv.Define(EvalHostFunction.FieldInitializerEvalFlag, true, isConst: true, isLexical: true,
@@ -1009,7 +1015,29 @@ public static partial class TypedAstEvaluator
                     }
                 }
 
-                instance.SetProperty(propertyName, value);
+                var descriptor = new PropertyDescriptor
+                {
+                    Value = value,
+                    Writable = true,
+                    Enumerable = true,
+                    Configurable = true
+                };
+
+                if (instance is IPropertyDefinitionHost definitionHost)
+                {
+                    if (!definitionHost.TryDefineProperty(propertyName, descriptor))
+                    {
+                        throw StandardLibrary.ThrowTypeError("Cannot define class field", context, context.RealmState);
+                    }
+                }
+                else if (instance is IJsObjectLike objectLike)
+                {
+                    objectLike.DefineProperty(propertyName, descriptor);
+                }
+                else
+                {
+                    throw StandardLibrary.ThrowTypeError("Cannot define class field", context, context.RealmState);
+                }
             }
         }
 

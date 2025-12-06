@@ -23,6 +23,11 @@ public static partial class TypedAstEvaluator
                     context.RealmState);
             }
 
+            if (field.IsPrivate && privateNameScope is not null && constructorAccessor is not IPrivateBrandHolder)
+            {
+                throw StandardLibrary.ThrowTypeError("Invalid private field receiver", context, context.RealmState);
+            }
+
             object? value = Symbol.Undefined;
             var displayName = field.IsComputed ? propertyName : field.Name;
             var atIndex = displayName.IndexOf('@');
@@ -45,7 +50,30 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            constructorAccessor.SetProperty(propertyName, value);
+            var descriptor = new PropertyDescriptor
+            {
+                Value = value,
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
+            };
+
+            if (constructorAccessor is IPropertyDefinitionHost definitionHost)
+            {
+                if (!definitionHost.TryDefineProperty(propertyName, descriptor))
+                {
+                    throw StandardLibrary.ThrowTypeError("Cannot define static class field", context, context.RealmState);
+                }
+            }
+            else if (constructorAccessor is IJsObjectLike objectLike)
+            {
+                objectLike.DefineProperty(propertyName, descriptor);
+            }
+            else
+            {
+                throw StandardLibrary.ThrowTypeError("Cannot define static class field", context, context.RealmState);
+            }
+
             return true;
         }
 

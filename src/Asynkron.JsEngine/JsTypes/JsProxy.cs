@@ -13,9 +13,10 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     are implemented for now; other operations fall back to the underlying target.
 /// </summary>
 public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IJsCallable,
-    IPrototypeAccessorProvider
+    IPrototypeAccessorProvider, IPrivateBrandHolder
 {
     private readonly JsObject _meta = new();
+    private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
     private readonly RealmState? _realm;
 
     public JsProxy(IJsObjectLike target, IJsObjectLike handler, RealmState? realm = null)
@@ -57,6 +58,16 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     public IEnumerable<string> GetEnumerablePropertyNames()
     {
         return GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: false);
+    }
+
+    public void AddPrivateBrand(object brand)
+    {
+        _privateBrands.Add(brand);
+    }
+
+    public bool HasPrivateBrand(object brand)
+    {
+        return _privateBrands.Contains(brand);
     }
 
     public IEnumerable<string> GetOwnPropertyKeysInOrder(bool includeSymbols = true, bool includeNonEnumerable = true)
@@ -441,7 +452,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
         else
         {
-            result.SetProperty("value", descriptor.HasValue ? descriptor.Value : Symbol.Undefined);
+            result.SetProperty("value", descriptor.Value);
             result.SetProperty("writable", descriptor is { HasWritable: true, Writable: true });
         }
 

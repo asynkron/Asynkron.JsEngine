@@ -118,6 +118,13 @@ public static partial class TypedAstEvaluator
 
         internal static bool IsAnonymousFunctionDefinitionNode(ExpressionNode node)
         {
+            // Per ES spec, sequence expressions (comma operator) do not qualify for name inference
+            // e.g., `const x = (0, function() {})` should not infer name
+            if (node is SequenceExpression)
+            {
+                return false;
+            }
+
             return node switch
             {
                 FunctionExpression func => func.Name is null,

@@ -907,17 +907,22 @@ internal sealed class SyncGeneratorIrBuilder
 
     private static BlockStatement BuildCatchBlock(CatchClause clause, Symbol catchSlotSymbol)
     {
-        var declarator = new VariableDeclarator(
-            clause.Source,
-            clause.Binding,
-            new IdentifierExpression(clause.Source, catchSlotSymbol));
-        var declaration = new VariableDeclaration(
-            clause.Source,
-            VariableKind.Let,
-            [declarator]);
-
         var builder = ImmutableArray.CreateBuilder<StatementNode>();
-        builder.Add(declaration);
+
+        // ES2019: Optional catch binding - only add variable declaration if binding exists
+        if (clause.Binding is not null)
+        {
+            var declarator = new VariableDeclarator(
+                clause.Source,
+                clause.Binding,
+                new IdentifierExpression(clause.Source, catchSlotSymbol));
+            var declaration = new VariableDeclaration(
+                clause.Source,
+                VariableKind.Let,
+                [declarator]);
+            builder.Add(declaration);
+        }
+
         builder.AddRange(clause.Body.Statements);
 
         return clause.Body with { Statements = builder.ToImmutableArray() };

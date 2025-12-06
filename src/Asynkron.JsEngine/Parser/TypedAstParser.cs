@@ -620,9 +620,15 @@ public sealed class TypedAstParser(
             if (Match(TokenType.Catch))
             {
                 var catchToken = Previous();
-                Consume(TokenType.LeftParen, "Expected '(' after 'catch'.");
-                var binding = ParseBindingTarget("Expected binding target in catch clause.");
-                Consume(TokenType.RightParen, "Expected ')' after catch binding.");
+                BindingTarget? binding = null;
+
+                // ES2019: Optional catch binding - catch can be without (parameter)
+                if (Match(TokenType.LeftParen))
+                {
+                    binding = ParseBindingTarget("Expected binding target in catch clause.");
+                    Consume(TokenType.RightParen, "Expected ')' after catch binding.");
+                }
+
                 var catchBody = ParseBlock();
                 catchClause = new CatchClause(CreateSourceReference(catchToken), binding, catchBody);
             }
@@ -2115,14 +2121,6 @@ public sealed class TypedAstParser(
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
-            if (Match(TokenType.Undefined))
-            {
-                var token = Previous();
-                var symbol = Symbol.Undefined;
-                expr = new IdentifierExpression(CreateSourceReference(token), symbol);
-                return ApplyCallSuffix(expr, allowCallSuffix);
-            }
-
             if (Match(TokenType.Identifier))
             {
                 var token = Previous();
@@ -2256,14 +2254,6 @@ public sealed class TypedAstParser(
 
                 var newExpr = ParseNewExpression();
                 return ApplyCallSuffix(newExpr, allowCallSuffix);
-            }
-
-            if (Check(TokenType.Undefined))
-            {
-                var token = Advance();
-                var symbol = Symbol.Undefined;
-                var undefinedExpr = new IdentifierExpression(CreateSourceReference(token), symbol);
-                return ParseCallSuffix(undefinedExpr);
             }
 
             if (Check(TokenType.Tilde) || Check(TokenType.Typeof) || Check(TokenType.Void) ||
@@ -3644,8 +3634,7 @@ public sealed class TypedAstParser(
                     TokenType.Continue or TokenType.Return or TokenType.Try or TokenType.Catch or
                     TokenType.Finally or TokenType.Throw or TokenType.This or TokenType.Super or
                     TokenType.New or TokenType.True or TokenType.False or TokenType.Null or
-                    TokenType.Undefined or TokenType.Typeof or TokenType.Instanceof or TokenType.Void
-                    or TokenType.Delete or
+                    TokenType.Typeof or TokenType.Instanceof or TokenType.Void or TokenType.Delete or
                     TokenType.Get or TokenType.Set or TokenType.Yield or TokenType.Async or
                     TokenType.Await or TokenType.Static or TokenType.Import or TokenType.Export
                     or TokenType.With => true,

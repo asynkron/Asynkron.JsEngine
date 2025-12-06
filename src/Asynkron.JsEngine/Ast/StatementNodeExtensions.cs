@@ -348,7 +348,10 @@ public static partial class TypedAstEvaluator
                         CollectLexicalNamesFromStatement(tryStatement.TryBlock, names);
                         if (tryStatement.Catch is { } catchClause)
                         {
-                            CollectSymbolsFromBinding(catchClause.Binding, names);
+                            if (catchClause.Binding is not null)
+                            {
+                                CollectSymbolsFromBinding(catchClause.Binding, names);
+                            }
                             CollectLexicalNamesFromStatement(catchClause.Body, names);
                         }
 
@@ -418,7 +421,10 @@ public static partial class TypedAstEvaluator
                         CollectCatchNamesFromStatement(tryStatement.TryBlock, names);
                         if (tryStatement.Catch is { } catchClause)
                         {
-                            CollectSymbolsFromBinding(catchClause.Binding, names);
+                            if (catchClause.Binding is not null)
+                            {
+                                CollectSymbolsFromBinding(catchClause.Binding, names);
+                            }
                             CollectCatchNamesFromStatement(catchClause.Body, names);
                         }
 

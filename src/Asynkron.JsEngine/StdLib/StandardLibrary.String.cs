@@ -1140,7 +1140,7 @@ public static partial class StandardLibrary
         HostFunction stringConstructor = null!;
         stringConstructor = new HostFunction((_, args) => StringConstructorImpl(args, null));
         stringConstructor.SetInvokeWithContext((args, _, _, newTarget) =>
-            StringConstructorImpl(args, newTarget as IJsCallable ?? stringConstructor));
+            StringConstructorImpl(args, newTarget as IJsCallable));
 
         // Remember String.prototype so that string wrapper objects can see
         // methods attached from user code (e.g. String.prototype.toJSONString),
@@ -1188,9 +1188,19 @@ public static partial class StandardLibrary
 
         object? StringConstructorImpl(IReadOnlyList<object?> args, IJsCallable? newTarget)
         {
-            var value = args.GetArgument(0);
             var context = realm?.CreateContext();
-            var str = value is TypedAstSymbol typedSymbol ? typedSymbol.ToString() : JsOps.ToJsString(value, context);
+            string str;
+
+            if (args.Count == 0)
+            {
+                // Per ES spec, String() with no arguments returns empty string
+                str = "";
+            }
+            else
+            {
+                var value = args[0];
+                str = value is TypedAstSymbol typedSymbol ? typedSymbol.ToString() : JsOps.ToJsString(value, context);
+            }
 
             if (newTarget is null)
             {

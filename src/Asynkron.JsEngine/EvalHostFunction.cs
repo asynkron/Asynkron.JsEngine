@@ -611,7 +611,10 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     CollectLexicallyDeclaredNamesFromStatement(tryStatement.TryBlock, names);
                     if (tryStatement.Catch is { } catchClause)
                     {
-                        CollectBindingNames(catchClause.Binding, names);
+                        if (catchClause.Binding is not null)
+                        {
+                            CollectBindingNames(catchClause.Binding, names);
+                        }
                         CollectLexicallyDeclaredNamesFromStatement(catchClause.Body, names);
                     }
 
@@ -2377,7 +2380,10 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     CollectLexicalDeclarationsFromStatement(tryStatement.TryBlock, declarations);
                     if (tryStatement.Catch is { } catchClause)
                     {
-                        CollectLexicalDeclarationNames(catchClause.Binding, false, declarations);
+                        if (catchClause.Binding is not null)
+                        {
+                            CollectLexicalDeclarationNames(catchClause.Binding, false, declarations);
+                        }
                         CollectLexicalDeclarationsFromStatement(catchClause.Body, declarations);
                     }
 

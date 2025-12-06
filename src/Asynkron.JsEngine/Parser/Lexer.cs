@@ -51,7 +51,6 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
         ["true"] = TokenType.True,
         ["false"] = TokenType.False,
         ["null"] = TokenType.Null,
-        ["undefined"] = TokenType.Undefined,
         ["typeof"] = TokenType.Typeof,
         ["instanceof"] = TokenType.Instanceof,
         ["void"] = TokenType.Void,

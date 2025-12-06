@@ -46,8 +46,11 @@ public static partial class TypedAstEvaluator
                     value);
             }
 
+            // Per ES spec 13.3.1.4: Name inference only applies if IsAnonymousFunctionDefinition(Initializer) is true
+            var allowNameInference = declarator.Initializer is not null &&
+                                    IsAnonymousFunctionDefinitionNode(declarator.Initializer);
             ApplyBindingTarget(declarator.Target, value, environment, context, mode,
-                declarator.Initializer is not null);
+                declarator.Initializer is not null, allowNameInference);
         }
     }
 }

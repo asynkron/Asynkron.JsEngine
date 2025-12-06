@@ -183,6 +183,11 @@ public static partial class TypedAstEvaluator
     {
         switch (value)
         {
+            case null:
+            case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
+                // Per ES spec, for-in over null or undefined should not iterate (no properties to enumerate)
+                yield break;
+
             case JsArray array:
             {
                 for (var i = 0; i < array.Items.Count; i++)
@@ -852,6 +857,12 @@ public static partial class TypedAstEvaluator
         var hasInstanceSymbol = TypedAstSymbol.For("Symbol.hasInstance");
         if (TryGetPropertyValue(right, hasInstanceSymbol, out var hasInstance, context))
         {
+            // Check if an error was thrown during property access
+            if (context.ShouldStopEvaluation)
+            {
+                return false;
+            }
+
             if (!IsNullish(hasInstance))
             {
                 if (hasInstance is not IJsCallable callable)

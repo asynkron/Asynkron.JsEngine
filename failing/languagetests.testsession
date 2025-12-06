@@ -1,8 +1,8 @@
-tests (1101 tests) Failed: 1101 tests failed
-  Asynkron.JsEngine.Tests.Test262 (1101 tests) Failed: 1101 tests failed
-    Asynkron.JsEngine.Tests.Test262 (1101 tests) Failed: 1101 tests failed
-      TestHarness (1101 tests) Failed: One or more child tests had errors: 1101 tests failed
-        LanguageTests (1101 tests) Failed: One or more child tests had errors: 1101 tests failed
+tests (1025 tests) Failed: 1025 tests failed
+  Asynkron.JsEngine.Tests.Test262 (1025 tests) Failed: 1025 tests failed
+    Asynkron.JsEngine.Tests.Test262 (1025 tests) Failed: 1025 tests failed
+      TestHarness (1025 tests) Failed: One or more child tests had errors: 1025 tests failed
+        LanguageTests (1025 tests) Failed: One or more child tests had errors: 1025 tests failed
           Expressions_class_elements (8 tests) Failed: One or more child tests had errors: 8 tests failed
             Expressions_class_elements("language/expressions/class/elements/private-fields-proxy-default-handler-throws.js",False) Failed
             Expressions_class_elements("language/expressions/class/elements/private-fields-proxy-default-handler-throws.js",True) Failed
@@ -26,13 +26,6 @@ tests (1101 tests) Failed: 1101 tests failed
             Expressions_dynamicImport_importAttributes("language/expressions/dynamic-import/import-attributes/2nd-param-in.js",True) Failed
             Expressions_dynamicImport_importAttributes("language/expressions/dynamic-import/import-attributes/2nd-param-with-enumeration-enumerable.js",False) Failed
             Expressions_dynamicImport_importAttributes("language/expressions/dynamic-import/import-attributes/2nd-param-with-enumeration-enumerable.js",True) Failed
-          Expressions_exponentiation (6 tests) Failed: One or more child tests had errors: 6 tests failed
-            Expressions_exponentiation("language/expressions/exponentiation/applying-the-exp-operator_A7.js",False) Failed
-            Expressions_exponentiation("language/expressions/exponentiation/applying-the-exp-operator_A7.js",True) Failed
-            Expressions_exponentiation("language/expressions/exponentiation/applying-the-exp-operator_A8.js",False) Failed
-            Expressions_exponentiation("language/expressions/exponentiation/applying-the-exp-operator_A8.js",True) Failed
-            Expressions_exponentiation("language/expressions/exponentiation/bigint-negative-exponent-throws.js",False) Failed
-            Expressions_exponentiation("language/expressions/exponentiation/bigint-negative-exponent-throws.js",True) Failed
           Expressions_function (7 tests) Failed: One or more child tests had errors: 7 tests failed
             Expressions_function("language/expressions/function/name-eval-stricteval.js",False) Failed
             Expressions_function("language/expressions/function/named-no-strict-reassign-fn-name-in-body-in-arrow.js",False) Failed
@@ -62,22 +55,18 @@ tests (1101 tests) Failed: 1101 tests failed
             Expressions_generators("language/expressions/generators/prototype-relation-to-function.js",True) Failed
             Expressions_generators("language/expressions/generators/scope-name-var-open-non-strict.js",False) Failed
             Expressions_generators("language/expressions/generators/scope-name-var-open-strict.js",True) Failed
-          Expressions_greaterThan (8 tests) Failed: One or more child tests had errors: 8 tests failed
+          Expressions_greaterThan (6 tests) Failed: One or more child tests had errors: 6 tests failed
             Expressions_greaterThan("language/expressions/greater-than/bigint-and-incomparable-string.js",False) Failed
             Expressions_greaterThan("language/expressions/greater-than/bigint-and-incomparable-string.js",True) Failed
             Expressions_greaterThan("language/expressions/greater-than/bigint-and-number-extremes.js",False) Failed
             Expressions_greaterThan("language/expressions/greater-than/bigint-and-number-extremes.js",True) Failed
             Expressions_greaterThan("language/expressions/greater-than/bigint-and-string.js",False) Failed
             Expressions_greaterThan("language/expressions/greater-than/bigint-and-string.js",True) Failed
-            Expressions_greaterThan("language/expressions/greater-than/S11.8.2_A4.11.js",False) Failed
-            Expressions_greaterThan("language/expressions/greater-than/S11.8.2_A4.11.js",True) Failed
-          Expressions_greaterThanOrEqual (6 tests) Failed: One or more child tests had errors: 6 tests failed
+          Expressions_greaterThanOrEqual (4 tests) Failed: One or more child tests had errors: 4 tests failed
             Expressions_greaterThanOrEqual("language/expressions/greater-than-or-equal/bigint-and-incomparable-string.js",False) Failed
             Expressions_greaterThanOrEqual("language/expressions/greater-than-or-equal/bigint-and-incomparable-string.js",True) Failed
             Expressions_greaterThanOrEqual("language/expressions/greater-than-or-equal/bigint-and-number-extremes.js",False) Failed
             Expressions_greaterThanOrEqual("language/expressions/greater-than-or-equal/bigint-and-number-extremes.js",True) Failed
-            Expressions_greaterThanOrEqual("language/expressions/greater-than-or-equal/S11.8.4_A4.11.js",False) Failed
-            Expressions_greaterThanOrEqual("language/expressions/greater-than-or-equal/S11.8.4_A4.11.js",True) Failed
           Expressions_import_meta (2 tests) Failed: One or more child tests had errors: 2 tests failed
             Expressions_import_meta("language/expressions/import.meta/distinct-for-each-module.js",True) Failed
             Expressions_import_meta("language/expressions/import.meta/import-meta-is-an-ordinary-object.js",True) Failed
@@ -124,35 +113,18 @@ tests (1101 tests) Failed: 1101 tests failed
             Expressions_instanceof("language/expressions/instanceof/S11.8.6_A4_T3.js",True) Failed
             Expressions_instanceof("language/expressions/instanceof/symbol-hasinstance-get-err.js",False) Failed
             Expressions_instanceof("language/expressions/instanceof/symbol-hasinstance-get-err.js",True) Failed
-          Expressions_leftShift (12 tests) Failed: One or more child tests had errors: 12 tests failed
-            Expressions_leftShift("language/expressions/left-shift/bigint-and-number.js",False) Failed
-            Expressions_leftShift("language/expressions/left-shift/bigint-and-number.js",True) Failed
-            Expressions_leftShift("language/expressions/left-shift/bigint-non-primitive.js",False) Failed
-            Expressions_leftShift("language/expressions/left-shift/bigint-non-primitive.js",True) Failed
-            Expressions_leftShift("language/expressions/left-shift/bigint-toprimitive.js",False) Failed
-            Expressions_leftShift("language/expressions/left-shift/bigint-toprimitive.js",True) Failed
-            Expressions_leftShift("language/expressions/left-shift/bigint-wrapped-values.js",False) Failed
-            Expressions_leftShift("language/expressions/left-shift/bigint-wrapped-values.js",True) Failed
-            Expressions_leftShift("language/expressions/left-shift/order-of-evaluation.js",False) Failed
-            Expressions_leftShift("language/expressions/left-shift/order-of-evaluation.js",True) Failed
-            Expressions_leftShift("language/expressions/left-shift/S11.7.1_A2.3_T1.js",False) Failed
-            Expressions_leftShift("language/expressions/left-shift/S11.7.1_A2.3_T1.js",True) Failed
-          Expressions_lessThan (6 tests) Failed: One or more child tests had errors: 6 tests failed
+          Expressions_lessThan (4 tests) Failed: One or more child tests had errors: 4 tests failed
             Expressions_lessThan("language/expressions/less-than/bigint-and-incomparable-string.js",False) Failed
             Expressions_lessThan("language/expressions/less-than/bigint-and-incomparable-string.js",True) Failed
             Expressions_lessThan("language/expressions/less-than/bigint-and-number-extremes.js",False) Failed
             Expressions_lessThan("language/expressions/less-than/bigint-and-number-extremes.js",True) Failed
-            Expressions_lessThan("language/expressions/less-than/S11.8.1_A4.11.js",False) Failed
-            Expressions_lessThan("language/expressions/less-than/S11.8.1_A4.11.js",True) Failed
-          Expressions_lessThanOrEqual (8 tests) Failed: One or more child tests had errors: 8 tests failed
+          Expressions_lessThanOrEqual (6 tests) Failed: One or more child tests had errors: 6 tests failed
             Expressions_lessThanOrEqual("language/expressions/less-than-or-equal/bigint-and-incomparable-string.js",False) Failed
             Expressions_lessThanOrEqual("language/expressions/less-than-or-equal/bigint-and-incomparable-string.js",True) Failed
             Expressions_lessThanOrEqual("language/expressions/less-than-or-equal/bigint-and-number-extremes.js",False) Failed
             Expressions_lessThanOrEqual("language/expressions/less-than-or-equal/bigint-and-number-extremes.js",True) Failed
             Expressions_lessThanOrEqual("language/expressions/less-than-or-equal/bigint-and-string.js",False) Failed
             Expressions_lessThanOrEqual("language/expressions/less-than-or-equal/bigint-and-string.js",True) Failed
-            Expressions_lessThanOrEqual("language/expressions/less-than-or-equal/S11.8.3_A4.11.js",False) Failed
-            Expressions_lessThanOrEqual("language/expressions/less-than-or-equal/S11.8.3_A4.11.js",True) Failed
           Expressions_logicalAssignment (41 tests) Failed: One or more child tests had errors: 41 tests failed
             Expressions_logicalAssignment("language/expressions/logical-assignment/left-hand-side-private-reference-accessor-property-short-circuit-and.js",False) Failed
             Expressions_logicalAssignment("language/expressions/logical-assignment/left-hand-side-private-reference-accessor-property-short-circuit-and.js",True) Failed
@@ -195,9 +167,6 @@ tests (1101 tests) Failed: 1101 tests failed
             Expressions_logicalAssignment("language/expressions/logical-assignment/lgcl-or-assignment-operator-namedevaluation-function.js",True) Failed
             Expressions_logicalAssignment("language/expressions/logical-assignment/lgcl-or-assignment-operator-no-set.js",True) Failed
             Expressions_logicalAssignment("language/expressions/logical-assignment/lgcl-or-assignment-operator-non-writeable.js",True) Failed
-          Expressions_logicalNot (2 tests) Failed: One or more child tests had errors: 2 tests failed
-            Expressions_logicalNot("language/expressions/logical-not/S9.2_A4_T4.js",False) Failed
-            Expressions_logicalNot("language/expressions/logical-not/S9.2_A4_T4.js",True) Failed
           Expressions_object (6 tests) Failed: One or more child tests had errors: 6 tests failed
             Expressions_object("language/expressions/object/__proto__-permitted-dup-shorthand.js",False) Failed
             Expressions_object("language/expressions/object/__proto__-permitted-dup-shorthand.js",True) Failed
@@ -279,22 +248,6 @@ tests (1101 tests) Failed: 1101 tests failed
             Expressions_propertyAccessors("language/expressions/property-accessors/S11.2.1_A4_T3.js",True) Failed
             Expressions_propertyAccessors("language/expressions/property-accessors/S11.2.1_A4_T5.js",False) Failed
             Expressions_propertyAccessors("language/expressions/property-accessors/S11.2.1_A4_T5.js",True) Failed
-          Expressions_relational (2 tests) Failed: One or more child tests had errors: 2 tests failed
-            Expressions_relational("language/expressions/relational/S9.1_A1_T4.js",False) Failed
-            Expressions_relational("language/expressions/relational/S9.1_A1_T4.js",True) Failed
-          Expressions_rightShift (12 tests) Failed: One or more child tests had errors: 12 tests failed
-            Expressions_rightShift("language/expressions/right-shift/bigint-and-number.js",False) Failed
-            Expressions_rightShift("language/expressions/right-shift/bigint-and-number.js",True) Failed
-            Expressions_rightShift("language/expressions/right-shift/bigint-non-primitive.js",False) Failed
-            Expressions_rightShift("language/expressions/right-shift/bigint-non-primitive.js",True) Failed
-            Expressions_rightShift("language/expressions/right-shift/bigint-toprimitive.js",False) Failed
-            Expressions_rightShift("language/expressions/right-shift/bigint-toprimitive.js",True) Failed
-            Expressions_rightShift("language/expressions/right-shift/bigint-wrapped-values.js",False) Failed
-            Expressions_rightShift("language/expressions/right-shift/bigint-wrapped-values.js",True) Failed
-            Expressions_rightShift("language/expressions/right-shift/order-of-evaluation.js",False) Failed
-            Expressions_rightShift("language/expressions/right-shift/order-of-evaluation.js",True) Failed
-            Expressions_rightShift("language/expressions/right-shift/S11.7.2_A2.3_T1.js",False) Failed
-            Expressions_rightShift("language/expressions/right-shift/S11.7.2_A2.3_T1.js",True) Failed
           Expressions_super (34 tests) Failed: One or more child tests had errors: 34 tests failed
             Expressions_super("language/expressions/super/call-arg-evaluation-err.js",False) Failed
             Expressions_super("language/expressions/super/call-arg-evaluation-err.js",True) Failed
@@ -362,21 +315,11 @@ tests (1101 tests) Failed: 1101 tests failed
             Expressions_templateLiteral("language/expressions/template-literal/tv-line-continuation.js",True) Failed
             Expressions_templateLiteral("language/expressions/template-literal/tv-line-terminator-sequence.js",False) Failed
             Expressions_templateLiteral("language/expressions/template-literal/tv-line-terminator-sequence.js",True) Failed
-          Expressions_typeof (6 tests) Failed: One or more child tests had errors: 6 tests failed
-            Expressions_typeof("language/expressions/typeof/get-value.js",False) Failed
-            Expressions_typeof("language/expressions/typeof/get-value.js",True) Failed
+          Expressions_typeof (4 tests) Failed: One or more child tests had errors: 4 tests failed
             Expressions_typeof("language/expressions/typeof/proxy.js",False) Failed
             Expressions_typeof("language/expressions/typeof/proxy.js",True) Failed
             Expressions_typeof("language/expressions/typeof/string.js",False) Failed
             Expressions_typeof("language/expressions/typeof/string.js",True) Failed
-          Expressions_unaryMinus (2 tests) Failed: One or more child tests had errors: 2 tests failed
-            Expressions_unaryMinus("language/expressions/unary-minus/bigint-non-primitive.js",False) Failed
-            Expressions_unaryMinus("language/expressions/unary-minus/bigint-non-primitive.js",True) Failed
-          Expressions_unaryPlus (4 tests) Failed: One or more child tests had errors: 4 tests failed
-            Expressions_unaryPlus("language/expressions/unary-plus/S11.4.6_A3_T3.js",False) Failed
-            Expressions_unaryPlus("language/expressions/unary-plus/S11.4.6_A3_T3.js",True) Failed
-            Expressions_unaryPlus("language/expressions/unary-plus/S9.3_A5_T2.js",False) Failed
-            Expressions_unaryPlus("language/expressions/unary-plus/S9.3_A5_T2.js",True) Failed
           Expressions_unsignedRightShift (10 tests) Failed: One or more child tests had errors: 10 tests failed
             Expressions_unsignedRightShift("language/expressions/unsigned-right-shift/bigint-and-number.js",False) Failed
             Expressions_unsignedRightShift("language/expressions/unsigned-right-shift/bigint-and-number.js",True) Failed
@@ -542,9 +485,7 @@ tests (1101 tests) Failed: 1101 tests failed
           Literals_regexp_namedGroups (2 tests) Failed: One or more child tests had errors: 2 tests failed
             Literals_regexp_namedGroups("language/literals/regexp/named-groups/forward-reference.js",False) Failed
             Literals_regexp_namedGroups("language/literals/regexp/named-groups/forward-reference.js",True) Failed
-          ModuleCode (65 tests) Failed: One or more child tests had errors: 65 tests failed
-            ModuleCode("language/module-code/eval-export-dflt-expr-fn-anon.js",True) Failed
-            ModuleCode("language/module-code/eval-export-dflt-expr-gen-anon.js",True) Failed
+          ModuleCode (63 tests) Failed: One or more child tests had errors: 63 tests failed
             ModuleCode("language/module-code/eval-gtbndng-indirect-update-as.js",True) Failed
             ModuleCode("language/module-code/eval-gtbndng-indirect-update-dflt.js",True) Failed
             ModuleCode("language/module-code/eval-gtbndng-indirect-update.js",True) Failed
@@ -647,7 +588,7 @@ tests (1101 tests) Failed: 1101 tests failed
             ModuleCode_topLevelAwait_syntax("language/module-code/top-level-await/syntax/typeof-await-expr-regexp.js",True) Failed
             ModuleCode_topLevelAwait_syntax("language/module-code/top-level-await/syntax/void-await-expr-regexp.js",True) Failed
             ModuleCode_topLevelAwait_syntax("language/module-code/top-level-await/syntax/while-await-expr-regexp.js",True) Failed
-          StatementList (40 tests) Failed: One or more child tests had errors: 40 tests failed
+          StatementList (32 tests) Failed: One or more child tests had errors: 32 tests failed
             StatementList("language/statementList/block-regexp-literal-flags.js",False) Failed
             StatementList("language/statementList/block-regexp-literal-flags.js",True) Failed
             StatementList("language/statementList/block-regexp-literal.js",False) Failed
@@ -660,26 +601,18 @@ tests (1101 tests) Failed: 1101 tests failed
             StatementList("language/statementList/class-regexp-literal-flags.js",True) Failed
             StatementList("language/statementList/class-regexp-literal.js",False) Failed
             StatementList("language/statementList/class-regexp-literal.js",True) Failed
-            StatementList("language/statementList/eval-block-block-with-labels.js",False) Failed
-            StatementList("language/statementList/eval-block-block-with-labels.js",True) Failed
             StatementList("language/statementList/eval-block-regexp-literal-flags.js",False) Failed
             StatementList("language/statementList/eval-block-regexp-literal-flags.js",True) Failed
             StatementList("language/statementList/eval-block-regexp-literal.js",False) Failed
             StatementList("language/statementList/eval-block-regexp-literal.js",True) Failed
-            StatementList("language/statementList/eval-block-with-statment-block.js",False) Failed
-            StatementList("language/statementList/eval-block-with-statment-block.js",True) Failed
             StatementList("language/statementList/eval-block-with-statment-regexp-literal-flags.js",False) Failed
             StatementList("language/statementList/eval-block-with-statment-regexp-literal-flags.js",True) Failed
             StatementList("language/statementList/eval-block-with-statment-regexp-literal.js",False) Failed
             StatementList("language/statementList/eval-block-with-statment-regexp-literal.js",True) Failed
-            StatementList("language/statementList/eval-class-block-with-labels.js",False) Failed
-            StatementList("language/statementList/eval-class-block-with-labels.js",True) Failed
             StatementList("language/statementList/eval-class-regexp-literal-flags.js",False) Failed
             StatementList("language/statementList/eval-class-regexp-literal-flags.js",True) Failed
             StatementList("language/statementList/eval-class-regexp-literal.js",False) Failed
             StatementList("language/statementList/eval-class-regexp-literal.js",True) Failed
-            StatementList("language/statementList/eval-fn-block-with-labels.js",False) Failed
-            StatementList("language/statementList/eval-fn-block-with-labels.js",True) Failed
             StatementList("language/statementList/eval-fn-regexp-literal-flags.js",False) Failed
             StatementList("language/statementList/eval-fn-regexp-literal-flags.js",True) Failed
             StatementList("language/statementList/eval-fn-regexp-literal.js",False) Failed
@@ -688,16 +621,13 @@ tests (1101 tests) Failed: 1101 tests failed
             StatementList("language/statementList/fn-regexp-literal-flags.js",True) Failed
             StatementList("language/statementList/fn-regexp-literal.js",False) Failed
             StatementList("language/statementList/fn-regexp-literal.js",True) Failed
-          Statements_asyncFunction (2 tests) Failed: One or more child tests had errors: 2 tests failed
-            Statements_asyncFunction("language/statements/async-function/cptn-decl.js",False) Failed
-            Statements_asyncFunction("language/statements/async-function/cptn-decl.js",True) Failed
           Statements_asyncGenerator (2 tests) Failed: One or more child tests had errors: 2 tests failed
             Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",False) Failed
             Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",True) Failed
           Statements_awaitUsing (2 tests) Failed: One or more child tests had errors: 2 tests failed
             Statements_awaitUsing("language/statements/await-using/throws-if-initializer-not-object.js",False) Failed
             Statements_awaitUsing("language/statements/await-using/throws-if-initializer-not-object.js",True) Failed
-          Statements_class (20 tests) Failed: One or more child tests had errors: 20 tests failed
+          Statements_class (18 tests) Failed: One or more child tests had errors: 18 tests failed
             Statements_class("language/statements/class/accessor-name-inst-computed-yield-expr.js",False) Failed
             Statements_class("language/statements/class/accessor-name-inst-computed-yield-expr.js",True) Failed
             Statements_class("language/statements/class/accessor-name-static-computed-yield-expr.js",False) Failed
@@ -706,8 +636,6 @@ tests (1101 tests) Failed: 1101 tests failed
             Statements_class("language/statements/class/cpn-class-decl-accessors-computed-property-name-from-yield-expression.js",True) Failed
             Statements_class("language/statements/class/cpn-class-decl-computed-property-name-from-yield-expression.js",False) Failed
             Statements_class("language/statements/class/cpn-class-decl-computed-property-name-from-yield-expression.js",True) Failed
-            Statements_class("language/statements/class/cptn-decl.js",False) Failed
-            Statements_class("language/statements/class/cptn-decl.js",True) Failed
             Statements_class("language/statements/class/static-init-scope-lex-derived.js",False) Failed
             Statements_class("language/statements/class/static-init-scope-lex-derived.js",True) Failed
             Statements_class("language/statements/class/static-init-scope-private.js",False) Failed
@@ -966,14 +894,9 @@ tests (1101 tests) Failed: 1101 tests failed
           Statements_class_subclass_builtinObjects_WeakSet (2 tests) Failed: One or more child tests had errors: 2 tests failed
             Statements_class_subclass_builtinObjects_WeakSet("language/statements/class/subclass/builtin-objects/WeakSet/super-must-be-called.js",False) Failed
             Statements_class_subclass_builtinObjects_WeakSet("language/statements/class/subclass/builtin-objects/WeakSet/super-must-be-called.js",True) Failed
-          Statements_const (4 tests) Failed: One or more child tests had errors: 4 tests failed
-            Statements_const("language/statements/const/cptn-value.js",False) Failed
-            Statements_const("language/statements/const/cptn-value.js",True) Failed
+          Statements_const (2 tests) Failed: One or more child tests had errors: 2 tests failed
             Statements_const("language/statements/const/fn-name-cover.js",False) Failed
             Statements_const("language/statements/const/fn-name-cover.js",True) Failed
-          Statements_empty (2 tests) Failed: One or more child tests had errors: 2 tests failed
-            Statements_empty("language/statements/empty/cptn-value.js",False) Failed
-            Statements_empty("language/statements/empty/cptn-value.js",True) Failed
           Statements_for (5 tests) Failed: One or more child tests had errors: 5 tests failed
             Statements_for("language/statements/for/head-lhs-let.js",False) Failed
             Statements_for("language/statements/for/scope-body-lex-boundary.js",False) Failed
@@ -1023,7 +946,7 @@ tests (1101 tests) Failed: 1101 tests failed
             Statements_forOf("language/statements/for-of/iterator-next-result-type.js",True) Failed
             Statements_forOf("language/statements/for-of/string-astral.js",False) Failed
             Statements_forOf("language/statements/for-of/string-astral.js",True) Failed
-          Statements_function (31 tests) Failed: One or more child tests had errors: 31 tests failed
+          Statements_function (29 tests) Failed: One or more child tests had errors: 29 tests failed
             Statements_function("language/statements/function/13.1-19-s.js",False) Failed
             Statements_function("language/statements/function/13.1-2-s.js",True) Failed
             Statements_function("language/statements/function/13.1-21-s.js",False) Failed
@@ -1041,8 +964,6 @@ tests (1101 tests) Failed: 1101 tests failed
             Statements_function("language/statements/function/13.2-18-1.js",True) Failed
             Statements_function("language/statements/function/13.2-30-s.js",False) Failed
             Statements_function("language/statements/function/13.2-30-s.js",True) Failed
-            Statements_function("language/statements/function/cptn-decl.js",False) Failed
-            Statements_function("language/statements/function/cptn-decl.js",True) Failed
             Statements_function("language/statements/function/name-eval-stricteval.js",False) Failed
             Statements_function("language/statements/function/param-dflt-yield-non-strict.js",False) Failed
             Statements_function("language/statements/function/param-eval-stricteval.js",False) Failed
@@ -1055,9 +976,7 @@ tests (1101 tests) Failed: 1101 tests failed
             Statements_function("language/statements/function/S13.2.2_A1_T2.js",False) Failed
             Statements_function("language/statements/function/S13.2.2_A1_T2.js",True) Failed
             Statements_function("language/statements/function/S13.2.2_A19_T7.js",False) Failed
-          Statements_generators (12 tests) Failed: One or more child tests had errors: 12 tests failed
-            Statements_generators("language/statements/generators/cptn-decl.js",False) Failed
-            Statements_generators("language/statements/generators/cptn-decl.js",True) Failed
+          Statements_generators (10 tests) Failed: One or more child tests had errors: 10 tests failed
             Statements_generators("language/statements/generators/default-proto.js",False) Failed
             Statements_generators("language/statements/generators/default-proto.js",True) Failed
             Statements_generators("language/statements/generators/invoke-as-constructor.js",False) Failed
@@ -1081,10 +1000,8 @@ tests (1101 tests) Failed: 1101 tests failed
             Statements_labeled("language/statements/labeled/value-await-non-module.js",False) Failed
             Statements_labeled("language/statements/labeled/value-await-non-module.js",True) Failed
             Statements_labeled("language/statements/labeled/value-yield-non-strict.js",False) Failed
-          Statements_let (7 tests) Failed: One or more child tests had errors: 7 tests failed
+          Statements_let (5 tests) Failed: One or more child tests had errors: 5 tests failed
             Statements_let("language/statements/let/block-local-closure-set-before-initialization.js",False) Failed
-            Statements_let("language/statements/let/cptn-value.js",False) Failed
-            Statements_let("language/statements/let/cptn-value.js",True) Failed
             Statements_let("language/statements/let/fn-name-cover.js",False) Failed
             Statements_let("language/statements/let/fn-name-cover.js",True) Failed
             Statements_let("language/statements/let/function-local-closure-set-before-initialization.js",False) Failed
@@ -1162,15 +1079,13 @@ tests (1101 tests) Failed: 1101 tests failed
           Statements_using (2 tests) Failed: One or more child tests had errors: 2 tests failed
             Statements_using("language/statements/using/throws-if-initializer-not-object.js",False) Failed
             Statements_using("language/statements/using/throws-if-initializer-not-object.js",True) Failed
-          Statements_variable (10 tests) Failed: One or more child tests had errors: 10 tests failed
+          Statements_variable (8 tests) Failed: One or more child tests had errors: 8 tests failed
             Statements_variable("language/statements/variable/12.2.1-18-s.js",True) Failed
             Statements_variable("language/statements/variable/12.2.1-22-s.js",False) Failed
             Statements_variable("language/statements/variable/12.2.1-22-s.js",True) Failed
             Statements_variable("language/statements/variable/12.2.1-3-s.js",True) Failed
             Statements_variable("language/statements/variable/12.2.1-7-s.js",True) Failed
             Statements_variable("language/statements/variable/binding-resolution.js",False) Failed
-            Statements_variable("language/statements/variable/cptn-value.js",False) Failed
-            Statements_variable("language/statements/variable/cptn-value.js",True) Failed
             Statements_variable("language/statements/variable/fn-name-cover.js",False) Failed
             Statements_variable("language/statements/variable/fn-name-cover.js",True) Failed
           Statements_variable_dstr (2 tests) Failed: One or more child tests had errors: 2 tests failed

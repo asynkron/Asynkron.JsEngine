@@ -35,13 +35,19 @@ public static partial class TypedAstEvaluator
                 context.Clear();
                 var catchEnv = new JsEnvironment(environment, creatingSource: statement.Catch.Body.Source,
                     description: "catch");
-                if (statement.Catch.Binding is IdentifierBinding identifierBinding)
+
+                // ES2019: Optional catch binding - only bind if a parameter was provided
+                if (statement.Catch.Binding is not null)
                 {
-                    catchEnv.SetSimpleCatchParameters(
-                        new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance) { identifierBinding.Name });
+                    if (statement.Catch.Binding is IdentifierBinding identifierBinding)
+                    {
+                        catchEnv.SetSimpleCatchParameters(
+                            new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance) { identifierBinding.Name });
+                    }
+
+                    DefineBindingTarget(statement.Catch.Binding, thrownValue, catchEnv, context, false);
                 }
 
-                DefineBindingTarget(statement.Catch.Binding, thrownValue, catchEnv, context, false);
                 result = EvaluateBlock(statement.Catch.Body, catchEnv, context);
             }
 

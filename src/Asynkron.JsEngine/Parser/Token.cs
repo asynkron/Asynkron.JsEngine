@@ -102,7 +102,6 @@ public enum TokenType
     True,
     False,
     Null,
-    Undefined,
     Typeof,
     Instanceof,
     Void,

@@ -85,8 +85,16 @@ public static partial class TypedAstEvaluator
             if (!isDerivedClassCtor)
             {
                 instance = new JsObject();
-                if (TryGetPropertyValue(constructor, "prototype", out var prototype) &&
-                    prototype is IJsPropertyAccessor protoAccessor)
+                if (typedConstructor is not null)
+                {
+                    var protoObject = typedConstructor.GetOrCreatePrototypeObject();
+                    instance.SetPrototype(protoObject);
+                    logger?.LogInformation("new: pre-call prototype set hash={Hash} derived={Derived}",
+                        RuntimeHelpers.GetHashCode(protoObject),
+                        isDerivedClassCtor);
+                }
+                else if (TryGetPropertyValue(constructor, "prototype", out var prototype) &&
+                         prototype is IJsPropertyAccessor protoAccessor)
                 {
                     instance.SetPrototype(protoAccessor);
                     logger?.LogInformation("new: pre-call prototype set hash={Hash} derived={Derived}",
@@ -129,20 +137,41 @@ public static partial class TypedAstEvaluator
                 instance?.EndConstruction();
             }
 
-            if (!isDerivedClassCtor &&
-                instance is not null &&
-                TryGetPropertyValue(constructor, "prototype", out var finalPrototype, context) &&
-                finalPrototype is IJsPropertyAccessor finalProtoAccessor)
+            // Ensure the instance prototype matches the constructor's current prototype
+            // (non-derived classes). This guards against earlier prototype lookup
+            // failures that could leave the instance with a null/incorrect [[Prototype]].
+            if (!isDerivedClassCtor && instance is not null)
             {
-                instance.SetPrototype(finalProtoAccessor);
-                logger?.LogInformation(
-                    "new: final prototype set hash={Hash} derived={Derived}",
-                    RuntimeHelpers.GetHashCode(finalProtoAccessor),
-                    isDerivedClassCtor);
-            }
-            else if (!isDerivedClassCtor && instance is not null)
-            {
-                logger?.LogInformation("new: final prototype missing derived={Derived}", isDerivedClassCtor);
+                if (typedConstructor is not null)
+                {
+                    var finalProto = typedConstructor.GetOrCreatePrototypeObject();
+                    if (!ReferenceEquals(instance.PrototypeAccessor, finalProto))
+                    {
+                        instance.SetPrototype(finalProto);
+                    }
+
+                    logger?.LogInformation(
+                        "new: final prototype set hash={Hash} derived={Derived}",
+                        RuntimeHelpers.GetHashCode(finalProto),
+                        isDerivedClassCtor);
+                }
+                else if (TryGetPropertyValue(constructor, "prototype", out var finalPrototype, context) &&
+                         finalPrototype is IJsPropertyAccessor finalProtoAccessor)
+                {
+                    if (!ReferenceEquals(instance.PrototypeAccessor, finalProtoAccessor))
+                    {
+                        instance.SetPrototype(finalProtoAccessor);
+                    }
+
+                    logger?.LogInformation(
+                        "new: final prototype set hash={Hash} derived={Derived}",
+                        RuntimeHelpers.GetHashCode(finalProtoAccessor),
+                        isDerivedClassCtor);
+                }
+                else
+                {
+                    logger?.LogInformation("new: final prototype missing derived={Derived}", isDerivedClassCtor);
+                }
             }
 
             // In JavaScript, constructors can explicitly return an object to override the
@@ -151,12 +180,28 @@ public static partial class TypedAstEvaluator
             // expose their members through IJsPropertyAccessor/IJsCallable. Treat any
             // such object-like result as the constructed value; otherwise fall back to
             // the auto-created instance.
-            return result switch
+            var constructedResult = result switch
             {
                 IJsPropertyAccessor => result,
                 IJsCallable => result,
                 _ => instance ?? result
             };
+
+            // If the constructor did not supply its own object, ensure the returned
+            // instance carries the constructor's current prototype object.
+            if (!isDerivedClassCtor &&
+                typedConstructor is not null &&
+                constructedResult is JsObject constructedJsObj &&
+                ReferenceEquals(constructedJsObj, instance))
+            {
+                var ctorProto = typedConstructor.GetOrCreatePrototypeObject();
+                if (!ReferenceEquals(constructedJsObj.PrototypeAccessor, ctorProto))
+                {
+                    constructedJsObj.SetPrototype(ctorProto);
+                }
+            }
+
+            return constructedResult;
         }
     }
 }

@@ -209,4 +209,125 @@ public class DebugClassFieldTests
             Assert.That(name?.ToString(), Is.EqualTo("TypeError"));
         }
     }
+
+    [Test]
+    public async Task DefaultClassPrototypeShouldBeAppliedToInstances()
+    {
+        // Regression guard: instances produced by a simple class constructor should
+        // inherit from that constructor's prototype. Currently, `new C()` yields an
+        // object whose [[Prototype]] is a fresh, empty JsObject rather than the
+        // populated `C.prototype` (constructor.name is "C", prototype has "constructor" and "x").
+        // This breaks private field/method lookups because the prototype chain is wrong.
+        await using var engine = new JsEngine
+        {
+            ExecutionTimeout = null
+        };
+
+        var snapshot = await engine.Evaluate("""
+                                             (function () {
+                                               class C {
+                                                 #x = 1;
+                                                 x() { return this.#x; }
+                                               }
+                                               const c = new C();
+                                               return {
+                                                 protoMatch: Object.getPrototypeOf(c) === C.prototype,
+                                                 protoKeys: Object.getOwnPropertyNames(Object.getPrototypeOf(c) || {}),
+                                                 ctorProtoKeys: Object.getOwnPropertyNames(C.prototype),
+                                                 ctorProtoCtor: C.prototype.constructor === C,
+                                                 instanceType: typeof c.x
+                                               };
+                                             })();
+                                             """);
+
+        Assert.That(snapshot, Is.InstanceOf<IDictionary<string, object?>>());
+        var result = (IDictionary<string, object?>)snapshot;
+        TestContext.WriteLine(
+            $"protoMatch={result["protoMatch"]}, protoKeys={result["protoKeys"]}, ctorProtoKeys={result["ctorProtoKeys"]}, ctorProtoCtor={result["ctorProtoCtor"]}, instanceType={result["instanceType"]}");
+        Assert.That(result["protoMatch"], Is.EqualTo(true),
+            "new C() should set [[Prototype]] to C.prototype");
+        Assert.That(result["ctorProtoCtor"], Is.EqualTo(true),
+            "C.prototype.constructor should point back to C");
+        Assert.That(result["instanceType"], Is.EqualTo("function"),
+            "c.x should resolve to the prototype method");
+    }
+
+    private static async Task<IDictionary<string, object?>> CapturePrototypeSnapshot(
+        JsEngine engine,
+        string createExpression)
+    {
+        var script = $@"(() => {{
+  class C {{
+    #x = 1;
+    x() {{ return this.#x; }}
+  }}
+  const c = {createExpression};
+  return {{
+    protoMatch: Object.getPrototypeOf(c) === C.prototype,
+    protoKeys: Object.getOwnPropertyNames(Object.getPrototypeOf(c) || {{}}),
+    ctorProtoKeys: Object.getOwnPropertyNames(C.prototype),
+    ctorProtoCtor: C.prototype.constructor === C,
+    instanceType: typeof c.x
+  }};
+}})();";
+
+        var snapshot = await engine.Evaluate(script);
+        Assert.That(snapshot, Is.InstanceOf<IDictionary<string, object?>>(),
+            "Expected the snapshot to be a plain object");
+        return (IDictionary<string, object?>)snapshot;
+    }
+
+    [Test]
+    public async Task PrototypeAttachedForPlainClassInstance()
+    {
+        await using var engine = new JsEngine { ExecutionTimeout = null };
+        var result = await CapturePrototypeSnapshot(engine, "new C()");
+        Assert.That(result["protoMatch"], Is.EqualTo(true),
+            "new C() should set [[Prototype]] to C.prototype");
+        Assert.That(result["instanceType"], Is.EqualTo("function"),
+            "c.x should resolve to the prototype method");
+    }
+
+    [Test]
+    public async Task PrototypeAttachedForProxyWrappedInstance()
+    {
+        await using var engine = new JsEngine { ExecutionTimeout = null };
+        var result = await CapturePrototypeSnapshot(engine, "new Proxy(new C(), {})");
+        Assert.That(result["protoMatch"], Is.EqualTo(true),
+            "Proxy default handler should not strip the instance [[Prototype]]");
+        Assert.That(result["instanceType"], Is.EqualTo("function"),
+            "c.x should resolve to the prototype method even through a Proxy");
+    }
+
+    [Test]
+    public async Task PrototypeAttachedWhenUsingReflectConstruct()
+    {
+        await using var engine = new JsEngine { ExecutionTimeout = null };
+        var result = await CapturePrototypeSnapshot(engine, "Reflect.construct(C, [])");
+        Assert.That(result["protoMatch"], Is.EqualTo(true),
+            "Reflect.construct should still wire [[Prototype]] to C.prototype");
+        Assert.That(result["instanceType"], Is.EqualTo("function"),
+            "c.x should resolve to the prototype method when constructed via Reflect");
+    }
+
+    // Document the breadth of the prototype loss: multiple construction paths currently
+    // yield instances whose [[Prototype]] is not C.prototype, breaking private brand lookup.
+    [Test]
+    [TestCase("new C()", "plain class construction")]
+    [TestCase("new (new Proxy(C, {}))()", "constructor wrapped in a Proxy with default handler")]
+    [TestCase("Reflect.construct(C, [])", "Reflect.construct with default newTarget")]
+    [TestCase("Reflect.construct(new Proxy(C, {}), [])", "Reflect.construct with proxied target")]
+    [TestCase("Reflect.construct(C, [], new Proxy(C, {}))", "Reflect.construct with proxied newTarget")]
+    [TestCase("Reflect.construct(new Proxy(C, {}), [], new Proxy(C, {}))", "proxied target and newTarget")]
+    public async Task PrototypeAttachedAcrossConstructionForms(string createExpression, string scenario)
+    {
+        await using var engine = new JsEngine { ExecutionTimeout = null };
+        var result = await CapturePrototypeSnapshot(engine, createExpression);
+        TestContext.Progress.WriteLine(
+            $"scenario={scenario}, expr={createExpression}, protoMatch={result["protoMatch"]}, protoKeys={result["protoKeys"]}, ctorProtoKeys={result["ctorProtoKeys"]}, ctorProtoCtor={result["ctorProtoCtor"]}, instanceType={result["instanceType"]}");
+        Assert.That(result["protoMatch"], Is.EqualTo(true),
+            $"{scenario}: instance [[Prototype]] should be C.prototype");
+        Assert.That(result["instanceType"], Is.EqualTo("function"),
+            $"{scenario}: c.x should resolve to the prototype method");
+    }
 }

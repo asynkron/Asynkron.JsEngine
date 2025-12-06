@@ -62,6 +62,7 @@ public static partial class TypedAstEvaluator
             if (constructorValue is TypedFunction typedCtorForOrdering)
             {
                 typedCtorForOrdering.SeedIntrinsicConstructorKeys();
+                typedCtorForOrdering.SetPrototypeObject(prototype);
             }
             else if (constructorAccessor is JsObject ctorForOrdering)
             {

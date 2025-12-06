@@ -121,10 +121,14 @@ public static partial class TypedAstEvaluator
                     prototype.SetPrototype(realm.ObjectPrototype);
                 }
 
+                prototype.Origin ??= "constructor.prototype";
                 return prototype;
             }
 
-            var created = new JsObject(realm.ObjectPrototype);
+            var created = new JsObject(realm.ObjectPrototype)
+            {
+                Origin = "constructor.prototype (auto-created)"
+            };
 
             constructor.SetProperty("prototype", created);
             return created;

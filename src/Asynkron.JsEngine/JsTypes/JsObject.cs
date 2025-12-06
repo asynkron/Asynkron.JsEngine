@@ -43,6 +43,9 @@ namespace Asynkron.JsEngine.JsTypes;
         }
     }
 
+    // Host-only metadata to help debugging prototype wiring without leaking into JS state.
+    public string? Origin { get; set; }
+
     internal void EnableArrayLengthTracking(double initialLength = 0)
     {
         _trackArrayLength = true;

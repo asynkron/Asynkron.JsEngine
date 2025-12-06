@@ -27,6 +27,7 @@ public static partial class TypedAstEvaluator
         private readonly bool _hasFunctionNameEnvironment;
         private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
         private IJsCallable? _caller;
+        private JsObject? _prototypeObject;
         private IJsObjectLike? _homeObject;
         private ImmutableArray<ClassField> _instanceFields = ImmutableArray<ClassField>.Empty;
         private bool _isClassConstructor;
@@ -80,6 +81,7 @@ public static partial class TypedAstEvaluator
             }
 
             var paramCount = GetExpectedParameterCount(function.Parameters);
+            var functionNameValue = _function.Name?.Name ?? string.Empty;
             if (_realmState.FunctionPrototype is not null)
             {
                 _properties.SetPrototype(_realmState.FunctionPrototype);
@@ -90,6 +92,9 @@ public static partial class TypedAstEvaluator
             {
                 var functionPrototype = new JsObject();
                 functionPrototype.RealmState = _realmState;
+                functionPrototype.Origin = string.IsNullOrEmpty(functionNameValue)
+                    ? "anonymous function prototype"
+                    : $"prototype of {functionNameValue}";
                 functionPrototype.SetPrototype(_realmState.ObjectPrototype);
                 functionPrototype.DefineProperty("constructor",
                     new PropertyDescriptor { Value = this, Writable = true, Enumerable = false, Configurable = true });
@@ -109,7 +114,6 @@ public static partial class TypedAstEvaluator
                     HasConfigurable = true
                 });
 
-            var functionNameValue = _function.Name?.Name ?? string.Empty;
             _properties.DefineProperty("name",
                 new PropertyDescriptor
                 {
@@ -866,6 +870,11 @@ public static partial class TypedAstEvaluator
             _homeObject = homeObject;
         }
 
+        public void SetPrototypeObject(JsObject prototype)
+        {
+            _prototypeObject = prototype;
+        }
+
         IJsCallable? ICallerInfo.Caller
         {
             get => _caller;
@@ -883,6 +892,31 @@ public static partial class TypedAstEvaluator
         public void SetInstanceFields(ImmutableArray<ClassField> fields)
         {
             _instanceFields = fields;
+        }
+
+        internal JsObject GetOrCreatePrototypeObject()
+        {
+            if (_prototypeObject is not null)
+            {
+                return _prototypeObject;
+            }
+
+            if (_properties.TryGetProperty("prototype", this, out var value) && value is JsObject jsObj)
+            {
+                _prototypeObject = jsObj;
+                return jsObj;
+            }
+
+            var created = new JsObject(_realmState.ObjectPrototype)
+            {
+                RealmState = _realmState,
+                Origin = string.IsNullOrEmpty(_function.Name?.Name)
+                    ? "anonymous function prototype (materialized)"
+                    : $"prototype of {_function.Name!.Name} (materialized)"
+            };
+            _properties.SetProperty("prototype", created);
+            _prototypeObject = created;
+            return created;
         }
 
         private SuperBinding? ResolveInstanceFieldSuperBinding(JsEnvironment constructorEnvironment,
@@ -975,7 +1009,7 @@ public static partial class TypedAstEvaluator
                         return;
                     }
                 }
-                else if (field.IsPrivate && PrivateNameScope is not null)
+                else if (field.IsPrivate && PrivateNameScope is not null && !propertyName.Contains('@'))
                 {
                     propertyName = PrivateNameScope.GetKey(propertyName);
                 }

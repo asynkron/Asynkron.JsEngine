@@ -587,58 +587,85 @@ internal static class JsOps
         }
     }
 
+    private enum ComparisonOperator
+    {
+        LessThan,
+        LessThanOrEqual,
+        GreaterThan,
+        GreaterThanOrEqual
+    }
+
     public static bool GreaterThan(object? left, object? right, EvaluationContext? context = null)
     {
-        return PerformComparisonOperation(left, right,
-            (l, r) => l > r,
-            (l, r) => l > r,
-            (l, r) => l > r,
-            context);
+        return PerformComparisonOperation(left, right, ComparisonOperator.GreaterThan, context);
     }
 
     public static bool GreaterThanOrEqual(object? left, object? right, EvaluationContext? context = null)
     {
-        return PerformComparisonOperation(left, right,
-            (l, r) => l >= r,
-            (l, r) => l >= r,
-            (l, r) => l >= r,
-            context);
+        return PerformComparisonOperation(left, right, ComparisonOperator.GreaterThanOrEqual, context);
     }
 
     public static bool LessThan(object? left, object? right, EvaluationContext? context = null)
     {
-        return PerformComparisonOperation(left, right,
-            (l, r) => l < r,
-            (l, r) => l < r,
-            (l, r) => l < r,
-            context);
+        return PerformComparisonOperation(left, right, ComparisonOperator.LessThan, context);
     }
 
     public static bool LessThanOrEqual(object? left, object? right, EvaluationContext? context = null)
     {
-        return PerformComparisonOperation(left, right,
-            (l, r) => l <= r,
-            (l, r) => l <= r,
-            (l, r) => l <= r,
-            context);
+        return PerformComparisonOperation(left, right, ComparisonOperator.LessThanOrEqual, context);
     }
 
     private static bool PerformComparisonOperation(
         object? left,
         object? right,
-        Func<JsBigInt, JsBigInt, bool> bigIntOp,
-        Func<BigInteger, BigInteger, bool> mixedOp,
-        Func<double, double, bool> numericOp,
+        ComparisonOperator op,
         EvaluationContext? context)
     {
-        _ = mixedOp;
-        var leftNumeric = ToNumeric(left, context);
+        // ES Spec 7.2.15 Abstract Relational Comparison
+        // Step 1-3: Call ToPrimitive with hint "number" on both operands
+        var leftPrimitive = left;
+        if (left is IJsPropertyAccessor leftAccessor && left is not TypedAstSymbol)
+        {
+            leftPrimitive = ToPrimitive(leftAccessor, "number", context);
+            if (context?.IsThrow == true)
+            {
+                return false;
+            }
+        }
+
+        var rightPrimitive = right;
+        if (right is IJsPropertyAccessor rightAccessor && right is not TypedAstSymbol)
+        {
+            rightPrimitive = ToPrimitive(rightAccessor, "number", context);
+            if (context?.IsThrow == true)
+            {
+                return false;
+            }
+        }
+
+        // Step 4: If both are strings, do string comparison
+        if (leftPrimitive is string leftStr && rightPrimitive is string rightStr)
+        {
+            // String comparison: check if leftStr < rightStr lexicographically
+            var comparison = string.CompareOrdinal(leftStr, rightStr);
+            return op switch
+            {
+                ComparisonOperator.LessThan => comparison < 0,
+                ComparisonOperator.LessThanOrEqual => comparison <= 0,
+                ComparisonOperator.GreaterThan => comparison > 0,
+                ComparisonOperator.GreaterThanOrEqual => comparison >= 0,
+                _ => false
+            };
+        }
+
+        // Step 5: Otherwise, convert both to numeric values and compare
+        var leftNumeric = ToNumeric(leftPrimitive, context);
         if (context?.IsThrow == true)
         {
             return false;
         }
 
-        var rightNumeric = ToNumeric(right, context);
+        var rightNumeric = ToNumeric(rightPrimitive, context);
         if (context?.IsThrow == true)
         {
             return false;
@@ -646,7 +673,14 @@ internal static class JsOps
 
         if (leftNumeric is JsBigInt leftBigInt && rightNumeric is JsBigInt rightBigInt)
         {
-            return bigIntOp(leftBigInt, rightBigInt);
+            return op switch
+            {
+                ComparisonOperator.LessThan => leftBigInt < rightBigInt,
+                ComparisonOperator.LessThanOrEqual => leftBigInt <= rightBigInt,
+                ComparisonOperator.GreaterThan => leftBigInt > rightBigInt,
+                ComparisonOperator.GreaterThanOrEqual => leftBigInt >= rightBigInt,
+                _ => false
+            };
         }
 
         var leftNum = ToNumber(leftNumeric, context);
@@ -658,7 +692,14 @@ internal static class JsOps
 
         // Mixed BigInt/Number comparisons follow the numeric ordering rules
         // (after ToNumeric/ToNumber), so precision loss is tolerated here.
-        return numericOp(leftNum, rightNum);
+        return op switch
+        {
+            ComparisonOperator.LessThan => leftNum < rightNum,
+            ComparisonOperator.LessThanOrEqual => leftNum <= rightNum,
+            ComparisonOperator.GreaterThan => leftNum > rightNum,
+            ComparisonOperator.GreaterThanOrEqual => leftNum >= rightNum,
+            _ => false
+        };
     }
 
     public static string? ToPropertyName(object? value, EvaluationContext? context = null)

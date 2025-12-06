@@ -10,7 +10,11 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment, EvaluationContext context)
         {
             var targetIdentifier = declarator.Target as IdentifierBinding;
-            using var functionNameHint = declarator.Initializer is ClassExpression { Name: null } && targetIdentifier is not null
+            // Per ES spec 13.3.1.4: If IsAnonymousFunctionDefinition(Initializer) is true,
+            // then perform SetFunctionName(value, bindingId).
+            using var functionNameHint = targetIdentifier is not null &&
+                                         declarator.Initializer is not null &&
+                                         IsAnonymousFunctionDefinitionNode(declarator.Initializer)
                 ? context.EnterFunctionNameHint(targetIdentifier.Name)
                 : null;
 

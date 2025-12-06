@@ -618,9 +618,37 @@ public static partial class TypedAstEvaluator
         return (double)~int32;
     }
 
+    private static object UnaryMinus(object? operand, EvaluationContext context)
+    {
+        var numeric = JsOps.ToNumeric(operand, context);
+        if (context.IsThrow)
+        {
+            return context.FlowValue ?? Symbol.Undefined;
+        }
+
+        if (numeric is JsBigInt bigInt)
+        {
+            return -bigInt;
+        }
+
+        return -JsOps.ToNumber(numeric, context);
+    }
+
     private static object LeftShift(object? left, object? right, EvaluationContext context)
     {
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        var leftNumeric = JsOps.ToNumeric(left, context);
+        if (context.IsThrow)
+        {
+            return context.FlowValue ?? Symbol.Undefined;
+        }
+
+        var rightNumeric = JsOps.ToNumeric(right, context);
+        if (context.IsThrow)
+        {
+            return context.FlowValue ?? Symbol.Undefined;
+        }
+
+        if (leftNumeric is JsBigInt leftBigInt && rightNumeric is JsBigInt rightBigInt)
         {
             if (rightBigInt.Value > int.MaxValue || rightBigInt.Value < int.MinValue)
             {
@@ -630,20 +658,32 @@ public static partial class TypedAstEvaluator
             return leftBigInt << (int)rightBigInt.Value;
         }
 
-        if (left is JsBigInt || right is JsBigInt)
+        if (leftNumeric is JsBigInt || rightNumeric is JsBigInt)
         {
             throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions",
                 context);
         }
 
-        var leftInt = ToInt32(left, context);
-        var rightInt = ToInt32(right, context) & 0x1F;
+        var leftInt = ToInt32(leftNumeric, context);
+        var rightInt = ToInt32(rightNumeric, context) & 0x1F;
         return (double)(leftInt << rightInt);
     }
 
     private static object RightShift(object? left, object? right, EvaluationContext context)
     {
-        if (left is JsBigInt leftBigInt && right is JsBigInt rightBigInt)
+        var leftNumeric = JsOps.ToNumeric(left, context);
+        if (context.IsThrow)
+        {
+            return context.FlowValue ?? Symbol.Undefined;
+        }
+
+        var rightNumeric = JsOps.ToNumeric(right, context);
+        if (context.IsThrow)
+        {
+            return context.FlowValue ?? Symbol.Undefined;
+        }
+
+        if (leftNumeric is JsBigInt leftBigInt && rightNumeric is JsBigInt rightBigInt)
         {
             if (rightBigInt.Value > int.MaxValue || rightBigInt.Value < int.MinValue)
             {
@@ -653,26 +693,38 @@ public static partial class TypedAstEvaluator
             return leftBigInt >> (int)rightBigInt.Value;
         }
 
-        if (left is JsBigInt || right is JsBigInt)
+        if (leftNumeric is JsBigInt || rightNumeric is JsBigInt)
         {
             throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions",
                 context);
         }
 
-        var leftInt = ToInt32(left, context);
-        var rightInt = ToInt32(right, context) & 0x1F;
+        var leftInt = ToInt32(leftNumeric, context);
+        var rightInt = ToInt32(rightNumeric, context) & 0x1F;
         return (double)(leftInt >> rightInt);
     }
 
     private static object UnsignedRightShift(object? left, object? right, EvaluationContext context)
     {
-        if (left is JsBigInt || right is JsBigInt)
+        var leftNumeric = JsOps.ToNumeric(left, context);
+        if (context.IsThrow)
+        {
+            return context.FlowValue ?? Symbol.Undefined;
+        }
+
+        var rightNumeric = JsOps.ToNumeric(right, context);
+        if (context.IsThrow)
+        {
+            return context.FlowValue ?? Symbol.Undefined;
+        }
+
+        if (leftNumeric is JsBigInt || rightNumeric is JsBigInt)
         {
             throw StandardLibrary.ThrowTypeError("BigInts have no unsigned right shift, use >> instead", context);
         }
 
-        var leftUInt = ToUInt32(left, context);
-        var rightInt = ToInt32(right, context) & 0x1F;
+        var leftUInt = ToUInt32(leftNumeric, context);
+        var rightInt = ToInt32(rightNumeric, context) & 0x1F;
         return (double)(leftUInt >> rightInt);
     }
 

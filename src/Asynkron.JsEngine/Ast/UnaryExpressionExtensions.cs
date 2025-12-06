@@ -70,7 +70,7 @@ public static partial class TypedAstEvaluator
                     "+" => operand is JsBigInt
                         ? throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number", context)
                         : JsOps.ToNumber(operand, context),
-                    "-" => operand is JsBigInt bigInt ? -bigInt : -JsOps.ToNumber(operand, context),
+                    "-" => UnaryMinus(operand, context),
                     "~" => BitwiseNot(operand, context),
                     "void" => Symbol.Undefined,
                     _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet.")

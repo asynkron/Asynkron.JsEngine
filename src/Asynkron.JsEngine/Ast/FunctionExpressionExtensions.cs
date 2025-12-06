@@ -410,6 +410,15 @@ public static partial class TypedAstEvaluator
                     blocksFunctionScopeOverride: true);
             }
 
+            // Per ES spec 13.3.1.4: If IsAnonymousFunctionDefinition(Initializer) is true and
+            // hasNameProperty is false, perform SetFunctionName(value, bindingId).
+            if (functionExpression.Name is null &&
+                context.CurrentFunctionNameHint is { } inferredName &&
+                callable is IFunctionNameTarget nameTarget)
+            {
+                nameTarget.EnsureHasName(inferredName.Name);
+            }
+
             return callable;
         }
     }

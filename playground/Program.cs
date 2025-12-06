@@ -8,28 +8,15 @@ internal static class Program
     {
         await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
-            (function () {
-              var C = class {
-                #x = 1;
-                x() { return this.#x; }
-              };
-              var c = new C();
-              var p = new Proxy(c, {});
-              return {
-                protoMatch: Object.getPrototypeOf(c) === C.prototype,
-                protoEqualsDesc: Object.getPrototypeOf(c) === Object.getOwnPropertyDescriptor(C, "prototype").value,
-                protoIsNull: Object.getPrototypeOf(c) === null,
-                protoIsObjectProto: Object.getPrototypeOf(c) === Object.prototype,
-                protoActualCtor: Object.getPrototypeOf(c)?.constructor?.name,
-                protoActualKeys: Object.getOwnPropertyNames(Object.getPrototypeOf(c) || {}),
-                cType: typeof c.x,
-                pType: typeof p.x,
-                ctorProto: C.prototype,
-                actualProto: Object.getPrototypeOf(c),
-                instance: c,
-                ctor: C
-              };
-            })();
+            const xCover = (0, function() {});
+            const cover = (function() {});
+
+            console.log("xCover.name:", xCover.name);
+            console.log("xCover.name !== 'xCover':", xCover.name !== 'xCover');
+            console.log("cover.name:", cover.name);
+            console.log("cover.name === 'cover':", cover.name === 'cover');
+
+            "done"
             """);
 
         if (result is JsObject obj)

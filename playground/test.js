@@ -1,19 +1,7 @@
-var iter = {
-  [Symbol.iterator]: function() {
-    return {
-      next: function() {
-        return Object.defineProperty({}, "value", {
-          get: function() { throw new Error("boom"); }
-        });
-      }
-    };
-  }
-};
+const xCover = (0, function() {});
+const cover = (function() {});
 
-var res;
-try {
-  res = [0, ...iter];
-  console.log('ok', res);
-} catch (e) {
-  console.log('caught', e && e.message);
-}
+console.log("xCover.name:", xCover.name);
+console.log("xCover.name !== 'xCover':", xCover.name !== 'xCover');
+console.log("cover.name:", cover.name);
+console.log("cover.name === 'cover':", cover.name === 'cover');

@@ -1,8 +1,8 @@
-tests (828 tests) Failed: 828 tests failed
-  Asynkron.JsEngine.Tests.Test262 (828 tests) Failed: 828 tests failed
-    Asynkron.JsEngine.Tests.Test262 (828 tests) Failed: 828 tests failed
-      TestHarness (828 tests) Failed: One or more child tests had errors: 828 tests failed
-        LanguageTests (828 tests) Failed: One or more child tests had errors: 828 tests failed
+tests (808 tests) Failed: 808 tests failed
+  Asynkron.JsEngine.Tests.Test262 (808 tests) Failed: 808 tests failed
+    Asynkron.JsEngine.Tests.Test262 (808 tests) Failed: 808 tests failed
+      TestHarness (808 tests) Failed: One or more child tests had errors: 808 tests failed
+        LanguageTests (808 tests) Failed: One or more child tests had errors: 808 tests failed
           Expressions_class_elements (24 tests) Failed: One or more child tests had errors: 24 tests failed
             Expressions_class_elements("language/expressions/class/elements/private-async-generator-method-name.js",False) Failed
             Expressions_class_elements("language/expressions/class/elements/private-async-generator-method-name.js",True) Failed
@@ -143,7 +143,7 @@ tests (828 tests) Failed: 828 tests failed
             Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-gopd-not-called-on-excluded-keys.js",True) Failed
             Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-ownkeys-returned-keys-order.js",False) Failed
             Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-ownkeys-returned-keys-order.js",True) Failed
-          Expressions_object_methodDefinition (14 tests) Failed: One or more child tests had errors: 14 tests failed
+          Expressions_object_methodDefinition (10 tests) Failed: One or more child tests had errors: 10 tests failed
             Expressions_object_methodDefinition("language/expressions/object/method-definition/computed-property-name-yield-expression.js",False) Failed
             Expressions_object_methodDefinition("language/expressions/object/method-definition/generator-invoke-fn-no-strict.js",False) Failed
             Expressions_object_methodDefinition("language/expressions/object/method-definition/generator-super-prop-param.js",False) Failed
@@ -154,10 +154,6 @@ tests (828 tests) Failed: 828 tests failed
             Expressions_object_methodDefinition("language/expressions/object/method-definition/name-prototype-prop.js",True) Failed
             Expressions_object_methodDefinition("language/expressions/object/method-definition/name-super-prop-param.js",False) Failed
             Expressions_object_methodDefinition("language/expressions/object/method-definition/name-super-prop-param.js",True) Failed
-            Expressions_object_methodDefinition("language/expressions/object/method-definition/yield-as-expression-with-rhs.js",False) Failed
-            Expressions_object_methodDefinition("language/expressions/object/method-definition/yield-as-expression-with-rhs.js",True) Failed
-            Expressions_object_methodDefinition("language/expressions/object/method-definition/yield-as-expression-without-rhs.js",False) Failed
-            Expressions_object_methodDefinition("language/expressions/object/method-definition/yield-as-expression-without-rhs.js",True) Failed
           Expressions_optionalChaining (8 tests) Failed: One or more child tests had errors: 8 tests failed
             Expressions_optionalChaining("language/expressions/optional-chaining/eval-optional-call.js",False) Failed
             Expressions_optionalChaining("language/expressions/optional-chaining/eval-optional-call.js",True) Failed
@@ -211,7 +207,7 @@ tests (828 tests) Failed: 828 tests failed
             Expressions_super("language/expressions/super/prop-expr-obj-null-proto.js",False) Failed
             Expressions_super("language/expressions/super/prop-expr-obj-null-proto.js",True) Failed
             Expressions_super("language/expressions/super/prop-expr-obj-ref-strict.js",True) Failed
-          Expressions_taggedTemplate (14 tests) Failed: One or more child tests had errors: 14 tests failed
+          Expressions_taggedTemplate (12 tests) Failed: One or more child tests had errors: 12 tests failed
             Expressions_taggedTemplate("language/expressions/tagged-template/cache-different-functions-same-site.js",False) Failed
             Expressions_taggedTemplate("language/expressions/tagged-template/cache-different-functions-same-site.js",True) Failed
             Expressions_taggedTemplate("language/expressions/tagged-template/cache-eval-inner-function.js",False) Failed
@@ -220,8 +216,6 @@ tests (828 tests) Failed: 828 tests failed
             Expressions_taggedTemplate("language/expressions/tagged-template/cache-same-site-top-level.js",True) Failed
             Expressions_taggedTemplate("language/expressions/tagged-template/cache-same-site.js",False) Failed
             Expressions_taggedTemplate("language/expressions/tagged-template/cache-same-site.js",True) Failed
-            Expressions_taggedTemplate("language/expressions/tagged-template/constructor-invocation.js",False) Failed
-            Expressions_taggedTemplate("language/expressions/tagged-template/constructor-invocation.js",True) Failed
             Expressions_taggedTemplate("language/expressions/tagged-template/invalid-escape-sequences.js",False) Failed
             Expressions_taggedTemplate("language/expressions/tagged-template/invalid-escape-sequences.js",True) Failed
             Expressions_taggedTemplate("language/expressions/tagged-template/template-object-template-map.js",False) Failed
@@ -237,17 +231,11 @@ tests (828 tests) Failed: 828 tests failed
             Expressions_templateLiteral("language/expressions/template-literal/tv-line-continuation.js",True) Failed
             Expressions_templateLiteral("language/expressions/template-literal/tv-line-terminator-sequence.js",False) Failed
             Expressions_templateLiteral("language/expressions/template-literal/tv-line-terminator-sequence.js",True) Failed
-          Expressions_typeof (4 tests) Failed: One or more child tests had errors: 4 tests failed
+          Expressions_typeof (2 tests) Failed: One or more child tests had errors: 2 tests failed
             Expressions_typeof("language/expressions/typeof/proxy.js",False) Failed
             Expressions_typeof("language/expressions/typeof/proxy.js",True) Failed
-            Expressions_typeof("language/expressions/typeof/string.js",False) Failed
-            Expressions_typeof("language/expressions/typeof/string.js",True) Failed
-          Expressions_yield (81 tests) Failed: One or more child tests had errors: 81 tests failed
+          Expressions_yield (77 tests) Failed: One or more child tests had errors: 77 tests failed
             Expressions_yield("language/expressions/yield/from-with.js",False) Failed
-            Expressions_yield("language/expressions/yield/rhs-omitted.js",False) Failed
-            Expressions_yield("language/expressions/yield/rhs-omitted.js",True) Failed
-            Expressions_yield("language/expressions/yield/rhs-primitive.js",False) Failed
-            Expressions_yield("language/expressions/yield/rhs-primitive.js",True) Failed
             Expressions_yield("language/expressions/yield/rhs-regexp.js",False) Failed
             Expressions_yield("language/expressions/yield/rhs-regexp.js",True) Failed
             Expressions_yield("language/expressions/yield/rhs-template-middle.js",False) Failed
@@ -556,17 +544,13 @@ tests (828 tests) Failed: 828 tests failed
           Statements_class_arguments (2 tests) Failed: One or more child tests had errors: 2 tests failed
             Statements_class_arguments("language/statements/class/arguments/default-constructor.js",False) Failed
             Statements_class_arguments("language/statements/class/arguments/default-constructor.js",True) Failed
-          Statements_class_definition (28 tests) Failed: One or more child tests had errors: 28 tests failed
+          Statements_class_definition (22 tests) Failed: One or more child tests had errors: 22 tests failed
             Statements_class_definition("language/statements/class/definition/accessors.js",False) Failed
             Statements_class_definition("language/statements/class/definition/accessors.js",True) Failed
             Statements_class_definition("language/statements/class/definition/constructable-but-no-prototype.js",False) Failed
             Statements_class_definition("language/statements/class/definition/constructable-but-no-prototype.js",True) Failed
             Statements_class_definition("language/statements/class/definition/getters-prop-desc.js",False) Failed
             Statements_class_definition("language/statements/class/definition/getters-prop-desc.js",True) Failed
-            Statements_class_definition("language/statements/class/definition/methods-gen-yield-as-expression-with-rhs.js",False) Failed
-            Statements_class_definition("language/statements/class/definition/methods-gen-yield-as-expression-with-rhs.js",True) Failed
-            Statements_class_definition("language/statements/class/definition/methods-gen-yield-as-expression-without-rhs.js",False) Failed
-            Statements_class_definition("language/statements/class/definition/methods-gen-yield-as-expression-without-rhs.js",True) Failed
             Statements_class_definition("language/statements/class/definition/methods.js",False) Failed
             Statements_class_definition("language/statements/class/definition/methods.js",True) Failed
             Statements_class_definition("language/statements/class/definition/numeric-property-names.js",False) Failed
@@ -577,8 +561,6 @@ tests (828 tests) Failed: 828 tests failed
             Statements_class_definition("language/statements/class/definition/prototype-property.js",True) Failed
             Statements_class_definition("language/statements/class/definition/prototype-setter.js",False) Failed
             Statements_class_definition("language/statements/class/definition/prototype-setter.js",True) Failed
-            Statements_class_definition("language/statements/class/definition/prototype-wiring.js",False) Failed
-            Statements_class_definition("language/statements/class/definition/prototype-wiring.js",True) Failed
             Statements_class_definition("language/statements/class/definition/setters-prop-desc.js",False) Failed
             Statements_class_definition("language/statements/class/definition/setters-prop-desc.js",True) Failed
             Statements_class_definition("language/statements/class/definition/side-effects-in-extends.js",False) Failed
@@ -641,7 +623,7 @@ tests (828 tests) Failed: 828 tests failed
             Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-get-followed-by-generator-asi.js",True) Failed
             Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-set-followed-by-generator-asi.js",False) Failed
             Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-set-followed-by-generator-asi.js",True) Failed
-          Statements_class_subclass (42 tests) Failed: One or more child tests had errors: 42 tests failed
+          Statements_class_subclass (40 tests) Failed: One or more child tests had errors: 40 tests failed
             Statements_class_subclass("language/statements/class/subclass/binding.js",False) Failed
             Statements_class_subclass("language/statements/class/subclass/binding.js",True) Failed
             Statements_class_subclass("language/statements/class/subclass/builtins.js",False) Failed
@@ -656,8 +638,6 @@ tests (828 tests) Failed: 828 tests failed
             Statements_class_subclass("language/statements/class/subclass/default-constructor-2.js",True) Failed
             Statements_class_subclass("language/statements/class/subclass/default-constructor-spread-override.js",False) Failed
             Statements_class_subclass("language/statements/class/subclass/default-constructor-spread-override.js",True) Failed
-            Statements_class_subclass("language/statements/class/subclass/default-constructor.js",False) Failed
-            Statements_class_subclass("language/statements/class/subclass/default-constructor.js",True) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-catch-finally-arrow.js",False) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-catch-finally-arrow.js",True) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-catch-finally.js",False) Failed

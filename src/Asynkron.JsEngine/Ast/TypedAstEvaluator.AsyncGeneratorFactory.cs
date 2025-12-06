@@ -14,6 +14,7 @@ public static partial class TypedAstEvaluator
         private readonly bool _isLexicallyStrict;
         private readonly JsObject _properties = new();
         private readonly RealmState _realmState;
+        private IJsObjectLike? _homeObject;
 
         public AsyncGeneratorFactory(
             FunctionExpression function,
@@ -94,7 +95,8 @@ public static partial class TypedAstEvaluator
                 thisValue,
                 this,
                 _realmState,
-                _isLexicallyStrict);
+                _isLexicallyStrict,
+                _homeObject);
             instance.Initialize();
             return instance.CreateAsyncIteratorObject();
         }
@@ -118,6 +120,11 @@ public static partial class TypedAstEvaluator
         public void Seal()
         {
             _properties.Seal();
+        }
+
+        public void SetHomeObject(IJsObjectLike homeObject)
+        {
+            _homeObject = homeObject;
         }
 
         public bool Delete(string name)

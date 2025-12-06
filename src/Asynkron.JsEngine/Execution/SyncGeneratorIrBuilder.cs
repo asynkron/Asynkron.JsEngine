@@ -168,8 +168,7 @@ internal sealed class SyncGeneratorIrBuilder
 
                     var expressionShape = AstShapeAnalyzer.AnalyzeExpression(expressionStatement.Expression);
                     if (expressionShape.DelegatedYieldCount > 0 ||
-                        expressionShape.YieldOperandContainsYield ||
-                        expressionShape.YieldCount > 1)
+                        expressionShape.YieldOperandContainsYield)
                     {
                         entryIndex = -1;
                         _failureReason ??= "Expression statement contains unsupported yield shape.";

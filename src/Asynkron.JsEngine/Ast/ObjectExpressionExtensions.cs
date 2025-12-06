@@ -65,11 +65,25 @@ public static partial class TypedAstEvaluator
                         {
                             typed.SetHomeObject(obj);
                         }
+                        else if (callable is TypedGeneratorFactory generatorFactory)
+                        {
+                            generatorFactory.SetHomeObject(obj);
+                        }
+                        else if (callable is AsyncGeneratorFactory asyncGeneratorFactory)
+                        {
+                            asyncGeneratorFactory.SetHomeObject(obj);
+                        }
 
                         var name = ResolveObjectMemberName(member, environment, context);
                         if (context.ShouldStopEvaluation)
                         {
                             return Symbol.Undefined;
+                        }
+
+                        if (callable is IFunctionNameTarget nameTarget)
+                        {
+                            var displayName = BuildFunctionNameDisplay(name);
+                            nameTarget.EnsureHasName(displayName);
                         }
 
                         obj.DefineProperty(name, new PropertyDescriptor
@@ -95,6 +109,8 @@ public static partial class TypedAstEvaluator
                             return Symbol.Undefined;
                         }
 
+                        getter.EnsureHasName($"get {BuildFunctionNameDisplay(name)}");
+
                         DefineAccessorProperty(obj, name, getter, null);
                         break;
                     }
@@ -111,6 +127,8 @@ public static partial class TypedAstEvaluator
                         {
                             return Symbol.Undefined;
                         }
+
+                        setter.EnsureHasName($"set {BuildFunctionNameDisplay(name)}");
 
                         DefineAccessorProperty(obj, name, null, setter);
                         break;
@@ -190,6 +208,16 @@ public static partial class TypedAstEvaluator
             }
 
             return obj;
+        }
+
+        private static string BuildFunctionNameDisplay(string propertyName)
+        {
+            if (TypedAstSymbol.TryGetByInternalKey(propertyName, out var symbol))
+            {
+                return symbol.Description is null ? string.Empty : $"[{symbol.Description}]";
+            }
+
+            return propertyName;
         }
     }
 }

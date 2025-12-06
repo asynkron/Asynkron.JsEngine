@@ -2791,7 +2791,10 @@ public sealed class TypedAstParser(
         {
             if (Match(TokenType.LeftBracket))
             {
+                var previousAllowIn = _allowInExpressions;
+                _allowInExpressions = true; // Computed property names always allow `in` (B.3.1 / 12.2.6.7).
                 var expr = ParseExpression();
+                _allowInExpressions = previousAllowIn;
                 Consume(TokenType.RightBracket, "Expected ']' after computed property key.");
                 return (expr, true, expr.Source);
             }

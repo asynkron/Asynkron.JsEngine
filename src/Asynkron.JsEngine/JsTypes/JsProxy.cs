@@ -1,4 +1,6 @@
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -51,6 +53,51 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     public bool IsSealed => Target.IsSealed;
 
     public IEnumerable<string> Keys => Target.Keys;
+
+    public IEnumerable<string> GetEnumerablePropertyNames()
+    {
+        return GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: false);
+    }
+
+    public IEnumerable<string> GetOwnPropertyKeysInOrder(bool includeSymbols = true, bool includeNonEnumerable = true)
+    {
+        IEnumerable<object?> keys;
+        if (TryGetTrap("ownKeys", out var trap))
+        {
+            var trapResult = trap.Invoke([Target], Handler);
+            keys = ExtractKeys(trapResult);
+        }
+        else
+        {
+            keys = Target.GetOwnPropertyKeysInOrder(includeSymbols, includeNonEnumerable)
+                .Cast<object?>();
+        }
+
+        foreach (var key in keys)
+        {
+            var propertyName = JsOps.ToPropertyName(key);
+            if (propertyName is null)
+            {
+                continue;
+            }
+
+            if (!includeSymbols && TypedAstSymbol.TryGetByInternalKey(propertyName, out _))
+            {
+                continue;
+            }
+
+            if (!includeNonEnumerable)
+            {
+                var desc = GetOwnPropertyDescriptor(propertyName);
+                if (desc is null || !desc.Enumerable)
+                {
+                    continue;
+                }
+            }
+
+            yield return propertyName;
+        }
+    }
 
     public bool TryGetProperty(string name, object? receiver, out object? value)
     {
@@ -262,6 +309,29 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         _meta.SetPrototype(proto);
         return proto;
+    }
+
+    private static IEnumerable<object?> ExtractKeys(object? trapResult)
+    {
+        switch (trapResult)
+        {
+            case JsArray jsArray:
+                foreach (var item in jsArray.Items)
+                {
+                    yield return item;
+                }
+
+                yield break;
+            case IEnumerable enumerable:
+                foreach (var item in enumerable)
+                {
+                    yield return item;
+                }
+
+                yield break;
+            default:
+                yield break;
+        }
     }
 
     private bool TryGetTrap(string trapName, out IJsCallable callable)

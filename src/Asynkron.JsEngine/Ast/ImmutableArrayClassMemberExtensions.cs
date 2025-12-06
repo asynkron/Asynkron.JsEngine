@@ -23,11 +23,13 @@ public static partial class TypedAstEvaluator
                     return;
                 }
 
-                var displayName = propertyName;
-                if (member.Name.IsPrivateName())
+                var baseDisplayName = member.Name.IsPrivateName() ? member.Name : propertyName;
+                var displayName = member.Kind switch
                 {
-                    displayName = member.Name;
-                }
+                    ClassMemberKind.Getter => $"get {BuildFunctionNameDisplay(baseDisplayName)}",
+                    ClassMemberKind.Setter => $"set {BuildFunctionNameDisplay(baseDisplayName)}",
+                    _ => BuildFunctionNameDisplay(baseDisplayName)
+                };
 
                 if (member.IsStatic &&
                     string.Equals(propertyName, "prototype", StringComparison.Ordinal))
@@ -74,5 +76,6 @@ public static partial class TypedAstEvaluator
                 member.DefineMember(propertyName, callable, constructorAccessor, prototype);
             }
         }
+
     }
 }

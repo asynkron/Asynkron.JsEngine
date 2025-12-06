@@ -18,6 +18,7 @@ public static partial class TypedAstEvaluator
         private readonly bool _isStrict;
         private readonly RealmState _realmState;
         private readonly YieldResumeContext _resumeContext = new();
+        private readonly IJsObjectLike? _homeObject;
         // Track yield slots that have already produced a value so re-running the body after a
         // nested suspension skips only those slots (per the generator resumption rules).
         private readonly HashSet<int> _consumedYieldIndices = new();
@@ -45,7 +46,8 @@ public static partial class TypedAstEvaluator
             object? thisValue,
             IJsCallable callable,
             RealmState realmState,
-            bool isLexicallyStrict)
+            bool isLexicallyStrict,
+            IJsObjectLike? homeObject)
         {
             _function = function;
             _closure = closure;
@@ -53,6 +55,7 @@ public static partial class TypedAstEvaluator
             _thisValue = thisValue;
             _callable = callable;
             _realmState = realmState;
+            _homeObject = homeObject;
             _isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
 
             if (!GeneratorIrBuilder.TryBuild(function, out var plan, out var failureReason))
@@ -222,6 +225,18 @@ public static partial class TypedAstEvaluator
             functionEnvironment.Define(Symbol.This, _thisValue ?? new JsObject());
             functionEnvironment.Define(Symbol.YieldResumeContextSymbol, _resumeContext);
             functionEnvironment.Define(Symbol.GeneratorInstanceSymbol, this);
+
+            var superPrototype = _homeObject?.Prototype;
+            if (superPrototype is null && _thisValue is JsObject thisObj)
+            {
+                superPrototype = thisObj.Prototype;
+            }
+
+            if (superPrototype is not null)
+            {
+                var superBinding = new SuperBinding(null, superPrototype, _thisValue, true);
+                functionEnvironment.Define(Symbol.Super, superBinding);
+            }
 
             var argumentsObject =
                 CreateArgumentsObject(_function, _arguments, parameterEnvironment, _realmState, _callable,

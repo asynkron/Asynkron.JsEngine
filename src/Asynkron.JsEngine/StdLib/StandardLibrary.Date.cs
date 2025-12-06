@@ -127,8 +127,18 @@ public static partial class StandardLibrary
             return clipped;
         }, realm);
 
-        object? DateCtorCore(object? thisValue, IReadOnlyList<object?> args, EvaluationContext? context)
+        object? DateCtorCore(object? thisValue, IReadOnlyList<object?> args, EvaluationContext? context, object? newTarget)
         {
+            // When Date is called as a function (not constructor), return a string
+            // Per ES spec: "When Date is called as a function rather than as a constructor,
+            // it returns a String representing the current time (UTC)."
+            if (newTarget is null)
+            {
+                var currentTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                var local = ConvertMillisecondsToLocal(currentTime, realm);
+                return FormatDateToJsString(local, realm);
+            }
+
             // For `new Date(...)`, the typed evaluator creates the instance
             // object and passes it as `thisValue`. Reuse that object so it
             // keeps the correct prototype chain (Date.prototype).
@@ -217,10 +227,10 @@ public static partial class StandardLibrary
             return dateInstance;
         }
 
-        dateConstructor = new HostFunction((thisValue, args) => DateCtorCore(thisValue, args, null),
+        dateConstructor = new HostFunction((thisValue, args) => DateCtorCore(thisValue, args, null, dateConstructor),
             isConstructor: true);
-        dateConstructor.SetInvokeWithContext((arguments, thisValue, context, _) =>
-            DateCtorCore(thisValue, arguments, context));
+        dateConstructor.SetInvokeWithContext((arguments, thisValue, context, newTarget) =>
+            DateCtorCore(thisValue, arguments, context, newTarget));
 
         dateConstructor.RealmState = realm;
         if (realm.FunctionPrototype is not null)

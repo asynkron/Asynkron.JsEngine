@@ -1,8 +1,8 @@
-tests (943 tests) Failed: 943 tests failed
-  Asynkron.JsEngine.Tests.Test262 (943 tests) Failed: 943 tests failed
-    Asynkron.JsEngine.Tests.Test262 (943 tests) Failed: 943 tests failed
-      TestHarness (943 tests) Failed: One or more child tests had errors: 943 tests failed
-        LanguageTests (943 tests) Failed: One or more child tests had errors: 943 tests failed
+tests (828 tests) Failed: 828 tests failed
+  Asynkron.JsEngine.Tests.Test262 (828 tests) Failed: 828 tests failed
+    Asynkron.JsEngine.Tests.Test262 (828 tests) Failed: 828 tests failed
+      TestHarness (828 tests) Failed: One or more child tests had errors: 828 tests failed
+        LanguageTests (828 tests) Failed: One or more child tests had errors: 828 tests failed
           Expressions_class_elements (24 tests) Failed: One or more child tests had errors: 24 tests failed
             Expressions_class_elements("language/expressions/class/elements/private-async-generator-method-name.js",False) Failed
             Expressions_class_elements("language/expressions/class/elements/private-async-generator-method-name.js",True) Failed
@@ -51,21 +51,8 @@ tests (943 tests) Failed: 943 tests failed
             Expressions_dynamicImport_importAttributes("language/expressions/dynamic-import/import-attributes/2nd-param-in.js",True) Failed
             Expressions_dynamicImport_importAttributes("language/expressions/dynamic-import/import-attributes/2nd-param-with-enumeration-enumerable.js",False) Failed
             Expressions_dynamicImport_importAttributes("language/expressions/dynamic-import/import-attributes/2nd-param-with-enumeration-enumerable.js",True) Failed
-          Expressions_function (3 tests) Failed: One or more child tests had errors: 3 tests failed
-            Expressions_function("language/expressions/function/name-eval-stricteval.js",False) Failed
+          Expressions_function (1 test) Failed: One or more child tests had errors: 1 test failed
             Expressions_function("language/expressions/function/param-dflt-yield-non-strict.js",False) Failed
-            Expressions_function("language/expressions/function/param-eval-stricteval.js",False) Failed
-          Expressions_generators (10 tests) Failed: One or more child tests had errors: 10 tests failed
-            Expressions_generators("language/expressions/generators/default-proto.js",False) Failed
-            Expressions_generators("language/expressions/generators/default-proto.js",True) Failed
-            Expressions_generators("language/expressions/generators/invoke-as-constructor.js",False) Failed
-            Expressions_generators("language/expressions/generators/invoke-as-constructor.js",True) Failed
-            Expressions_generators("language/expressions/generators/prototype-own-properties.js",False) Failed
-            Expressions_generators("language/expressions/generators/prototype-own-properties.js",True) Failed
-            Expressions_generators("language/expressions/generators/prototype-property-descriptor.js",False) Failed
-            Expressions_generators("language/expressions/generators/prototype-property-descriptor.js",True) Failed
-            Expressions_generators("language/expressions/generators/prototype-relation-to-function.js",False) Failed
-            Expressions_generators("language/expressions/generators/prototype-relation-to-function.js",True) Failed
           Expressions_import_meta (3 tests) Failed: One or more child tests had errors: 3 tests failed
             Expressions_import_meta("language/expressions/import.meta/distinct-for-each-module.js",True) Failed
             Expressions_import_meta("language/expressions/import.meta/import-meta-is-an-ordinary-object.js",True) Failed
@@ -144,13 +131,11 @@ tests (943 tests) Failed: 943 tests failed
             Expressions_logicalAssignment("language/expressions/logical-assignment/lgcl-or-assignment-operator-namedevaluation-function.js",True) Failed
             Expressions_logicalAssignment("language/expressions/logical-assignment/lgcl-or-assignment-operator-no-set.js",True) Failed
             Expressions_logicalAssignment("language/expressions/logical-assignment/lgcl-or-assignment-operator-non-writeable.js",True) Failed
-          Expressions_object (6 tests) Failed: One or more child tests had errors: 6 tests failed
+          Expressions_object (4 tests) Failed: One or more child tests had errors: 4 tests failed
             Expressions_object("language/expressions/object/__proto__-permitted-dup-shorthand.js",False) Failed
             Expressions_object("language/expressions/object/__proto__-permitted-dup-shorthand.js",True) Failed
             Expressions_object("language/expressions/object/cpn-obj-lit-computed-property-name-from-yield-expression.js",False) Failed
             Expressions_object("language/expressions/object/cpn-obj-lit-computed-property-name-from-yield-expression.js",True) Failed
-            Expressions_object("language/expressions/object/literal-property-name-bigint.js",False) Failed
-            Expressions_object("language/expressions/object/literal-property-name-bigint.js",True) Failed
           Expressions_object_dstr (6 tests) Failed: One or more child tests had errors: 6 tests failed
             Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-get-not-called-on-dontenum-keys.js",False) Failed
             Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-get-not-called-on-dontenum-keys.js",True) Failed
@@ -158,13 +143,9 @@ tests (943 tests) Failed: 943 tests failed
             Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-gopd-not-called-on-excluded-keys.js",True) Failed
             Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-ownkeys-returned-keys-order.js",False) Failed
             Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-ownkeys-returned-keys-order.js",True) Failed
-          Expressions_object_methodDefinition (18 tests) Failed: One or more child tests had errors: 18 tests failed
+          Expressions_object_methodDefinition (14 tests) Failed: One or more child tests had errors: 14 tests failed
             Expressions_object_methodDefinition("language/expressions/object/method-definition/computed-property-name-yield-expression.js",False) Failed
-            Expressions_object_methodDefinition("language/expressions/object/method-definition/generator-invoke-ctor.js",False) Failed
-            Expressions_object_methodDefinition("language/expressions/object/method-definition/generator-invoke-ctor.js",True) Failed
             Expressions_object_methodDefinition("language/expressions/object/method-definition/generator-invoke-fn-no-strict.js",False) Failed
-            Expressions_object_methodDefinition("language/expressions/object/method-definition/generator-prototype-prop.js",False) Failed
-            Expressions_object_methodDefinition("language/expressions/object/method-definition/generator-prototype-prop.js",True) Failed
             Expressions_object_methodDefinition("language/expressions/object/method-definition/generator-super-prop-param.js",False) Failed
             Expressions_object_methodDefinition("language/expressions/object/method-definition/generator-super-prop-param.js",True) Failed
             Expressions_object_methodDefinition("language/expressions/object/method-definition/name-invoke-ctor.js",False) Failed
@@ -660,7 +641,7 @@ tests (943 tests) Failed: 943 tests failed
             Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-get-followed-by-generator-asi.js",True) Failed
             Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-set-followed-by-generator-asi.js",False) Failed
             Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-set-followed-by-generator-asi.js",True) Failed
-          Statements_class_subclass (54 tests) Failed: One or more child tests had errors: 54 tests failed
+          Statements_class_subclass (42 tests) Failed: One or more child tests had errors: 42 tests failed
             Statements_class_subclass("language/statements/class/subclass/binding.js",False) Failed
             Statements_class_subclass("language/statements/class/subclass/binding.js",True) Failed
             Statements_class_subclass("language/statements/class/subclass/builtins.js",False) Failed
@@ -685,26 +666,14 @@ tests (943 tests) Failed: 943 tests failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-catch-super-arrow.js",True) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-catch-super.js",False) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-catch-super.js",True) Failed
-            Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-catch.js",False) Failed
-            Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-catch.js",True) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-finally-super-arrow.js",False) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-finally-super-arrow.js",True) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-finally-super.js",False) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-finally-super.js",True) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-for-of-arrow.js",False) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-for-of-arrow.js",True) Failed
-            Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-with-boolean.js",False) Failed
-            Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-with-boolean.js",True) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-with-empty.js",False) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-with-empty.js",True) Failed
-            Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-with-null.js",False) Failed
-            Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-with-null.js",True) Failed
-            Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-with-number.js",False) Failed
-            Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-with-number.js",True) Failed
-            Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-with-string.js",False) Failed
-            Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-with-string.js",True) Failed
-            Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-with-symbol.js",False) Failed
-            Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-with-symbol.js",True) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-with-undefined.js",False) Failed
             Statements_class_subclass("language/statements/class/subclass/derived-class-return-override-with-undefined.js",True) Failed
             Statements_class_subclass("language/statements/class/subclass/superclass-arrow-function.js",False) Failed
@@ -821,13 +790,8 @@ tests (943 tests) Failed: 943 tests failed
           Statements_const_syntax (2 tests) Failed: One or more child tests had errors: 2 tests failed
             Statements_const_syntax("language/statements/const/syntax/const-invalid-assignment-next-expression-for.js",False) Failed
             Statements_const_syntax("language/statements/const/syntax/const-invalid-assignment-next-expression-for.js",True) Failed
-          Statements_for (3 tests) Failed: One or more child tests had errors: 3 tests failed
-            Statements_for("language/statements/for/head-lhs-let.js",False) Failed
-            Statements_for("language/statements/for/scope-body-lex-open.js",False) Failed
-            Statements_for("language/statements/for/scope-body-lex-open.js",True) Failed
-          Statements_forIn (12 tests) Failed: One or more child tests had errors: 12 tests failed
+          Statements_forIn (11 tests) Failed: One or more child tests had errors: 11 tests failed
             Statements_forIn("language/statements/for-in/head-lhs-let.js",False) Failed
-            Statements_forIn("language/statements/for-in/identifier-let-allowed-as-lefthandside-expression-not-strict.js",False) Failed
             Statements_forIn("language/statements/for-in/order-after-define-property.js",False) Failed
             Statements_forIn("language/statements/for-in/order-after-define-property.js",True) Failed
             Statements_forIn("language/statements/for-in/order-property-on-prototype.js",False) Failed
@@ -858,27 +822,12 @@ tests (943 tests) Failed: 943 tests failed
             Statements_forOf("language/statements/for-of/iterator-next-result-type.js",True) Failed
             Statements_forOf("language/statements/for-of/string-astral.js",False) Failed
             Statements_forOf("language/statements/for-of/string-astral.js",True) Failed
-          Statements_function (29 tests) Failed: One or more child tests had errors: 29 tests failed
-            Statements_function("language/statements/function/13.1-19-s.js",False) Failed
-            Statements_function("language/statements/function/13.1-2-s.js",True) Failed
-            Statements_function("language/statements/function/13.1-21-s.js",False) Failed
-            Statements_function("language/statements/function/13.1-22-s.js",False) Failed
-            Statements_function("language/statements/function/13.1-23-s.js",False) Failed
-            Statements_function("language/statements/function/13.1-25-s.js",False) Failed
-            Statements_function("language/statements/function/13.1-27-s.js",False) Failed
-            Statements_function("language/statements/function/13.1-29-s.js",False) Failed
-            Statements_function("language/statements/function/13.1-31-s.js",False) Failed
-            Statements_function("language/statements/function/13.1-33-s.js",False) Failed
-            Statements_function("language/statements/function/13.1-39-s.js",False) Failed
-            Statements_function("language/statements/function/13.1-4-s.js",True) Failed
-            Statements_function("language/statements/function/13.1-41-s.js",False) Failed
+          Statements_function (14 tests) Failed: One or more child tests had errors: 14 tests failed
             Statements_function("language/statements/function/13.2-18-1.js",False) Failed
             Statements_function("language/statements/function/13.2-18-1.js",True) Failed
             Statements_function("language/statements/function/13.2-30-s.js",False) Failed
             Statements_function("language/statements/function/13.2-30-s.js",True) Failed
-            Statements_function("language/statements/function/name-eval-stricteval.js",False) Failed
             Statements_function("language/statements/function/param-dflt-yield-non-strict.js",False) Failed
-            Statements_function("language/statements/function/param-eval-stricteval.js",False) Failed
             Statements_function("language/statements/function/S13.2_A8_T1.js",True) Failed
             Statements_function("language/statements/function/S13.2_A8_T2.js",True) Failed
             Statements_function("language/statements/function/S13.2.1_A5_T1.js",False) Failed
@@ -888,17 +837,6 @@ tests (943 tests) Failed: 943 tests failed
             Statements_function("language/statements/function/S13.2.2_A1_T2.js",False) Failed
             Statements_function("language/statements/function/S13.2.2_A1_T2.js",True) Failed
             Statements_function("language/statements/function/S13.2.2_A19_T7.js",False) Failed
-          Statements_generators (10 tests) Failed: One or more child tests had errors: 10 tests failed
-            Statements_generators("language/statements/generators/default-proto.js",False) Failed
-            Statements_generators("language/statements/generators/default-proto.js",True) Failed
-            Statements_generators("language/statements/generators/invoke-as-constructor.js",False) Failed
-            Statements_generators("language/statements/generators/invoke-as-constructor.js",True) Failed
-            Statements_generators("language/statements/generators/prototype-own-properties.js",False) Failed
-            Statements_generators("language/statements/generators/prototype-own-properties.js",True) Failed
-            Statements_generators("language/statements/generators/prototype-property-descriptor.js",False) Failed
-            Statements_generators("language/statements/generators/prototype-property-descriptor.js",True) Failed
-            Statements_generators("language/statements/generators/prototype-relation-to-function.js",False) Failed
-            Statements_generators("language/statements/generators/prototype-relation-to-function.js",True) Failed
           Statements_if (12 tests) Failed: One or more child tests had errors: 12 tests failed
             Statements_if("language/statements/if/cptn-else-false-abrupt-empty.js",False) Failed
             Statements_if("language/statements/if/cptn-else-false-abrupt-empty.js",True) Failed
@@ -922,63 +860,9 @@ tests (943 tests) Failed: 943 tests failed
             Statements_let("language/statements/let/block-local-closure-set-before-initialization.js",False) Failed
             Statements_let("language/statements/let/function-local-closure-set-before-initialization.js",False) Failed
             Statements_let("language/statements/let/global-closure-set-before-initialization.js",False) Failed
-          Statements_switch (55 tests) Failed: One or more child tests had errors: 55 tests failed
-            Statements_switch("language/statements/switch/cptn-a-abrupt-empty.js",False) Failed
-            Statements_switch("language/statements/switch/cptn-a-abrupt-empty.js",True) Failed
-            Statements_switch("language/statements/switch/cptn-a-fall-thru-abrupt-empty.js",False) Failed
-            Statements_switch("language/statements/switch/cptn-a-fall-thru-abrupt-empty.js",True) Failed
-            Statements_switch("language/statements/switch/cptn-a-fall-thru-nrml.js",False) Failed
-            Statements_switch("language/statements/switch/cptn-a-fall-thru-nrml.js",True) Failed
-            Statements_switch("language/statements/switch/cptn-b-abrupt-empty.js",False) Failed
-            Statements_switch("language/statements/switch/cptn-b-abrupt-empty.js",True) Failed
-            Statements_switch("language/statements/switch/cptn-b-fall-thru-abrupt-empty.js",False) Failed
-            Statements_switch("language/statements/switch/cptn-b-fall-thru-abrupt-empty.js",True) Failed
-            Statements_switch("language/statements/switch/cptn-b-fall-thru-nrml.js",False) Failed
-            Statements_switch("language/statements/switch/cptn-b-fall-thru-nrml.js",True) Failed
-            Statements_switch("language/statements/switch/cptn-b-final.js",False) Failed
-            Statements_switch("language/statements/switch/cptn-b-final.js",True) Failed
-            Statements_switch("language/statements/switch/cptn-dflt-abrupt-empty.js",False) Failed
-            Statements_switch("language/statements/switch/cptn-dflt-abrupt-empty.js",True) Failed
-            Statements_switch("language/statements/switch/cptn-dflt-b-abrupt-empty.js",False) Failed
-            Statements_switch("language/statements/switch/cptn-dflt-b-abrupt-empty.js",True) Failed
-            Statements_switch("language/statements/switch/cptn-dflt-b-fall-thru-abrupt-empty.js",False) Failed
-            Statements_switch("language/statements/switch/cptn-dflt-b-fall-thru-abrupt-empty.js",True) Failed
-            Statements_switch("language/statements/switch/cptn-dflt-b-fall-thru-nrml.js",False) Failed
-            Statements_switch("language/statements/switch/cptn-dflt-b-fall-thru-nrml.js",True) Failed
-            Statements_switch("language/statements/switch/cptn-dflt-b-final.js",False) Failed
-            Statements_switch("language/statements/switch/cptn-dflt-b-final.js",True) Failed
-            Statements_switch("language/statements/switch/cptn-dflt-fall-thru-abrupt-empty.js",False) Failed
-            Statements_switch("language/statements/switch/cptn-dflt-fall-thru-abrupt-empty.js",True) Failed
-            Statements_switch("language/statements/switch/cptn-dflt-fall-thru-nrml.js",False) Failed
-            Statements_switch("language/statements/switch/cptn-dflt-fall-thru-nrml.js",True) Failed
-            Statements_switch("language/statements/switch/cptn-dflt-final.js",False) Failed
-            Statements_switch("language/statements/switch/cptn-dflt-final.js",True) Failed
-            Statements_switch("language/statements/switch/cptn-no-dflt-match-abrupt-empty.js",False) Failed
-            Statements_switch("language/statements/switch/cptn-no-dflt-match-abrupt-empty.js",True) Failed
-            Statements_switch("language/statements/switch/cptn-no-dflt-match-fall-thru-abrupt-empty.js",False) Failed
-            Statements_switch("language/statements/switch/cptn-no-dflt-match-fall-thru-abrupt-empty.js",True) Failed
-            Statements_switch("language/statements/switch/cptn-no-dflt-match-fall-thru-nrml.js",False) Failed
-            Statements_switch("language/statements/switch/cptn-no-dflt-match-fall-thru-nrml.js",True) Failed
-            Statements_switch("language/statements/switch/cptn-no-dflt-match-final.js",False) Failed
-            Statements_switch("language/statements/switch/cptn-no-dflt-match-final.js",True) Failed
-            Statements_switch("language/statements/switch/S12.11_A1_T1.js",False) Failed
-            Statements_switch("language/statements/switch/S12.11_A1_T1.js",True) Failed
-            Statements_switch("language/statements/switch/S12.11_A1_T2.js",False) Failed
-            Statements_switch("language/statements/switch/S12.11_A1_T2.js",True) Failed
-            Statements_switch("language/statements/switch/S12.11_A1_T3.js",False) Failed
-            Statements_switch("language/statements/switch/S12.11_A1_T3.js",True) Failed
-            Statements_switch("language/statements/switch/S12.11_A1_T4.js",False) Failed
-            Statements_switch("language/statements/switch/S12.11_A1_T4.js",True) Failed
+          Statements_switch (1 test) Failed: One or more child tests had errors: 1 test failed
             Statements_switch("language/statements/switch/scope-lex-async-function.js",False) Failed
-            Statements_switch("language/statements/switch/scope-lex-async-generator.js",False) Failed
-            Statements_switch("language/statements/switch/scope-lex-close-case.js",False) Failed
-            Statements_switch("language/statements/switch/scope-lex-close-case.js",True) Failed
-            Statements_switch("language/statements/switch/scope-lex-close-dflt.js",False) Failed
-            Statements_switch("language/statements/switch/scope-lex-close-dflt.js",True) Failed
-            Statements_switch("language/statements/switch/scope-lex-generator.js",False) Failed
-            Statements_switch("language/statements/switch/scope-lex-open-case.js",False) Failed
-            Statements_switch("language/statements/switch/scope-lex-open-case.js",True) Failed
-          Statements_try (18 tests) Failed: One or more child tests had errors: 18 tests failed
+          Statements_try (16 tests) Failed: One or more child tests had errors: 16 tests failed
             Statements_try("language/statements/try/catch-parameter-boundnames-restriction-arguments-eval-throws.js",True) Failed
             Statements_try("language/statements/try/catch-parameter-boundnames-restriction-eval-eval-throws.js",True) Failed
             Statements_try("language/statements/try/completion-values.js",False) Failed
@@ -993,8 +877,6 @@ tests (943 tests) Failed: 943 tests failed
             Statements_try("language/statements/try/cptn-finally-wo-catch.js",True) Failed
             Statements_try("language/statements/try/cptn-try.js",False) Failed
             Statements_try("language/statements/try/cptn-try.js",True) Failed
-            Statements_try("language/statements/try/S12.14_A15.js",False) Failed
-            Statements_try("language/statements/try/S12.14_A15.js",True) Failed
             Statements_try("language/statements/try/S12.14_A17.js",False) Failed
             Statements_try("language/statements/try/S12.14_A17.js",True) Failed
           Statements_using (2 tests) Failed: One or more child tests had errors: 2 tests failed

@@ -138,8 +138,8 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
-            // Class constructors cannot be invoked without 'new'
-            if (callable is TypedFunction { IsClassConstructor: true })
+            // Class constructors cannot be invoked without 'new' (except via super() call)
+            if (callable is TypedFunction { IsClassConstructor: true } && expression.Callee is not SuperExpression)
             {
                 var error = StandardLibrary.CreateTypeError(
                     "Class constructor cannot be invoked without 'new'",

@@ -12,16 +12,12 @@ internal static class GeneratorIrBuilder
 {
     public static bool TryBuild(FunctionExpression function, out GeneratorPlan plan, out string? failureReason)
     {
-        bool succeeded;
-
-        if (function is { IsAsync: true, IsGenerator: true })
+        var succeeded = function switch
         {
-            succeeded = AsyncGeneratorIrBuilder.TryBuild(function, out plan, out failureReason);
-        }
-        else
-        {
-            succeeded = SyncGeneratorIrBuilder.TryBuild(function, out plan, out failureReason);
-        }
+            { IsAsync: true, IsGenerator: true } => AsyncGeneratorIrBuilder.TryBuild(function, out plan,
+                out failureReason),
+            _ => SyncGeneratorIrBuilder.TryBuild(function, out plan, out failureReason)
+        };
 
         GeneratorIrDiagnostics.ReportResult(function, succeeded, failureReason);
         return succeeded;

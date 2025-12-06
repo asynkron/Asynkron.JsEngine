@@ -27,9 +27,11 @@ public static partial class TypedAstEvaluator
             // Check if we need per-iteration environments for lexical bindings
             var hasPerIterationBindings = !plan.PerIterationBindings.IsDefaultOrEmpty;
 
-            // For the first iteration, we use the environment directly (which has the initialized bindings).
-            // For subsequent iterations, we'll create a new per-iteration environment.
-            var iterationEnvironment = environment;
+            // Per ECMAScript spec 13.7.4.8 ForBodyEvaluation step 2:
+            // Create the first per-iteration environment BEFORE entering the loop
+            var iterationEnvironment = hasPerIterationBindings
+                ? plan.CreatePerIterationEnvironment(environment, context)
+                : environment;
 
             while (true)
             {

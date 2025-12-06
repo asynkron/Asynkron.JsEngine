@@ -18,6 +18,15 @@ public static partial class TypedAstEvaluator
             // This environment is shared by all case clause bodies
             var switchEnv = new JsEnvironment(environment, false, IsStrictBlock(statement));
 
+            // Push a scope context for the switch block
+            // Switch blocks use Sloppy mode (not SloppyAnnexB) to prevent function hoisting
+            var isStrict = IsStrictBlock(statement);
+            var scopeMode = isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
+            using var scopeHandle = context.PushScope(
+                ScopeKind.Block,
+                scopeMode,
+                skipAnnexBInstantiation: false);
+
             // Hoist lexical declarations from all case bodies
             InstantiateSwitchLexicalDeclarations(statement, switchEnv, context);
 
@@ -160,9 +169,9 @@ public static partial class TypedAstEvaluator
 
                 // Special handling for async/generator function declarations
                 // They need to be initialized when evaluated (not during instantiation)
-                if (stmt is FunctionDeclaration { Function.IsAsync: true } or FunctionDeclaration { Function.IsGenerator: true })
+                if (stmt is FunctionDeclaration funcDecl &&
+                    (funcDecl.Function.IsAsync || funcDecl.Function.IsGenerator))
                 {
-                    var funcDecl = (FunctionDeclaration)stmt;
                     var functionValue = CreateFunctionValue(funcDecl.Function, switchEnv, context);
                     switchEnv.Assign(funcDecl.Name, functionValue);
                     // Function declarations have empty completion

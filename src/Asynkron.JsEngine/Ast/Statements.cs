@@ -295,7 +295,8 @@ public sealed record ImportStatement(
     string ModulePath,
     Symbol? DefaultBinding,
     Symbol? NamespaceBinding,
-    ImmutableArray<ImportBinding> NamedImports) : ModuleStatement(Source);
+    ImmutableArray<ImportBinding> NamedImports,
+    bool IsDeferred) : ModuleStatement(Source);
 
 /// <summary>
 ///     Represents a single named binding within an <c>import</c> declaration.

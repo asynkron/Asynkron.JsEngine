@@ -1073,14 +1073,24 @@ public sealed class TypedAstParser(
                 var modulePath = GetStringLiteralValue(moduleToken);
                 Consume(TokenType.Semicolon, "Expected ';' after import statement.");
                 return new ImportStatement(CreateSourceReference(keyword), modulePath, null, null,
-                    ImmutableArray<ImportBinding>.Empty);
+                    ImmutableArray<ImportBinding>.Empty, false);
             }
 
             Symbol? defaultBinding = null;
             Symbol? namespaceBinding = null;
             var namedImports = ImmutableArray<ImportBinding>.Empty;
+            var isDeferred = false;
 
-            if (Check(TokenType.Identifier) && !CheckContextualKeyword("from"))
+            if (CheckContextualKeyword("defer") && PeekNext().Type == TokenType.Star)
+            {
+                Advance();
+                Consume(TokenType.Star, "Expected '*' after 'defer'.");
+                ConsumeContextualKeyword("as", "Expected 'as' after '*'.");
+                var namespaceToken = ConsumeBindingIdentifier("Expected identifier after 'as'.");
+                namespaceBinding = Symbol.Intern(namespaceToken.Lexeme);
+                isDeferred = true;
+            }
+            else if (Check(TokenType.Identifier) && !CheckContextualKeyword("from"))
             {
                 var nameToken = Advance();
                 defaultBinding = Symbol.Intern(nameToken.Lexeme);
@@ -1118,7 +1128,8 @@ public sealed class TypedAstParser(
             Consume(TokenType.Semicolon, "Expected ';' after import statement.");
             return new ImportStatement(CreateSourceReference(keyword), modulePathFinal, defaultBinding,
                 namespaceBinding,
-                namedImports);
+                namedImports,
+                isDeferred);
         }
 
         private ImmutableArray<ImportBinding> ParseNamedImports()

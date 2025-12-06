@@ -15,19 +15,25 @@ internal sealed class ModuleNamespace : IJsObjectLike
         $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
 
     private readonly TypedAstSymbol _toStringTagSymbol = TypedAstSymbol.For("Symbol.toStringTag");
+    private readonly Action? _ensureEvaluated;
+    private readonly bool _isDeferred;
     private readonly object _uninitializedMarker;
 
     internal ModuleNamespace(
         IEnumerable<string> exportNames,
         Func<string, object?> bindingLookup,
         RealmState realmState,
-        object uninitializedMarker)
+        object uninitializedMarker,
+        bool isDeferred,
+        Action? ensureEvaluated)
     {
         _realmState = realmState ?? throw new ArgumentNullException(nameof(realmState));
         _bindingLookup = bindingLookup ?? throw new ArgumentNullException(nameof(bindingLookup));
         _exportNames = exportNames?.OrderBy(n => n, StringComparer.Ordinal).ToImmutableArray()
                        ?? throw new ArgumentNullException(nameof(exportNames));
         _uninitializedMarker = uninitializedMarker ?? throw new ArgumentNullException(nameof(uninitializedMarker));
+        _isDeferred = isDeferred;
+        _ensureEvaluated = ensureEvaluated;
     }
 
     internal ImmutableArray<string> ExportNames => _exportNames;
@@ -39,6 +45,7 @@ internal sealed class ModuleNamespace : IJsObjectLike
     {
         get
         {
+            EnsureExportsEvaluatedForList();
             foreach (var name in _exportNames)
             {
                 yield return name;
@@ -56,6 +63,19 @@ internal sealed class ModuleNamespace : IJsObjectLike
             return true;
         }
 
+        if (IsSymbolLikeNamespaceKey(name))
+        {
+            if (_exportNames.Contains(name, StringComparer.Ordinal))
+            {
+                value = _bindingLookup(name);
+                return true;
+            }
+
+            value = null;
+            return false;
+        }
+
+        EnsureExportsEvaluated(name);
         if (_exportNames.Contains(name, StringComparer.Ordinal))
         {
             var lookedUp = _bindingLookup(name);
@@ -70,6 +90,11 @@ internal sealed class ModuleNamespace : IJsObjectLike
 
     public void SetProperty(string name, object? value, object? receiver)
     {
+        if (!IsSymbolLikeNamespaceKey(name))
+        {
+            EnsureExportsEvaluated(name);
+        }
+
         throw StandardLibrary.ThrowTypeError("Module namespace objects are immutable", realm: _realmState);
     }
 
@@ -88,6 +113,21 @@ internal sealed class ModuleNamespace : IJsObjectLike
             };
         }
 
+        if (IsSymbolLikeNamespaceKey(name))
+        {
+            if (_exportNames.Contains(name, StringComparer.Ordinal))
+            {
+                var lookedUp = _bindingLookup(name);
+                return new PropertyDescriptor
+                {
+                    Value = lookedUp, Writable = true, Enumerable = true, Configurable = false
+                };
+            }
+
+            return null;
+        }
+
+        EnsureExportsEvaluated(name);
         if (_exportNames.Contains(name, StringComparer.Ordinal))
         {
             var lookedUp = _bindingLookup(name);
@@ -103,11 +143,13 @@ internal sealed class ModuleNamespace : IJsObjectLike
 
     public IEnumerable<string> GetOwnPropertyNames()
     {
+        EnsureExportsEvaluatedForList();
         return _exportNames;
     }
 
     public IEnumerable<string> GetEnumerablePropertyNames()
     {
+        EnsureExportsEvaluatedForList();
         return _exportNames;
     }
 
@@ -118,6 +160,11 @@ internal sealed class ModuleNamespace : IJsObjectLike
             if (descriptor.IsAccessorDescriptor)
             {
                 throw StandardLibrary.ThrowTypeError("Module namespace objects are immutable", realm: _realmState);
+            }
+
+            if (_isDeferred)
+            {
+                return;
             }
 
             var tagValue = descriptor.HasValue ? descriptor.Value : "Module";
@@ -136,6 +183,11 @@ internal sealed class ModuleNamespace : IJsObjectLike
         if (!_exportNames.Contains(name, StringComparer.Ordinal))
         {
             throw StandardLibrary.ThrowTypeError("Module namespace objects are immutable", realm: _realmState);
+        }
+
+        if (!IsSymbolLikeNamespaceKey(name))
+        {
+            EnsureExportsEvaluated(name);
         }
 
         if (descriptor.IsAccessorDescriptor)
@@ -166,6 +218,11 @@ internal sealed class ModuleNamespace : IJsObjectLike
     {
         if (candidate is null)
         {
+            if (_isDeferred)
+            {
+                return;
+            }
+
             return;
         }
 
@@ -179,6 +236,11 @@ internal sealed class ModuleNamespace : IJsObjectLike
 
     public bool Delete(string name)
     {
+        if (!IsSymbolLikeNamespaceKey(name))
+        {
+            EnsureExportsEvaluated(name);
+        }
+
         return !_exportNames.Contains(name, StringComparer.Ordinal) &&
                !string.Equals(name, _toStringTagKey, StringComparison.Ordinal);
     }
@@ -191,12 +253,44 @@ internal sealed class ModuleNamespace : IJsObjectLike
 
     internal IEnumerable<object?> OwnKeys()
     {
+        EnsureExportsEvaluatedForList();
         foreach (var name in _exportNames)
         {
             yield return name;
         }
 
         yield return _toStringTagSymbol;
+    }
+
+    private bool IsSymbolLikeNamespaceKey(string name)
+    {
+        if (name.StartsWith("@@symbol:", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return _isDeferred && string.Equals(name, "then", StringComparison.Ordinal);
+    }
+
+    private void EnsureExportsEvaluated(string name)
+    {
+        if (_isDeferred && IsSymbolLikeNamespaceKey(name))
+        {
+            return;
+        }
+
+        if (_isDeferred)
+        {
+            _ensureEvaluated?.Invoke();
+        }
+    }
+
+    private void EnsureExportsEvaluatedForList()
+    {
+        if (_isDeferred)
+        {
+            _ensureEvaluated?.Invoke();
+        }
     }
 
     private void EnsureInitialized(string name, object? value)

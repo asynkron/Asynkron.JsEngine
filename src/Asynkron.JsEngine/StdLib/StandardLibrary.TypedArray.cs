@@ -1230,8 +1230,8 @@ public static partial class StandardLibrary
         var startIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], realm?.CreateContext()) : 0;
         var endIndex = args.Count > 2 ? ToIntegerOrInfinity(args[2], realm?.CreateContext()) : length;
 
-        var start = (int)ClampRelativeIndex(startIndex, length);
-        var end = (int)ClampRelativeIndex(endIndex, length);
+        var start = ClampRelativeIndex(startIndex, length);
+        var end = ClampRelativeIndex(endIndex, length);
 
         for (var k = start; k < end; k++)
         {
@@ -1268,9 +1268,9 @@ public static partial class StandardLibrary
         var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], realm?.CreateContext()) : 0;
         var endIndex = args.Count > 2 ? ToIntegerOrInfinity(args[2], realm?.CreateContext()) : length;
 
-        var to = (int)ClampRelativeIndex(toIndex, length);
-        var from = (int)ClampRelativeIndex(fromIndex, length);
-        var final = (int)ClampRelativeIndex(endIndex, length);
+        var to = ClampRelativeIndex(toIndex, length);
+        var from = ClampRelativeIndex(fromIndex, length);
+        var final = ClampRelativeIndex(endIndex, length);
 
         var count = Math.Min(final - from, length - to);
         if (count <= 0)
@@ -1410,7 +1410,17 @@ public static partial class StandardLibrary
             values.Add(typedArray.GetValueForIndex(i));
         }
 
-        Comparison<object?> comparer = (left, right) =>
+        values.Sort((Comparison<object?>)Comparer);
+
+        var result = TypedArraySpeciesCreate(typedArray, length, realm);
+        for (var i = 0; i < values.Count; i++)
+        {
+            result.SetValue(i, values[i]);
+        }
+
+        return result;
+
+        int Comparer(object? left, object? right)
         {
             if (compareFn is not null)
             {
@@ -1421,8 +1431,8 @@ public static partial class StandardLibrary
 
             if (typedArray.IsBigIntArray)
             {
-                var leftBig = left as JsBigInt ?? StandardLibrary.ToBigInt(left, realmState: realm);
-                var rightBig = right as JsBigInt ?? StandardLibrary.ToBigInt(right, realmState: realm);
+                var leftBig = left as JsBigInt ?? ToBigInt(left, realmState: realm);
+                var rightBig = right as JsBigInt ?? ToBigInt(right, realmState: realm);
                 return leftBig.Value.CompareTo(rightBig.Value);
             }
 
@@ -1439,17 +1449,7 @@ public static partial class StandardLibrary
             }
 
             return leftNum.CompareTo(rightNum);
-        };
-
-        values.Sort(comparer);
-
-        var result = TypedArraySpeciesCreate(typedArray, length, realm);
-        for (var i = 0; i < values.Count; i++)
-        {
-            result.SetValue(i, values[i]);
         }
-
-        return result;
     }
 
     private static object? TypedArrayToSpliced(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
@@ -1704,12 +1704,13 @@ public static partial class StandardLibrary
         }
 
         var integer = (int)Math.Truncate(index);
-        if (integer < 0)
+        if (integer >= 0)
         {
-            var relative = length + integer;
-            return relative < 0 ? 0 : relative;
+            return integer > length ? length : integer;
         }
 
-        return integer > length ? length : integer;
+        var relative = length + integer;
+        return relative < 0 ? 0 : relative;
+
     }
 }

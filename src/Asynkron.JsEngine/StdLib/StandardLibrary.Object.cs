@@ -326,7 +326,7 @@ public static partial class StandardLibrary
             JsObject CreateBlank(IJsCallable target)
             {
                 var obj = new JsObject();
-                var proto = StandardLibrary.ResolveConstructPrototype(target, objectConstructor, realm) ??
+                var proto = ResolveConstructPrototype(target, objectConstructor, realm) ??
                             realm.ObjectPrototype;
                 if (proto is not null)
                 {

@@ -84,7 +84,7 @@ public sealed partial class ArrayPrototype
         }
 
         var start = (long)Math.Min(fromIndex, length);
-        var lenLong = (long)Math.Min(length, (double)MaxArrayLength);
+        var lenLong = (long)Math.Min(length, MaxArrayLength);
 
         if (accessor is JsArray jsArr && lenLong > 100000)
         {
@@ -144,7 +144,7 @@ public sealed partial class ArrayPrototype
         }
 
         var start = (long)Math.Min(fromIndex, length);
-        var lenLong = (long)Math.Min(length, (double)MaxArrayLength);
+        var lenLong = (long)Math.Min(length, MaxArrayLength);
 
         for (var i = start; i < lenLong; i++)
         {
@@ -177,7 +177,7 @@ public sealed partial class ArrayPrototype
         }
 
         var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : length - 1;
-        var lenLong = (long)Math.Min(length, (double)MaxArrayLength);
+        var lenLong = (long)Math.Min(length, MaxArrayLength);
 
         long startIndexGeneric;
         if (double.IsNegativeInfinity(fromIndex))

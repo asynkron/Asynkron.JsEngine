@@ -294,7 +294,7 @@ public static partial class StandardLibrary
 
             if (created is IJsObjectLike objectLike)
             {
-                var proto = StandardLibrary.ResolveConstructPrototype(newTarget, functionConstructor, realm);
+                var proto = ResolveConstructPrototype(newTarget, functionConstructor, realm);
                 if (proto is not null)
                 {
                     objectLike.SetPrototype(proto);

@@ -2813,6 +2813,12 @@ public sealed class TypedAstParser(
                 return (value, false, CreateSourceReference(token));
             }
 
+            if (Match(TokenType.BigInt))
+            {
+                var token = Previous();
+                return (token.Literal, false, CreateSourceReference(token));
+            }
+
             var identifier = ConsumePropertyIdentifierToken("Expected property name.");
             return (identifier.Lexeme, false, CreateSourceReference(identifier));
         }

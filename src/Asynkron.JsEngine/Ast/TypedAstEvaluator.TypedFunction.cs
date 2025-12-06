@@ -1130,7 +1130,7 @@ public static partial class TypedAstEvaluator
                 switch (target)
                 {
                     case IdentifierBinding id:
-                        return Symbol.Equals(id.Name, name);
+                        return Equals(id.Name, name);
                     case ArrayBinding array:
                         foreach (var element in array.Elements)
                         {

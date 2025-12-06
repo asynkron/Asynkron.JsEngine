@@ -147,7 +147,7 @@ public sealed partial class IntlNumberFormatPrototype
             return slots;
         }
 
-        throw StandardLibrary.ThrowTypeError("Intl.NumberFormat instance is missing internal slots", realm: Realm);
+        throw ThrowTypeError("Intl.NumberFormat instance is missing internal slots", realm: Realm);
     }
     private HostFunction CreateBoundFormatFunction(Func<object?, object?> formatter)
     {

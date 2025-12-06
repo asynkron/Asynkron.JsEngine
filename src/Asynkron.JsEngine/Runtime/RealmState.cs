@@ -10,7 +10,7 @@ namespace Asynkron.JsEngine.Runtime;
 public sealed class RealmState
 {
     public IJsEngineOptions Options { get; internal set; } = JsEngineOptions.Default;
-    internal Asynkron.JsEngine.JsEngine? Engine { get; set; }
+    internal JsEngine? Engine { get; set; }
     public ILogger? Logger { get; set; }
     public JsObject? ObjectPrototype { get; set; }
     public JsObject? FunctionPrototype { get; set; }

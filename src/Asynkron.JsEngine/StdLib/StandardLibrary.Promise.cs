@@ -53,7 +53,7 @@ public static partial class StandardLibrary
             var realmState = engine.RealmState;
             var proto = realmState is null
                 ? promisePrototype
-                : StandardLibrary.ResolveConstructPrototype(newTarget, promiseConstructor, realmState);
+                : ResolveConstructPrototype(newTarget, promiseConstructor, realmState);
             AssignPromisePrototype(promiseObj, proto as IJsPropertyAccessor);
             AddPromiseInstanceMethods(promiseObj, promise, engine);
 

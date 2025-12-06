@@ -47,7 +47,7 @@ internal static class IntlUtilities
     private static readonly Lazy<HashSet<string>> CurrencySet =
         new(() => new HashSet<string>(CurrencyValues.Value, StringComparer.Ordinal));
     private static readonly Lazy<TimeZoneRegistry> TimeZoneRegistryCache = new(BuildSupportedTimeZones);
-    private static readonly RealmState CanonicalizationRealm = new() { Options = Asynkron.JsEngine.JsEngineOptions.Default };
+    private static readonly RealmState CanonicalizationRealm = new() { Options = JsEngineOptions.Default };
     private static readonly Lazy<HashSet<string>> AvailableLocales = new(BuildAvailableLocales);
     private static readonly Lazy<string> DefaultLocale = new(DetermineDefaultLocale);
 

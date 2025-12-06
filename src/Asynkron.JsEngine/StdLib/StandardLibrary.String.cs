@@ -1215,7 +1215,7 @@ public static partial class StandardLibrary
 
             var proto = realm is null
                 ? realm?.StringPrototype
-                : StandardLibrary.ResolveConstructPrototype(newTarget, stringConstructor, realm) ??
+                : ResolveConstructPrototype(newTarget, stringConstructor, realm) ??
                   realm.StringPrototype;
             if (proto is not null)
             {

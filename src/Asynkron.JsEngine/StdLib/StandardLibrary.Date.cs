@@ -862,7 +862,7 @@ public static partial class StandardLibrary
             {
                 IJsPropertyAccessor => constructed,
                 IJsCallable => constructed,
-                _ => (object?)instance
+                _ => instance
             };
 
             if (formatter is not IJsPropertyAccessor accessor ||

@@ -550,6 +550,18 @@ internal static class GeneratorYieldLowerer
                     var membersChanged = false;
                     foreach (var member in objectExpression.Members)
                     {
+                        var key = member.Key;
+                        if (member.IsComputed && member.Key is ExpressionNode keyExpression)
+                        {
+                            var rewrittenKey =
+                                RewriteExpressionForComplexYields(keyExpression, prefixStatements, ref changed);
+                            if (!ReferenceEquals(rewrittenKey, keyExpression))
+                            {
+                                key = rewrittenKey;
+                                membersChanged = true;
+                            }
+                        }
+
                         var value = member.Value;
                         if (value is not null)
                         {
@@ -562,7 +574,7 @@ internal static class GeneratorYieldLowerer
                             }
                         }
 
-                        membersBuilder.Add(member with { Value = value });
+                        membersBuilder.Add(member with { Key = key, Value = value });
                     }
 
                     return membersChanged

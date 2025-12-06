@@ -700,7 +700,7 @@ public sealed class JsEnvironment
 
         if (ReferenceEquals(binding.Value, Uninitialized) &&
             binding.IsLexical &&
-            !Symbol.Equals(name, Symbol.This))
+            !Equals(name, Symbol.This))
         {
             throw StandardLibrary.ThrowReferenceError($"ReferenceError: {name.Name} is not defined", null, realm);
         }
@@ -1196,7 +1196,7 @@ public sealed class JsEnvironment
         {
             if (ReferenceEquals(binding.Value, Uninitialized) &&
                 binding.IsLexical &&
-                !Symbol.Equals(name, Symbol.This))
+                !Equals(name, Symbol.This))
             {
                 throw StandardLibrary.ThrowReferenceError($"ReferenceError: {name.Name} is not defined", null, realm);
             }

@@ -150,7 +150,7 @@ public static partial class StandardLibrary
         }
 
         var array = new JsArray(realm);
-        array.SetProperty("length", passLengthToConstructor ? (double)Math.Max(length, 0) : 0d);
+        array.SetProperty("length", passLengthToConstructor ? Math.Max(length, 0) : 0d);
         return array;
     }
 

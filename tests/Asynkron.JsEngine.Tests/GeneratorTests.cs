@@ -3312,4 +3312,2677 @@ public class GeneratorTests
         Assert.True(jsResult.TryGetProperty("hasDone", out var hasDoneVal));
         Assert.Equal(false, hasDoneVal);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarCallsIteratorNext()
+    {
+        // This test reproduces the failing Test262 test: star-rhs-iter-nrml-next-invoke.js
+        // The test verifies that yield* properly calls the iterator's next() method
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+            iter.next(9876);
+        """);
+
+        var callCountResult = await engine.Evaluate("callCount");
+        Assert.Equal(1.0, callCountResult);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarCallsIteratorNext_StrictMode()
+    {
+        // Same as above but in strict mode - to match Test262 test
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            "use strict";
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+            iter.next(9876);
+        """);
+
+        var callCountResult = await engine.Evaluate("callCount");
+        Assert.Equal(1.0, callCountResult);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStarCallsIteratorNext_WithHarness()
+    {
+        // Simulates Test262 harness loading
+        await using var engine = new JsEngine();
+
+        // Load assert.js-like harness
+        await engine.Evaluate("""
+            var assert = {
+              sameValue: function(actual, expected, message) {
+                if (actual !== expected) {
+                  throw new Error(message || ("Expected SameValue(«" + actual + "», «" + expected + "») to be true"));
+                }
+              },
+              throws: function(type, fn) {
+                try {
+                  fn();
+                } catch (e) {
+                  if (e instanceof type) return;
+                  throw new Error("Expected " + type.name + " but got " + e.constructor.name);
+                }
+                throw new Error("Expected " + type.name + " but no exception was thrown");
+              }
+            };
+            function $ERROR(msg) { throw new Error(msg); }
+        """);
+
+        // Run test code WITHOUT assert calls
+        await engine.Evaluate("""
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+            iter.next(9876);
+        """);
+
+        // Check in C#
+        var callCountResult = await engine.Evaluate("callCount");
+        Assert.Equal(1.0, callCountResult);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStarCallsIteratorNext_InlineCheck()
+    {
+        // Same as above but check inline - this is closer to Test262 execution
+        await using var engine = new JsEngine();
+
+        // All in one evaluation - no harness at all
+        await engine.Evaluate("""
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+            iter.next(9876);
+
+            if (callCount !== 1) throw new Error("callCount was " + callCount);
+        """);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStarCallsIteratorNext_TwoEvalsWithCheck()
+    {
+        // First evaluation defines stuff, second calls iter.next() and checks
+        await using var engine = new JsEngine();
+
+        // First evaluation - define everything
+        await engine.Evaluate("""
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+        """);
+
+        // Second evaluation - create iterator, call next, and check
+        await engine.Evaluate("""
+            var iter = g();
+            iter.next(9876);
+            if (callCount !== 1) throw new Error("callCount was " + callCount);
+        """);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStarCallsIteratorNext_ThreeEvalsWithCheck()
+    {
+        // Three evaluations - closer to Test262 structure
+        await using var engine = new JsEngine();
+
+        // First evaluation - harness-like setup
+        await engine.Evaluate("""
+            var assert = { sameValue: function(a,b,m) { if(a!==b) throw new Error(m || "mismatch " + a + " vs " + b); } };
+        """);
+
+        // Second evaluation - define everything
+        await engine.Evaluate("""
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+            iter.next(9876);
+            assert.sameValue(callCount, 1);
+        """);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStar_TwoEvaluations()
+    {
+        // Test: define generator in first evaluation, call it in second
+        await using var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+        """);
+
+        // Second evaluation - create and call the generator
+        await engine.Evaluate("""
+            var iter = g();
+            iter.next(9876);
+        """);
+
+        var callCountResult = await engine.Evaluate("callCount");
+        Assert.Equal(1.0, callCountResult);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStar_MultipleEvaluations()
+    {
+        // Test: more evaluations like Test262
+        await using var engine = new JsEngine();
+
+        // Evaluation 1: simple harness setup
+        await engine.Evaluate("""
+            var assert = {};
+        """);
+
+        // Evaluation 2: the actual test
+        await engine.Evaluate("""
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+            iter.next(9876);
+        """);
+
+        var callCountResult = await engine.Evaluate("callCount");
+        Assert.Equal(1.0, callCountResult);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStar_ManyEvaluations()
+    {
+        // Test: lots of evaluations like Test262 harness actually does
+        await using var engine = new JsEngine();
+
+        // Evaluation 1: assert.js content simulation
+        await engine.Evaluate("""
+            var assert = {
+              sameValue: function(actual, expected, message) {
+                if (actual !== expected) {
+                  throw new Error(message || ("Expected SameValue(«" + actual + "», «" + expected + "») to be true"));
+                }
+              }
+            };
+        """);
+
+        // Evaluation 2: sta.js content simulation
+        await engine.Evaluate("""
+            function $ERROR(msg) { throw new Error(msg); }
+        """);
+
+        // Evaluation 3: compareArray patch
+        await engine.Evaluate("""
+            function compareArray(a, b) { return a.length === b.length; }
+        """);
+
+        // Evaluation 4: the actual test
+        await engine.Evaluate("""
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+            iter.next(9876);
+        """);
+
+        var callCountResult = await engine.Evaluate("callCount");
+        Assert.Equal(1.0, callCountResult);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_RealHarness()
+    {
+        // Use the real Test262 harness content
+        await using var engine = new JsEngine();
+
+        // Evaluation 1: sta.js (Test262Error class)
+        await engine.Evaluate("""
+            function Test262Error(message) {
+              this.message = message || "";
+            }
+            Test262Error.prototype.toString = function () {
+              return "Test262Error: " + this.message;
+            };
+            Test262Error.thrower = function (message) {
+              throw new Test262Error(message);
+            };
+            function $DONOTEVALUATE() {
+              throw "Test262: This statement should not be evaluated.";
+            }
+        """);
+
+        // Evaluation 2: assert.js (assertion functions)
+        await engine.Evaluate("""
+            function assert(mustBeTrue, message) {
+              if (mustBeTrue === true) {
+                return;
+              }
+              if (message === undefined) {
+                message = 'Expected true but got ' + assert._toString(mustBeTrue);
+              }
+              throw new Test262Error(message);
+            }
+
+            assert._isSameValue = function (a, b) {
+              if (a === b) {
+                return a !== 0 || 1 / a === 1 / b;
+              }
+              return a !== a && b !== b;
+            };
+
+            assert.sameValue = function (actual, expected, message) {
+              try {
+                if (assert._isSameValue(actual, expected)) {
+                  return;
+                }
+              } catch (error) {
+                throw new Test262Error(message + ' (_isSameValue operation threw) ' + error);
+              }
+              if (message === undefined) {
+                message = '';
+              } else {
+                message += ' ';
+              }
+              message += 'Expected SameValue(«' + assert._toString(actual) + '», «' + assert._toString(expected) + '») to be true';
+              throw new Test262Error(message);
+            };
+
+            assert._formatIdentityFreeValue = function (value) {
+              switch (value === null ? 'null' : typeof value) {
+                case 'string':
+                  return typeof JSON !== "undefined" ? JSON.stringify(value) : '"' + value + '"';
+                case 'bigint':
+                  return value + 'n';
+                case 'number':
+                  if (value === 0 && 1 / value === -Infinity) return '-0';
+                case 'boolean':
+                case 'undefined':
+                case 'null':
+                  return String(value);
+              }
+            };
+
+            assert._toString = function (value) {
+              var basic = assert._formatIdentityFreeValue(value);
+              if (basic) return basic;
+              try {
+                return String(value);
+              } catch (err) {
+                if (err.name === 'TypeError') {
+                  return Object.prototype.toString.call(value);
+                }
+                throw err;
+              }
+            };
+        """);
+
+        // Evaluation 3: the actual test
+        await engine.Evaluate("""
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+            iter.next(9876);
+
+            assert.sameValue(callCount, 1);
+        """);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_WithCompareArrayPatch()
+    {
+        // Test with the CompareArray patch that Test262 uses
+        await using var engine = new JsEngine();
+
+        // Evaluation 1: sta.js
+        await engine.Evaluate("""
+            function Test262Error(message) {
+              this.message = message || "";
+            }
+            Test262Error.prototype.toString = function () {
+              return "Test262Error: " + this.message;
+            };
+        """);
+
+        // Evaluation 2: assert.js
+        await engine.Evaluate("""
+            function assert(mustBeTrue, message) {
+              if (mustBeTrue === true) return;
+              throw new Test262Error(message || 'Expected true');
+            }
+
+            assert._isSameValue = function (a, b) {
+              if (a === b) return a !== 0 || 1 / a === 1 / b;
+              return a !== a && b !== b;
+            };
+
+            assert.sameValue = function (actual, expected, message) {
+              if (assert._isSameValue(actual, expected)) return;
+              message = (message ? message + ' ' : '') + 'Expected SameValue(«' + actual + '», «' + expected + '») to be true';
+              throw new Test262Error(message);
+            };
+
+            assert._toString = function (value) { return String(value); };
+        """);
+
+        // Evaluation 3: CompareArray patch (simplified)
+        await engine.Evaluate("""
+            function compareArray(a, b) {
+              if (b.length !== a.length) return false;
+              for (var i = 0; i < a.length; i++) {
+                if (a[i] !== b[i]) return false;
+              }
+              return true;
+            }
+            compareArray.isSameValue = function(a, b) {
+              if (a === 0 && b === 0) return 1 / a === 1 / b;
+              if (a !== a && b !== b) return true;
+              return a === b;
+            };
+            compareArray.format = function(arr) { return '[' + arr.join(', ') + ']'; };
+        """);
+
+        // Evaluation 4: the actual test
+        await engine.Evaluate("""
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+            iter.next(9876);
+
+            assert.sameValue(callCount, 1);
+        """);
+    }
+
+    [Fact(Timeout = 5000)]
+    public void Generator_YieldStar_SyncExecution()
+    {
+        // Test using .Wait() like Test262 harness does
+        var engine = new JsEngine();
+
+        // Evaluation 1: sta.js using Wait()
+        engine.Evaluate("""
+            function Test262Error(message) {
+              this.message = message || "";
+            }
+            Test262Error.prototype.toString = function () {
+              return "Test262Error: " + this.message;
+            };
+        """).Wait();
+
+        // Evaluation 2: assert.js using Wait()
+        engine.Evaluate("""
+            function assert(mustBeTrue, message) {
+              if (mustBeTrue === true) return;
+              throw new Test262Error(message || 'Expected true');
+            }
+            assert._isSameValue = function (a, b) {
+              if (a === b) return a !== 0 || 1 / a === 1 / b;
+              return a !== a && b !== b;
+            };
+            assert.sameValue = function (actual, expected, message) {
+              if (assert._isSameValue(actual, expected)) return;
+              message = (message ? message + ' ' : '') + 'Expected SameValue(«' + actual + '», «' + expected + '») to be true';
+              throw new Test262Error(message);
+            };
+        """).Wait();
+
+        // Evaluation 3: the actual test using Wait()
+        engine.Evaluate("""
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+            iter.next(9876);
+
+            assert.sameValue(callCount, 1);
+        """).Wait();
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_ExactTest262Scenario()
+    {
+        // This test has code before the generator that assigns to outer vars
+        // The issue seems to be related to how the function captures outer vars
+        var engine = new JsEngine();
+
+        // Simplified test - just return callCount directly
+        var testCode = """
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+            iter.next(9876);
+            callCount;
+            """;
+
+        var result = await engine.Evaluate(testCode);
+
+        Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_WithoutArgsVar()
+    {
+        // Same test but without args/thisValue at beginning
+        var engine = new JsEngine();
+
+        var testCode = """
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+            iter.next(9876);
+            """;
+
+        await engine.Evaluate(testCode);
+
+        var callCount = await engine.Evaluate("callCount");
+        Assert.Equal(1.0, callCount);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_FullTest262WithAssertions()
+    {
+        // Exact Test262 test code including the 4 assertions
+        var engine = new JsEngine();
+
+        // First define assert.sameValue
+        await engine.Evaluate("""
+            function assert(mustBeTrue, message) {
+              if (mustBeTrue !== true) throw new Error(message || 'assertion failed');
+            }
+            assert.sameValue = function(actual, expected, message) {
+              if (actual !== expected) {
+                throw new Error('Expected: ' + expected + ', Got: ' + actual + (message ? ' ' + message : ''));
+              }
+            };
+        """);
+
+        // Now run the exact Test262 test code
+        var testCode = """
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+
+            iter.next(9876);
+
+            assert.sameValue(callCount, 1);
+            assert.sameValue(args.length, 1);
+            assert.sameValue(args[0], undefined);
+            assert.sameValue(thisValue, spyIterator);
+        """;
+
+        // This should not throw
+        await engine.Evaluate(testCode);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_TrailingCodeNoMultiEval()
+    {
+        // Same test but ALL in one evaluation - check if multi-eval is the issue
+        var engine = new JsEngine();
+
+        // Everything in a single evaluation
+        var testCode = """
+            function assert(mustBeTrue, message) {
+              if (mustBeTrue !== true) throw new Error(message || 'assertion failed');
+            }
+            assert.sameValue = function(actual, expected, message) {
+              if (actual !== expected) {
+                throw new Error('Expected: ' + expected + ', Got: ' + actual + (message ? ' ' + message : ''));
+              }
+            };
+
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+
+            iter.next(9876);
+
+            assert.sameValue(callCount, 1);
+            assert.sameValue(args.length, 1);
+            assert.sameValue(args[0], undefined);
+            assert.sameValue(thisValue, spyIterator);
+        """;
+
+        await engine.Evaluate(testCode);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_TrailingCodeSimple()
+    {
+        // Simple test with just trailing code (no multi-eval, no assert)
+        var engine = new JsEngine();
+
+        var testCode = """
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+
+            iter.next(9876);
+
+            // Just some trailing code that accesses callCount
+            var result = callCount;
+            result;
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_TrailingFunctionCall()
+    {
+        // Test with a simple function call after iter.next()
+        var engine = new JsEngine();
+
+        var testCode = """
+            function doNothing() {}
+
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+
+            iter.next(9876);
+
+            doNothing();
+            callCount;
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_TrailingFunctionCallWithArg()
+    {
+        // Test with a function call that uses callCount after iter.next()
+        var engine = new JsEngine();
+
+        var testCode = """
+            function check(val) { return val; }
+
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+
+            iter.next(9876);
+
+            check(callCount);
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_TwoArgFunctionCall()
+    {
+        // Test with a function call that takes 2 args (like assert.sameValue)
+        var engine = new JsEngine();
+
+        var testCode = """
+            function compare(a, b) {
+              if (a !== b) throw new Error('Mismatch: ' + a + ' !== ' + b);
+            }
+
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+
+            iter.next(9876);
+
+            compare(callCount, 1);
+            callCount;
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_PropertyAssignmentAfterNext()
+    {
+        // Test with a function that has property access like assert.sameValue
+        var engine = new JsEngine();
+
+        var testCode = """
+            var checker = {};
+            checker.sameValue = function(a, b) {
+              if (a !== b) throw new Error('Mismatch: ' + a + ' !== ' + b);
+            };
+
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+
+            iter.next(9876);
+
+            checker.sameValue(callCount, 1);
+            callCount;
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_MultiEvalMinimal()
+    {
+        // Minimal multi-eval case - define function in first eval, use in second
+        var engine = new JsEngine();
+
+        // First eval - define the helper function
+        await engine.Evaluate("""
+            function check(a, b) {
+              if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+            }
+        """);
+
+        // Second eval - use the helper with yield*
+        var testCode = """
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+
+            iter.next();
+
+            check(callCount, 1);
+            callCount;
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_MultiEvalWithoutCheck()
+    {
+        // Multi-eval but WITHOUT the check function call
+        var engine = new JsEngine();
+
+        // First eval - define something (doesn't matter what)
+        await engine.Evaluate("""
+            function check(a, b) {
+              if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+            }
+        """);
+
+        // Second eval - yield* but no check call
+        var testCode = """
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+
+            iter.next();
+
+            callCount;
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_MultiEvalCallCheckFromFirstEval()
+    {
+        // Multi-eval - calling a function defined in first eval
+        var engine = new JsEngine();
+
+        // First eval - define the function
+        await engine.Evaluate("""
+            function check(a, b) {
+              if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+            }
+        """);
+
+        // Second eval - JUST call check WITHOUT yield*
+        var testCode = """
+            var x = 5;
+            check(x, 5);
+            x;
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        Assert.Equal(5.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_MultiEvalNoGeneratorButCheck()
+    {
+        // Multi-eval - calling function from first eval, but no generator
+        var engine = new JsEngine();
+
+        // First eval - define the function
+        await engine.Evaluate("""
+            function check(a, b) {
+              if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+            }
+        """);
+
+        // Second eval - regular iterator (not generator) then check
+        var testCode = """
+            var callCount = 0;
+            var arr = [1, 2, 3];
+            for (var i of arr) {
+              callCount++;
+            }
+            check(callCount, 3);
+            callCount;
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        Assert.Equal(3.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_MultiEvalMethodOnObject()
+    {
+        // Multi-eval - method on object from first eval (like assert.sameValue)
+        var engine = new JsEngine();
+
+        // First eval - define assert with sameValue method
+        await engine.Evaluate("""
+            function assert(mustBeTrue, message) {
+              if (mustBeTrue !== true) throw new Error(message || 'assertion failed');
+            }
+            assert.sameValue = function(actual, expected, message) {
+              if (actual !== expected) {
+                throw new Error('Expected: ' + expected + ', Got: ' + actual + (message ? ' ' + message : ''));
+              }
+            };
+        """);
+
+        // Second eval - use yield* then assert.sameValue
+        var testCode = """
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+
+            iter.next();
+
+            assert.sameValue(callCount, 1);
+            callCount;
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_MultiEvalMethodOnObjectMultipleCalls()
+    {
+        // Multi-eval - multiple assert.sameValue calls (like actual Test262)
+        var engine = new JsEngine();
+
+        // First eval - define assert with sameValue method
+        await engine.Evaluate("""
+            function assert(mustBeTrue, message) {
+              if (mustBeTrue !== true) throw new Error(message || 'assertion failed');
+            }
+            assert.sameValue = function(actual, expected, message) {
+              if (actual !== expected) {
+                throw new Error('Expected: ' + expected + ', Got: ' + actual + (message ? ' ' + message : ''));
+              }
+            };
+        """);
+
+        // Second eval - use yield* then MULTIPLE assert.sameValue calls
+        var testCode = """
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+
+            iter.next(9876);
+
+            assert.sameValue(callCount, 1);
+            assert.sameValue(args.length, 1);
+            assert.sameValue(args[0], undefined);
+            assert.sameValue(thisValue, spyIterator);
+            callCount;
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_MultiEvalMethodOnObject_TwoCalls()
+    {
+        // Multi-eval - TWO assert.sameValue calls
+        var engine = new JsEngine();
+
+        // First eval - define assert with sameValue method
+        await engine.Evaluate("""
+            function assert(mustBeTrue, message) {
+              if (mustBeTrue !== true) throw new Error(message || 'assertion failed');
+            }
+            assert.sameValue = function(actual, expected, message) {
+              if (actual !== expected) {
+                throw new Error('Expected: ' + expected + ', Got: ' + actual + (message ? ' ' + message : ''));
+              }
+            };
+        """);
+
+        // Second eval - use yield* then TWO assert.sameValue calls
+        var testCode = """
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+
+            iter.next(9876);
+
+            assert.sameValue(callCount, 1);
+            assert.sameValue(args.length, 1);
+            callCount;
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_MultiEvalTwoFunctionCalls()
+    {
+        // Multi-eval - two function calls (but NOT assert.sameValue)
+        var engine = new JsEngine();
+
+        // First eval - define function
+        await engine.Evaluate("""
+            function check(a, b) {
+              if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+            }
+        """);
+
+        // Second eval - use yield* then TWO check calls
+        var testCode = """
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+
+            iter.next(9876);
+
+            check(callCount, 1);
+            check(args.length, 1);
+            callCount;
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_SameEvalTwoFunctionCalls()
+    {
+        // SAME eval - two function calls - should pass if it's cross-eval problem
+        var engine = new JsEngine();
+
+        var testCode = """
+            function check(a, b) {
+              if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+            }
+
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+
+            iter.next(9876);
+
+            check(callCount, 1);
+            check(args.length, 1);
+            callCount;
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_TwoPropertyAccesses()
+    {
+        // Two property accesses (not function calls) after iter.next()
+        var engine = new JsEngine();
+
+        var testCode = """
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+
+            iter.next(9876);
+
+            var x = callCount;
+            var y = args.length;
+            x;
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_TwoVariableAssignments()
+    {
+        // Two variable assignments after iter.next()
+        var engine = new JsEngine();
+
+        var testCode = """
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+
+            iter.next(9876);
+
+            var x = 1;
+            var y = 2;
+            callCount;
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_TwoInlineFunctionCalls()
+    {
+        // Two inline function expressions called after iter.next()
+        var engine = new JsEngine();
+
+        var testCode = """
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+
+            iter.next(9876);
+
+            (function() {})();
+            (function() {})();
+            callCount;
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_TwoNamedFunctionCallsLocalScope()
+    {
+        // Two named function calls (function defined INSIDE the same script but AFTER generator)
+        var engine = new JsEngine();
+
+        var testCode = """
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+
+            function localCheck(a, b) {
+              if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+            }
+
+            var iter = g();
+            iter.next(9876);
+
+            localCheck(callCount, 1);
+            localCheck(args.length, 1);
+            callCount;
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_TwoNamedFunctionCallsBeforeGenerator()
+    {
+        // Two named function calls (function defined BEFORE generator)
+        var engine = new JsEngine();
+
+        var testCode = """
+            function localCheck(a, b) {
+              if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+            }
+
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+
+            var iter = g();
+            iter.next(9876);
+
+            localCheck(callCount, 1);
+            localCheck(args.length, 1);
+            callCount;
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_DebugIterNextResult_OneFuncDecl()
+    {
+        // Debug: check what iter.next() returns - with ONE function decl
+        var engine = new JsEngine();
+
+        var testCode = """
+            function localCheck(a, b) {
+              if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+            }
+
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+
+            var iter = g();
+            var nextResult = iter.next(9876);
+
+            // Return what we got from next()
+            JSON.stringify({
+              resultDone: nextResult.done,
+              callCount: callCount
+            });
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        // Should work - ONE func decl
+        Assert.Contains("\"callCount\":1", result?.ToString() ?? "");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_DebugIterNextResult_TwoFuncDecls()
+    {
+        // Debug: check what iter.next() returns - with TWO function decls
+        var engine = new JsEngine();
+
+        var testCode = """
+            function localCheck(a, b) {
+              if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+            }
+            function anotherFunc() {}
+
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+
+            var iter = g();
+            var nextResult = iter.next(9876);
+
+            // Return what we got from next()
+            JSON.stringify({
+              resultDone: nextResult.done,
+              callCount: callCount
+            });
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        // This works - having 2 function declarations doesn't break it
+        Assert.Contains("\"callCount\":1", result?.ToString() ?? "");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_DebugIterNextResult_TwoFuncCalls_Constant()
+    {
+        // Debug: check what iter.next() returns - with TWO function calls with constant args
+        var engine = new JsEngine();
+
+        var testCode = """
+            function localCheck(a, b) {
+              if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+            }
+
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+
+            var iter = g();
+            var nextResult = iter.next(9876);
+
+            // TWO function calls AFTER iter.next() with CONSTANT args
+            localCheck(1, 1);
+            localCheck(2, 2);
+
+            // Return what we got from next()
+            JSON.stringify({
+              resultDone: nextResult.done,
+              callCount: callCount
+            });
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        // This WORKS - constant args don't trigger the bug
+        Assert.Contains("\"callCount\":1", result?.ToString() ?? "");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_DebugIterNextResult_TwoFuncCalls_VarRef()
+    {
+        // Debug: check what iter.next() returns - with TWO function calls referencing variables
+        var engine = new JsEngine();
+
+        var testCode = """
+            function localCheck(a, b) {
+              if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+            }
+
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+
+            var iter = g();
+            var nextResult = iter.next(9876);
+
+            // TWO function calls AFTER iter.next() referencing VARIABLES
+            localCheck(callCount, 1);
+            localCheck(args.length, 1);
+
+            // Return what we got from next()
+            JSON.stringify({
+              resultDone: nextResult.done,
+              callCount: callCount
+            });
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        // This is the BUG - referencing variables in function calls causes callCount to be 0
+        Assert.Contains("\"callCount\":1", result?.ToString() ?? "");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_OneCheck_Works()
+    {
+        // Confirm that ONE localCheck call works
+        var engine = new JsEngine();
+
+        var testCode = """
+            function localCheck(a, b) {
+              if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+            }
+
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+
+            var iter = g();
+            iter.next();
+
+            localCheck(callCount, 1);
+            callCount;
+        """;
+
+        var result = await engine.Evaluate(testCode);
+        Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_WithCommaVar_NoAssignment()
+    {
+        // Test with comma-separated var BUT no assignment inside the function
+        var engine = new JsEngine();
+
+        var testCode = """
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+            iter.next(9876);
+            """;
+
+        await engine.Evaluate(testCode);
+
+        var callCount = await engine.Evaluate("callCount");
+        Assert.Equal(1.0, callCount);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_OnlyArgsAssignment()
+    {
+        // Test with just args assignment
+        var engine = new JsEngine();
+
+        var testCode = """
+            var args;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+            iter.next(9876);
+            """;
+
+        await engine.Evaluate(testCode);
+
+        var callCount = await engine.Evaluate("callCount");
+        Assert.Equal(1.0, callCount);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_OnlyThisValueAssignment()
+    {
+        // Test with just thisValue assignment
+        var engine = new JsEngine();
+
+        var testCode = """
+            var thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+            iter.next(9876);
+            """;
+
+        await engine.Evaluate(testCode);
+
+        var callCount = await engine.Evaluate("callCount");
+        Assert.Equal(1.0, callCount);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_BothAssignmentsSeparateVars()
+    {
+        // Test with both assignments but separate var declarations
+        var engine = new JsEngine();
+
+        var testCode = """
+            var args;
+            var thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+            iter.next(9876);
+            """;
+
+        await engine.Evaluate(testCode);
+
+        var callCount = await engine.Evaluate("callCount");
+        Assert.Equal(1.0, callCount);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_BothAssignmentsCommaVar()
+    {
+        // Test with both assignments and comma var declaration (exactly like failing test)
+        var engine = new JsEngine();
+
+        var testCode = """
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+            iter.next(9876);
+            """;
+
+        await engine.Evaluate(testCode);
+
+        var callCount = await engine.Evaluate("callCount");
+        Assert.Equal(1.0, callCount);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_WithArgsVarSeparate()
+    {
+        // Same test with args/thisValue but declared separately
+        var engine = new JsEngine();
+
+        var testCode = """
+            var args;
+            var thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+            iter.next(9876);
+            """;
+
+        await engine.Evaluate(testCode);
+
+        var callCount = await engine.Evaluate("callCount");
+        Assert.Equal(1.0, callCount);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_WithPriorExecutions()
+    {
+        // This test executes multiple scripts before the test, simulating Test262 harness
+        var engine = new JsEngine();
+
+        // Simulate loading assert.js (large script with multiple functions)
+        await engine.Evaluate("""
+            // Large assert.js simulation with many functions
+            var assert = function(mustBeTrue, message) {
+              if (mustBeTrue === true) {
+                return;
+              }
+
+              if (message === undefined) {
+                message = 'Expected true but got ' + String(mustBeTrue);
+              }
+              throw new Test262Error(message);
+            };
+
+            assert._isSameValue = function (a, b) {
+              if (a === b) {
+                // Handle +/-0 vs. -/+0
+                return a !== 0 || 1 / a === 1 / b;
+              }
+
+              // Handle NaN vs. NaN
+              return a !== a && b !== b;
+            };
+
+            assert.sameValue = function (actual, expected, message) {
+              try {
+                if (assert._isSameValue(actual, expected)) {
+                  return;
+                }
+              } catch (error) {
+                throw new Test262Error(message + ' (_isSameValue operation threw) ' + error);
+              }
+
+              if (message === undefined) {
+                message = '';
+              } else {
+                message += ' ';
+              }
+
+              message += 'Expected SameValue(«' + String(actual) + '», «' + String(expected) + '») to be true';
+
+              throw new Test262Error(message);
+            };
+
+            assert.notSameValue = function (actual, unexpected, message) {
+              if (!assert._isSameValue(actual, unexpected)) {
+                return;
+              }
+
+              if (message === undefined) {
+                message = '';
+              } else {
+                message += ' ';
+              }
+
+              message += 'Expected SameValue(«' + String(actual) + '», «' + String(unexpected) + '») to be false';
+
+              throw new Test262Error(message);
+            };
+
+            assert.throws = function (expectedErrorConstructor, func, message) {
+              var expectedName, actualName;
+              if (typeof func !== "function") {
+                throw new Test262Error('assert.throws requires two arguments: the error constructor ' +
+                  'and a function to run');
+              }
+              if (message === undefined) {
+                message = '';
+              } else {
+                message += ' ';
+              }
+
+              try {
+                func();
+              } catch (thrown) {
+                if (typeof thrown !== 'object' || thrown === null) {
+                  message += 'Thrown value was not an object!';
+                  throw new Test262Error(message);
+                } else if (thrown.constructor !== expectedErrorConstructor) {
+                  expectedName = expectedErrorConstructor.name;
+                  actualName = thrown.constructor.name;
+                  if (expectedName === actualName) {
+                    message += 'Expected a ' + expectedName + ' but got a different error constructor with the same name';
+                  } else {
+                    message += 'Expected a ' + expectedName + ' but got a ' + actualName;
+                  }
+                  throw new Test262Error(message);
+                }
+                return;
+              }
+
+              message += 'Expected a ' + expectedErrorConstructor.name + ' to be thrown but no exception was thrown at all';
+              throw new Test262Error(message);
+            };
+            """);
+
+        // Simulate sta.js (Test262 standard error)
+        await engine.Evaluate("""
+            function Test262Error(message) {
+              this.message = message || "";
+            }
+
+            Test262Error.prototype.toString = function () {
+              return "Test262Error: " + this.message;
+            };
+
+            var $ERROR = function $ERROR(message) {
+              throw new Test262Error(message);
+            };
+
+            function testFailed(message) {
+              $ERROR(message);
+            }
+
+            var $DONOTEVALUATE = function () {
+              throw new Test262Error("$DONOTEVALUATE was called");
+            };
+            """);
+
+        // Now run the actual test
+        await engine.Evaluate("""
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+            iter.next(9876);
+            """);
+
+        // Check the result
+        var callCount = await engine.Evaluate("callCount");
+        Assert.Equal(1.0, callCount);
+
+        // Also run the JavaScript assertion
+        await engine.Evaluate("assert.sameValue(callCount, 1);");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_Bug_Isolation_SingleEval_TwoCallsVarRef()
+    {
+        // This test isolates the bug: TWO function calls with variable refs in SINGLE eval
+        var engine = new JsEngine();
+
+        // Setup in first eval
+        await engine.Evaluate("""
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            function check(a, b) {
+              if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+            }
+            """);
+
+        // Now run iter.next() and TWO checks in SINGLE eval
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await engine.Evaluate("""
+                var iter = g();
+                iter.next();
+                check(callCount, 1);
+                check(callCount, 1);
+                """);
+        });
+
+        // This SHOULD pass but fails due to the bug
+        Assert.Null(exception);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_Bug_Isolation_SeparateEvals_TwoCallsVarRef()
+    {
+        // This test isolates the bug: TWO function calls with variable refs in SEPARATE evals
+        var engine = new JsEngine();
+
+        // Setup in first eval
+        await engine.Evaluate("""
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            function check(a, b) {
+              if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+            }
+            """);
+
+        // Run iter.next() in its own eval
+        await engine.Evaluate("""
+            var iter = g();
+            iter.next();
+            """);
+
+        // Now verify callCount immediately
+        var callCount = await engine.Evaluate("callCount");
+        Assert.Equal(1.0, callCount);
+
+        // Now run TWO checks in SEPARATE evals
+        await engine.Evaluate("check(callCount, 1);");
+        await engine.Evaluate("check(callCount, 1);");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_Bug_Isolation_SingleEval_TwoCallsConstant()
+    {
+        // This should work: TWO function calls with CONSTANT args in SINGLE eval
+        var engine = new JsEngine();
+
+        // Setup in first eval
+        await engine.Evaluate("""
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            function check(a, b) {
+              if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+            }
+            """);
+
+        // Now run iter.next() and TWO checks with CONSTANTS in SINGLE eval
+        await engine.Evaluate("""
+            var iter = g();
+            iter.next();
+            check(1, 1);
+            check(1, 1);
+            """);
+
+        // Now verify callCount
+        var callCount = await engine.Evaluate("callCount");
+        Assert.Equal(1.0, callCount);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_Bug_AllInOneEval_TwoCallsVarRef()
+    {
+        // This is the EXACT pattern that fails: EVERYTHING in single eval
+        var engine = new JsEngine();
+
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await engine.Evaluate("""
+                function check(a, b) {
+                  if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+                }
+                var callCount = 0;
+                var spyIterator = {
+                  next: function() {
+                    callCount += 1;
+                    return { done: true };
+                  }
+                };
+                var spyIterable = {};
+                spyIterable[Symbol.iterator] = function() {
+                  return spyIterator;
+                };
+                function* g() {
+                  yield * spyIterable;
+                }
+                var iter = g();
+                iter.next();
+                check(callCount, 1);
+                check(callCount, 1);
+                """);
+        });
+
+        Assert.Null(exception);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_Bug_AllInOneEval_OneCallVarRef()
+    {
+        // This should work: just ONE check call with var ref in ALL-IN-ONE eval
+        var engine = new JsEngine();
+
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await engine.Evaluate("""
+                function check(a, b) {
+                  if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+                }
+                var callCount = 0;
+                var spyIterator = {
+                  next: function() {
+                    callCount += 1;
+                    return { done: true };
+                  }
+                };
+                var spyIterable = {};
+                spyIterable[Symbol.iterator] = function() {
+                  return spyIterator;
+                };
+                function* g() {
+                  yield * spyIterable;
+                }
+                var iter = g();
+                iter.next();
+                check(callCount, 1);
+                """);
+        });
+
+        Assert.Null(exception);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_Bug_AllInOneEval_TwoCallsConstant()
+    {
+        // This should work: CONSTANT args (regardless of single/multiple evals)
+        var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function check(a, b) {
+              if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+            }
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+            var iter = g();
+            iter.next();
+            check(1, 1);
+            check(1, 1);
+            """);
+
+        // Now verify callCount
+        var callCount = await engine.Evaluate("callCount");
+        Assert.Equal(1.0, callCount);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_Bug_ExactMatch_WithArgsProperty()
+    {
+        // This EXACTLY matches the failing test - includes args.length property access
+        var engine = new JsEngine();
+
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await engine.Evaluate("""
+                function localCheck(a, b) {
+                  if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+                }
+
+                var args, thisValue;
+                var callCount = 0;
+                var spyIterator = {
+                  next: function() {
+                    callCount += 1;
+                    args = arguments;
+                    thisValue = this;
+                    return { done: true };
+                  }
+                };
+                var spyIterable = {};
+                spyIterable[Symbol.iterator] = function() {
+                  return spyIterator;
+                };
+                function* g() {
+                  yield * spyIterable;
+                }
+
+                var iter = g();
+                var nextResult = iter.next(9876);
+
+                // TWO function calls AFTER iter.next() referencing VARIABLES
+                localCheck(callCount, 1);
+                localCheck(args.length, 1);
+
+                // Return what we got from next()
+                JSON.stringify({
+                  resultDone: nextResult.done,
+                  callCount: callCount
+                });
+                """);
+        });
+
+        Assert.Null(exception);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_Bug_NoArgsProperty()
+    {
+        // Same as above but WITHOUT args.length property access
+        var engine = new JsEngine();
+
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await engine.Evaluate("""
+                function localCheck(a, b) {
+                  if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+                }
+
+                var args, thisValue;
+                var callCount = 0;
+                var spyIterator = {
+                  next: function() {
+                    callCount += 1;
+                    args = arguments;
+                    thisValue = this;
+                    return { done: true };
+                  }
+                };
+                var spyIterable = {};
+                spyIterable[Symbol.iterator] = function() {
+                  return spyIterator;
+                };
+                function* g() {
+                  yield * spyIterable;
+                }
+
+                var iter = g();
+                var nextResult = iter.next(9876);
+
+                // TWO function calls - only checking callCount (no args.length)
+                localCheck(callCount, 1);
+                localCheck(callCount, 1);
+
+                // Return what we got from next()
+                JSON.stringify({
+                  resultDone: nextResult.done,
+                  callCount: callCount
+                });
+                """);
+        });
+
+        Assert.Null(exception);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_Bug_OnlyArgsLengthCheck()
+    {
+        // Only ONE check with args.length
+        var engine = new JsEngine();
+
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await engine.Evaluate("""
+                function localCheck(a, b) {
+                  if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+                }
+
+                var args, thisValue;
+                var callCount = 0;
+                var spyIterator = {
+                  next: function() {
+                    callCount += 1;
+                    args = arguments;
+                    thisValue = this;
+                    return { done: true };
+                  }
+                };
+                var spyIterable = {};
+                spyIterable[Symbol.iterator] = function() {
+                  return spyIterator;
+                };
+                function* g() {
+                  yield * spyIterable;
+                }
+
+                var iter = g();
+                var nextResult = iter.next(9876);
+
+                // Just ONE function call - with args.length
+                localCheck(args.length, 1);
+
+                JSON.stringify({
+                  callCount: callCount
+                });
+                """);
+        });
+
+        Assert.Null(exception);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_Bug_ArgsLengthAfterIterNext_NoGenerator()
+    {
+        // Same pattern but WITHOUT generator to isolate if it's the generator
+        var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            function localCheck(a, b) {
+              if (a !== b) throw new Error('Expected: ' + b + ', Got: ' + a);
+            }
+
+            var args;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                return { done: true };
+              }
+            };
+
+            // Direct call, no generator
+            spyIterator.next(9876);
+
+            // Check args.length
+            localCheck(args.length, 1);
+            """);
+
+        var callCount = await engine.Evaluate("callCount");
+        Assert.Equal(1.0, callCount);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_Bug_ArgsLengthOnly_NoLocalCheck()
+    {
+        // Just access args.length without any function call
+        var engine = new JsEngine();
+
+        await engine.Evaluate("""
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+
+            var iter = g();
+            iter.next(9876);
+            """);
+
+        // Check callCount
+        var callCount = await engine.Evaluate("callCount");
+        Assert.Equal(1.0, callCount);
+
+        // Now check args.length in separate eval
+        var argsLength = await engine.Evaluate("args.length");
+        Assert.Equal(1.0, argsLength);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_Bug_ArgsLengthInSameEval_NoFunctionCall()
+    {
+        // Access args.length in same eval but without function call
+        var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+
+            var iter = g();
+            iter.next(9876);
+
+            // Just access args.length without function call
+            JSON.stringify({ argsLength: args.length, callCount: callCount });
+            """);
+
+        Assert.Contains("\"callCount\":1", result?.ToString() ?? "");
+        Assert.Contains("\"argsLength\":1", result?.ToString() ?? "");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_Bug_CheckArgsZero()
+    {
+        // Check what's actually in args[0]
+        var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            var args, thisValue;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                thisValue = this;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+
+            var iter = g();
+            iter.next(9876);
+
+            // Check what args actually contains
+            JSON.stringify({
+              callCount: callCount,
+              argsLength: args.length,
+              argsType: typeof args
+            });
+            """);
+
+        // Print result for debugging
+        var resultStr = result?.ToString() ?? "";
+        // Per ES spec (14.4.14), the first call to inner iterator's next() receives undefined as the argument,
+        // not the value passed to outer generator's next(). The outer's next() argument is only used on RESUME.
+        // Node.js V8 confirms: argsLength=1, argsZero=undefined
+        Assert.Equal("{\"callCount\":1,\"argsLength\":1,\"argsType\":\"object\"}", resultStr);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_Bug_DirectCallWithArg()
+    {
+        // Call inner iterator directly with arg
+        var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            var args;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                return { done: true };
+              }
+            };
+
+            // Direct call - NOT through yield*
+            spyIterator.next(9876);
+
+            JSON.stringify({
+              callCount: callCount,
+              argsLength: args.length,
+              argsZero: args[0]
+            });
+            """);
+
+        // Direct call should have args[0] = 9876
+        Assert.Contains("\"argsZero\":9876", result?.ToString() ?? "");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStar_Bug_FirstNextCallHasNoArg()
+    {
+        // The FIRST call to a generator's next() should NOT pass the argument to the inner iterator
+        // Per ES spec, the first .next() call's argument is always ignored
+        // But the inner iterator's next() IS called, so args should be an Arguments object with length 1
+        // The bug is: what argument is being passed to the inner iterator's next()?
+        var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            var args;
+            var callCount = 0;
+            var spyIterator = {
+              next: function() {
+                callCount += 1;
+                args = arguments;
+                return { done: true };
+              }
+            };
+            var spyIterable = {};
+            spyIterable[Symbol.iterator] = function() {
+              return spyIterator;
+            };
+            function* g() {
+              yield * spyIterable;
+            }
+
+            var iter = g();
+            // First call to outer generator - per spec, 9876 is ignored for outer generator
+            // but should be passed to inner iterator's next()
+            iter.next(9876);
+
+            JSON.stringify({
+              callCount: callCount,
+              argsLength: args.length,
+              argsZero: args[0],
+              argsUndefined: args[0] === undefined
+            });
+            """);
+
+        var resultStr = result?.ToString() ?? "";
+        // The callCount should be 1
+        Assert.Contains("\"callCount\":1", resultStr);
+        // Let's see what args.length and args[0] are
+    }
 }

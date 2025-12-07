@@ -111,7 +111,11 @@ public static partial class TypedAstEvaluator
                 else
                 {
                     _nextMethod ??= _iterator.GetIteratorNextCallable(context);
-                    candidate = _iterator.InvokeIteratorNext(_nextMethod, sendValue, hasSendValue, context);
+                    // Per ES spec (14.4.14) and Node.js V8 behavior, inner iterator's next()
+                    // should always be called with an argument - even if it's undefined.
+                    // This ensures arguments.length === 1 inside the next() method.
+                    // Use Symbol.Undefined for null sendValue to match JavaScript undefined semantics.
+                    candidate = _iterator.InvokeIteratorNext(_nextMethod, sendValue ?? Symbol.Undefined, true, context);
                 }
 
                 // Per spec: if return method is undefined, return Completion(received)
@@ -170,9 +174,22 @@ public static partial class TypedAstEvaluator
 
                 var done = nextResult.TryGetProperty("done", out var doneValue) &&
                            JsOps.ToBoolean(doneValue);
-                var value = nextResult.TryGetProperty("value", out var yielded)
-                    ? yielded
-                    : Symbol.Undefined;
+                // Per ES spec 14.4.14, only read `value` when iteration is complete (done is true).
+                // When done is false, yield the innerResult directly without accessing `value`.
+                // This is important because the spec says IteratorValue is only called when done is true.
+                object? value;
+                if (done)
+                {
+                    value = nextResult.TryGetProperty("value", out var yielded)
+                        ? yielded
+                        : Symbol.Undefined;
+                }
+                else
+                {
+                    // Don't read `value` yet - it will be read lazily from the iterator result object
+                    // if needed. Pass null here; the caller will use the nextResult object directly.
+                    value = null;
+                }
                 var delegatedCompletion = _isGeneratorObject && (propagateThrow || propagateReturn);
                 var propagateThrowResult = _isGeneratorObject && propagateThrow && done;
                 return (value, done, delegatedCompletion, propagateThrowResult, nextResult);

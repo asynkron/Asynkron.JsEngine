@@ -554,6 +554,9 @@ public static partial class TypedAstEvaluator
                                 }
                             }
 
+                            // Track if this is the first entry to this yield* (State is null means first entry)
+                            var isFirstYieldStarEntry = yieldStarState.State is null;
+
                             if (yieldStarState.State is null)
                             {
                                 _realmState.Logger?.LogInformation("YieldStar: Creating new DelegatedState");
@@ -603,7 +606,19 @@ public static partial class TypedAstEvaluator
                                 var propagateThrow = false;
                                 var propagateReturn = false;
 
-                                if (yieldStarState.AwaitingResume)
+                                // Per ES spec (14.4.14): On first entry to yield*, call iteratorRecord.[[NextMethod]]
+                                // with iteratorRecord.[[Iterator]] as this and no arguments (undefined).
+                                // Node.js V8 confirms: args.length=1, args[0]=undefined
+                                if (isFirstYieldStarEntry)
+                                {
+                                    // On first entry to yield*, we pass undefined as the argument
+                                    // (the outer generator's first next() argument is ignored per spec)
+                                    hasSendValue = true;
+                                    sendValue = Symbol.Undefined;
+                                    // Mark that we're no longer on first entry for subsequent iterations
+                                    isFirstYieldStarEntry = false;
+                                }
+                                else if (yieldStarState.AwaitingResume)
                                 {
                                     var (delegatedResumeKind, delegatedResumePayload) = ConsumeResumeValue();
                                     switch (delegatedResumeKind)
@@ -1484,6 +1499,9 @@ public static partial class TypedAstEvaluator
         {
             if (wasStart)
             {
+                // Per ES spec: The first next() argument is ignored when starting a generator.
+                // This applies to both regular yield and yield* - the first call to inner iterator's
+                // next() receives undefined, not the outer generator's first next() argument.
                 _pendingResumeKind = ResumePayloadKind.None;
                 _pendingResumeValue = Symbol.Undefined;
                 return;

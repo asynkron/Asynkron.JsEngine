@@ -123,6 +123,19 @@ public static partial class TypedAstEvaluator
                     return (sendValue, true, true, false, null);
                 }
 
+                // Per spec: if throw method is null/undefined, call IteratorClose and throw TypeError
+                if (propagateThrow && !methodInvoked)
+                {
+                    // Call IteratorClose before throwing - this calls the return method if it exists
+                    _iterator.IteratorClose(context, preserveExistingThrow: false);
+
+                    // Throw TypeError as per spec
+                    throw StandardLibrary.ThrowTypeError(
+                        "The iterator does not provide a 'throw' method.",
+                        context,
+                        context.RealmState);
+                }
+
                 if (!methodInvoked && candidate is null)
                 {
                     return (Symbol.Undefined, true, propagateThrow, propagateThrow, null);

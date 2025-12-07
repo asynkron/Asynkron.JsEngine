@@ -573,6 +573,21 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 yieldStarState.State = CreateDelegatedState(yieldStarIterable, context);
+
+                                // Check if CreateDelegatedState resulted in a throw (e.g., from calling @@iterator)
+                                if (context.IsThrow)
+                                {
+                                    var thrown = context.FlowValue;
+                                    context.Clear();
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
+                                    {
+                                        continue;
+                                    }
+
+                                    _tryStack.Clear();
+                                    throw new ThrowSignal(thrown);
+                                }
+
                                 yieldStarState.AwaitingResume = false;
                             }
                             else
@@ -617,6 +632,23 @@ public static partial class TypedAstEvaluator
                                     propagateReturn,
                                     context,
                                     out _);
+
+                                // Check if MoveNext resulted in a throw (e.g., from calling iterator.next())
+                                if (context.IsThrow)
+                                {
+                                    var thrown = context.FlowValue;
+                                    context.Clear();
+                                    yieldStarState.State = null;
+                                    yieldStarState.AwaitingResume = false;
+                                    environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
+                                    {
+                                        break;
+                                    }
+
+                                    _tryStack.Clear();
+                                    throw new ThrowSignal(thrown);
+                                }
 
                                 if (iteratorResult.IsDelegatedCompletion)
                                 {

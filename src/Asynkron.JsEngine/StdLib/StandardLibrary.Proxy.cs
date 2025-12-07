@@ -8,8 +8,6 @@ public static partial class StandardLibrary
 {
     public static HostFunction CreateProxyConstructor(RealmState realm)
     {
-        JsObject? proxyPrototype = null;
-
         var proxyConstructor = new HostFunction((_, args) =>
         {
             if (args.Count < 2)
@@ -37,11 +35,6 @@ public static partial class StandardLibrary
             }
 
             var proxy = new JsProxy(targetObject, handlerObj, realm);
-            if (proxyPrototype is not null)
-            {
-                proxy.SetPrototype(proxyPrototype);
-            }
-
             return proxy;
         });
 
@@ -50,10 +43,6 @@ public static partial class StandardLibrary
         {
             proxyConstructor.Properties.SetPrototype(realm.FunctionPrototype);
         }
-
-        proxyPrototype = new JsObject(realm.ObjectPrototype);
-
-        proxyConstructor.SetProperty("prototype", proxyPrototype);
 
         proxyConstructor.DefineProperty("name",
             new PropertyDescriptor { Value = "Proxy", Writable = false, Enumerable = false, Configurable = true });
@@ -91,11 +80,6 @@ public static partial class StandardLibrary
             }
 
             var proxy = new JsProxy(targetObject, handlerObj, realm);
-            if (proxyPrototype is not null)
-            {
-                proxy.SetPrototype(proxyPrototype);
-            }
-
             var container = new JsObject();
             container.SetProperty("proxy", proxy);
 

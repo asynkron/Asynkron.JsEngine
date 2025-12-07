@@ -1121,13 +1121,13 @@ public static partial class TypedAstEvaluator
             switch (value)
             {
                 case TypedFunction typedFunction:
-                    typedFunction.EnsureHasName(displayName);
+                    typedFunction.EnsureHasName(displayName, overwriteExisting: true);
                     break;
                 case TypedGeneratorFactory generatorFactory:
-                    generatorFactory.EnsureHasName(displayName);
+                    generatorFactory.EnsureHasName(displayName, overwriteExisting: true);
                     break;
                 case AsyncGeneratorFactory asyncGeneratorFactory:
-                    asyncGeneratorFactory.EnsureHasName(displayName);
+                    asyncGeneratorFactory.EnsureHasName(displayName, overwriteExisting: true);
                     break;
             }
         }

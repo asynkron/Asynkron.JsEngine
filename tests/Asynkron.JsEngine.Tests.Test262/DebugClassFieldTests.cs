@@ -366,6 +366,8 @@ public class DebugClassFieldTests
     {
         await using var engine = new JsEngine { ExecutionTimeout = null };
         var result = await CapturePrototypeSnapshot(engine, "new Proxy(new C(), {})");
+        TestContext.WriteLine(
+            $"proxy protoMatch={result["protoMatch"]}, protoKeys={result["protoKeys"]}, ctorProtoKeys={result["ctorProtoKeys"]}, instanceType={result["instanceType"]}");
         Assert.That(result["protoMatch"], Is.EqualTo(true),
             "Proxy default handler should not strip the instance [[Prototype]]");
         Assert.That(result["instanceType"], Is.EqualTo("function"),

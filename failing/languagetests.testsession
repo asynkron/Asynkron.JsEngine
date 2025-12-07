@@ -1,42 +1,17 @@
-tests (808 tests) Failed: 808 tests failed
-  Asynkron.JsEngine.Tests.Test262 (808 tests) Failed: 808 tests failed
-    Asynkron.JsEngine.Tests.Test262 (808 tests) Failed: 808 tests failed
-      TestHarness (808 tests) Failed: One or more child tests had errors: 808 tests failed
-        LanguageTests (808 tests) Failed: One or more child tests had errors: 808 tests failed
-          Expressions_class_elements (24 tests) Failed: One or more child tests had errors: 24 tests failed
-            Expressions_class_elements("language/expressions/class/elements/private-async-generator-method-name.js",False) Failed
-            Expressions_class_elements("language/expressions/class/elements/private-async-generator-method-name.js",True) Failed
-            Expressions_class_elements("language/expressions/class/elements/private-async-method-name.js",False) Failed
-            Expressions_class_elements("language/expressions/class/elements/private-async-method-name.js",True) Failed
+tests (756 tests) Failed: 756 tests failed
+  Asynkron.JsEngine.Tests.Test262 (756 tests) Failed: 756 tests failed
+    Asynkron.JsEngine.Tests.Test262 (756 tests) Failed: 756 tests failed
+      TestHarness (756 tests) Failed: One or more child tests had errors: 756 tests failed
+        DebugClassFieldTests (1 test) Failed: One or more child tests had errors: 1 test failed
+          PrivateFieldAccessByProxyReceiverSustainsBrand Failed:   Assert.That(result["methodType"], Is.EqualTo("function"))
+        LanguageTests (755 tests) Failed: One or more child tests had errors: 755 tests failed
+          Expressions_assignment_destructuring (1 test) Failed: One or more child tests had errors: 1 test failed
+            Expressions_assignment_destructuring("language/expressions/assignment/destructuring/iterator-destructuring-property-reference-target-evaluation-order.js",True) Failed
+          Expressions_class_elements (4 tests) Failed: One or more child tests had errors: 4 tests failed
             Expressions_class_elements("language/expressions/class/elements/private-fields-proxy-default-handler-throws.js",False) Failed
             Expressions_class_elements("language/expressions/class/elements/private-fields-proxy-default-handler-throws.js",True) Failed
-            Expressions_class_elements("language/expressions/class/elements/private-generator-method-name.js",False) Failed
-            Expressions_class_elements("language/expressions/class/elements/private-generator-method-name.js",True) Failed
-            Expressions_class_elements("language/expressions/class/elements/private-getter-is-not-a-own-property.js",False) Failed
-            Expressions_class_elements("language/expressions/class/elements/private-getter-is-not-a-own-property.js",True) Failed
-            Expressions_class_elements("language/expressions/class/elements/private-method-is-not-a-own-property.js",False) Failed
-            Expressions_class_elements("language/expressions/class/elements/private-method-is-not-a-own-property.js",True) Failed
-            Expressions_class_elements("language/expressions/class/elements/private-setter-is-not-a-own-property.js",False) Failed
-            Expressions_class_elements("language/expressions/class/elements/private-setter-is-not-a-own-property.js",True) Failed
-            Expressions_class_elements("language/expressions/class/elements/private-static-async-generator-method-name.js",False) Failed
-            Expressions_class_elements("language/expressions/class/elements/private-static-async-generator-method-name.js",True) Failed
-            Expressions_class_elements("language/expressions/class/elements/private-static-async-method-name.js",False) Failed
-            Expressions_class_elements("language/expressions/class/elements/private-static-async-method-name.js",True) Failed
-            Expressions_class_elements("language/expressions/class/elements/private-static-generator-method-name.js",False) Failed
-            Expressions_class_elements("language/expressions/class/elements/private-static-generator-method-name.js",True) Failed
-            Expressions_class_elements("language/expressions/class/elements/private-static-method-name.js",False) Failed
-            Expressions_class_elements("language/expressions/class/elements/private-static-method-name.js",True) Failed
             Expressions_class_elements("language/expressions/class/elements/static-field-anonymous-function-name.js",False) Failed
             Expressions_class_elements("language/expressions/class/elements/static-field-anonymous-function-name.js",True) Failed
-          Expressions_class_elements_privateMethods (8 tests) Failed: One or more child tests had errors: 8 tests failed
-            Expressions_class_elements_privateMethods("language/expressions/class/elements/private-methods/prod-private-async-generator.js",False) Failed
-            Expressions_class_elements_privateMethods("language/expressions/class/elements/private-methods/prod-private-async-generator.js",True) Failed
-            Expressions_class_elements_privateMethods("language/expressions/class/elements/private-methods/prod-private-async-method.js",False) Failed
-            Expressions_class_elements_privateMethods("language/expressions/class/elements/private-methods/prod-private-async-method.js",True) Failed
-            Expressions_class_elements_privateMethods("language/expressions/class/elements/private-methods/prod-private-generator.js",False) Failed
-            Expressions_class_elements_privateMethods("language/expressions/class/elements/private-methods/prod-private-generator.js",True) Failed
-            Expressions_class_elements_privateMethods("language/expressions/class/elements/private-methods/prod-private-method.js",False) Failed
-            Expressions_class_elements_privateMethods("language/expressions/class/elements/private-methods/prod-private-method.js",True) Failed
           Expressions_dynamicImport (4 tests) Failed: One or more child tests had errors: 4 tests failed
             Expressions_dynamicImport("language/expressions/dynamic-import/returns-promise.js",False) Failed
             Expressions_dynamicImport("language/expressions/dynamic-import/returns-promise.js",True) Failed
@@ -178,35 +153,25 @@ tests (808 tests) Failed: 808 tests failed
             Expressions_propertyAccessors("language/expressions/property-accessors/S11.2.1_A4_T3.js",True) Failed
             Expressions_propertyAccessors("language/expressions/property-accessors/S11.2.1_A4_T5.js",False) Failed
             Expressions_propertyAccessors("language/expressions/property-accessors/S11.2.1_A4_T5.js",True) Failed
-          Expressions_super (28 tests) Failed: One or more child tests had errors: 28 tests failed
+          Expressions_super (18 tests) Failed: One or more child tests had errors: 18 tests failed
             Expressions_super("language/expressions/super/call-arg-evaluation-err.js",False) Failed
             Expressions_super("language/expressions/super/call-arg-evaluation-err.js",True) Failed
             Expressions_super("language/expressions/super/call-proto-not-ctor.js",False) Failed
             Expressions_super("language/expressions/super/call-proto-not-ctor.js",True) Failed
             Expressions_super("language/expressions/super/prop-dot-cls-null-proto.js",False) Failed
             Expressions_super("language/expressions/super/prop-dot-cls-null-proto.js",True) Failed
-            Expressions_super("language/expressions/super/prop-dot-cls-ref-strict.js",False) Failed
-            Expressions_super("language/expressions/super/prop-dot-cls-ref-strict.js",True) Failed
             Expressions_super("language/expressions/super/prop-dot-cls-this-uninit.js",False) Failed
             Expressions_super("language/expressions/super/prop-dot-cls-this-uninit.js",True) Failed
-            Expressions_super("language/expressions/super/prop-dot-obj-null-proto.js",False) Failed
-            Expressions_super("language/expressions/super/prop-dot-obj-null-proto.js",True) Failed
-            Expressions_super("language/expressions/super/prop-dot-obj-ref-strict.js",True) Failed
             Expressions_super("language/expressions/super/prop-expr-cls-key-err.js",False) Failed
             Expressions_super("language/expressions/super/prop-expr-cls-key-err.js",True) Failed
             Expressions_super("language/expressions/super/prop-expr-cls-null-proto.js",False) Failed
             Expressions_super("language/expressions/super/prop-expr-cls-null-proto.js",True) Failed
-            Expressions_super("language/expressions/super/prop-expr-cls-ref-strict.js",False) Failed
-            Expressions_super("language/expressions/super/prop-expr-cls-ref-strict.js",True) Failed
             Expressions_super("language/expressions/super/prop-expr-cls-this-uninit.js",False) Failed
             Expressions_super("language/expressions/super/prop-expr-cls-this-uninit.js",True) Failed
             Expressions_super("language/expressions/super/prop-expr-getsuperbase-before-topropertykey-putvalue-increment.js",False) Failed
             Expressions_super("language/expressions/super/prop-expr-getsuperbase-before-topropertykey-putvalue-increment.js",True) Failed
             Expressions_super("language/expressions/super/prop-expr-obj-key-err.js",False) Failed
             Expressions_super("language/expressions/super/prop-expr-obj-key-err.js",True) Failed
-            Expressions_super("language/expressions/super/prop-expr-obj-null-proto.js",False) Failed
-            Expressions_super("language/expressions/super/prop-expr-obj-null-proto.js",True) Failed
-            Expressions_super("language/expressions/super/prop-expr-obj-ref-strict.js",True) Failed
           Expressions_taggedTemplate (12 tests) Failed: One or more child tests had errors: 12 tests failed
             Expressions_taggedTemplate("language/expressions/tagged-template/cache-different-functions-same-site.js",False) Failed
             Expressions_taggedTemplate("language/expressions/tagged-template/cache-different-functions-same-site.js",True) Failed
@@ -567,15 +532,7 @@ tests (808 tests) Failed: 808 tests failed
             Statements_class_definition("language/statements/class/definition/side-effects-in-extends.js",True) Failed
             Statements_class_definition("language/statements/class/definition/this-access-restriction-2.js",False) Failed
             Statements_class_definition("language/statements/class/definition/this-access-restriction-2.js",True) Failed
-          Statements_class_elements (50 tests) Failed: One or more child tests had errors: 50 tests failed
-            Statements_class_elements("language/statements/class/elements/fields-hash-constructor-is-a-valid-name.js",False) Failed
-            Statements_class_elements("language/statements/class/elements/fields-hash-constructor-is-a-valid-name.js",True) Failed
-            Statements_class_elements("language/statements/class/elements/private-field-is-not-clobbered-by-computed-property.js",False) Failed
-            Statements_class_elements("language/statements/class/elements/private-field-is-not-clobbered-by-computed-property.js",True) Failed
-            Statements_class_elements("language/statements/class/elements/private-getter-is-not-a-own-property.js",False) Failed
-            Statements_class_elements("language/statements/class/elements/private-getter-is-not-a-own-property.js",True) Failed
-            Statements_class_elements("language/statements/class/elements/private-getter-is-not-clobbered-by-computed-property.js",False) Failed
-            Statements_class_elements("language/statements/class/elements/private-getter-is-not-clobbered-by-computed-property.js",True) Failed
+          Statements_class_elements (34 tests) Failed: One or more child tests had errors: 34 tests failed
             Statements_class_elements("language/statements/class/elements/private-method-double-initialisation-get-and-set.js",False) Failed
             Statements_class_elements("language/statements/class/elements/private-method-double-initialisation-get-and-set.js",True) Failed
             Statements_class_elements("language/statements/class/elements/private-method-double-initialisation-get.js",False) Failed
@@ -584,14 +541,6 @@ tests (808 tests) Failed: 808 tests failed
             Statements_class_elements("language/statements/class/elements/private-method-double-initialisation-set.js",True) Failed
             Statements_class_elements("language/statements/class/elements/private-method-double-initialisation.js",False) Failed
             Statements_class_elements("language/statements/class/elements/private-method-double-initialisation.js",True) Failed
-            Statements_class_elements("language/statements/class/elements/private-method-is-not-a-own-property.js",False) Failed
-            Statements_class_elements("language/statements/class/elements/private-method-is-not-a-own-property.js",True) Failed
-            Statements_class_elements("language/statements/class/elements/private-method-is-not-clobbered-by-computed-property.js",False) Failed
-            Statements_class_elements("language/statements/class/elements/private-method-is-not-clobbered-by-computed-property.js",True) Failed
-            Statements_class_elements("language/statements/class/elements/private-setter-is-not-a-own-property.js",False) Failed
-            Statements_class_elements("language/statements/class/elements/private-setter-is-not-a-own-property.js",True) Failed
-            Statements_class_elements("language/statements/class/elements/private-setter-is-not-clobbered-by-computed-property.js",False) Failed
-            Statements_class_elements("language/statements/class/elements/private-setter-is-not-clobbered-by-computed-property.js",True) Failed
             Statements_class_elements("language/statements/class/elements/privatefield-on-proxy.js",False) Failed
             Statements_class_elements("language/statements/class/elements/privatefield-on-proxy.js",True) Failed
             Statements_class_elements("language/statements/class/elements/privatefieldadd-typeerror.js",False) Failed

@@ -24,29 +24,43 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(error);
             }
 
-            var stringsArrayValue = EvaluateExpression(expression.StringsArray, environment, context);
-            if (context.ShouldStopEvaluation)
+            // Per ES spec 13.2.8.4 GetTemplateObject, template objects are cached by parse node.
+            // Check the realm's template cache first.
+            var realmState = context.RealmState;
+            object templateObject;
+            if (realmState is not null && realmState.TemplateObjectCache.TryGetValue(expression, out var cachedTemplate))
             {
-                return Symbol.Undefined;
+                templateObject = cachedTemplate;
             }
-
-            if (stringsArrayValue is not JsArray stringsArray)
+            else
             {
-                throw new InvalidOperationException("Tagged template strings array is invalid.");
-            }
+                var stringsArrayValue = EvaluateExpression(expression.StringsArray, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return Symbol.Undefined;
+                }
 
-            var rawStringsArrayValue = EvaluateExpression(expression.RawStringsArray, environment, context);
-            if (context.ShouldStopEvaluation)
-            {
-                return Symbol.Undefined;
-            }
+                if (stringsArrayValue is not JsArray stringsArray)
+                {
+                    throw new InvalidOperationException("Tagged template strings array is invalid.");
+                }
 
-            if (rawStringsArrayValue is not JsArray rawStringsArray)
-            {
-                throw new InvalidOperationException("Tagged template raw strings array is invalid.");
-            }
+                var rawStringsArrayValue = EvaluateExpression(expression.RawStringsArray, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return Symbol.Undefined;
+                }
 
-            var templateObject = CreateTemplateObject(stringsArray, rawStringsArray);
+                if (rawStringsArrayValue is not JsArray rawStringsArray)
+                {
+                    throw new InvalidOperationException("Tagged template raw strings array is invalid.");
+                }
+
+                templateObject = CreateTemplateObject(stringsArray, rawStringsArray);
+
+                // Cache the template object for subsequent calls to the same parse node
+                realmState?.TemplateObjectCache[expression] = templateObject;
+            }
 
             var arguments = ImmutableArray.CreateBuilder<object?>(expression.Expressions.Length + 1);
             arguments.Add(templateObject);

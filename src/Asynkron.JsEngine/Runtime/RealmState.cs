@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Asynkron.JsEngine.JsTypes;
 using Microsoft.Extensions.Logging;
 
@@ -12,6 +13,12 @@ public sealed class RealmState
     public IJsEngineOptions Options { get; internal set; } = JsEngineOptions.Default;
     internal JsEngine? Engine { get; set; }
     public ILogger? Logger { get; set; }
+
+    /// <summary>
+    /// Per ES spec 13.2.8.4, template objects are cached by parse node (source location).
+    /// The key is the TaggedTemplateExpression AST node reference.
+    /// </summary>
+    internal Dictionary<object, object> TemplateObjectCache { get; } = new(ReferenceEqualityComparer.Instance);
     public JsObject? ObjectPrototype { get; set; }
     public IJsObjectLike? FunctionPrototype { get; set; }
     public IJsObjectLike? ArrayPrototype { get; set; }

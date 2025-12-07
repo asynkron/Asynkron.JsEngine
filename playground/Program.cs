@@ -10,72 +10,74 @@ internal static class Program
         try
         {
             var result = await engine.Evaluate(@"
-// Copyright (C) 2014 the V8 project authors. All rights reserved.
-// This code is governed by the BSD license found in the LICENSE file.
-/*---
-es6id: 14.5
-description: >
-    class this access restriction 2
----*/
-class Base {
-  constructor(a, b) {
-    var o = new Object();
-    o.prp = a + b;
-    return o;
-  }
+var templateObject;
+
+function tag(parameter) {
+  templateObject = parameter;
 }
 
-class Subclass extends Base {
-  constructor(a, b) {
-    var exn;
-    try {
-      this.prp1 = 3;
-    } catch (e) {
-      exn = e;
-    }
-    console.log('exn type', exn && exn.name);
-    super(a, b);
-    console.log('after super this:', this);
-    console.log('this.prp', this.prp, 'this.prp1', this.prp1);
-    return this;
-  }
+tag`hello${1}world`;
+
+console.log('templateObject:', templateObject);
+console.log('Array.isArray(templateObject):', Array.isArray(templateObject));
+console.log('templateObject.raw:', templateObject.raw);
+console.log('Array.isArray(templateObject.raw):', Array.isArray(templateObject.raw));
+console.log('templateObject[0]:', templateObject[0]);
+console.log('templateObject[1]:', templateObject[1]);
+console.log('templateObject.length:', templateObject.length);
+console.log('typeof templateObject:', typeof templateObject);
+console.log('templateObject instanceof Array:', templateObject instanceof Array);
+
+// Check 'raw' property descriptor
+var rawDesc = Object.getOwnPropertyDescriptor(templateObject, 'raw');
+console.log('rawDesc:', rawDesc);
+if (rawDesc) {
+  console.log('  writable:', rawDesc.writable);
+  console.log('  enumerable:', rawDesc.enumerable);
+  console.log('  configurable:', rawDesc.configurable);
+  console.log('  value:', rawDesc.value);
 }
 
-var b = new Base(1, 2);
-console.log('b.prp', b.prp);
-
-var s = new Subclass(2, -1);
-console.log('constructed s', s);
-console.log('s.prp', s.prp, 's.prp1', s.prp1, 'hasOwn', s.hasOwnProperty('prp1'));
-
-class Subclass2 extends Base {
-  constructor(x) {
-    super(1,2);
-
-    if (x < 0) return;
-
-    var called = false;
-    function tmp() { called = true; return 3; }
-    var exn = null;
-    try {
-      super(tmp(),4);
-    } catch (e) { exn = e; }
-    console.log('second super exn', exn && exn.name);
-    console.log('called?', called);
-  }
+// Check '0' property descriptor
+var zeroDesc = Object.getOwnPropertyDescriptor(templateObject, '0');
+console.log('zeroDesc for 0:', zeroDesc);
+if (zeroDesc) {
+  console.log('  writable:', zeroDesc.writable);
+  console.log('  enumerable:', zeroDesc.enumerable);
+  console.log('  configurable:', zeroDesc.configurable);
+  console.log('  value:', zeroDesc.value);
 }
 
-var s2 = new Subclass2(1);
-console.log('s2.prp', s2.prp);
-
-var s3 = new Subclass2(-1);
-console.log('s3.prp', s3.prp);
-
-class BadSubclass extends Base {
-  constructor() {}
+// Check 'length' property descriptor
+var lengthDesc = Object.getOwnPropertyDescriptor(templateObject, 'length');
+console.log('lengthDesc:', lengthDesc);
+if (lengthDesc) {
+  console.log('  writable:', lengthDesc.writable);
+  console.log('  enumerable:', lengthDesc.enumerable);
+  console.log('  configurable:', lengthDesc.configurable);
+  console.log('  value:', lengthDesc.value);
 }
 
-try { new BadSubclass(); } catch (e) { console.log('bad subclass error', e && e.name); }
+// Check raw's property descriptors
+var rawZeroDesc = Object.getOwnPropertyDescriptor(templateObject.raw, '0');
+console.log('rawZeroDesc:', rawZeroDesc);
+if (rawZeroDesc) {
+  console.log('  writable:', rawZeroDesc.writable);
+  console.log('  enumerable:', rawZeroDesc.enumerable);
+  console.log('  configurable:', rawZeroDesc.configurable);
+}
+
+var rawLengthDesc = Object.getOwnPropertyDescriptor(templateObject.raw, 'length');
+console.log('rawLengthDesc:', rawLengthDesc);
+if (rawLengthDesc) {
+  console.log('  writable:', rawLengthDesc.writable);
+  console.log('  enumerable:', rawLengthDesc.enumerable);
+  console.log('  configurable:', rawLengthDesc.configurable);
+}
+
+console.log('Object.prototype.hasOwnProperty.call(templateObject, raw):', Object.prototype.hasOwnProperty.call(templateObject, 'raw'));
+console.log('Object.isFrozen(templateObject):', Object.isFrozen(templateObject));
+console.log('Object.isFrozen(templateObject.raw):', Object.isFrozen(templateObject.raw));
 'done';
 ");
 

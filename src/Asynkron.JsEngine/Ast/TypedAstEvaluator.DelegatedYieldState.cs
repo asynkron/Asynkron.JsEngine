@@ -14,11 +14,58 @@ public static partial class TypedAstEvaluator
         private readonly JsObject? _iterator;
         private IJsCallable? _nextMethod;
 
+        // Cached result from the last MoveNext call that hasn't been consumed yet
+        private (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow)? _cachedResult;
+        private bool _hasCachedResult;
+
         private DelegatedYieldState(JsObject? iterator, IEnumerator<object?>? enumerator, bool isGeneratorObject)
         {
             _iterator = iterator;
             _enumerator = enumerator;
             _isGeneratorObject = isGeneratorObject;
+        }
+
+        /// <summary>
+        /// Returns the cached result without advancing the iterator, or null if no cached result.
+        /// </summary>
+        public (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow)? PeekCachedResult()
+        {
+            return _hasCachedResult ? _cachedResult : null;
+        }
+
+        /// <summary>
+        /// Clears the cached result, signaling that the value has been consumed.
+        /// </summary>
+        public void ConsumeCachedResult()
+        {
+            _hasCachedResult = false;
+            _cachedResult = null;
+        }
+
+        /// <summary>
+        /// Gets the next result, either from cache or by advancing the iterator.
+        /// The result is cached until ConsumeResult is called.
+        /// </summary>
+        public (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow) GetOrFetchNext(
+            object? sendValue,
+            bool hasSendValue,
+            bool propagateThrow,
+            bool propagateReturn,
+            EvaluationContext context,
+            out bool awaitedPromise)
+        {
+            // If we have a pending send value (throw/return), we always need to advance
+            // because the send value needs to be passed to the inner iterator
+            if (!_hasCachedResult || hasSendValue || propagateThrow || propagateReturn)
+            {
+                var result = MoveNext(sendValue, hasSendValue, propagateThrow, propagateReturn, context, out awaitedPromise);
+                _cachedResult = result;
+                _hasCachedResult = true;
+                return result;
+            }
+
+            awaitedPromise = false;
+            return _cachedResult!.Value;
         }
 
         public static DelegatedYieldState FromIterator(JsObject iterator)

@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
 
 namespace Asynkron.JsEngine.Tests;
@@ -353,6 +354,45 @@ public class GeneratorTests
         Assert.False((bool)r1Done!);
         Assert.Equal(99.0, r2Value);
         Assert.True((bool)r2Done!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStar_Array()
+    {
+        // Arrange
+        await using var engine = new JsEngine();
+
+        // Simpler test: just yield* [1, 2, 3] without prior yield
+        var temp = await engine.Evaluate("""
+            function* g() {
+                yield* [1, 2, 3];
+            }
+            let iter = g();
+            let results = [];
+            let r = iter.next();
+            results.push({value: r.value, done: r.done});
+            r = iter.next();
+            results.push({value: r.value, done: r.done});
+            r = iter.next();
+            results.push({value: r.value, done: r.done});
+            r = iter.next();
+            results.push({value: r.value, done: r.done});
+            results;
+        """);
+
+        // Get individual values
+        var v0 = await engine.Evaluate("results[0].value;");
+        var v1 = await engine.Evaluate("results[1].value;");
+        var v2 = await engine.Evaluate("results[2].value;");
+        var v3 = await engine.Evaluate("results[3].value;");
+        var d3 = await engine.Evaluate("results[3].done;");
+
+        // Assert: expecting 1, 2, 3, undefined
+        Assert.Equal(1.0, v0);
+        Assert.Equal(2.0, v1);
+        Assert.Equal(3.0, v2);
+        Assert.Equal(Symbol.Undefined, v3);
+        Assert.True((bool)d3!);
     }
 
     [Fact(Timeout = 2000)]

@@ -98,9 +98,37 @@ public static partial class TypedAstEvaluator
             var pendingThrow = false;
             var pendingReturn = false;
 
+            // Check for throw/return payload BEFORE first fetch.
+            // This is needed because on resume, we might need to call throw/return
+            // on the inner iterator instead of next.
+            if (!tracker.ShouldYield(out var initialYieldIndex))
+            {
+                var initialPayload = GetResumePayload(environment, initialYieldIndex);
+                if (initialPayload.HasValue)
+                {
+                    if (initialPayload.IsThrow)
+                    {
+                        pendingThrow = true;
+                        pendingSend = initialPayload.Value;
+                        hasPendingSend = true;
+                    }
+                    else if (initialPayload.IsReturn)
+                    {
+                        pendingReturn = true;
+                        pendingSend = initialPayload.Value;
+                        hasPendingSend = true;
+                    }
+                    // For normal send values, we don't set flags here.
+                    // They'll be processed when we reach the right yield point.
+                }
+            }
+
             while (true)
             {
-                var iteratorResult = state.MoveNext(pendingSend,
+                // Use GetOrFetchNext which returns cached result if available,
+                // or advances the iterator if not. This prevents skipping values
+                // when resuming a generator that has already yielded.
+                var iteratorResult = state.GetOrFetchNext(pendingSend,
                     hasPendingSend && !pendingThrow && !pendingReturn,
                     pendingThrow,
                     pendingReturn,
@@ -142,6 +170,11 @@ public static partial class TypedAstEvaluator
                     var payload = GetResumePayload(environment, yieldIndex);
                     if (!payload.HasValue)
                     {
+                        // We're skipping this yield point (already consumed).
+                        // DO NOT consume the cached iterator result - this yield point
+                        // was already yielded on a previous .next() call, so we just
+                        // skip the yield tracker check and loop again with the SAME value.
+                        // The next ShouldYield call will check the next yield index.
                         continue;
                     }
 
@@ -150,6 +183,8 @@ public static partial class TypedAstEvaluator
                         pendingSend = payload.Value;
                         hasPendingSend = true;
                         pendingThrow = true;
+                        // Consume because we're passing a value to the inner iterator
+                        state.ConsumeCachedResult();
                         continue;
                     }
 
@@ -158,14 +193,20 @@ public static partial class TypedAstEvaluator
                         pendingSend = payload.Value;
                         hasPendingSend = true;
                         pendingReturn = true;
+                        // Consume because we're passing a value to the inner iterator
+                        state.ConsumeCachedResult();
                         continue;
                     }
 
-                    pendingSend = payload.Value;
-                    hasPendingSend = true;
+                    // Normal resume with .next(value) - for non-generator iterators like arrays,
+                    // the send value is ignored. DO NOT consume the cache or set hasPendingSend.
+                    // Just continue to find the next yield point that should actually yield.
+                    // The cached value remains valid for the next iteration.
                     continue;
                 }
 
+                // We're yielding this value - consume the cached result and yield
+                state.ConsumeCachedResult();
                 context.SetYield(value, yieldIndex);
                 tracker.MarkConsumed(yieldIndex);
                 return value;

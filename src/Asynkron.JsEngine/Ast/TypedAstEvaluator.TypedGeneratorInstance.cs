@@ -549,6 +549,7 @@ public static partial class TypedAstEvaluator
 
                             if (yieldStarState.State is null)
                             {
+                                _realmState.Logger?.LogInformation("YieldStar: Creating new DelegatedState");
                                 var yieldStarIterable =
                                     EvaluateExpression(yieldStarInstruction.IterableExpression, environment, context);
                                 if (context.IsThrow)
@@ -566,6 +567,11 @@ public static partial class TypedAstEvaluator
 
                                 yieldStarState.State = CreateDelegatedState(yieldStarIterable, context);
                                 yieldStarState.AwaitingResume = false;
+                            }
+                            else
+                            {
+                                _realmState.Logger?.LogInformation("YieldStar: Reusing existing DelegatedState, AwaitingResume={Awaiting}",
+                                    yieldStarState.AwaitingResume);
                             }
 
                             while (true)

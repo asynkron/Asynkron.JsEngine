@@ -1922,7 +1922,34 @@ public sealed class TypedAstParser(
 
         private ExpressionNode ParseRelational()
         {
-            var expr = ParseShift();
+            // ES2022: Support private identifier in 'in' operator for brand checks (#field in obj)
+            ExpressionNode expr;
+            if (_allowInExpressions && Check(TokenType.PrivateIdentifier))
+            {
+                var privateToken = Advance();
+                var privateName = privateToken.Lexeme.StartsWith("#")
+                    ? privateToken.Lexeme[1..]
+                    : privateToken.Lexeme;
+
+                // After #identifier, we must have 'in' operator
+                if (!Match(TokenType.In))
+                {
+                    throw new ParseException($"Private identifier '#{privateName}' is not valid here.", Peek(), _source);
+                }
+
+                var privateExpr = new PrivateIdentifierExpression(
+                    CreateSourceReference(privateToken),
+                    privateName);
+
+                var rightExpr = ParseShift();
+                return new BinaryExpression(
+                    CreateSourceReference(privateToken),
+                    "in",
+                    privateExpr,
+                    rightExpr);
+            }
+
+            expr = ParseShift();
 
             while (true)
             {

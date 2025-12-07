@@ -405,4 +405,5 @@ public class DebugClassFieldTests
         Assert.That(result["instanceType"], Is.EqualTo("function"),
             $"{scenario}: c.x should resolve to the prototype method");
     }
+
 }

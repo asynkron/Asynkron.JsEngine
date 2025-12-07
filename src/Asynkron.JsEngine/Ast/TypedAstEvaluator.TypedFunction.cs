@@ -1026,6 +1026,16 @@ public static partial class TypedAstEvaluator
         {
             if (PrivateNameScope is not null && instance is IPrivateBrandHolder brandHolder)
             {
+                // Per ES spec 7.3.28 PrivateMethodOrAccessorAdd, throw TypeError if private elements
+                // already exist on the object (i.e., double initialization)
+                if (brandHolder.HasPrivateBrand(PrivateNameScope.BrandToken))
+                {
+                    throw StandardLibrary.ThrowTypeError(
+                        "Cannot initialize private members of the same class twice on the same object",
+                        context,
+                        context.RealmState);
+                }
+
                 brandHolder.AddPrivateBrand(PrivateNameScope.BrandToken);
             }
 

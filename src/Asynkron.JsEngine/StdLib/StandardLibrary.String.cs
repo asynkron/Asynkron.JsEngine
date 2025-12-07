@@ -488,7 +488,8 @@ public static partial class StandardLibrary
                                 result.Append(value.AsSpan(lastIndex, match.Index - lastIndex));
                             }
 
-                            var replacementValue = replacer.Invoke([match.Value], value);
+                            // Per ES spec, call replacer with `undefined` as this, not the string
+                            var replacementValue = replacer.Invoke([match.Value], Symbol.Undefined);
                             var replacementString = replacementValue.ToJsString();
                             result.Append(replacementString);
 
@@ -508,7 +509,8 @@ public static partial class StandardLibrary
                             result.Append(value.AsSpan(0, match.Index));
                         }
 
-                        var replacementValue = replacer.Invoke([match.Value], value);
+                        // Per ES spec, call replacer with `undefined` as this, not the string
+                        var replacementValue = replacer.Invoke([match.Value], Symbol.Undefined);
                         var replacementString = replacementValue.ToJsString();
                         result.Append(replacementString);
 
@@ -526,7 +528,8 @@ public static partial class StandardLibrary
                 var searchValueFunc = CoerceToString(search);
                 if (searchValueFunc.Length == 0)
                 {
-                    var replacementValue = replacer.Invoke([""], value);
+                    // Per ES spec, call replacer with `undefined` as this, not the string
+                    var replacementValue = replacer.Invoke([""], Symbol.Undefined);
                     var replacementString = replacementValue.ToJsString();
                     return replacementString + value;
                 }
@@ -539,7 +542,8 @@ public static partial class StandardLibrary
 
                 var prefix = value[..idx];
                 var suffix = value[(idx + searchValueFunc.Length)..];
-                var replacedSegment = replacer.Invoke([searchValueFunc], value).ToJsString();
+                // Per ES spec, call replacer with `undefined` as this, not the string
+                var replacedSegment = replacer.Invoke([searchValueFunc], Symbol.Undefined).ToJsString();
                 return prefix + replacedSegment + suffix;
             }
 

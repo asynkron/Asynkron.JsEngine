@@ -212,8 +212,12 @@ namespace Asynkron.JsEngine.JsTypes;
                 prototype = prototype.Prototype;
             }
 
-            _privateFields[name] = value;
-            return;
+            // Per ES spec PrivateFieldSet, if the entry is empty (field not found), throw TypeError.
+            // Private fields should only be created via DefineProperty during class initialization,
+            // not via SetProperty during assignment.
+            throw StandardLibrary.ThrowTypeError(
+                "Cannot set private field before it has been initialized",
+                realm: ResolveRealmState(receiver));
         }
 
         var propertyExists = _descriptors.ContainsKey(name) || ContainsKey(name);

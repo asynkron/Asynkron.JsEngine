@@ -15,33 +15,27 @@ public static partial class TypedAstEvaluator
                 EvaluateExpression);
 
             if (expression.IsCompoundAssignment &&
-                TryEvaluateCompoundAssignmentValue(expression.Value, reference, environment, context, out var compoundValue))
+                TryEvaluateCompoundAssignmentValue(expression, expression.Value, reference, environment, context,
+                    out var compoundValue,
+                    out var shouldAssignCompound))
             {
                 if (context.ShouldStopEvaluation)
                 {
                     return compoundValue;
                 }
 
-                reference.SetValue(compoundValue);
+                if (shouldAssignCompound)
+                {
+                    reference.SetValue(compoundValue);
+                }
+
                 return compoundValue;
             }
 
-            using var functionNameHint = expression.Value is ClassExpression { Name: null }
-                                         && !IsParenthesizedIdentifierAssignment(expression)
-                ? context.EnterFunctionNameHint(expression.Target)
-                : null;
-
-            var targetValue = EvaluateExpression(expression.Value, environment, context);
+            var targetValue = EvaluateAssignmentRhsWithNameHint(expression, expression.Value, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return targetValue;
-            }
-
-            if (targetValue is IFunctionNameTarget nameTarget &&
-                expression.Value is FunctionExpression or ClassExpression &&
-                !IsParenthesizedIdentifierAssignment(expression))
-            {
-                nameTarget.EnsureHasName(expression.Target.Name);
             }
 
             try
@@ -90,15 +84,18 @@ public static partial class TypedAstEvaluator
     }
 
     private static bool TryEvaluateCompoundAssignmentValue(
+        AssignmentExpression? assignment,
         ExpressionNode candidate,
         AssignmentReference reference,
         JsEnvironment environment,
         EvaluationContext context,
-        out object? value)
+        out object? value,
+        out bool shouldAssign)
     {
         if (candidate is not BinaryExpression binary)
         {
             value = null;
+            shouldAssign = false;
             return false;
         }
 
@@ -106,6 +103,7 @@ public static partial class TypedAstEvaluator
         if (context.ShouldStopEvaluation)
         {
             value = Symbol.Undefined;
+            shouldAssign = false;
             return true;
         }
 
@@ -115,35 +113,42 @@ public static partial class TypedAstEvaluator
                 if (!IsTruthy(leftValue))
                 {
                     value = leftValue;
+                    shouldAssign = false;
                     return true;
                 }
 
-                value = EvaluateExpression(binary.Right, environment, context);
+                value = EvaluateAssignmentRhsWithNameHint(assignment, binary.Right, environment, context);
+                shouldAssign = !context.ShouldStopEvaluation;
                 return true;
             case "||":
                 if (IsTruthy(leftValue))
                 {
                     value = leftValue;
+                    shouldAssign = false;
                     return true;
                 }
 
-                value = EvaluateExpression(binary.Right, environment, context);
+                value = EvaluateAssignmentRhsWithNameHint(assignment, binary.Right, environment, context);
+                shouldAssign = !context.ShouldStopEvaluation;
                 return true;
             case "??":
                 if (!IsNullish(leftValue))
                 {
                     value = leftValue;
+                    shouldAssign = false;
                     return true;
                 }
 
-                value = EvaluateExpression(binary.Right, environment, context);
+                value = EvaluateAssignmentRhsWithNameHint(assignment, binary.Right, environment, context);
+                shouldAssign = !context.ShouldStopEvaluation;
                 return true;
         }
 
-        var rightValue = EvaluateExpression(binary.Right, environment, context);
+        var rightValue = EvaluateAssignmentRhsWithNameHint(assignment, binary.Right, environment, context);
         if (context.ShouldStopEvaluation)
         {
             value = Symbol.Undefined;
+            shouldAssign = false;
             return true;
         }
 
@@ -174,7 +179,42 @@ public static partial class TypedAstEvaluator
             _ => throw new NotSupportedException(
                 $"Compound assignment operator '{binary.Operator}' is not supported yet.")
         };
+        shouldAssign = true;
 
         return true;
+    }
+
+    private static object? EvaluateAssignmentRhsWithNameHint(
+        AssignmentExpression? assignment,
+        ExpressionNode rhs,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        using var functionNameHint = ShouldApplyAssignmentNameHint(assignment, rhs)
+            ? context.EnterFunctionNameHint(assignment.Target)
+            : null;
+
+        var value = EvaluateExpression(rhs, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return value;
+        }
+
+        if (assignment is not null &&
+            value is IFunctionNameTarget nameTarget &&
+            IsAnonymousFunctionDefinitionNode(rhs) &&
+            !IsParenthesizedIdentifierAssignment(assignment))
+        {
+            nameTarget.EnsureHasName(assignment.Target.Name);
+        }
+
+        return value;
+    }
+
+    private static bool ShouldApplyAssignmentNameHint(AssignmentExpression? assignment, ExpressionNode rhs)
+    {
+        return assignment is not null &&
+               IsAnonymousFunctionDefinitionNode(rhs) &&
+               !IsParenthesizedIdentifierAssignment(assignment);
     }
 }

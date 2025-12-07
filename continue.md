@@ -19,8 +19,10 @@
 - Destructuring iterator error propagation is in place for array bindings/assignments: iterator property getters use the evaluation context, `TryGetIteratorForDestructuring` aborts with the pending throw, and iterator throws no longer trigger `IteratorClose` for assignment patterns (`Expressions_arrowFunction_dstr` and `Expressions_assignment_dstr` are green).
 - Dynamic import/defer now flows through `ModuleEntry` so we track instantiation/evaluation per phase, cache deferred namespaces, and guard export\* cycles with an `Instantiating` flag plus `exportStarSet`. `import.defer`/`import.source` are exposed as host functions, deferred namespaces evaluate on first property read, and dynamic import promises pick up the realm Promise prototype with prototype `then/catch/finally` that wrap the underlying `JsPromise`. The export\* circular fixture (`instn-star-props-circular`) and the dynamic import syntax batch are passing.
 - Private name assignments now route through private scope/brand resolution, so instance/static private setter brand-checks across multiple class evaluations (factory/eval/realm variants) are passing alongside the private static getter/setter cases.
+- Super() in derived class constructors now finds the owning `this` binding without triggering TDZ ReferenceErrors, so the `this-access-restriction` class definition cases are green in strict and sloppy mode.
+- Logical assignment short-circuits skip `PutValue` (including private refs/accessors), and RHS NamedEvaluation now applies to ||=/&&=/??= with identifier LHS, so the logical-assignment cluster (read-only/accessor/non-extensible and name inference) is green.
 
 ## Next Iteration Plan
-1. Re-run the Language suite to refresh the current failure set after the private setter/async private fixes.
+1. Re-run the Language suite to refresh the current failure set after the this-access/super binding fixes.
 2. Triage the next largest failing cluster from that run (modules/import/defer if they resurface, otherwise whatever is hottest), adding realm logging if the failure isn’t obvious.
 3. Iterate through the refreshed list in priority order, landing targeted fixes and re-running the filtered clusters as they’re addressed.

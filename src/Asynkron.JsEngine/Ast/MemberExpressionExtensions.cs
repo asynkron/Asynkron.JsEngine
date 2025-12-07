@@ -35,6 +35,14 @@ public static partial class TypedAstEvaluator
         private object? EvaluateDefaultMember(JsEnvironment environment,
             EvaluationContext context)
         {
+            if (expression.Target is ThisExpression && !context.IsThisInitialized)
+            {
+                throw StandardLibrary.ThrowReferenceError(
+                    "Must call super constructor in derived class before accessing 'this'",
+                    context,
+                    context.RealmState);
+            }
+
             if (expression.Target is SuperExpression)
             {
                 var (memberValue, _) = ResolveSuperMember(expression, environment, context);

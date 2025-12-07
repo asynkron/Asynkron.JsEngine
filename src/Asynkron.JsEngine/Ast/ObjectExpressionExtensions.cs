@@ -64,21 +64,25 @@ public static partial class TypedAstEvaluator
                             Configurable = true
                         });
                         break;
-                    }
+                }
                     case ObjectMemberKind.Method:
                     {
-                        var callable = CreateFunctionValue(member.Function!, environment, context);
+                        var callable = CreateFunctionValue(member.Function!, environment, context,
+                            isConstructorFunction: false);
                         if (callable is TypedFunction typed)
                         {
                             typed.SetHomeObject(obj);
+                            typed.DisableConstruction();
                         }
                         else if (callable is TypedGeneratorFactory generatorFactory)
                         {
                             generatorFactory.SetHomeObject(obj);
+                            generatorFactory.DisableConstruction();
                         }
                         else if (callable is AsyncGeneratorFactory asyncGeneratorFactory)
                         {
                             asyncGeneratorFactory.SetHomeObject(obj);
+                            asyncGeneratorFactory.DisableConstruction();
                         }
 
                         var name = ResolveObjectMemberName(member, environment, context);
@@ -108,7 +112,8 @@ public static partial class TypedAstEvaluator
                             member.Function!,
                             environment,
                             context.RealmState,
-                            context.CurrentScope.IsStrict);
+                            context.CurrentScope.IsStrict,
+                            isConstructorFunction: false);
                         getter.SetHomeObject(obj);
                         var name = ResolveObjectMemberName(member, environment, context);
                         if (context.ShouldStopEvaluation)
@@ -127,7 +132,8 @@ public static partial class TypedAstEvaluator
                             member.Function!,
                             environment,
                             context.RealmState,
-                            context.CurrentScope.IsStrict);
+                            context.CurrentScope.IsStrict,
+                            isConstructorFunction: false);
                         setter.SetHomeObject(obj);
                         var name = ResolveObjectMemberName(member, environment, context);
                         if (context.ShouldStopEvaluation)

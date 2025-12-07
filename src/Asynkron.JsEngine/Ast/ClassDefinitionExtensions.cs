@@ -55,7 +55,7 @@ public static partial class TypedAstEvaluator
 
             var realm = context.RealmState;
             var prototype = EnsurePrototype(constructorAccessor, realm);
-            if (superPrototype is not null)
+            if (definition.Extends is not null)
             {
                 prototype.SetPrototype(superPrototype);
             }
@@ -91,19 +91,38 @@ public static partial class TypedAstEvaluator
 
             if (superConstructor is not null)
             {
-                constructorAccessor.SetProperty("__proto__", superConstructor);
-                if (constructorAccessor is JsObject ctorObject)
+                if (constructorAccessor is IJsObjectLike ctorObject)
                 {
                     ctorObject.SetPrototype(superConstructor);
                 }
+                else
+                {
+                    constructorAccessor.SetProperty("__proto__", superConstructor);
+                }
             }
-            else if (constructorAccessor is JsObject { Prototype: null } baseCtor &&
+            else if (constructorAccessor is IJsObjectLike { Prototype: null } baseCtor &&
                      realm.FunctionPrototype is not null)
             {
                 baseCtor.SetPrototype(realm.FunctionPrototype);
             }
 
             prototype.SetProperty("constructor", constructorValue);
+
+            if (constructorAccessor is IPropertyDefinitionHost definitionHost &&
+                constructorValue is TypedFunction { IsClassConstructor: true })
+            {
+                definitionHost.TryDefineProperty("prototype", new PropertyDescriptor
+                {
+                    Value = prototype,
+                    Writable = false,
+                    Enumerable = false,
+                    Configurable = false,
+                    HasValue = true,
+                    HasWritable = true,
+                    HasEnumerable = true,
+                    HasConfigurable = true
+                });
+            }
 
             AssignClassMembers(definition.Members, constructorAccessor, prototype, superConstructor, superPrototype,
                 evaluationEnvironment, context, privateNameScope);

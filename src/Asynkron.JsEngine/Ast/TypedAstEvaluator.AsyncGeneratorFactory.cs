@@ -16,6 +16,7 @@ public static partial class TypedAstEvaluator
         private readonly bool _isLexicallyStrict;
         private readonly JsObject _properties = new();
         private readonly RealmState _realmState;
+        private bool _isConstructorEnabled;
         private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
         private PrivateNameScope? _privateNameScope;
         private IJsObjectLike? _homeObject;
@@ -24,7 +25,8 @@ public static partial class TypedAstEvaluator
             FunctionExpression function,
             JsEnvironment closure,
             RealmState realmState,
-            bool isLexicallyStrict)
+            bool isLexicallyStrict,
+            bool isConstructorFunction = true)
         {
             if (!function.IsGenerator || !function.IsAsync)
             {
@@ -35,6 +37,7 @@ public static partial class TypedAstEvaluator
             _closure = closure;
             _realmState = realmState;
             _isLexicallyStrict = isLexicallyStrict;
+            _isConstructorEnabled = isConstructorFunction;
             InitializeProperties();
         }
 
@@ -139,6 +142,17 @@ public static partial class TypedAstEvaluator
         public void SetCapturedPrivateNameScopes(ImmutableArray<PrivateNameScope> scopes)
         {
             _capturedPrivateNameScopes = scopes;
+        }
+
+        public void DisableConstruction()
+        {
+            if (!_isConstructorEnabled)
+            {
+                return;
+            }
+
+            _isConstructorEnabled = false;
+            _properties.DeleteOwnProperty("prototype");
         }
 
         public void SetHomeObject(IJsObjectLike homeObject)
@@ -269,7 +283,7 @@ public static partial class TypedAstEvaluator
                 _properties.SetPrototype(functionPrototype);
             }
 
-            if (_realmState.ObjectPrototype is not null)
+            if (_isConstructorEnabled && _realmState.ObjectPrototype is not null)
             {
                 var generatorPrototype = new JsObject();
                 generatorPrototype.SetPrototype(_realmState.ObjectPrototype);
@@ -285,7 +299,18 @@ public static partial class TypedAstEvaluator
                         HasEnumerable = true,
                         HasConfigurable = true
                     });
-                _properties.SetProperty("prototype", generatorPrototype);
+                _properties.DefineProperty("prototype",
+                    new PropertyDescriptor
+                    {
+                        Value = generatorPrototype,
+                        Writable = false,
+                        Enumerable = false,
+                        Configurable = false,
+                        HasValue = true,
+                        HasWritable = true,
+                        HasEnumerable = true,
+                        HasConfigurable = true
+                    });
             }
 
             var paramCount = GetExpectedParameterCount(_function.Parameters);

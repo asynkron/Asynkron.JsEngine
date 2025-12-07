@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib;
+using Asynkron.JsEngine;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -17,6 +19,7 @@ namespace Asynkron.JsEngine.JsTypes;
         private Func<IReadOnlyList<object?>, object?, EvaluationContext?, object?, object?>? _invokeWithContext;
         private bool _isConstructor = true;
         private RealmState? _realmState;
+        internal bool IsBoundFunction { get; set; }
 
     public HostFunction(Func<IReadOnlyList<object?>, object?> handler, RealmState? realmState = null,
         bool isConstructor = true)
@@ -206,36 +209,9 @@ namespace Asynkron.JsEngine.JsTypes;
                 {
                     var boundThis = args.GetArgument(0);
                     var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
-
                     var targetIsConstructor = JsOps.IsConstructor(jsCallable);
-                    var boundFunction = new HostFunction((_, innerArgs) =>
-                    {
-                        var finalArgs = new object?[boundArgs.Length + innerArgs.Count];
-                        boundArgs.CopyTo(finalArgs, 0);
-                        for (var i = 0; i < innerArgs.Count; i++)
-                        {
-                            finalArgs[boundArgs.Length + i] = innerArgs[i];
-                        }
-
-                        return jsCallable.Invoke(finalArgs, boundThis);
-                    }, isConstructor: targetIsConstructor);
-
-                    if (!targetIsConstructor)
-                    {
-                        boundFunction.PropertiesObject.DeleteOwnProperty("prototype");
-                    }
-
-                    if (jsCallable is HostFunction hostFunction)
-                    {
-                        boundFunction.Realm = hostFunction.Realm;
-                        boundFunction.RealmState = hostFunction.RealmState ?? boundFunction.RealmState;
-                    }
-                    else if (jsCallable is ICallableMetadata metadata)
-                    {
-                        boundFunction.RealmState = metadata.RealmState;
-                    }
-
-                    return boundFunction;
+                    var realmState = RealmState ?? (jsCallable as ICallableMetadata)?.RealmState;
+                    return CreateBoundFunction(jsCallable, boundThis, boundArgs, targetIsConstructor, realmState);
                 }, isConstructor: false);
                 return true;
         }
@@ -341,6 +317,72 @@ namespace Asynkron.JsEngine.JsTypes;
     public bool DeleteProperty(string name)
     {
         return Properties.DeleteOwnProperty(name);
+    }
+
+    internal static HostFunction CreateBoundFunction(IJsCallable target, object? boundThis,
+        object?[] boundArgs, bool targetIsConstructor, RealmState? realmState)
+    {
+        static object?[] Combine(object?[] prefix, IReadOnlyList<object?> suffix)
+        {
+            if (prefix.Length == 0 && suffix is object?[] suffixArray)
+            {
+                return suffixArray;
+            }
+
+            var final = new object?[prefix.Length + suffix.Count];
+            prefix.CopyTo(final, 0);
+            for (var i = 0; i < suffix.Count; i++)
+            {
+                final[prefix.Length + i] = suffix[i];
+            }
+
+            return final;
+        }
+
+        var boundFunction = new HostFunction((_, innerArgs) =>
+        {
+            var finalArgs = Combine(boundArgs, innerArgs);
+            return target.Invoke(finalArgs, boundThis);
+        }, realmState, isConstructor: targetIsConstructor)
+        {
+            IsBoundFunction = true
+        };
+
+        boundFunction.PropertiesObject.DeleteOwnProperty("prototype");
+
+        boundFunction.SetInvokeWithContext((invokeArgs, _, context, newTarget) =>
+        {
+            var finalArgs = Combine(boundArgs, invokeArgs);
+
+            if (newTarget is not null)
+            {
+                if (!targetIsConstructor || newTarget is not IJsCallable newTargetCtor)
+                {
+                    var error = StandardLibrary.CreateTypeError(
+                        "Target is not a constructor",
+                        context,
+                        context?.RealmState ?? realmState);
+                    throw new ThrowSignal(error);
+                }
+
+                var realm = context?.RealmState ?? realmState;
+                if (realm is null && target is ICallableMetadata metadata)
+                {
+                    realm = metadata.RealmState;
+                }
+
+                if (realm is null)
+                {
+                    return target.Invoke(finalArgs, boundThis);
+                }
+
+                return StandardLibrary.Construct(target, finalArgs, newTargetCtor, realm);
+            }
+
+            return target.Invoke(finalArgs, boundThis);
+        });
+
+        return boundFunction;
     }
 
     private void EnsureFunctionPrototype()

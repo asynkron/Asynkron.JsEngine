@@ -1567,6 +1567,11 @@ internal static class JsOps
             return false;
         }
 
+        if (value is ICallableMetadata { DisallowConstruct: true })
+        {
+            return false;
+        }
+
         return value is IJsCallable;
     }
 

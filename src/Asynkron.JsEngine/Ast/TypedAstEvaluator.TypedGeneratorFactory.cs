@@ -17,6 +17,7 @@ public static partial class TypedAstEvaluator
         private readonly Dictionary<string, object?> _privateSlots = new(StringComparer.Ordinal);
         private readonly JsObject _properties = new();
         private readonly RealmState _realmState;
+        private bool _isConstructorEnabled;
         private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
         private PrivateNameScope? _privateNameScope;
         private IJsObjectLike? _homeObject;
@@ -25,7 +26,8 @@ public static partial class TypedAstEvaluator
             FunctionExpression function,
             JsEnvironment closure,
             RealmState realmState,
-            bool isLexicallyStrict)
+            bool isLexicallyStrict,
+            bool isConstructorFunction = true)
         {
             if (!function.IsGenerator)
             {
@@ -36,6 +38,7 @@ public static partial class TypedAstEvaluator
             _closure = closure;
             _realmState = realmState;
             _isLexicallyStrict = isLexicallyStrict;
+            _isConstructorEnabled = isConstructorFunction;
             InitializeProperties();
         }
 
@@ -140,6 +143,17 @@ public static partial class TypedAstEvaluator
         public void SetCapturedPrivateNameScopes(ImmutableArray<PrivateNameScope> scopes)
         {
             _capturedPrivateNameScopes = scopes;
+        }
+
+        public void DisableConstruction()
+        {
+            if (!_isConstructorEnabled)
+            {
+                return;
+            }
+
+            _isConstructorEnabled = false;
+            _properties.DeleteOwnProperty("prototype");
         }
 
         public void SetHomeObject(IJsObjectLike homeObject)
@@ -336,13 +350,13 @@ public static partial class TypedAstEvaluator
                 _properties.SetPrototype(functionPrototype);
             }
 
-            // Set up the generator function's .prototype property.
-            // Each generator function instance gets its own .prototype object that inherits
-            // from %GeneratorPrototype%.
-            // Per spec 25.2.4.2: The prototype property is created as a plain object with
-            // no own properties (the constructor property is inherited from %GeneratorPrototype%).
-            if (_realmState.GeneratorPrototype is not null)
+            if (_isConstructorEnabled && _realmState.GeneratorPrototype is not null)
             {
+                // Set up the generator function's .prototype property.
+                // Each generator function instance gets its own .prototype object that inherits
+                // from %GeneratorPrototype%.
+                // Per spec 25.2.4.2: The prototype property is created as a plain object with
+                // no own properties (the constructor property is inherited from %GeneratorPrototype%).
                 var generatorPrototype = new JsObject();
                 generatorPrototype.SetPrototype(_realmState.GeneratorPrototype);
                 _properties.DefineProperty("prototype",

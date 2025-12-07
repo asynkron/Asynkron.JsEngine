@@ -77,6 +77,14 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(error);
             }
 
+            if (constructor is TypedFunction { DisallowConstruct: true })
+            {
+                var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
+                    ? typeErrorCtor.Invoke(["Target is not a constructor"], null)
+                    : new InvalidOperationException("Target is not a constructor.");
+                throw new ThrowSignal(error);
+            }
+
             if (constructor is TypedAstEvaluator.TypedGeneratorFactory)
             {
                 var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor

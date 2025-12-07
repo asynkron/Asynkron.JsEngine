@@ -75,6 +75,12 @@ public static partial class StandardLibrary
             newTarget = target;
         }
 
+        return Construct(target, argList, newTarget, realm);
+    }
+
+    internal static object? Construct(IJsCallable target, IReadOnlyList<object?> argList, IJsCallable newTarget,
+        RealmState realm)
+    {
         if (target is HostFunction hostTarget &&
             (!hostTarget.IsConstructor || hostTarget.DisallowConstruct))
         {

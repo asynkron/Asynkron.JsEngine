@@ -22,7 +22,12 @@ public static partial class TypedAstEvaluator
             }
 
             var baseValue = EvaluateExpression(extendsExpression, environment, context);
-            if (context.ShouldStopEvaluation || baseValue is null)
+            if (context.ShouldStopEvaluation)
+            {
+                return (null, null);
+            }
+
+            if (baseValue is null)
             {
                 return (null, null);
             }
@@ -40,16 +45,34 @@ public static partial class TypedAstEvaluator
                     "Class extends value is not a constructor or null", context, context.RealmState));
             }
 
-            if (TryGetPropertyValue(baseValue, "prototype", out var prototypeValue) &&
-                prototypeValue is IJsPropertyAccessor prototype)
+            var hasPrototype = TryGetPropertyValue(baseValue, "prototype", out var prototypeValue, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return (null, null);
+            }
+
+            if (!hasPrototype)
+            {
+                throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                    "Class extends value does not have a valid prototype",
+                    context,
+                    context.RealmState));
+            }
+
+            if (prototypeValue is null)
+            {
+                return (callable, null);
+            }
+
+            if (prototypeValue is IJsPropertyAccessor prototype)
             {
                 return (callable, prototype);
             }
 
-            prototype = new JsObject();
-            accessor.SetProperty("prototype", prototype);
-
-            return (callable, prototype);
+            throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                "Class extends value does not have a valid prototype",
+                context,
+                context.RealmState));
         }
     }
 

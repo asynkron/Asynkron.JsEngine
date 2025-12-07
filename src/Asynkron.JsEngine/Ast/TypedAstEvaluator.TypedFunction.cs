@@ -12,7 +12,7 @@ public static partial class TypedAstEvaluator
 {
     private sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor, IJsObjectLike,
         ICallableMetadata, ICallerInfo, IFunctionNameTarget, IPrivateBrandHolder, IPropertyDefinitionHost,
-        IExtensibilityControl
+        IExtensibilityControl, IPrototypeAccessorProvider
     {
         private readonly Symbol[] _bodyLexicalNames;
         private readonly JsEnvironment _closure;
@@ -26,6 +26,7 @@ public static partial class TypedAstEvaluator
         private readonly bool _isStrict;
         private readonly bool _wasAsyncFunction;
         private readonly bool _hasFunctionNameEnvironment;
+        private bool _isConstructorEnabled;
         private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
         private IJsCallable? _caller;
         private JsObject? _prototypeObject;
@@ -41,7 +42,8 @@ public static partial class TypedAstEvaluator
             JsEnvironment closure,
             RealmState realmState,
             bool isLexicallyStrict,
-            bool hasFunctionNameEnvironment = false)
+            bool hasFunctionNameEnvironment = false,
+            bool isConstructorFunction = true)
         {
             if (function.IsGenerator)
             {
@@ -58,6 +60,7 @@ public static partial class TypedAstEvaluator
             _wasAsyncFunction = function.WasAsync;
             _hasFunctionNameEnvironment = hasFunctionNameEnvironment;
             IsArrowFunction = function.IsArrow;
+            _isConstructorEnabled = isConstructorFunction;
             _bodyLexicalNames = CollectLexicalNames(function.Body).ToArray();
             _hasHoistableDeclarations = HasHoistableDeclarations(function.Body);
             if (IsArrowFunction)
@@ -89,7 +92,7 @@ public static partial class TypedAstEvaluator
             }
 
             // Functions expose a prototype object so instances created via `new` can inherit from it.
-            if (!IsArrowFunction)
+            if (!IsArrowFunction && _isConstructorEnabled)
             {
                 var functionPrototype = new JsObject();
                 functionPrototype.RealmState = _realmState;
@@ -98,8 +101,29 @@ public static partial class TypedAstEvaluator
                     : $"prototype of {functionNameValue}";
                 functionPrototype.SetPrototype(_realmState.ObjectPrototype);
                 functionPrototype.DefineProperty("constructor",
-                    new PropertyDescriptor { Value = this, Writable = true, Enumerable = false, Configurable = true });
-                _properties.SetProperty("prototype", functionPrototype);
+                    new PropertyDescriptor
+                    {
+                        Value = this,
+                        Writable = true,
+                        Enumerable = false,
+                        Configurable = true,
+                        HasValue = true,
+                        HasWritable = true,
+                        HasEnumerable = true,
+                        HasConfigurable = true
+                    });
+                _properties.DefineProperty("prototype",
+                    new PropertyDescriptor
+                    {
+                        Value = functionPrototype,
+                        Writable = true,
+                        Enumerable = false,
+                        Configurable = false,
+                        HasValue = true,
+                        HasWritable = true,
+                        HasEnumerable = true,
+                        HasConfigurable = true
+                    });
             }
 
             _properties.DefineProperty("length",
@@ -132,6 +156,7 @@ public static partial class TypedAstEvaluator
         public bool IsAsyncFunction { get; }
 
         internal bool IsClassConstructor => _isClassConstructor;
+        public bool DisallowConstruct => !_isConstructorEnabled;
 
         internal bool IsDerivedClassConstructor => _isClassConstructor && _isDerivedClassConstructor;
 
@@ -214,6 +239,8 @@ public static partial class TypedAstEvaluator
 
         public IEnumerable<string> Keys => _properties.Keys;
 
+        IJsPropertyAccessor? IPrototypeAccessorProvider.PrototypeAccessor => _properties.PrototypeAccessor;
+
         public void DefineProperty(string name, PropertyDescriptor descriptor)
         {
             _properties.DefineProperty(name, descriptor);
@@ -278,18 +305,9 @@ public static partial class TypedAstEvaluator
                     {
                         var boundThis = args.GetArgument(0);
                         var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
-
-                        return new HostFunction((_, innerArgs) =>
-                        {
-                            var finalArgs = new object?[boundArgs.Length + innerArgs.Count];
-                            boundArgs.CopyTo(finalArgs, 0);
-                            for (var i = 0; i < innerArgs.Count; i++)
-                            {
-                                finalArgs[boundArgs.Length + i] = innerArgs[i];
-                            }
-
-                            return callable.Invoke(finalArgs, boundThis);
-                        });
+                        var targetIsConstructor = JsOps.IsConstructor(callable);
+                        return HostFunction.CreateBoundFunction(callable, boundThis, boundArgs, targetIsConstructor,
+                            _realmState);
                     });
                     return true;
             }
@@ -376,6 +394,15 @@ public static partial class TypedAstEvaluator
             {
                 context.CallDepth = callingContext.CallDepth;
                 context.MaxCallDepth = callingContext.MaxCallDepth;
+            }
+
+            if (_isClassConstructor && (newTarget is null || ReferenceEquals(newTarget, Symbol.Undefined)))
+            {
+                var error = StandardLibrary.CreateTypeError(
+                    "Class constructor cannot be invoked without 'new'",
+                    callingContext ?? context,
+                    _realmState);
+                throw new ThrowSignal(error);
             }
 
             var description = _function.Name is { } name ? $"function {name.Name}" : "anonymous function";
@@ -627,7 +654,9 @@ public static partial class TypedAstEvaluator
                 {
                     // Super property resolution is based on the current [[Prototype]] of the home object,
                     // even if it has been mutated after class definition (e.g. Object.setPrototypeOf).
-                    prototypeForSuper = _homeObject.Prototype;
+                    prototypeForSuper = (_homeObject as IPrototypeAccessorProvider)?.PrototypeAccessor ??
+                                        _homeObject.Prototype;
+                    prototypeForSuper ??= _superPrototype;
                 }
                 else
                 {
@@ -781,40 +810,52 @@ public static partial class TypedAstEvaluator
                             try
                             {
                                 if (functionEnvironment.TryGet(Symbol.This, out var currentThis))
-                                {
-                                    _realmState.Logger?.LogInformation(
-                                        "Class constructor returning this={This}",
-                                        DescribeValue(currentThis));
-                                    return currentThis;
-                                }
-                            }
-                            catch (InvalidOperationException ex) when (context.IsThisInitialized &&
-                                                                       ex.Message.StartsWith(
-                                                                           "ReferenceError: this",
-                                                                           StringComparison.Ordinal))
                             {
-                                // If the `this` binding was marked initialized but is still
-                                // uninitialized in the environment, fall back to the original
-                                // construction receiver instead of surfacing a spurious TDZ error.
                                 _realmState.Logger?.LogInformation(
-                                    "Class constructor fell back to receiver={Receiver} reason={Reason}",
-                                    DescribeValue(thisValue),
-                                    ex.Message);
-                                if (context.LastConstructedThis is not null &&
-                                    !ReferenceEquals(context.LastConstructedThis, JsEnvironment.Uninitialized))
-                                {
-                                    return context.LastConstructedThis;
-                                }
-
-                                return thisValue;
+                                    "Class constructor returning this={This}",
+                                    DescribeValue(currentThis));
+                                return currentThis;
                             }
                         }
+                        catch (InvalidOperationException ex) when (ex.Message.StartsWith(
+                                   "ReferenceError: this",
+                                   StringComparison.Ordinal))
+                        {
+                            // If `this` is uninitialized (e.g., derived ctor without super()), surface a JS ReferenceError.
+                            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
+                            throw new ThrowSignal(errorObject);
+                        }
+                    }
 
                         return Symbol.Undefined;
                     }
 
                     var value = context.FlowValue;
                     context.ClearReturn();
+                    if (_isClassConstructor &&
+                        value is not JsObject &&
+                        value is not IJsObjectLike)
+                    {
+                        try
+                        {
+                            if (functionEnvironment.TryGet(Symbol.This, out var currentThis) &&
+                                !ReferenceEquals(currentThis, JsEnvironment.Uninitialized))
+                            {
+                                _realmState.Logger?.LogInformation(
+                                    "Class constructor returning bound this instead of non-object return value");
+                                return currentThis;
+                            }
+                        }
+                        catch (InvalidOperationException ex) when (ex.Message.StartsWith(
+                                     "ReferenceError: this",
+                                     StringComparison.Ordinal))
+                        {
+                            _realmState.Logger?.LogInformation(
+                                "Class constructor missing initialized this; falling back to return value reason={Reason}",
+                                ex.Message);
+                        }
+                    }
+
                     return value;
                 }
 
@@ -895,6 +936,18 @@ public static partial class TypedAstEvaluator
         public void SetHomeObject(IJsObjectLike homeObject)
         {
             _homeObject = homeObject;
+        }
+
+        public void DisableConstruction()
+        {
+            if (!_isConstructorEnabled)
+            {
+                return;
+            }
+
+            _prototypeObject = null;
+            _properties.DeleteOwnProperty("prototype");
+            _isConstructorEnabled = false;
         }
 
         public void SetPrototypeObject(JsObject prototype)

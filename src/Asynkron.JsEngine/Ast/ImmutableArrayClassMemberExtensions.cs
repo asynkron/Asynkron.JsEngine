@@ -40,7 +40,11 @@ public static partial class TypedAstEvaluator
                     return;
                 }
 
-                var value = EvaluateExpression(member.Function, environment, context);
+                object? value = member.Function is FunctionExpression functionExpression
+                    ? CreateFunctionValue(functionExpression, environment, context,
+                        createFunctionNameEnvironment: true,
+                        isConstructorFunction: false)
+                    : EvaluateExpression(member.Function, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return;
@@ -66,6 +70,7 @@ public static partial class TypedAstEvaluator
                         typedFunction.SetHomeObject(homeObject);
                     }
 
+                    typedFunction.DisableConstruction();
                     typedFunction.EnsureHasName(displayName, overwriteExisting: true);
                 }
                 else if (value is TypedGeneratorFactory generatorFactory)
@@ -76,6 +81,8 @@ public static partial class TypedAstEvaluator
                         generatorFactory.SetHomeObject(homeObject);
                     }
 
+                    // Class methods are non-constructors, even for generator forms.
+                    generatorFactory.DisableConstruction();
                     generatorFactory.EnsureHasName(displayName, overwriteExisting: true);
                 }
                 else if (value is AsyncGeneratorFactory asyncGeneratorFactory)
@@ -86,6 +93,7 @@ public static partial class TypedAstEvaluator
                         asyncGeneratorFactory.SetHomeObject(homeObject);
                     }
 
+                    asyncGeneratorFactory.DisableConstruction();
                     asyncGeneratorFactory.EnsureHasName(displayName, overwriteExisting: true);
                 }
                 else if (value is IFunctionNameTarget nameTarget)

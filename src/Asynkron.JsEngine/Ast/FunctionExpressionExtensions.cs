@@ -345,7 +345,8 @@ public static partial class TypedAstEvaluator
     {
         private IJsCallable CreateFunctionValue(JsEnvironment environment,
             EvaluationContext context,
-            bool createFunctionNameEnvironment = false)
+            bool createFunctionNameEnvironment = false,
+            bool isConstructorFunction = true)
         {
             var closureEnvironment = environment;
             JsEnvironment? functionNameEnvironment = null;
@@ -366,11 +367,11 @@ public static partial class TypedAstEvaluator
             {
                 true when functionExpression.IsAsync => new AsyncGeneratorFactory(functionExpression,
                     closureEnvironment,
-                    context.RealmState, context.CurrentScope.IsStrict),
+                    context.RealmState, context.CurrentScope.IsStrict, isConstructorFunction),
                 true => new TypedGeneratorFactory(functionExpression, closureEnvironment, context.RealmState,
-                    context.CurrentScope.IsStrict),
+                    context.CurrentScope.IsStrict, isConstructorFunction),
                 _ => new TypedFunction(functionExpression, closureEnvironment, context.RealmState,
-                    context.CurrentScope.IsStrict, functionNameEnvironment is not null)
+                    context.CurrentScope.IsStrict, functionNameEnvironment is not null, isConstructorFunction)
             };
 
             var capturedPrivateScopes = context.CapturePrivateNameScopes();

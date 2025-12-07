@@ -17,6 +17,8 @@ public interface ICallableMetadata
 {
     bool IsArrowFunction { get; }
 
+    bool DisallowConstruct { get; }
+
     RealmState RealmState { get; }
 }
 

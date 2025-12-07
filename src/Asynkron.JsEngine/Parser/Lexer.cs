@@ -70,6 +70,10 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
     private int _startColumn = 1;
     private int _startLine = 1;
 
+    // Track whether each { opens a block statement (true) or an object literal (false)
+    // Used to determine if / after } should be regex (block) or division (object)
+    private readonly Stack<bool> _braceIsBlockStack = new();
+
     private bool IsAtEnd => _current >= _source.Length;
 
     public IReadOnlyList<Token> Tokenize()
@@ -98,9 +102,23 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                 AddToken(TokenType.RightParen);
                 break;
             case '{':
+                // Determine if this { opens a block statement or an object literal
+                // by looking at the previous token
+                var isBlock = IsBlockBraceContext();
+                _braceIsBlockStack.Push(isBlock);
                 AddToken(TokenType.LeftBrace);
                 break;
             case '}':
+                // Pop the brace context stack (if not empty) and track the value
+                // This must be done BEFORE AddToken so IsRegexContext can use it
+                if (_braceIsBlockStack.Count > 0)
+                {
+                    _lastPoppedBraceWasBlock = _braceIsBlockStack.Pop();
+                }
+                else
+                {
+                    _lastPoppedBraceWasBlock = true; // Default to block for safety
+                }
                 AddToken(TokenType.RightBrace);
                 break;
             case '[':
@@ -1335,6 +1353,13 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
         }
 
         var lastToken = _tokens[^1].Type;
+
+        // Special case: RightBrace - it depends on whether it was a block or object literal
+        if (lastToken == TokenType.RightBrace)
+        {
+            return WasLastBraceABlock();
+        }
+
         return lastToken is
             TokenType.Equal or
             TokenType.LeftParen or
@@ -1400,6 +1425,103 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             TokenType.Tilde or
             // Arrow
             TokenType.Arrow;
+    }
+
+    /// <summary>
+    /// Determines if the last } token was closing a block statement (true) or object literal (false).
+    /// This is used by IsRegexContext to decide if / after } should be regex or division.
+    /// </summary>
+    private bool WasLastBraceABlock()
+    {
+        // The stack was already popped when we added the RightBrace token,
+        // but we need to track the value that was popped.
+        // Actually, let's check the last popped value differently...
+        // We need to track this before the pop happens.
+        return _lastPoppedBraceWasBlock;
+    }
+
+    private bool _lastPoppedBraceWasBlock;
+
+    /// <summary>
+    /// Determines if the current { opens a block statement or an object literal
+    /// by examining the previous token.
+    /// </summary>
+    private bool IsBlockBraceContext()
+    {
+        if (_tokens.Count == 0)
+        {
+            return true; // Start of file - must be a block
+        }
+
+        var lastToken = _tokens[^1].Type;
+
+        // Tokens that indicate { is an OBJECT LITERAL (not a block):
+        // After these tokens, { starts an object literal expression
+        var isObjectLiteralContext = lastToken is
+            TokenType.Equal or           // x = { }
+            TokenType.Colon or           // case x: { } or { a: { } }
+            TokenType.LeftParen or       // f({ }) or ({ })
+            TokenType.LeftBracket or     // [{ }]
+            TokenType.Comma or           // [a, { }] or f(a, { })
+            TokenType.Question or        // x ? { } : y
+            TokenType.QuestionQuestion or // x ?? { }
+            TokenType.Return or          // return { }
+            TokenType.Throw or           // throw { }
+            TokenType.New or             // new X({ })
+            TokenType.Arrow or           // () => { } - tricky, arrow body is block!
+            TokenType.PipePipe or        // x || { }
+            TokenType.AmpAmp or          // x && { }
+            TokenType.Plus or            // x + { } (weird but valid)
+            TokenType.Minus or
+            TokenType.Star or
+            TokenType.Slash or
+            TokenType.Percent or
+            TokenType.StarStar or
+            TokenType.Amp or
+            TokenType.Pipe or
+            TokenType.Caret or
+            TokenType.LessLess or
+            TokenType.GreaterGreater or
+            TokenType.GreaterGreaterGreater or
+            TokenType.EqualEqual or
+            TokenType.EqualEqualEqual or
+            TokenType.BangEqual or
+            TokenType.BangEqualEqual or
+            TokenType.Less or
+            TokenType.LessEqual or
+            TokenType.Greater or
+            TokenType.GreaterEqual or
+            TokenType.In or
+            TokenType.Instanceof or
+            TokenType.Of or
+            TokenType.Typeof or          // typeof { } (weird)
+            TokenType.Void or
+            TokenType.Delete or
+            // Assignment operators
+            TokenType.PlusEqual or
+            TokenType.MinusEqual or
+            TokenType.StarEqual or
+            TokenType.SlashEqual or
+            TokenType.PercentEqual or
+            TokenType.StarStarEqual or
+            TokenType.AmpEqual or
+            TokenType.PipeEqual or
+            TokenType.CaretEqual or
+            TokenType.LessLessEqual or
+            TokenType.GreaterGreaterEqual or
+            TokenType.GreaterGreaterGreaterEqual or
+            TokenType.AmpAmpEqual or
+            TokenType.PipePipeEqual or
+            TokenType.QuestionQuestionEqual;
+
+        // Special case for arrow: () => { } is a block body, not object literal
+        // But x => ({ }) would have LeftParen before {
+        if (lastToken == TokenType.Arrow)
+        {
+            return true; // Arrow body is a block, not object literal
+        }
+
+        return !isObjectLiteralContext;
     }
 
     private void ReadRegexLiteral()

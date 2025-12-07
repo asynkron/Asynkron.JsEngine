@@ -188,6 +188,19 @@ public static partial class TypedAstEvaluator
             if (expression.Callee is SuperExpression)
             {
                 superBindingForCall = ExpectSuperBinding(environment, context);
+                // Per ES spec 12.3.5.1 SuperCall:
+                // After ArgumentListEvaluation, check if the super constructor is actually a constructor.
+                // If IsConstructor(func) is false, throw a TypeError exception.
+                if (!JsOps.IsConstructor(callable))
+                {
+                    var error = StandardLibrary.CreateTypeError(
+                        "Super constructor is not a constructor",
+                        context,
+                        context.RealmState);
+                    context.SetThrow(error);
+                    context.CallDepth--;
+                    return Symbol.Undefined;
+                }
             }
 
             EvalHostFunction? evalHost = null;

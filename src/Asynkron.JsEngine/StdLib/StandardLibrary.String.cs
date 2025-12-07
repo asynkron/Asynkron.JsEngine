@@ -1159,6 +1159,21 @@ public static partial class StandardLibrary
                 stringProtoObj.SetPrototype(realm.ObjectPrototype);
             }
 
+            // Per ES spec, String.prototype is a String object whose [[StringData]] is the empty string.
+            // Therefore String.prototype.length must be 0.
+            stringProtoObj.DefineProperty("length",
+                new PropertyDescriptor
+                {
+                    Value = 0d,
+                    Writable = false,
+                    Enumerable = false,
+                    Configurable = false,
+                    HasValue = true,
+                    HasWritable = true,
+                    HasEnumerable = true,
+                    HasConfigurable = true
+                });
+
             EnsureStringPrototypeMethods(stringProtoObj, realm);
 
             DefineBuiltinFunction(stringProtoObj, "toString", new HostFunction(StringPrototypeToString), 0);

@@ -602,22 +602,23 @@ public static partial class StandardLibrary
 
             var target = args[0];
             var protoValue = args[1];
-            var proto = protoValue as JsObject;
 
+            // Per ES spec, the prototype can be null or any object (including functions)
+            // SetPrototype accepts object? and handles the casting internally
             switch (target)
             {
-                case ModuleNamespace when proto is null:
+                case ModuleNamespace when protoValue is null:
                     return target;
                 case ModuleNamespace:
                     throw ThrowTypeError("Cannot set prototype on module namespace", realm: realm);
                 case JsArray array:
-                    array.SetPrototype(proto);
+                    array.SetPrototype(protoValue);
                     break;
                 case JsObject obj:
-                    obj.SetPrototype(proto);
+                    obj.SetPrototype(protoValue);
                     break;
                 case IJsObjectLike objectLike:
-                    objectLike.SetPrototype(proto);
+                    objectLike.SetPrototype(protoValue);
                     break;
             }
 

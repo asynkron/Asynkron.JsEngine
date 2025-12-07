@@ -267,7 +267,27 @@ public static partial class TypedAstEvaluator
                     environment.HasBinding(Symbol.ThisInitialized),
                     environment.HasBinding(Symbol.Super));
                 var binding = ExpectSuperBinding(environment, context);
-                if (binding.Constructor is null)
+
+                // Per ES spec 12.3.5.1 SuperCall, the super constructor should be looked up
+                // dynamically via GetSuperConstructor() which gets activeFunction.[[Prototype]].
+                // For a constructor, the active function is available via NewTarget when it's
+                // a constructor being invoked via 'new'.
+                object? dynamicSuperConstructor = binding.Constructor;
+                if (environment.TryGet(Symbol.NewTarget, out var newTarget) &&
+                    newTarget is IJsObjectLike activeFunction)
+                {
+                    // Get the current [[Prototype]] of the active function (constructor)
+                    // This respects Object.setPrototypeOf changes made after class definition
+                    // Use PrototypeAccessor to handle non-JsObject prototypes (e.g., HostFunction)
+                    dynamicSuperConstructor = (activeFunction as IPrototypeAccessorProvider)?.PrototypeAccessor
+                                              ?? activeFunction.Prototype;
+                    logger?.LogInformation(
+                        "Super call: dynamic lookup newTargetType={NewTargetType} protoType={ProtoType}",
+                        newTarget.GetType().Name,
+                        dynamicSuperConstructor?.GetType().Name ?? "null");
+                }
+
+                if (dynamicSuperConstructor is null)
                 {
                     throw new InvalidOperationException(
                         $"Super constructor is not available in this context.{GetSourceInfo(context, superExpression.Source)}");
@@ -276,7 +296,7 @@ public static partial class TypedAstEvaluator
                 var superThis = ReferenceEquals(binding.ThisValue, JsEnvironment.Uninitialized)
                     ? Symbol.Undefined
                     : binding.ThisValue;
-                return (binding.Constructor, superThis, false);
+                return (dynamicSuperConstructor, superThis, false);
             }
 
             if (callee is MemberExpression member)

@@ -134,6 +134,12 @@ public static partial class TypedAstEvaluator
                         hoistFunctionValues = false;
                         inBlockScope = true;
                         continue;
+                    case ExportDeclarationStatement exportDeclaration:
+                        statement = exportDeclaration.Declaration;
+                        continue;
+                    case ExportDefaultStatement { Value: ExportDefaultDeclaration { Declaration: { } decl } }:
+                        statement = decl;
+                        continue;
                     case LabeledStatement labeled:
                         statement = labeled.Statement;
                         continue;

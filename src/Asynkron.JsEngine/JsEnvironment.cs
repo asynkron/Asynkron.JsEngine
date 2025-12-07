@@ -660,6 +660,11 @@ public sealed class JsEnvironment
             throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
         }
 
+        if (binding.Value is LiveExportBinding liveBinding)
+        {
+            return liveBinding.GetValue();
+        }
+
         bindingEnvironment.RealmState?.Logger?.LogInformation(
             "Read binding '{Name}' (envDepth={Depth}, lexical={Lexical}, bindingHash={Hash}) -> {Value}",
             name.Name,

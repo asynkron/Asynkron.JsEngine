@@ -1637,7 +1637,7 @@ public sealed class JsEngine : IAsyncDisposable
         if (importStatement.DefaultBinding is { } defaultBinding &&
             moduleEntry.Exports.TryGetValue("default", out var defaultValue))
         {
-            moduleEnv.Define(defaultBinding, ResolveExportValue(defaultValue));
+            moduleEnv.Define(defaultBinding, defaultValue, isConst: true, blocksFunctionScopeOverride: true);
         }
 
         if (importStatement.NamespaceBinding is { } namespaceBinding)
@@ -1650,14 +1650,9 @@ public sealed class JsEngine : IAsyncDisposable
         {
             if (moduleEntry.Exports.TryGetValue(binding.Imported.Name, out var value))
             {
-                moduleEnv.Define(binding.Local, ResolveExportValue(value));
+                moduleEnv.Define(binding.Local, value, isConst: true, blocksFunctionScopeOverride: true);
             }
         }
-    }
-
-    private static object? ResolveExportValue(object? value)
-    {
-        return value is LiveExportBinding live ? live.GetValue() : value;
     }
 
     private object? EvaluateExportDefault(ExportDefaultStatement statement, JsEnvironment moduleEnv, bool isStrict)
@@ -1682,8 +1677,8 @@ public sealed class JsEngine : IAsyncDisposable
         ExecuteTypedStatement(declaration.Declaration, moduleEnv, isStrict, false);
         return declaration.Declaration switch
         {
-            FunctionDeclaration functionDeclaration => moduleEnv.Get(functionDeclaration.Name),
-            ClassDeclaration classDeclaration => moduleEnv.Get(classDeclaration.Name),
+            FunctionDeclaration functionDeclaration => new LiveExportBinding(() => moduleEnv.Get(functionDeclaration.Name)),
+            ClassDeclaration classDeclaration => new LiveExportBinding(() => moduleEnv.Get(classDeclaration.Name)),
             _ => Symbol.Undefined
         };
     }

@@ -1086,6 +1086,12 @@ public sealed class JsEnvironment
 
     internal bool TryFindBinding(Symbol name, out JsEnvironment environment, out object? value)
     {
+        return TryFindBinding(name, false, out environment, out value);
+    }
+
+    internal bool TryFindBinding(Symbol name, bool allowUninitialized, out JsEnvironment environment,
+        out object? value)
+    {
         var visited = new HashSet<JsEnvironment>(ReferenceEqualityComparer.Instance);
         var current = this;
         var hops = 0;
@@ -1101,7 +1107,7 @@ public sealed class JsEnvironment
 
             if (current._values.TryGetValue(name, out var binding))
             {
-                if (ReferenceEquals(binding.Value, Uninitialized))
+                if (ReferenceEquals(binding.Value, Uninitialized) && !allowUninitialized)
                 {
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
                 }
@@ -1114,7 +1120,8 @@ public sealed class JsEnvironment
             if (current._varEnvironmentOverride is not null &&
                 current._varEnvironmentOverride != current &&
                 !visited.Contains(current._varEnvironmentOverride) &&
-                current._varEnvironmentOverride.TryFindBindingInternal(name, visited, out environment, out value))
+                current._varEnvironmentOverride.TryFindBindingInternal(name, visited, allowUninitialized, out environment,
+                    out value))
             {
                 return true;
             }
@@ -1127,7 +1134,8 @@ public sealed class JsEnvironment
         return false;
     }
 
-    private bool TryFindBindingInternal(Symbol name, HashSet<JsEnvironment> visited, out JsEnvironment environment,
+    private bool TryFindBindingInternal(Symbol name, HashSet<JsEnvironment> visited, bool allowUninitialized,
+        out JsEnvironment environment,
         out object? value)
     {
         var current = this;
@@ -1144,7 +1152,7 @@ public sealed class JsEnvironment
 
             if (current._values.TryGetValue(name, out var binding))
             {
-                if (ReferenceEquals(binding.Value, Uninitialized))
+                if (ReferenceEquals(binding.Value, Uninitialized) && !allowUninitialized)
                 {
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
                 }
@@ -1157,7 +1165,8 @@ public sealed class JsEnvironment
             if (current._varEnvironmentOverride is not null &&
                 current._varEnvironmentOverride != current &&
                 !visited.Contains(current._varEnvironmentOverride) &&
-                current._varEnvironmentOverride.TryFindBindingInternal(name, visited, out environment, out value))
+                current._varEnvironmentOverride.TryFindBindingInternal(name, visited, allowUninitialized,
+                    out environment, out value))
             {
                 return true;
             }

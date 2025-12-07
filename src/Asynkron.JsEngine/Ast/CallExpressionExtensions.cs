@@ -208,25 +208,18 @@ public static partial class TypedAstEvaluator
             {
                 // Prefer the environment that owns the current `this` binding; the [[ThisInitialized]]
                 // marker is defined alongside it for derived constructors.
-                try
+                if (environment.TryFindBinding(Symbol.This, allowUninitialized: true, out var thisEnv, out _))
                 {
-                    if (environment.TryFindBinding(Symbol.This, out var thisEnv, out _))
+                    thisInitializationEnvironment = thisEnv;
+                    if (thisEnv.TryGet(Symbol.ThisInitialized, out var initValue))
                     {
-                        thisInitializationEnvironment = thisEnv;
-                        if (thisEnv.TryGet(Symbol.ThisInitialized, out var initValue))
-                        {
-                            thisInitializationValue = initValue;
-                        }
+                        thisInitializationValue = initValue;
                     }
-                }
-                catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError: this",
-                             StringComparison.Ordinal))
-                {
-                    // `this` exists but is currently uninitialized (derived constructor before super()).
                 }
 
                 if (thisInitializationEnvironment is null &&
-                    environment.TryFindBinding(Symbol.ThisInitialized, out var foundEnv, out var foundValue))
+                    environment.TryFindBinding(Symbol.ThisInitialized, allowUninitialized: true, out var foundEnv,
+                        out var foundValue))
                 {
                     thisInitializationEnvironment = foundEnv;
                     thisInitializationValue = foundValue;

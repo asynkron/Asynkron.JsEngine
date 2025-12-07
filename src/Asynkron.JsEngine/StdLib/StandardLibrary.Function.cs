@@ -52,16 +52,16 @@ public static partial class StandardLibrary
 
         functionConstructor.SetProperty("call", callHelper);
 
-        // Provide a minimal `Function.prototype` object that exposes the
-        // same call helper so patterns like
-        // `Function.prototype.call.bind(Object.prototype.hasOwnProperty)`
-        // work as expected.
-        var functionPrototype = new JsObject();
-        functionPrototype.SetProperty("call", callHelper);
+        // Per ES spec, Function.prototype is a callable function that returns undefined.
+        // It accepts any arguments and can be called without error.
+        var functionPrototype = new HostFunction((_, _) => Symbol.Undefined, realm, isConstructor: false);
+        functionPrototype.Properties.SetProperty("call", callHelper);
         if (realm.ObjectPrototype is not null)
         {
-            functionPrototype.SetPrototype(realm.ObjectPrototype);
+            functionPrototype.Properties.SetPrototype(realm.ObjectPrototype);
         }
+        // Set length to 0 as per spec
+        DefineConstantProperty(functionPrototype.Properties, "length", 0d, configurable: true);
 
         functionPrototype.SetProperty("constructor", functionConstructor);
         functionPrototype.SetHostedProperty("toString", FunctionPrototypeToString);

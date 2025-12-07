@@ -345,7 +345,7 @@ public static partial class TypedAstEvaluator
             {
                 _properties.SetPrototype(genFuncProto);
             }
-            else if (_realmState.FunctionPrototype is JsObject functionPrototype)
+            else if (_realmState.FunctionPrototype is { } functionPrototype)
             {
                 _properties.SetPrototype(functionPrototype);
             }

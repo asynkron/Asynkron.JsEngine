@@ -278,7 +278,7 @@ public static partial class TypedAstEvaluator
 
         private void InitializeProperties()
         {
-            if (_realmState.FunctionPrototype is JsObject functionPrototype)
+            if (_realmState.FunctionPrototype is { } functionPrototype)
             {
                 _properties.SetPrototype(functionPrototype);
             }

@@ -482,6 +482,18 @@ public static partial class StandardLibrary
 
             DefineBuiltinFunction(numberProtoObj, "toString", new HostFunction(NumberPrototypeToString), 1,
                 false);
+
+            DefineBuiltinFunction(numberProtoObj, "toFixed", new HostFunction(NumberPrototypeToFixed), 1,
+                false);
+
+            DefineBuiltinFunction(numberProtoObj, "toExponential", new HostFunction(NumberPrototypeToExponential), 1,
+                false);
+
+            DefineBuiltinFunction(numberProtoObj, "toPrecision", new HostFunction(NumberPrototypeToPrecision), 1,
+                false);
+
+            DefineBuiltinFunction(numberProtoObj, "toLocaleString", new HostFunction(NumberPrototypeToLocaleString), 0,
+                false);
         }
 
         numberConstructor.SetHostedProperty("isInteger", NumberIsInteger);
@@ -587,6 +599,111 @@ public static partial class StandardLibrary
                 default:
                     throw ThrowTypeError($"{methodName} called on non-number object", realm: realm);
             }
+        }
+
+        object? NumberPrototypeToFixed(object? thisValue, IReadOnlyList<object?> args)
+        {
+            var num = RequireNumberReceiver(thisValue, "Number.prototype.toFixed");
+            var fractionDigits = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
+            if (fractionDigits is < 0 or > 100)
+            {
+                throw ThrowRangeError("toFixed() digits argument must be between 0 and 100", realm: realm);
+            }
+
+            if (double.IsNaN(num))
+            {
+                return "NaN";
+            }
+
+            if (double.IsInfinity(num))
+            {
+                return num > 0 ? "Infinity" : "-Infinity";
+            }
+
+            return num.ToString("F" + fractionDigits, CultureInfo.InvariantCulture);
+        }
+
+        object? NumberPrototypeToExponential(object? thisValue, IReadOnlyList<object?> args)
+        {
+            var num = RequireNumberReceiver(thisValue, "Number.prototype.toExponential");
+
+            if (double.IsNaN(num))
+            {
+                return "NaN";
+            }
+
+            if (double.IsInfinity(num))
+            {
+                return num > 0 ? "Infinity" : "-Infinity";
+            }
+
+            if (args.Count == 0 || ReferenceEquals(args[0], Symbol.Undefined))
+            {
+                return num.ToString("e", CultureInfo.InvariantCulture);
+            }
+
+            var fractionDigits = (int)JsOps.ToNumber(args[0]);
+            if (fractionDigits is < 0 or > 100)
+            {
+                throw ThrowRangeError("toExponential() digits argument must be between 0 and 100", realm: realm);
+            }
+
+            return num.ToString("e" + fractionDigits, CultureInfo.InvariantCulture);
+        }
+
+        object? NumberPrototypeToPrecision(object? thisValue, IReadOnlyList<object?> args)
+        {
+            var num = RequireNumberReceiver(thisValue, "Number.prototype.toPrecision");
+
+            if (args.Count == 0 || ReferenceEquals(args[0], Symbol.Undefined))
+            {
+                return num.ToString(CultureInfo.InvariantCulture);
+            }
+
+            if (double.IsNaN(num))
+            {
+                return "NaN";
+            }
+
+            if (double.IsInfinity(num))
+            {
+                return num > 0 ? "Infinity" : "-Infinity";
+            }
+
+            var precision = (int)JsOps.ToNumber(args[0]);
+            if (precision is < 1 or > 100)
+            {
+                throw ThrowRangeError("toPrecision() precision argument must be between 1 and 100", realm: realm);
+            }
+
+            return num.ToString("G" + precision, CultureInfo.InvariantCulture);
+        }
+
+        object? NumberPrototypeToLocaleString(object? thisValue, IReadOnlyList<object?> args)
+        {
+            var num = RequireNumberReceiver(thisValue, "Number.prototype.toLocaleString");
+
+            var localesArg = args.GetArgument(0);
+            var optionsArg = args.GetArgument(1);
+
+            if (TryFormatWithIntlNumberFormat(num, localesArg, optionsArg, realm, out var formatted))
+            {
+                return formatted;
+            }
+
+            if (optionsArg is JsObject options)
+            {
+                var style = options.TryGetProperty("style", out var styleVal) ? styleVal?.ToString() : null;
+                if (string.Equals(style, "unit", StringComparison.OrdinalIgnoreCase) &&
+                    options.TryGetProperty("unit", out var unitVal) &&
+                    unitVal is not null &&
+                    !ReferenceEquals(unitVal, Symbol.Undefined))
+                {
+                    return $"{num.ToString(CultureInfo.InvariantCulture)} {unitVal}";
+                }
+            }
+
+            return num.ToString(CultureInfo.InvariantCulture);
         }
 
         object? NumberIsInteger(IReadOnlyList<object?> args)

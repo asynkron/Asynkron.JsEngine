@@ -13,7 +13,7 @@ public sealed class RealmState
     internal JsEngine? Engine { get; set; }
     public ILogger? Logger { get; set; }
     public JsObject? ObjectPrototype { get; set; }
-    public JsObject? FunctionPrototype { get; set; }
+    public IJsObjectLike? FunctionPrototype { get; set; }
     public IJsObjectLike? ArrayPrototype { get; set; }
     public JsObject? DatePrototype { get; set; }
     public JsObject? ErrorPrototype { get; set; }

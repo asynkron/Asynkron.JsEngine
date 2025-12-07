@@ -75,7 +75,7 @@ namespace Asynkron.JsEngine.JsTypes;
 
             _realmState = value;
             Properties.RealmState ??= value;
-            if (_realmState?.FunctionPrototype is JsObject functionPrototype &&
+            if (_realmState?.FunctionPrototype is { } functionPrototype &&
                 Properties.Prototype is null)
             {
                 Properties.SetPrototype(functionPrototype);
@@ -392,7 +392,7 @@ namespace Asynkron.JsEngine.JsTypes;
             return;
         }
 
-        if (RealmState?.FunctionPrototype is JsObject functionPrototype)
+        if (RealmState?.FunctionPrototype is { } functionPrototype)
         {
             Properties.SetPrototype(functionPrototype);
         }

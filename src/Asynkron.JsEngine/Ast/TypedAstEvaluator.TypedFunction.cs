@@ -92,7 +92,10 @@ public static partial class TypedAstEvaluator
             }
 
             // Functions expose a prototype object so instances created via `new` can inherit from it.
-            if (!IsArrowFunction && _isConstructorEnabled)
+            // Async functions do NOT have a prototype property per ES spec 15.8.3 (MakeConstructor is not called).
+            // We need to check both IsAsyncFunction and _wasAsyncFunction because the CPS transformer
+            // transforms async functions to sync with WasAsync=true.
+            if (!IsArrowFunction && !IsAsyncFunction && !_wasAsyncFunction && _isConstructorEnabled)
             {
                 var functionPrototype = new JsObject();
                 functionPrototype.RealmState = _realmState;
@@ -156,7 +159,9 @@ public static partial class TypedAstEvaluator
         public bool IsAsyncFunction { get; }
 
         internal bool IsClassConstructor => _isClassConstructor;
-        public bool DisallowConstruct => !_isConstructorEnabled;
+        // Async functions are never constructors per ES spec 15.8.3
+        // Use IsAsyncLike to catch both IsAsyncFunction and _wasAsyncFunction (CPS-transformed async)
+        public bool DisallowConstruct => !_isConstructorEnabled || IsAsyncLike;
 
         internal bool IsDerivedClassConstructor => _isClassConstructor && _isDerivedClassConstructor;
 

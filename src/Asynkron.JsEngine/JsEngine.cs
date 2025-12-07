@@ -1362,6 +1362,53 @@ public sealed class JsEngine : IAsyncDisposable
         return entry;
     }
 
+    /// <summary>
+    /// Loads a module entry for instantiation only (does not evaluate).
+    /// This is used during import binding hoisting to set up bindings without
+    /// triggering evaluation of imported modules.
+    /// </summary>
+    private ModuleEntry LoadModuleForInstantiation(
+        string modulePath,
+        string? referrerPath,
+        ImportPhase phase,
+        HashSet<string>? exportStarSet = null)
+    {
+        var resolvedPath = NormalizeModulePath(modulePath, referrerPath);
+
+        // Check if module is already loaded
+        if (_moduleRegistry.TryGetValue(resolvedPath, out var cachedEntry))
+        {
+            // Only instantiate, don't evaluate
+            EnsureModuleInstantiated(cachedEntry, phase, exportStarSet);
+            return cachedEntry;
+        }
+
+        // Load module source
+        string source;
+        if (_moduleLoader != null)
+        {
+            source = _moduleLoader(resolvedPath, referrerPath);
+        }
+        else
+        {
+            source = File.ReadAllText(resolvedPath);
+        }
+
+        // Parse the module
+        var program = ParseForExecution(source, true, true);
+
+        // Create a module exports object
+        var exports = new JsObject();
+        var moduleEnv = CreateModuleEnvironment();
+        var entry = CreateModuleEntry(EnsureStrictProgram(program), moduleEnv, exports, resolvedPath);
+        _moduleRegistry[resolvedPath] = entry;
+
+        // Only instantiate, don't evaluate
+        EnsureModuleInstantiated(entry, phase, exportStarSet);
+
+        return entry;
+    }
+
     private static string NormalizeModulePath(string modulePath, string? referrerPath)
     {
         var specifier = (modulePath ?? string.Empty).Replace('\\', '/');
@@ -1507,13 +1554,13 @@ public sealed class JsEngine : IAsyncDisposable
                             }
 
                             var symbol = identifier.Name;
-                            var initialValue = variableDeclaration.Kind == VariableKind.Var
-                                ? Symbol.Undefined
-                                : UninitializedExportMarker;
+                            var isVar = variableDeclaration.Kind == VariableKind.Var;
+                            var exportInitValue = isVar ? Symbol.Undefined : UninitializedExportMarker;
+                            var envInitValue = isVar ? (object?)Symbol.Undefined : JsEnvironment.Uninitialized;
 
-                            exports[symbol.Name] = initialValue;
-                            moduleEnv.Define(symbol, initialValue,
-                                isLexical: variableDeclaration.Kind != VariableKind.Var,
+                            exports[symbol.Name] = exportInitValue;
+                            moduleEnv.Define(symbol, envInitValue,
+                                isLexical: !isVar,
                                 blocksFunctionScopeOverride: false);
                         }
 
@@ -1523,7 +1570,7 @@ public sealed class JsEngine : IAsyncDisposable
                     foreach (var symbol in GetDeclaredSymbols(exportDeclaration.Declaration))
                     {
                         exports[symbol.Name] = UninitializedExportMarker;
-                        moduleEnv.Define(symbol, UninitializedExportMarker, isLexical: true,
+                        moduleEnv.Define(symbol, JsEnvironment.Uninitialized, isLexical: true,
                             blocksFunctionScopeOverride: false);
                     }
 
@@ -1562,17 +1609,258 @@ public sealed class JsEngine : IAsyncDisposable
             }
         }
 
-        // Per ES spec, all function declarations in a module must be hoisted
-        // (initialized with their function value) before the module body executes.
-        // This applies to both exported and non-exported function declarations.
-        HoistModuleFunctionDeclarations(program, moduleEnv);
+        // Per ES spec, import bindings must be created during module instantiation
+        HoistImportBindings(program, moduleEnv, modulePath, phase);
+
+        // Per ES spec, all var declarations and function declarations in a module must be hoisted
+        // before the module body executes.
+        HoistModuleDeclarations(program, moduleEnv);
+    }
+
+    private void HoistImportBindings(ProgramNode program, JsEnvironment moduleEnv, string? modulePath, ImportPhase phase)
+    {
+        foreach (var statement in program.Body)
+        {
+            if (statement is ImportStatement importStatement)
+            {
+                // Load and instantiate the module but DON'T evaluate it yet
+                var importedModule = LoadModuleForInstantiation(importStatement.ModulePath, modulePath, phase);
+                EnsureModuleInstantiated(importedModule, phase);
+
+                // Handle default import
+                if (importStatement.DefaultBinding is { } defaultBinding)
+                {
+                    CreateImportBinding(moduleEnv, defaultBinding, importedModule, Symbol.Intern("default"));
+                }
+
+                // Handle namespace import
+                if (importStatement.NamespaceBinding is { } nsBinding)
+                {
+                    // Namespace binding is the whole module namespace object
+                    var ns = GetModuleNamespace(importedModule);
+                    moduleEnv.Define(nsBinding, ns, isLexical: true, blocksFunctionScopeOverride: false);
+                }
+
+                // Handle named imports
+                foreach (var specifier in importStatement.NamedImports)
+                {
+                    CreateImportBinding(moduleEnv, specifier.Local, importedModule, specifier.Imported);
+                }
+            }
+        }
+    }
+
+    private void CreateImportBinding(JsEnvironment moduleEnv, Symbol localName, ModuleEntry importedModule, Symbol importedName)
+    {
+        // Resolve the export - it may be re-exported from another module
+        var resolved = ResolveExport(importedModule, importedName.Name);
+        if (resolved == null)
+        {
+            throw new InvalidOperationException($"SyntaxError: The requested module '{importedModule.Path}' does not provide an export named '{importedName.Name}'");
+        }
+
+        // Create an import binding that references the resolved module and binding
+        // The binding is created as a getter that reads from the source module
+        var (sourceModule, bindingName) = resolved.Value;
+
+        // Create a binding that proxies to the source module's environment
+        moduleEnv.DefineImportBinding(localName, sourceModule.Environment, bindingName);
+    }
+
+    private (ModuleEntry Module, Symbol BindingName)? ResolveExport(ModuleEntry module, string exportName)
+    {
+        // Check if this module directly exports the name
+        if (module.Exports.TryGetValue(exportName, out _))
+        {
+            // Check if it's re-exported from another module
+            foreach (var statement in module.Program.Body)
+            {
+                switch (statement)
+                {
+                    case ExportNamedStatement { FromModule: not null } exportNamed:
+                        foreach (var specifier in exportNamed.Specifiers)
+                        {
+                            if (specifier.Exported.Name == exportName)
+                            {
+                                var sourceModule = LoadModuleForInstantiation(exportNamed.FromModule, module.Path, ImportPhase.Module);
+                                return ResolveExport(sourceModule, specifier.Local.Name);
+                            }
+                        }
+                        break;
+                    case ExportAllStatement exportAll:
+                        if (exportName != "default")
+                        {
+                            var sourceModule = LoadModuleForInstantiation(exportAll.ModulePath, module.Path, ImportPhase.Module);
+                            var resolved = ResolveExport(sourceModule, exportName);
+                            if (resolved != null) return resolved;
+                        }
+                        break;
+                }
+            }
+            // It's a local export
+            return (module, Symbol.Intern(exportName));
+        }
+
+        return null;
     }
 
     /// <summary>
-    /// Hoists all function declarations in the module to their function values.
-    /// Per ES spec, function declarations are initialized during module instantiation.
+    /// Hoists all var, lexical, and function declarations in the module.
+    /// Per ES spec:
+    /// - Var declarations are initialized to undefined
+    /// - Lexical declarations (let/const/class) are created but uninitialized (TDZ)
+    /// - Function declarations are initialized with their function value
     /// </summary>
-    private void HoistModuleFunctionDeclarations(ProgramNode program, JsEnvironment moduleEnv)
+    private void HoistModuleDeclarations(ProgramNode program, JsEnvironment moduleEnv)
+    {
+        // First pass: collect and hoist var declarations
+        HoistVarDeclarations(program, moduleEnv);
+
+        // Second pass: hoist lexical declarations (let/const/class) in TDZ
+        HoistLexicalDeclarations(program, moduleEnv);
+
+        // Third pass: hoist function declarations (overwrites any var with same name)
+        HoistFunctionDeclarations(program, moduleEnv);
+    }
+
+    private void HoistLexicalDeclarations(ProgramNode program, JsEnvironment moduleEnv)
+    {
+        foreach (var statement in program.Body)
+        {
+            CollectAndHoistLexicals(statement, moduleEnv);
+        }
+    }
+
+    private void CollectAndHoistLexicals(StatementNode statement, JsEnvironment moduleEnv)
+    {
+        switch (statement)
+        {
+            case VariableDeclaration { Kind: VariableKind.Let or VariableKind.Const } lexDecl:
+                foreach (var declarator in lexDecl.Declarators)
+                {
+                    HoistLexicalBinding(declarator.Target, moduleEnv, lexDecl.Kind == VariableKind.Const);
+                }
+                break;
+            case ClassDeclaration classDecl:
+                // Class declarations are lexically scoped and start uninitialized
+                if (!moduleEnv.HasBinding(classDecl.Name))
+                {
+                    moduleEnv.Define(classDecl.Name, JsEnvironment.Uninitialized, isLexical: true, blocksFunctionScopeOverride: false);
+                }
+                break;
+            // Note: exported let/const/class are already handled by PredeclareExportNames
+        }
+    }
+
+    private void HoistLexicalBinding(BindingTarget target, JsEnvironment moduleEnv, bool isConst)
+    {
+        switch (target)
+        {
+            case IdentifierBinding id:
+                if (!moduleEnv.HasBinding(id.Name))
+                {
+                    moduleEnv.Define(id.Name, JsEnvironment.Uninitialized, isLexical: true, blocksFunctionScopeOverride: false, isConst: isConst);
+                }
+                break;
+            case ArrayBinding arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    if (element.Target is { } binding)
+                    {
+                        HoistLexicalBinding(binding, moduleEnv, isConst);
+                    }
+                }
+                if (arrayBinding.RestElement is { } rest)
+                {
+                    HoistLexicalBinding(rest, moduleEnv, isConst);
+                }
+                break;
+            case ObjectBinding objectBinding:
+                foreach (var prop in objectBinding.Properties)
+                {
+                    HoistLexicalBinding(prop.Target, moduleEnv, isConst);
+                }
+                if (objectBinding.RestElement is { } objRest)
+                {
+                    HoistLexicalBinding(objRest, moduleEnv, isConst);
+                }
+                break;
+        }
+    }
+
+    private void HoistVarDeclarations(ProgramNode program, JsEnvironment moduleEnv)
+    {
+        foreach (var statement in program.Body)
+        {
+            CollectAndHoistVars(statement, moduleEnv);
+        }
+    }
+
+    private void CollectAndHoistVars(StatementNode statement, JsEnvironment moduleEnv)
+    {
+        switch (statement)
+        {
+            case VariableDeclaration { Kind: VariableKind.Var } varDecl:
+                foreach (var declarator in varDecl.Declarators)
+                {
+                    HoistVarBinding(declarator.Target, moduleEnv);
+                }
+                break;
+            case ForStatement { Initializer: VariableDeclaration { Kind: VariableKind.Var } forVarDecl }:
+                foreach (var declarator in forVarDecl.Declarators)
+                {
+                    HoistVarBinding(declarator.Target, moduleEnv);
+                }
+                break;
+            case ForEachStatement { DeclarationKind: VariableKind.Var } forEach:
+                HoistVarBinding(forEach.Target, moduleEnv);
+                break;
+            case ExportDeclarationStatement { Declaration: VariableDeclaration { Kind: VariableKind.Var } exportVarDecl }:
+                foreach (var declarator in exportVarDecl.Declarators)
+                {
+                    HoistVarBinding(declarator.Target, moduleEnv);
+                }
+                break;
+        }
+    }
+
+    private void HoistVarBinding(BindingTarget target, JsEnvironment moduleEnv)
+    {
+        switch (target)
+        {
+            case IdentifierBinding id:
+                if (!moduleEnv.HasBinding(id.Name))
+                {
+                    moduleEnv.Define(id.Name, Symbol.Undefined, isLexical: false, blocksFunctionScopeOverride: false);
+                }
+                break;
+            case ArrayBinding arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    if (element.Target is { } binding)
+                    {
+                        HoistVarBinding(binding, moduleEnv);
+                    }
+                }
+                if (arrayBinding.RestElement is { } rest)
+                {
+                    HoistVarBinding(rest, moduleEnv);
+                }
+                break;
+            case ObjectBinding objectBinding:
+                foreach (var prop in objectBinding.Properties)
+                {
+                    HoistVarBinding(prop.Target, moduleEnv);
+                }
+                if (objectBinding.RestElement is { } objRest)
+                {
+                    HoistVarBinding(objRest, moduleEnv);
+                }
+                break;
+        }
+    }
+
+    private void HoistFunctionDeclarations(ProgramNode program, JsEnvironment moduleEnv)
     {
         foreach (var statement in program.Body)
         {

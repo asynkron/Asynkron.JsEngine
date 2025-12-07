@@ -1328,7 +1328,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
     private bool IsRegexContext()
     {
         // A regex literal can appear after tokens that cannot be followed by a division operator
-        // Common contexts: =, (, [, ,, {, :, ;, !, &, |, ?, return, throw, etc.
+        // Common contexts: =, (, [, ,, {, :, ;, !, &, |, ?, return, throw, await, yield, etc.
         if (_tokens.Count == 0)
         {
             return true; // Start of input
@@ -1358,7 +1358,48 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             TokenType.Greater or
             TokenType.GreaterEqual or
             TokenType.Less or
-            TokenType.LessEqual;
+            TokenType.LessEqual or
+            // Keywords that can be followed by regex
+            TokenType.Await or
+            TokenType.Yield or
+            TokenType.Case or
+            TokenType.Typeof or
+            TokenType.Void or
+            TokenType.Delete or
+            TokenType.In or
+            TokenType.Instanceof or
+            TokenType.Of or
+            // Assignment operators
+            TokenType.PlusEqual or
+            TokenType.MinusEqual or
+            TokenType.StarEqual or
+            TokenType.SlashEqual or
+            TokenType.PercentEqual or
+            TokenType.StarStarEqual or
+            TokenType.AmpEqual or
+            TokenType.PipeEqual or
+            TokenType.CaretEqual or
+            TokenType.LessLessEqual or
+            TokenType.GreaterGreaterEqual or
+            TokenType.GreaterGreaterGreaterEqual or
+            TokenType.AmpAmpEqual or
+            TokenType.PipePipeEqual or
+            TokenType.QuestionQuestionEqual or
+            // Binary operators
+            TokenType.Plus or
+            TokenType.Minus or
+            TokenType.Star or
+            TokenType.Percent or
+            TokenType.StarStar or
+            TokenType.Amp or
+            TokenType.Pipe or
+            TokenType.Caret or
+            TokenType.LessLess or
+            TokenType.GreaterGreater or
+            TokenType.GreaterGreaterGreater or
+            TokenType.Tilde or
+            // Arrow
+            TokenType.Arrow;
     }
 
     private void ReadRegexLiteral()

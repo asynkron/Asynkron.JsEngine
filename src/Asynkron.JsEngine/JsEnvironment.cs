@@ -131,6 +131,15 @@ public sealed class JsEnvironment
         NotifyBindingObservers(name, value);
     }
 
+    /// <summary>
+    /// Defines an import binding that indirectly references a binding in another module's environment.
+    /// Import bindings are immutable - they always read from the source module.
+    /// </summary>
+    internal void DefineImportBinding(Symbol localName, JsEnvironment sourceEnvironment, Symbol bindingName)
+    {
+        _values[localName] = new ImportBindingWrapper(sourceEnvironment, bindingName);
+    }
+
     public void DefineFunctionScoped(
         Symbol name,
         object? value,
@@ -1737,7 +1746,7 @@ public sealed class JsEnvironment
             : firstToken.ToLowerInvariant();
     }
 
-    private sealed class Binding(
+    private class Binding(
         object? value,
         bool isConst,
         bool isGlobalConstant,
@@ -1745,9 +1754,9 @@ public sealed class JsEnvironment
         bool blocksFunctionScopeOverride,
         bool canDelete)
     {
-        public object? Value { get; set; } = value;
+        public virtual object? Value { get; set; } = value;
 
-        public bool IsConst { get; } = isConst;
+        public virtual bool IsConst { get; } = isConst;
 
         public bool IsGlobalConstant { get; } = isGlobalConstant;
 
@@ -1756,6 +1765,8 @@ public sealed class JsEnvironment
         public bool BlocksFunctionScopeOverride { get; private set; } = blocksFunctionScopeOverride;
 
         public bool CanDelete { get; private set; } = canDelete;
+
+        public virtual bool IsImportBinding => false;
 
         public void UpgradeLexical(bool isLexical, bool blocksFunctionScopeOverride)
         {
@@ -1769,6 +1780,26 @@ public sealed class JsEnvironment
                 BlocksFunctionScopeOverride = true;
             }
         }
+    }
+
+    /// <summary>
+    /// An import binding that proxies reads to the source module's environment.
+    /// Import bindings are immutable (assignment throws TypeError).
+    /// </summary>
+    private sealed class ImportBindingWrapper(JsEnvironment sourceEnvironment, Symbol bindingName)
+        : Binding(null, isConst: true, isGlobalConstant: false, isLexical: true, blocksFunctionScopeOverride: false, canDelete: false)
+    {
+        public JsEnvironment SourceEnvironment { get; } = sourceEnvironment;
+        public Symbol BindingName { get; } = bindingName;
+
+        public override object? Value
+        {
+            get => SourceEnvironment.Get(BindingName);
+            set => throw new InvalidOperationException("TypeError: Cannot assign to import binding");
+        }
+
+        public override bool IsConst => true;
+        public override bool IsImportBinding => true;
     }
 }
 

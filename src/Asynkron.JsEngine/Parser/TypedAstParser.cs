@@ -2845,7 +2845,7 @@ public sealed class TypedAstParser(
             Token templateToken)
         {
             var parts = templateToken.Literal as List<object?> ?? [];
-            var cookedStrings = new List<string>();
+            var cookedStrings = new List<string?>();
             var rawStrings = new List<string>();
             var expressions = ImmutableArray.CreateBuilder<ExpressionNode>();
 
@@ -2853,13 +2853,16 @@ public sealed class TypedAstParser(
             {
                 if (part is TemplateStringPart templateString)
                 {
-                    if (InStrictContext && templateString.Cooked.HasLegacyOctal)
-                    {
-                        throw new ParseException("Legacy octal escape sequences are not allowed in strict mode.",
-                            templateToken, _source);
-                    }
+                    // Per ES2018 Tagged Template Literal Revision:
+                    // - Invalid escape sequences should NOT throw in tagged templates
+                    // - Instead, they make the cooked value undefined while raw is preserved
+                    // - Legacy octals (\1-\7, \01, etc.) are always invalid in tagged templates
+                    //   (Note: \0 without following octal digit is still valid as null character)
+                    var hasInvalidEscape = templateString.Cooked.HasInvalidEscape ||
+                                           templateString.Cooked.HasLegacyOctal;
 
-                    cookedStrings.Add(templateString.Cooked.Value);
+                    // For invalid escape sequences, cooked value is null (undefined in JS)
+                    cookedStrings.Add(hasInvalidEscape ? null : templateString.Cooked.Value);
                     rawStrings.Add(templateString.RawText);
                 }
                 else if (part is string text)
@@ -2879,7 +2882,7 @@ public sealed class TypedAstParser(
                 rawStrings.Add(string.Empty);
             }
 
-            var stringsArray = BuildTemplateStringsArray(cookedStrings, templateToken);
+            var stringsArray = BuildTemplateStringsArrayWithNullable(cookedStrings, templateToken);
             var rawStringsArray = BuildTemplateStringsArray(rawStrings, templateToken);
 
             return new TaggedTemplateExpression(CreateSourceReference(templateToken), tagExpression, stringsArray,
@@ -2892,6 +2895,21 @@ public sealed class TypedAstParser(
             foreach (var text in values)
             {
                 var literal = new LiteralExpression(null, text);
+                elements.Add(new ArrayElement(null, literal, false));
+            }
+
+            return new ArrayExpression(CreateSourceReference(templateToken), elements.ToImmutable());
+        }
+
+        private ArrayExpression BuildTemplateStringsArrayWithNullable(IReadOnlyList<string?> values, Token templateToken)
+        {
+            var elements = ImmutableArray.CreateBuilder<ArrayElement>(values.Count);
+            foreach (var text in values)
+            {
+                // If text is null, the cooked value is undefined (ES2018 tagged template literal revision)
+                // Use Symbol.Undefined to represent JavaScript's undefined value
+                object? value = text is null ? Symbol.Undefined : text;
+                var literal = new LiteralExpression(null, value);
                 elements.Add(new ArrayElement(null, literal, false));
             }
 

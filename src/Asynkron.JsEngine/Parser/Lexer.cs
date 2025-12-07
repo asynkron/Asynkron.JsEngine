@@ -1615,6 +1615,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
     {
         var result = new StringBuilder(rawString.Length);
         var hasLegacyOctal = false;
+        var hasInvalidEscape = false;
         var i = 0;
         while (i < rawString.Length)
         {
@@ -1661,6 +1662,15 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                         i += 1 + length;
                         break;
                     }
+                    case '8':
+                    case '9':
+                        // \8 and \9 are invalid escape sequences (not valid octal)
+                        // In tagged templates, they make the cooked value undefined
+                        hasInvalidEscape = true;
+                        // Append the digit as-is (sloppy mode behavior)
+                        result.Append(nextChar);
+                        i += 2;
+                        break;
                     case '\\':
                         result.Append('\\');
                         i += 2;
@@ -1685,7 +1695,8 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                             }
                             else
                             {
-                                // Invalid hex, keep the backslash and x
+                                // Invalid hex escape sequence - mark as invalid for tagged templates
+                                hasInvalidEscape = true;
                                 result.Append('\\');
                                 result.Append('x');
                                 i += 2;
@@ -1693,6 +1704,8 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                         }
                         else
                         {
+                            // Incomplete hex escape sequence - mark as invalid
+                            hasInvalidEscape = true;
                             result.Append('\\');
                             result.Append('x');
                             i += 2;
@@ -1717,7 +1730,8 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                                 }
                             }
 
-                            // Invalid escape, keep the backslash and u
+                            // Invalid unicode escape (e.g., \u{10FFFFF}, \u{g}, \u{0 without closing brace)
+                            hasInvalidEscape = true;
                             result.Append('\\');
                             result.Append('u');
                             i += 2;
@@ -1735,7 +1749,8 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                             }
                             else
                             {
-                                // Invalid hex, keep the backslash and u
+                                // Invalid unicode escape (e.g., \u0g, \uXXXX where X is not hex)
+                                hasInvalidEscape = true;
                                 result.Append('\\');
                                 result.Append('u');
                                 i += 2;
@@ -1743,6 +1758,8 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                         }
                         else
                         {
+                            // Incomplete unicode escape (e.g., \u0, \u00, \u000)
+                            hasInvalidEscape = true;
                             result.Append('\\');
                             result.Append('u');
                             i += 2;
@@ -1789,7 +1806,9 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             }
         }
 
-        return new DecodedString(result.ToString(), hasLegacyOctal);
+        // For tagged templates, if there are invalid escapes, the cooked value should be undefined (null)
+        var cookedValue = hasInvalidEscape ? null : result.ToString();
+        return new DecodedString(cookedValue, hasLegacyOctal, hasInvalidEscape);
 
         static (int Value, int Length) DecodeLegacyOctal(string raw, int start)
         {

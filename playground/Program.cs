@@ -10,7 +10,16 @@ internal static class Program
         try
         {
             var result = await engine.Evaluate("""
-console.log('Playground test');
+// Test invalid escape sequences in tagged templates
+function tag(strs) {
+    console.log('strs[0]:', strs[0]);
+    console.log('strs[0] === undefined:', strs[0] === undefined);
+    console.log('strs.raw[0]:', strs.raw[0]);
+}
+
+// Test with incomplete unicode escape
+tag`\u{0`;
+
 'done';
 """);
 

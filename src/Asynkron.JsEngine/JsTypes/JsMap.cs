@@ -58,6 +58,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
     public bool IsSealed => _properties.IsSealed;
+    public bool IsFrozen => _properties.IsFrozen;
 
     IEnumerable<string> IJsObjectLike.Keys => _properties.Keys;
 

@@ -43,10 +43,7 @@ namespace Asynkron.JsEngine.JsTypes;
         RealmState? realmState,
         bool isConstructor = true)
     {
-        if (handler is null)
-        {
-            throw new ArgumentNullException(nameof(handler));
-        }
+        ArgumentNullException.ThrowIfNull(handler);
 
         RealmState = realmState;
         _isConstructor = isConstructor;
@@ -303,6 +300,7 @@ namespace Asynkron.JsEngine.JsTypes;
         Properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
     public bool IsSealed => Properties.IsSealed;
+    public bool IsFrozen => Properties.IsFrozen;
 
     public IEnumerable<string> Keys
     {

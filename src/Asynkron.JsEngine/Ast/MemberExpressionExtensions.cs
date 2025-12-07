@@ -79,7 +79,12 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
-            var handle = PropertyHandle.Resolve(target, propertyName, context, context.CurrentScope.IsStrict);
+            var handle = PropertyHandle.Resolve(
+                target,
+                propertyName,
+                context,
+                context.CurrentScope.IsStrict,
+                allowPrivate: !expression.IsComputed);
             var value = handle.GetValue();
             return context.ShouldStopEvaluation ? Symbol.Undefined : value;
         }
@@ -87,12 +92,30 @@ public static partial class TypedAstEvaluator
         private (object? Value, SuperBinding Binding) ResolveSuperMember(JsEnvironment environment,
             EvaluationContext context)
         {
+            // Per ES spec 12.3.5.3 MakeSuperPropertyReference:
+            // 3. Let actualThis be ? env.GetThisBinding().
+            // This throws ReferenceError if this is uninitialized
             if (!context.IsThisInitialized)
             {
                 throw CreateSuperReferenceError(environment, context, null);
             }
 
             var binding = ExpectSuperBinding(environment, context);
+
+            // Per ES spec 12.3.5.3 MakeSuperPropertyReference:
+            // 4. Let baseValue be ? env.GetSuperBase().
+            // 5. Let bv be ? RequireObjectCoercible(baseValue).
+            // If the prototype (super base) is null or undefined, throw TypeError
+            if (binding.Prototype is null)
+            {
+                var error = StandardLibrary.CreateTypeError(
+                    "Cannot read properties of null (reading from super)",
+                    context,
+                    context.RealmState);
+                context.SetThrow(error);
+                return (Symbol.Undefined, binding);
+            }
+
             var propertyValue = EvaluateExpression(expression.Property, environment, context);
             if (context.ShouldStopEvaluation)
             {

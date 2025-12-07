@@ -47,6 +47,7 @@ public sealed class JsWeakSet : IJsObjectLike, IPropertyDefinitionHost, IExtensi
         _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
     public bool IsSealed => _properties.IsSealed;
+    public bool IsFrozen => _properties.IsFrozen;
 
     public IEnumerable<string> Keys => _properties.Keys;
 

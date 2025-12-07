@@ -23,7 +23,7 @@ public static partial class TypedAstEvaluator
                     return;
                 }
 
-                var baseDisplayName = member.Name.IsPrivateName() ? member.Name : propertyName;
+                var baseDisplayName = member.IsPrivate ? member.Name : propertyName;
                 var displayName = member.Kind switch
                 {
                     ClassMemberKind.Getter => $"get {BuildFunctionNameDisplay(baseDisplayName)}",
@@ -66,7 +66,7 @@ public static partial class TypedAstEvaluator
                         typedFunction.SetHomeObject(homeObject);
                     }
 
-                    typedFunction.EnsureHasName(displayName);
+                    typedFunction.EnsureHasName(displayName, overwriteExisting: true);
                 }
                 else if (value is TypedGeneratorFactory generatorFactory)
                 {
@@ -76,7 +76,7 @@ public static partial class TypedAstEvaluator
                         generatorFactory.SetHomeObject(homeObject);
                     }
 
-                    generatorFactory.EnsureHasName(displayName);
+                    generatorFactory.EnsureHasName(displayName, overwriteExisting: true);
                 }
                 else if (value is AsyncGeneratorFactory asyncGeneratorFactory)
                 {
@@ -86,7 +86,7 @@ public static partial class TypedAstEvaluator
                         asyncGeneratorFactory.SetHomeObject(homeObject);
                     }
 
-                    asyncGeneratorFactory.EnsureHasName(displayName);
+                    asyncGeneratorFactory.EnsureHasName(displayName, overwriteExisting: true);
                 }
                 else if (value is IFunctionNameTarget nameTarget)
                 {

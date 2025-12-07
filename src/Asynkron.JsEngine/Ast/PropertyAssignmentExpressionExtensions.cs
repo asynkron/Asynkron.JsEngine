@@ -73,7 +73,16 @@ public static partial class TypedAstEvaluator
                         context.RealmState);
                 }
 
-                binding.SetProperty(superPropertyName, superAssignedValue);
+                // Per ES spec 6.2.3.2 PutValue, if set fails in strict mode, throw TypeError
+                if (!binding.TrySetProperty(superPropertyName, superAssignedValue, out _) &&
+                    context.CurrentScope.IsStrict)
+                {
+                    throw StandardLibrary.ThrowTypeError(
+                        $"Cannot assign to read only property '{superPropertyName}' of object",
+                        context,
+                        context.RealmState);
+                }
+
                 return superAssignedValue;
             }
 
@@ -97,7 +106,7 @@ public static partial class TypedAstEvaluator
                     return Symbol.Undefined;
                 }
 
-                var reference = CreatePropertyReference(target, propertyName, context);
+                var reference = CreatePropertyReference(target, propertyName, context, allowPrivate: true);
                 if (TryEvaluateCompoundAssignmentValue(expression.Value, reference, environment, context,
                         out var compoundValue))
                 {
@@ -129,7 +138,7 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
-            var finalReference = CreatePropertyReference(target, finalPropertyName, context);
+            var finalReference = CreatePropertyReference(target, finalPropertyName, context, allowPrivate: true);
             finalReference.SetValue(assignedValue);
             return assignedValue;
         }

@@ -237,7 +237,8 @@ public sealed record ClassMember(
     FunctionExpression Function,
     bool IsStatic,
     bool IsComputed = false,
-    ExpressionNode? ComputedName = null) : AstNode(Source);
+    ExpressionNode? ComputedName = null,
+    bool IsPrivate = false) : AstNode(Source);
 
 /// <summary>
 ///     Distinguishes between regular methods, getters and setters.

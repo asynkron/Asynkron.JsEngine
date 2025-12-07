@@ -34,9 +34,9 @@ internal static class ClassMemberEmitter
             var descriptor = new PropertyDescriptor
             {
                 Value = callable,
-                Writable = propertyName.IsPrivateName() ? false : true,
+                Writable = member.IsPrivate ? false : true,
                 Enumerable = false,
-                Configurable = propertyName.IsPrivateName() ? false : true,
+                Configurable = member.IsPrivate ? false : true,
                 HasValue = true,
                 HasWritable = true,
                 HasEnumerable = true,

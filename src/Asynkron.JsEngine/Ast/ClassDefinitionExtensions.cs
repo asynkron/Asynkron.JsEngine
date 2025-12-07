@@ -135,7 +135,7 @@ public static partial class TypedAstEvaluator
         private PrivateNameScope? CreatePrivateNameScope()
         {
             var hasPrivateFields = definition.Fields.Any(f => f.IsPrivate);
-            var hasPrivateMembers = definition.Members.Any(m => m.Name.IsPrivateName());
+            var hasPrivateMembers = definition.Members.Any(m => m.IsPrivate);
             return hasPrivateFields || hasPrivateMembers ? new PrivateNameScope() : null;
         }
 

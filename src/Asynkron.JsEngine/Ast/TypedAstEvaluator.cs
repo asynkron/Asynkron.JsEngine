@@ -866,7 +866,7 @@ public static partial class TypedAstEvaluator
             return moduleNamespace.HasExport(propertyName);
         }
 
-        if (propertyName.IsPrivateName())
+        if (propertyName.IsPrivateSlotName())
         {
             var handle = PropertyHandle.Resolve(target, propertyName, context, context.CurrentScope.IsStrict);
             if (context.ShouldStopEvaluation)

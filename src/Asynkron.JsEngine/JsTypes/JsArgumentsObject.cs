@@ -130,6 +130,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         _backing is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
     public bool IsSealed => _backing.IsSealed;
+    public bool IsFrozen => _backing.IsFrozen;
 
     public IEnumerable<string> Keys => _backing.Keys;
 

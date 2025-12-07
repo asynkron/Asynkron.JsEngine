@@ -321,7 +321,12 @@ public static partial class TypedAstEvaluator
                     };
                 }
 
-                var handle = PropertyHandle.Resolve(target, propertyName, context, context.CurrentScope.IsStrict);
+                var handle = PropertyHandle.Resolve(
+                    target,
+                    propertyName,
+                    context,
+                    context.CurrentScope.IsStrict,
+                    allowPrivate: !member.IsComputed);
                 var value = handle.GetValue();
                 if (context.ShouldStopEvaluation)
                 {
@@ -381,7 +386,12 @@ public static partial class TypedAstEvaluator
                         return false;
                     }
 
-                    var handle = PropertyHandle.Resolve(target, propertyValue, context, context.CurrentScope.IsStrict);
+                    var handle = PropertyHandle.Resolve(
+                        target,
+                        propertyValue,
+                        context,
+                        context.CurrentScope.IsStrict,
+                        allowPrivate: !member.IsComputed);
                     return handle.Delete();
                 }
                 case IdentifierExpression identifier when context.CurrentScope.IsStrict:

@@ -58,6 +58,7 @@ public sealed class HtmlDdaValue : IIsHtmlDda, IJsCallable, IJsObjectLike, IProp
 
     public JsObject? Prototype => _backing.Prototype;
     public bool IsSealed => _backing.IsSealed;
+    public bool IsFrozen => _backing.IsFrozen;
     public IEnumerable<string> Keys => _backing.Keys;
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)

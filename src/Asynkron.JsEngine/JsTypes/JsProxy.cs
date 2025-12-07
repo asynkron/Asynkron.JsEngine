@@ -16,6 +16,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     IPrototypeAccessorProvider, IPrivateBrandHolder
 {
     private readonly JsObject _meta = new();
+    private readonly JsObject _privateStorage = new();
     private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
     private readonly RealmState? _realm;
 
@@ -24,9 +25,17 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         Target = target ?? throw new ArgumentNullException(nameof(target));
         Handler = handler ?? throw new ArgumentNullException(nameof(handler));
         _realm = realm;
+        _privateStorage.RealmState = realm;
         if (Target is JsObject { Prototype: not null } jsObject)
         {
             _meta.SetPrototype(jsObject.Prototype);
+            _privateStorage.SetPrototype(_meta.Prototype);
+        }
+        else if (_meta.Prototype is null && Target is IPrototypeAccessorProvider provider &&
+                 provider.PrototypeAccessor is { } protoAccessor)
+        {
+            _meta.SetPrototype(protoAccessor);
+            _privateStorage.SetPrototype(_meta.Prototype);
         }
     }
 
@@ -52,6 +61,8 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         _meta is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
     public bool IsSealed => Target.IsSealed;
+
+    public bool IsFrozen => Target.IsFrozen;
 
     public IEnumerable<string> Keys => Target.Keys;
 
@@ -112,6 +123,11 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public bool TryGetProperty(string name, object? receiver, out object? value)
     {
+        if (name.IsPrivateSlotName())
+        {
+            return _privateStorage.TryGetProperty(name, receiver ?? this, out value);
+        }
+
         if (TryGetTrap("get", out var trap))
         {
             var args = new[] { Target, DecodePropertyKey(name), receiver ?? this };
@@ -129,6 +145,12 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public void SetProperty(string name, object? value, object? receiver)
     {
+        if (name.IsPrivateSlotName())
+        {
+            _privateStorage.SetProperty(name, value, receiver ?? this);
+            return;
+        }
+
         if (TryGetTrap("set", out var trap))
         {
             var args = new[] { Target, DecodePropertyKey(name), value, receiver ?? this };
@@ -151,6 +173,12 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
     {
+        if (name.IsPrivateSlotName())
+        {
+            _privateStorage.DefineProperty(name, descriptor);
+            return;
+        }
+
         if (TryGetTrap("defineProperty", out var trap))
         {
             var descriptorObject = CreateDescriptorObject(descriptor);
@@ -170,6 +198,11 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
     {
+        if (name.IsPrivateSlotName())
+        {
+            return null;
+        }
+
         if (TryGetTrap("getOwnPropertyDescriptor", out var trap))
         {
             var args = new[] { Target, DecodePropertyKey(name) };
@@ -198,11 +231,13 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             }
 
             _meta.SetPrototype(candidate);
+            _privateStorage.SetPrototype(_meta.Prototype);
             return;
         }
 
         Target.SetPrototype(candidate);
         _meta.SetPrototype(candidate);
+        _privateStorage.SetPrototype(_meta.Prototype);
     }
 
     public void Seal()
@@ -224,6 +259,11 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
     {
+        if (name.IsPrivateSlotName())
+        {
+            return _privateStorage.TryDefineProperty(name, descriptor);
+        }
+
         if (TryGetTrap("defineProperty", out var trap))
         {
             var descriptorObject = CreateDescriptorObject(descriptor);
@@ -298,6 +338,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             if (result is null)
             {
                 _meta.SetPrototype(null);
+                _privateStorage.SetPrototype(null);
                 return null;
             }
 
@@ -309,6 +350,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             }
 
             _meta.SetPrototype(result);
+            _privateStorage.SetPrototype(_meta.Prototype);
             return result;
         }
 
@@ -319,6 +361,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
 
         _meta.SetPrototype(proto);
+        _privateStorage.SetPrototype(_meta.Prototype);
         return proto;
     }
 

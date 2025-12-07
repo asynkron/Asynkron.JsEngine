@@ -40,6 +40,7 @@ internal sealed class ModuleNamespace : IJsObjectLike
 
     public JsObject? Prototype => null;
     public bool IsSealed => true;
+    public bool IsFrozen => true;
 
     public IEnumerable<string> Keys
     {

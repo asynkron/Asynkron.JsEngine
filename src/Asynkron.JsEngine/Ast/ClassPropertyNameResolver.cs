@@ -31,7 +31,7 @@ internal static class ClassPropertyNameResolver
                 return !context.ShouldStopEvaluation;
             }
 
-            if (propertyName.IsPrivateName() && privateNameScope is not null)
+            if (member.IsPrivate && privateNameScope is not null)
             {
                 propertyName = privateNameScope.GetKey(propertyName);
                 return true;

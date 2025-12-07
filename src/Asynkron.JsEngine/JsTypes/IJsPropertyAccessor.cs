@@ -85,6 +85,7 @@ public interface IJsObjectLike : IJsPropertyAccessor
 {
     JsObject? Prototype { get; }
     bool IsSealed { get; }
+    bool IsFrozen { get; }
     IEnumerable<string> Keys { get; }
 
     void DefineProperty(string name, PropertyDescriptor descriptor);

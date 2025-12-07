@@ -136,8 +136,12 @@ internal static class AssignmentReferenceResolver
             TypedAstEvaluator.PropertyHandle GetHandle()
             {
                 var propertyName = GetPropertyName();
-                return TypedAstEvaluator.PropertyHandle.Resolve(target, propertyName, context,
-                    context.CurrentScope.IsStrict);
+                return TypedAstEvaluator.PropertyHandle.Resolve(
+                    target,
+                    propertyName,
+                    context,
+                    context.CurrentScope.IsStrict,
+                    allowPrivate: !member.IsComputed);
             }
 
             return new AssignmentReference(
@@ -176,8 +180,12 @@ internal static class AssignmentReferenceResolver
                 });
         }
 
-        var handle = TypedAstEvaluator.PropertyHandle.Resolve(target, propertyValue, context,
-            context.CurrentScope.IsStrict);
+        var handle = TypedAstEvaluator.PropertyHandle.Resolve(
+            target,
+            propertyValue,
+            context,
+            context.CurrentScope.IsStrict,
+            allowPrivate: !member.IsComputed);
         return new AssignmentReference(
             () => handle.GetValue(),
             newValue => handle.SetValue(newValue));
@@ -214,7 +222,7 @@ internal static class AssignmentReferenceResolver
         receiver ??= target;
         realmState ??= context?.RealmState ?? target.RealmState;
 
-        if (propertyName.IsPrivateName())
+        if (propertyName.IsPrivateSlotName())
         {
             target.SetProperty(propertyName, value, receiver);
             return;

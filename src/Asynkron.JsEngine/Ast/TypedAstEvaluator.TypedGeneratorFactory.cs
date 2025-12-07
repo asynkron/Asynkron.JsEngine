@@ -46,14 +46,14 @@ public static partial class TypedAstEvaluator
             _properties.PreventExtensions();
         }
 
-        public void EnsureHasName(string name)
+        public void EnsureHasName(string name, bool overwriteExisting = false)
         {
             if (string.IsNullOrEmpty(name))
             {
                 return;
             }
 
-            if (_function.Name is not null)
+            if (!overwriteExisting && _function.Name is not null)
             {
                 return;
             }
@@ -64,7 +64,7 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            if (descriptor is not null)
+            if (!overwriteExisting && descriptor is not null)
             {
                 if (descriptor.IsAccessorDescriptor || descriptor.Value is IJsCallable)
                 {
@@ -111,6 +111,7 @@ public static partial class TypedAstEvaluator
         public JsObject? Prototype => _properties.Prototype;
 
         public bool IsSealed => _properties.IsSealed;
+        public bool IsFrozen => _properties.IsFrozen;
 
         public IEnumerable<string> Keys => _properties.Keys;
 
@@ -153,7 +154,7 @@ public static partial class TypedAstEvaluator
 
         public bool TryGetProperty(string name, object? receiver, out object? value)
         {
-            if (name.IsPrivateName())
+            if (name.IsPrivateSlotName())
             {
                 if (_privateSlots.TryGetValue(name, out value))
                 {
@@ -232,7 +233,7 @@ public static partial class TypedAstEvaluator
 
         public void SetProperty(string name, object? value, object? receiver)
         {
-            if (name.IsPrivateName())
+            if (name.IsPrivateSlotName())
             {
                 _privateSlots[name] = value;
                 return;

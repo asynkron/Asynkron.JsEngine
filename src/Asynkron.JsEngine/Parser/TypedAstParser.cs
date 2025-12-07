@@ -812,7 +812,7 @@ public sealed class TypedAstParser(
                     {
                         var function = ParseClassMethod(null, fieldToken, false, false);
                         members.Add(new ClassMember(CreateSourceReference(fieldToken), ClassMemberKind.Method,
-                            privateLexeme, function, isStatic));
+                            privateLexeme, function, isStatic, IsPrivate: true));
                         continue;
                     }
 
@@ -858,6 +858,13 @@ public sealed class TypedAstParser(
                     var methodName = computedAccessorName is null
                         ? GetPropertyNameValue(methodNameToken)
                         : methodNameToken.Lexeme;
+                    var isPrivateAccessor = computedAccessorName is null &&
+                                            methodNameToken.Type == TokenType.PrivateIdentifier;
+                    if (computedAccessorName is not null && methodName.IsPrivateName())
+                    {
+                        throw new ParseException("Private accessors cannot use computed property names.",
+                            methodNameToken, _source);
+                    }
 
                     if (isGetter)
                     {
@@ -868,7 +875,8 @@ public sealed class TypedAstParser(
                             null,
                             ImmutableArray<FunctionParameter>.Empty, body, false, false);
                         members.Add(new ClassMember(CreateSourceReference(methodNameToken), ClassMemberKind.Getter,
-                            methodName, function, isStatic, computedAccessorName is not null, computedAccessorName));
+                            methodName, function, isStatic, computedAccessorName is not null, computedAccessorName,
+                            isPrivateAccessor));
                     }
                     else
                     {
@@ -880,7 +888,8 @@ public sealed class TypedAstParser(
                             null,
                             setterParameters, body, false, false);
                         members.Add(new ClassMember(CreateSourceReference(methodNameToken), ClassMemberKind.Setter,
-                            methodName, function, isStatic, computedAccessorName is not null, computedAccessorName));
+                            methodName, function, isStatic, computedAccessorName is not null, computedAccessorName,
+                            isPrivateAccessor));
                     }
 
                     continue;
@@ -909,7 +918,16 @@ public sealed class TypedAstParser(
                             asyncMethodNameToken = Advance();
                         }
 
-                        var asyncMethodName = asyncMethodNameToken.Lexeme;
+                        var asyncMethodName = computedName is not null
+                            ? string.Empty
+                            : GetPropertyNameValue(asyncMethodNameToken);
+                        var isPrivateAsyncMethod = asyncMethodNameToken.Type == TokenType.PrivateIdentifier;
+
+                        if (isPrivateAsyncMethod && computedName is not null)
+                        {
+                            throw new ParseException("Private methods cannot be computed.", asyncMethodNameToken,
+                                _source);
+                        }
 
                         if (Check(TokenType.Equal))
                         {
@@ -926,7 +944,7 @@ public sealed class TypedAstParser(
                             var function = ParseClassMethod(null, asyncMethodNameToken, isAsyncGeneratorMethod, true);
                             members.Add(new ClassMember(CreateSourceReference(asyncMethodNameToken),
                                 ClassMemberKind.Method, asyncMethodName, function, isStatic,
-                                computedName is not null, computedName));
+                                computedName is not null, computedName, isPrivateAsyncMethod));
                             continue;
                         }
                     }
@@ -981,6 +999,7 @@ public sealed class TypedAstParser(
                 {
                     var methodNameToken = Advance();
                     var methodName = GetPropertyNameValue(methodNameToken);
+                    var isPrivateMethod = methodNameToken.Type == TokenType.PrivateIdentifier;
                     var hasInitializer = Match(TokenType.Equal);
                     var looksLikeMethod = !hasInitializer && Check(TokenType.LeftParen);
 
@@ -1028,7 +1047,7 @@ public sealed class TypedAstParser(
                     {
                         var function = ParseClassMethod(null, methodNameToken, isGeneratorMethod, false);
                         members.Add(new ClassMember(CreateSourceReference(methodNameToken), ClassMemberKind.Method,
-                            methodName, function, isStatic));
+                            methodName, function, isStatic, IsPrivate: isPrivateMethod));
                     }
 
                     continue;

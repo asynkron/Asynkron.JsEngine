@@ -36,23 +36,33 @@ public static partial class TypedAstEvaluator
             _isStrict = isStrict;
         }
 
-        public static PropertyHandle Resolve(object? target, string propertyName, EvaluationContext context,
-            bool isStrict)
+        public static PropertyHandle Resolve(
+            object? target,
+            string propertyName,
+            EvaluationContext context,
+            bool isStrict,
+            bool allowPrivate = true)
         {
             if (context.ShouldStopEvaluation)
             {
                 return new PropertyHandle(target, propertyName, false, null, context, isStrict);
             }
 
-            var (resolvedName, isPrivate, privateScope) = ResolvePrivate(propertyName, context);
+            var (resolvedName, isPrivate, privateScope) = allowPrivate
+                ? ResolvePrivate(propertyName, context)
+                : (propertyName, false, (PrivateNameScope?)null);
             return new PropertyHandle(target, resolvedName, isPrivate, privateScope, context, isStrict);
         }
 
-        public static PropertyHandle Resolve(object? target, object? propertyValue, EvaluationContext context,
-            bool isStrict)
+        public static PropertyHandle Resolve(
+            object? target,
+            object? propertyValue,
+            EvaluationContext context,
+            bool isStrict,
+            bool allowPrivate = true)
         {
             var propertyName = JsOps.GetRequiredPropertyName(propertyValue, context);
-            return Resolve(target, propertyName, context, isStrict);
+            return Resolve(target, propertyName, context, isStrict, allowPrivate);
         }
 
         public object? GetValue()

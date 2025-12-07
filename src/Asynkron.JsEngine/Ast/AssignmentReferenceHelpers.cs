@@ -11,9 +11,15 @@ public static partial class TypedAstEvaluator
     private static AssignmentReference CreatePropertyReference(
         object? target,
         string propertyName,
-        EvaluationContext context)
+        EvaluationContext context,
+        bool allowPrivate)
     {
-        var handle = PropertyHandle.Resolve(target, propertyName, context, context.CurrentScope.IsStrict);
+        var handle = PropertyHandle.Resolve(
+            target,
+            propertyName,
+            context,
+            context.CurrentScope.IsStrict,
+            allowPrivate);
 
         return new AssignmentReference(
             () => handle.GetValue(),

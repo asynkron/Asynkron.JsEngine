@@ -98,7 +98,7 @@ namespace Asynkron.JsEngine.JsTypes;
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
     {
-        if (name.IsPrivateName())
+        if (name.IsPrivateSlotName())
         {
             return null;
         }
@@ -141,7 +141,7 @@ namespace Asynkron.JsEngine.JsTypes;
             return;
         }
 
-        if (name.IsPrivateName())
+        if (name.IsPrivateSlotName())
         {
             if (_privateFields.TryGetValue(name, out var existing) && existing is PropertyDescriptor
                 {
@@ -408,7 +408,7 @@ namespace Asynkron.JsEngine.JsTypes;
 
     private bool DefinePropertyInternal(string name, PropertyDescriptor descriptor)
     {
-        if (name.IsPrivateName())
+        if (name.IsPrivateSlotName())
         {
             if (_privateFields.TryGetValue(name, out var existing) && existing is PropertyDescriptor existingDescriptor)
             {
@@ -826,7 +826,7 @@ namespace Asynkron.JsEngine.JsTypes;
 
     public bool HasProperty(string name)
     {
-        if (name.IsPrivateName())
+        if (name.IsPrivateSlotName())
         {
             return false;
         }
@@ -990,7 +990,7 @@ namespace Asynkron.JsEngine.JsTypes;
     private bool TryGetProperty(string name, object? receiver, HashSet<object> visited,
         EvaluationContext? context, out object? value)
     {
-        if (name.IsPrivateName())
+        if (name.IsPrivateSlotName())
         {
             if (_privateFields.TryGetValue(name, out var slot))
             {

@@ -184,6 +184,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
     public bool IsSealed => _properties.IsSealed;
+    public bool IsFrozen => _properties.IsFrozen;
 
     public IEnumerable<string> Keys => _properties.Keys;
 

@@ -98,6 +98,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     }
 
     public bool IsSealed => _properties.IsSealed;
+    public bool IsFrozen => _properties.IsFrozen;
     public IJsPropertyAccessor? PrototypeAccessor =>
         _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
     public IEnumerable<string> Keys => _properties.Keys;

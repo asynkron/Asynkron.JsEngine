@@ -268,6 +268,63 @@ public class DebugClassFieldTests
             "c.x should resolve to the prototype method");
     }
 
+    [Test]
+    public async Task PrivateFieldAccessByProxyReceiverSustainsBrand()
+    {
+        await using var engine = new JsEngine { ExecutionTimeout = null };
+
+        var snapshot = await engine.Evaluate("""
+                                             (() => {
+                                               const calls = [];
+                                               class ProxyBase {
+                                                 constructor() {
+                                                   return new Proxy(this, {
+                                                     get(obj, prop) {
+                                                       calls.push(prop);
+                                                       return obj[prop];
+                                                     }
+                                                   });
+                                                 }
+                                               }
+
+                                               class Test extends ProxyBase {
+                                               #f = 3;
+                                               method() { return this.#f; }
+                                               }
+
+                                               const t = new Test();
+                                               const methodValue = t.method;
+                                               const proto = Object.getPrototypeOf(t);
+                                               const testProto = Test.prototype;
+                                               const protoOwn = proto ? Object.getOwnPropertyNames(proto) : [];
+                                               const testProtoOwn = testProto ? Object.getOwnPropertyNames(testProto) : [];
+                                               return {
+                                                 methodType: typeof methodValue,
+                                                 methodValue,
+                                                 protoMatch: proto === testProto,
+                                                 protoKeys: Object.getOwnPropertyNames(Test.prototype),
+                                                 protoOwn,
+                                                 testProtoOwn,
+                                                 protoCtorIsTest: proto?.constructor === Test,
+                                                 testProtoCtorIsTest: testProto?.constructor === Test,
+                                                 calls
+                                               };
+                                             })();
+                                             """);
+
+        Assert.That(snapshot, Is.InstanceOf<IDictionary<string, object?>>());
+        var result = (IDictionary<string, object?>)snapshot;
+        TestContext.Progress.WriteLine(
+            $"proxy-private snapshot: methodType={result["methodType"]}, protoMatch={result["protoMatch"]}, protoKeys={result["protoKeys"]}, protoOwn={result["protoOwn"]}, testProtoOwn={result["testProtoOwn"]}, protoCtorIsTest={result["protoCtorIsTest"]}, testProtoCtorIsTest={result["testProtoCtorIsTest"]}, methodClrType={result["methodValue"]?.GetType().Name ?? "null"}");
+
+        Assert.That(result["methodType"], Is.EqualTo("function"));
+        Assert.That(result["protoMatch"], Is.EqualTo(true));
+        Assert.That(result["methodValue"], Is.InstanceOf<IJsCallable>());
+        Assert.That(result["calls"], Is.InstanceOf<JsArray>());
+        var calls = (JsArray)result["calls"]!;
+        Assert.That(calls.Items, Is.EqualTo(new object?[] { "method" }));
+    }
+
     private static async Task<IDictionary<string, object?>> CapturePrototypeSnapshot(
         JsEngine engine,
         string createExpression)

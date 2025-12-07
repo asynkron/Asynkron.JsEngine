@@ -154,7 +154,10 @@ public static partial class TypedAstEvaluator
                         return iteratorResult.Value;
                     }
 
+                    // For return propagation (when inner iterator has no return method),
+                    // signal a return completion to the outer generator
                     ClearDelegatedState(stateKey, environment);
+                    context.SetReturn(iteratorResult.Value);
                     return iteratorResult.Value;
                 }
 
@@ -207,7 +210,10 @@ public static partial class TypedAstEvaluator
 
                 // We're yielding this value - consume the cached result and yield
                 state.ConsumeCachedResult();
-                context.SetYield(value, yieldIndex);
+                // Use SetYieldWithIteratorResult to preserve the original iterator result object
+                // This ensures that if the inner iterator returns {value: 1} without done,
+                // the outer generator returns that same object instead of creating a new one with done: false
+                context.SetYieldWithIteratorResult(value, yieldIndex, iteratorResult.IteratorResultObject);
                 tracker.MarkConsumed(yieldIndex);
                 return value;
             }

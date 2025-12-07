@@ -28,7 +28,9 @@ internal sealed record ContinueSignal(Symbol? Label = null) : ISignal;
 /// <summary>
 ///     Signal indicating a yield expression was encountered (in generator context).
 /// </summary>
-internal sealed record YieldSignal(object? Value) : ISignal;
+/// <param name="Value">The yielded value.</param>
+/// <param name="IteratorResultObject">Optional original iterator result object for yield* to preserve done property.</param>
+internal sealed record YieldSignal(object? Value, JsTypes.JsObject? IteratorResultObject = null) : ISignal;
 
 /// <summary>
 ///     Signal indicating a throw statement was encountered.

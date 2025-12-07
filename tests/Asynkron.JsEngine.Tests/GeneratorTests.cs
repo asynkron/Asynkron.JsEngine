@@ -3252,4 +3252,64 @@ public class GeneratorTests
 
         Assert.NotNull(program);
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_YieldStarPreservesOriginalIteratorResult()
+    {
+        // Test that yield* preserves the original iterator result object, including when done is absent
+        await using var engine = new JsEngine();
+
+        var logs = new List<string>();
+        engine.SetGlobalFunction("log", args =>
+        {
+            logs.Add(args.Count > 0 ? args[0]?.ToString() ?? "null" : "null");
+            return null;
+        });
+
+        var result = await engine.Evaluate("""
+            var results = [{ value: 1 }, { value: 8 }, { value: 34, done: true }];
+            var idx = 0;
+            var iterator = {};
+            var iterable = {
+              next: function() {
+                var result = results[idx];
+                idx += 1;
+                log("inner next() returning: " + JSON.stringify(result));
+                return result;
+              }
+            };
+            iterator[Symbol.iterator] = function() {
+              log("Symbol.iterator called");
+              return iterable;
+            };
+            function* g() {
+              log("generator starting");
+              yield* iterator;
+              log("generator done");
+            }
+            var iter = g();
+            log("calling iter.next()");
+            var result = iter.next();
+            log("iter.next() returned: " + JSON.stringify(result));
+
+            // The first result should be { value: 1 } without done property
+            // So result.done should be undefined
+            ({ value: result.value, hasDone: Object.hasOwn(result, 'done') });
+        """);
+
+        // Print all logs for debugging
+        foreach (var log in logs)
+        {
+            Console.WriteLine($"LOG: {log}");
+        }
+
+        // The test expects done to not be present (since the inner iterator returned { value: 1 } without done)
+        // Check that result is a JsObject with value=1 and that it doesn't have a 'done' property
+        var jsResult = result as JsTypes.JsObject;
+        Assert.NotNull(jsResult);
+        Assert.True(jsResult.TryGetProperty("value", out var valueVal));
+        Assert.Equal(1.0, valueVal);
+        Assert.True(jsResult.TryGetProperty("hasDone", out var hasDoneVal));
+        Assert.Equal(false, hasDoneVal);
+    }
 }

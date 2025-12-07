@@ -53,11 +53,13 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            if (methodValue is null)
+            // Per GetMethod spec: if value is null or undefined, return undefined (not an error)
+            if (methodValue is null || ReferenceEquals(methodValue, Symbol.Undefined))
             {
                 return false;
             }
 
+            // Only throw if the method exists but is not callable
             if (methodValue is not IJsCallable callable)
             {
                 throw new ThrowSignal(StandardLibrary.CreateTypeError("Iterator method is not callable", context,

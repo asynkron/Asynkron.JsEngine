@@ -15,7 +15,7 @@ public static partial class TypedAstEvaluator
         private IJsCallable? _nextMethod;
 
         // Cached result from the last MoveNext call that hasn't been consumed yet
-        private (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow)? _cachedResult;
+        private (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, JsObject? IteratorResultObject)? _cachedResult;
         private bool _hasCachedResult;
 
         private DelegatedYieldState(JsObject? iterator, IEnumerator<object?>? enumerator, bool isGeneratorObject)
@@ -28,7 +28,7 @@ public static partial class TypedAstEvaluator
         /// <summary>
         /// Returns the cached result without advancing the iterator, or null if no cached result.
         /// </summary>
-        public (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow)? PeekCachedResult()
+        public (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, JsObject? IteratorResultObject)? PeekCachedResult()
         {
             return _hasCachedResult ? _cachedResult : null;
         }
@@ -46,7 +46,7 @@ public static partial class TypedAstEvaluator
         /// Gets the next result, either from cache or by advancing the iterator.
         /// The result is cached until ConsumeResult is called.
         /// </summary>
-        public (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow) GetOrFetchNext(
+        public (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, JsObject? IteratorResultObject) GetOrFetchNext(
             object? sendValue,
             bool hasSendValue,
             bool propagateThrow,
@@ -78,7 +78,7 @@ public static partial class TypedAstEvaluator
             return new DelegatedYieldState(null, enumerable.GetEnumerator(), false);
         }
 
-        public (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow) MoveNext(
+        public (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, JsObject? IteratorResultObject) MoveNext(
             object? sendValue,
             bool hasSendValue,
             bool propagateThrow,
@@ -114,9 +114,18 @@ public static partial class TypedAstEvaluator
                     candidate = _iterator.InvokeIteratorNext(_nextMethod, sendValue, hasSendValue, context);
                 }
 
+                // Per spec: if return method is undefined, return Completion(received)
+                // This means we should signal immediate completion to the outer generator
+                if (propagateReturn && !methodInvoked)
+                {
+                    // Inner iterator has no return method - signal delegated completion
+                    // The outer generator should complete with the received value
+                    return (sendValue, true, true, false, null);
+                }
+
                 if (!methodInvoked && candidate is null)
                 {
-                    return (Symbol.Undefined, true, propagateThrow, propagateThrow);
+                    return (Symbol.Undefined, true, propagateThrow, propagateThrow, null);
                 }
 
                 if (methodInvoked && candidate is null)
@@ -131,7 +140,7 @@ public static partial class TypedAstEvaluator
                     awaitedPromise = true;
                     if (!AwaitScheduler.TryAwaitPromiseSync(promiseCandidate, context, out awaitedCandidate))
                     {
-                        return (Symbol.Undefined, true, true, propagateThrow);
+                        return (Symbol.Undefined, true, true, propagateThrow, null);
                     }
                 }
                 else
@@ -153,7 +162,7 @@ public static partial class TypedAstEvaluator
                     : Symbol.Undefined;
                 var delegatedCompletion = _isGeneratorObject && (propagateThrow || propagateReturn);
                 var propagateThrowResult = _isGeneratorObject && propagateThrow && done;
-                return (value, done, delegatedCompletion, propagateThrowResult);
+                return (value, done, delegatedCompletion, propagateThrowResult, nextResult);
             }
 
             if (_enumerator is null)
@@ -163,7 +172,7 @@ public static partial class TypedAstEvaluator
                     throw new ThrowSignal(sendValue);
                 }
 
-                return (Symbol.Undefined, true, propagateReturn, false);
+                return (Symbol.Undefined, true, propagateReturn, false, null);
             }
 
             if (propagateThrow)
@@ -173,15 +182,15 @@ public static partial class TypedAstEvaluator
 
             if (propagateReturn)
             {
-                return (sendValue, true, true, false);
+                return (sendValue, true, true, false, null);
             }
 
             if (!_enumerator.MoveNext())
             {
-                return (Symbol.Undefined, true, false, false);
+                return (Symbol.Undefined, true, false, false, null);
             }
 
-            return (_enumerator.Current, false, false, false);
+            return (_enumerator.Current, false, false, false, null);
         }
 
         private static bool IsGeneratorObject(JsObject iterator)

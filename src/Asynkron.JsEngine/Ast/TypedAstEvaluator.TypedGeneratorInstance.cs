@@ -459,10 +459,13 @@ public static partial class TypedAstEvaluator
                             if (context.IsYield)
                             {
                                 var yieldedSignalValue = context.FlowValue;
+                                // Check if the yield signal includes an original iterator result object (from yield*)
+                                var iteratorResultObject = (context.CurrentSignal as YieldSignal)?.IteratorResultObject;
                                 RecordYield(context);
                                 context.Clear();
                                 _state = GeneratorState.Suspended;
-                                return CreateIteratorResult(yieldedSignalValue, false);
+                                // If we have an original iterator result object, return it to preserve done property
+                                return iteratorResultObject ?? CreateIteratorResult(yieldedSignalValue, false);
                             }
 
                             _programCounter = statementInstruction.Next;
@@ -491,14 +494,18 @@ public static partial class TypedAstEvaluator
                                 if (context.IsYield)
                                 {
                                     yieldedValue = context.FlowValue;
+                                    // Check if the yield signal includes an original iterator result object (from yield* in operand)
+                                    var nestedIteratorResult = (context.CurrentSignal as YieldSignal)?.IteratorResultObject;
                                     context.Clear();
                                     yieldedDuringOperand = true;
+                                    _programCounter = _currentInstructionIndex;
+                                    RecordYield(context);
+                                    _state = GeneratorState.Suspended;
+                                    return nestedIteratorResult ?? CreateIteratorResult(yieldedValue, false);
                                 }
                             }
 
-                            _programCounter = yieldedDuringOperand
-                                ? _currentInstructionIndex
-                                : yieldInstruction.Next;
+                            _programCounter = yieldInstruction.Next;
                             RecordYield(context);
                             _state = GeneratorState.Suspended;
                             return CreateIteratorResult(yieldedValue, false);
@@ -634,7 +641,8 @@ public static partial class TypedAstEvaluator
                                         yieldStarState.AwaitingResume = true;
                                         _programCounter = currentIndex;
                                         _state = GeneratorState.Suspended;
-                                        return CreateIteratorResult(iteratorResult.Value, false);
+                                        // Use original iterator result object to preserve done/value properties
+                                        return iteratorResult.IteratorResultObject ?? CreateIteratorResult(iteratorResult.Value, false);
                                     }
 
                                     yieldStarState.State = null;
@@ -677,6 +685,11 @@ public static partial class TypedAstEvaluator
                                 yieldStarState.AwaitingResume = true;
                                 _programCounter = currentIndex;
                                 _state = GeneratorState.Suspended;
+                                // Use original iterator result object to preserve done/value properties
+                                if (iteratorResult.IteratorResultObject is { } originalResult)
+                                {
+                                    return originalResult;
+                                }
                                 var resultDone = propagateReturn ? iteratorResult.Done : false;
                                 return CreateIteratorResult(iteratorResult.Value, resultDone);
                             }
@@ -1292,10 +1305,13 @@ public static partial class TypedAstEvaluator
                 if (context.IsYield)
                 {
                     var yielded = context.FlowValue;
+                    // Check if the yield signal includes an original iterator result object (from yield*)
+                    var iteratorResultObject = (context.CurrentSignal as YieldSignal)?.IteratorResultObject;
                     RecordYield(context);
                     context.Clear();
                     _state = GeneratorState.Suspended;
-                    return CreateIteratorResult(yielded, false);
+                    // If we have an original iterator result object, return it to preserve done property
+                    return iteratorResultObject ?? CreateIteratorResult(yielded, false);
                 }
 
                 if (context.IsReturn)

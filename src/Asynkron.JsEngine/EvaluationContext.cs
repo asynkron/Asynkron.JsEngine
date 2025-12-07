@@ -314,6 +314,16 @@ public sealed class EvaluationContext(
     }
 
     /// <summary>
+    ///     Sets the context to Yield state with the given value and original iterator result object.
+    ///     Used by yield* to preserve the original iterator result properties (like done being absent).
+    /// </summary>
+    public void SetYieldWithIteratorResult(object? value, int yieldIndex, JsTypes.JsObject? iteratorResultObject)
+    {
+        LastYieldIndex = yieldIndex;
+        CurrentSignal = new YieldSignal(value, iteratorResultObject);
+    }
+
+    /// <summary>
     ///     Clears the Continue signal (used when a loop consumes it).
     /// </summary>
     public void ClearContinue()

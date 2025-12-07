@@ -180,38 +180,45 @@ namespace Asynkron.JsEngine.JsTypes;
         switch (name)
         {
             case "call":
-                value = new HostFunction((_, args) =>
+                value = new HostFunction((thisValue, args) =>
                 {
+                    // When call is invoked through .bind(), thisValue is the bound target function.
+                    // When called directly like fn.call(obj), jsCallable is the function to invoke.
+                    var functionToCall = thisValue as IJsCallable ?? jsCallable;
                     var thisArg = args.GetArgument(0);
                     var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
-                    return jsCallable.Invoke(callArgs, thisArg);
+                    return functionToCall.Invoke(callArgs, thisArg);
                 }, isConstructor: false);
                 return true;
 
             case "apply":
-                value = new HostFunction((_, args) =>
+                value = new HostFunction((thisValue, args) =>
                 {
+                    // Use the thisValue (the function being applied) when called via prototype chain
+                    var target = thisValue as IJsCallable ?? jsCallable;
                     var thisArg = args.GetArgument(0);
                     var argList = new List<object?>();
                     if (args.Count <= 1 || args[1] is not JsArray jsArray)
                     {
-                        return jsCallable.Invoke(argList.ToArray(), thisArg);
+                        return target.Invoke(argList.ToArray(), thisArg);
                     }
 
                     argList.AddRange(jsArray.Items);
 
-                    return jsCallable.Invoke(argList.ToArray(), thisArg);
+                    return target.Invoke(argList.ToArray(), thisArg);
                 }, isConstructor: false);
                 return true;
 
             case "bind":
-                value = new HostFunction((_, args) =>
+                value = new HostFunction((thisValue, args) =>
                 {
+                    // Use the thisValue (the function being bound) when called via prototype chain
+                    var target = thisValue as IJsCallable ?? jsCallable;
                     var boundThis = args.GetArgument(0);
                     var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
-                    var targetIsConstructor = JsOps.IsConstructor(jsCallable);
-                    var realmState = RealmState ?? (jsCallable as ICallableMetadata)?.RealmState;
-                    return CreateBoundFunction(jsCallable, boundThis, boundArgs, targetIsConstructor, realmState);
+                    var targetIsConstructor = JsOps.IsConstructor(target);
+                    var realmState = RealmState ?? (target as ICallableMetadata)?.RealmState;
+                    return CreateBoundFunction(target, boundThis, boundArgs, targetIsConstructor, realmState);
                 }, isConstructor: false);
                 return true;
         }

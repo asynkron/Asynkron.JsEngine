@@ -828,13 +828,24 @@ public static partial class StandardLibrary
 
         object? ObjectHasOwn(IReadOnlyList<object?> args)
         {
-            if (args.Count < 2 || args[0] is not JsObject obj)
+            if (args.Count < 2)
             {
                 return false;
             }
 
-            var propName = args[1]?.ToString() ?? "";
-            return obj.ContainsKey(propName);
+            var propName = JsOps.ToPropertyName(args[1]);
+            if (propName is null)
+            {
+                return false;
+            }
+
+            return args[0] switch
+            {
+                JsObject obj => obj.GetOwnPropertyDescriptor(propName) is not null,
+                JsArray array => array.GetOwnPropertyDescriptor(propName) is not null,
+                IJsObjectLike accessor => accessor.GetOwnPropertyDescriptor(propName) is not null,
+                _ => false
+            };
         }
 
         object? ObjectFreeze(IReadOnlyList<object?> args)

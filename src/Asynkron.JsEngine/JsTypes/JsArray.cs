@@ -22,6 +22,11 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     private readonly JsObject _properties = new();
     private readonly IJsCallable? _rangeErrorCtor;
     private readonly RealmState? _realmState;
+
+    /// <summary>
+    /// Gets the RealmState associated with this array.
+    /// </summary>
+    public RealmState? RealmState => _realmState;
     private readonly IJsCallable? _typeErrorCtor;
     private uint _length;
     private Dictionary<uint, object?>? _sparseItems;

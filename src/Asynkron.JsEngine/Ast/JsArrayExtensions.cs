@@ -11,7 +11,9 @@ public static partial class TypedAstEvaluator
         private object CreateTemplateObject(JsArray rawStringsArray)
         {
             // Create template array object - it needs to be a JsArray for Array.isArray to work
-            var templateObject = new JsArray(stringsArray.Items);
+            // Pass the RealmState to ensure the array has Array.prototype as its prototype
+            var realmState = stringsArray.RealmState ?? rawStringsArray.RealmState;
+            var templateObject = new JsArray(stringsArray.Items, realmState);
 
             // Define indexed properties with proper descriptors
             // enumerable: true, writable: false, configurable: false
@@ -45,7 +47,7 @@ public static partial class TypedAstEvaluator
             });
 
             // Create and configure the raw array - also needs to be a JsArray
-            var rawArray = new JsArray(rawStringsArray.Items);
+            var rawArray = new JsArray(rawStringsArray.Items, realmState);
             for (var i = 0; i < rawStringsArray.Items.Count; i++)
             {
                 rawArray.DefineProperty(i.ToString(CultureInfo.InvariantCulture), new PropertyDescriptor

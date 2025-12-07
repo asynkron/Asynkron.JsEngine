@@ -1123,13 +1123,24 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
     private void AppendAndConsumeLineTerminator(StringBuilder builder)
     {
         var terminator = Advance();
-        // According to ECMA-262 11.8.6.1, the TRV (Template Raw Value) of any
-        // LineTerminatorSequence is always the single code unit 0x000A (LF).
-        // This means we normalize CR, CRLF, LS, and PS to LF in template literal raw strings.
-        builder.Append('\n');
-        if (terminator == '\r' && Peek() == '\n')
+        // According to ECMA-262 11.8.6.1, the TRV (Template Raw Value) of:
+        // - <LF> is code unit 0x000A
+        // - <CR> is code unit 0x000A (normalized to LF)
+        // - <CR><LF> is code unit 0x000A (normalized to single LF)
+        // - <LS> (U+2028) is code unit 0x2028 (preserved)
+        // - <PS> (U+2029) is code unit 0x2029 (preserved)
+        // Only CR and CRLF are normalized to LF; LS and PS are preserved.
+        if (terminator is '\u2028' or '\u2029')
         {
-            Advance(); // consume the LF in CRLF, but don't append it (already appended LF above)
+            builder.Append(terminator);
+        }
+        else
+        {
+            builder.Append('\n');
+            if (terminator == '\r' && Peek() == '\n')
+            {
+                Advance(); // consume the LF in CRLF, but don't append it (already appended LF above)
+            }
         }
 
         _line++;

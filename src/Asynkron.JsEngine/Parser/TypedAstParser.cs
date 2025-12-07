@@ -2879,7 +2879,9 @@ public sealed class TypedAstParser(
                 throw new ParseException("Empty expression inside template literal.", Peek(), _source);
             }
 
-            var wrappedSource = $"{trimmed};";
+            // Wrap in parentheses to ensure function/class expressions are parsed as expressions,
+            // not declarations (e.g., `${function() {}}` should parse the function as an expression)
+            var wrappedSource = $"({trimmed});";
             var lexer = new Lexer(wrappedSource);
             var tokens = lexer.Tokenize();
             var embeddedParser = new TypedAstParser(tokens, wrappedSource, options: _options);

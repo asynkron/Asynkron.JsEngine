@@ -179,7 +179,7 @@ public static partial class TypedAstEvaluator
                     value = new HostFunction((_, args) =>
                     {
                         var thisArg = args.GetArgument(0);
-                        var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
+                        var callArgs = args.SliceFrom(1);
                         return callable.Invoke(callArgs, thisArg);
                     });
                     return true;
@@ -188,16 +188,10 @@ public static partial class TypedAstEvaluator
                     value = new HostFunction((_, args) =>
                     {
                         var thisArg = args.GetArgument(0);
-                        var argList = new List<object?>();
-                        if (args.Count > 1 && args[1] is JsArray jsArray)
-                        {
-                            foreach (var item in jsArray.Items)
-                            {
-                                argList.Add(item);
-                            }
-                        }
-
-                        return callable.Invoke(argList.ToArray(), thisArg);
+                        IReadOnlyList<object?> argList = args.Count > 1 && args[1] is JsArray jsArray
+                            ? jsArray.Items
+                            : ArgumentSlice.Empty;
+                        return callable.Invoke(argList, thisArg);
                     });
                     return true;
 
@@ -205,16 +199,20 @@ public static partial class TypedAstEvaluator
                     value = new HostFunction((_, args) =>
                     {
                         var boundThis = args.GetArgument(0);
-                        var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
+                        var boundArgs = args.SliceFrom(1);
 
                         return new HostFunction((_, innerArgs) =>
                         {
-                            var finalArgs = new object?[boundArgs.Length + innerArgs.Count];
-                            boundArgs.CopyTo(finalArgs, 0);
+                            if (boundArgs.Count == 0)
+                                return callable.Invoke(innerArgs, boundThis);
+                            if (innerArgs.Count == 0)
+                                return callable.Invoke(boundArgs, boundThis);
+
+                            var finalArgs = new object?[boundArgs.Count + innerArgs.Count];
+                            for (var i = 0; i < boundArgs.Count; i++)
+                                finalArgs[i] = boundArgs[i];
                             for (var i = 0; i < innerArgs.Count; i++)
-                            {
-                                finalArgs[boundArgs.Length + i] = innerArgs[i];
-                            }
+                                finalArgs[boundArgs.Count + i] = innerArgs[i];
 
                             return callable.Invoke(finalArgs, boundThis);
                         });

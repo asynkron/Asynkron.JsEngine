@@ -31,17 +31,8 @@ public static partial class StandardLibrary
                 return Symbol.Undefined;
             }
 
-            object? thisArg = Symbol.Undefined;
-            var callArgs = Array.Empty<object?>();
-
-            if (args.Count > 0)
-            {
-                thisArg = args[0];
-                if (args.Count > 1)
-                {
-                    callArgs = args.Skip(1).ToArray();
-                }
-            }
+            var thisArg = args.GetArgument(0);
+            var callArgs = args.SliceFrom(1);
 
             return target.Invoke(callArgs, thisArg);
         });

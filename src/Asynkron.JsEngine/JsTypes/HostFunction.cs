@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -186,7 +185,7 @@ namespace Asynkron.JsEngine.JsTypes;
                     // When called directly like fn.call(obj), jsCallable is the function to invoke.
                     var functionToCall = thisValue as IJsCallable ?? jsCallable;
                     var thisArg = args.GetArgument(0);
-                    var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
+                    var callArgs = args.SliceFrom(1);
                     return functionToCall.Invoke(callArgs, thisArg);
                 }, isConstructor: false);
                 return true;
@@ -197,15 +196,10 @@ namespace Asynkron.JsEngine.JsTypes;
                     // Use the thisValue (the function being applied) when called via prototype chain
                     var target = thisValue as IJsCallable ?? jsCallable;
                     var thisArg = args.GetArgument(0);
-                    var argList = new List<object?>();
-                    if (args.Count <= 1 || args[1] is not JsArray jsArray)
-                    {
-                        return target.Invoke(argList.ToArray(), thisArg);
-                    }
-
-                    argList.AddRange(jsArray.Items);
-
-                    return target.Invoke(argList.ToArray(), thisArg);
+                    IReadOnlyList<object?> argList = args.Count > 1 && args[1] is JsArray jsArray
+                        ? jsArray.Items
+                        : ArgumentSlice.Empty;
+                    return target.Invoke(argList, thisArg);
                 }, isConstructor: false);
                 return true;
 
@@ -215,7 +209,7 @@ namespace Asynkron.JsEngine.JsTypes;
                     // Use the thisValue (the function being bound) when called via prototype chain
                     var target = thisValue as IJsCallable ?? jsCallable;
                     var boundThis = args.GetArgument(0);
-                    var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
+                    var boundArgs = args.SliceFrom(1);
                     var targetIsConstructor = JsOps.IsConstructor(target);
                     var realmState = RealmState ?? (target as ICallableMetadata)?.RealmState;
                     return CreateBoundFunction(target, boundThis, boundArgs, targetIsConstructor, realmState);
@@ -327,21 +321,20 @@ namespace Asynkron.JsEngine.JsTypes;
     }
 
     internal static HostFunction CreateBoundFunction(IJsCallable target, object? boundThis,
-        object?[] boundArgs, bool targetIsConstructor, RealmState? realmState)
+        IReadOnlyList<object?> boundArgs, bool targetIsConstructor, RealmState? realmState)
     {
-        static object?[] Combine(object?[] prefix, IReadOnlyList<object?> suffix)
+        static IReadOnlyList<object?> Combine(IReadOnlyList<object?> prefix, IReadOnlyList<object?> suffix)
         {
-            if (prefix.Length == 0 && suffix is object?[] suffixArray)
-            {
-                return suffixArray;
-            }
+            if (prefix.Count == 0)
+                return suffix;
+            if (suffix.Count == 0)
+                return prefix;
 
-            var final = new object?[prefix.Length + suffix.Count];
-            prefix.CopyTo(final, 0);
+            var final = new object?[prefix.Count + suffix.Count];
+            for (var i = 0; i < prefix.Count; i++)
+                final[i] = prefix[i];
             for (var i = 0; i < suffix.Count; i++)
-            {
-                final[prefix.Length + i] = suffix[i];
-            }
+                final[prefix.Count + i] = suffix[i];
 
             return final;
         }

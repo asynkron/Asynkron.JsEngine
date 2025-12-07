@@ -278,7 +278,7 @@ public static partial class TypedAstEvaluator
                     value = new HostFunction((_, args) =>
                     {
                         var thisArg = args.GetArgument(0);
-                        var callArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
+                        var callArgs = args.SliceFrom(1);
                         return callable.Invoke(callArgs, thisArg);
                     });
                     return true;
@@ -287,16 +287,10 @@ public static partial class TypedAstEvaluator
                     value = new HostFunction((_, args) =>
                     {
                         var thisArg = args.GetArgument(0);
-                        var argList = new List<object?>();
-                        if (args.Count > 1 && args[1] is JsArray jsArray)
-                        {
-                            foreach (var item in jsArray.Items)
-                            {
-                                argList.Add(item);
-                            }
-                        }
-
-                        return callable.Invoke(argList.ToArray(), thisArg);
+                        IReadOnlyList<object?> argList = args.Count > 1 && args[1] is JsArray jsArray
+                            ? jsArray.Items
+                            : ArgumentSlice.Empty;
+                        return callable.Invoke(argList, thisArg);
                     });
                     return true;
 
@@ -304,7 +298,7 @@ public static partial class TypedAstEvaluator
                     value = new HostFunction((_, args) =>
                     {
                         var boundThis = args.GetArgument(0);
-                        var boundArgs = args.Count > 1 ? args.Skip(1).ToArray() : [];
+                        var boundArgs = args.SliceFrom(1);
                         var targetIsConstructor = JsOps.IsConstructor(callable);
                         return HostFunction.CreateBoundFunction(callable, boundThis, boundArgs, targetIsConstructor,
                             _realmState);

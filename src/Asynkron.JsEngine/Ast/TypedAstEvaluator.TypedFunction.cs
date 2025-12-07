@@ -521,6 +521,15 @@ public static partial class TypedAstEvaluator
                 }
                 functionEnvironment.Define(Symbol.This, boundThis);
 
+                // Store a reference to the original environment that owns the `this` binding.
+                // This is needed for super() calls in arrow functions - super() must update
+                // the original constructor's `this` binding, not the arrow function's local copy.
+                if (_lexicalThisEnvironment is not null &&
+                    _lexicalThisEnvironment.TryFindBinding(Symbol.This, allowUninitialized: true, out var originalThisEnv, out _))
+                {
+                    functionEnvironment.Define(Symbol.LexicalThisEnvironment, originalThisEnv, false, isLexical: true);
+                }
+
                 var hasCopiedInitialization = false;
                 if (_closure.TryGet(Symbol.ThisInitialized, out var closureThisInitialized))
                 {

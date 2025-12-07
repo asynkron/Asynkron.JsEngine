@@ -472,6 +472,15 @@ public static partial class TypedAstEvaluator
     {
         try
         {
+            // Check if we're in an arrow function that has a lexical this environment.
+            // If so, read `this` from the original owning environment, not the arrow's local copy.
+            // This ensures that after super() updates the constructor's `this`, subsequent
+            // reads of `this` inside the arrow function see the updated value.
+            if (environment.TryFindBinding(Symbol.LexicalThisEnvironment, allowUninitialized: true, out _, out var lexicalEnvValue) &&
+                lexicalEnvValue is JsEnvironment lexicalThisEnv)
+            {
+                return lexicalThisEnv.Get(Symbol.This);
+            }
             return environment.Get(Symbol.This);
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",

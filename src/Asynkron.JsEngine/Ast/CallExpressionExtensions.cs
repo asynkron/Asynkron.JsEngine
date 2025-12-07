@@ -219,9 +219,21 @@ public static partial class TypedAstEvaluator
             object? thisInitializationValue = null;
             if (expression.Callee is SuperExpression)
             {
-                // Prefer the environment that owns the current `this` binding; the [[ThisInitialized]]
+                // First check if we're in an arrow function that has captured a lexical this environment.
+                // Arrow functions store a reference to the original constructor's environment so super()
+                // can update the correct `this` binding.
+                if (environment.TryFindBinding(Symbol.LexicalThisEnvironment, allowUninitialized: true, out _, out var lexicalEnvValue) &&
+                    lexicalEnvValue is JsEnvironment lexicalThisEnv)
+                {
+                    thisInitializationEnvironment = lexicalThisEnv;
+                    if (lexicalThisEnv.TryGet(Symbol.ThisInitialized, out var lexicalInitValue))
+                    {
+                        thisInitializationValue = lexicalInitValue;
+                    }
+                }
+                // Otherwise, prefer the environment that owns the current `this` binding; the [[ThisInitialized]]
                 // marker is defined alongside it for derived constructors.
-                if (environment.TryFindBinding(Symbol.This, allowUninitialized: true, out var thisEnv, out _))
+                else if (environment.TryFindBinding(Symbol.This, allowUninitialized: true, out var thisEnv, out _))
                 {
                     thisInitializationEnvironment = thisEnv;
                     if (thisEnv.TryGet(Symbol.ThisInitialized, out var initValue))

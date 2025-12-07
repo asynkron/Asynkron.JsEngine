@@ -108,7 +108,19 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        // Check if the object has the private field with the resolved key
-        return jsObject.HasPrivateField(resolvedKey);
+        // Check if the object has the private field with the resolved key (for private fields)
+        if (jsObject.HasPrivateField(resolvedKey))
+        {
+            return true;
+        }
+
+        // For private methods and accessors, we need to check the brand
+        // The brand is associated with the PrivateNameScope
+        if (PrivateNameScope.TryResolveScope(resolvedKey, out var scope) && scope is not null)
+        {
+            return jsObject.HasPrivateBrand(scope.BrandToken);
+        }
+
+        return false;
     }
 }

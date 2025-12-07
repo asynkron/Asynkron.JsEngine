@@ -1508,11 +1508,11 @@ public sealed class TypedAstParser(
             }
             else
             {
-                // In non-strict mode, 'for (let' is only a lexical declaration if followed by '['
+                // In non-strict mode, 'for (let' is only a lexical declaration if followed by '[', '{'
                 // or a binding identifier. Otherwise 'let' is just an identifier expression.
                 // See: for ( [lookahead ∉ { let [ }] Expression
                 if (Check(TokenType.Let) &&
-                    (InStrictContext || CheckAhead(TokenType.LeftBracket) ||
+                    (InStrictContext || CheckAhead(TokenType.LeftBracket) || CheckAhead(TokenType.LeftBrace) ||
                      (CheckAheadBindingIdentifier() && !CheckAhead(TokenType.Let))))
                 {
                     Advance(); // consume 'let'

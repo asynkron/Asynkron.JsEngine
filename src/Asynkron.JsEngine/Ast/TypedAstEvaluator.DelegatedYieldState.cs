@@ -92,30 +92,38 @@ public static partial class TypedAstEvaluator
                 JsObject? nextResult;
                 object? candidate = null;
                 var methodInvoked = false;
-                if (propagateThrow)
+                try
                 {
-                    methodInvoked = _iterator.TryInvokeIteratorMethod(
-                        "throw",
-                        sendValue ?? Symbol.Undefined,
-                        context,
-                        out candidate);
+                    if (propagateThrow)
+                    {
+                        methodInvoked = _iterator.TryInvokeIteratorMethod(
+                            "throw",
+                            sendValue ?? Symbol.Undefined,
+                            context,
+                            out candidate);
+                    }
+                    else if (propagateReturn)
+                    {
+                        methodInvoked = _iterator.TryInvokeIteratorMethod(
+                            "return",
+                            sendValue ?? Symbol.Undefined,
+                            context,
+                            out candidate);
+                    }
+                    else
+                    {
+                        _nextMethod ??= _iterator.GetIteratorNextCallable(context);
+                        // Per ES spec (14.4.14) and Node.js V8 behavior, inner iterator's next()
+                        // should always be called with an argument - even if it's undefined.
+                        // This ensures arguments.length === 1 inside the next() method.
+                        // Use Symbol.Undefined for null sendValue to match JavaScript undefined semantics.
+                        candidate = _iterator.InvokeIteratorNext(_nextMethod, sendValue ?? Symbol.Undefined, true, context);
+                    }
                 }
-                else if (propagateReturn)
+                catch (ThrowSignal signal)
                 {
-                    methodInvoked = _iterator.TryInvokeIteratorMethod(
-                        "return",
-                        sendValue ?? Symbol.Undefined,
-                        context,
-                        out candidate);
-                }
-                else
-                {
-                    _nextMethod ??= _iterator.GetIteratorNextCallable(context);
-                    // Per ES spec (14.4.14) and Node.js V8 behavior, inner iterator's next()
-                    // should always be called with an argument - even if it's undefined.
-                    // This ensures arguments.length === 1 inside the next() method.
-                    // Use Symbol.Undefined for null sendValue to match JavaScript undefined semantics.
-                    candidate = _iterator.InvokeIteratorNext(_nextMethod, sendValue ?? Symbol.Undefined, true, context);
+                    // Convert ThrowSignal to delegated completion so generator's try/catch can handle it
+                    return (signal.ThrownValue, true, true, true, null);
                 }
 
                 // Per spec: if return method is undefined, return Completion(received)
@@ -172,17 +180,27 @@ public static partial class TypedAstEvaluator
 
                 nextResult = resolvedObject;
 
-                var done = nextResult.TryGetProperty("done", out var doneValue) &&
-                           JsOps.ToBoolean(doneValue);
+                // Use context-aware property access to propagate getter errors
+                var gotDone = nextResult.TryGetProperty("done", nextResult, context, out var doneValue);
+                if (gotDone && context?.IsThrow == true)
+                {
+                    // Getter threw - return as delegated completion to be handled by generator's try/catch
+                    return (context.FlowValue, true, true, true, null);
+                }
+                var done = gotDone && JsOps.ToBoolean(doneValue);
                 // Per ES spec 14.4.14, only read `value` when iteration is complete (done is true).
                 // When done is false, yield the innerResult directly without accessing `value`.
                 // This is important because the spec says IteratorValue is only called when done is true.
                 object? value;
                 if (done)
                 {
-                    value = nextResult.TryGetProperty("value", out var yielded)
-                        ? yielded
-                        : Symbol.Undefined;
+                    var gotValue = nextResult.TryGetProperty("value", nextResult, context, out var yielded);
+                    if (gotValue && context?.IsThrow == true)
+                    {
+                        // Getter threw - return as delegated completion to be handled by generator's try/catch
+                        return (context.FlowValue, true, true, true, null);
+                    }
+                    value = gotValue ? yielded : Symbol.Undefined;
                 }
                 else
                 {

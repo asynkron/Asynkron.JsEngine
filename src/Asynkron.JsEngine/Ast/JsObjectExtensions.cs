@@ -28,9 +28,16 @@ public static partial class TypedAstEvaluator
 
         private IJsCallable GetIteratorNextCallable(EvaluationContext? context)
         {
-            if (!iterator.TryGetProperty("next", out var nextValue))
+            // Use context-aware property access to propagate getter errors
+            if (!iterator.TryGetProperty("next", iterator, context, out var nextValue))
             {
                 throw StandardLibrary.ThrowTypeError("Iterator must expose a 'next' method.", context, context?.RealmState);
+            }
+
+            // Check if the getter threw an error
+            if (context?.IsThrow == true)
+            {
+                throw new ThrowSignal(context.FlowValue);
             }
 
             if (nextValue is not IJsCallable callable)
@@ -48,9 +55,16 @@ public static partial class TypedAstEvaluator
             bool hasArgument = true)
         {
             result = null;
-            if (!iterator.TryGetProperty(methodName, out var methodValue))
+            // Use context-aware property access to propagate getter errors
+            if (!iterator.TryGetProperty(methodName, iterator, context, out var methodValue))
             {
                 return false;
+            }
+
+            // Check if the getter threw an error
+            if (context.IsThrow)
+            {
+                throw new ThrowSignal(context.FlowValue);
             }
 
             // Per GetMethod spec: if value is null or undefined, return undefined (not an error)

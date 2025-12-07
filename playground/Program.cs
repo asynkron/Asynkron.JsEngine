@@ -10,16 +10,35 @@ internal static class Program
         try
         {
             var result = await engine.Evaluate("""
-// Test invalid escape sequences in tagged templates
-function tag(strs) {
-    console.log('strs[0]:', strs[0]);
-    console.log('strs[0] === undefined:', strs[0] === undefined);
-    console.log('strs.raw[0]:', strs.raw[0]);
+// Test yield* - error when getting done property should be catchable
+var thrown = new Error('test error');
+var badIter = {};
+var poisonedDone = Object.defineProperty({}, 'done', {
+  get: function() {
+    throw thrown;
+  }
+});
+badIter[Symbol.iterator] = function() {
+  return {
+    next: function() {
+      return poisonedDone;
+    }
+  };
+};
+function* g() {
+  try {
+    yield * badIter;
+  } catch (err) {
+    caught = err;
+  }
 }
+var iter = g();
+var result, caught;
 
-// Test with incomplete unicode escape
-tag`\u{0`;
+result = iter.next();
 
+console.log('caught:', caught);
+console.log('caught === thrown:', caught === thrown);
 'done';
 """);
 

@@ -1339,6 +1339,12 @@ public sealed class TypedAstParser(
         {
             var builder = ImmutableArray.CreateBuilder<ExportSpecifier>();
 
+            // Handle empty export list: export {}
+            if (Check(TokenType.RightBrace))
+            {
+                return builder.ToImmutable();
+            }
+
             do
             {
                 var localToken = ConsumeBindingIdentifier("Expected identifier in export list.");

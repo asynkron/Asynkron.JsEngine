@@ -659,7 +659,7 @@ public sealed class JsEngine : IAsyncDisposable
                         if (!_moduleRegistry.TryGetValue(moduleKey, out entry))
                         {
                             entry = CreateModuleEntry(EnsureStrictProgram(program),
-                                new JsEnvironment(GlobalEnvironment, true, true),
+                                CreateModuleEnvironment(),
                                 new JsObject(),
                                 moduleKey);
                             _moduleRegistry[moduleKey] = entry;
@@ -668,7 +668,7 @@ public sealed class JsEngine : IAsyncDisposable
                     else
                     {
                         entry = CreateModuleEntry(EnsureStrictProgram(program),
-                            new JsEnvironment(GlobalEnvironment, true, true),
+                            CreateModuleEnvironment(),
                             new JsObject(),
                             string.Empty);
                     }
@@ -760,7 +760,7 @@ public sealed class JsEngine : IAsyncDisposable
                     if (!_moduleRegistry.TryGetValue(moduleKey, out entry))
                     {
                         entry = CreateModuleEntry(EnsureStrictProgram(program),
-                            new JsEnvironment(GlobalEnvironment, true, true),
+                            CreateModuleEnvironment(),
                             new JsObject(),
                             moduleKey);
                         _moduleRegistry[moduleKey] = entry;
@@ -769,7 +769,7 @@ public sealed class JsEngine : IAsyncDisposable
                 else
                 {
                     entry = CreateModuleEntry(EnsureStrictProgram(program),
-                        new JsEnvironment(GlobalEnvironment, true, true),
+                        CreateModuleEnvironment(),
                         new JsObject(),
                         string.Empty);
                 }
@@ -814,6 +814,17 @@ public sealed class JsEngine : IAsyncDisposable
         string modulePath)
     {
         return new ModuleEntry(modulePath ?? string.Empty, program, environment, exports);
+    }
+
+    /// <summary>
+    /// Creates a module environment with the correct `this` binding (undefined per ES spec).
+    /// </summary>
+    private JsEnvironment CreateModuleEnvironment()
+    {
+        var moduleEnv = new JsEnvironment(GlobalEnvironment, true, true);
+        // Per ECMAScript spec, `this` in module scope is undefined
+        moduleEnv.Define(Symbol.This, Symbol.Undefined);
+        return moduleEnv;
     }
 
     private void EnsureModuleInstantiated(
@@ -1338,7 +1349,7 @@ public sealed class JsEngine : IAsyncDisposable
 
         // Create a module exports object
         var exports = new JsObject();
-        var moduleEnv = new JsEnvironment(GlobalEnvironment, true, true);
+        var moduleEnv = CreateModuleEnvironment();
         var entry = CreateModuleEntry(EnsureStrictProgram(program), moduleEnv, exports, resolvedPath);
         _moduleRegistry[resolvedPath] = entry;
 

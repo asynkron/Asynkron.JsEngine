@@ -184,13 +184,14 @@ public class MapTests
     public async Task Map_Keys_Returns_Array_Of_Keys()
     {
         await using var engine = new JsEngine();
+        // map.keys() returns an Iterator, use Array.from() to convert to array
         var result = await engine.Evaluate("""
 
                                                        let map = new Map();
                                                        map.set("a", 1);
                                                        map.set("b", 2);
 
-                                                       let keys = map.keys();
+                                                       let keys = Array.from(map.keys());
                                                        keys[0] + keys[1];
 
                                            """);
@@ -201,13 +202,14 @@ public class MapTests
     public async Task Map_Values_Returns_Array_Of_Values()
     {
         await using var engine = new JsEngine();
+        // map.values() returns an Iterator, use Array.from() to convert to array
         var result = await engine.Evaluate("""
 
                                                        let map = new Map();
                                                        map.set("a", 1);
                                                        map.set("b", 2);
 
-                                                       let values = map.values();
+                                                       let values = Array.from(map.values());
                                                        values[0] + values[1];
 
                                            """);
@@ -218,13 +220,14 @@ public class MapTests
     public async Task Map_Entries_Returns_Array_Of_Pairs()
     {
         await using var engine = new JsEngine();
+        // map.entries() returns an Iterator, use Array.from() to convert to array
         var result = await engine.Evaluate("""
 
                                                        let map = new Map();
                                                        map.set("a", 1);
                                                        map.set("b", 2);
 
-                                                       let entries = map.entries();
+                                                       let entries = Array.from(map.entries());
                                                        let first = entries[0];
                                                        first[0] + first[1];
 
@@ -238,6 +241,7 @@ public class MapTests
     public async Task Map_Maintains_Insertion_Order()
     {
         await using var engine = new JsEngine();
+        // map.keys() returns an Iterator, use Array.from() to convert to array
         var result = await engine.Evaluate("""
 
                                                        let map = new Map();
@@ -245,7 +249,7 @@ public class MapTests
                                                        map.set("first", 1);
                                                        map.set("second", 2);
 
-                                                       let keys = map.keys();
+                                                       let keys = Array.from(map.keys());
                                                        keys[0] + "," + keys[1] + "," + keys[2];
 
                                            """);

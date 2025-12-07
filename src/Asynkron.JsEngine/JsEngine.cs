@@ -1542,10 +1542,31 @@ public sealed class JsEngine : IAsyncDisposable
         {
             switch (statement)
             {
-                case ExportDefaultStatement:
+                case ExportDefaultStatement exportDefaultStmt:
                     exports["default"] = UninitializedExportMarker;
-                    // For anonymous hoistable function declarations, binding is created during HoistFunctionDeclarations
+                    // For hoistable anonymous function declarations, binding is created during HoistFunctionDeclarations
+                    // For all other default exports (classes, expressions), we need to create the *default* binding here in TDZ
                     // Note: `export default function() {}` is hoistable (flag set), but `export default (function() {})` is not
+                    if (exportDefaultStmt.Value is ExportDefaultExpression { Expression: FunctionExpression { Name: null, IsHoistableDefaultExport: true } })
+                    {
+                        // Will be handled by HoistFunctionDeclarations
+                    }
+                    else if (exportDefaultStmt.Value is ExportDefaultDeclaration { Declaration: FunctionDeclaration })
+                    {
+                        // Named function declarations are hoisted with their name, not *default*
+                    }
+                    else
+                    {
+                        // All other default exports: create *default* binding
+                        // This includes: anonymous classes, expression exports, non-hoistable function expressions
+                        // Use isLexical: false so we can initialize it later via Assign without TDZ errors
+                        // The binding is initialized during EvaluateExportDefault
+                        var defaultSymbol = Symbol.Intern("*default*");
+                        if (!moduleEnv.HasBinding(defaultSymbol))
+                        {
+                            moduleEnv.Define(defaultSymbol, JsEnvironment.Uninitialized, isLexical: false, blocksFunctionScopeOverride: false);
+                        }
+                    }
                     break;
                 case ExportDeclarationStatement exportDeclaration:
                     if (exportDeclaration.Declaration is VariableDeclaration variableDeclaration)
@@ -1587,7 +1608,8 @@ public sealed class JsEngine : IAsyncDisposable
 
                     break;
                 case ExportAllStatement exportAll:
-                    var sourceEntry = LoadModule(exportAll.ModulePath, modulePath, phase, exportStarSet);
+                    // Use LoadModuleForInstantiation to avoid evaluating the module during instantiation phase
+                    var sourceEntry = LoadModuleForInstantiation(exportAll.ModulePath, modulePath, phase, exportStarSet);
                     if (exportStarSet.Contains(sourceEntry.Path))
                     {
                         break;
@@ -1641,8 +1663,10 @@ public sealed class JsEngine : IAsyncDisposable
                 if (importStatement.NamespaceBinding is { } nsBinding)
                 {
                     // Namespace binding is the whole module namespace object
+                    // Per ES spec 16.2.1.6.2 step 12.b.ii: CreateImmutableBinding(in.[[LocalName]], true)
+                    // The binding must be immutable - assignment should throw TypeError in strict mode
                     var ns = GetModuleNamespace(importedModule);
-                    moduleEnv.Define(nsBinding, ns, isLexical: true, blocksFunctionScopeOverride: false);
+                    moduleEnv.Define(nsBinding, ns, isConst: true, isLexical: true, blocksFunctionScopeOverride: false);
                 }
 
                 // Handle named imports
@@ -2076,18 +2100,23 @@ public sealed class JsEngine : IAsyncDisposable
         // For all other expression default exports, evaluate the expression and define the *default* binding
         if (statement.Value is ExportDefaultExpression expression)
         {
-            // Evaluate the expression with "default" as function name hint for anonymous classes
+            // Per spec: If IsAnonymousFunctionDefinition(AssignmentExpression) is true, perform SetFunctionName(value, "default")
+            // This applies to anonymous function expressions, arrow functions, generator expressions, and anonymous class expressions
+            var isAnonymousFunctionDefinition = expression.Expression switch
+            {
+                FunctionExpression { Name: null } => true,
+                ClassExpression { Name: null } => true,
+                _ => false
+            };
+
             var value = ExecuteTypedExpression(
                 expression.Expression,
                 moduleEnv,
                 isStrict,
-                expression.Expression is ClassExpression { Name: null }
-                    ? Symbol.Intern("default")
-                    : null);
+                isAnonymousFunctionDefinition ? Symbol.Intern("default") : null);
 
-            // Define the *default* binding so import bindings can access it
-            // Note: Each module can only have one default export, so the binding won't already exist
-            moduleEnv.Define(defaultBindingName, value, isLexical: false, blocksFunctionScopeOverride: false);
+            // Initialize the *default* binding (it was created in TDZ during PredeclareExportNames)
+            moduleEnv.Assign(defaultBindingName, value);
 
             return new LiveExportBinding(() => moduleEnv.Get(defaultBindingName));
         }

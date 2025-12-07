@@ -321,14 +321,18 @@ public class BigIntTests
     public async Task BigIntDivisionByZeroThrows()
     {
         await using var engine = new JsEngine();
-        await Assert.ThrowsAsync<DivideByZeroException>(async () => await engine.Evaluate("10n / 0n;"));
+        var exception =
+            await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("10n / 0n;"));
+        Assert.Contains("Division by zero", exception.Message);
     }
 
     [Fact(Timeout = 2000)]
     public async Task BigIntModuloByZeroThrows()
     {
         await using var engine = new JsEngine();
-        await Assert.ThrowsAsync<DivideByZeroException>(async () => await engine.Evaluate("10n % 0n;"));
+        var exception =
+            await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("10n % 0n;"));
+        Assert.Contains("Division by zero", exception.Message);
     }
 
     [Fact(Timeout = 2000)]
@@ -336,7 +340,7 @@ public class BigIntTests
     {
         await using var engine = new JsEngine();
         var exception =
-            await Assert.ThrowsAsync<InvalidOperationException>(async () => await engine.Evaluate("2n ** -1n;"));
+            await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("2n ** -1n;"));
         Assert.Contains("Exponent must be non-negative", exception.Message);
     }
 

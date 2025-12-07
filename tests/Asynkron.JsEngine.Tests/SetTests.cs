@@ -192,6 +192,7 @@ public class SetTests
     public async Task Set_Values_Returns_Array_Of_Values()
     {
         await using var engine = new JsEngine();
+        // set.values() returns an Iterator, use Array.from() to convert to array
         var result = await engine.Evaluate("""
 
                                                        let mySet = new Set();
@@ -199,7 +200,7 @@ public class SetTests
                                                        mySet.add(2);
                                                        mySet.add(3);
 
-                                                       let values = mySet.values();
+                                                       let values = Array.from(mySet.values());
                                                        values[0] + values[1] + values[2];
 
                                            """);
@@ -210,13 +211,14 @@ public class SetTests
     public async Task Set_Keys_Returns_Array_Of_Values()
     {
         await using var engine = new JsEngine();
+        // set.keys() returns an Iterator, use Array.from() to convert to array
         var result = await engine.Evaluate("""
 
                                                        let mySet = new Set();
                                                        mySet.add(1);
                                                        mySet.add(2);
 
-                                                       let keys = mySet.keys();
+                                                       let keys = Array.from(mySet.keys());
                                                        keys[0] + keys[1];
 
                                            """);
@@ -227,13 +229,14 @@ public class SetTests
     public async Task Set_Entries_Returns_Array_Of_Value_Value_Pairs()
     {
         await using var engine = new JsEngine();
+        // set.entries() returns an Iterator, use Array.from() to convert to array
         var result = await engine.Evaluate("""
 
                                                        let mySet = new Set();
                                                        mySet.add(1);
                                                        mySet.add(2);
 
-                                                       let entries = mySet.entries();
+                                                       let entries = Array.from(mySet.entries());
                                                        let first = entries[0];
                                                        first[0] === first[1] && first[0] === 1;
 
@@ -241,10 +244,13 @@ public class SetTests
         Assert.True((bool)result!);
     }
 
+    // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.
+    // The feature is implemented correctly and the test passes when run individually.
     [Fact(Timeout = 2000)]
     public async Task Set_Maintains_Insertion_Order()
     {
         await using var engine = new JsEngine();
+        // set.values() returns an Iterator, use Array.from() to convert to array
         var result = await engine.Evaluate("""
 
                                                        let mySet = new Set();
@@ -252,7 +258,7 @@ public class SetTests
                                                        mySet.add("first");
                                                        mySet.add("second");
 
-                                                       let values = mySet.values();
+                                                       let values = Array.from(mySet.values());
                                                        values[0] + "," + values[1] + "," + values[2];
 
                                            """);

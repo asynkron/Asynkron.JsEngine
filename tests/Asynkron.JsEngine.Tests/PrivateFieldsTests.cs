@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.Ast;
+
 namespace Asynkron.JsEngine.Tests;
 
 public class PrivateFieldsTests
@@ -87,7 +89,9 @@ public class PrivateFieldsTests
     public async Task PrivateFieldNotAccessibleOutsideClass()
     {
         await using var engine = new JsEngine();
-        var ex = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
+        // c["#count"] accesses a regular property named "#count" (the string), not the private field
+        // This returns undefined, not an error - private fields are only accessible with dot notation
+        var result = await engine.Evaluate("""
 
                                                        class Counter {
                                                            #count = 42;
@@ -96,8 +100,8 @@ public class PrivateFieldsTests
                                                        let c = new Counter();
                                                        c["#count"];
 
-                                           """));
-        Assert.NotNull(ex);
+                                           """);
+        Assert.Equal(Symbol.Undefined, result);
     }
 
     [Fact(Timeout = 2000)]

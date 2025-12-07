@@ -1561,6 +1561,35 @@ public sealed class JsEngine : IAsyncDisposable
                     break;
             }
         }
+
+        // Per ES spec, all function declarations in a module must be hoisted
+        // (initialized with their function value) before the module body executes.
+        // This applies to both exported and non-exported function declarations.
+        HoistModuleFunctionDeclarations(program, moduleEnv);
+    }
+
+    /// <summary>
+    /// Hoists all function declarations in the module to their function values.
+    /// Per ES spec, function declarations are initialized during module instantiation.
+    /// </summary>
+    private void HoistModuleFunctionDeclarations(ProgramNode program, JsEnvironment moduleEnv)
+    {
+        foreach (var statement in program.Body)
+        {
+            switch (statement)
+            {
+                case FunctionDeclaration funcDecl:
+                    // Create the function value and define it
+                    var function = TypedAstEvaluator.CreateModuleFunction(funcDecl.Function, moduleEnv, RealmState, program.IsStrict);
+                    moduleEnv.Define(funcDecl.Name, function, isLexical: false, blocksFunctionScopeOverride: false);
+                    break;
+                case ExportDeclarationStatement { Declaration: FunctionDeclaration exportedFuncDecl }:
+                    // Exported function declarations also need to be hoisted
+                    var exportedFunction = TypedAstEvaluator.CreateModuleFunction(exportedFuncDecl.Function, moduleEnv, RealmState, program.IsStrict);
+                    moduleEnv.Define(exportedFuncDecl.Name, exportedFunction, isLexical: false, blocksFunctionScopeOverride: false);
+                    break;
+            }
+        }
     }
 
     private object? ExecuteModuleBody(
@@ -1593,6 +1622,10 @@ public sealed class JsEngine : IAsyncDisposable
                 case ExportNamespaceAsStatement exportNamespace:
                     var namespaceEntry = LoadModule(exportNamespace.ModulePath, modulePath, ImportPhase.Module);
                     exports[exportNamespace.Exported.Name] = GetModuleNamespace(namespaceEntry);
+                    break;
+                case FunctionDeclaration:
+                    // Function declarations are already hoisted during module instantiation,
+                    // so their evaluation is a no-op per ES spec
                     break;
                 default:
                     lastValue = ExecuteTypedStatement(statement, moduleEnv, typedProgram.IsStrict,

@@ -1182,10 +1182,33 @@ public sealed class TypedAstParser(
         {
             var builder = ImmutableArray.CreateBuilder<ImportBinding>();
 
+            // Handle empty import list: import {} from
+            if (Check(TokenType.RightBrace))
+            {
+                return builder.ToImmutable();
+            }
+
             do
             {
-                var importedToken = ConsumeBindingIdentifier("Expected identifier in import list.");
-                var imported = Symbol.Intern(importedToken.Lexeme);
+                // In `import { X as Y }`, X can be `default`, identifier, or string literal
+                Token importedToken;
+                Symbol imported;
+                if (Check(TokenType.Default))
+                {
+                    importedToken = Advance();
+                    imported = Symbol.Intern(importedToken.Lexeme);
+                }
+                else if (Check(TokenType.String))
+                {
+                    // Arbitrary module namespace names - string literal as import name
+                    importedToken = Advance();
+                    imported = Symbol.Intern(GetStringLiteralValue(importedToken));
+                }
+                else
+                {
+                    importedToken = ConsumeBindingIdentifier("Expected identifier in import list.");
+                    imported = Symbol.Intern(importedToken.Lexeme);
+                }
                 Symbol local;
 
                 if (MatchContextualKeyword("as"))
@@ -1212,7 +1235,16 @@ public sealed class TypedAstParser(
             {
                 if (MatchContextualKeyword("as"))
                 {
-                    var namespaceToken = ConsumeBindingIdentifier("Expected identifier after 'as'.");
+                    // In `export * as X from`, X can be `default` or any identifier
+                    Token namespaceToken;
+                    if (Check(TokenType.Default))
+                    {
+                        namespaceToken = Advance();
+                    }
+                    else
+                    {
+                        namespaceToken = ConsumeBindingIdentifier("Expected identifier after 'as'.");
+                    }
                     ConsumeContextualKeyword("from", "Expected 'from' after exported namespace.");
                     var namespaceModuleToken = Consume(TokenType.String, "Expected module path.");
                     var namespaceModulePath = GetStringLiteralValue(namespaceModuleToken);
@@ -1347,8 +1379,19 @@ public sealed class TypedAstParser(
 
             do
             {
-                var localToken = ConsumeBindingIdentifier("Expected identifier in export list.");
-                var local = Symbol.Intern(localToken.Lexeme);
+                // Local name can be identifier or string literal (arbitrary module namespace names)
+                Token localToken;
+                Symbol local;
+                if (Check(TokenType.String))
+                {
+                    localToken = Advance();
+                    local = Symbol.Intern(GetStringLiteralValue(localToken));
+                }
+                else
+                {
+                    localToken = ConsumeBindingIdentifier("Expected identifier in export list.");
+                    local = Symbol.Intern(localToken.Lexeme);
+                }
                 Symbol exported;
 
                 if (MatchContextualKeyword("as"))
@@ -1357,13 +1400,19 @@ public sealed class TypedAstParser(
                     if (Check(TokenType.Default))
                     {
                         exportedToken = Advance();
+                        exported = Symbol.Intern(exportedToken.Lexeme);
+                    }
+                    else if (Check(TokenType.String))
+                    {
+                        // Exported name can be string literal (arbitrary module namespace names)
+                        exportedToken = Advance();
+                        exported = Symbol.Intern(GetStringLiteralValue(exportedToken));
                     }
                     else
                     {
                         exportedToken = ConsumeBindingIdentifier("Expected identifier after 'as'.");
+                        exported = Symbol.Intern(exportedToken.Lexeme);
                     }
-
-                    exported = Symbol.Intern(exportedToken.Lexeme);
                 }
                 else
                 {

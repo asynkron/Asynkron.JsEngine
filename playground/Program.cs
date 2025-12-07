@@ -10,48 +10,17 @@ internal static class Program
         try
         {
             var result = await engine.Evaluate("""
-// Test: super() called in iterator return handler after early return from constructor
-// Per spec, the iterator return handler can call super() to initialize this,
-// and the constructor should then return the initialized this.
-var superCalled = false;
-var iter = {
-  [Symbol.iterator]() {
-    return this;
+// Test: extending a bound generator function should throw TypeError BEFORE accessing .prototype
+var bound = (function* () {}).bind();
+Object.defineProperty(bound, "prototype", {
+  get: function() {
+    throw new Error("FAIL: superclass.prototype should be unreachable");
   },
-  next() {
-    return {done: false};
-  },
-  return() {
-    console.log('Iterator return called, calling super via arrow function...');
-    this.f();
-    superCalled = true;
-    return {done: true};
-  },
-};
-
-class C extends class {} {
-  constructor() {
-    console.log('Constructor entry');
-    iter.f = () => {
-      console.log('Arrow function calling super()');
-      super();
-      console.log('super() completed');
-    };
-
-    for (var k of iter) {
-      console.log('In for-of loop, about to return');
-      return;
-    }
-    console.log('After for-of loop');
-  }
-}
+});
 
 try {
-  console.log('About to create new C()');
-  var o = new C();
-  console.log('superCalled:', superCalled);
-  console.log('typeof o:', typeof o);
-  console.log('o:', o);
+  class C extends bound {}
+  console.log('No error thrown - BUG');
 } catch (e) {
   console.log('Error type:', e.constructor.name);
   console.log('Error message:', e.message);

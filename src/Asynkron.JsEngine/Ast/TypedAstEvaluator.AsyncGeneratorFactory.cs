@@ -167,11 +167,8 @@ public static partial class TypedAstEvaluator
 
         public bool TryGetProperty(string name, object? receiver, out object? value)
         {
-            if (_properties.TryGetProperty(name, receiver ?? this, out value))
-            {
-                return true;
-            }
-
+            // Handle call/apply/bind specially BEFORE looking them up in prototype chain
+            // This ensures async generator functions get proper constructor semantics for bound functions
             var callable = (IJsCallable)this;
             switch (name)
             {
@@ -201,6 +198,8 @@ public static partial class TypedAstEvaluator
                         var boundThis = args.GetArgument(0);
                         var boundArgs = args.SliceFrom(1);
 
+                        // Async generator functions are never constructors, so bound async generator functions
+                        // must also have DisallowConstruct = true per ES spec.
                         return new HostFunction((_, innerArgs) =>
                         {
                             if (boundArgs.Count == 0)
@@ -215,9 +214,15 @@ public static partial class TypedAstEvaluator
                                 finalArgs[boundArgs.Count + i] = innerArgs[i];
 
                             return callable.Invoke(finalArgs, boundThis);
-                        });
+                        }) { DisallowConstruct = true };
                     });
                     return true;
+            }
+
+            // Fall back to properties lookup for all other properties
+            if (_properties.TryGetProperty(name, receiver ?? this, out value))
+            {
+                return true;
             }
 
             value = null;

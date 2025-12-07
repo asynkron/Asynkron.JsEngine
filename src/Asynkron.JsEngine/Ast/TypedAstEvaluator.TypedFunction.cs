@@ -836,6 +836,17 @@ public static partial class TypedAstEvaluator
                         value is not JsObject &&
                         value is not IJsObjectLike)
                     {
+                        // Per ES spec 9.2.2 [[Construct]] step 13c:
+                        // For derived class constructors, if return value is not undefined,
+                        // throw TypeError. For base class constructors, fall back to `this`.
+                        if (_isDerivedClassConstructor && !ReferenceEquals(value, Symbol.Undefined))
+                        {
+                            throw StandardLibrary.ThrowTypeError(
+                                "Derived constructors may only return object or undefined",
+                                context,
+                                _realmState);
+                        }
+
                         try
                         {
                             if (functionEnvironment.TryGet(Symbol.This, out var currentThis) &&

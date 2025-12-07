@@ -91,6 +91,22 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
+                // Per Annex B.3.3, only regular (non-async, non-generator) function declarations
+                // are eligible for Annex B hoisting. Async functions, generators, and async generators
+                // are always block-scoped and never hoisted via Annex B.
+                if (functionDeclaration.Function.IsAsync || functionDeclaration.Function.IsGenerator)
+                {
+                    // Create a lexical binding for async/generator functions (they're block-scoped only)
+                    var asyncGenFunctionValue = CreateFunctionValue(functionDeclaration.Function, blockEnvironment, context);
+                    blockEnvironment.Define(
+                        functionDeclaration.Name,
+                        asyncGenFunctionValue,
+                        isConst: true,
+                        isLexical: true,
+                        blocksFunctionScopeOverride: true);
+                    continue;
+                }
+
                 var hasNonCatchLexical = (lexicalNames.Contains(functionDeclaration.Name) ||
                                           blockFunctionNames.Contains(functionDeclaration.Name)) &&
                                          !simpleCatchParameterNames.Contains(functionDeclaration.Name);

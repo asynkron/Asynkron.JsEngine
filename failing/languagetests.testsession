@@ -1224,5 +1224,16 @@
         <TestId>NUnit3x::7527CADC-BF6A-4F99-846F-92122ACFB155::net10.0::Asynkron.JsEngine.Tests.Test262.DebugClassFieldTests.PrivateFieldAccessByProxyReceiverSustainsBrand</TestId>
       </Test>
     </And>
+    <TestAncestor>
+      <TestId>NUnit3x::7527CADC-BF6A-4F99-846F-92122ACFB155::net10.0::Asynkron.JsEngine.Tests.Test262.AnnexBTests</TestId>
+      <TestId>NUnit3x::7527CADC-BF6A-4F99-846F-92122ACFB155::net10.0::Asynkron.JsEngine.Tests.Test262.Intl402Tests</TestId>
+      <TestId>NUnit3x::7527CADC-BF6A-4F99-846F-92122ACFB155::net10.0::Asynkron.JsEngine.Tests.Test262.BuiltInsTests</TestId>
+      <TestId>NUnit3x::7527CADC-BF6A-4F99-846F-92122ACFB155::net10.0::Asynkron.JsEngine.Tests.Test262.ArrayEveryFocusedTests</TestId>
+      <TestId>NUnit3x::7527CADC-BF6A-4F99-846F-92122ACFB155::net10.0::Asynkron.JsEngine.Tests.Test262.ArrayEverySubclassTests</TestId>
+      <TestId>NUnit3x::7527CADC-BF6A-4F99-846F-92122ACFB155::net10.0::Asynkron.JsEngine.Tests.Test262.DebugClassFieldTests</TestId>
+      <TestId>NUnit3x::7527CADC-BF6A-4F99-846F-92122ACFB155::net10.0::Asynkron.JsEngine.Tests.Test262.IteratorCloseFullHarnessTests</TestId>
+      <TestId>NUnit3x::7527CADC-BF6A-4F99-846F-92122ACFB155::net10.0::Asynkron.JsEngine.Tests.Test262.IteratorCloseHarnessIntegrationTests</TestId>
+      <TestId>NUnit3x::7527CADC-BF6A-4F99-846F-92122ACFB155::net10.0::Asynkron.JsEngine.Tests.Test262.TypedArrayCallbackThisFocusedTests</TestId>
+    </TestAncestor>
   </Or>
 </SessionState>

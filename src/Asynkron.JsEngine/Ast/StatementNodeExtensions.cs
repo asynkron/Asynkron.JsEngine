@@ -204,9 +204,15 @@ public static partial class TypedAstEvaluator
                         var hasNonCatchLexical = lexicalNames.Contains(functionDeclaration.Name) &&
                                                  !simpleCatchParameterNames.Contains(functionDeclaration.Name);
                         var functionScope = environment.GetFunctionScope();
+
+                        // Per Annex B.3.3, only regular (non-async, non-generator) function declarations
+                        // are eligible for Annex B hoisting. Async functions, generators, and async generators
+                        // are always block-scoped and never hoisted via Annex B.
                         var isAnnexBBlockFunction =
                             inBlockScope &&
-                            context.CurrentScope is { IsStrict: false, AllowAnnexB: true };
+                            context.CurrentScope is { IsStrict: false, AllowAnnexB: true } &&
+                            !functionDeclaration.Function.IsAsync &&
+                            !functionDeclaration.Function.IsGenerator;
 
                         if (isAnnexBBlockFunction)
                         {

@@ -130,10 +130,9 @@ public static partial class TypedAstEvaluator
                 return (Symbol.Undefined, binding);
             }
 
-            var propertyName = ToPropertyName(propertyValue, context)
-                               ?? throw new InvalidOperationException(
-                                   $"Property name cannot be null.{GetSourceInfo(context, expression.Source)}");
-
+            // Use JsOps.GetRequiredPropertyName which properly handles errors from ToPropertyName
+            // (e.g., when toString() throws during property key coercion)
+            var propertyName = JsOps.GetRequiredPropertyName(propertyValue, context);
             if (context.ShouldStopEvaluation)
             {
                 return (Symbol.Undefined, binding);

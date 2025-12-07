@@ -10,44 +10,47 @@ internal static class Program
         try
         {
             var result = await engine.Evaluate("""
-// Test yield* - error when getting done property should be catchable
-var thrown = new Error('test error');
-var badIter = {};
-var poisonedDone = Object.defineProperty({}, 'done', {
-  get: function() {
-    throw thrown;
-  }
-});
-badIter[Symbol.iterator] = function() {
-  return {
-    next: function() {
-      return poisonedDone;
-    }
-  };
+// Test: iterator return can call super() when returning early from for-of
+var iter = {
+  [Symbol.iterator]() {
+    return this;
+  },
+  next() {
+    return {done: false};
+  },
+  return() {
+    // Calls |super()|.
+    this.f();
+    return {done: true};
+  },
 };
-function* g() {
-  try {
-    yield * badIter;
-  } catch (err) {
-    caught = err;
+
+class C extends class {} {
+  constructor() {
+    iter.f = () => super();
+
+    for (var k of iter) {
+      return;
+    }
   }
 }
-var iter = g();
-var result, caught;
 
-result = iter.next();
-
-console.log('caught:', caught);
-console.log('caught === thrown:', caught === thrown);
+try {
+  var o = new C();
+  console.log('typeof o:', typeof o);
+  console.log('Success!');
+} catch (e) {
+  console.log('Error type:', e.constructor.name);
+  console.log('Error message:', e.message);
+}
 'done';
 """);
 
-            Console.WriteLine($"Test completed! Result: {result}");
+            Console.WriteLine($"Result: {result}");
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Test FAILED: {ex.Message}");
-            Console.WriteLine($"Stack: {ex.StackTrace}");
         }
     }
 }

@@ -13,16 +13,40 @@ public static partial class TypedAstEvaluator
         FunctionExpression funcExpr,
         JsEnvironment moduleEnv,
         RealmState realmState,
-        bool isStrict)
+        bool isStrict,
+        string? functionName = null)
     {
+        IJsCallable result;
         if (funcExpr.IsGenerator)
         {
             if (funcExpr.IsAsync)
             {
-                return new AsyncGeneratorFactory(funcExpr, moduleEnv, realmState, isStrict, true);
+                var asyncGen = new AsyncGeneratorFactory(funcExpr, moduleEnv, realmState, isStrict, true);
+                if (functionName != null)
+                {
+                    asyncGen.EnsureHasName(functionName, overwriteExisting: true);
+                }
+                result = asyncGen;
             }
-            return new TypedGeneratorFactory(funcExpr, moduleEnv, realmState, isStrict, true);
+            else
+            {
+                var gen = new TypedGeneratorFactory(funcExpr, moduleEnv, realmState, isStrict, true);
+                if (functionName != null)
+                {
+                    gen.EnsureHasName(functionName, overwriteExisting: true);
+                }
+                result = gen;
+            }
         }
-        return new TypedFunction(funcExpr, moduleEnv, realmState, isStrict, false, true);
+        else
+        {
+            var fn = new TypedFunction(funcExpr, moduleEnv, realmState, isStrict, false, true);
+            if (functionName != null)
+            {
+                fn.EnsureHasName(functionName, overwriteExisting: true);
+            }
+            result = fn;
+        }
+        return result;
     }
 }

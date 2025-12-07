@@ -1445,9 +1445,11 @@ public sealed class TypedAstParser(
                     new ExportDefaultDeclaration(exportSource, declaration));
             }
 
+            // Mark as hoistable - this is `export default function() {}`, NOT `export default (function() {})`
+            var hoistableFunction = function with { IsHoistableDefaultExport = true };
             Match(TokenType.Semicolon);
             return new ExportDefaultStatement(exportSource,
-                new ExportDefaultExpression(exportSource, function));
+                new ExportDefaultExpression(exportSource, hoistableFunction));
         }
 
         private BlockStatement ParseBlock(bool leftBraceConsumed = false)

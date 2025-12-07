@@ -1481,7 +1481,9 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         EnsureModuleInstantiated(entry, phase);
-        if (phase == ImportPhase.Module)
+        // Only evaluate if the module is not currently being instantiated (cyclic import)
+        // For cyclic imports, the namespace is accessed during instantiation before evaluation
+        if (phase == ImportPhase.Module && !entry.Instantiating)
         {
             EnsureModuleEvaluated(entry);
         }
@@ -1542,6 +1544,8 @@ public sealed class JsEngine : IAsyncDisposable
             {
                 case ExportDefaultStatement:
                     exports["default"] = UninitializedExportMarker;
+                    // For anonymous hoistable function declarations, binding is created during HoistFunctionDeclarations
+                    // Note: `export default function() {}` is hoistable (flag set), but `export default (function() {})` is not
                     break;
                 case ExportDeclarationStatement exportDeclaration:
                     if (exportDeclaration.Declaration is VariableDeclaration variableDeclaration)
@@ -1687,6 +1691,17 @@ public sealed class JsEngine : IAsyncDisposable
                             }
                         }
                         break;
+                    case ExportNamedStatement { FromModule: null } localExportNamed:
+                        // Local named exports: export { x as y } exports local binding x under name y
+                        foreach (var specifier in localExportNamed.Specifiers)
+                        {
+                            if (specifier.Exported.Name == exportName)
+                            {
+                                // Return the local binding name, not the exported name
+                                return (module, specifier.Local);
+                            }
+                        }
+                        break;
                     case ExportAllStatement exportAll:
                         if (exportName != "default")
                         {
@@ -1698,6 +1713,29 @@ public sealed class JsEngine : IAsyncDisposable
                 }
             }
             // It's a local export
+            // For default exports, resolve to the actual binding name
+            if (exportName == "default")
+            {
+                foreach (var stmt in module.Program.Body)
+                {
+                    if (stmt is ExportDefaultStatement exportDefaultStmt)
+                    {
+                        // Named function declarations - binding is the function name
+                        if (exportDefaultStmt.Value is ExportDefaultDeclaration { Declaration: FunctionDeclaration namedFuncDecl })
+                        {
+                            return (module, namedFuncDecl.Name);
+                        }
+                        // Named class declarations - binding is the class name
+                        if (exportDefaultStmt.Value is ExportDefaultDeclaration { Declaration: ClassDeclaration namedClassDecl })
+                        {
+                            return (module, namedClassDecl.Name);
+                        }
+                        // All other default exports (including anonymous functions/classes and expression exports)
+                        // use the *default* binding
+                        return (module, Symbol.Intern("*default*"));
+                    }
+                }
+            }
             return (module, Symbol.Intern(exportName));
         }
 
@@ -1754,37 +1792,49 @@ public sealed class JsEngine : IAsyncDisposable
 
     private void HoistLexicalBinding(BindingTarget target, JsEnvironment moduleEnv, bool isConst)
     {
-        switch (target)
+        while (true)
         {
-            case IdentifierBinding id:
-                if (!moduleEnv.HasBinding(id.Name))
-                {
-                    moduleEnv.Define(id.Name, JsEnvironment.Uninitialized, isLexical: true, blocksFunctionScopeOverride: false, isConst: isConst);
-                }
-                break;
-            case ArrayBinding arrayBinding:
-                foreach (var element in arrayBinding.Elements)
-                {
-                    if (element.Target is { } binding)
+            switch (target)
+            {
+                case IdentifierBinding id:
+                    if (!moduleEnv.HasBinding(id.Name))
                     {
-                        HoistLexicalBinding(binding, moduleEnv, isConst);
+                        moduleEnv.Define(id.Name, JsEnvironment.Uninitialized, isLexical: true, blocksFunctionScopeOverride: false, isConst: isConst);
                     }
-                }
-                if (arrayBinding.RestElement is { } rest)
-                {
-                    HoistLexicalBinding(rest, moduleEnv, isConst);
-                }
-                break;
-            case ObjectBinding objectBinding:
-                foreach (var prop in objectBinding.Properties)
-                {
-                    HoistLexicalBinding(prop.Target, moduleEnv, isConst);
-                }
-                if (objectBinding.RestElement is { } objRest)
-                {
-                    HoistLexicalBinding(objRest, moduleEnv, isConst);
-                }
-                break;
+
+                    break;
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        if (element.Target is { } binding)
+                        {
+                            HoistLexicalBinding(binding, moduleEnv, isConst);
+                        }
+                    }
+
+                    if (arrayBinding.RestElement is { } rest)
+                    {
+                        target = rest;
+                        continue;
+                    }
+
+                    break;
+                case ObjectBinding objectBinding:
+                    foreach (var prop in objectBinding.Properties)
+                    {
+                        HoistLexicalBinding(prop.Target, moduleEnv, isConst);
+                    }
+
+                    if (objectBinding.RestElement is { } objRest)
+                    {
+                        target = objRest;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            break;
         }
     }
 
@@ -1826,37 +1876,49 @@ public sealed class JsEngine : IAsyncDisposable
 
     private void HoistVarBinding(BindingTarget target, JsEnvironment moduleEnv)
     {
-        switch (target)
+        while (true)
         {
-            case IdentifierBinding id:
-                if (!moduleEnv.HasBinding(id.Name))
-                {
-                    moduleEnv.Define(id.Name, Symbol.Undefined, isLexical: false, blocksFunctionScopeOverride: false);
-                }
-                break;
-            case ArrayBinding arrayBinding:
-                foreach (var element in arrayBinding.Elements)
-                {
-                    if (element.Target is { } binding)
+            switch (target)
+            {
+                case IdentifierBinding id:
+                    if (!moduleEnv.HasBinding(id.Name))
                     {
-                        HoistVarBinding(binding, moduleEnv);
+                        moduleEnv.Define(id.Name, Symbol.Undefined, isLexical: false, blocksFunctionScopeOverride: false);
                     }
-                }
-                if (arrayBinding.RestElement is { } rest)
-                {
-                    HoistVarBinding(rest, moduleEnv);
-                }
-                break;
-            case ObjectBinding objectBinding:
-                foreach (var prop in objectBinding.Properties)
-                {
-                    HoistVarBinding(prop.Target, moduleEnv);
-                }
-                if (objectBinding.RestElement is { } objRest)
-                {
-                    HoistVarBinding(objRest, moduleEnv);
-                }
-                break;
+
+                    break;
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        if (element.Target is { } binding)
+                        {
+                            HoistVarBinding(binding, moduleEnv);
+                        }
+                    }
+
+                    if (arrayBinding.RestElement is { } rest)
+                    {
+                        target = rest;
+                        continue;
+                    }
+
+                    break;
+                case ObjectBinding objectBinding:
+                    foreach (var prop in objectBinding.Properties)
+                    {
+                        HoistVarBinding(prop.Target, moduleEnv);
+                    }
+
+                    if (objectBinding.RestElement is { } objRest)
+                    {
+                        target = objRest;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            break;
         }
     }
 
@@ -1875,6 +1937,18 @@ public sealed class JsEngine : IAsyncDisposable
                     // Exported function declarations also need to be hoisted
                     var exportedFunction = TypedAstEvaluator.CreateModuleFunction(exportedFuncDecl.Function, moduleEnv, RealmState, program.IsStrict);
                     moduleEnv.Define(exportedFuncDecl.Name, exportedFunction, isLexical: false, blocksFunctionScopeOverride: false);
+                    break;
+                case ExportDefaultStatement { Value: ExportDefaultDeclaration { Declaration: FunctionDeclaration defaultFuncDecl } }:
+                    // Default exported named function declarations need to be hoisted
+                    var defaultFunction = TypedAstEvaluator.CreateModuleFunction(defaultFuncDecl.Function, moduleEnv, RealmState, program.IsStrict);
+                    moduleEnv.Define(defaultFuncDecl.Name, defaultFunction, isLexical: false, blocksFunctionScopeOverride: false);
+                    break;
+                case ExportDefaultStatement { Value: ExportDefaultExpression { Expression: FunctionExpression { Name: null, IsHoistableDefaultExport: true } funcExpr } }:
+                    // Anonymous default exported function declarations (not expressions!) need to be hoisted with *default* binding
+                    // Per ES spec, SetFunctionName(F, "default") is called for anonymous default exports
+                    // Note: `export default function() {}` is hoistable, but `export default (function() {})` is not
+                    var anonFunction = TypedAstEvaluator.CreateModuleFunction(funcExpr, moduleEnv, RealmState, program.IsStrict, "default");
+                    moduleEnv.Define(Symbol.Intern("*default*"), anonFunction, isLexical: false, blocksFunctionScopeOverride: false);
                     break;
             }
         }
@@ -1966,51 +2040,85 @@ public sealed class JsEngine : IAsyncDisposable
             EnsureModuleEvaluated(moduleEntry);
         }
 
-        if (importStatement.DefaultBinding is { } defaultBinding &&
-            moduleEntry.Exports.TryGetValue("default", out var defaultValue))
-        {
-            moduleEnv.Define(defaultBinding, defaultValue, isConst: true, blocksFunctionScopeOverride: true);
-        }
+        // Import bindings were already created during HoistImportBindings.
+        // We only need to set up namespace bindings here, as they reference the namespace object.
+        // Default and named imports are now handled by ImportBindingWrapper created during hoisting.
 
         if (importStatement.NamespaceBinding is { } namespaceBinding)
         {
-            var namespaceObject = GetModuleNamespace(moduleEntry, phase);
-            moduleEnv.Define(namespaceBinding, namespaceObject);
-        }
-
-        foreach (var binding in importStatement.NamedImports)
-        {
-            if (moduleEntry.Exports.TryGetValue(binding.Imported.Name, out var value))
+            // Namespace bindings aren't hoisted as import bindings, they get the namespace object
+            if (!moduleEnv.HasBinding(namespaceBinding))
             {
-                moduleEnv.Define(binding.Local, value, isConst: true, blocksFunctionScopeOverride: true);
+                var namespaceObject = GetModuleNamespace(moduleEntry, phase);
+                moduleEnv.Define(namespaceBinding, namespaceObject);
             }
         }
     }
 
     private object? EvaluateExportDefault(ExportDefaultStatement statement, JsEnvironment moduleEnv, bool isStrict)
     {
-        return statement.Value switch
+        var defaultBindingName = Symbol.Intern("*default*");
+
+        // For hoistable anonymous function declarations, the function was already hoisted with *default* binding
+        // `export default function() {}` is hoistable (IsHoistableDefaultExport = true)
+        // `export default (function() {})` is NOT hoistable (it's a parenthesized expression)
+        if (statement.Value is ExportDefaultExpression { Expression: FunctionExpression { Name: null, IsHoistableDefaultExport: true } })
         {
-            ExportDefaultExpression expression => ExecuteTypedExpression(
+            return new LiveExportBinding(() => moduleEnv.Get(defaultBindingName));
+        }
+
+        // For ExportDefaultDeclaration (named function/class declarations), delegate to specialized handler
+        if (statement.Value is ExportDefaultDeclaration declaration)
+        {
+            return EvaluateExportDefaultDeclaration(declaration, moduleEnv, isStrict);
+        }
+
+        // For all other expression default exports, evaluate the expression and define the *default* binding
+        if (statement.Value is ExportDefaultExpression expression)
+        {
+            // Evaluate the expression with "default" as function name hint for anonymous classes
+            var value = ExecuteTypedExpression(
                 expression.Expression,
                 moduleEnv,
                 isStrict,
-                expression.Expression is ClassExpression { Name: null } or FunctionExpression { Name: null }
+                expression.Expression is ClassExpression { Name: null }
                     ? Symbol.Intern("default")
-                    : null),
-            ExportDefaultDeclaration declaration => EvaluateExportDefaultDeclaration(declaration, moduleEnv, isStrict),
-            _ => Symbol.Undefined
-        };
+                    : null);
+
+            // Define the *default* binding so import bindings can access it
+            // Note: Each module can only have one default export, so the binding won't already exist
+            moduleEnv.Define(defaultBindingName, value, isLexical: false, blocksFunctionScopeOverride: false);
+
+            return new LiveExportBinding(() => moduleEnv.Get(defaultBindingName));
+        }
+
+        return Symbol.Undefined;
     }
 
     private object? EvaluateExportDefaultDeclaration(ExportDefaultDeclaration declaration, JsEnvironment moduleEnv,
         bool isStrict)
     {
+        // For function declarations, they were already hoisted during module instantiation
+        // For anonymous functions, the binding name is "*default*"
+        if (declaration.Declaration is FunctionDeclaration functionDeclaration)
+        {
+            var bindingName = functionDeclaration.Name.Name == ""
+                ? Symbol.Intern("*default*")
+                : functionDeclaration.Name;
+            return new LiveExportBinding(() => moduleEnv.Get(bindingName));
+        }
+
+        // Classes need to be evaluated (they aren't hoisted like functions)
         ExecuteTypedStatement(declaration.Declaration, moduleEnv, isStrict, false);
         return declaration.Declaration switch
         {
-            FunctionDeclaration functionDeclaration => new LiveExportBinding(() => moduleEnv.Get(functionDeclaration.Name)),
-            ClassDeclaration classDeclaration => new LiveExportBinding(() => moduleEnv.Get(classDeclaration.Name)),
+            ClassDeclaration classDeclaration => new LiveExportBinding(() =>
+            {
+                var bindingName = classDeclaration.Name.Name == ""
+                    ? Symbol.Intern("*default*")
+                    : classDeclaration.Name;
+                return moduleEnv.Get(bindingName);
+            }),
             _ => Symbol.Undefined
         };
     }

@@ -48,7 +48,8 @@ public sealed record FunctionExpression(
     bool IsAsync,
     bool IsGenerator,
     bool IsArrow = false,
-    bool WasAsync = false)
+    bool WasAsync = false,
+    bool IsHoistableDefaultExport = false)
     : ExpressionNode(Source);
 
 /// <summary>

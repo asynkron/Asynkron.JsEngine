@@ -717,4 +717,116 @@ public class ModuleTests
         var result = await engine.Evaluate("errorCaught;");
         Assert.True((bool)result!);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task SelfImportAnonymousDefaultExport()
+    {
+        await using var engine = new JsEngine();
+
+        engine.SetModuleLoader(modulePath =>
+        {
+            if (modulePath == "self.js")
+            {
+                return """
+                       import f from './self.js';
+                       export default function() { return 23; };
+                       """;
+            }
+
+            throw new FileNotFoundException($"Module not found: {modulePath}");
+        });
+
+        // Evaluate the module - this should not throw
+        var result = await engine.EvaluateModule("""
+                                                 import f from 'self.js';
+                                                 f();
+                                                 """);
+
+        Assert.Equal(23.0, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task SelfImportAnonymousDefaultExportSingleFile()
+    {
+        // This mimics the Test262 scenario more closely - single file that imports itself
+        await using var engine = new JsEngine();
+
+        engine.SetModuleLoader(modulePath =>
+        {
+            if (modulePath == "language/module-code/test.js")
+            {
+                return """
+                       import f from './test.js';
+                       export default function() { return 23; };
+                       f();
+                       """;
+            }
+
+            throw new FileNotFoundException($"Module not found: {modulePath}");
+        });
+
+        // Evaluate the module - this should not throw
+        var result = await engine.EvaluateModule("""
+                                                 import f from './test.js';
+                                                 export default function() { return 23; };
+                                                 f();
+                                                 """, "language/module-code/test.js");
+
+        Assert.Equal(23.0, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Test262StyleSelfImport()
+    {
+        // This exactly mimics the Test262 instn-named-bndng-dflt-fun-anon.js test
+        await using var engine = new JsEngine();
+
+        var testCode = @"
+f();
+import f from './instn-named-bndng-dflt-fun-anon.js';
+export default function() { return 23; };
+";
+
+        engine.SetModuleLoader(modulePath =>
+        {
+            if (modulePath == "language/module-code/instn-named-bndng-dflt-fun-anon.js")
+            {
+                return testCode;
+            }
+
+            throw new FileNotFoundException($"Module not found: {modulePath}");
+        });
+
+        // Evaluate the module - this should not throw
+        var result = await engine.EvaluateModule(testCode, "language/module-code/instn-named-bndng-dflt-fun-anon.js");
+
+        Assert.Equal(23.0, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task SelfImportAnonymousDefaultGeneratorExport()
+    {
+        await using var engine = new JsEngine();
+
+        engine.SetModuleLoader(modulePath =>
+        {
+            if (modulePath == "self.js")
+            {
+                return """
+                       import f from './self.js';
+                       export default function*() { yield 23; };
+                       """;
+            }
+
+            throw new FileNotFoundException($"Module not found: {modulePath}");
+        });
+
+        // Evaluate the module - this should not throw
+        var result = await engine.EvaluateModule("""
+                                                 import f from 'self.js';
+                                                 f().next().value;
+                                                 """);
+
+        Assert.Equal(23.0, result);
+    }
 }

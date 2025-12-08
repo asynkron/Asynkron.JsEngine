@@ -18,7 +18,7 @@ internal sealed record IteratorDriverPlan(
 
 internal sealed class IteratorDriverState
 {
-    public JsObject? IteratorObject { get; init; }
+    public IJsObjectLike? IteratorObject { get; init; }
     public IEnumerator<object?>? Enumerator { get; init; }
     public bool IsAsyncIterator { get; init; }
     public bool AwaitingNextResult { get; set; }

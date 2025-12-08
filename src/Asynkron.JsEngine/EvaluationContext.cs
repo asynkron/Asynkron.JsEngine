@@ -317,7 +317,7 @@ public sealed class EvaluationContext(
     ///     Sets the context to Yield state with the given value and original iterator result object.
     ///     Used by yield* to preserve the original iterator result properties (like done being absent).
     /// </summary>
-    public void SetYieldWithIteratorResult(object? value, int yieldIndex, JsTypes.JsObject? iteratorResultObject)
+    public void SetYieldWithIteratorResult(object? value, int yieldIndex, JsTypes.IJsObjectLike? iteratorResultObject)
     {
         LastYieldIndex = yieldIndex;
         CurrentSignal = new YieldSignal(value, iteratorResultObject);

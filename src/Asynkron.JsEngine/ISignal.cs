@@ -30,7 +30,7 @@ internal sealed record ContinueSignal(Symbol? Label = null) : ISignal;
 /// </summary>
 /// <param name="Value">The yielded value.</param>
 /// <param name="IteratorResultObject">Optional original iterator result object for yield* to preserve done property.</param>
-internal sealed record YieldSignal(object? Value, JsTypes.JsObject? IteratorResultObject = null) : ISignal;
+internal sealed record YieldSignal(object? Value, JsTypes.IJsObjectLike? IteratorResultObject = null) : ISignal;
 
 /// <summary>
 ///     Signal indicating a throw statement was encountered.

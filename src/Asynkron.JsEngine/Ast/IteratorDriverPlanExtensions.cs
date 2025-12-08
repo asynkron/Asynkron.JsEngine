@@ -10,7 +10,7 @@ public static partial class TypedAstEvaluator
 {
     extension(IteratorDriverPlan plan)
     {
-        private object? ExecuteIteratorDriver(JsObject iterator,
+        private object? ExecuteIteratorDriver(IJsObjectLike iterator,
             IEnumerator<object?>? enumerator,
             JsEnvironment loopEnvironment,
             JsEnvironment outerEnvironment,
@@ -78,7 +78,7 @@ public static partial class TypedAstEvaluator
                     throw new ThrowSignal(thrown);
                 }
 
-                if (nextResult is JsObject resultObj)
+                if (nextResult is IJsObjectLike resultObj)
                 {
                     var done = resultObj.TryGetProperty("done", out var doneValue) &&
                                JsOps.ToBoolean(doneValue);

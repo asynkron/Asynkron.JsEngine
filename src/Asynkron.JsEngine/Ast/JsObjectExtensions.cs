@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    extension(JsObject iterator)
+    extension(IJsObjectLike iterator)
     {
         private object? InvokeIteratorNext(object? sendValue = null, bool hasSendValue = false,
             EvaluationContext? context = null, JsEnvironment? callingEnvironment = null)
@@ -29,7 +29,7 @@ public static partial class TypedAstEvaluator
         private IJsCallable GetIteratorNextCallable(EvaluationContext? context)
         {
             // Use context-aware property access to propagate getter errors
-            if (!iterator.TryGetProperty("next", iterator, context, out var nextValue))
+            if (!iterator.TryGetProperty("next", out var nextValue))
             {
                 throw StandardLibrary.ThrowTypeError("Iterator must expose a 'next' method.", context, context?.RealmState);
             }
@@ -56,7 +56,7 @@ public static partial class TypedAstEvaluator
         {
             result = null;
             // Use context-aware property access to propagate getter errors
-            if (!iterator.TryGetProperty(methodName, iterator, context, out var methodValue))
+            if (!iterator.TryGetProperty(methodName, out var methodValue))
             {
                 return false;
             }
@@ -81,7 +81,8 @@ public static partial class TypedAstEvaluator
             }
 
             var args = hasArgument ? new[] { argument } : Array.Empty<object?>();
-            result = InvokeCallable(callable, args, iterator, context, iterator.RealmState?.Engine?.GlobalEnvironment);
+            var realm = (iterator as JsObject)?.RealmState ?? context.RealmState;
+            result = InvokeCallable(callable, args, iterator, context, realm?.Engine?.GlobalEnvironment);
             return true;
         }
 
@@ -146,7 +147,7 @@ public static partial class TypedAstEvaluator
 
             try
             {
-                if (closeResult is not JsObject returnObject)
+                if (closeResult is not IJsObjectLike returnObject)
                 {
                     context.RealmState.Logger?.LogInformation(
                         "IteratorClose return non-object preserveExistingThrow={Preserve}",

@@ -75,7 +75,7 @@ public static partial class TypedAstEvaluator
 
 
     // Per ECMA-262 §7.4.1/§7.4.2 (GetIterator / GetAsyncIterator) via @@iterator/@@asyncIterator.
-    private static bool TryGetIteratorFromProtocols(object? iterable, EvaluationContext context, out JsObject? iterator)
+    private static bool TryGetIteratorFromProtocols(object? iterable, EvaluationContext context, out IJsObjectLike? iterator)
     {
         iterator = null;
         if (iterable is not IJsPropertyAccessor accessor)
@@ -106,7 +106,7 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            if (asyncIterator is JsObject asyncObj)
+            if (asyncIterator is IJsObjectLike asyncObj)
             {
                 iterator = asyncObj;
                 return true;
@@ -127,7 +127,7 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            if (iteratorValue is JsObject iteratorObj)
+            if (iteratorValue is IJsObjectLike iteratorObj)
             {
                 iterator = iteratorObj;
                 return true;
@@ -979,7 +979,7 @@ public static partial class TypedAstEvaluator
 
     // Array/object destructuring uses iterator protocol (ECMA-262 §14.1.5).
     private static bool TryGetIteratorForDestructuring(object? value, EvaluationContext context,
-        out JsObject? iterator, [MustDisposeResource] out IEnumerator<object?>? enumerator)
+        out IJsObjectLike? iterator, [MustDisposeResource] out IEnumerator<object?>? enumerator)
     {
         iterator = null;
         enumerator = null;
@@ -1027,24 +1027,8 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            iterator = thisArg as JsObject;
-            if (iterator is not null || thisArg is not IJsObjectLike objectLike)
-            {
-                return true;
-            }
-
-            var wrapper = new JsObject();
-            foreach (var key in objectLike.Keys)
-            {
-                if (objectLike.TryGetProperty(key, out var val))
-                {
-                    wrapper.SetProperty(key, val);
-                }
-            }
-
-            iterator = wrapper;
-
-            return true;
+            iterator = thisArg as IJsObjectLike;
+            return iterator is not null;
         }
 
         switch (value)

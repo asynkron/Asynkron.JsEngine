@@ -368,7 +368,7 @@ public static partial class TypedAstEvaluator
     }
 
     private static void SaveArrayPatternState(Symbol stateKey, JsEnvironment environment,
-        JsObject? iterator,
+        IJsObjectLike? iterator,
         IEnumerator<object?>? enumerator,
         bool iteratorDone,
         int nextElementIndex,
@@ -415,7 +415,7 @@ public static partial class TypedAstEvaluator
 
         public bool HasPendingElement { get; set; }
 
-        public JsObject? Iterator { get; set; }
+        public IJsObjectLike? Iterator { get; set; }
 
         public bool IteratorDone { get; set; }
 

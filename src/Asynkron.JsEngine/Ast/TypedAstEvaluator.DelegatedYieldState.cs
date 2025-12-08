@@ -11,14 +11,14 @@ public static partial class TypedAstEvaluator
     {
         private readonly IEnumerator<object?>? _enumerator;
         private readonly bool _isGeneratorObject;
-        private readonly JsObject? _iterator;
+        private readonly IJsObjectLike? _iterator;
         private IJsCallable? _nextMethod;
 
         // Cached result from the last MoveNext call that hasn't been consumed yet
-        private (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, JsObject? IteratorResultObject)? _cachedResult;
+        private (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, IJsObjectLike? IteratorResultObject)? _cachedResult;
         private bool _hasCachedResult;
 
-        private DelegatedYieldState(JsObject? iterator, IEnumerator<object?>? enumerator, bool isGeneratorObject)
+        private DelegatedYieldState(IJsObjectLike? iterator, IEnumerator<object?>? enumerator, bool isGeneratorObject)
         {
             _iterator = iterator;
             _enumerator = enumerator;
@@ -28,7 +28,7 @@ public static partial class TypedAstEvaluator
         /// <summary>
         /// Returns the cached result without advancing the iterator, or null if no cached result.
         /// </summary>
-        public (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, JsObject? IteratorResultObject)? PeekCachedResult()
+        public (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, IJsObjectLike? IteratorResultObject)? PeekCachedResult()
         {
             return _hasCachedResult ? _cachedResult : null;
         }
@@ -46,7 +46,7 @@ public static partial class TypedAstEvaluator
         /// Gets the next result, either from cache or by advancing the iterator.
         /// The result is cached until ConsumeResult is called.
         /// </summary>
-        public (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, JsObject? IteratorResultObject) GetOrFetchNext(
+        public (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, IJsObjectLike? IteratorResultObject) GetOrFetchNext(
             object? sendValue,
             bool hasSendValue,
             bool propagateThrow,
@@ -68,7 +68,7 @@ public static partial class TypedAstEvaluator
             return _cachedResult!.Value;
         }
 
-        public static DelegatedYieldState FromIterator(JsObject iterator)
+        public static DelegatedYieldState FromIterator(IJsObjectLike iterator)
         {
             return new DelegatedYieldState(iterator, null, IsGeneratorObject(iterator));
         }
@@ -78,7 +78,7 @@ public static partial class TypedAstEvaluator
             return new DelegatedYieldState(null, enumerable.GetEnumerator(), false);
         }
 
-        public (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, JsObject? IteratorResultObject) MoveNext(
+        public (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, IJsObjectLike? IteratorResultObject) MoveNext(
             object? sendValue,
             bool hasSendValue,
             bool propagateThrow,
@@ -89,7 +89,7 @@ public static partial class TypedAstEvaluator
             awaitedPromise = false;
             if (_iterator is not null)
             {
-                JsObject? nextResult;
+                IJsObjectLike? nextResult;
                 object? candidate = null;
                 var methodInvoked = false;
                 try
@@ -160,7 +160,7 @@ public static partial class TypedAstEvaluator
 
                 var nextCandidate = candidate ?? throw new InvalidOperationException("Iterator result missing.");
                 object? awaitedCandidate;
-                if (nextCandidate is JsObject promiseCandidate && IsPromiseLike(promiseCandidate))
+                if (nextCandidate is IJsObjectLike promiseCandidate && IsPromiseLike(promiseCandidate))
                 {
                     awaitedPromise = true;
                     if (!AwaitScheduler.TryAwaitPromiseSync(promiseCandidate, context, out awaitedCandidate))
@@ -173,15 +173,15 @@ public static partial class TypedAstEvaluator
                     awaitedCandidate = nextCandidate;
                 }
 
-                if (awaitedCandidate is not JsObject resolvedObject)
+                if (awaitedCandidate is not IJsObjectLike resolvedObject)
                 {
                     throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);
                 }
 
                 nextResult = resolvedObject;
 
-                // Use context-aware property access to propagate getter errors
-                var gotDone = nextResult.TryGetProperty("done", nextResult, context, out var doneValue);
+                // Use JsOps for context-aware property access to propagate getter errors
+                var gotDone = JsOps.TryGetPropertyValue(nextResult, "done", out var doneValue, context);
                 if (gotDone && context?.IsThrow == true)
                 {
                     // Getter threw - return as delegated completion to be handled by generator's try/catch
@@ -194,7 +194,7 @@ public static partial class TypedAstEvaluator
                 object? value;
                 if (done)
                 {
-                    var gotValue = nextResult.TryGetProperty("value", nextResult, context, out var yielded);
+                    var gotValue = JsOps.TryGetPropertyValue(nextResult, "value", out var yielded, context);
                     if (gotValue && context?.IsThrow == true)
                     {
                         // Getter threw - return as delegated completion to be handled by generator's try/catch
@@ -241,7 +241,7 @@ public static partial class TypedAstEvaluator
             return (_enumerator.Current, false, false, false, null);
         }
 
-        private static bool IsGeneratorObject(JsObject iterator)
+        private static bool IsGeneratorObject(IJsObjectLike iterator)
         {
             return iterator.TryGetProperty(GeneratorBrandPropertyName, out var brand) &&
                    ReferenceEquals(brand, GeneratorBrandMarker);

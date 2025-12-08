@@ -297,12 +297,18 @@ public sealed record ImportStatement(
     Symbol? DefaultBinding,
     Symbol? NamespaceBinding,
     ImmutableArray<ImportBinding> NamedImports,
-    bool IsDeferred) : ModuleStatement(Source);
+    bool IsDeferred,
+    ImmutableArray<ImportAttribute> Attributes = default) : ModuleStatement(Source);
 
 /// <summary>
 ///     Represents a single named binding within an <c>import</c> declaration.
 /// </summary>
 public sealed record ImportBinding(SourceReference? Source, Symbol Imported, Symbol Local) : AstNode(Source);
+
+/// <summary>
+///     Represents an import attribute (e.g., <c>{ type: 'json' }</c>) in an import statement.
+/// </summary>
+public sealed record ImportAttribute(SourceReference? Source, string Key, string Value) : AstNode(Source);
 
 /// <summary>
 ///     Represents an <c>export default</c> declaration.

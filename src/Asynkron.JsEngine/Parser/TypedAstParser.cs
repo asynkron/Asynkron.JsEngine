@@ -1117,9 +1117,10 @@ public sealed class TypedAstParser(
             {
                 var moduleToken = Advance();
                 var modulePath = GetStringLiteralValue(moduleToken);
+                var attributes = ParseOptionalImportAttributes();
                 Consume(TokenType.Semicolon, "Expected ';' after import statement.");
                 return new ImportStatement(CreateSourceReference(keyword), modulePath, null, null,
-                    ImmutableArray<ImportBinding>.Empty, false);
+                    ImmutableArray<ImportBinding>.Empty, false, attributes);
             }
 
             Symbol? defaultBinding = null;
@@ -1171,11 +1172,61 @@ public sealed class TypedAstParser(
             ConsumeContextualKeyword("from", "Expected 'from' in import statement.");
             var moduleTokenFinal = Consume(TokenType.String, "Expected module path.");
             var modulePathFinal = GetStringLiteralValue(moduleTokenFinal);
+            var attributesFinal = ParseOptionalImportAttributes();
             Consume(TokenType.Semicolon, "Expected ';' after import statement.");
             return new ImportStatement(CreateSourceReference(keyword), modulePathFinal, defaultBinding,
                 namespaceBinding,
                 namedImports,
-                isDeferred);
+                isDeferred,
+                attributesFinal);
+        }
+
+        private ImmutableArray<ImportAttribute> ParseOptionalImportAttributes()
+        {
+            if (!CheckContextualKeyword("with"))
+            {
+                return ImmutableArray<ImportAttribute>.Empty;
+            }
+
+            Advance(); // consume 'with'
+            return ParseImportAttributes();
+        }
+
+        private ImmutableArray<ImportAttribute> ParseImportAttributes()
+        {
+            Consume(TokenType.LeftBrace, "Expected '{' after 'with'.");
+            var builder = ImmutableArray.CreateBuilder<ImportAttribute>();
+
+            if (!Check(TokenType.RightBrace))
+            {
+                do
+                {
+                    // Key can be identifier or string literal
+                    string key;
+                    Token keyToken;
+                    if (Check(TokenType.String))
+                    {
+                        keyToken = Advance();
+                        key = GetStringLiteralValue(keyToken);
+                    }
+                    else
+                    {
+                        keyToken = Consume(TokenType.Identifier, "Expected attribute key.");
+                        key = keyToken.Lexeme;
+                    }
+
+                    Consume(TokenType.Colon, "Expected ':' after attribute key.");
+
+                    var valueToken = Consume(TokenType.String, "Expected string literal for attribute value.");
+                    var value = GetStringLiteralValue(valueToken);
+
+                    builder.Add(new ImportAttribute(CreateSourceReference(keyToken), key, value));
+                }
+                while (Match(TokenType.Comma) && !Check(TokenType.RightBrace));
+            }
+
+            Consume(TokenType.RightBrace, "Expected '}' after import attributes.");
+            return builder.ToImmutable();
         }
 
         private ImmutableArray<ImportBinding> ParseNamedImports()

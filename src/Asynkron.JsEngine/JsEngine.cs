@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Threading.Channels;
 using Asynkron.JsEngine.Ast;
@@ -1316,9 +1317,11 @@ public sealed class JsEngine : IAsyncDisposable
         string modulePath,
         string? referrerPath = null,
         ImportPhase phase = ImportPhase.Module,
-        HashSet<string>? exportStarSet = null)
+        HashSet<string>? exportStarSet = null,
+        ImmutableArray<ImportAttribute> attributes = default)
     {
         var resolvedPath = NormalizeModulePath(modulePath, referrerPath);
+        var isJsonModule = IsJsonModule(attributes);
 
         // Check if module is already loaded
         if (_moduleRegistry.TryGetValue(resolvedPath, out var cachedEntry))
@@ -1344,13 +1347,23 @@ public sealed class JsEngine : IAsyncDisposable
             source = File.ReadAllText(resolvedPath);
         }
 
-        // Parse the module
-        var program = ParseForExecution(source, true, true);
+        ModuleEntry entry;
+        if (isJsonModule)
+        {
+            // Create a JSON module - parse JSON and create a synthetic module with the value as default export
+            entry = CreateJsonModule(source, resolvedPath);
+        }
+        else
+        {
+            // Parse the module
+            var program = ParseForExecution(source, true, true);
 
-        // Create a module exports object
-        var exports = new JsObject();
-        var moduleEnv = CreateModuleEnvironment();
-        var entry = CreateModuleEntry(EnsureStrictProgram(program), moduleEnv, exports, resolvedPath);
+            // Create a module exports object
+            var exports = new JsObject();
+            var moduleEnv = CreateModuleEnvironment();
+            entry = CreateModuleEntry(EnsureStrictProgram(program), moduleEnv, exports, resolvedPath);
+        }
+
         _moduleRegistry[resolvedPath] = entry;
 
         EnsureModuleInstantiated(entry, phase, exportStarSet);
@@ -1358,6 +1371,46 @@ public sealed class JsEngine : IAsyncDisposable
         {
             EnsureModuleEvaluated(entry);
         }
+
+        return entry;
+    }
+
+    private static bool IsJsonModule(ImmutableArray<ImportAttribute> attributes)
+    {
+        if (attributes.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        foreach (var attr in attributes)
+        {
+            if (attr.Key == "type" && attr.Value == "json")
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private ModuleEntry CreateJsonModule(string source, string resolvedPath)
+    {
+        // Parse JSON using JSON.parse
+        var jsonValue = StandardLibrary.ParseJsonWithReviver(source, RealmState, null, null);
+
+        // Create a synthetic module with the JSON value as default export
+        var exports = new JsObject();
+        exports["default"] = jsonValue;
+
+        var moduleEnv = CreateModuleEnvironment();
+
+        // Create a minimal parsed program (empty) - JSON modules don't have executable code
+        var emptyStatements = ImmutableArray<StatementNode>.Empty;
+        var emptyProgram = new ProgramNode(null, emptyStatements, true);
+
+        var entry = CreateModuleEntry(emptyProgram, moduleEnv, exports, resolvedPath);
+        entry.Instantiated = true;
+        entry.Evaluated = true;
 
         return entry;
     }
@@ -1371,9 +1424,11 @@ public sealed class JsEngine : IAsyncDisposable
         string modulePath,
         string? referrerPath,
         ImportPhase phase,
-        HashSet<string>? exportStarSet = null)
+        HashSet<string>? exportStarSet = null,
+        ImmutableArray<ImportAttribute> attributes = default)
     {
         var resolvedPath = NormalizeModulePath(modulePath, referrerPath);
+        var isJsonModule = IsJsonModule(attributes);
 
         // Check if module is already loaded
         if (_moduleRegistry.TryGetValue(resolvedPath, out var cachedEntry))
@@ -1394,13 +1449,23 @@ public sealed class JsEngine : IAsyncDisposable
             source = File.ReadAllText(resolvedPath);
         }
 
-        // Parse the module
-        var program = ParseForExecution(source, true, true);
+        ModuleEntry entry;
+        if (isJsonModule)
+        {
+            // Create a JSON module - parse JSON and create a synthetic module with the value as default export
+            entry = CreateJsonModule(source, resolvedPath);
+        }
+        else
+        {
+            // Parse the module
+            var program = ParseForExecution(source, true, true);
 
-        // Create a module exports object
-        var exports = new JsObject();
-        var moduleEnv = CreateModuleEnvironment();
-        var entry = CreateModuleEntry(EnsureStrictProgram(program), moduleEnv, exports, resolvedPath);
+            // Create a module exports object
+            var exports = new JsObject();
+            var moduleEnv = CreateModuleEnvironment();
+            entry = CreateModuleEntry(EnsureStrictProgram(program), moduleEnv, exports, resolvedPath);
+        }
+
         _moduleRegistry[resolvedPath] = entry;
 
         // Only instantiate, don't evaluate
@@ -1653,7 +1718,7 @@ public sealed class JsEngine : IAsyncDisposable
                 var importPhase = importStatement.IsDeferred ? ImportPhase.Defer : phase;
 
                 // Load and instantiate the module but DON'T evaluate it yet
-                var importedModule = LoadModuleForInstantiation(importStatement.ModulePath, modulePath, importPhase);
+                var importedModule = LoadModuleForInstantiation(importStatement.ModulePath, modulePath, importPhase, null, importStatement.Attributes);
                 EnsureModuleInstantiated(importedModule, importPhase);
 
                 // Handle default import
@@ -2048,7 +2113,7 @@ public sealed class JsEngine : IAsyncDisposable
     private void EvaluateImport(ImportStatement importStatement, JsEnvironment moduleEnv, string? referrerPath)
     {
         var phase = importStatement.IsDeferred ? ImportPhase.Defer : ImportPhase.Module;
-        var moduleEntry = LoadModule(importStatement.ModulePath, referrerPath, phase);
+        var moduleEntry = LoadModule(importStatement.ModulePath, referrerPath, phase, null, importStatement.Attributes);
 
         if (importStatement.DefaultBinding is null && importStatement.NamespaceBinding is null &&
             importStatement.NamedImports.IsEmpty)

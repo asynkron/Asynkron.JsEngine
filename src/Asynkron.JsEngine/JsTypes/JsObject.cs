@@ -256,22 +256,16 @@ namespace Asynkron.JsEngine.JsTypes;
             return;
         }
 
-        // When the prototype is a non-JsObject accessor (e.g., HostFunction),
-        // inspect its own descriptor and its JsObject prototype chain for a setter.
-        if (_prototypeAccessor is IJsObjectLike accessorObject)
+        // When the prototype is a non-JsObject accessor (e.g., HostFunction, TypedFunction),
+        // recursively traverse the prototype chain looking for a setter.
+        // This is needed for class inheritance where SubClass.__proto__ === BaseClass
+        // and BaseClass.__proto__ === Function.prototype (which has the restricted setter).
+        if (_prototypeAccessor is not null)
         {
-            var protoDescriptor = accessorObject.GetOwnPropertyDescriptor(name);
-            if (protoDescriptor?.IsAccessorDescriptor == true)
+            var foundSetter = FindSetterInPrototypeChain(_prototypeAccessor, name);
+            if (foundSetter != null)
             {
-                protoDescriptor.Set?.Invoke([value], receiver ?? this);
-
-                return;
-            }
-
-            if (accessorObject.Prototype is JsObject protoObj &&
-                protoObj.GetSetter(name) is { } protoSetter)
-            {
-                protoSetter.Invoke([value], receiver ?? this);
+                foundSetter.Invoke([value], receiver ?? this);
                 return;
             }
         }
@@ -918,6 +912,47 @@ namespace Asynkron.JsEngine.JsTypes;
             }
 
             current = current.Prototype;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Recursively searches for a setter in the prototype chain, handling
+    /// non-JsObject prototypes like TypedFunction. This is needed for
+    /// class inheritance where the prototype chain may be:
+    /// SubClass -> BaseClass -> Function.prototype
+    /// </summary>
+    private static IJsCallable? FindSetterInPrototypeChain(IJsPropertyAccessor? current, string name)
+    {
+        var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
+
+        while (current is not null && seen.Add(current))
+        {
+            // Check if this level has an own accessor property with a setter
+            var descriptor = current.GetOwnPropertyDescriptor(name);
+            if (descriptor?.IsAccessorDescriptor == true && descriptor.Set is not null)
+            {
+                return descriptor.Set;
+            }
+
+            // Get the next prototype in the chain
+            // First check if it's an IJsObjectLike with a Prototype property
+            IJsPropertyAccessor? next = null;
+
+            if (current is IJsObjectLike objectLike)
+            {
+                // Prototype might be either JsObject or another IJsPropertyAccessor
+                next = objectLike.Prototype;
+            }
+
+            // Also check for IPrototypeAccessorProvider which can have non-JsObject prototypes
+            if (next is null && current is IPrototypeAccessorProvider prototypeProvider)
+            {
+                next = prototypeProvider.PrototypeAccessor;
+            }
+
+            current = next;
         }
 
         return null;

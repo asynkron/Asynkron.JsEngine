@@ -27,11 +27,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".meta", ".meta", "{77806389
 		generator-builder.md = generator-builder.md
 		.editorconfig = .editorconfig
 		262tests.md = 262tests.md
+		languagetests.md = languagetests.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{CBE37AA6-AD59-4A21-A8B0-4208A190EF53}"
 	ProjectSection(SolutionItems) = preProject
-		docs\GENERATOR_IR_LIMITATIONS.md = docs\GENERATOR_IR_LIMITATIONS.md
+		docs\fix-restricted-properties.md = docs\fix-restricted-properties.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Asynkron.JsEngine.Tests.Test262", "tests\Asynkron.JsEngine.Tests.Test262\Asynkron.JsEngine.Tests.Test262.csproj", "{7527CADC-BF6A-4F99-846F-92122ACFB155}"

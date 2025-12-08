@@ -120,3 +120,61 @@ Apply the `GeneratorYieldLowerer` transformation pass before `SyncGeneratorIrBui
 3. Ensure the lowering pass runs before IR building so `SyncGeneratorIrBuilder` sees already-transformed classes
 
 4. Test with the failing Test262 tests to verify the fix
+
+## Fix Applied (December 8, 2025)
+
+**All 15 yield-in-computed-property-name tests now pass!**
+
+### Changes Made
+
+1. **`src/Asynkron.JsEngine/Execution/GeneratorYieldLowerer.cs`**:
+
+   **Modified `TryRewriteClassDefinition()`** to use `AstShapeAnalyzer.ContainsYield()` instead of checking for direct `YieldExpression`:
+   ```csharp
+   // Handle extends clause containing yield
+   if (definition.Extends is not null && AstShapeAnalyzer.ContainsYield(definition.Extends))
+   {
+       var extendsChanged = false;
+       rewrittenExtends = RewriteExpressionForComplexYields(definition.Extends, prefixStatements, ref extendsChanged);
+       changed |= extendsChanged;
+   }
+
+   for (var i = 0; i < members.Count; i++)
+   {
+       var member = members[i];
+       if (member.IsComputed && member.ComputedName is not null &&
+           AstShapeAnalyzer.ContainsYield(member.ComputedName))
+       {
+           var memberChanged = false;
+           var rewrittenName = RewriteExpressionForComplexYields(member.ComputedName, prefixStatements, ref memberChanged);
+           members[i] = member with { ComputedName = rewrittenName };
+           changed |= memberChanged;
+       }
+   }
+   ```
+
+   **Added `TryRewriteClassDeclaration()`** to handle class declaration statements:
+   ```csharp
+   private bool TryRewriteClassDeclaration(
+       StatementNode statement,
+       out ImmutableArray<StatementNode> replacement)
+   {
+       // ...handles ClassDeclaration with yield in computed names
+   }
+   ```
+
+   **Added object literal support** via new methods:
+   - `TryRewriteObjectLiteralUsage()` - dispatch method
+   - `TryRewriteObjectLiteralDeclaration()` - handles `let o = { [yield 9]: 9 }`
+   - `TryRewriteObjectLiteralExpression()` - handles expression statements with object literals
+   - `TryRewriteObjectExpression()` - rewrites object expressions with yield in computed keys
+
+### Key Insight
+
+The fix ensures that:
+1. **Class declarations/expressions**: Both class declarations (`class C { [yield 1] m() {} }`) and class expressions are now handled
+2. **Object literals**: Object expressions like `{ [yield 9]: 9 }` in variable declarations are now transformed
+3. **Extends clause**: The extends clause in class definitions is also checked for yields and transformed if needed
+4. **Fields**: Class fields with computed names containing yields are handled
+
+The transformation hoists yield expressions into prefix variable declarations before the class/object declaration, so by the time `SyncGeneratorIrBuilder` sees the class, the yields have been replaced with simple identifier references.

@@ -71,6 +71,20 @@ internal static class GeneratorYieldLowerer
                     continue;
                 }
 
+                if (TryRewriteObjectLiteralUsage(statement, out var objectRewrite))
+                {
+                    builder.AddRange(objectRewrite);
+                    changed = true;
+                    continue;
+                }
+
+                if (TryRewriteClassDeclaration(statement, out var classDeclarationRewrite))
+                {
+                    builder.AddRange(classDeclarationRewrite);
+                    changed = true;
+                    continue;
+                }
+
                 if (TryRewriteComplexYieldExpression(statement, out var complexYieldRewrite))
                 {
                     builder.AddRange(complexYieldRewrite);
@@ -212,6 +226,166 @@ internal static class GeneratorYieldLowerer
             return false;
         }
 
+        private bool TryRewriteObjectLiteralUsage(StatementNode statement, out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+
+            return statement switch
+            {
+                VariableDeclaration declaration => TryRewriteObjectLiteralDeclaration(declaration, out replacement),
+                ExpressionStatement expressionStatement => TryRewriteObjectLiteralExpression(expressionStatement,
+                    out replacement),
+                _ => false
+            };
+        }
+
+        private bool TryRewriteObjectLiteralDeclaration(
+            VariableDeclaration declaration,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+            var declarators = declaration.Declarators;
+            if (declarators.IsDefaultOrEmpty)
+            {
+                return false;
+            }
+
+            var rewrittenDeclarators = ImmutableArray.CreateBuilder<VariableDeclarator>(declarators.Length);
+            var prefixStatements = ImmutableArray.CreateBuilder<StatementNode>();
+            var changed = false;
+            foreach (var declarator in declarators)
+            {
+                if (declarator.Initializer is ObjectExpression objectExpression &&
+                    TryRewriteObjectExpression(objectExpression, out var rewrittenObject, out var prefix))
+                {
+                    prefixStatements.AddRange(prefix);
+                    rewrittenDeclarators.Add(declarator with { Initializer = rewrittenObject });
+                    changed = true;
+                }
+                else
+                {
+                    rewrittenDeclarators.Add(declarator);
+                }
+            }
+
+            if (!changed)
+            {
+                return false;
+            }
+
+            var rewrittenDeclaration = declaration with { Declarators = rewrittenDeclarators.ToImmutable() };
+            prefixStatements.Add(rewrittenDeclaration);
+            replacement = prefixStatements.ToImmutable();
+            return true;
+        }
+
+        private bool TryRewriteObjectLiteralExpression(
+            ExpressionStatement statement,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+
+            if (statement.Expression is ObjectExpression objectExpression &&
+                TryRewriteObjectExpression(objectExpression, out var rewrittenObject, out var prefix))
+            {
+                var rewrittenStatement = statement with { Expression = rewrittenObject };
+                var builder = ImmutableArray.CreateBuilder<StatementNode>();
+                builder.AddRange(prefix);
+                builder.Add(rewrittenStatement);
+                replacement = builder.ToImmutable();
+                return true;
+            }
+
+            if (statement.Expression is AssignmentExpression assignment &&
+                assignment.Value is ObjectExpression objectValue &&
+                TryRewriteObjectExpression(objectValue, out var rewrittenValue, out var valuePrefix))
+            {
+                var rewrittenAssignment = assignment with { Value = rewrittenValue };
+                var rewrittenStatement = statement with { Expression = rewrittenAssignment };
+                var builder = ImmutableArray.CreateBuilder<StatementNode>();
+                builder.AddRange(valuePrefix);
+                builder.Add(rewrittenStatement);
+                replacement = builder.ToImmutable();
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool TryRewriteObjectExpression(
+            ObjectExpression objectExpression,
+            out ObjectExpression rewritten,
+            out ImmutableArray<StatementNode> prefixStatements)
+        {
+            var prefixBuilder = ImmutableArray.CreateBuilder<StatementNode>();
+            var membersBuilder = ImmutableArray.CreateBuilder<ObjectMember>(objectExpression.Members.Length);
+            var changed = false;
+
+            foreach (var member in objectExpression.Members)
+            {
+                var key = member.Key;
+                if (member.IsComputed && member.Key is ExpressionNode keyExpression &&
+                    AstShapeAnalyzer.ContainsYield(keyExpression))
+                {
+                    var keyChanged = false;
+                    var rewrittenKey = RewriteExpressionForComplexYields(keyExpression, prefixBuilder, ref keyChanged);
+                    if (keyChanged)
+                    {
+                        key = rewrittenKey;
+                        changed = true;
+                    }
+                }
+
+                var value = member.Value;
+                if (value is not null && AstShapeAnalyzer.ContainsYield(value))
+                {
+                    var valueChanged = false;
+                    var rewrittenValue = RewriteExpressionForComplexYields(value, prefixBuilder, ref valueChanged);
+                    if (valueChanged)
+                    {
+                        value = rewrittenValue;
+                        changed = true;
+                    }
+                }
+
+                membersBuilder.Add(member with { Key = key, Value = value });
+            }
+
+            if (!changed)
+            {
+                rewritten = objectExpression;
+                prefixStatements = ImmutableArray<StatementNode>.Empty;
+                return false;
+            }
+
+            rewritten = objectExpression with { Members = membersBuilder.ToImmutable() };
+            prefixStatements = prefixBuilder.ToImmutable();
+            return prefixStatements.Length > 0;
+        }
+
+        private bool TryRewriteClassDeclaration(
+            StatementNode statement,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+
+            if (statement is not ClassDeclaration classDeclaration)
+            {
+                return false;
+            }
+
+            var prefixBuilder = ImmutableArray.CreateBuilder<StatementNode>();
+            if (!TryRewriteClassDefinition(classDeclaration.Definition, prefixBuilder, out var rewrittenDefinition))
+            {
+                return false;
+            }
+
+            var rewrittenClass = classDeclaration with { Definition = rewrittenDefinition };
+            prefixBuilder.Add(rewrittenClass);
+            replacement = prefixBuilder.ToImmutable();
+            return true;
+        }
+
         private bool TryRewriteClassExpression(
             ClassExpression classExpression,
             out ClassExpression rewritten,
@@ -238,31 +412,39 @@ internal static class GeneratorYieldLowerer
             var members = definition.Members.ToBuilder();
             var fields = definition.Fields.ToBuilder();
             var changed = false;
+            ExpressionNode? rewrittenExtends = definition.Extends;
+
+            // Handle extends clause containing yield
+            if (definition.Extends is not null && AstShapeAnalyzer.ContainsYield(definition.Extends))
+            {
+                var extendsChanged = false;
+                rewrittenExtends = RewriteExpressionForComplexYields(definition.Extends, prefixStatements, ref extendsChanged);
+                changed |= extendsChanged;
+            }
 
             for (var i = 0; i < members.Count; i++)
             {
                 var member = members[i];
-                if (member is { IsComputed: true, ComputedName: YieldExpression computedYield })
+                if (member.IsComputed && member.ComputedName is not null &&
+                    AstShapeAnalyzer.ContainsYield(member.ComputedName))
                 {
-                    var tempBinding = CreateResumeIdentifier();
-                    prefixStatements.Add(CreateYieldDeclaration(computedYield.Source, tempBinding, computedYield));
-                    var replacement = new IdentifierExpression(computedYield.Source, tempBinding.Name);
-                    members[i] = member with { ComputedName = replacement };
-                    changed = true;
+                    var memberChanged = false;
+                    var rewrittenName = RewriteExpressionForComplexYields(member.ComputedName, prefixStatements, ref memberChanged);
+                    members[i] = member with { ComputedName = rewrittenName };
+                    changed |= memberChanged;
                 }
             }
 
             for (var i = 0; i < fields.Count; i++)
             {
                 var field = fields[i];
-                if (field.IsComputed &&
-                    field.ComputedName is YieldExpression computedYield)
+                if (field.IsComputed && field.ComputedName is not null &&
+                    AstShapeAnalyzer.ContainsYield(field.ComputedName))
                 {
-                    var tempBinding = CreateResumeIdentifier();
-                    prefixStatements.Add(CreateYieldDeclaration(computedYield.Source, tempBinding, computedYield));
-                    var replacement = new IdentifierExpression(computedYield.Source, tempBinding.Name);
-                    fields[i] = field with { ComputedName = replacement };
-                    changed = true;
+                    var fieldChanged = false;
+                    var rewrittenName = RewriteExpressionForComplexYields(field.ComputedName, prefixStatements, ref fieldChanged);
+                    fields[i] = field with { ComputedName = rewrittenName };
+                    changed |= fieldChanged;
                 }
             }
 
@@ -274,6 +456,7 @@ internal static class GeneratorYieldLowerer
 
             rewritten = definition with
             {
+                Extends = rewrittenExtends,
                 Members = members.ToImmutable(),
                 Fields = fields.ToImmutable()
             };

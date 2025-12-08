@@ -117,11 +117,11 @@ namespace Asynkron.JsEngine.JsTypes;
         }
 
         // If no explicit descriptor but property exists, return default descriptor
-        if (ContainsKey(name))
+        if (TryGetValue(name, out var existingValue))
         {
             return new PropertyDescriptor
             {
-                Value = this[name], Writable = true, Enumerable = true, Configurable = true
+                Value = existingValue, Writable = true, Enumerable = true, Configurable = true
             };
         }
 
@@ -220,10 +220,13 @@ namespace Asynkron.JsEngine.JsTypes;
                 realm: ResolveRealmState(receiver));
         }
 
-        var propertyExists = _descriptors.ContainsKey(name) || ContainsKey(name);
-        if (_descriptors.TryGetValue(name, out var descriptor))
+        var hasDescriptor = _descriptors.TryGetValue(name, out var descriptor);
+        var hasDataSlot = TryGetValue(name, out _);
+        var propertyExists = hasDescriptor || hasDataSlot;
+
+        if (hasDescriptor)
         {
-            if (descriptor.IsAccessorDescriptor)
+            if (descriptor!.IsAccessorDescriptor)
             {
                 descriptor.Set?.Invoke([value], receiver ?? this);
 
@@ -241,7 +244,7 @@ namespace Asynkron.JsEngine.JsTypes;
             return;
         }
 
-        if (TryGetValue(name, out _))
+        if (hasDataSlot)
         {
             this[name] = value;
             TrackArrayWrite(name, value);
@@ -319,12 +322,50 @@ namespace Asynkron.JsEngine.JsTypes;
 
     public bool TryGetProperty(string name, out object? value)
     {
+        // Private slots need special handling - go through slow path
+        if (name.IsPrivateSlotName())
+        {
+            return TryGetProperty(name, this, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), null,
+                out value);
+        }
+
+        // Fast path: check own property first without allocating HashSet
+        if (TryGetOwnProperty(name, this, null, out value))
+            return true;
+
+        // Fast path: no prototype chain to walk
+        if (Prototype is null && _prototypeAccessor is null)
+        {
+            value = null;
+            return false;
+        }
+
+        // Slow path: need cycle detection for prototype chain traversal
         return TryGetProperty(name, this, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), null,
             out value);
     }
 
     public bool TryGetProperty(string name, object? receiver, out object? value)
     {
+        // Private slots need special handling - go through slow path
+        if (name.IsPrivateSlotName())
+        {
+            return TryGetProperty(name, receiver, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), null,
+                out value);
+        }
+
+        // Fast path: check own property first without allocating HashSet
+        if (TryGetOwnProperty(name, receiver ?? this, null, out value))
+            return true;
+
+        // Fast path: no prototype chain to walk
+        if (Prototype is null && _prototypeAccessor is null)
+        {
+            value = null;
+            return false;
+        }
+
+        // Slow path: need cycle detection for prototype chain traversal
         return TryGetProperty(name, receiver, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), null,
             out value);
     }
@@ -427,10 +468,10 @@ namespace Asynkron.JsEngine.JsTypes;
         }
 
         var hadStoredDescriptor = _descriptors.TryGetValue(name, out var storedDescriptor);
-        var hadDataSlot = ContainsKey(name);
+        var hadDataSlot = TryGetValue(name, out var existingValue);
         var currentDescriptor = storedDescriptor;
 
-        if (!hadStoredDescriptor && TryGetValue(name, out var existingValue))
+        if (!hadStoredDescriptor && hadDataSlot)
         {
             currentDescriptor = CreateDataDescriptorFromExistingValue(existingValue);
         }
@@ -1017,6 +1058,25 @@ namespace Asynkron.JsEngine.JsTypes;
     internal bool TryGetProperty(string name, object? receiver, EvaluationContext? context,
         out object? value)
     {
+        // Private slots need special handling - go through slow path
+        if (name.IsPrivateSlotName())
+        {
+            return TryGetProperty(name, receiver, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), context,
+                out value);
+        }
+
+        // Fast path: check own property first without allocating HashSet
+        if (TryGetOwnProperty(name, receiver ?? this, context, out value))
+            return true;
+
+        // Fast path: no prototype chain to walk
+        if (Prototype is null && _prototypeAccessor is null)
+        {
+            value = null;
+            return false;
+        }
+
+        // Slow path: need cycle detection for prototype chain traversal
         return TryGetProperty(name, receiver, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), context,
             out value);
     }

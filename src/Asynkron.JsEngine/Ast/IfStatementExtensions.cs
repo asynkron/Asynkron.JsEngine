@@ -18,13 +18,21 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
+            object? result;
             if (branch is BlockStatement block)
             {
-                return EvaluateBlock(block, environment, context);
+                result = EvaluateBlock(block, environment, context);
+            }
+            else
+            {
+                var branchScope = new JsEnvironment(environment, false, context.CurrentScope.IsStrict);
+                result = EvaluateStatement(branch, branchScope, context);
             }
 
-            var branchScope = new JsEnvironment(environment, false, context.CurrentScope.IsStrict);
-            return EvaluateStatement(branch, branchScope, context);
+            // Per ECMAScript spec 14.6.2 (Runtime Semantics: Evaluation):
+            // Return Completion(UpdateEmpty(stmtCompletion, undefined)).
+            // UpdateEmpty replaces an empty completion value with undefined.
+            return ReferenceEquals(result, EmptyCompletion) ? Symbol.Undefined : result;
         }
     }
 }

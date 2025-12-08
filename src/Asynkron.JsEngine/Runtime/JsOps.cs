@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
@@ -9,6 +10,10 @@ namespace Asynkron.JsEngine.Runtime;
 internal static class JsOps
 {
     internal const double NegativeZero = -0.0d;
+
+    // Static arrays for ToPrimitive to avoid allocation on every call
+    private static readonly string[] StringHintMethods = ["toString", "valueOf"];
+    private static readonly string[] DefaultHintMethods = ["valueOf", "toString"];
 
     internal static double MathPow(double baseValue, double exponent)
     {
@@ -65,6 +70,7 @@ internal static class JsOps
         return double.IsFinite(value) && value % 1 == 0 && Math.Abs(value % 2) == 1;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsNullish(this object? value)
     {
         return value is null ||
@@ -75,6 +81,7 @@ internal static class JsOps
     ///     ECMAScript-like ToBoolean semantics for engine values.
     ///     Kept in sync with <see cref="IsTruthy" /> which is the legacy name used throughout the codebase.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool ToBoolean(object? value)
     {
         return value switch
@@ -91,6 +98,7 @@ internal static class JsOps
         };
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsTruthy(object? value)
     {
         return ToBoolean(value);
@@ -422,8 +430,8 @@ internal static class JsOps
         }
 
         var methods = hint == "string"
-            ? new[] { "toString", "valueOf" }
-            : new[] { "valueOf", "toString" };
+            ? StringHintMethods
+            : DefaultHintMethods;
 
         foreach (var methodName in methods)
         {
@@ -474,6 +482,7 @@ internal static class JsOps
         return value.ToJsString(context, context?.RealmState);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool StrictEquals(object? left, object? right)
     {
         if (ReferenceEquals(left, right))
@@ -1221,6 +1230,7 @@ internal static class JsOps
         };
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsNumeric(object? value)
     {
         return value is sbyte or byte or short or ushort or int or uint or long or ulong or float or double or decimal;

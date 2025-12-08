@@ -121,7 +121,7 @@ public static partial class TypedAstEvaluator
                             throw new ThrowSignal(context.FlowValue);
                         }
                     }
-                    catch (ThrowSignal)
+                    catch (ThrowSignal sig)
                     {
                         if (state.IteratorObject is not null && !iteratorDone)
                         {

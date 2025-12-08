@@ -7,64 +7,47 @@ internal static class Program
     {
         await using var engine = new JsEngine();
 
-        // Test 1: Basic super() call (should work)
-        Console.WriteLine("Test 1: Basic super() call");
+        // Test: IteratorClose when destructuring reference throws
+        Console.WriteLine("Test: IteratorClose when destructuring reference throws");
         try
         {
             var result = await engine.Evaluate(@"
-                class C1 extends class {} {
-                    constructor() {
-                        super();
-                    }
-                }
-                var o = new C1();
-                typeof o;
-            ");
-            Console.WriteLine($"Result: {result} (expected: object)");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error: {ex.Message}");
-        }
+                var returnCount = 0;
+                var nextCount = 0;
+                var obj = {};
+                var iter = {};
+                iter[Symbol.iterator] = function() {
+                    return {
+                        next: function() {
+                            nextCount++;
+                            return { value: undefined, done: false };
+                        },
+                        return: function() {
+                            returnCount += 1;
+                            return {};
+                        }
+                    };
+                };
 
-        // Test 2: Arrow function calling super, then access this
-        Console.WriteLine("\nTest 2: Arrow function calling super, then access this");
-        try
-        {
-            var result = await engine.Evaluate(@"
-                class C2 extends class {} {
-                    constructor() {
-                        var f = () => super();
-                        f();
-                        return this;  // Explicitly return this
-                    }
+                function thrower() {
+                    throw new Error('test');
                 }
-                var o = new C2();
-                typeof o;
-            ");
-            Console.WriteLine($"Result: {result} (expected: object)");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error: {ex.Message}");
-        }
 
-        // Test 3: Arrow function calling super, implicit return
-        Console.WriteLine("\nTest 3: Arrow function calling super, implicit return");
-        try
-        {
-            var result = await engine.Evaluate(@"
-                class C3 extends class {} {
-                    constructor() {
-                        var f = () => super();
-                        f();
-                        // No return - constructor should return this implicitly
-                    }
+                var err;
+                try {
+                    // When thrower() throws, iterator.return() should be called
+                    for ([ obj[thrower()] ] of [iter]) { }
+                } catch (e) {
+                    err = e;
                 }
-                var o = new C3();
-                typeof o;
+
+                // Per ES spec: reference is evaluated BEFORE next() is called
+                // So nextCount=0 (next never called) and returnCount=1 (return called on abrupt)
+                'returnCount=' + returnCount + ', nextCount=' + nextCount;
             ");
-            Console.WriteLine($"Result: {result} (expected: object)");
+            Console.WriteLine($"Result: {result}");
+            Console.WriteLine("Expected: returnCount=1, nextCount=0 (per ES spec, reference evaluated before next)");
+            Console.WriteLine(result?.ToString() == "returnCount=1, nextCount=0" ? "PASS" : "FAIL");
         }
         catch (Exception ex)
         {

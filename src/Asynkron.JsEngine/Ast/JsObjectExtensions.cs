@@ -102,6 +102,14 @@ public static partial class TypedAstEvaluator
                     _ => "null"
                 });
 
+            // Per ES spec 7.4.7 IteratorClose: we need to temporarily clear any existing
+            // completion to invoke return(), then restore it. The existing throw state
+            // must not interfere with the GetMethod/Call for return.
+            if (preserveExistingThrow && context.IsThrow)
+            {
+                context.Clear();
+            }
+
             if (!iterator.TryInvokeIteratorMethod(
                     "return",
                     Symbol.Undefined,

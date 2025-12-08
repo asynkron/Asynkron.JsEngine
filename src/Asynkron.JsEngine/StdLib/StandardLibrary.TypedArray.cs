@@ -140,7 +140,11 @@ public static partial class StandardLibrary
                 Value = "ArrayBuffer", Writable = false, Enumerable = false, Configurable = true
             });
 
-        var constructor = new HostFunction(ArrayBufferCtor, realm) { IsConstructor = true };
+        HostFunction constructor = null!;
+        constructor = new HostFunction((_, args) => ArrayBufferCtorCore(args, constructor), realm) { IsConstructor = true };
+        constructor.SetInvokeWithContext((args, _, _, newTarget) =>
+            ArrayBufferCtorCore(args, newTarget as IJsCallable ?? constructor));
+
         constructor.DefineProperty("prototype",
             new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });
         prototype.DefineProperty("constructor",
@@ -148,30 +152,65 @@ public static partial class StandardLibrary
         realm.ArrayBufferPrototype ??= prototype;
         realm.ArrayBufferConstructor ??= constructor;
 
+        // Add Symbol.species getter
+        var speciesKey = $"@@symbol:{TypedAstSymbol.For("Symbol.species").GetHashCode()}";
+        constructor.DefineProperty(speciesKey,
+            new PropertyDescriptor
+            {
+                Get = new HostFunction((thisVal, _) => thisVal),
+                Enumerable = false,
+                Configurable = true
+            });
+
         constructor.SetHostedProperty("isView", ArrayBufferIsView);
+
         prototype.SetHostedProperty("slice",
             (thisValue, args) =>
             {
-                if (thisValue is not JsArrayBuffer buffer)
-                {
-                    throw ThrowTypeError("ArrayBuffer.prototype.slice called on incompatible receiver", realm: realm);
-                }
+                var buffer = RequireArrayBuffer(thisValue, realm);
+                var len = buffer.ByteLength;
 
                 var begin = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
-                var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : buffer.ByteLength;
-                return buffer.Slice(begin, end);
+                var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : len;
+
+                // Normalize indices
+                var first = begin < 0 ? Math.Max(len + begin, 0) : Math.Min(begin, len);
+                var final = end < 0 ? Math.Max(len + end, 0) : Math.Min(end, len);
+                var newLen = Math.Max(final - first, 0);
+
+                // Get the species constructor
+                var speciesConstructor = ArrayBufferSpeciesCreate(thisValue, realm, constructor);
+
+                // Create new ArrayBuffer using species constructor
+                object? newBuffer;
+                if (JsOps.IsConstructor(speciesConstructor) && speciesConstructor is IJsCallable speciesCtor)
+                {
+                    newBuffer = Construct(speciesCtor, [(double)newLen], speciesCtor, realm);
+                }
+                else
+                {
+                    newBuffer = new JsArrayBuffer(newLen, null, realm);
+                }
+
+                var targetBuffer = RequireArrayBuffer(newBuffer, realm);
+
+                // Copy data
+                if (newLen > 0)
+                {
+                    Array.Copy(buffer.Buffer, first, targetBuffer.Buffer, 0, newLen);
+                }
+
+                return newBuffer;
             });
+
         prototype.SetHostedProperty("resize",
             (thisValue, args) =>
             {
-                if (thisValue is not JsArrayBuffer buffer)
-                {
-                    throw ThrowTypeError("ArrayBuffer.prototype.resize called on incompatible receiver", realm: realm);
-                }
+                var buffer = RequireArrayBuffer(thisValue, realm);
 
                 if (!buffer.Resizable)
                 {
-                    throw new ThrowSignal(buffer.CreateTypeError("ArrayBuffer is not resizable"));
+                    throw ThrowTypeError("ArrayBuffer is not resizable", realm: realm);
                 }
 
                 if (args.Count == 0 || args[0] is not double d)
@@ -183,9 +222,22 @@ public static partial class StandardLibrary
                 return Symbol.Undefined;
             });
 
+        // byteLength getter on prototype
+        prototype.DefineProperty("byteLength",
+            new PropertyDescriptor
+            {
+                Get = new HostFunction((thisVal, _) =>
+                {
+                    var buffer = RequireArrayBuffer(thisVal, realm);
+                    return (double)buffer.ByteLength;
+                }),
+                Enumerable = false,
+                Configurable = true
+            });
+
         return constructor;
 
-        object? ArrayBufferCtor(object? _, IReadOnlyList<object?> args)
+        object? ArrayBufferCtorCore(IReadOnlyList<object?> args, IJsCallable newTarget)
         {
             var length = args.Count > 0 ? args[0] : 0d;
             var byteLength = length switch
@@ -196,17 +248,107 @@ public static partial class StandardLibrary
             };
 
             int? maxByteLength = null;
-            if (args.Count <= 1 || args[1] is not JsObject opts)
+            if (args.Count > 1 && args[1] is JsObject opts)
             {
-                return new JsArrayBuffer(byteLength, maxByteLength, realm);
+                if (opts.TryGetProperty("maxByteLength", out var maxVal) && maxVal is double maxD)
+                {
+                    maxByteLength = (int)maxD;
+                }
             }
 
-            if (opts.TryGetProperty("maxByteLength", out var maxVal) && maxVal is double maxD)
+            var buffer = new JsArrayBuffer(byteLength, maxByteLength, realm);
+
+            // If newTarget is not the ArrayBuffer constructor, we need to return a JsObject
+            // with the proper prototype and store the buffer as an internal slot
+            if (!ReferenceEquals(newTarget, constructor))
             {
-                maxByteLength = (int)maxD;
+                var instance = new JsObject();
+                // Get prototype from newTarget
+                if (newTarget is IJsPropertyAccessor accessor &&
+                    accessor.TryGetProperty("prototype", out var proto) &&
+                    proto is IJsObjectLike protoObj)
+                {
+                    instance.SetPrototype(protoObj);
+                }
+                else
+                {
+                    instance.SetPrototype(prototype);
+                }
+
+                // Store internal ArrayBuffer slot
+                StoreInternalArrayBuffer(instance, buffer);
+                return instance;
             }
 
-            return new JsArrayBuffer(byteLength, maxByteLength, realm);
+            return buffer;
+        }
+
+        static void StoreInternalArrayBuffer(JsObject obj, JsArrayBuffer buffer)
+        {
+            obj.SetProperty("_internalArrayBuffer", buffer);
+        }
+
+        static JsArrayBuffer RequireArrayBuffer(object? thisVal, RealmState realm)
+        {
+            // Check for direct JsArrayBuffer
+            if (thisVal is JsArrayBuffer directBuffer)
+            {
+                return directBuffer;
+            }
+
+            // Check for internal slot on JsObject (subclass case)
+            if (thisVal is JsObject obj)
+            {
+                var descriptor = obj.GetOwnPropertyDescriptor("_internalArrayBuffer");
+                if (descriptor?.Value is JsArrayBuffer internalBuffer)
+                {
+                    return internalBuffer;
+                }
+            }
+
+            // Check for internal slot via interface (for other IJsObjectLike implementations)
+            if (thisVal is IJsPropertyAccessor accessor &&
+                accessor.TryGetProperty("_internalArrayBuffer", out var internalVal) &&
+                internalVal is JsArrayBuffer bufferFromAccessor)
+            {
+                return bufferFromAccessor;
+            }
+
+            throw ThrowTypeError("ArrayBuffer method called on incompatible receiver", realm: realm);
+        }
+
+        static object? ArrayBufferSpeciesCreate(object? thisVal, RealmState realm, HostFunction defaultConstructor)
+        {
+            // Get constructor from thisVal
+            if (thisVal is not IJsPropertyAccessor accessor ||
+                !accessor.TryGetProperty("constructor", out var ctorVal))
+            {
+                return defaultConstructor;
+            }
+
+            if (ctorVal is null || ReferenceEquals(ctorVal, Symbol.Undefined))
+            {
+                return defaultConstructor;
+            }
+
+            if (ctorVal is not IJsPropertyAccessor ctorAccessor)
+            {
+                throw ThrowTypeError("Constructor is not an object", realm: realm);
+            }
+
+            // Look up Symbol.species
+            var speciesKey = $"@@symbol:{TypedAstSymbol.For("Symbol.species").GetHashCode()}";
+            if (ctorAccessor.TryGetProperty(speciesKey, out var speciesVal))
+            {
+                if (speciesVal is null || ReferenceEquals(speciesVal, Symbol.Undefined))
+                {
+                    return defaultConstructor;
+                }
+
+                return speciesVal;
+            }
+
+            return ctorVal;
         }
     }
 
@@ -252,21 +394,132 @@ public static partial class StandardLibrary
     /// </summary>
     public static HostFunction CreateDataViewConstructor(RealmState realm)
     {
-        var constructor = new HostFunction(DataViewCtor);
-        constructor.RealmState = realm;
+        var prototype = new JsObject(realm.ObjectPrototype);
+        HostFunction constructor = null!;
+        constructor = new HostFunction((_, args) => DataViewCtorCore(args, constructor), realm) { IsConstructor = true };
+        constructor.SetInvokeWithContext((args, _, _, newTarget) =>
+            DataViewCtorCore(args, newTarget as IJsCallable ?? constructor));
+
+        constructor.DefineProperty("prototype",
+            new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });
+        prototype.DefineProperty("constructor",
+            new PropertyDescriptor { Value = constructor, Writable = true, Enumerable = false, Configurable = true });
+
+        // Add buffer getter
+        prototype.DefineProperty("buffer",
+            new PropertyDescriptor
+            {
+                Get = new HostFunction((thisVal, _) =>
+                {
+                    var dv = RequireDataView(thisVal, realm);
+                    return dv.Buffer;
+                }),
+                Enumerable = false,
+                Configurable = true
+            });
+
+        // Add byteLength getter
+        prototype.DefineProperty("byteLength",
+            new PropertyDescriptor
+            {
+                Get = new HostFunction((thisVal, _) =>
+                {
+                    var dv = RequireDataView(thisVal, realm);
+                    return (double)dv.ByteLength;
+                }),
+                Enumerable = false,
+                Configurable = true
+            });
+
+        // Add byteOffset getter
+        prototype.DefineProperty("byteOffset",
+            new PropertyDescriptor
+            {
+                Get = new HostFunction((thisVal, _) =>
+                {
+                    var dv = RequireDataView(thisVal, realm);
+                    return (double)dv.ByteOffset;
+                }),
+                Enumerable = false,
+                Configurable = true
+            });
+
         return constructor;
 
-        object? DataViewCtor(object? _, IReadOnlyList<object?> args)
+        object? DataViewCtorCore(IReadOnlyList<object?> args, IJsCallable newTarget)
         {
-            if (args.Count == 0 || args[0] is not JsArrayBuffer buffer)
+            if (args.Count == 0)
             {
-                throw new InvalidOperationException("DataView requires an ArrayBuffer");
+                throw ThrowTypeError("DataView requires an ArrayBuffer", realm: realm);
+            }
+
+            // Handle both direct JsArrayBuffer and subclass instances with internal slot
+            JsArrayBuffer? buffer = null;
+            if (args[0] is JsArrayBuffer directBuffer)
+            {
+                buffer = directBuffer;
+            }
+            else if (args[0] is JsObject obj &&
+                     obj.TryGetProperty("_internalArrayBuffer", out var internalVal) &&
+                     internalVal is JsArrayBuffer internalBuffer)
+            {
+                buffer = internalBuffer;
+            }
+
+            if (buffer is null)
+            {
+                throw ThrowTypeError("DataView requires an ArrayBuffer", realm: realm);
             }
 
             var byteOffset = args.Count > 1 && args[1] is double d1 ? (int)d1 : 0;
             int? byteLength = args.Count > 2 && args[2] is double d2 ? (int)d2 : null;
 
-            return new JsDataView(buffer, byteOffset, byteLength);
+            var dataView = new JsDataView(buffer, byteOffset, byteLength);
+
+            // If newTarget is not the DataView constructor, wrap in JsObject with proper prototype
+            if (!ReferenceEquals(newTarget, constructor))
+            {
+                var instance = new JsObject();
+                if (newTarget is IJsPropertyAccessor accessor &&
+                    accessor.TryGetProperty("prototype", out var proto) &&
+                    proto is IJsObjectLike protoObj)
+                {
+                    instance.SetPrototype(protoObj);
+                }
+                else
+                {
+                    instance.SetPrototype(prototype);
+                }
+
+                StoreInternalDataView(instance, dataView);
+                return instance;
+            }
+
+            return dataView;
+        }
+
+        static void StoreInternalDataView(JsObject obj, JsDataView dataView)
+        {
+            obj.SetProperty("_internalDataView", dataView);
+        }
+
+        static JsDataView RequireDataView(object? thisVal, RealmState realm)
+        {
+            if (thisVal is JsDataView directDv)
+            {
+                return directDv;
+            }
+
+            if (thisVal is JsObject obj)
+            {
+                var descriptor = obj.GetOwnPropertyDescriptor("_internalDataView");
+                if (descriptor?.Value is JsDataView internalDv)
+                {
+                    return internalDv;
+                }
+            }
+
+            throw ThrowTypeError("DataView method called on incompatible receiver", realm: realm);
         }
     }
 

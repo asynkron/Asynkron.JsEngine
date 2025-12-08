@@ -31,7 +31,9 @@ public static partial class TypedAstEvaluator
         JsEnvironment environment,
         out SuperBinding? superBinding)
     {
-        var initEnv = new JsEnvironment(environment, isStrict: true);
+        // Per ES spec, static blocks are evaluated like function bodies - var declarations
+        // should be scoped to the block, not leak to outer environments
+        var initEnv = new JsEnvironment(environment, isFunctionScope: true, isStrict: true);
         initEnv.Define(Symbol.This, constructorAccessor);
         // Field/static initializers are evaluated outside any constructor body; shadow new.target with undefined.
         initEnv.Define(Symbol.NewTarget, Symbol.Undefined, true, isLexical: true,

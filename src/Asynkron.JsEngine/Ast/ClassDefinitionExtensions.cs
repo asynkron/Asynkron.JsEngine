@@ -136,16 +136,19 @@ public static partial class TypedAstEvaluator
                 nameTarget.EnsureHasName(className.Name);
             }
 
+            // Per ES spec 15.7.14 ClassDefinitionEvaluation step 26:
+            // Initialize the class name binding BEFORE evaluating static elements
+            // so that static blocks can reference the class name
+            if (classScopeEnvironment is not null && className is not null)
+            {
+                classScopeEnvironment.TryAssignBlockedBinding(className, constructorValue);
+            }
+
             InitializeStaticElements(definition, resolvedFields, constructorAccessor, evaluationEnvironment, context,
                 privateNameScope);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
-            }
-
-            if (classScopeEnvironment is not null && className is not null)
-            {
-                classScopeEnvironment.TryAssignBlockedBinding(className, constructorValue);
             }
 
             return constructorValue;

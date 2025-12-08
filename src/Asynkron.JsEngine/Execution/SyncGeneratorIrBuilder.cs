@@ -329,6 +329,20 @@ internal sealed class SyncGeneratorIrBuilder
                     entryIndex = Append(new StatementInstruction(nextIndex, withStatement));
                     return true;
 
+                case ClassDeclaration classDeclaration:
+                    // Check for yields in places that are evaluated in the generator context:
+                    // - extends expression
+                    // - computed property names of members and fields
+                    if (ClassDefinitionContainsYield(classDeclaration.Definition))
+                    {
+                        entryIndex = -1;
+                        _failureReason ??= "Class declaration contains yield in computed property names or extends clause.";
+                        return false;
+                    }
+
+                    entryIndex = Append(new StatementInstruction(nextIndex, classDeclaration));
+                    return true;
+
                 case ThrowStatement throwStatement:
                     if (throwStatement.Expression is not null &&
                         AstShapeAnalyzer.ContainsYield(throwStatement.Expression))
@@ -785,6 +799,43 @@ internal sealed class SyncGeneratorIrBuilder
             d.Initializer is not null &&
             AstShapeAnalyzer.ContainsYield(d.Initializer) &&
             !IsLowererTemp(d.Target));
+    }
+
+    /// <summary>
+    ///     Checks if a class definition contains yield expressions in places that are
+    ///     evaluated in the generator context (extends clause, computed property names).
+    ///     Method bodies and field initializers are NOT checked because they create their
+    ///     own scope and aren't evaluated during class definition.
+    /// </summary>
+    private static bool ClassDefinitionContainsYield(ClassDefinition definition)
+    {
+        // Check extends clause
+        if (definition.Extends is not null && AstShapeAnalyzer.ContainsYield(definition.Extends))
+        {
+            return true;
+        }
+
+        // Check computed property names in members (methods, getters, setters)
+        foreach (var member in definition.Members)
+        {
+            if (member.IsComputed && member.ComputedName is not null &&
+                AstShapeAnalyzer.ContainsYield(member.ComputedName))
+            {
+                return true;
+            }
+        }
+
+        // Check computed property names in fields
+        foreach (var field in definition.Fields)
+        {
+            if (field.IsComputed && field.ComputedName is not null &&
+                AstShapeAnalyzer.ContainsYield(field.ComputedName))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private Symbol CreateResumeSlotSymbol()

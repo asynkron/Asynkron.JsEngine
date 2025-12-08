@@ -864,11 +864,33 @@ public static partial class TypedAstEvaluator
                                     "Class constructor returning bound this instead of non-object return value");
                                 return currentThis;
                             }
+
+                            // Per ES spec 9.2.2 [[Construct]] step 15:
+                            // If return value is undefined, call GetThisBinding() which
+                            // throws ReferenceError if `this` is uninitialized (super() not called)
+                            if (_isDerivedClassConstructor &&
+                                (ReferenceEquals(currentThis, JsEnvironment.Uninitialized) ||
+                                 ReferenceEquals(value, Symbol.Undefined)))
+                            {
+                                var errorObject = StandardLibrary.CreateReferenceError(
+                                    "ReferenceError: this is not defined - must call super() in derived class constructor",
+                                    context,
+                                    context.RealmState);
+                                throw new ThrowSignal(errorObject);
+                            }
                         }
                         catch (InvalidOperationException ex) when (ex.Message.StartsWith(
                                      "ReferenceError: this",
                                      StringComparison.Ordinal))
                         {
+                            // Per ES spec 9.2.2 [[Construct]] step 15:
+                            // For derived class constructors, if return value is undefined (or not an object),
+                            // the spec calls GetThisBinding() which throws ReferenceError if this is uninitialized
+                            if (_isDerivedClassConstructor)
+                            {
+                                var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
+                                throw new ThrowSignal(errorObject);
+                            }
                             _realmState.Logger?.LogInformation(
                                 "Class constructor missing initialized this; falling back to return value reason={Reason}",
                                 ex.Message);

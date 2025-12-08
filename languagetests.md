@@ -273,40 +273,9 @@
         Statements_class_subclass("language/statements/class/subclass/default-constructor-2.js",True)
         Statements_class_subclass("language/statements/class/subclass/default-constructor-spread-override.js",False)
         Statements_class_subclass("language/statements/class/subclass/default-constructor-spread-override.js",True)
-       Statements_class_subclass_builtinObjects_Error
-        Statements_class_subclass_builtinObjects_Error("language/statements/class/subclass/builtin-objects/Error/message-property-assignment.js",False)
-        Statements_class_subclass_builtinObjects_Error("language/statements/class/subclass/builtin-objects/Error/message-property-assignment.js",True)
-       Statements_class_subclass_builtinObjects_Map
-        Statements_class_subclass_builtinObjects_Map("language/statements/class/subclass/builtin-objects/Map/regular-subclassing.js",False)
-        Statements_class_subclass_builtinObjects_Map("language/statements/class/subclass/builtin-objects/Map/regular-subclassing.js",True)
-       Statements_class_subclass_builtinObjects_NativeError
-        Statements_class_subclass_builtinObjects_NativeError("language/statements/class/subclass/builtin-objects/NativeError/EvalError-message.js",False)
-        Statements_class_subclass_builtinObjects_NativeError("language/statements/class/subclass/builtin-objects/NativeError/EvalError-message.js",True)
-        Statements_class_subclass_builtinObjects_NativeError("language/statements/class/subclass/builtin-objects/NativeError/RangeError-message.js",False)
-        Statements_class_subclass_builtinObjects_NativeError("language/statements/class/subclass/builtin-objects/NativeError/RangeError-message.js",True)
-        Statements_class_subclass_builtinObjects_NativeError("language/statements/class/subclass/builtin-objects/NativeError/ReferenceError-message.js",False)
-        Statements_class_subclass_builtinObjects_NativeError("language/statements/class/subclass/builtin-objects/NativeError/ReferenceError-message.js",True)
-        Statements_class_subclass_builtinObjects_NativeError("language/statements/class/subclass/builtin-objects/NativeError/SyntaxError-message.js",False)
-        Statements_class_subclass_builtinObjects_NativeError("language/statements/class/subclass/builtin-objects/NativeError/SyntaxError-message.js",True)
-        Statements_class_subclass_builtinObjects_NativeError("language/statements/class/subclass/builtin-objects/NativeError/TypeError-message.js",False)
-        Statements_class_subclass_builtinObjects_NativeError("language/statements/class/subclass/builtin-objects/NativeError/TypeError-message.js",True)
-        Statements_class_subclass_builtinObjects_NativeError("language/statements/class/subclass/builtin-objects/NativeError/URIError-message.js",False)
-        Statements_class_subclass_builtinObjects_NativeError("language/statements/class/subclass/builtin-objects/NativeError/URIError-message.js",True)
-       Statements_class_subclass_builtinObjects_Number
-        Statements_class_subclass_builtinObjects_Number("language/statements/class/subclass/builtin-objects/Number/regular-subclassing.js",False)
-        Statements_class_subclass_builtinObjects_Number("language/statements/class/subclass/builtin-objects/Number/regular-subclassing.js",True)
        Statements_class_subclass_builtinObjects_Object
         Statements_class_subclass_builtinObjects_Object("language/statements/class/subclass/builtin-objects/Object/constructor-return-undefined-throws.js",False)
         Statements_class_subclass_builtinObjects_Object("language/statements/class/subclass/builtin-objects/Object/constructor-return-undefined-throws.js",True)
-       Statements_class_subclass_builtinObjects_Promise
-        Statements_class_subclass_builtinObjects_Promise("language/statements/class/subclass/builtin-objects/Promise/regular-subclassing.js",False)
-        Statements_class_subclass_builtinObjects_Promise("language/statements/class/subclass/builtin-objects/Promise/regular-subclassing.js",True)
-       Statements_class_subclass_builtinObjects_Proxy
-        Statements_class_subclass_builtinObjects_Proxy("language/statements/class/subclass/builtin-objects/Proxy/no-prototype-throws.js",False)
-        Statements_class_subclass_builtinObjects_Proxy("language/statements/class/subclass/builtin-objects/Proxy/no-prototype-throws.js",True)
-       Statements_class_subclass_builtinObjects_Symbol
-        Statements_class_subclass_builtinObjects_Symbol("language/statements/class/subclass/builtin-objects/Symbol/new-symbol-with-super-throws.js",False)
-        Statements_class_subclass_builtinObjects_Symbol("language/statements/class/subclass/builtin-objects/Symbol/new-symbol-with-super-throws.js",True)
        Statements_const_syntax
         Statements_const_syntax("language/statements/const/syntax/const-invalid-assignment-next-expression-for.js",False)
         Statements_const_syntax("language/statements/const/syntax/const-invalid-assignment-next-expression-for.js",True)

@@ -94,8 +94,23 @@ public static partial class StandardLibrary
                     var result = new JsObject();
                     if (index < str.Length)
                     {
-                        var value = str[index].ToString();
-                        index++;
+                        // Per ES spec 22.1.5.2.1 %StringIteratorPrototype%.next():
+                        // Strings are iterated by code point, not UTF-16 code unit.
+                        // Surrogate pairs should be returned as a single string.
+                        var first = str[index];
+                        string value;
+                        if (char.IsHighSurrogate(first) && index + 1 < str.Length && char.IsLowSurrogate(str[index + 1]))
+                        {
+                            // High surrogate followed by low surrogate - return both as single string
+                            value = str.Substring(index, 2);
+                            index += 2;
+                        }
+                        else
+                        {
+                            // Single code unit (BMP character or unpaired surrogate)
+                            value = first.ToString();
+                            index++;
+                        }
 
                         result.SetProperty("value", value);
                         result.SetProperty("done", false);

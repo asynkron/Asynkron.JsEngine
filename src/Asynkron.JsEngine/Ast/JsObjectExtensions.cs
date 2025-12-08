@@ -110,12 +110,31 @@ public static partial class TypedAstEvaluator
                 context.Clear();
             }
 
-            if (!iterator.TryInvokeIteratorMethod(
+            bool invokeSucceeded;
+            object? closeResult = null;
+            try
+            {
+                invokeSucceeded = iterator.TryInvokeIteratorMethod(
                     "return",
                     Symbol.Undefined,
                     context,
-                    out var closeResult,
-                    false))
+                    out closeResult,
+                    false);
+            }
+            catch (ThrowSignal)
+            {
+                // Per ES spec 7.4.6 IteratorClose step 6: if GetMethod throws,
+                // and we're preserving an existing throw, ignore the getter error
+                // and restore the original completion.
+                if (preserveExistingThrow)
+                {
+                    RestoreSignal(context, savedSignal);
+                    return;
+                }
+                throw;
+            }
+
+            if (!invokeSucceeded)
             {
                 if (preserveExistingThrow)
                 {

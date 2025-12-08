@@ -44,6 +44,12 @@ public static partial class StandardLibrary
             proxyConstructor.Properties.SetPrototype(realm.FunctionPrototype);
         }
 
+        // Per spec 26.2.1: Proxy constructor does NOT have a 'prototype' property
+        // This makes it non-subclassable: class P extends Proxy {} will throw TypeError
+        // because Proxy.prototype is undefined (not an Object or null)
+        proxyConstructor.DeleteProperty("prototype");
+        proxyConstructor.SetProperty("prototype", Symbol.Undefined);
+
         proxyConstructor.DefineProperty("name",
             new PropertyDescriptor { Value = "Proxy", Writable = false, Enumerable = false, Configurable = true });
 

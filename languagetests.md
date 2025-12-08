@@ -1,4 +1,3 @@
-      LanguageTests
        Expressions_arrowFunction
         Expressions_arrowFunction("language/expressions/arrow-function/prototype-rules.js",False)
         Expressions_arrowFunction("language/expressions/arrow-function/prototype-rules.js",True)
@@ -12,9 +11,6 @@
         Expressions_asyncGenerator("language/expressions/async-generator/eval-body-proto-realm.js",True)
         Expressions_asyncGenerator("language/expressions/async-generator/generator-created-after-decl-inst.js",False)
         Expressions_asyncGenerator("language/expressions/async-generator/generator-created-after-decl-inst.js",True)
-       Expressions_class
-        Expressions_class("language/expressions/class/restricted-properties.js",False)
-        Expressions_class("language/expressions/class/restricted-properties.js",True)
        Expressions_division
         Expressions_division("language/expressions/division/no-magic-asi-from-block-eval.js",False)
         Expressions_division("language/expressions/division/no-magic-asi-from-block-eval.js",True)
@@ -68,8 +64,6 @@
        Expressions_object
         Expressions_object("language/expressions/object/__proto__-permitted-dup-shorthand.js",False)
         Expressions_object("language/expressions/object/__proto__-permitted-dup-shorthand.js",True)
-        Expressions_object("language/expressions/object/cpn-obj-lit-computed-property-name-from-yield-expression.js",False)
-        Expressions_object("language/expressions/object/cpn-obj-lit-computed-property-name-from-yield-expression.js",True)
        Expressions_object_dstr
         Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-get-not-called-on-dontenum-keys.js",False)
         Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-get-not-called-on-dontenum-keys.js",True)
@@ -78,7 +72,6 @@
         Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-ownkeys-returned-keys-order.js",False)
         Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-ownkeys-returned-keys-order.js",True)
        Expressions_object_methodDefinition
-        Expressions_object_methodDefinition("language/expressions/object/method-definition/computed-property-name-yield-expression.js",False)
         Expressions_object_methodDefinition("language/expressions/object/method-definition/generator-invoke-fn-no-strict.js",False)
         Expressions_object_methodDefinition("language/expressions/object/method-definition/generator-prototype-prop.js",False)
         Expressions_object_methodDefinition("language/expressions/object/method-definition/generator-prototype-prop.js",True)
@@ -120,6 +113,8 @@
         Expressions_yield("language/expressions/yield/rhs-template-middle.js",True)
         Expressions_yield("language/expressions/yield/star-rhs-iter-nrml-next-call-non-obj.js",False)
         Expressions_yield("language/expressions/yield/star-rhs-iter-nrml-next-call-non-obj.js",True)
+        Expressions_yield("language/expressions/yield/star-rhs-iter-nrml-next-get-err.js",False)
+        Expressions_yield("language/expressions/yield/star-rhs-iter-nrml-next-get-err.js",True)
         Expressions_yield("language/expressions/yield/star-rhs-iter-nrml-res-value-final.js",False)
         Expressions_yield("language/expressions/yield/star-rhs-iter-nrml-res-value-final.js",True)
         Expressions_yield("language/expressions/yield/star-rhs-iter-rtrn-res-done-no-value.js",False)
@@ -128,8 +123,12 @@
         Expressions_yield("language/expressions/yield/star-rhs-iter-rtrn-res-value-final.js",True)
         Expressions_yield("language/expressions/yield/star-rhs-iter-rtrn-rtrn-call-non-obj.js",False)
         Expressions_yield("language/expressions/yield/star-rhs-iter-rtrn-rtrn-call-non-obj.js",True)
+        Expressions_yield("language/expressions/yield/star-rhs-iter-rtrn-rtrn-get-err.js",False)
+        Expressions_yield("language/expressions/yield/star-rhs-iter-rtrn-rtrn-get-err.js",True)
         Expressions_yield("language/expressions/yield/star-rhs-iter-thrw-thrw-call-non-obj.js",False)
         Expressions_yield("language/expressions/yield/star-rhs-iter-thrw-thrw-call-non-obj.js",True)
+        Expressions_yield("language/expressions/yield/star-rhs-iter-thrw-thrw-get-err.js",False)
+        Expressions_yield("language/expressions/yield/star-rhs-iter-thrw-thrw-get-err.js",True)
         Expressions_yield("language/expressions/yield/star-rhs-iter-thrw-violation-no-rtrn.js",False)
         Expressions_yield("language/expressions/yield/star-rhs-iter-thrw-violation-no-rtrn.js",True)
         Expressions_yield("language/expressions/yield/star-rhs-iter-thrw-violation-rtrn-call-err.js",False)
@@ -151,7 +150,6 @@
         GlobalCode("language/global-code/decl-lex.js",True)
         GlobalCode("language/global-code/script-decl-func-err-non-extensible.js",False)
         GlobalCode("language/global-code/script-decl-func-err-non-extensible.js",True)
-        GlobalCode("language/global-code/script-decl-lex-lex.js",False)
         GlobalCode("language/global-code/script-decl-lex-lex.js",True)
         GlobalCode("language/global-code/script-decl-lex.js",False)
         GlobalCode("language/global-code/script-decl-lex.js",True)
@@ -159,15 +157,8 @@
         GlobalCode("language/global-code/script-decl-var-collision.js",True)
        Import_importAttributes
         Import_importAttributes("language/import/import-attributes/json-extensibility-array.js",True)
-        Import_importAttributes("language/import/import-attributes/json-extensibility-object.js",True)
-        Import_importAttributes("language/import/import-attributes/json-idempotency.js",True)
         Import_importAttributes("language/import/import-attributes/json-value-array.js",True)
-        Import_importAttributes("language/import/import-attributes/json-value-boolean.js",True)
-        Import_importAttributes("language/import/import-attributes/json-value-null.js",True)
-        Import_importAttributes("language/import/import-attributes/json-value-number.js",True)
         Import_importAttributes("language/import/import-attributes/json-value-object.js",True)
-        Import_importAttributes("language/import/import-attributes/json-value-string.js",True)
-        Import_importAttributes("language/import/import-attributes/json-via-namespace.js",True)
        Import_importDefer_deferredNamespaceObject
         Import_importDefer_deferredNamespaceObject("language/import/import-defer/deferred-namespace-object/exotic-object-behavior.js",True)
         Import_importDefer_deferredNamespaceObject("language/import/import-defer/deferred-namespace-object/identity.js",True)
@@ -192,8 +183,6 @@
         Import_importDefer_evaluationTopLevelAwait_importDeferTransitiveAsyncModule("language/import/import-defer/evaluation-top-level-await/import-defer-transitive-async-module/main.js",True)
        Import_importDefer_evaluationTopLevelAwait_syncDependencyOfDeferredAsyncModule
         Import_importDefer_evaluationTopLevelAwait_syncDependencyOfDeferredAsyncModule("language/import/import-defer/evaluation-top-level-await/sync-dependency-of-deferred-async-module/main.js",True)
-       Import_importDefer_syntax
-        Import_importDefer_syntax("language/import/import-defer/syntax/import-attributes.js",True)
        Literals_string
         Literals_string("language/literals/string/legacy-non-octal-escape-sequence-8-non-strict.js",False)
         Literals_string("language/literals/string/legacy-non-octal-escape-sequence-9-non-strict.js",False)
@@ -240,17 +229,6 @@
        Statements_awaitUsing
         Statements_awaitUsing("language/statements/await-using/throws-if-initializer-not-object.js",False)
         Statements_awaitUsing("language/statements/await-using/throws-if-initializer-not-object.js",True)
-       Statements_class
-        Statements_class("language/statements/class/accessor-name-inst-computed-yield-expr.js",False)
-        Statements_class("language/statements/class/accessor-name-inst-computed-yield-expr.js",True)
-        Statements_class("language/statements/class/accessor-name-static-computed-yield-expr.js",False)
-        Statements_class("language/statements/class/accessor-name-static-computed-yield-expr.js",True)
-        Statements_class("language/statements/class/cpn-class-decl-accessors-computed-property-name-from-yield-expression.js",False)
-        Statements_class("language/statements/class/cpn-class-decl-accessors-computed-property-name-from-yield-expression.js",True)
-        Statements_class("language/statements/class/cpn-class-decl-computed-property-name-from-yield-expression.js",False)
-        Statements_class("language/statements/class/cpn-class-decl-computed-property-name-from-yield-expression.js",True)
-        Statements_class("language/statements/class/restricted-properties.js",False)
-        Statements_class("language/statements/class/restricted-properties.js",True)
        Statements_class_definition
         Statements_class_definition("language/statements/class/definition/accessors.js",False)
         Statements_class_definition("language/statements/class/definition/accessors.js",True)
@@ -295,20 +273,9 @@
         Statements_class_subclass("language/statements/class/subclass/default-constructor-2.js",True)
         Statements_class_subclass("language/statements/class/subclass/default-constructor-spread-override.js",False)
         Statements_class_subclass("language/statements/class/subclass/default-constructor-spread-override.js",True)
-       Statements_class_subclass_builtinObjects_ArrayBuffer
-        Statements_class_subclass_builtinObjects_ArrayBuffer("language/statements/class/subclass/builtin-objects/ArrayBuffer/regular-subclassing.js",False)
-        Statements_class_subclass_builtinObjects_ArrayBuffer("language/statements/class/subclass/builtin-objects/ArrayBuffer/regular-subclassing.js",True)
-       Statements_class_subclass_builtinObjects_DataView
-        Statements_class_subclass_builtinObjects_DataView("language/statements/class/subclass/builtin-objects/DataView/regular-subclassing.js",False)
-        Statements_class_subclass_builtinObjects_DataView("language/statements/class/subclass/builtin-objects/DataView/regular-subclassing.js",True)
        Statements_class_subclass_builtinObjects_Error
         Statements_class_subclass_builtinObjects_Error("language/statements/class/subclass/builtin-objects/Error/message-property-assignment.js",False)
         Statements_class_subclass_builtinObjects_Error("language/statements/class/subclass/builtin-objects/Error/message-property-assignment.js",True)
-       Statements_class_subclass_builtinObjects_GeneratorFunction
-        Statements_class_subclass_builtinObjects_GeneratorFunction("language/statements/class/subclass/builtin-objects/GeneratorFunction/instance-prototype.js",False)
-        Statements_class_subclass_builtinObjects_GeneratorFunction("language/statements/class/subclass/builtin-objects/GeneratorFunction/instance-prototype.js",True)
-        Statements_class_subclass_builtinObjects_GeneratorFunction("language/statements/class/subclass/builtin-objects/GeneratorFunction/regular-subclassing.js",False)
-        Statements_class_subclass_builtinObjects_GeneratorFunction("language/statements/class/subclass/builtin-objects/GeneratorFunction/regular-subclassing.js",True)
        Statements_class_subclass_builtinObjects_Map
         Statements_class_subclass_builtinObjects_Map("language/statements/class/subclass/builtin-objects/Map/regular-subclassing.js",False)
         Statements_class_subclass_builtinObjects_Map("language/statements/class/subclass/builtin-objects/Map/regular-subclassing.js",True)
@@ -363,6 +330,8 @@
         Statements_forOf("language/statements/for-of/head-using-bound-names-fordecl-tdz.js",True)
         Statements_forOf("language/statements/for-of/head-using-fresh-binding-per-iteration.js",False)
         Statements_forOf("language/statements/for-of/head-using-fresh-binding-per-iteration.js",True)
+        Statements_forOf("language/statements/for-of/iterator-next-error.js",False)
+        Statements_forOf("language/statements/for-of/iterator-next-error.js",True)
        Statements_function
         Statements_function("language/statements/function/param-dflt-yield-non-strict.js",False)
         Statements_function("language/statements/function/S13.2.1_A5_T1.js",False)
@@ -374,22 +343,6 @@
         Statements_function("language/statements/function/S13.2.2_A1_T2.js",True)
         Statements_function("language/statements/function/S13.2_A8_T1.js",True)
         Statements_function("language/statements/function/S13.2_A8_T2.js",True)
-       Statements_generators
-        Statements_generators("language/statements/generators/restricted-properties.js",False)
-        Statements_generators("language/statements/generators/restricted-properties.js",True)
-       Statements_if
-        Statements_if("language/statements/if/cptn-else-false-abrupt-empty.js",False)
-        Statements_if("language/statements/if/cptn-else-false-abrupt-empty.js",True)
-        Statements_if("language/statements/if/cptn-else-false-nrml.js",False)
-        Statements_if("language/statements/if/cptn-else-false-nrml.js",True)
-        Statements_if("language/statements/if/cptn-else-true-abrupt-empty.js",False)
-        Statements_if("language/statements/if/cptn-else-true-abrupt-empty.js",True)
-        Statements_if("language/statements/if/cptn-else-true-nrml.js",False)
-        Statements_if("language/statements/if/cptn-else-true-nrml.js",True)
-        Statements_if("language/statements/if/cptn-no-else-true-abrupt-empty.js",False)
-        Statements_if("language/statements/if/cptn-no-else-true-abrupt-empty.js",True)
-        Statements_if("language/statements/if/cptn-no-else-true-nrml.js",False)
-        Statements_if("language/statements/if/cptn-no-else-true-nrml.js",True)
        Statements_labeled
         Statements_labeled("language/statements/labeled/cptn-break.js",False)
         Statements_labeled("language/statements/labeled/cptn-break.js",True)
@@ -452,8 +405,3 @@
         Types_reference("language/types/reference/put-value-prop-base-primitive-realm.js",True)
         Types_reference("language/types/reference/put-value-prop-base-primitive.js",False)
         Types_reference("language/types/reference/put-value-prop-base-primitive.js",True)
-       WhiteSpace
-        WhiteSpace("language/white-space/after-regular-expression-literal-zwnbsp.js",False)
-        WhiteSpace("language/white-space/after-regular-expression-literal-zwnbsp.js",True)
-        WhiteSpace("language/white-space/mongolian-vowel-separator-eval.js",False)
-        WhiteSpace("language/white-space/mongolian-vowel-separator-eval.js",True)

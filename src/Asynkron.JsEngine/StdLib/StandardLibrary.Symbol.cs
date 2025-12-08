@@ -8,7 +8,20 @@ public static partial class StandardLibrary
 {
     public static HostFunction CreateSymbolConstructor(RealmState realm)
     {
-        var symbolConstructor = new HostFunction(SymbolConstructor);
+        HostFunction symbolConstructor = null!;
+        symbolConstructor = new HostFunction(SymbolConstructor);
+
+        // Symbol cannot be called with 'new' - check for newTarget
+        symbolConstructor.SetInvokeWithContext((args, _, _, newTarget) =>
+        {
+            // If newTarget is not undefined (i.e., called with 'new'), throw TypeError
+            if (newTarget is not null)
+            {
+                throw ThrowTypeError("Symbol is not a constructor", realm: realm);
+            }
+
+            return SymbolConstructorCore(args);
+        });
 
         symbolConstructor.SetHostedProperty("for", SymbolFor);
 
@@ -46,6 +59,12 @@ public static partial class StandardLibrary
         return symbolConstructor;
 
         object? SymbolConstructor(IReadOnlyList<object?> args)
+        {
+            // Called without 'new' - this is the normal case
+            return SymbolConstructorCore(args);
+        }
+
+        object? SymbolConstructorCore(IReadOnlyList<object?> args)
         {
             var description = args.Count > 0 && args[0] != null && !ReferenceEquals(args[0], Symbol.Undefined)
                 ? args[0]!.ToString()

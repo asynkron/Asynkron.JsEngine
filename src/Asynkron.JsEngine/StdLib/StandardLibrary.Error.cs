@@ -25,6 +25,18 @@ public static partial class StandardLibrary
 
         prototype.SetHostedProperty("toString", ErrorToString);
 
+        // Set default 'name' and 'message' on prototype (inherited by instances without own property)
+        prototype.DefineProperty("name",
+            new PropertyDescriptor
+            {
+                Value = errorType, Writable = true, Enumerable = false, Configurable = true
+            });
+        prototype.DefineProperty("message",
+            new PropertyDescriptor
+            {
+                Value = "", Writable = true, Enumerable = false, Configurable = true
+            });
+
         prototype.DefineProperty("constructor",
             new PropertyDescriptor
             {
@@ -68,7 +80,6 @@ public static partial class StandardLibrary
 
         object? ErrorConstructor(object? thisValue, IReadOnlyList<object?> args)
         {
-            var message = args.Count > 0 && args[0] != null ? args[0]!.ToString() : "";
             var errorObj = thisValue as JsObject ?? new JsObject();
 
             if (prototype is not null && errorObj.Prototype is null)
@@ -76,8 +87,20 @@ public static partial class StandardLibrary
                 errorObj.SetPrototype(prototype);
             }
 
-            errorObj["name"] = errorType;
-            errorObj["message"] = message;
+            // Per spec 19.5.1.1: 'name' is inherited from prototype, NOT set on instance
+            // Only set 'message' property if message argument is provided and not undefined
+            if (args.Count > 0 && args[0] is not null && !ReferenceEquals(args[0], Symbol.Undefined))
+            {
+                var message = args[0]!.ToString();
+                errorObj.DefineProperty("message",
+                    new PropertyDescriptor
+                    {
+                        Value = message,
+                        Writable = true,
+                        Enumerable = false,
+                        Configurable = true
+                    });
+            }
 
             return errorObj;
         }

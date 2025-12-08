@@ -101,18 +101,42 @@ public static partial class StandardLibrary
                 return num > 0 ? "Infinity" : "-Infinity";
             }
 
+            string result;
             if (args.Count <= 0 || args[0] is not double d)
             {
-                return num.ToString("e", CultureInfo.InvariantCulture);
+                result = num.ToString("e", CultureInfo.InvariantCulture);
             }
-
-            var fractionDigits = (int)d;
-            if (fractionDigits is < 0 or > 100)
+            else
             {
-                throw ThrowRangeError("toExponential() digits argument must be between 0 and 100", realm: realm);
+                var fractionDigits = (int)d;
+                if (fractionDigits is < 0 or > 100)
+                {
+                    throw ThrowRangeError("toExponential() digits argument must be between 0 and 100", realm: realm);
+                }
+
+                result = num.ToString("e" + fractionDigits, CultureInfo.InvariantCulture);
             }
 
-            return num.ToString("e" + fractionDigits, CultureInfo.InvariantCulture);
+            // JavaScript spec: remove leading zeros from exponent
+            return FormatExponentialForJsOld(result);
+        }
+
+        static string FormatExponentialForJsOld(string netExponential)
+        {
+            var eIndex = netExponential.IndexOf('e');
+            if (eIndex < 0) return netExponential;
+            var mantissa = netExponential.Substring(0, eIndex + 1);
+            var exponent = netExponential.Substring(eIndex + 1);
+            var sign = "";
+            if (exponent.Length > 0 && (exponent[0] == '+' || exponent[0] == '-'))
+            {
+                sign = exponent.Substring(0, 1);
+                exponent = exponent.Substring(1);
+            }
+
+            exponent = exponent.TrimStart('0');
+            if (exponent.Length == 0) exponent = "0";
+            return mantissa + sign + exponent;
         }
 
         object? ToPrecision(IReadOnlyList<object?> args)
@@ -637,18 +661,55 @@ public static partial class StandardLibrary
                 return num > 0 ? "Infinity" : "-Infinity";
             }
 
+            string result;
             if (args.Count == 0 || ReferenceEquals(args[0], Symbol.Undefined))
             {
-                return num.ToString("e", CultureInfo.InvariantCulture);
+                result = num.ToString("e", CultureInfo.InvariantCulture);
             }
-
-            var fractionDigits = (int)JsOps.ToNumber(args[0]);
-            if (fractionDigits is < 0 or > 100)
+            else
             {
-                throw ThrowRangeError("toExponential() digits argument must be between 0 and 100", realm: realm);
+                var fractionDigits = (int)JsOps.ToNumber(args[0]);
+                if (fractionDigits is < 0 or > 100)
+                {
+                    throw ThrowRangeError("toExponential() digits argument must be between 0 and 100", realm: realm);
+                }
+
+                result = num.ToString("e" + fractionDigits, CultureInfo.InvariantCulture);
             }
 
-            return num.ToString("e" + fractionDigits, CultureInfo.InvariantCulture);
+            // JavaScript spec: remove leading zeros from exponent
+            // .NET produces "4.20e+001", JavaScript expects "4.20e+1"
+            return FormatExponentialForJs(result);
+        }
+
+        static string FormatExponentialForJs(string netExponential)
+        {
+            // Find the 'e' in the exponential notation
+            var eIndex = netExponential.IndexOf('e');
+            if (eIndex < 0)
+            {
+                return netExponential;
+            }
+
+            var mantissa = netExponential.Substring(0, eIndex + 1); // includes 'e'
+            var exponent = netExponential.Substring(eIndex + 1);
+
+            // Handle sign
+            var sign = "";
+            if (exponent.Length > 0 && (exponent[0] == '+' || exponent[0] == '-'))
+            {
+                sign = exponent.Substring(0, 1);
+                exponent = exponent.Substring(1);
+            }
+
+            // Remove leading zeros but keep at least one digit
+            exponent = exponent.TrimStart('0');
+            if (exponent.Length == 0)
+            {
+                exponent = "0";
+            }
+
+            return mantissa + sign + exponent;
         }
 
         object? NumberPrototypeToPrecision(object? thisValue, IReadOnlyList<object?> args)

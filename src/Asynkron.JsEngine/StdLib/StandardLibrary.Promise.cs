@@ -111,7 +111,7 @@ public static partial class StandardLibrary
         {
             if (args.Count == 0 || args[0] is not IJsCallable executor)
             {
-                throw new InvalidOperationException("Promise constructor requires an executor function");
+                throw ThrowTypeError("Promise constructor requires an executor function", realm: engine.RealmState);
             }
 
             var promise = new JsPromise(engine);

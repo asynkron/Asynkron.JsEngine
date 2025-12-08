@@ -8,40 +8,109 @@ public static partial class StandardLibrary
     public static IJsCallable CreateMapConstructor()
     {
         var mapPrototype = new JsObject();
+        HostFunction mapConstructor = null!;
+
+        mapConstructor = new HostFunction((_, args) => MapCtorCore(args, mapConstructor), isConstructor: true);
+        mapConstructor.SetInvokeWithContext((args, _, _, newTarget) =>
+            MapCtorCore(args, newTarget as IJsCallable ?? mapConstructor));
+
         AddMapMethods(mapPrototype);
 
-        var mapConstructor = new HostFunction((thisValue, args) =>
-        {
-            var map = thisValue as JsMap ?? new JsMap();
-
-            if (thisValue is JsObject { Prototype: { } providedProto })
+        // Add size getter to prototype
+        mapPrototype.DefineProperty("size",
+            new PropertyDescriptor
             {
-                map.SetPrototype(providedProto);
-            }
-            else if (map.Prototype is null)
-            {
-                map.SetPrototype(mapPrototype);
-            }
-
-            // If an iterable is provided, populate the map
-            if (args.Count > 0 && args[0] is JsArray entries)
-            {
-                foreach (var entry in entries.Items)
+                Get = new HostFunction((thisVal, _) =>
                 {
-                    if (entry is JsArray { Items.Count: >= 2 } pair)
-                    {
-                        map.Set(pair.GetElement(0), pair.GetElement(1));
-                    }
-                }
-            }
-
-            return map;
-        }, isConstructor: true);
+                    var map = RequireMap(thisVal);
+                    return map is not null ? (double)map.Size : 0d;
+                }),
+                Enumerable = false,
+                Configurable = true
+            });
 
         mapConstructor.SetProperty("prototype", mapPrototype);
         mapPrototype.SetProperty("constructor", mapConstructor);
 
         return mapConstructor;
+
+        object? MapCtorCore(IReadOnlyList<object?> args, IJsCallable newTarget)
+        {
+            var map = new JsMap();
+            map.SetPrototype(mapPrototype);
+
+            // If an iterable is provided, populate the map
+            if (args.Count > 0 && args[0] is not null && args[0] is not Symbol)
+            {
+                var iterable = args[0];
+                if (iterable is JsArray entries)
+                {
+                    foreach (var entry in entries.Items)
+                    {
+                        // For each entry, get [0] (key) and [1] (value)
+                        object? key;
+                        object? value;
+                        if (entry is JsArray pair)
+                        {
+                            key = pair.GetElement(0);
+                            value = pair.GetElement(1);
+                        }
+                        else if (entry is IJsPropertyAccessor accessor)
+                        {
+                            accessor.TryGetProperty("0", out key);
+                            accessor.TryGetProperty("1", out value);
+                        }
+                        else
+                        {
+                            // Entry is not a valid iterable-like
+                            continue;
+                        }
+
+                        map.Set(key, value);
+                    }
+                }
+            }
+
+            // If newTarget is not the Map constructor, wrap in JsObject with proper prototype
+            if (!ReferenceEquals(newTarget, mapConstructor))
+            {
+                var instance = new JsObject();
+                if (newTarget is IJsPropertyAccessor accessor &&
+                    accessor.TryGetProperty("prototype", out var proto) &&
+                    proto is IJsObjectLike protoObj)
+                {
+                    instance.SetPrototype(protoObj);
+                }
+                else
+                {
+                    instance.SetPrototype(mapPrototype);
+                }
+
+                instance.SetProperty("_internalMap", map);
+                return instance;
+            }
+
+            return map;
+        }
+    }
+
+    private static JsMap? RequireMap(object? thisVal)
+    {
+        if (thisVal is JsMap directMap)
+        {
+            return directMap;
+        }
+
+        if (thisVal is JsObject obj)
+        {
+            var descriptor = obj.GetOwnPropertyDescriptor("_internalMap");
+            if (descriptor?.Value is JsMap internalMap)
+            {
+                return internalMap;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -71,20 +140,36 @@ public static partial class StandardLibrary
     public static IJsCallable CreateSetConstructor()
     {
         var setPrototype = new JsObject();
+        HostFunction setConstructor = null!;
+
+        setConstructor = new HostFunction((_, args) => SetCtorCore(args, setConstructor), isConstructor: true);
+        setConstructor.SetInvokeWithContext((args, _, _, newTarget) =>
+            SetCtorCore(args, newTarget as IJsCallable ?? setConstructor));
+
         AddSetMethods(setPrototype);
 
-        var setConstructor = new HostFunction((thisValue, args) =>
-        {
-            var set = thisValue as JsSet ?? new JsSet();
+        // Add size getter to prototype
+        setPrototype.DefineProperty("size",
+            new PropertyDescriptor
+            {
+                Get = new HostFunction((thisVal, _) =>
+                {
+                    var set = RequireSet(thisVal);
+                    return set is not null ? (double)set.Size : 0d;
+                }),
+                Enumerable = false,
+                Configurable = true
+            });
 
-            if (thisValue is JsObject { Prototype: { } providedProto })
-            {
-                set.SetPrototype(providedProto);
-            }
-            else if (set.Prototype is null)
-            {
-                set.SetPrototype(setPrototype);
-            }
+        setConstructor.SetProperty("prototype", setPrototype);
+        setPrototype.SetProperty("constructor", setConstructor);
+
+        return setConstructor;
+
+        object? SetCtorCore(IReadOnlyList<object?> args, IJsCallable newTarget)
+        {
+            var set = new JsSet();
+            set.SetPrototype(setPrototype);
 
             // If an iterable is provided, populate the set
             if (args.Count > 0 && args[0] is JsArray values)
@@ -95,13 +180,46 @@ public static partial class StandardLibrary
                 }
             }
 
+            // If newTarget is not the Set constructor, wrap in JsObject with proper prototype
+            if (!ReferenceEquals(newTarget, setConstructor))
+            {
+                var instance = new JsObject();
+                if (newTarget is IJsPropertyAccessor accessor &&
+                    accessor.TryGetProperty("prototype", out var proto) &&
+                    proto is IJsObjectLike protoObj)
+                {
+                    instance.SetPrototype(protoObj);
+                }
+                else
+                {
+                    instance.SetPrototype(setPrototype);
+                }
+
+                instance.SetProperty("_internalSet", set);
+                return instance;
+            }
+
             return set;
-        }, isConstructor: true);
+        }
+    }
 
-        setConstructor.SetProperty("prototype", setPrototype);
-        setPrototype.SetProperty("constructor", setConstructor);
+    private static JsSet? RequireSet(object? thisVal)
+    {
+        if (thisVal is JsSet directSet)
+        {
+            return directSet;
+        }
 
-        return setConstructor;
+        if (thisVal is JsObject obj)
+        {
+            var descriptor = obj.GetOwnPropertyDescriptor("_internalSet");
+            if (descriptor?.Value is JsSet internalSet)
+            {
+                return internalSet;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -254,19 +372,22 @@ public static partial class StandardLibrary
 
     private static object? MapSet_Set(object? thisValue, IReadOnlyList<object?> args)
     {
-        if (thisValue is not JsMap map)
+        var map = RequireMap(thisValue);
+        if (map is null)
         {
             return Symbol.Undefined;
         }
 
         var key = args.GetArgument(0);
         var value = args.GetArgument(1);
-        return map.Set(key, value);
+        map.Set(key, value);
+        return thisValue; // Return the original this value for chaining
     }
 
     private static object? MapSet_Get(object? thisValue, IReadOnlyList<object?> args)
     {
-        if (thisValue is not JsMap map)
+        var map = RequireMap(thisValue);
+        if (map is null)
         {
             return Symbol.Undefined;
         }
@@ -277,7 +398,8 @@ public static partial class StandardLibrary
 
     private static object MapSet_Has(object? thisValue, IReadOnlyList<object?> args)
     {
-        if (thisValue is not JsMap map)
+        var map = RequireMap(thisValue);
+        if (map is null)
         {
             return false;
         }
@@ -288,7 +410,8 @@ public static partial class StandardLibrary
 
     private static object MapSet_Delete(object? thisValue, IReadOnlyList<object?> args)
     {
-        if (thisValue is not JsMap map)
+        var map = RequireMap(thisValue);
+        if (map is null)
         {
             return false;
         }
@@ -299,17 +422,16 @@ public static partial class StandardLibrary
 
     private static object? MapSet_Clear(object? thisValue, IReadOnlyList<object?> _)
     {
-        if (thisValue is JsMap map)
-        {
-            map.Clear();
-        }
+        var map = RequireMap(thisValue);
+        map?.Clear();
 
         return Symbol.Undefined;
     }
 
     private static object? MapSet_ForEach(object? thisValue, IReadOnlyList<object?> args)
     {
-        if (thisValue is not JsMap map)
+        var map = RequireMap(thisValue);
+        if (map is null)
         {
             return Symbol.Undefined;
         }
@@ -326,7 +448,8 @@ public static partial class StandardLibrary
 
     private static object? MapSet_Entries(object? thisValue, IReadOnlyList<object?> _)
     {
-        if (thisValue is not JsMap map)
+        var map = RequireMap(thisValue);
+        if (map is null)
         {
             return Symbol.Undefined;
         }
@@ -336,7 +459,8 @@ public static partial class StandardLibrary
 
     private static object? MapSet_Keys(object? thisValue, IReadOnlyList<object?> _)
     {
-        if (thisValue is not JsMap map)
+        var map = RequireMap(thisValue);
+        if (map is null)
         {
             return Symbol.Undefined;
         }
@@ -346,7 +470,8 @@ public static partial class StandardLibrary
 
     private static object? MapSet_Values(object? thisValue, IReadOnlyList<object?> _)
     {
-        if (thisValue is not JsMap map)
+        var map = RequireMap(thisValue);
+        if (map is null)
         {
             return Symbol.Undefined;
         }
@@ -356,18 +481,21 @@ public static partial class StandardLibrary
 
     private static object? Set_Add(object? thisValue, IReadOnlyList<object?> args)
     {
-        if (thisValue is not JsSet set)
+        var set = RequireSet(thisValue);
+        if (set is null)
         {
             return Symbol.Undefined;
         }
 
         var value = args.GetArgument(0);
-        return set.Add(value);
+        set.Add(value);
+        return thisValue; // Return the original this value for chaining
     }
 
     private static object Set_Has(object? thisValue, IReadOnlyList<object?> args)
     {
-        if (thisValue is not JsSet set)
+        var set = RequireSet(thisValue);
+        if (set is null)
         {
             return false;
         }
@@ -378,7 +506,8 @@ public static partial class StandardLibrary
 
     private static object Set_Delete(object? thisValue, IReadOnlyList<object?> args)
     {
-        if (thisValue is not JsSet set)
+        var set = RequireSet(thisValue);
+        if (set is null)
         {
             return false;
         }
@@ -389,17 +518,16 @@ public static partial class StandardLibrary
 
     private static object? Set_Clear(object? thisValue, IReadOnlyList<object?> _)
     {
-        if (thisValue is JsSet set)
-        {
-            set.Clear();
-        }
+        var set = RequireSet(thisValue);
+        set?.Clear();
 
         return Symbol.Undefined;
     }
 
     private static object? Set_ForEach(object? thisValue, IReadOnlyList<object?> args)
     {
-        if (thisValue is not JsSet set)
+        var set = RequireSet(thisValue);
+        if (set is null)
         {
             return Symbol.Undefined;
         }
@@ -416,7 +544,8 @@ public static partial class StandardLibrary
 
     private static object? Set_Entries(object? thisValue, IReadOnlyList<object?> _)
     {
-        if (thisValue is not JsSet set)
+        var set = RequireSet(thisValue);
+        if (set is null)
         {
             return Symbol.Undefined;
         }
@@ -426,7 +555,8 @@ public static partial class StandardLibrary
 
     private static object? Set_Keys(object? thisValue, IReadOnlyList<object?> _)
     {
-        if (thisValue is not JsSet set)
+        var set = RequireSet(thisValue);
+        if (set is null)
         {
             return Symbol.Undefined;
         }
@@ -436,7 +566,8 @@ public static partial class StandardLibrary
 
     private static object? Set_Values(object? thisValue, IReadOnlyList<object?> _)
     {
-        if (thisValue is not JsSet set)
+        var set = RequireSet(thisValue);
+        if (set is null)
         {
             return Symbol.Undefined;
         }

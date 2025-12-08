@@ -1270,10 +1270,13 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             category is not UnicodeCategory.SpaceSeparator
                 and not UnicodeCategory.LineSeparator
                 and not UnicodeCategory.ParagraphSeparator
-                and not UnicodeCategory.Control)
+                and not UnicodeCategory.Control
+                and not UnicodeCategory.Format)
         {
             // Accept remaining non-ASCII code points (including ones not yet in the runtime's
             // Unicode tables) to stay in sync with evolving ID_Start sets.
+            // Note: Format category (Cf) characters like ZWNBSP (U+FEFF) are excluded because
+            // they are treated as whitespace in ECMAScript, not identifier start characters.
             return true;
         }
 
@@ -1302,10 +1305,12 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
         if (category is UnicodeCategory.NonSpacingMark
             or UnicodeCategory.SpacingCombiningMark
             or UnicodeCategory.ConnectorPunctuation
-            or UnicodeCategory.Format
             or UnicodeCategory.LetterNumber
             or UnicodeCategory.ModifierLetter)
         {
+            // Note: Format category (Cf) is NOT included here because most Format chars
+            // like Mongolian Vowel Separator (U+180E) are not valid in identifiers.
+            // ZWNJ (U+200C) and ZWJ (U+200D) are handled explicitly above.
             return true;
         }
 
@@ -1313,10 +1318,12 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             category is not UnicodeCategory.SpaceSeparator
                 and not UnicodeCategory.LineSeparator
                 and not UnicodeCategory.ParagraphSeparator
-                and not UnicodeCategory.Control)
+                and not UnicodeCategory.Control
+                and not UnicodeCategory.Format)
         {
             // Permit the broader set of non-ASCII code points for ID_Continue to match
             // latest Unicode revisions (ID_Start plus ID_Continue extras).
+            // Format chars (like Mongolian Vowel Separator) are excluded; ZWNJ/ZWJ handled above.
             return true;
         }
 

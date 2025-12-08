@@ -185,3 +185,51 @@ Export statements (`export ... from '...' with { ... }`) also need attribute sup
 
 - [Import Attributes Proposal](https://github.com/tc39/proposal-import-attributes)
 - [JSON Modules Proposal](https://github.com/tc39/proposal-json-modules)
+
+## Fix Applied (December 8, 2025)
+
+**7 out of 10 JSON module tests now pass!**
+
+### Changes Made
+
+1. **`src/Asynkron.JsEngine/Ast/Statements.cs`**:
+   - Added `ImportAttribute` record at line 311
+   - Updated `ImportStatement` to include optional `Attributes` property with default value
+
+2. **`src/Asynkron.JsEngine/Parser/TypedAstParser.cs`**:
+   - Added `ParseOptionalImportAttributes()` method that checks for `TokenType.With` (not contextual keyword, since `with` is a JavaScript keyword)
+   - Added `ParseImportAttributes()` method to parse `{ key: 'value' }` syntax
+   - Updated `ParseImportStatement()` to call these methods before consuming semicolon
+
+3. **`src/Asynkron.JsEngine/JsEngine.cs`**:
+   - Added `IsJsonModule()` helper to detect `type: 'json'` attribute
+   - Added `CreateJsonModule()` method that:
+     - Parses JSON using `StandardLibrary.ParseJsonWithReviver`
+     - Creates a synthetic module with the JSON value as default export
+     - Sets up both the exports object AND the module environment binding for "default"
+   - Updated `LoadModule()` and `LoadModuleForInstantiation()` to pass attributes through
+
+### Key Insight
+
+The critical fix was recognizing that:
+1. `with` is a **keyword** (`TokenType.With`), not a contextual keyword - so `CheckContextualKeyword("with")` would never match
+2. JSON modules need to define the "default" binding in **both** the exports object AND the module environment for import binding resolution to work
+
+### Remaining Test Failures
+
+3 tests still fail due to a **separate bug in JSON.parse** where `null` values in arrays/objects are not preserved correctly:
+- `json-value-array.js` - fails because `null` in the array becomes `[object Object]`
+- `json-value-object.js` - fails because `null` property value becomes an object
+- `json-extensibility-array.js` - depends on json-value-array fixture
+
+These failures are **not related to import attributes** - they're a JSON parsing bug that should be fixed separately.
+
+### Tests Now Passing
+
+✅ `json-value-string.js`
+✅ `json-value-boolean.js`
+✅ `json-value-null.js`
+✅ `json-value-number.js`
+✅ `json-extensibility-object.js`
+✅ `json-idempotency.js`
+✅ `json-via-namespace.js`

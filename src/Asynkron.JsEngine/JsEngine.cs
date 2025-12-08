@@ -1404,6 +1404,11 @@ public sealed class JsEngine : IAsyncDisposable
 
         var moduleEnv = CreateModuleEnvironment();
 
+        // IMPORTANT: Define the "default" binding in the module environment
+        // This is needed for import binding resolution to work correctly
+        var defaultSymbol = Symbol.Intern("default");
+        moduleEnv.Define(defaultSymbol, jsonValue, isConst: true, isLexical: true, blocksFunctionScopeOverride: false);
+
         // Create a minimal parsed program (empty) - JSON modules don't have executable code
         var emptyStatements = ImmutableArray<StatementNode>.Empty;
         var emptyProgram = new ProgramNode(null, emptyStatements, true);

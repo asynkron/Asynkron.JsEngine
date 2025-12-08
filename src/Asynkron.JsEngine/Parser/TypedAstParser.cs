@@ -1183,7 +1183,8 @@ public sealed class TypedAstParser(
 
         private ImmutableArray<ImportAttribute> ParseOptionalImportAttributes()
         {
-            if (!CheckContextualKeyword("with"))
+            // 'with' is a keyword (TokenType.With), not a contextual keyword
+            if (!Check(TokenType.With))
             {
                 return ImmutableArray<ImportAttribute>.Empty;
             }

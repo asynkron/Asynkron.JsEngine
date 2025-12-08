@@ -865,7 +865,8 @@ public static partial class TypedAstEvaluator
 
         if (target is ModuleNamespace moduleNamespace)
         {
-            return moduleNamespace.HasExport(propertyName);
+            // Use HasProperty which triggers evaluation for deferred namespaces per ES spec
+            return moduleNamespace.HasProperty(propertyName);
         }
 
         if (propertyName.IsPrivateSlotName())

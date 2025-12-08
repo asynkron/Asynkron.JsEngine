@@ -54,6 +54,20 @@ public static partial class TypedAstEvaluator
             return;
         }
 
+        // Per ES spec, [[Set]] on module namespace always returns false without triggering evaluation
+        // Handle this early to avoid GetOwnPropertyDescriptor which would trigger evaluation
+        if (target is ModuleNamespace)
+        {
+            if (isStrict)
+            {
+                throw StandardLibrary.ThrowTypeError(
+                    "Module namespace objects are immutable",
+                    context,
+                    context.RealmState);
+            }
+            return;
+        }
+
         if (target is JsObject jsObject)
         {
             AssignmentReferenceResolver.AssignObjectProperty(

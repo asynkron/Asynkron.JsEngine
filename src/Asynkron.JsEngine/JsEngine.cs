@@ -1649,9 +1649,12 @@ public sealed class JsEngine : IAsyncDisposable
         {
             if (statement is ImportStatement importStatement)
             {
+                // Determine the phase for this specific import - deferred imports use Defer phase
+                var importPhase = importStatement.IsDeferred ? ImportPhase.Defer : phase;
+
                 // Load and instantiate the module but DON'T evaluate it yet
-                var importedModule = LoadModuleForInstantiation(importStatement.ModulePath, modulePath, phase);
-                EnsureModuleInstantiated(importedModule, phase);
+                var importedModule = LoadModuleForInstantiation(importStatement.ModulePath, modulePath, importPhase);
+                EnsureModuleInstantiated(importedModule, importPhase);
 
                 // Handle default import
                 if (importStatement.DefaultBinding is { } defaultBinding)
@@ -1665,7 +1668,7 @@ public sealed class JsEngine : IAsyncDisposable
                     // Namespace binding is the whole module namespace object
                     // Per ES spec 16.2.1.6.2 step 12.b.ii: CreateImmutableBinding(in.[[LocalName]], true)
                     // The binding must be immutable - assignment should throw TypeError in strict mode
-                    var ns = GetModuleNamespace(importedModule);
+                    var ns = GetModuleNamespace(importedModule, importPhase);
                     moduleEnv.Define(nsBinding, ns, isConst: true, isLexical: true, blocksFunctionScopeOverride: false);
                 }
 

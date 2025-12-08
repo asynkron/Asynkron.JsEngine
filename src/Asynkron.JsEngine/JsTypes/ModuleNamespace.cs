@@ -91,11 +91,8 @@ internal sealed class ModuleNamespace : IJsObjectLike
 
     public void SetProperty(string name, object? value, object? receiver)
     {
-        if (!IsSymbolLikeNamespaceKey(name))
-        {
-            EnsureExportsEvaluated(name);
-        }
-
+        // Per ES spec [[Set]] for module namespace: always return false, never triggers evaluation
+        // Even for deferred namespaces, [[Set]] does not trigger evaluation
         throw StandardLibrary.ThrowTypeError("Module namespace objects are immutable", realm: _realmState);
     }
 
@@ -181,14 +178,16 @@ internal sealed class ModuleNamespace : IJsObjectLike
             return;
         }
 
-        if (!_exportNames.Contains(name, StringComparer.Ordinal))
-        {
-            throw StandardLibrary.ThrowTypeError("Module namespace objects are immutable", realm: _realmState);
-        }
-
+        // Per ES spec, [[DefineOwnProperty]] calls GetModuleExportsList which triggers evaluation
+        // This must happen before checking if the key is in the exports list
         if (!IsSymbolLikeNamespaceKey(name))
         {
             EnsureExportsEvaluated(name);
+        }
+
+        if (!_exportNames.Contains(name, StringComparer.Ordinal))
+        {
+            throw StandardLibrary.ThrowTypeError("Module namespace objects are immutable", realm: _realmState);
         }
 
         if (descriptor.IsAccessorDescriptor)
@@ -248,6 +247,22 @@ internal sealed class ModuleNamespace : IJsObjectLike
 
     internal bool HasExport(string name)
     {
+        return _exportNames.Contains(name, StringComparer.Ordinal) ||
+               string.Equals(name, _toStringTagKey, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Implements [[HasProperty]] for module namespace.
+    /// Per ES spec, [[HasProperty]] for non-symbol-like keys triggers evaluation for deferred namespaces.
+    /// </summary>
+    internal bool HasProperty(string name)
+    {
+        // Symbol-like keys don't trigger evaluation
+        if (!IsSymbolLikeNamespaceKey(name))
+        {
+            EnsureExportsEvaluated(name);
+        }
+
         return _exportNames.Contains(name, StringComparer.Ordinal) ||
                string.Equals(name, _toStringTagKey, StringComparison.Ordinal);
     }

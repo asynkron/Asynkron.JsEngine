@@ -265,7 +265,8 @@ public static partial class StandardLibrary
         var propertyKey = JsOps.ToPropertyName(args[1]) ?? string.Empty;
         if (target is ModuleNamespace moduleNamespace)
         {
-            return moduleNamespace.HasExport(propertyKey);
+            // Use HasProperty which triggers evaluation for deferred namespaces per ES spec
+            return moduleNamespace.HasProperty(propertyKey);
         }
 
         return target.TryGetProperty(propertyKey, out _);

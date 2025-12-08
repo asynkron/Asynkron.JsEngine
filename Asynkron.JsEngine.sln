@@ -33,6 +33,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{CBE37AA6-AD59-4A21-A8B0-4208A190EF53}"
 	ProjectSection(SolutionItems) = preProject
 		docs\fix-restricted-properties.md = docs\fix-restricted-properties.md
+		docs\fix-yield-computed-property-names.md = docs\fix-yield-computed-property-names.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Asynkron.JsEngine.Tests.Test262", "tests\Asynkron.JsEngine.Tests.Test262\Asynkron.JsEngine.Tests.Test262.csproj", "{7527CADC-BF6A-4F99-846F-92122ACFB155}"

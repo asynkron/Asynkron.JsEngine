@@ -335,7 +335,149 @@ public static partial class TypedAstEvaluator
                     });
 
                 _realmState.GeneratorFunctionPrototype = genFuncProto;
+
+                // Create the GeneratorFunction constructor if we have access to the engine
+                if (_realmState.Engine is { } engine && _realmState.GeneratorFunctionConstructor is null)
+                {
+                    var generatorFunctionConstructor = CreateGeneratorFunctionConstructor(engine, _realmState);
+                    _realmState.GeneratorFunctionConstructor = generatorFunctionConstructor;
+
+                    // Set GeneratorFunctionPrototype.constructor = GeneratorFunction
+                    genFuncProto.DefineProperty("constructor",
+                        new PropertyDescriptor
+                        {
+                            Value = generatorFunctionConstructor,
+                            Writable = false,
+                            Enumerable = false,
+                            Configurable = true,
+                            HasValue = true,
+                            HasWritable = true,
+                            HasEnumerable = true,
+                            HasConfigurable = true
+                        });
+
+                    // GeneratorFunction.__proto__ === Function (inherit from Function)
+                    if (_realmState.FunctionPrototype is { } functionPrototype)
+                    {
+                        generatorFunctionConstructor.Properties.SetPrototype(functionPrototype);
+                    }
+
+                    // GeneratorFunction.prototype = GeneratorFunctionPrototype
+                    generatorFunctionConstructor.SetProperty("prototype", genFuncProto);
+                }
             }
+        }
+
+        private static HostFunction CreateGeneratorFunctionConstructor(JsEngine engine, RealmState realm)
+        {
+            HostFunction generatorFunctionConstructor = null!;
+
+            generatorFunctionConstructor = new HostFunction((_, args) =>
+                GeneratorFunctionConstructorBody(args, generatorFunctionConstructor, engine, realm))
+            {
+                RealmState = realm
+            };
+
+            generatorFunctionConstructor.SetInvokeWithContext((args, _, _, newTarget) =>
+                GeneratorFunctionConstructorBody(args, newTarget as IJsCallable ?? generatorFunctionConstructor, engine, realm));
+
+            StdLib.StandardLibrary.DefineConstantProperty(generatorFunctionConstructor, "length", 1d, configurable: true);
+            StdLib.StandardLibrary.DefineConstantProperty(generatorFunctionConstructor, "name", "GeneratorFunction", configurable: true);
+
+            return generatorFunctionConstructor;
+        }
+
+        private static object? GeneratorFunctionConstructorBody(
+            IReadOnlyList<object?> args,
+            IJsCallable newTarget,
+            JsEngine engine,
+            RealmState realm)
+        {
+            var evalContext = realm.CreateContext();
+            var argCount = args.Count;
+            var bodyValue = argCount > 0 ? args[argCount - 1] : string.Empty;
+            var parameterCount = Math.Max(argCount - 1, 0);
+
+            var parameters = new string[parameterCount];
+            for (var i = 0; i < parameterCount; i++)
+            {
+                var paramText = ToFunctionArgumentString(args[i], evalContext, realm);
+                parameters[i] = paramText;
+            }
+
+            var bodySource = ToFunctionArgumentString(bodyValue, evalContext, realm);
+            var paramList = string.Join(",", parameters);
+
+            // Build source as a generator function (note the *)
+            var functionSource = $"(function* anonymous({paramList}\n) {{\n{bodySource}\n}})";
+
+            ParsedProgram program;
+            try
+            {
+                program = engine.ParseForExecution(functionSource);
+            }
+            catch (Parser.ParseException parseException)
+            {
+                var message = parseException.Message ?? "SyntaxError";
+                throw new ThrowSignal(StdLib.StandardLibrary.CreateSyntaxError(message, evalContext, realm));
+            }
+
+            var created = engine.ExecuteProgram(
+                program,
+                engine.GlobalEnvironment,
+                CancellationToken.None);
+
+            // The result should now be a TypedGeneratorFactory
+            if (created is IJsObjectLike objectLike)
+            {
+                // Resolve the prototype from the newTarget
+                var proto = StdLib.StandardLibrary.ResolveConstructPrototype(
+                    newTarget,
+                    realm.GeneratorFunctionConstructor,
+                    realm);
+                if (proto is not null)
+                {
+                    objectLike.SetPrototype(proto);
+                }
+            }
+
+            return created;
+        }
+
+        private static string ToFunctionArgumentString(object? value, EvaluationContext evalContext, RealmState realm)
+        {
+            var primitive = Runtime.JsOps.ToPrimitive(value, "string", evalContext);
+            if (evalContext.IsThrow)
+            {
+                throw new ThrowSignal(evalContext.FlowValue);
+            }
+
+            switch (primitive)
+            {
+                case null:
+                    return "null";
+                case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
+                    return "undefined";
+                case Symbol:
+                case TypedAstSymbol:
+                    throw StdLib.StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", evalContext, realm);
+                case bool flag:
+                    return flag ? "true" : "false";
+                case string s:
+                    return s;
+                case JsBigInt bigInt:
+                    return bigInt.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                case double d when double.IsNaN(d):
+                    return "NaN";
+                case double d when double.IsPositiveInfinity(d):
+                    return "Infinity";
+                case double d when double.IsNegativeInfinity(d):
+                    return "-Infinity";
+                case double d:
+                    return d.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            return Convert.ToString(primitive, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
         }
 
         private void InitializeProperties()

@@ -48,6 +48,7 @@ public sealed class RealmState
     public RegExpStatics RegExpStatics { get; } = new();
     public JsObject? GeneratorFunctionPrototype { get; set; }
     public JsObject? GeneratorPrototype { get; set; }
+    public HostFunction? GeneratorFunctionConstructor { get; set; }
     public JsObject? AsyncGeneratorFunctionPrototype { get; set; }
     public JsObject? AsyncGeneratorPrototype { get; set; }
 

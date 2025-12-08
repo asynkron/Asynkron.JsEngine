@@ -46,6 +46,62 @@
 ## Key Files
 
 - `src/Asynkron.JsEngine/JsTypes/JsObject.cs` - `FindSetterInPrototypeChain`
-- `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.TypedGeneratorFactory.cs` - `ICallerInfo` implementation
-- `src/Asynkron.JsEngine/StdLib/StandardLibrary.Function.cs` - restricted property getter/setter
-- `src/Asynkron.JsEngine/JsEngine.cs` - likely where `GeneratorFunction` constructor is registered
+- `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.TypedGeneratorFactory.cs` - `ICallerInfo` implementation, `EnsureGeneratorIntrinsics()`
+- `src/Asynkron.JsEngine/StdLib/StandardLibrary.Function.cs` - restricted property getter/setter, `FunctionConstructorBody()`
+- `src/Asynkron.JsEngine/JsEngine.cs` - global object setup
+
+## New Findings (December 8, 2025)
+
+### Root Cause Identified
+
+1. `GeneratorFunctionPrototype` is created in `EnsureGeneratorIntrinsics()` but **has no `constructor` property**
+2. When JS accesses `Object.getPrototypeOf(function*() {}).constructor`, it falls back to `Function.prototype.constructor` (the regular `Function`)
+3. `StandardLibrary.Function.cs:FunctionConstructorBody()` at line 224:
+   - Parses source as `(function anonymous(...) { ... })`
+   - Executes via `engine.ExecuteProgram()` → returns `TypedFunction`, not `TypedGeneratorFactory`
+   - There's no detection of whether the caller was `GeneratorFunction` vs `Function`
+
+### Solution Path
+
+1. Create a `GeneratorFunction` constructor (a `HostFunction`) with its own body that:
+   - Builds source as `(function* anonymous(...) { ... })` (note the `*`)
+   - Parses and executes → this will create a `TypedGeneratorFactory`
+2. Set `GeneratorFunctionPrototype.constructor` = the new `GeneratorFunction` constructor
+3. This constructor must be created **lazily** when `EnsureGeneratorIntrinsics()` is called
+
+### Implementation Location
+
+The best place to add this is in `EnsureGeneratorIntrinsics()` in `TypedAstEvaluator.TypedGeneratorFactory.cs`:
+- Create a `GeneratorFunction` constructor `HostFunction`
+- Parse body as generator function: `(function* anonymous({paramList}) {{ {bodySource} }})`
+- Set `GeneratorFunctionPrototype["constructor"]` = the new constructor
+- Ensure prototype chain: `GeneratorFunction.__proto__ === Function`
+
+## Fix Applied (December 8, 2025)
+
+**All 15 restricted-properties tests now pass!**
+
+### Changes Made
+
+1. **`src/Asynkron.JsEngine/Runtime/RealmState.cs`**:
+   - Added `GeneratorFunctionConstructor` property to hold the constructor reference
+
+2. **`src/Asynkron.JsEngine/Ast/TypedAstEvaluator.TypedGeneratorFactory.cs`**:
+   - Modified `EnsureGeneratorIntrinsics()` to create the `GeneratorFunction` constructor:
+     - Uses `_realmState.Engine` to parse/execute generator function source
+     - Sets `GeneratorFunctionPrototype.constructor = GeneratorFunction`
+     - Sets `GeneratorFunction.__proto__ = Function.prototype`
+     - Sets `GeneratorFunction.prototype = GeneratorFunctionPrototype`
+   - Added `CreateGeneratorFunctionConstructor()` method to create the constructor `HostFunction`
+   - Added `GeneratorFunctionConstructorBody()` method that:
+     - Builds source as `(function* anonymous({params}) { {body} })`
+     - Parses and executes → creates `TypedGeneratorFactory`
+   - Added `ToFunctionArgumentString()` helper (same logic as in `StandardLibrary.Function.cs`)
+
+### Key Insight
+
+The fix ensures that when `new GeneratorFunction()` is called:
+1. The source is parsed as `function* anonymous(...)` (note the `*`)
+2. Execution returns a `TypedGeneratorFactory` (not `TypedFunction`)
+3. `TypedGeneratorFactory` implements `ICallerInfo` with `IsStrictFunction => true`
+4. Accessing `.caller` or `.arguments` now correctly throws `TypeError`

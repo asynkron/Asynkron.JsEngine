@@ -207,23 +207,75 @@ public static partial class StandardLibrary
                 realm.ErrorPrototype.SetPrototype(objectProtoObj);
             }
 
-            // Object.prototype.toString
-            objectProtoObj.SetHostedProperty("toString", ObjectPrototypeToString);
+            // Object.prototype.toString - must be non-enumerable per ES spec
+            objectProtoObj.DefineProperty("toString",
+                new PropertyDescriptor
+                {
+                    Value = new HostFunction(ObjectPrototypeToString),
+                    Writable = true,
+                    Enumerable = false,
+                    Configurable = true
+                });
 
-            // Object.prototype.valueOf
-            objectProtoObj.SetHostedProperty("valueOf", ObjectPrototypeValueOf);
+            // Object.prototype.valueOf - must be non-enumerable per ES spec
+            objectProtoObj.DefineProperty("valueOf",
+                new PropertyDescriptor
+                {
+                    Value = new HostFunction(ObjectPrototypeValueOf),
+                    Writable = true,
+                    Enumerable = false,
+                    Configurable = true
+                });
 
             var hasOwn = new HostFunction(ObjectPrototypeHasOwnProperty);
 
-            objectProtoObj.SetProperty("hasOwnProperty", hasOwn);
+            // Object.prototype.hasOwnProperty - must be non-enumerable per ES spec
+            objectProtoObj.DefineProperty("hasOwnProperty",
+                new PropertyDescriptor
+                {
+                    Value = hasOwn,
+                    Writable = true,
+                    Enumerable = false,
+                    Configurable = true
+                });
 
-            // Object.prototype.propertyIsEnumerable
-            objectProtoObj.SetHostedProperty("propertyIsEnumerable", ObjectPrototypePropertyIsEnumerable);
+            // Object.prototype.propertyIsEnumerable - must be non-enumerable per ES spec
+            objectProtoObj.DefineProperty("propertyIsEnumerable",
+                new PropertyDescriptor
+                {
+                    Value = new HostFunction(ObjectPrototypePropertyIsEnumerable),
+                    Writable = true,
+                    Enumerable = false,
+                    Configurable = true
+                });
 
-            // Object.prototype.isPrototypeOf
-            objectProtoObj.SetHostedProperty("isPrototypeOf", ObjectPrototypeIsPrototypeOf);
-            objectProtoObj.SetHostedProperty("__lookupGetter__", ObjectPrototypeLookupGetter);
-            objectProtoObj.SetHostedProperty("__lookupSetter__", ObjectPrototypeLookupSetter);
+            // Object.prototype.isPrototypeOf - must be non-enumerable per ES spec
+            objectProtoObj.DefineProperty("isPrototypeOf",
+                new PropertyDescriptor
+                {
+                    Value = new HostFunction(ObjectPrototypeIsPrototypeOf),
+                    Writable = true,
+                    Enumerable = false,
+                    Configurable = true
+                });
+
+            // __lookupGetter__ and __lookupSetter__ - must be non-enumerable per ES spec
+            objectProtoObj.DefineProperty("__lookupGetter__",
+                new PropertyDescriptor
+                {
+                    Value = new HostFunction(ObjectPrototypeLookupGetter),
+                    Writable = true,
+                    Enumerable = false,
+                    Configurable = true
+                });
+            objectProtoObj.DefineProperty("__lookupSetter__",
+                new PropertyDescriptor
+                {
+                    Value = new HostFunction(ObjectPrototypeLookupSetter),
+                    Writable = true,
+                    Enumerable = false,
+                    Configurable = true
+                });
 
             var protoGetter = new HostFunction(ObjectPrototypeGetProto, realm, isConstructor: false);
             protoGetter.TryDefineProperty("name", new PropertyDescriptor

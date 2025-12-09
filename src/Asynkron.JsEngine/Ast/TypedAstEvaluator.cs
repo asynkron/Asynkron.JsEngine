@@ -192,9 +192,57 @@ public static partial class TypedAstEvaluator
 
             case JsArray array:
             {
+                // First, enumerate numeric indices (array elements)
                 for (var i = 0; i < array.Items.Count; i++)
                 {
                     yield return i.ToString(CultureInfo.InvariantCulture);
+                }
+
+                // Track seen keys to properly handle shadowing
+                var seenArrayKeys = new HashSet<string>(StringComparer.Ordinal);
+
+                // Add all numeric indices as seen (already enumerated above)
+                for (var i = 0; i < array.Items.Count; i++)
+                {
+                    seenArrayKeys.Add(i.ToString(CultureInfo.InvariantCulture));
+                }
+
+                // Now enumerate non-index properties on the array and its prototype chain
+                IJsPropertyAccessor? currentArray = array;
+                while (currentArray is not null)
+                {
+                    var keys = currentArray.GetOwnPropertyNames().ToList();
+
+                    foreach (var key in keys)
+                    {
+                        // Skip if we've already seen this key
+                        if (!seenArrayKeys.Add(key))
+                        {
+                            continue;
+                        }
+
+                        // Skip 'length' - it's not enumerable
+                        if (string.Equals(key, "length", StringComparison.Ordinal))
+                        {
+                            continue;
+                        }
+
+                        var desc = currentArray.GetOwnPropertyDescriptor(key);
+                        if (desc is null || desc is { Enumerable: false })
+                        {
+                            continue;
+                        }
+
+                        yield return key;
+                    }
+
+                    // Move to prototype
+                    currentArray = currentArray switch
+                    {
+                        IJsObjectLike objectLike => objectLike.Prototype,
+                        IPrototypeAccessorProvider provider => provider.PrototypeAccessor,
+                        _ => null
+                    };
                 }
 
                 yield break;
@@ -212,15 +260,49 @@ public static partial class TypedAstEvaluator
 
             case IJsObjectLike accessor:
             {
-                foreach (var key in accessor.GetOwnPropertyNames())
+                // Track seen keys to properly handle shadowing - prototype properties
+                // with the same name as own properties should not be enumerated
+                var seenKeys = new HashSet<string>(StringComparer.Ordinal);
+
+                // Walk prototype chain, starting with the object itself
+                IJsPropertyAccessor? current = accessor;
+                while (current is not null)
                 {
-                    var desc = accessor.GetOwnPropertyDescriptor(key);
-                    if (desc is { Enumerable: false })
+                    // Collect keys from this object in the chain - we snapshot to avoid
+                    // concurrent modification issues during iteration
+                    var keys = current.GetOwnPropertyNames().ToList();
+
+                    foreach (var key in keys)
                     {
-                        continue;
+                        // Skip if we've already seen this key (shadowed by own/earlier property)
+                        if (!seenKeys.Add(key))
+                        {
+                            continue;
+                        }
+
+                        // Per ECMAScript spec, skip properties that were deleted during enumeration.
+                        // Check that the property still exists on this object in the chain.
+                        var desc = current.GetOwnPropertyDescriptor(key);
+                        if (desc is null)
+                        {
+                            // Property was deleted since we collected the keys
+                            continue;
+                        }
+                        if (desc is { Enumerable: false })
+                        {
+                            continue;
+                        }
+
+                        yield return key;
                     }
 
-                    yield return key;
+                    // Move to prototype
+                    current = current switch
+                    {
+                        IJsObjectLike objectLike => objectLike.Prototype,
+                        IPrototypeAccessorProvider provider => provider.PrototypeAccessor,
+                        _ => null
+                    };
                 }
 
                 yield break;

@@ -2448,7 +2448,8 @@ public sealed class TypedAstParser(
                         throw new ParseException("Expected 'target' after 'new.'.", targetToken, _source);
                     }
 
-                    return new NewTargetExpression(CreateSourceReference(newToken));
+                    var newTargetExpr = new NewTargetExpression(CreateSourceReference(newToken));
+                    return ApplyCallSuffix(newTargetExpr, allowCallSuffix);
                 }
 
                 var newExpr = ParseNewExpression();

@@ -3,6 +3,41 @@ namespace Asynkron.JsEngine.Tests;
 public class StackOverflowReproTest
 {
     [Fact(Timeout = 5000)]
+    public async Task SimpleClassCreation()
+    {
+        await using var engine = new JsEngine();
+        var code = @"
+class A {}
+class B extends A {
+  constructor() {
+    super();
+  }
+}
+'done';
+";
+        var result = await engine.Evaluate(code);
+        Assert.Equal("done", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ClassInstantiation()
+    {
+        await using var engine = new JsEngine();
+        var code = @"
+class A {}
+class B extends A {
+  constructor() {
+    super();
+  }
+}
+var b = new B();
+'done';
+";
+        var result = await engine.Evaluate(code);
+        Assert.Equal("done", result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ClassInheritancePrototypeChain()
     {
         await using var engine = new JsEngine();

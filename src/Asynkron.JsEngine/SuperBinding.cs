@@ -41,12 +41,14 @@ public sealed class SuperBinding(
                 }
             }
 
-            if (Prototype.TryGetProperty(name, out value))
+            // Don't recursively call TryGetProperty on SuperBinding to avoid infinite recursion
+            // SuperBinding is not meant to be used as a regular prototype in the chain
+            if (Prototype is not SuperBinding && Prototype.TryGetProperty(name, out value))
             {
                 return true;
             }
         }
-        else if (Prototype is not null && Prototype.TryGetProperty(name, out value))
+        else if (Prototype is not null && Prototype is not SuperBinding && Prototype.TryGetProperty(name, out value))
         {
             return true;
         }
@@ -71,6 +73,7 @@ public sealed class SuperBinding(
         }
 
         if (Constructor is IJsPropertyAccessor ctorAccessor &&
+            ctorAccessor is not SuperBinding &&
             ctorAccessor.TryGetProperty(name, out value))
         {
             return true;

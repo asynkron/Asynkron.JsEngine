@@ -93,6 +93,14 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("console", StandardLibrary.CreateConsoleObject());
         SetGlobal("Math", StandardLibrary.CreateMathObject(RealmState));
         SetGlobal("Object", StandardLibrary.CreateObjectConstructor(RealmState));
+
+        // Per ECMAScript spec, the global object's [[Prototype]] is Object.prototype.
+        // This ensures that methods like hasOwnProperty are inherited by the global object.
+        if (RealmState.ObjectPrototype is not null)
+        {
+            GlobalObject.SetPrototype(RealmState.ObjectPrototype);
+        }
+
         SetGlobal("Function", StandardLibrary.CreateFunctionConstructor(RealmState, this));
         SetGlobal("Number", StandardLibrary.CreateNumberConstructor(RealmState));
         var bigIntFunction = StandardLibrary.CreateBigIntFunction(RealmState);

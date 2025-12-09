@@ -85,11 +85,14 @@ public static partial class TypedAstEvaluator
             var functionScope = executionEnvironment.GetFunctionScope();
             if (executionKind != ExecutionKind.Eval)
             {
-                functionScope.SetBodyLexicalNames(topLevelLexicalNames);
+                // For global scripts, we need to MERGE the new lexical names with existing ones
+                // rather than replacing them, so that subsequent evalScript calls can detect
+                // var declarations that conflict with previous lexical declarations.
+                functionScope.MergeBodyLexicalNames(topLevelLexicalNames);
                 if (functionScope.IsGlobalFunctionScope &&
                     functionScope.Enclosing is { IsGlobalFunctionScope: true } enclosingGlobal)
                 {
-                    enclosingGlobal.SetBodyLexicalNames(topLevelLexicalNames);
+                    enclosingGlobal.MergeBodyLexicalNames(topLevelLexicalNames);
                 }
             }
             if (functionScope.IsGlobalFunctionScope)
@@ -100,6 +103,22 @@ public static partial class TypedAstEvaluator
                     {
                         throw StandardLibrary.ThrowSyntaxError(
                             $"Cannot redeclare var-scoped binding '{blockedName.Name}' with lexical declaration",
+                            context,
+                            context.RealmState);
+                    }
+                }
+
+                // Per ES spec GlobalDeclarationInstantiation step 6:
+                // Check ALL var names for conflicts with existing lexical declarations BEFORE
+                // creating any bindings. This ensures that a script like 'var x; var existingLet;'
+                // doesn't create 'x' when it should throw SyntaxError for 'existingLet'.
+                var allVarNames = CollectAllVarNames(program.Body);
+                foreach (var varName in allVarNames)
+                {
+                    if (functionScope.HasGlobalLexicalDeclaration(varName))
+                    {
+                        throw StandardLibrary.ThrowSyntaxError(
+                            $"Identifier '{varName.Name}' has already been declared",
                             context,
                             context.RealmState);
                     }
@@ -213,6 +232,97 @@ public static partial class TypedAstEvaluator
             }
 
             break;
+        }
+    }
+
+    /// <summary>
+    /// Collects all var-declared names from the program body, including function declarations.
+    /// This is used for GlobalDeclarationInstantiation to check for conflicts before creating bindings.
+    /// </summary>
+    private static HashSet<Symbol> CollectAllVarNames(ImmutableArray<StatementNode> statements)
+    {
+        var names = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+        CollectVarNamesFromStatements(statements, names);
+        return names;
+    }
+
+    private static void CollectVarNamesFromStatements(ImmutableArray<StatementNode> statements, HashSet<Symbol> names)
+    {
+        foreach (var statement in statements)
+        {
+            CollectVarNamesFromStatement(statement, names);
+        }
+    }
+
+    private static void CollectVarNamesFromStatement(StatementNode statement, HashSet<Symbol> names)
+    {
+        switch (statement)
+        {
+            case VariableDeclaration { Kind: VariableKind.Var } varDeclaration:
+                foreach (var declarator in varDeclaration.Declarators)
+                {
+                    CollectBindingNames(declarator.Target, names);
+                }
+                break;
+            case FunctionDeclaration functionDeclaration:
+                names.Add(functionDeclaration.Name);
+                break;
+            case BlockStatement block:
+                CollectVarNamesFromStatements(block.Statements, names);
+                break;
+            case IfStatement ifStatement:
+                CollectVarNamesFromStatement(ifStatement.Then, names);
+                if (ifStatement.Else is not null)
+                {
+                    CollectVarNamesFromStatement(ifStatement.Else, names);
+                }
+                break;
+            case WhileStatement whileStatement:
+                CollectVarNamesFromStatement(whileStatement.Body, names);
+                break;
+            case DoWhileStatement doWhileStatement:
+                CollectVarNamesFromStatement(doWhileStatement.Body, names);
+                break;
+            case ForStatement forStatement:
+                if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar)
+                {
+                    foreach (var declarator in initVar.Declarators)
+                    {
+                        CollectBindingNames(declarator.Target, names);
+                    }
+                }
+                CollectVarNamesFromStatement(forStatement.Body, names);
+                break;
+            case ForEachStatement forEachStatement when forEachStatement.DeclarationKind == VariableKind.Var:
+                CollectBindingNames(forEachStatement.Target, names);
+                CollectVarNamesFromStatement(forEachStatement.Body, names);
+                break;
+            case ForEachStatement forEachStatement:
+                CollectVarNamesFromStatement(forEachStatement.Body, names);
+                break;
+            case TryStatement tryStatement:
+                CollectVarNamesFromStatements(tryStatement.TryBlock.Statements, names);
+                if (tryStatement.Catch is not null)
+                {
+                    CollectVarNamesFromStatements(tryStatement.Catch.Body.Statements, names);
+                }
+                if (tryStatement.Finally is not null)
+                {
+                    CollectVarNamesFromStatements(tryStatement.Finally.Statements, names);
+                }
+                break;
+            case SwitchStatement switchStatement:
+                foreach (var switchCase in switchStatement.Cases)
+                {
+                    CollectVarNamesFromStatements(switchCase.Body.Statements, names);
+                }
+                break;
+            case LabeledStatement labeledStatement:
+                CollectVarNamesFromStatement(labeledStatement.Statement, names);
+                break;
+            case WithStatement withStatement:
+                CollectVarNamesFromStatement(withStatement.Body, names);
+                break;
         }
     }
 }

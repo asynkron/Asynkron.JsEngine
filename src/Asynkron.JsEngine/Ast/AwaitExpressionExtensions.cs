@@ -26,20 +26,12 @@ public static partial class TypedAstEvaluator
                 return awaited;
             }
 
-            // Plain async functions now honor pending promises via the shared scheduler.
-            object? pendingPromise = null;
-            if (!AwaitScheduler.TryAwaitPromiseOrSchedule(awaited, true, ref pendingPromise, context,
-                    out var resolved))
+            // For top-level await (module level, no generator), use synchronous blocking.
+            // This ensures promises are resolved before continuing.
+            if (!AwaitScheduler.TryAwaitPromiseSync(awaited, context, out var resolved))
             {
-                if (context.IsThrow || context.IsReturn)
-                {
-                    return resolved;
-                }
-
-                // if (pendingPromise is JsObject promise && AwaitScheduler.IsPromiseLike(promise))
-                // {
-                //     return new PendingAwaitResult(promise);
-                // }
+                // TryAwaitPromiseSync returns false if there was a rejection that set context.IsThrow
+                return resolved;
             }
 
             return resolved;

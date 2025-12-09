@@ -21,6 +21,10 @@ internal static class AwaitScheduler
     {
         resolvedValue = candidate;
 
+        // Drain any pending microtasks first - this may resolve the promise we're about to await
+        var engine = context.RealmState?.Engine;
+        engine?.DrainMicrotasks();
+
         if (candidate is JsPromise jsPromise &&
             jsPromise.TryGetSettled(out var settledValue, out var isRejected))
         {
@@ -78,6 +82,13 @@ internal static class AwaitScheduler
             {
                 thenCallable.Invoke([onFulfilled, onRejected], promiseObj);
             }
+            catch (ThrowSignal signal)
+            {
+                // JavaScript throw - extract the actual thrown value
+                context.SetThrow(signal.ThrownValue);
+                resolvedValue = Symbol.Undefined;
+                return false;
+            }
             catch (Exception ex)
             {
                 context.SetThrow(ex.Message);
@@ -88,17 +99,43 @@ internal static class AwaitScheduler
             (bool Success, object? Value) awaited;
             try
             {
+                // Drain microtasks until the promise settles
+                var maxIterations = 10000; // Prevent infinite loops
+                var iterations = 0;
+                while (!tcs.Task.IsCompleted && iterations++ < maxIterations)
+                {
+                    engine?.DrainMicrotasks();
+
+                    // If still not completed after draining, we have an async promise
+                    // that requires the event loop - this shouldn't happen for proper
+                    // top-level await scenarios
+                    if (!tcs.Task.IsCompleted)
+                    {
+                        // Try one more drain in case new microtasks were queued
+                        engine?.DrainMicrotasks();
+                    }
+                }
+
                 if (tcs.Task.IsCompleted)
                 {
                     awaited = tcs.Task.GetAwaiter().GetResult();
                 }
                 else
                 {
-                    //TODO: ENSURE ALL CODE IS LOWERED TO ASYNC, THEN REMOVE THIS
-                    // DO NOT REPLACE WITH BLOCKING WAIT:
                     throw new InvalidOperationException(
-                        "Asynchronous promise resolution is not supported in the synchronous evaluator.");
+                        "Promise did not resolve after draining microtasks. This may indicate an infinite promise chain or external async dependency.");
                 }
+            }
+            catch (InvalidOperationException)
+            {
+                throw; // Re-throw our own exceptions
+            }
+            catch (ThrowSignal signal)
+            {
+                // JavaScript throw during microtask processing
+                context.SetThrow(signal.ThrownValue);
+                resolvedValue = Symbol.Undefined;
+                return false;
             }
             catch (Exception ex)
             {

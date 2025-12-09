@@ -108,7 +108,9 @@ public sealed class JsPromise
         }
 
         _handlersScheduled = true;
-        _engine.ScheduleTask(() =>
+        // Use the synchronous microtask queue for promise handlers
+        // This ensures proper ordering during top-level await
+        _engine.QueueMicrotask(() =>
         {
             try
             {
@@ -118,8 +120,6 @@ public sealed class JsPromise
             {
                 _handlersScheduled = false;
             }
-
-            return Task.CompletedTask;
         });
     }
 

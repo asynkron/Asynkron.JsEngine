@@ -60,6 +60,10 @@ public sealed class JsEngine : IAsyncDisposable
     private int? _eventLoopThreadId;
     private Channel<Func<Task>>? _eventQueue;
 
+    // Synchronous microtask queue for top-level await support
+    private readonly Queue<Action> _microtaskQueue = new();
+    private bool _isDrainingMicrotasks;
+
     // Module loader function: allows custom module loading logic
     private Func<string, string?, string>? _moduleLoader;
     private int _nextTimerId = 1;
@@ -1118,6 +1122,50 @@ public sealed class JsEngine : IAsyncDisposable
         finally
         {
             _eventLoopThreadId = null;
+        }
+    }
+
+    /// <summary>
+    ///     Queues a microtask to be executed synchronously.
+    ///     This is used for promise reactions during top-level await.
+    /// </summary>
+    internal void QueueMicrotask(Action task)
+    {
+        _microtaskQueue.Enqueue(task);
+    }
+
+    /// <summary>
+    ///     Drains all pending microtasks synchronously.
+    ///     Returns when no more microtasks are pending.
+    /// </summary>
+    internal void DrainMicrotasks()
+    {
+        // Prevent re-entrancy
+        if (_isDrainingMicrotasks)
+        {
+            return;
+        }
+
+        _isDrainingMicrotasks = true;
+        try
+        {
+            while (_microtaskQueue.Count > 0)
+            {
+                var task = _microtaskQueue.Dequeue();
+                try
+                {
+                    task();
+                }
+                catch (Exception ex)
+                {
+                    // Log but don't propagate - microtask exceptions shouldn't kill the drain
+                    Console.Error.WriteLine($"[DrainMicrotasks] Exception: {ex.GetType().Name}: {ex.Message}");
+                }
+            }
+        }
+        finally
+        {
+            _isDrainingMicrotasks = false;
         }
     }
 

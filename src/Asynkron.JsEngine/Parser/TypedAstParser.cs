@@ -1242,34 +1242,37 @@ public sealed class TypedAstParser(
 
             do
             {
-                // In `import { X as Y }`, X can be `default`, identifier, or string literal
+                // In `import { X as Y }`, X can be any IdentifierName (including reserved words) or string literal
+                // Per ES spec, ModuleExportName is either IdentifierName or StringLiteral
                 Token importedToken;
                 Symbol imported;
-                if (Check(TokenType.Default))
-                {
-                    importedToken = Advance();
-                    imported = Symbol.Intern(importedToken.Lexeme);
-                }
-                else if (Check(TokenType.String))
+                if (Check(TokenType.String))
                 {
                     // Arbitrary module namespace names - string literal as import name
                     importedToken = Advance();
                     imported = Symbol.Intern(GetStringLiteralValue(importedToken));
                 }
+                else if (Check(TokenType.Identifier) || IsKeyword(Peek()) || IsContextualIdentifierToken(Peek()))
+                {
+                    importedToken = Advance();
+                    imported = Symbol.Intern(importedToken.Lexeme);
+                }
                 else
                 {
-                    importedToken = ConsumeBindingIdentifier("Expected identifier in import list.");
-                    imported = Symbol.Intern(importedToken.Lexeme);
+                    throw new ParseException("Expected identifier or string in import list.", Peek(), _source);
                 }
                 Symbol local;
 
                 if (MatchContextualKeyword("as"))
                 {
+                    // Local binding must be a valid BindingIdentifier (cannot be reserved word)
                     var localToken = ConsumeBindingIdentifier("Expected identifier after 'as'.");
                     local = Symbol.Intern(localToken.Lexeme);
                 }
                 else
                 {
+                    // When there's no 'as', the imported name becomes the local binding.
+                    // If the imported name is a reserved word, it needs an 'as' clause
                     local = imported;
                 }
 
@@ -1287,22 +1290,30 @@ public sealed class TypedAstParser(
             {
                 if (MatchContextualKeyword("as"))
                 {
-                    // In `export * as X from`, X can be `default` or any identifier
+                    // In `export * as X from`, X can be any IdentifierName (including reserved words) or string
+                    // Per ES spec, ModuleExportName is either IdentifierName or StringLiteral
                     Token namespaceToken;
-                    if (Check(TokenType.Default))
+                    string exportedName;
+                    if (Check(TokenType.String))
                     {
                         namespaceToken = Advance();
+                        exportedName = GetStringLiteralValue(namespaceToken);
+                    }
+                    else if (Check(TokenType.Identifier) || IsKeyword(Peek()) || IsContextualIdentifierToken(Peek()))
+                    {
+                        namespaceToken = Advance();
+                        exportedName = namespaceToken.Lexeme;
                     }
                     else
                     {
-                        namespaceToken = ConsumeBindingIdentifier("Expected identifier after 'as'.");
+                        throw new ParseException("Expected identifier or string after 'as'.", Peek(), _source);
                     }
                     ConsumeContextualKeyword("from", "Expected 'from' after exported namespace.");
                     var namespaceModuleToken = Consume(TokenType.String, "Expected module path.");
                     var namespaceModulePath = GetStringLiteralValue(namespaceModuleToken);
                     Consume(TokenType.Semicolon, "Expected ';' after export statement.");
                     return new ExportNamespaceAsStatement(CreateSourceReference(keyword),
-                        Symbol.Intern(namespaceToken.Lexeme), namespaceModulePath);
+                        Symbol.Intern(exportedName), namespaceModulePath);
                 }
 
                 ConsumeContextualKeyword("from", "Expected 'from' after export *.");
@@ -1431,7 +1442,8 @@ public sealed class TypedAstParser(
 
             do
             {
-                // Local name can be identifier or string literal (arbitrary module namespace names)
+                // Local name can be any IdentifierName (including reserved words) or string literal
+                // Per ES spec, ModuleExportName is either IdentifierName or StringLiteral
                 Token localToken;
                 Symbol local;
                 if (Check(TokenType.String))
@@ -1439,31 +1451,36 @@ public sealed class TypedAstParser(
                     localToken = Advance();
                     local = Symbol.Intern(GetStringLiteralValue(localToken));
                 }
+                else if (Check(TokenType.Identifier) || IsKeyword(Peek()) || IsContextualIdentifierToken(Peek()))
+                {
+                    localToken = Advance();
+                    local = Symbol.Intern(localToken.Lexeme);
+                }
                 else
                 {
-                    localToken = ConsumeBindingIdentifier("Expected identifier in export list.");
-                    local = Symbol.Intern(localToken.Lexeme);
+                    throw new ParseException("Expected identifier or string in export list.", Peek(), _source);
                 }
                 Symbol exported;
 
                 if (MatchContextualKeyword("as"))
                 {
                     Token exportedToken;
-                    if (Check(TokenType.Default))
-                    {
-                        exportedToken = Advance();
-                        exported = Symbol.Intern(exportedToken.Lexeme);
-                    }
-                    else if (Check(TokenType.String))
+                    // Exported name can be any IdentifierName (including reserved words) or string literal
+                    // Per ES spec, ModuleExportName is either IdentifierName or StringLiteral
+                    if (Check(TokenType.String))
                     {
                         // Exported name can be string literal (arbitrary module namespace names)
                         exportedToken = Advance();
                         exported = Symbol.Intern(GetStringLiteralValue(exportedToken));
                     }
+                    else if (Check(TokenType.Identifier) || IsKeyword(Peek()) || IsContextualIdentifierToken(Peek()))
+                    {
+                        exportedToken = Advance();
+                        exported = Symbol.Intern(exportedToken.Lexeme);
+                    }
                     else
                     {
-                        exportedToken = ConsumeBindingIdentifier("Expected identifier after 'as'.");
-                        exported = Symbol.Intern(exportedToken.Lexeme);
+                        throw new ParseException("Expected identifier or string after 'as'.", Peek(), _source);
                     }
                 }
                 else

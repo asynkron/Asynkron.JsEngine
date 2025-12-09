@@ -7,26 +7,25 @@ internal static class Program
     {
         await using var engine = new JsEngine();
 
-        // Test division from Test262 S11.5.2_A3_T1.5
+        // Test named function expression binding immutability
         var code = """
-//CHECK#1
-if (isNaN({} / function(){return 1}) !== true) {
-  throw new Error('#1: {} / function(){return 1} === Not-a-Number. Actual: ' + ({} / function(){return 1}));
-}
+var probeBody, setBody;
 
-//CHECK#2
-if (isNaN(function(){return 1} / {}) !== true) {
-  throw new Error('#2: function(){return 1} / {} === Not-a-Number. Actual: ' + (function(){return 1} / {}));
-}
+var func = function f() {
+  probeBody = function() { return f; };
+  setBody = function() { f = null; };
+};
 
-//CHECK#3
-if (isNaN(function(){return 1} / function(){return 1}) !== true) {
-  throw new Error('#3: function(){return 1} / function(){return 1} === Not-a-Number. Actual: ' + (function(){return 1} / function(){return 1}));
-}
+func();
 
-//CHECK#4
-if (isNaN({} / {}) !== true) {
-  throw new Error('#4: {} / {} === Not-a-Number. Actual: ' + ({} / {}));
+console.log('probeBody() === func:', probeBody() === func);  // should be true
+
+setBody();  // Try to reassign f to null
+
+console.log('probeBody() === func after setBody():', probeBody() === func);  // should STILL be true (immutable)
+
+if (probeBody() !== func) {
+  throw new Error('inner binding is NOT immutable (from body). Expected func, got: ' + probeBody());
 }
 
 console.log('All tests passed!');

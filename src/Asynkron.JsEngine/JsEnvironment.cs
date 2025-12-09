@@ -95,7 +95,8 @@ public sealed class JsEnvironment
         bool isGlobalConstant = false,
         bool isLexical = true,
         bool blocksFunctionScopeOverride = false,
-        bool canDelete = false)
+        bool canDelete = false,
+        bool isImmutableBinding = false)
     {
         if (_values.TryGetValue(name, out var existing) && existing.IsGlobalConstant)
         {
@@ -114,7 +115,7 @@ public sealed class JsEnvironment
                 if (isLexical && blocksFunctionScopeOverride)
                 {
                     _values[name] = new Binding(value, isConst, isGlobalConstant, isLexical,
-                        blocksFunctionScopeOverride, canDelete);
+                        blocksFunctionScopeOverride, canDelete, isImmutableBinding);
                 }
 
                 return;
@@ -127,7 +128,7 @@ public sealed class JsEnvironment
         }
 
         _values[name] = new Binding(value, isConst, isGlobalConstant, isLexical, blocksFunctionScopeOverride,
-            canDelete);
+            canDelete, isImmutableBinding);
         NotifyBindingObservers(name, value);
     }
 
@@ -699,6 +700,19 @@ public sealed class JsEnvironment
                 $"Cannot reassign constant '{name.Name}'.", realm: realm));
         }
 
+        if (binding.IsImmutableBinding)
+        {
+            // Immutable bindings (named function expression names) throw in strict mode,
+            // but silently fail in non-strict mode
+            if (isStrictContext)
+            {
+                throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                    $"Cannot reassign constant '{name.Name}'.", realm: realm));
+            }
+
+            return;
+        }
+
         if (binding.IsGlobalConstant)
         {
             if (isStrictContext)
@@ -1061,6 +1075,19 @@ public sealed class JsEnvironment
                 {
                     throw new ThrowSignal(StandardLibrary.CreateTypeError($"Cannot reassign constant '{name.Name}'.",
                         realm: realm));
+                }
+
+                if (binding.IsImmutableBinding)
+                {
+                    // Immutable bindings (named function expression names) throw in strict mode,
+                    // but silently fail in non-strict mode
+                    if (isStrictContext)
+                    {
+                        throw new ThrowSignal(StandardLibrary.CreateTypeError($"Cannot reassign constant '{name.Name}'.",
+                            realm: realm));
+                    }
+
+                    return;
                 }
 
                 if (binding.IsGlobalConstant)
@@ -1580,7 +1607,8 @@ public sealed class JsEnvironment
         bool isGlobalConstant,
         bool isLexical,
         bool blocksFunctionScopeOverride,
-        bool canDelete)
+        bool canDelete,
+        bool isImmutableBinding = false)
     {
         public virtual object? Value { get; set; } = value;
 
@@ -1593,6 +1621,12 @@ public sealed class JsEnvironment
         public bool BlocksFunctionScopeOverride { get; private set; } = blocksFunctionScopeOverride;
 
         public bool CanDelete { get; private set; } = canDelete;
+
+        /// <summary>
+        /// Immutable bindings are like const but in non-strict mode assignment silently fails
+        /// instead of throwing. This is used for named function expression bindings.
+        /// </summary>
+        public bool IsImmutableBinding { get; } = isImmutableBinding;
 
         public virtual bool IsImportBinding => false;
 

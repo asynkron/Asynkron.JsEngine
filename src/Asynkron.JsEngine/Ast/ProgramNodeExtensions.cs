@@ -90,7 +90,11 @@ public static partial class TypedAstEvaluator
 
             // IMPORTANT: All conflict checks must happen BEFORE we merge any names.
             // Otherwise we'd detect conflicts with names we just added ourselves.
-            if (functionScope.IsGlobalFunctionScope)
+            // NOTE: These checks only apply to GlobalDeclarationInstantiation (scripts),
+            // NOT to EvalDeclarationInstantiation. Per ES spec 18.2.1.1 PerformEval step 9,
+            // direct eval creates a new declarative environment for lexical declarations,
+            // so lexical names in eval don't conflict with outer lexical names.
+            if (functionScope.IsGlobalFunctionScope && executionKind != ExecutionKind.Eval)
             {
                 // Check if any new lexical names conflict with restricted globals
                 foreach (var blockedName in bodyLexicalNames)

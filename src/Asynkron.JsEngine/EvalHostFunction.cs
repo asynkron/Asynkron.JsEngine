@@ -193,7 +193,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         if (isDirectEval && CallingContext is not null)
         {
             var capturedScopes = CallingContext.CapturePrivateNameScopes();
-            Console.Error.WriteLine($"[DEBUG EvalHostFunction] Direct eval: capturedScopes.Length = {(capturedScopes.IsDefaultOrEmpty ? 0 : capturedScopes.Length)}, CurrentPrivateNameScope = {CallingContext.CurrentPrivateNameScope?.GetType().Name ?? "null"}");
             if (!capturedScopes.IsDefaultOrEmpty)
             {
                 evalPrivateNameScopes = capturedScopes;
@@ -202,18 +201,9 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             {
                 evalPrivateNameScopes = ImmutableArray.Create(CallingContext.CurrentPrivateNameScope);
             }
-            Console.Error.WriteLine($"[DEBUG EvalHostFunction] evalPrivateNameScopes has value: {evalPrivateNameScopes.HasValue}, length: {(evalPrivateNameScopes?.Length ?? 0)}");
         }
 
         var invalidPrivateName = FindInvalidPrivateName(program.Typed.Body, evalPrivateNameScopes);
-        Console.Error.WriteLine($"[DEBUG EvalHostFunction] FindInvalidPrivateName result: {invalidPrivateName ?? "(none)"}");
-        if (evalPrivateNameScopes.HasValue)
-        {
-            foreach (var scope in evalPrivateNameScopes.Value)
-            {
-                Console.Error.WriteLine($"[DEBUG EvalHostFunction] Scope has key 'm': {scope.TryGetKey("m", out var key)}, key = {key ?? "(null)"}");
-            }
-        }
         if (invalidPrivateName is not null)
         {
             throw StandardLibrary.ThrowSyntaxError(
@@ -3078,11 +3068,11 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             return false;
         }
 
-        // Check if the private name (without #) exists in any scope
-        var lexeme = privateName.StartsWith('#') ? privateName[1..] : privateName;
+        // Check if the private name exists in any scope.
+        // The scope stores keys with the '#' prefix, so we use the full privateName.
         foreach (var scope in availableScopes.Value)
         {
-            if (scope.TryGetKey(lexeme, out _))
+            if (scope.TryGetKey(privateName, out _))
             {
                 return true;
             }

@@ -1,9 +1,16 @@
-      LanguageTests
-       Expressions_division
-        Expressions_division("language/expressions/division/no-magic-asi-from-block-eval.js",False)
-        Expressions_division("language/expressions/division/no-magic-asi-from-block-eval.js",True)
-        Expressions_division("language/expressions/division/no-magic-asi.js",False)
-        Expressions_division("language/expressions/division/no-magic-asi.js",True)
+       EvalCode_direct
+        EvalCode_direct("language/eval-code/direct/lex-env-distinct-cls.js",False)
+        EvalCode_direct("language/eval-code/direct/lex-env-distinct-const.js",False)
+        EvalCode_direct("language/eval-code/direct/lex-env-distinct-let.js",False)
+       EvalCode_indirect
+        EvalCode_indirect("language/eval-code/indirect/lex-env-distinct-cls.js",False)
+        EvalCode_indirect("language/eval-code/indirect/lex-env-distinct-cls.js",True)
+        EvalCode_indirect("language/eval-code/indirect/lex-env-distinct-const.js",False)
+        EvalCode_indirect("language/eval-code/indirect/lex-env-distinct-const.js",True)
+        EvalCode_indirect("language/eval-code/indirect/lex-env-distinct-let.js",False)
+        EvalCode_indirect("language/eval-code/indirect/lex-env-distinct-let.js",True)
+        EvalCode_indirect("language/eval-code/indirect/var-env-lower-lex-non-strict.js",False)
+        EvalCode_indirect("language/eval-code/indirect/var-env-lower-lex-non-strict.js",True)
        Expressions_dynamicImport
         Expressions_dynamicImport("language/expressions/dynamic-import/returns-promise.js",False)
         Expressions_dynamicImport("language/expressions/dynamic-import/returns-promise.js",True)
@@ -14,8 +21,6 @@
        Expressions_dynamicImport_importAttributes
         Expressions_dynamicImport_importAttributes("language/expressions/dynamic-import/import-attributes/2nd-param-evaluation-abrupt-return.js",False)
         Expressions_dynamicImport_importAttributes("language/expressions/dynamic-import/import-attributes/2nd-param-evaluation-abrupt-return.js",True)
-        Expressions_dynamicImport_importAttributes("language/expressions/dynamic-import/import-attributes/2nd-param-in.js",False)
-        Expressions_dynamicImport_importAttributes("language/expressions/dynamic-import/import-attributes/2nd-param-in.js",True)
         Expressions_dynamicImport_importAttributes("language/expressions/dynamic-import/import-attributes/2nd-param-with-enumeration-enumerable.js",False)
         Expressions_dynamicImport_importAttributes("language/expressions/dynamic-import/import-attributes/2nd-param-with-enumeration-enumerable.js",True)
        Expressions_function
@@ -38,6 +43,9 @@
         Expressions_import_meta_syntax("language/expressions/import.meta/syntax/goal-function-params-or-body.js",True)
         Expressions_import_meta_syntax("language/expressions/import.meta/syntax/goal-generator-params-or-body.js",False)
         Expressions_import_meta_syntax("language/expressions/import.meta/syntax/goal-generator-params-or-body.js",True)
+       Expressions_new_target
+        Expressions_new_target("language/expressions/new.target/value-via-super-call.js",False)
+        Expressions_new_target("language/expressions/new.target/value-via-super-call.js",True)
        Expressions_object_dstr
         Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-get-not-called-on-dontenum-keys.js",False)
         Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-get-not-called-on-dontenum-keys.js",True)
@@ -54,12 +62,7 @@
        Expressions_optionalChaining
         Expressions_optionalChaining("language/expressions/optional-chaining/eval-optional-call.js",False)
         Expressions_optionalChaining("language/expressions/optional-chaining/eval-optional-call.js",True)
-        Expressions_optionalChaining("language/expressions/optional-chaining/member-expression.js",False)
-        Expressions_optionalChaining("language/expressions/optional-chaining/member-expression.js",True)
         Expressions_optionalChaining("language/expressions/optional-chaining/new-target-optional-call.js",False)
-        Expressions_optionalChaining("language/expressions/optional-chaining/new-target-optional-call.js",True)
-        Expressions_optionalChaining("language/expressions/optional-chaining/punctuator-decimal-lookahead.js",False)
-        Expressions_optionalChaining("language/expressions/optional-chaining/punctuator-decimal-lookahead.js",True)
        Expressions_postfixDecrement
         Expressions_postfixDecrement("language/expressions/postfix-decrement/eval-nostrict.js",False)
        Expressions_postfixIncrement
@@ -89,10 +92,21 @@
         FunctionCode("language/function-code/10.4.3-1-104.js",True)
         FunctionCode("language/function-code/10.4.3-1-106.js",True)
        FutureReservedWords
+        FutureReservedWords("language/future-reserved-words/implements.js",False)
+        FutureReservedWords("language/future-reserved-words/interface.js",False)
+        FutureReservedWords("language/future-reserved-words/package.js",False)
+        FutureReservedWords("language/future-reserved-words/private.js",False)
+        FutureReservedWords("language/future-reserved-words/protected.js",False)
+        FutureReservedWords("language/future-reserved-words/public.js",False)
         FutureReservedWords("language/future-reserved-words/static.js",False)
        GlobalCode
+        GlobalCode("language/global-code/decl-lex-configurable-global.js",False)
+        GlobalCode("language/global-code/decl-lex-configurable-global.js",True)
         GlobalCode("language/global-code/script-decl-func-err-non-extensible.js",False)
         GlobalCode("language/global-code/script-decl-func-err-non-extensible.js",True)
+        GlobalCode("language/global-code/script-decl-lex-restricted-global.js",False)
+        GlobalCode("language/global-code/script-decl-lex-restricted-global.js",True)
+        GlobalCode("language/global-code/script-decl-lex-var-declared-via-eval.js",False)
        Import_importAttributes
         Import_importAttributes("language/import/import-attributes/json-value-array.js",True)
         Import_importAttributes("language/import/import-attributes/json-value-object.js",True)
@@ -136,13 +150,55 @@
         ModuleCode_topLevelAwait("language/module-code/top-level-await/async-module-does-not-block-sibling-modules.js",True)
         ModuleCode_topLevelAwait("language/module-code/top-level-await/await-dynamic-import-resolution.js",True)
         ModuleCode_topLevelAwait("language/module-code/top-level-await/module-async-import-async-resolution-ticks.js",True)
+        ModuleCode_topLevelAwait("language/module-code/top-level-await/module-graphs-does-not-hang.js",True)
         ModuleCode_topLevelAwait("language/module-code/top-level-await/module-sync-import-async-resolution-ticks.js",True)
+       ModuleCode_topLevelAwait_syntax
+        ModuleCode_topLevelAwait_syntax("language/module-code/top-level-await/syntax/await-expr-dyn-import.js",True)
+       StatementList
+        StatementList("language/statementList/class-regexp-literal-flags.js",False)
+        StatementList("language/statementList/class-regexp-literal-flags.js",True)
+        StatementList("language/statementList/class-regexp-literal.js",False)
+        StatementList("language/statementList/class-regexp-literal.js",True)
+        StatementList("language/statementList/eval-class-regexp-literal-flags.js",False)
+        StatementList("language/statementList/eval-class-regexp-literal-flags.js",True)
+        StatementList("language/statementList/eval-class-regexp-literal.js",False)
+        StatementList("language/statementList/eval-class-regexp-literal.js",True)
+        StatementList("language/statementList/eval-fn-regexp-literal-flags.js",False)
+        StatementList("language/statementList/eval-fn-regexp-literal-flags.js",True)
+        StatementList("language/statementList/eval-fn-regexp-literal.js",False)
+        StatementList("language/statementList/eval-fn-regexp-literal.js",True)
+        StatementList("language/statementList/fn-regexp-literal-flags.js",False)
+        StatementList("language/statementList/fn-regexp-literal-flags.js",True)
+        StatementList("language/statementList/fn-regexp-literal.js",False)
+        StatementList("language/statementList/fn-regexp-literal.js",True)
        Statements_asyncGenerator
         Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",False)
         Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",True)
        Statements_awaitUsing
         Statements_awaitUsing("language/statements/await-using/throws-if-initializer-not-object.js",False)
         Statements_awaitUsing("language/statements/await-using/throws-if-initializer-not-object.js",True)
+       Statements_class_definition
+        Statements_class_definition("language/statements/class/definition/prototype-wiring.js",False)
+        Statements_class_definition("language/statements/class/definition/prototype-wiring.js",True)
+       Statements_class_elements
+        Statements_class_elements("language/statements/class/elements/private-field-visible-to-direct-eval-on-initializer.js",False)
+        Statements_class_elements("language/statements/class/elements/private-field-visible-to-direct-eval-on-initializer.js",True)
+        Statements_class_elements("language/statements/class/elements/private-field-visible-to-direct-eval.js",False)
+        Statements_class_elements("language/statements/class/elements/private-field-visible-to-direct-eval.js",True)
+        Statements_class_elements("language/statements/class/elements/private-getter-visible-to-direct-eval-on-initializer.js",False)
+        Statements_class_elements("language/statements/class/elements/private-getter-visible-to-direct-eval-on-initializer.js",True)
+        Statements_class_elements("language/statements/class/elements/private-getter-visible-to-direct-eval.js",False)
+        Statements_class_elements("language/statements/class/elements/private-getter-visible-to-direct-eval.js",True)
+        Statements_class_elements("language/statements/class/elements/private-method-visible-to-direct-eval-on-initializer.js",False)
+        Statements_class_elements("language/statements/class/elements/private-method-visible-to-direct-eval-on-initializer.js",True)
+        Statements_class_elements("language/statements/class/elements/private-method-visible-to-direct-eval.js",False)
+        Statements_class_elements("language/statements/class/elements/private-method-visible-to-direct-eval.js",True)
+        Statements_class_elements("language/statements/class/elements/private-static-field-visible-to-direct-eval.js",False)
+        Statements_class_elements("language/statements/class/elements/private-static-field-visible-to-direct-eval.js",True)
+        Statements_class_elements("language/statements/class/elements/private-static-getter-visible-to-direct-eval.js",False)
+        Statements_class_elements("language/statements/class/elements/private-static-getter-visible-to-direct-eval.js",True)
+        Statements_class_elements("language/statements/class/elements/private-static-method-visible-to-direct-eval.js",False)
+        Statements_class_elements("language/statements/class/elements/private-static-method-visible-to-direct-eval.js",True)
        Statements_class_elements_syntax_valid
         Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-get-followed-by-generator-asi.js",False)
         Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-get-followed-by-generator-asi.js",True)
@@ -162,8 +218,18 @@
        Statements_const_syntax
         Statements_const_syntax("language/statements/const/syntax/const-invalid-assignment-next-expression-for.js",False)
         Statements_const_syntax("language/statements/const/syntax/const-invalid-assignment-next-expression-for.js",True)
+       Statements_forAwaitOf
+        Statements_forAwaitOf("language/statements/for-await-of/async-func-decl-dstr-array-elem-init-simple-no-strict.js",False)
+        Statements_forAwaitOf("language/statements/for-await-of/async-func-decl-dstr-obj-id-init-simple-no-strict.js",False)
+        Statements_forAwaitOf("language/statements/for-await-of/async-func-decl-dstr-obj-id-simple-no-strict.js",False)
+        Statements_forAwaitOf("language/statements/for-await-of/async-gen-decl-dstr-array-elem-init-simple-no-strict.js",False)
+        Statements_forAwaitOf("language/statements/for-await-of/async-gen-decl-dstr-array-elem-target-simple-no-strict.js",False)
+        Statements_forAwaitOf("language/statements/for-await-of/async-gen-decl-dstr-obj-id-init-simple-no-strict.js",False)
+        Statements_forAwaitOf("language/statements/for-await-of/async-gen-decl-dstr-obj-id-simple-no-strict.js",False)
        Statements_forIn
         Statements_forIn("language/statements/for-in/head-lhs-let.js",False)
+        Statements_forIn("language/statements/for-in/resizable-buffer.js",False)
+        Statements_forIn("language/statements/for-in/resizable-buffer.js",True)
        Statements_forOf
         Statements_forOf("language/statements/for-of/head-await-using-bound-names-fordecl-tdz.js",False)
         Statements_forOf("language/statements/for-of/head-await-using-bound-names-fordecl-tdz.js",True)
@@ -199,6 +265,9 @@
         Statements_try("language/statements/try/catch-parameter-boundnames-restriction-eval-eval-throws.js",True)
         Statements_try("language/statements/try/S12.14_A17.js",False)
         Statements_try("language/statements/try/S12.14_A17.js",True)
+        Statements_try("language/statements/try/scope-catch-block-lex-close.js",True)
+        Statements_try("language/statements/try/scope-catch-param-lex-open.js",False)
+        Statements_try("language/statements/try/scope-catch-param-lex-open.js",True)
        Statements_using
         Statements_using("language/statements/using/throws-if-initializer-not-object.js",False)
         Statements_using("language/statements/using/throws-if-initializer-not-object.js",True)

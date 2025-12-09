@@ -346,7 +346,8 @@ public static partial class TypedAstEvaluator
         private IJsCallable CreateFunctionValue(JsEnvironment environment,
             EvaluationContext context,
             bool createFunctionNameEnvironment = false,
-            bool isConstructorFunction = true)
+            bool isConstructorFunction = true,
+            bool skipInternalNameBinding = false)
         {
             var closureEnvironment = environment;
             JsEnvironment? functionNameEnvironment = null;
@@ -363,6 +364,12 @@ public static partial class TypedAstEvaluator
                 closureEnvironment = functionNameEnvironment;
             }
 
+            // For function declarations, the name binding is in the outer scope (mutable var),
+            // so we pass hasFunctionNameEnvironment: true to skip the internal const binding.
+            // For named function expressions with createFunctionNameEnvironment, we also skip
+            // the internal binding since the wrapper environment handles it.
+            var hasFunctionNameEnvironment = functionNameEnvironment is not null || skipInternalNameBinding;
+
             IJsCallable callable = functionExpression.IsGenerator switch
             {
                 true when functionExpression.IsAsync => new AsyncGeneratorFactory(functionExpression,
@@ -371,7 +378,7 @@ public static partial class TypedAstEvaluator
                 true => new TypedGeneratorFactory(functionExpression, closureEnvironment, context.RealmState,
                     context.CurrentScope.IsStrict, isConstructorFunction),
                 _ => new TypedFunction(functionExpression, closureEnvironment, context.RealmState,
-                    context.CurrentScope.IsStrict, functionNameEnvironment is not null, isConstructorFunction)
+                    context.CurrentScope.IsStrict, hasFunctionNameEnvironment, isConstructorFunction)
             };
 
             var capturedPrivateScopes = context.CapturePrivateNameScopes();

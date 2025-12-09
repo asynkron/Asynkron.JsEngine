@@ -64,6 +64,8 @@ public sealed class JsEngine : IAsyncDisposable
     private Func<string, string?, string>? _moduleLoader;
     private int _nextTimerId = 1;
     private int _pendingTaskCount; // Track pending tasks in the event queue
+    private TaskCompletionSource? _drainCompletionSource; // Signals when event loop has drained
+    private readonly object _drainLock = new(); // Protects _drainCompletionSource
 
     /// <summary>
     ///     Initializes a new instance of JsEngine with standard library objects.
@@ -519,38 +521,82 @@ public sealed class JsEngine : IAsyncDisposable
 
         CancelAllTimers();
         _pendingTaskCount = 0;
+
+        // Reset drain completion source for new event loop
+        lock (_drainLock)
+        {
+            _drainCompletionSource = null;
+        }
+
         _eventQueue = Channel.CreateUnbounded<Func<Task>>();
         _eventLoopTask = Task.Run(() => ProcessEventQueue(_eventQueue));
     }
 
     private async Task DrainEventLoopAsync(CancellationToken cancellationToken)
     {
-        var start = DateTime.UtcNow;
-        var maxWait = TimeSpan.FromMilliseconds(1500);
-
-        while (true)
+        // Check if already drained
+        if (IsEventLoopDrained())
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            return;
+        }
 
-            bool hasActiveTimerTasks;
-            lock (_activeTimerTasks)
+        // Create or get the drain completion source
+        Task drainTask;
+        lock (_drainLock)
+        {
+            // Double-check after acquiring lock
+            if (IsEventLoopDrained())
             {
-                hasActiveTimerTasks = _activeTimerTasks.Count > 0;
+                return;
             }
 
-            var hasPendingTasks = Interlocked.CompareExchange(ref _pendingTaskCount, 0, 0) > 0;
-            if (!hasActiveTimerTasks && !hasPendingTasks)
+            _drainCompletionSource ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            drainTask = _drainCompletionSource.Task;
+        }
+
+        // Wait for drain with timeout
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(1500));
+
+        try
+        {
+            await drainTask.WaitAsync(timeoutCts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Timeout reached, cancel all timers
+            CancelAllTimers();
+        }
+    }
+
+    private bool IsEventLoopDrained()
+    {
+        bool hasActiveTimerTasks;
+        lock (_activeTimerTasks)
+        {
+            hasActiveTimerTasks = _activeTimerTasks.Count > 0;
+        }
+
+        var hasPendingTasks = Interlocked.CompareExchange(ref _pendingTaskCount, 0, 0) > 0;
+        return !hasActiveTimerTasks && !hasPendingTasks;
+    }
+
+    private void TrySignalDrainComplete()
+    {
+        if (!IsEventLoopDrained())
+        {
+            return;
+        }
+
+        lock (_drainLock)
+        {
+            // Double-check after acquiring lock
+            if (!IsEventLoopDrained())
             {
-                break;
+                return;
             }
 
-            if (DateTime.UtcNow - start > maxWait)
-            {
-                CancelAllTimers();
-                break;
-            }
-
-            await Task.Delay(20, cancellationToken).ConfigureAwait(false);
+            _drainCompletionSource?.TrySetResult();
         }
     }
 
@@ -1118,6 +1164,7 @@ public sealed class JsEngine : IAsyncDisposable
                 {
                     // Decrement the pending task count after processing
                     Interlocked.Decrement(ref _pendingTaskCount);
+                    TrySignalDrainComplete();
                 }
             }
         }
@@ -1172,6 +1219,8 @@ public sealed class JsEngine : IAsyncDisposable
                     {
                         _activeTimerTasks.Remove(timerTask);
                     }
+
+                    TrySignalDrainComplete();
                 }
             }
         }, cts.Token);

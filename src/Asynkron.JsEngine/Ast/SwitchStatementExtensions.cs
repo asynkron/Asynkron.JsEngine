@@ -134,10 +134,10 @@ public static partial class TypedAstEvaluator
                         else
                         {
                             // Regular functions get initialized during instantiation
-                            // Pass createFunctionNameEnvironment: true so the function doesn't create an internal
+                            // Pass skipInternalNameBinding: true so the function doesn't create an internal
                             // const binding for its name (the binding is handled by switchEnv.Define below).
                             var functionValue = CreateFunctionValue(funcDecl.Function, switchEnv, context,
-                                createFunctionNameEnvironment: true);
+                                skipInternalNameBinding: true);
                             switchEnv.Define(
                                 funcDecl.Name,
                                 functionValue,
@@ -175,10 +175,10 @@ public static partial class TypedAstEvaluator
                 if (stmt is FunctionDeclaration funcDecl &&
                     (funcDecl.Function.IsAsync || funcDecl.Function.IsGenerator))
                 {
-                    // Pass createFunctionNameEnvironment: true so the function doesn't create an internal
+                    // Pass skipInternalNameBinding: true so the function doesn't create an internal
                     // const binding for its name (the binding was already defined during instantiation).
                     var functionValue = CreateFunctionValue(funcDecl.Function, switchEnv, context,
-                        createFunctionNameEnvironment: true);
+                        skipInternalNameBinding: true);
                     switchEnv.Assign(funcDecl.Name, functionValue);
                     // Function declarations have empty completion
                     continue;

@@ -15,7 +15,7 @@ namespace Asynkron.JsEngine;
 public sealed class JsEngine : IAsyncDisposable
 {
     internal static readonly object UninitializedExportMarker = new();
-    private readonly HashSet<Task> _activeTimerTasks = [];
+    private int _activeTimerCount; // Track active timer tasks (delayed work on ThreadPool)
     private readonly Channel<string> _asyncIteratorTraceChannel = Channel.CreateUnbounded<string>();
     private readonly bool _asyncIteratorTracingEnabled;
 
@@ -519,8 +519,8 @@ public sealed class JsEngine : IAsyncDisposable
             return;
         }
 
-        CancelAllTimers();
-        _pendingTaskCount = 0;
+        // Note: Don't reset _activeTimerCount or _pendingTaskCount here!
+        // Timers may have been scheduled during sync evaluation that we need to wait for.
 
         // Reset drain completion source for new event loop
         lock (_drainLock)
@@ -571,14 +571,9 @@ public sealed class JsEngine : IAsyncDisposable
 
     private bool IsEventLoopDrained()
     {
-        bool hasActiveTimerTasks;
-        lock (_activeTimerTasks)
-        {
-            hasActiveTimerTasks = _activeTimerTasks.Count > 0;
-        }
-
+        var hasActiveTimers = Interlocked.CompareExchange(ref _activeTimerCount, 0, 0) > 0;
         var hasPendingTasks = Interlocked.CompareExchange(ref _pendingTaskCount, 0, 0) > 0;
-        return !hasActiveTimerTasks && !hasPendingTasks;
+        return !hasActiveTimers && !hasPendingTasks;
     }
 
     private void TrySignalDrainComplete()
@@ -608,11 +603,7 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         _timers.Clear();
-
-        lock (_activeTimerTasks)
-        {
-            _activeTimerTasks.Clear();
-        }
+        Interlocked.Exchange(ref _activeTimerCount, 0);
     }
 
     private async Task StopEventLoopAsync()
@@ -1027,39 +1018,14 @@ public sealed class JsEngine : IAsyncDisposable
     /// <returns>A task that completes when all scheduled events have been processed</returns>
     public async Task<object?> Run(string source)
     {
-        // Schedule evaluation on the event queue
-        var evaluateTask = Evaluate(source);
+        // Evaluate the code (uses lazy event loop internally)
+        var result = await Evaluate(source).ConfigureAwait(false);
 
-        // Get the result from evaluation
-        var result = await evaluateTask.ConfigureAwait(false);
-
-        // Wait for all pending work to complete:
-        // - Event queue to drain (no pending tasks)
-        // - Timer tasks to complete and schedule their callbacks
-        // We loop with a timeout to avoid hanging forever
-        var startTime = DateTime.UtcNow;
-        var maxWaitTime = TimeSpan.FromMilliseconds(1500); // Leave some margin for the 2000ms test timeout
-
-        while (DateTime.UtcNow - startTime < maxWaitTime)
+        // If there's still pending async work after Evaluate returns,
+        // wait for it to complete (e.g., timers that were scheduled)
+        if (!IsEventLoopDrained())
         {
-            // Check if we have any active timer tasks
-            bool hasActiveTasks;
-            lock (_activeTimerTasks)
-            {
-                hasActiveTasks = _activeTimerTasks.Count > 0;
-            }
-
-            // Check if we have any pending tasks in the event queue
-            var hasPendingTasks = Interlocked.CompareExchange(ref _pendingTaskCount, 0, 0) > 0;
-
-            if (!hasActiveTasks && !hasPendingTasks)
-                // No active tasks and no pending tasks, we're done
-            {
-                break;
-            }
-
-            // Wait a bit for timer tasks and event queue to process
-            await Task.Delay(20).ConfigureAwait(false);
+            await DrainEventLoopAsync(CancellationToken.None).ConfigureAwait(false);
         }
 
         return result;
@@ -1163,8 +1129,25 @@ public sealed class JsEngine : IAsyncDisposable
         var cts = new CancellationTokenSource();
         _timers[timerId] = cts;
 
-        Task? timerTask = null;
-        timerTask = Task.Run(async () =>
+        // For zero delay, schedule directly to event queue without ThreadPool overhead
+        if (delay <= 0)
+        {
+            ScheduleTask(() =>
+            {
+                if (!cts.Token.IsCancellationRequested)
+                {
+                    callback.Invoke([], null);
+                }
+                _timers.Remove(timerId);
+                return Task.CompletedTask;
+            });
+            return (double)timerId;
+        }
+
+        // For non-zero delay, use ThreadPool to wait then schedule
+        Interlocked.Increment(ref _activeTimerCount);
+
+        _ = Task.Run(async () =>
         {
             try
             {
@@ -1186,22 +1169,10 @@ public sealed class JsEngine : IAsyncDisposable
             finally
             {
                 _timers.Remove(timerId);
-                if (timerTask != null)
-                {
-                    lock (_activeTimerTasks)
-                    {
-                        _activeTimerTasks.Remove(timerTask);
-                    }
-
-                    TrySignalDrainComplete();
-                }
+                Interlocked.Decrement(ref _activeTimerCount);
+                TrySignalDrainComplete();
             }
         }, cts.Token);
-
-        lock (_activeTimerTasks)
-        {
-            _activeTimerTasks.Add(timerTask);
-        }
 
         return (double)timerId;
     }
@@ -1222,8 +1193,10 @@ public sealed class JsEngine : IAsyncDisposable
         var cts = new CancellationTokenSource();
         _timers[timerId] = cts;
 
-        Task? timerTask = null;
-        timerTask = Task.Run(async () =>
+        // Increment active timer count before starting the timer
+        Interlocked.Increment(ref _activeTimerCount);
+
+        _ = Task.Run(async () =>
         {
             try
             {
@@ -1248,22 +1221,10 @@ public sealed class JsEngine : IAsyncDisposable
             finally
             {
                 _timers.Remove(timerId);
-                if (timerTask != null)
-                {
-                    lock (_activeTimerTasks)
-                    {
-                        _activeTimerTasks.Remove(timerTask);
-                    }
-
-                    TrySignalDrainComplete();
-                }
+                Interlocked.Decrement(ref _activeTimerCount);
+                TrySignalDrainComplete();
             }
         }, cts.Token);
-
-        lock (_activeTimerTasks)
-        {
-            _activeTimerTasks.Add(timerTask);
-        }
 
         return (double)timerId;
     }

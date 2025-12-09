@@ -7,21 +7,29 @@ internal static class Program
     {
         await using var engine = new JsEngine();
 
-        // Test division - lexer/parser regex vs division ambiguity
-        // The Test262 test failing uses: instance/of/g
+        // Test division from Test262 S11.5.2_A3_T1.5
         var code = """
-var instance = 60;
-var of = 6;
-var g = 2;
-
-var notRegExp = instance/of/g;
-
-console.log('notRegExp:', notRegExp);
-console.log('Expected: 5');
-if (notRegExp !== 5) {
-    throw new Error('Expected notRegExp to be 5, but got ' + notRegExp);
+//CHECK#1
+if (isNaN({} / function(){return 1}) !== true) {
+  throw new Error('#1: {} / function(){return 1} === Not-a-Number. Actual: ' + ({} / function(){return 1}));
 }
-console.log('Test passed!');
+
+//CHECK#2
+if (isNaN(function(){return 1} / {}) !== true) {
+  throw new Error('#2: function(){return 1} / {} === Not-a-Number. Actual: ' + (function(){return 1} / {}));
+}
+
+//CHECK#3
+if (isNaN(function(){return 1} / function(){return 1}) !== true) {
+  throw new Error('#3: function(){return 1} / function(){return 1} === Not-a-Number. Actual: ' + (function(){return 1} / function(){return 1}));
+}
+
+//CHECK#4
+if (isNaN({} / {}) !== true) {
+  throw new Error('#4: {} / {} === Not-a-Number. Actual: ' + ({} / {}));
+}
+
+console.log('All tests passed!');
 """;
 
         await engine.Evaluate(code);

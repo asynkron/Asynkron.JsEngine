@@ -11,6 +11,19 @@ internal sealed record TemplateStringPart(string RawText, DecodedString Cooked);
 
 internal sealed record RegexLiteralValue(string Pattern, string Flags);
 
+/// <summary>
+/// Distinguishes different brace contexts for regex vs division disambiguation.
+/// </summary>
+internal enum BraceKind
+{
+    /// <summary>Object literal - division follows</summary>
+    ObjectLiteral,
+    /// <summary>Function/method/class body - division follows (produces a value)</summary>
+    FunctionBody,
+    /// <summary>Statement block (if/for/while/etc.) - regex follows (no value)</summary>
+    StatementBlock
+}
+
 public sealed class Lexer(string source, bool allowHtmlComments = true)
 {
     private static readonly Dictionary<string, TokenType> Keywords = new(StringComparer.Ordinal)
@@ -70,9 +83,8 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
     private int _startColumn = 1;
     private int _startLine = 1;
 
-    // Track whether each { opens a block statement (true) or an object literal (false)
-    // Used to determine if / after } should be regex (block) or division (object)
-    private readonly Stack<bool> _braceIsBlockStack = new();
+    // Track brace context: ObjectLiteral/FunctionBody → division; StatementBlock → regex
+    private readonly Stack<BraceKind> _braceKindStack = new();
 
     private bool IsAtEnd => _current >= _source.Length;
 
@@ -102,22 +114,21 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                 AddToken(TokenType.RightParen);
                 break;
             case '{':
-                // Determine if this { opens a block statement or an object literal
-                // by looking at the previous token
-                var isBlock = IsBlockBraceContext();
-                _braceIsBlockStack.Push(isBlock);
+                // Determine the kind of brace context for regex/division disambiguation
+                var braceKind = GetBraceKind();
+                _braceKindStack.Push(braceKind);
                 AddToken(TokenType.LeftBrace);
                 break;
             case '}':
                 // Pop the brace context stack (if not empty) and track the value
                 // This must be done BEFORE AddToken so IsRegexContext can use it
-                if (_braceIsBlockStack.Count > 0)
+                if (_braceKindStack.Count > 0)
                 {
-                    _lastPoppedBraceWasBlock = _braceIsBlockStack.Pop();
+                    _lastPoppedBraceKind = _braceKindStack.Pop();
                 }
                 else
                 {
-                    _lastPoppedBraceWasBlock = true; // Default to block for safety
+                    _lastPoppedBraceKind = BraceKind.StatementBlock; // Default to statement block for safety
                 }
                 AddToken(TokenType.RightBrace);
                 break;
@@ -1372,10 +1383,12 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
 
         var lastToken = _tokens[^1].Type;
 
-        // Special case: RightBrace - it depends on whether it was a block or object literal
+        // Special case: RightBrace - it depends on what kind of brace it was
+        // StatementBlock (if/for/while blocks) → regex context
+        // ObjectLiteral or FunctionBody → division context
         if (lastToken == TokenType.RightBrace)
         {
-            return WasLastBraceABlock();
+            return WasLastBraceAStatementBlock();
         }
 
         return lastToken is
@@ -1449,32 +1462,53 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
     }
 
     /// <summary>
-    /// Determines if the last } token was closing a block statement (true) or object literal (false).
-    /// This is used by IsRegexContext to decide if / after } should be regex or division.
+    /// Determines if the last } token closed a statement block (returns true for regex context).
+    /// Only StatementBlock returns true; ObjectLiteral and FunctionBody return false (division context).
     /// </summary>
-    private bool WasLastBraceABlock()
+    private bool WasLastBraceAStatementBlock()
     {
-        // The stack was already popped when we added the RightBrace token,
-        // but we need to track the value that was popped.
-        // Actually, let's check the last popped value differently...
-        // We need to track this before the pop happens.
-        return _lastPoppedBraceWasBlock;
+        return _lastPoppedBraceKind == BraceKind.StatementBlock;
     }
 
-    private bool _lastPoppedBraceWasBlock;
+    private BraceKind _lastPoppedBraceKind;
 
     /// <summary>
-    /// Determines if the current { opens a block statement or an object literal
-    /// by examining the previous token.
+    /// Determines the kind of brace context for the current {.
+    /// This is used to decide if / after the corresponding } should be regex or division.
     /// </summary>
-    private bool IsBlockBraceContext()
+    private BraceKind GetBraceKind()
     {
         if (_tokens.Count == 0)
         {
-            return true; // Start of file - must be a block
+            return BraceKind.StatementBlock; // Start of file - must be a block statement
         }
 
         var lastToken = _tokens[^1].Type;
+
+        // Check for function/class body context (produces a value - division follows)
+        // After ) with function/class/method declaration pattern: function() { }, class { }
+        if (lastToken == TokenType.RightParen)
+        {
+            // Look back for function/async/class to identify function bodies
+            // Pattern: function(...) { } or async function(...) { } or method(...) { }
+            if (IsFunctionBodyContext())
+            {
+                return BraceKind.FunctionBody;
+            }
+        }
+
+        // Class body after class keyword or extends clause
+        // Pattern: class { } or class X { } or class X extends Y { }
+        if (IsClassBodyContext())
+        {
+            return BraceKind.FunctionBody; // Class bodies are similar to function bodies
+        }
+
+        // Arrow function body: () => { }
+        if (lastToken == TokenType.Arrow)
+        {
+            return BraceKind.FunctionBody;
+        }
 
         // Tokens that indicate { is an OBJECT LITERAL (not a block):
         // After these tokens, { starts an object literal expression
@@ -1489,7 +1523,6 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             TokenType.Return or          // return { }
             TokenType.Throw or           // throw { }
             TokenType.New or             // new X({ })
-            TokenType.Arrow or           // () => { } - tricky, arrow body is block!
             TokenType.PipePipe or        // x || { }
             TokenType.AmpAmp or          // x && { }
             TokenType.Plus or            // x + { } (weird but valid)
@@ -1535,14 +1568,112 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             TokenType.PipePipeEqual or
             TokenType.QuestionQuestionEqual;
 
-        // Special case for arrow: () => { } is a block body, not object literal
-        // But x => ({ }) would have LeftParen before {
-        if (lastToken == TokenType.Arrow)
+        if (isObjectLiteralContext)
         {
-            return true; // Arrow body is a block, not object literal
+            return BraceKind.ObjectLiteral;
         }
 
-        return !isObjectLiteralContext;
+        // Default: statement block (if/for/while/try/catch/etc.)
+        return BraceKind.StatementBlock;
+    }
+
+    /// <summary>
+    /// Checks if the current { is a function body by looking back through tokens.
+    /// Called when last token is RightParen.
+    /// </summary>
+    private bool IsFunctionBodyContext()
+    {
+        // Look back for function keyword or method-like patterns
+        // We need to skip the parentheses and look for function/async
+        var depth = 1; // Start at 1 because we already saw the )
+        for (var i = _tokens.Count - 2; i >= 0; i--)
+        {
+            var token = _tokens[i].Type;
+            if (token == TokenType.RightParen)
+            {
+                depth++;
+            }
+            else if (token == TokenType.LeftParen)
+            {
+                depth--;
+                if (depth == 0)
+                {
+                    // Found the matching (, check what's before it
+                    if (i > 0)
+                    {
+                        var beforeParen = _tokens[i - 1].Type;
+                        // function(...) or async function(...) or *generator syntax
+                        if (beforeParen is TokenType.Function)
+                        {
+                            return true;
+                        }
+                        // function name(...) pattern
+                        if (beforeParen is TokenType.Identifier)
+                        {
+                            // Check if there's function/async before the identifier
+                            if (i > 1)
+                            {
+                                var beforeIdent = _tokens[i - 2].Type;
+                                if (beforeIdent is TokenType.Function or TokenType.Async or TokenType.Star)
+                                {
+                                    return true;
+                                }
+                                // async function name(...)
+                                if (beforeIdent is TokenType.Identifier && i > 2 &&
+                                    _tokens[i - 3].Type is TokenType.Async)
+                                {
+                                    return true;
+                                }
+                            }
+                            // Method syntax: name(...) { } in object/class
+                            // Check if we're in an appropriate context
+                            // For simplicity, if we see an identifier followed by (...),
+                            // and we're not at the start, treat as method
+                            return true; // Treat methods as function bodies
+                        }
+                        // get/set accessor: get name() or set name()
+                        if (beforeParen is TokenType.Get or TokenType.Set)
+                        {
+                            return true;
+                        }
+                        // Static method: static name(...)
+                        if (beforeParen is TokenType.Static)
+                        {
+                            return true;
+                        }
+                        // Arrow function with params: (...) => {}
+                        // This is handled separately via Arrow token
+                    }
+                    break;
+                }
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if the current { is a class body.
+    /// </summary>
+    private bool IsClassBodyContext()
+    {
+        // Look back for class keyword
+        // Patterns: class { }, class X { }, class X extends Y { }
+        for (var i = _tokens.Count - 1; i >= 0; i--)
+        {
+            var token = _tokens[i].Type;
+            if (token is TokenType.Class)
+            {
+                return true;
+            }
+            // Stop looking if we hit something that couldn't be part of a class header
+            if (token is TokenType.Semicolon or TokenType.LeftBrace or TokenType.RightBrace or
+                TokenType.Function or TokenType.Return or TokenType.If or TokenType.For or
+                TokenType.While or TokenType.Do or TokenType.Switch or TokenType.Try)
+            {
+                return false;
+            }
+        }
+        return false;
     }
 
     private void ReadRegexLiteral()

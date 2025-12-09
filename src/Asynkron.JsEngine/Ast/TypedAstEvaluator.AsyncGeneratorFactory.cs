@@ -306,7 +306,7 @@ public static partial class TypedAstEvaluator
                     new PropertyDescriptor
                     {
                         Value = generatorPrototype,
-                        Writable = false,
+                        Writable = true,
                         Enumerable = false,
                         Configurable = false,
                         HasValue = true,

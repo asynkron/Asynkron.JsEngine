@@ -7,66 +7,23 @@ internal static class Program
     {
         await using var engine = new JsEngine();
 
+        // Test division - lexer/parser regex vs division ambiguity
+        // The Test262 test failing uses: instance/of/g
         var code = """
-var log = [];
-function source() {
-    log.push('source');
-    var iterator = {
-        next: function() {
-            log.push('iterator-step');
-            return {
-                get done() {
-                    log.push('iterator-done');
-                    return true;
-                },
-                get value() {
-                    log.push('iterator-value');
-                    return 1;
-                }
-            };
-        }
-    };
-    var source = {};
-    source[Symbol.iterator] = function() {
-        log.push('iterator');
-        return iterator;
-    };
-    return source;
-}
-function target() {
-    log.push('target');
-    return target = {
-        set q(v) {
-            log.push('set');
-        }
-    };
-}
-function targetKey() {
-    log.push('target-key');
-    return {
-        toString: function() {
-            log.push('target-key-tostring');
-            return 'q';
-        }
-    };
-}
+var instance = 60;
+var of = 6;
+var g = 2;
 
-([target()[targetKey()]] = source());
+var notRegExp = instance/of/g;
 
-console.log('Actual:', JSON.stringify(log));
-console.log('Expected:', JSON.stringify([
-    'source', 'iterator',
-    'target', 'target-key',
-    'iterator-step', 'iterator-done',
-    'target-key-tostring', 'set',
-]));
+console.log('notRegExp:', notRegExp);
+console.log('Expected: 5');
+if (notRegExp !== 5) {
+    throw new Error('Expected notRegExp to be 5, but got ' + notRegExp);
+}
+console.log('Test passed!');
 """;
 
         await engine.Evaluate(code);
-
-        // Get the log array and print it
-        var log = await engine.Evaluate("JSON.stringify(log)");
-        Console.WriteLine($"Actual: {log}");
-        Console.WriteLine("Expected: [\"source\",\"iterator\",\"target\",\"target-key\",\"iterator-step\",\"iterator-done\",\"target-key-tostring\",\"set\"]");
     }
 }

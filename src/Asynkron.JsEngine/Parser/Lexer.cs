@@ -1411,7 +1411,10 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             TokenType.Delete or
             TokenType.In or
             TokenType.Instanceof or
-            TokenType.Of or
+            // Note: TokenType.Of is intentionally NOT included here.
+            // 'of' is a contextual keyword only used in for-of loops where the
+            // expression parsing handles regex. When 'of' appears as an identifier
+            // in expressions like `instance/of/g`, division should follow, not regex.
             // Assignment operators
             TokenType.PlusEqual or
             TokenType.MinusEqual or

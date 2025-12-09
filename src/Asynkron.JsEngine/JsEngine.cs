@@ -734,9 +734,8 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    ///     Evaluates an S-expression program by scheduling it on the event queue.
-    ///     This ensures all code executes through the event loop, maintaining proper
-    ///     single-threaded execution semantics.
+    ///     Evaluates a program with lazy event loop initialization.
+    ///     Runs synchronously first, then only starts the event loop if async work is pending.
     /// </summary>
     private async Task<object?> Evaluate(
         ParsedProgram program,
@@ -750,110 +749,84 @@ public sealed class JsEngine : IAsyncDisposable
             return EvaluateInline(program, cancellationToken, sourcePath, forceModule);
         }
 
-        StartEventLoop();
-
-        var tcs = new TaskCompletionSource<object?>();
         var combinedToken = CreateEvaluationCancellationToken(cancellationToken, out var timeoutCts);
-        var configured = ExecutionTimeout;
-        var enforceTimeout = configured.HasValue && configured.Value > TimeSpan.Zero &&
-                             configured.Value != Timeout.InfiniteTimeSpan;
-        var timeout = enforceTimeout ? configured!.Value : Timeout.InfiniteTimeSpan;
-        var watchdog = Task.Delay(timeout, cancellationToken);
 
-        // Schedule the evaluation on the event queue
-        // This ensures ALL code runs through the event loop
-        ScheduleTask(() =>
+        try
         {
-            try
+            // Step 1: Execute the code synchronously first (no event loop)
+            object? result;
+            var isModule = forceModule || HasModuleStatements(program.Typed);
+            if (isModule)
             {
-                object? result;
-                var isModule = forceModule || HasModuleStatements(program.Typed);
-                if (isModule)
+                string? moduleKey = null;
+                ModuleEntry entry;
+                if (!string.IsNullOrEmpty(sourcePath))
                 {
-                    // Treat as a module
-                    string? moduleKey = null;
-                    ModuleEntry entry;
-                    if (!string.IsNullOrEmpty(sourcePath))
-                    {
-                        moduleKey = NormalizeModulePath(sourcePath!, null);
-                        if (!_moduleRegistry.TryGetValue(moduleKey, out entry))
-                        {
-                            entry = CreateModuleEntry(EnsureStrictProgram(program),
-                                CreateModuleEnvironment(),
-                                new JsObject(),
-                                moduleKey);
-                            _moduleRegistry[moduleKey] = entry;
-                        }
-                    }
-                    else
+                    moduleKey = NormalizeModulePath(sourcePath!, null);
+                    if (!_moduleRegistry.TryGetValue(moduleKey, out entry!))
                     {
                         entry = CreateModuleEntry(EnsureStrictProgram(program),
                             CreateModuleEnvironment(),
                             new JsObject(),
-                            string.Empty);
+                            moduleKey);
+                        _moduleRegistry[moduleKey] = entry;
                     }
-
-                    EnsureModuleInstantiated(entry);
-                    EnsureModuleEvaluated(entry);
-                    result = entry.LastValue;
                 }
                 else
                 {
-                    result = ExecuteProgram(program, GlobalEnvironment, combinedToken);
+                    entry = CreateModuleEntry(EnsureStrictProgram(program),
+                        CreateModuleEnvironment(),
+                        new JsObject(),
+                        string.Empty);
                 }
 
-                tcs.SetResult(result);
+                EnsureModuleInstantiated(entry);
+                EnsureModuleEvaluated(entry);
+                result = entry.LastValue;
             }
-            catch (Exception ex)
+            else
             {
-                if (ex is OperationCanceledException && timeoutCts?.IsCancellationRequested == true)
-                {
-                    tcs.SetException(new TimeoutException(
-                        $"JavaScript execution exceeded the configured timeout of {ExecutionTimeout}.", ex));
-                }
-                else
-                {
-                    tcs.SetException(ex);
-                }
+                result = ExecuteProgram(program, GlobalEnvironment, combinedToken);
             }
 
-            return Task.CompletedTask;
-        });
-
-        try
-        {
-            var completed = await Task.WhenAny(tcs.Task, watchdog).ConfigureAwait(false);
-            if (completed == tcs.Task)
+            // Step 2: Check if any async work was scheduled (timers, promises, etc.)
+            if (IsEventLoopDrained())
             {
-                return await tcs.Task.ConfigureAwait(false);
+                // Fast path: No async work pending, return immediately
+                return result;
             }
 
-            CancelAllTimers();
-            await StopEventLoopAsync().ConfigureAwait(false);
-            if (cancellationToken.IsCancellationRequested)
-            {
-                throw new OperationCanceledException(combinedToken);
-            }
+            // Step 3: Async work is pending - start event loop lazily and drain it
+            StartEventLoop();
 
-            if (enforceTimeout && (timeoutCts?.IsCancellationRequested == true || !watchdog.IsCanceled))
+            var configured = ExecutionTimeout;
+            var enforceTimeout = configured.HasValue && configured.Value > TimeSpan.Zero &&
+                                 configured.Value != Timeout.InfiniteTimeSpan;
+            var timeout = enforceTimeout ? configured!.Value : Timeout.InfiniteTimeSpan;
+
+            // Wait for event loop to drain with optional timeout
+            using var drainCts = enforceTimeout
+                ? CancellationTokenSource.CreateLinkedTokenSource(combinedToken)
+                : null;
+            drainCts?.CancelAfter(timeout);
+
+            try
             {
+                await DrainEventLoopAsync(drainCts?.Token ?? combinedToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (drainCts?.IsCancellationRequested == true
+                                                      && !combinedToken.IsCancellationRequested)
+            {
+                // Timeout during drain
+                CancelAllTimers();
                 throw new TimeoutException(
                     $"JavaScript execution exceeded the configured timeout of {timeout}.");
             }
 
-            throw new OperationCanceledException(combinedToken);
+            return result;
         }
         finally
         {
-            try
-            {
-                await DrainEventLoopAsync(combinedToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                CancelAllTimers();
-            }
-
             CancelAllTimers();
             await StopEventLoopAsync().ConfigureAwait(false);
             timeoutCts?.Dispose();
@@ -1281,6 +1254,8 @@ public sealed class JsEngine : IAsyncDisposable
                     {
                         _activeTimerTasks.Remove(timerTask);
                     }
+
+                    TrySignalDrainComplete();
                 }
             }
         }, cts.Token);

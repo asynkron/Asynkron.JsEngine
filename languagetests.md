@@ -1,3 +1,4 @@
+      LanguageTests
        Expressions_division
         Expressions_division("language/expressions/division/no-magic-asi-from-block-eval.js",False)
         Expressions_division("language/expressions/division/no-magic-asi-from-block-eval.js",True)
@@ -119,9 +120,6 @@
         Import_importDefer_evaluationTopLevelAwait_importDeferTransitiveAsyncModule("language/import/import-defer/evaluation-top-level-await/import-defer-transitive-async-module/main.js",True)
        Import_importDefer_evaluationTopLevelAwait_syncDependencyOfDeferredAsyncModule
         Import_importDefer_evaluationTopLevelAwait_syncDependencyOfDeferredAsyncModule("language/import/import-defer/evaluation-top-level-await/sync-dependency-of-deferred-async-module/main.js",True)
-       Literals_string
-        Literals_string("language/literals/string/legacy-non-octal-escape-sequence-8-non-strict.js",False)
-        Literals_string("language/literals/string/legacy-non-octal-escape-sequence-9-non-strict.js",False)
        ModuleCode
         ModuleCode("language/module-code/eval-rqstd-order.js",True)
         ModuleCode("language/module-code/export-expname-binding-index.js",True)

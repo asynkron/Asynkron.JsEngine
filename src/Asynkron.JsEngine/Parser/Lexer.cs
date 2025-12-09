@@ -267,8 +267,12 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                 {
                     AddToken(Match('=') ? TokenType.QuestionQuestionEqual : TokenType.QuestionQuestion);
                 }
-                else if (Match('.'))
+                else if (Peek() == '.' && !char.IsDigit(PeekNext()))
                 {
+                    // OptionalChainingPunctuator: ?. [lookahead ∉ DecimalDigit]
+                    // If the character after '.' is a digit, this is NOT optional chaining
+                    // (e.g., `x ?.30 : y` is a ternary with `.30` as a number, not optional chaining)
+                    Advance(); // consume the '.'
                     AddToken(TokenType.QuestionDot);
                 }
                 else

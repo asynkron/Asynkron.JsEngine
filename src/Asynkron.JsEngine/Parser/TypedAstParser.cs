@@ -2612,22 +2612,33 @@ public sealed class TypedAstParser(
                 return arguments.ToImmutable();
             }
 
-            // Parse first argument
-            var isSpread = Match(TokenType.DotDotDot);
-            var expr = ParseExpression(false);
-            arguments.Add(new CallArgument(expr.Source, expr, isSpread));
-
-            // Parse subsequent arguments, allowing a trailing comma
-            while (Match(TokenType.Comma))
+            // Arguments always allow `in` as a relational operator per ES spec:
+            // AssignmentExpression[+In, ?Yield, ?Await]
+            var previousAllowIn = _allowInExpressions;
+            _allowInExpressions = true;
+            try
             {
-                if (Check(TokenType.RightParen))
-                {
-                    break;
-                }
-
-                isSpread = Match(TokenType.DotDotDot);
-                expr = ParseExpression(false);
+                // Parse first argument
+                var isSpread = Match(TokenType.DotDotDot);
+                var expr = ParseExpression(false);
                 arguments.Add(new CallArgument(expr.Source, expr, isSpread));
+
+                // Parse subsequent arguments, allowing a trailing comma
+                while (Match(TokenType.Comma))
+                {
+                    if (Check(TokenType.RightParen))
+                    {
+                        break;
+                    }
+
+                    isSpread = Match(TokenType.DotDotDot);
+                    expr = ParseExpression(false);
+                    arguments.Add(new CallArgument(expr.Source, expr, isSpread));
+                }
+            }
+            finally
+            {
+                _allowInExpressions = previousAllowIn;
             }
 
             Consume(TokenType.RightParen, "Expected ')' after arguments.");

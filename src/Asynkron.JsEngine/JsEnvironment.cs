@@ -82,8 +82,15 @@ public sealed class JsEnvironment
     /// <summary>
     ///     When true, indicates this environment belongs to a default derived constructor
     ///     where argument spreading should bypass the iterator protocol per ES spec 15.7.14.
+    ///     Walks up the enclosing chain to find the flag if not set locally.
     /// </summary>
-    internal bool IsDefaultDerivedConstructor { get; set; }
+    internal bool IsDefaultDerivedConstructor
+    {
+        get => _isDefaultDerivedConstructor || (Enclosing?.IsDefaultDerivedConstructor ?? false);
+        set => _isDefaultDerivedConstructor = value;
+    }
+
+    private bool _isDefaultDerivedConstructor;
 
     internal JsEnvironment? Enclosing { get; }
 

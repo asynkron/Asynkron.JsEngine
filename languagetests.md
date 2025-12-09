@@ -1,4 +1,3 @@
-      LanguageTests
        Expressions_dynamicImport
         Expressions_dynamicImport("language/expressions/dynamic-import/returns-promise.js",False)
         Expressions_dynamicImport("language/expressions/dynamic-import/returns-promise.js",True)
@@ -140,8 +139,6 @@
         Statements_class_subclass("language/statements/class/subclass/builtins.js",True)
         Statements_class_subclass("language/statements/class/subclass/class-definition-null-proto-this.js",False)
         Statements_class_subclass("language/statements/class/subclass/class-definition-null-proto-this.js",True)
-        Statements_class_subclass("language/statements/class/subclass/default-constructor-spread-override.js",False)
-        Statements_class_subclass("language/statements/class/subclass/default-constructor-spread-override.js",True)
        Statements_const_syntax
         Statements_const_syntax("language/statements/const/syntax/const-invalid-assignment-next-expression-for.js",False)
         Statements_const_syntax("language/statements/const/syntax/const-invalid-assignment-next-expression-for.js",True)
@@ -209,6 +206,3 @@
         Statements_with("language/statements/with/has-binding-call-with-proxy-env.js",False)
         Statements_with("language/statements/with/set-mutable-binding-binding-deleted-in-get-unscopables-strict-mode.js",False)
         Statements_with("language/statements/with/set-mutable-binding-binding-deleted-with-typed-array-in-proto-chain.js",False)
-       Types_object
-        Types_object("language/types/object/S8.6.1_A2.js",False)
-        Types_object("language/types/object/S8.6.1_A2.js",True)

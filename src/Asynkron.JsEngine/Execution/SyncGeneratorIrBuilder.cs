@@ -395,13 +395,15 @@ internal sealed class SyncGeneratorIrBuilder
             return false;
         }
 
-        if (!IsLowererTemp(targetSymbol) || yieldInitializer.IsDelegated ||
+        if (!IsLowererTemp(targetSymbol) ||
             AstShapeAnalyzer.ContainsYield(yieldInitializer.Expression))
         {
             return false;
         }
 
-        entryIndex = AppendYieldSequence(yieldInitializer.Expression, nextIndex, targetSymbol);
+        entryIndex = yieldInitializer.IsDelegated
+            ? AppendYieldStarSequence(yieldInitializer, nextIndex, targetSymbol)
+            : AppendYieldSequence(yieldInitializer.Expression, nextIndex, targetSymbol);
         return true;
     }
 

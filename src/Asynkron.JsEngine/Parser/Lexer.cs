@@ -1757,6 +1757,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
         var result = new StringBuilder(rawString.Length);
         var hasLegacyOctal = false;
         var hasInvalidEscape = false;
+        var hasLegacyNonOctalEscape = false;
         var i = 0;
         while (i < rawString.Length)
         {
@@ -1805,9 +1806,11 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                     }
                     case '8':
                     case '9':
-                        // \8 and \9 are invalid escape sequences (not valid octal)
+                        // \8 and \9 are "legacy non-octal decimal escape sequences"
+                        // They produce "8" and "9" in non-strict mode
+                        // They should throw SyntaxError in strict mode
                         // In tagged templates, they make the cooked value undefined
-                        hasInvalidEscape = true;
+                        hasLegacyNonOctalEscape = true;
                         // Append the digit as-is (sloppy mode behavior)
                         result.Append(nextChar);
                         i += 2;
@@ -1947,9 +1950,13 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             }
         }
 
-        // For tagged templates, if there are invalid escapes, the cooked value should be undefined (null)
+        // For regular strings: Value contains the decoded string
+        // For tagged templates: Value is null if hasInvalidEscape is true (cooked value is undefined)
+        // Note: hasLegacyNonOctalEscape (\8, \9) is used for:
+        //   - Strict mode validation in parser (should throw)
+        //   - Tagged template cooked value calculation (should be undefined)
         var cookedValue = hasInvalidEscape ? null : result.ToString();
-        return new DecodedString(cookedValue, hasLegacyOctal, hasInvalidEscape);
+        return new DecodedString(cookedValue, hasLegacyOctal, hasInvalidEscape, hasLegacyNonOctalEscape);
 
         static (int Value, int Length) DecodeLegacyOctal(string raw, int start)
         {

@@ -1,6 +1,10 @@
 namespace Asynkron.JsEngine.Parser;
 
-internal readonly record struct DecodedString(string? Value, bool HasLegacyOctal, bool HasInvalidEscape = false)
+internal readonly record struct DecodedString(
+    string? Value,
+    bool HasLegacyOctal,
+    bool HasInvalidEscape = false,
+    bool HasLegacyNonOctalEscape = false)
 {
     /// <summary>
     /// Returns true if the cooked value is undefined (null) due to invalid escape sequences.

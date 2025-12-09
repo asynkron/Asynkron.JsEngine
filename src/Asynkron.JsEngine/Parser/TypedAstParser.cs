@@ -2927,8 +2927,10 @@ public sealed class TypedAstParser(
                     // - Instead, they make the cooked value undefined while raw is preserved
                     // - Legacy octals (\1-\7, \01, etc.) are always invalid in tagged templates
                     //   (Note: \0 without following octal digit is still valid as null character)
+                    // - \8 and \9 also make the cooked value undefined in tagged templates
                     var hasInvalidEscape = templateString.Cooked.HasInvalidEscape ||
-                                           templateString.Cooked.HasLegacyOctal;
+                                           templateString.Cooked.HasLegacyOctal ||
+                                           templateString.Cooked.HasLegacyNonOctalEscape;
 
                     // For invalid escape sequences, cooked value is null (undefined in JS)
                     cookedStrings.Add(hasInvalidEscape ? null : templateString.Cooked.Value);
@@ -4236,6 +4238,12 @@ public sealed class TypedAstParser(
                 if (decoded.HasLegacyOctal && InStrictContext)
                 {
                     throw new ParseException("Legacy octal escape sequences are not allowed in strict mode.", token,
+                        _source);
+                }
+
+                if (decoded.HasLegacyNonOctalEscape && InStrictContext)
+                {
+                    throw new ParseException("\\8 and \\9 escape sequences are not allowed in strict mode.", token,
                         _source);
                 }
 

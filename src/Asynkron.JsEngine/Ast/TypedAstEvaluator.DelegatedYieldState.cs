@@ -119,66 +119,66 @@ public static partial class TypedAstEvaluator
                         // Use Symbol.Undefined for null sendValue to match JavaScript undefined semantics.
                         candidate = _iterator.InvokeIteratorNext(_nextMethod, sendValue ?? Symbol.Undefined, true, context);
                     }
+
+                    // Per spec: if return method is undefined, return Completion(received)
+                    // This means we should signal immediate completion to the outer generator
+                    if (propagateReturn && !methodInvoked)
+                    {
+                        // Inner iterator has no return method - signal delegated completion
+                        // The outer generator should complete with the received value
+                        return (sendValue, true, true, false, null);
+                    }
+
+                    // Per spec: if throw method is null/undefined, call IteratorClose and throw TypeError
+                    if (propagateThrow && !methodInvoked)
+                    {
+                        // Call IteratorClose before throwing - this calls the return method if it exists
+                        _iterator.IteratorClose(context, preserveExistingThrow: false);
+
+                        // Throw TypeError as per spec - this will be caught below and returned as delegated completion
+                        throw StandardLibrary.ThrowTypeError(
+                            "The iterator does not provide a 'throw' method.",
+                            context,
+                            context.RealmState);
+                    }
+
+                    if (!methodInvoked && candidate is null)
+                    {
+                        return (Symbol.Undefined, true, propagateThrow, propagateThrow, null);
+                    }
+
+                    if (methodInvoked && candidate is null)
+                    {
+                        throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);
+                    }
+
+                    var nextCandidate = candidate ?? throw new InvalidOperationException("Iterator result missing.");
+                    object? awaitedCandidate;
+                    if (nextCandidate is IJsObjectLike promiseCandidate && IsPromiseLike(promiseCandidate))
+                    {
+                        awaitedPromise = true;
+                        if (!AwaitScheduler.TryAwaitPromiseSync(promiseCandidate, context, out awaitedCandidate))
+                        {
+                            return (Symbol.Undefined, true, true, propagateThrow, null);
+                        }
+                    }
+                    else
+                    {
+                        awaitedCandidate = nextCandidate;
+                    }
+
+                    if (awaitedCandidate is not IJsObjectLike resolvedObject)
+                    {
+                        throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);
+                    }
+
+                    nextResult = resolvedObject;
                 }
                 catch (ThrowSignal signal)
                 {
                     // Convert ThrowSignal to delegated completion so generator's try/catch can handle it
                     return (signal.ThrownValue, true, true, true, null);
                 }
-
-                // Per spec: if return method is undefined, return Completion(received)
-                // This means we should signal immediate completion to the outer generator
-                if (propagateReturn && !methodInvoked)
-                {
-                    // Inner iterator has no return method - signal delegated completion
-                    // The outer generator should complete with the received value
-                    return (sendValue, true, true, false, null);
-                }
-
-                // Per spec: if throw method is null/undefined, call IteratorClose and throw TypeError
-                if (propagateThrow && !methodInvoked)
-                {
-                    // Call IteratorClose before throwing - this calls the return method if it exists
-                    _iterator.IteratorClose(context, preserveExistingThrow: false);
-
-                    // Throw TypeError as per spec
-                    throw StandardLibrary.ThrowTypeError(
-                        "The iterator does not provide a 'throw' method.",
-                        context,
-                        context.RealmState);
-                }
-
-                if (!methodInvoked && candidate is null)
-                {
-                    return (Symbol.Undefined, true, propagateThrow, propagateThrow, null);
-                }
-
-                if (methodInvoked && candidate is null)
-                {
-                    throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);
-                }
-
-                var nextCandidate = candidate ?? throw new InvalidOperationException("Iterator result missing.");
-                object? awaitedCandidate;
-                if (nextCandidate is IJsObjectLike promiseCandidate && IsPromiseLike(promiseCandidate))
-                {
-                    awaitedPromise = true;
-                    if (!AwaitScheduler.TryAwaitPromiseSync(promiseCandidate, context, out awaitedCandidate))
-                    {
-                        return (Symbol.Undefined, true, true, propagateThrow, null);
-                    }
-                }
-                else
-                {
-                    awaitedCandidate = nextCandidate;
-                }
-
-                if (awaitedCandidate is not IJsObjectLike resolvedObject)
-                {
-                    throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);
-                }
-
-                nextResult = resolvedObject;
 
                 // Use JsOps for context-aware property access to propagate getter errors
                 var gotDone = JsOps.TryGetPropertyValue(nextResult, "done", out var doneValue, context);

@@ -28,6 +28,8 @@ public static partial class TypedAstEvaluator
         private readonly HashSet<int> _consumedYieldIndices = new();
         private readonly object? _thisValue;
         private readonly Stack<TryFrame> _tryStack = new();
+        // Track active with-scope slots for restoration after yield/resume
+        private readonly Stack<Symbol> _activeWithScopes = new();
         private HashSet<Symbol>? _blockedFunctionVarNames;
         private bool _asyncStepMode;
         private EvaluationContext? _context;
@@ -389,6 +391,24 @@ public static partial class TypedAstEvaluator
             var context = EnsureEvaluationContext();
             StoreSymbolValue(environment, Symbol.YieldTrackerSymbol, new YieldTracker(_consumedYieldIndices));
 
+            // Restore active with-scopes when resuming
+            // The _activeWithScopes stack contains the slots in reverse order (bottom to top)
+            // We need to restore environments from bottom to top
+            if (_activeWithScopes.Count > 0)
+            {
+                var scopesToRestore = _activeWithScopes.ToArray();
+                // The array is in stack order (top first), so reverse to get bottom-to-top order
+                for (var i = scopesToRestore.Length - 1; i >= 0; i--)
+                {
+                    var slot = scopesToRestore[i];
+                    if (TryGetSymbolValue(environment, slot, out var storedEnvObj) &&
+                        storedEnvObj is JsEnvironment storedWithEnv)
+                    {
+                        environment = storedWithEnv;
+                    }
+                }
+            }
+
             // If we are resuming after a pending await, thread the resolved
             // value into the per-site await state so subsequent evaluations
             // of the AwaitExpression see the fulfilled value instead of the
@@ -667,19 +687,12 @@ public static partial class TypedAstEvaluator
 
                                 if (iteratorResult.IsDelegatedCompletion)
                                 {
-                                    var pendingKind = propagateThrow ? AbruptKind.Throw : AbruptKind.Return;
-                                    object? abruptValue;
-                                    if (pendingKind == AbruptKind.Throw && context.IsThrow)
-                                    {
-                                        abruptValue = context.FlowValue;
-                                        context.Clear();
-                                    }
-                                    else
-                                    {
-                                        abruptValue = pendingKind == AbruptKind.Throw
-                                            ? sendValue
-                                            : iteratorResult.Value;
-                                    }
+                                    // Check PropagateThrow from the result - this is true when MoveNext itself threw
+                                    // (e.g., iterator.next() returned non-object), not just when we called throw()
+                                    var isThrowCompletion = propagateThrow || iteratorResult.PropagateThrow;
+                                    var pendingKind = isThrowCompletion ? AbruptKind.Throw : AbruptKind.Return;
+                                    // The thrown/returned value is in iteratorResult.Value
+                                    var abruptValue = iteratorResult.Value;
 
                                     if (!iteratorResult.Done)
                                     {
@@ -1194,6 +1207,61 @@ public static partial class TypedAstEvaluator
                             _done = true;
                             _tryStack.Clear();
                             return CreateIteratorResult(returnValue, true);
+
+                        case EnterWithInstruction enterWithInstruction:
+                        {
+                            var objValue = EvaluateExpression(enterWithInstruction.ObjectExpression, environment, context);
+                            if (context.IsThrow)
+                            {
+                                var thrownWith = context.FlowValue;
+                                context.Clear();
+                                if (HandleAbruptCompletion(AbruptKind.Throw, thrownWith, environment))
+                                {
+                                    continue;
+                                }
+
+                                _tryStack.Clear();
+                                throw new ThrowSignal(thrownWith);
+                            }
+
+                            // Create the with-environment and store it in the slot
+                            if (TryConvertToWithBindingObject(objValue, context, out var withObject))
+                            {
+                                var withEnv = new JsEnvironment(environment, false, context.CurrentScope.IsStrict,
+                                    enterWithInstruction.ObjectExpression.Source, "with", withObject);
+                                // Store the with-environment in the root environment slot so it persists across yields
+                                StoreSymbolValue(_executionEnvironment!, enterWithInstruction.WithScopeSlot, withEnv);
+                                // Track this with-scope as active
+                                _activeWithScopes.Push(enterWithInstruction.WithScopeSlot);
+                                // Update the local environment reference to use the with-environment
+                                environment = withEnv;
+                            }
+                            // If we couldn't create a with-environment, just continue with the same environment
+
+                            _programCounter = enterWithInstruction.Next;
+                            continue;
+                        }
+
+                        case LeaveWithInstruction leaveWithInstruction:
+                        {
+                            // Remove this with-scope from active tracking
+                            if (_activeWithScopes.Count > 0 &&
+                                ReferenceEquals(_activeWithScopes.Peek(), leaveWithInstruction.WithScopeSlot))
+                            {
+                                _activeWithScopes.Pop();
+                            }
+
+                            // Restore the previous environment by getting it from the enclosing scope of the stored with-env
+                            if (TryGetSymbolValue(_executionEnvironment!, leaveWithInstruction.WithScopeSlot, out var storedEnvObj) &&
+                                storedEnvObj is JsEnvironment storedWithEnv)
+                            {
+                                // The with-environment's Enclosing is the original environment
+                                environment = storedWithEnv.Enclosing ?? environment;
+                            }
+
+                            _programCounter = leaveWithInstruction.Next;
+                            continue;
+                        }
 
                         default:
                             throw new InvalidOperationException(

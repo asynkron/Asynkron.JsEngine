@@ -41,6 +41,11 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
+            // Per ES spec 15.7.14, default derived constructors forward arguments directly
+            // without invoking the iterator protocol. Check if we're in such a context.
+            var isDefaultDerivedConstructorSuperCall = expression.Callee is SuperExpression &&
+                                                        environment.IsDefaultDerivedConstructor;
+
             var arguments = ImmutableArray.CreateBuilder<object?>(expression.Arguments.Length);
             foreach (var argument in expression.Arguments)
             {
@@ -53,9 +58,21 @@ public static partial class TypedAstEvaluator
                         return Symbol.Undefined;
                     }
 
-                    foreach (var item in EnumerateSpread(spreadValue, context))
+                    // For default derived constructor super calls, bypass the iterator protocol
+                    // and directly iterate array items per ES spec 15.7.14.
+                    if (isDefaultDerivedConstructorSuperCall && spreadValue is JsArray jsArray)
                     {
-                        arguments.Add(item);
+                        foreach (var item in jsArray.Items)
+                        {
+                            arguments.Add(item);
+                        }
+                    }
+                    else
+                    {
+                        foreach (var item in EnumerateSpread(spreadValue, context))
+                        {
+                            arguments.Add(item);
+                        }
                     }
 
                     if (context.ShouldStopEvaluation)

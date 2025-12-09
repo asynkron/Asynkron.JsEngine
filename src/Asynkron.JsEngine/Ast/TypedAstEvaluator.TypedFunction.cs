@@ -482,6 +482,14 @@ public static partial class TypedAstEvaluator
             var executionEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict,
                 _function.Source, description, isBodyEnvironment: true);
             executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+
+            // Mark environment as default derived constructor for special argument forwarding per ES spec 15.7.14
+            if (_function.IsDefaultDerivedConstructor)
+            {
+                functionEnvironment.IsDefaultDerivedConstructor = true;
+                executionEnvironment.IsDefaultDerivedConstructor = true;
+            }
+
             using var capturedPrivateScopes = !_capturedPrivateNameScopes.IsDefaultOrEmpty
                 ? context.EnterPrivateNameScopes(_capturedPrivateNameScopes)
                 : null;
@@ -1026,15 +1034,19 @@ public static partial class TypedAstEvaluator
 
         internal JsObject GetOrCreatePrototypeObject()
         {
-            if (_prototypeObject is not null)
-            {
-                return _prototypeObject;
-            }
-
+            // Always check the current prototype property value first, in case it was reassigned
+            // (e.g., FooObj.prototype = protoObj). The _prototypeObject cache is only used
+            // as a fallback when the property hasn't been explicitly set.
             if (_properties.TryGetProperty("prototype", this, out var value) && value is JsObject jsObj)
             {
                 _prototypeObject = jsObj;
                 return jsObj;
+            }
+
+            // Return cached value if we previously created one
+            if (_prototypeObject is not null)
+            {
+                return _prototypeObject;
             }
 
             var created = new JsObject(_realmState.ObjectPrototype)

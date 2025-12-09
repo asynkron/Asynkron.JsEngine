@@ -1,6 +1,4 @@
-       EvalCode_indirect
-        EvalCode_indirect("language/eval-code/indirect/var-env-lower-lex-non-strict.js",False)
-        EvalCode_indirect("language/eval-code/indirect/var-env-lower-lex-non-strict.js",True)
+      LanguageTests
        Expressions_dynamicImport
         Expressions_dynamicImport("language/expressions/dynamic-import/returns-promise.js",False)
         Expressions_dynamicImport("language/expressions/dynamic-import/returns-promise.js",True)
@@ -24,18 +22,6 @@
         Expressions_import_meta("language/expressions/import.meta/distinct-for-each-module.js",True)
         Expressions_import_meta("language/expressions/import.meta/import-meta-is-an-ordinary-object.js",True)
         Expressions_import_meta("language/expressions/import.meta/not-accessible-from-direct-eval.js",True)
-       Expressions_import_meta_syntax
-        Expressions_import_meta_syntax("language/expressions/import.meta/syntax/goal-async-function-params-or-body.js",False)
-        Expressions_import_meta_syntax("language/expressions/import.meta/syntax/goal-async-function-params-or-body.js",True)
-        Expressions_import_meta_syntax("language/expressions/import.meta/syntax/goal-async-generator-params-or-body.js",False)
-        Expressions_import_meta_syntax("language/expressions/import.meta/syntax/goal-async-generator-params-or-body.js",True)
-        Expressions_import_meta_syntax("language/expressions/import.meta/syntax/goal-function-params-or-body.js",False)
-        Expressions_import_meta_syntax("language/expressions/import.meta/syntax/goal-function-params-or-body.js",True)
-        Expressions_import_meta_syntax("language/expressions/import.meta/syntax/goal-generator-params-or-body.js",False)
-        Expressions_import_meta_syntax("language/expressions/import.meta/syntax/goal-generator-params-or-body.js",True)
-       Expressions_new_target
-        Expressions_new_target("language/expressions/new.target/value-via-super-call.js",False)
-        Expressions_new_target("language/expressions/new.target/value-via-super-call.js",True)
        Expressions_object_dstr
         Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-get-not-called-on-dontenum-keys.js",False)
         Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-get-not-called-on-dontenum-keys.js",True)
@@ -82,12 +68,6 @@
         FunctionCode("language/function-code/10.4.3-1-104.js",True)
         FunctionCode("language/function-code/10.4.3-1-106.js",True)
        FutureReservedWords
-        FutureReservedWords("language/future-reserved-words/implements.js",False)
-        FutureReservedWords("language/future-reserved-words/interface.js",False)
-        FutureReservedWords("language/future-reserved-words/package.js",False)
-        FutureReservedWords("language/future-reserved-words/private.js",False)
-        FutureReservedWords("language/future-reserved-words/protected.js",False)
-        FutureReservedWords("language/future-reserved-words/public.js",False)
         FutureReservedWords("language/future-reserved-words/static.js",False)
        GlobalCode
         GlobalCode("language/global-code/decl-lex-configurable-global.js",False)
@@ -150,23 +130,16 @@
        Statements_awaitUsing
         Statements_awaitUsing("language/statements/await-using/throws-if-initializer-not-object.js",False)
         Statements_awaitUsing("language/statements/await-using/throws-if-initializer-not-object.js",True)
-       Statements_class_definition
-        Statements_class_definition("language/statements/class/definition/prototype-wiring.js",False)
-        Statements_class_definition("language/statements/class/definition/prototype-wiring.js",True)
        Statements_class_elements_syntax_valid
         Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-get-followed-by-generator-asi.js",False)
         Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-get-followed-by-generator-asi.js",True)
         Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-set-followed-by-generator-asi.js",False)
         Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-set-followed-by-generator-asi.js",True)
        Statements_class_subclass
-        Statements_class_subclass("language/statements/class/subclass/binding.js",False)
-        Statements_class_subclass("language/statements/class/subclass/binding.js",True)
         Statements_class_subclass("language/statements/class/subclass/builtins.js",False)
         Statements_class_subclass("language/statements/class/subclass/builtins.js",True)
         Statements_class_subclass("language/statements/class/subclass/class-definition-null-proto-this.js",False)
         Statements_class_subclass("language/statements/class/subclass/class-definition-null-proto-this.js",True)
-        Statements_class_subclass("language/statements/class/subclass/default-constructor-2.js",False)
-        Statements_class_subclass("language/statements/class/subclass/default-constructor-2.js",True)
         Statements_class_subclass("language/statements/class/subclass/default-constructor-spread-override.js",False)
         Statements_class_subclass("language/statements/class/subclass/default-constructor-spread-override.js",True)
        Statements_const_syntax
@@ -219,9 +192,6 @@
         Statements_try("language/statements/try/catch-parameter-boundnames-restriction-eval-eval-throws.js",True)
         Statements_try("language/statements/try/S12.14_A17.js",False)
         Statements_try("language/statements/try/S12.14_A17.js",True)
-        Statements_try("language/statements/try/scope-catch-block-lex-close.js",True)
-        Statements_try("language/statements/try/scope-catch-param-lex-open.js",False)
-        Statements_try("language/statements/try/scope-catch-param-lex-open.js",True)
        Statements_using
         Statements_using("language/statements/using/throws-if-initializer-not-object.js",False)
         Statements_using("language/statements/using/throws-if-initializer-not-object.js",True)
@@ -242,7 +212,3 @@
        Types_object
         Types_object("language/types/object/S8.6.1_A2.js",False)
         Types_object("language/types/object/S8.6.1_A2.js",True)
-        Types_object("language/types/object/S8.6.2_A1.js",False)
-        Types_object("language/types/object/S8.6.2_A1.js",True)
-        Types_object("language/types/object/S8.6.2_A8.js",False)
-        Types_object("language/types/object/S8.6.2_A8.js",True)

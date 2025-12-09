@@ -79,6 +79,12 @@ public sealed class JsEnvironment
 
     internal bool IsFunctionScope { get; }
 
+    /// <summary>
+    ///     When true, indicates this environment belongs to a default derived constructor
+    ///     where argument spreading should bypass the iterator protocol per ES spec 15.7.14.
+    /// </summary>
+    internal bool IsDefaultDerivedConstructor { get; set; }
+
     internal JsEnvironment? Enclosing { get; }
 
     internal void SetRealmState(RealmState realmState)

@@ -161,15 +161,19 @@ namespace Asynkron.JsEngine.JsTypes;
 
     public bool TryGetProperty(string name, object? receiver, out object? value)
     {
-        if (!_isConstructor && string.Equals(name, "prototype", StringComparison.Ordinal))
+        EnsureFunctionPrototype();
+
+        // First check if there's a user-defined property (including getters)
+        if (Properties.TryGetProperty(name, receiver ?? this, out value))
         {
-            value = Symbol.Undefined;
             return true;
         }
 
-        EnsureFunctionPrototype();
-        if (Properties.TryGetProperty(name, receiver ?? this, out value))
+        // Non-constructor functions should not have a "prototype" property
+        // Only return undefined if no user-defined getter was found
+        if (!_isConstructor && string.Equals(name, "prototype", StringComparison.Ordinal))
         {
+            value = Symbol.Undefined;
             return true;
         }
 

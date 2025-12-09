@@ -1220,6 +1220,14 @@ internal static class JsOps
             return "bigint";
         }
 
+        // Special handling for Proxy: typeof depends on whether the TARGET is callable,
+        // not the proxy itself. Per ES spec, typeof on a revoked proxy doesn't throw -
+        // it returns "function" if the original target was callable, "object" otherwise.
+        if (value is JsProxy proxy)
+        {
+            return proxy.Target is IJsCallable ? "function" : "object";
+        }
+
         return value switch
         {
             bool => "boolean",
@@ -1426,14 +1434,6 @@ internal static class JsOps
     public static bool TryGetPropertyValue(object? target, string propertyName, out object? value,
         EvaluationContext? context = null)
     {
-        if (target is HostFunction hostFunction
-            && !hostFunction.IsConstructor
-            && string.Equals(propertyName, "prototype", StringComparison.Ordinal))
-        {
-            value = Symbol.Undefined;
-            return true;
-        }
-
         if (target is IJsPropertyAccessor propertyAccessor)
         {
             try

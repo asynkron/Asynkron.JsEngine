@@ -496,7 +496,10 @@ public static partial class TypedAstEvaluator
                 _properties.SetPrototype(functionPrototype);
             }
 
-            if (_isConstructorEnabled && _realmState.GeneratorPrototype is not null)
+            // Per ES spec 15.5.4: Generator functions ALWAYS have a prototype property,
+            // regardless of whether they are used as constructors or methods.
+            // This is different from regular methods/arrow functions.
+            if (_realmState.GeneratorPrototype is not null)
             {
                 // Set up the generator function's .prototype property.
                 // Each generator function instance gets its own .prototype object that inherits

@@ -268,6 +268,15 @@ public static partial class TypedAstEvaluator
 
         public bool TryGetProperty(string name, object? receiver, out object? value)
         {
+            // Arrow functions, async functions, and non-constructor functions should not have a "prototype" property
+            // Per ES spec: Arrow functions and async functions are not constructors and don't have prototype property
+            if (string.Equals(name, "prototype", StringComparison.Ordinal) &&
+                (IsArrowFunction || IsAsyncFunction || _wasAsyncFunction || !_isConstructorEnabled))
+            {
+                value = null;
+                return false;
+            }
+
             if (_properties.TryGetProperty(name, receiver ?? this, out value))
             {
                 return true;

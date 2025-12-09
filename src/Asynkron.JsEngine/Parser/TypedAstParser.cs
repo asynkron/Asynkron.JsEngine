@@ -4091,7 +4091,19 @@ public sealed class TypedAstParser(
         {
             if (CheckIdentifierLike())
             {
-                return Advance();
+                var token = Advance();
+
+                // In strict mode, 'eval' and 'arguments' cannot be used as parameter identifiers
+                if (InStrictContext &&
+                    (string.Equals(token.Lexeme, "eval", StringComparison.Ordinal) ||
+                     string.Equals(token.Lexeme, "arguments", StringComparison.Ordinal)))
+                {
+                    throw new ParseException(
+                        $"'{token.Lexeme}' cannot be used as a parameter identifier in strict mode.",
+                        token, _source);
+                }
+
+                return token;
             }
 
             throw new ParseException(message, Peek(), _source);
@@ -4104,6 +4116,7 @@ public sealed class TypedAstParser(
 
         private Token ConsumeBindingIdentifier(string message)
         {
+            // ConsumeParameterIdentifier already handles strict mode checks for 'eval' and 'arguments'
             return ConsumeParameterIdentifier(message);
         }
 

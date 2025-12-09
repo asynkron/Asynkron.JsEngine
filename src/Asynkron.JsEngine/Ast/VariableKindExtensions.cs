@@ -1,5 +1,6 @@
 namespace Asynkron.JsEngine.Ast;
 
+using Asynkron.JsEngine.JsTypes;
 using Microsoft.Extensions.Logging;
 
 public static partial class TypedAstEvaluator
@@ -17,6 +18,16 @@ public static partial class TypedAstEvaluator
                                          IsAnonymousFunctionDefinitionNode(declarator.Initializer)
                 ? context.EnterFunctionNameHint(targetIdentifier.Name)
                 : null;
+
+            // Per ES spec 14.3.2.1: For var declarations, ResolveBinding happens BEFORE
+            // evaluating the initializer. This is important for with statements where
+            // the initializer might modify the with object (e.g., delete a property).
+            // We pre-resolve the binding target to capture any with object reference.
+            IJsObjectLike? preResolvedWithTarget = null;
+            if (kind == VariableKind.Var && targetIdentifier is not null && declarator.Initializer is not null)
+            {
+                preResolvedWithTarget = environment.ResolveVarBindingWithTarget(targetIdentifier.Name);
+            }
 
             var value = declarator.Initializer is null
                 ? Symbol.Undefined
@@ -44,6 +55,15 @@ public static partial class TypedAstEvaluator
                     environment.Depth,
                     environment.IsStrict,
                     value);
+            }
+
+            // If we pre-resolved a with target for a var declaration, use it directly.
+            // This ensures the binding goes to the with object even if the initializer
+            // modified it (e.g., deleted the property).
+            if (preResolvedWithTarget is not null && targetIdentifier is not null)
+            {
+                environment.AssignToWithTarget(preResolvedWithTarget, targetIdentifier.Name, value);
+                return;
             }
 
             // Per ES spec 13.3.1.4: Name inference only applies if IsAnonymousFunctionDefinition(Initializer) is true

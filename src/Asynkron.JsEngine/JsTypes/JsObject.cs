@@ -78,6 +78,17 @@ namespace Asynkron.JsEngine.JsTypes;
     public void SetPrototype(object? candidate)
     {
         var previous = _prototypeAccessor ?? Prototype;
+
+        // Per ES spec 9.1.2.1: If the object is not extensible and the new prototype
+        // is different from the current prototype, the operation should fail.
+        // We silently return without changing (caller can check strict mode for throwing).
+        if (!IsExtensible && !ReferenceEquals(previous, candidate) &&
+            !ReferenceEquals(previous, candidate as IJsPropertyAccessor) &&
+            !ReferenceEquals(previous, candidate as JsObject))
+        {
+            return;
+        }
+
         _prototypeAccessor = candidate as IJsPropertyAccessor;
         Prototype = candidate as JsObject;
 

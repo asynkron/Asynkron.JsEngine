@@ -551,6 +551,50 @@ public sealed class JsEnvironment
         return _values.TryGetValue(name, out var binding) && binding.IsLexical;
     }
 
+    /// <summary>
+    /// Pre-resolves a var binding to determine if it should be assigned to a with object.
+    /// This is called BEFORE evaluating the initializer to capture the binding target per ES spec.
+    /// Returns the with object if the binding resolves to it, or null if it resolves elsewhere.
+    /// </summary>
+    internal IJsObjectLike? ResolveVarBindingWithTarget(Symbol name)
+    {
+        var current = this;
+        while (current is not null)
+        {
+            // Check if there's a lexical binding that blocks the var
+            if (current._values.TryGetValue(name, out var binding) && binding.IsLexical)
+            {
+                return null;
+            }
+
+            // Check if there's a with object with this property
+            if (current._withObject is not null && HasVisibleWithBinding(current._withObject, name))
+            {
+                return current._withObject;
+            }
+
+            current = current.Enclosing;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Assigns a value to a pre-resolved with object binding.
+    /// </summary>
+    internal void AssignToWithTarget(IJsObjectLike withTarget, Symbol name, object? value)
+    {
+        if (withTarget is JsObject jsWithObject)
+        {
+            AssignmentReferenceResolver.AssignObjectProperty(jsWithObject, name.Name, value, IsStrict, null,
+                RealmState);
+        }
+        else
+        {
+            withTarget.SetProperty(name.Name, value);
+        }
+    }
+
     internal bool TryAssignBlockedBinding(Symbol name, object? value)
     {
         var current = this;

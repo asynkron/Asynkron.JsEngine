@@ -19,12 +19,14 @@ internal sealed class SyncGeneratorIrBuilder
     private const string ResumeSlotPrefix = "\u0001_resume";
     private const string CatchSlotPrefix = "\u0001_catch";
     private const string YieldStarStatePrefix = "\u0001_yieldstar";
+    private const string WithScopeSlotPrefix = "\u0001_with";
     private readonly List<GeneratorInstruction> _instructions = [];
     private readonly Stack<LoopScope> _loopScopes = new();
     private int _catchSlotCounter;
     private string? _failureReason;
     private int _resumeSlotCounter;
     private int _yieldStarStateCounter;
+    private int _withScopeSlotCounter;
 
     private SyncGeneratorIrBuilder()
     {
@@ -318,14 +320,21 @@ internal sealed class SyncGeneratorIrBuilder
                     return TryBuildContinue(continueStatement, out entryIndex);
 
                 case WithStatement withStatement:
-                    if (AstShapeAnalyzer.ContainsYield(withStatement.Object) ||
-                        AstShapeAnalyzer.StatementContainsYield(withStatement.Body))
+                    // Yield is not allowed in the object expression
+                    if (AstShapeAnalyzer.ContainsYield(withStatement.Object))
                     {
                         entryIndex = -1;
-                        _failureReason ??= "With statement contains unsupported yield shape.";
+                        _failureReason ??= "With statement object expression contains unsupported yield shape.";
                         return false;
                     }
 
+                    // If the body contains yield, we need to use EnterWith/LeaveWith instructions
+                    if (AstShapeAnalyzer.StatementContainsYield(withStatement.Body))
+                    {
+                        return TryBuildWithStatement(withStatement, nextIndex, out entryIndex, activeLabel);
+                    }
+
+                    // If no yield in body, emit as a simple statement instruction
                     entryIndex = Append(new StatementInstruction(nextIndex, withStatement));
                     return true;
 
@@ -932,6 +941,33 @@ internal sealed class SyncGeneratorIrBuilder
     {
         var symbolName = $"{YieldStarStatePrefix}{_yieldStarStateCounter++}";
         return Symbol.Intern(symbolName);
+    }
+
+    private Symbol CreateWithScopeSlotSymbol()
+    {
+        var symbolName = $"{WithScopeSlotPrefix}{_withScopeSlotCounter++}";
+        return Symbol.Intern(symbolName);
+    }
+
+    private bool TryBuildWithStatement(WithStatement statement, int nextIndex, out int entryIndex, Symbol? activeLabel)
+    {
+        var instructionStart = _instructions.Count;
+        var withScopeSlot = CreateWithScopeSlotSymbol();
+
+        // Build the leave with instruction first (it comes after the body)
+        var leaveWithIndex = Append(new LeaveWithInstruction(withScopeSlot, nextIndex));
+
+        // Build the body (jumps to the leave with instruction when done)
+        if (!TryBuildStatement(statement.Body, leaveWithIndex, out var bodyEntry, activeLabel))
+        {
+            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
+            entryIndex = -1;
+            return false;
+        }
+
+        // Build the enter with instruction (comes before the body)
+        entryIndex = Append(new EnterWithInstruction(statement.Object, withScopeSlot, bodyEntry));
+        return true;
     }
 
     private static bool IsStrictBlock(StatementNode statement)

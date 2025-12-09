@@ -2981,7 +2981,17 @@ public sealed class TypedAstParser(
             var wrappedSource = $"({trimmed});";
             var lexer = new Lexer(wrappedSource);
             var tokens = lexer.Tokenize();
-            var embeddedParser = new TypedAstParser(tokens, wrappedSource, options: _options);
+
+            // Create a new DirectParser directly to preserve the current function context (generator/async).
+            // This allows yield/await to be recognized inside template interpolations within generators/async functions.
+            var embeddedParser = new DirectParser(tokens, wrappedSource, InStrictContext, _allowTopLevelAwait, _options);
+
+            // Propagate the current function context to the embedded parser
+            if (InGeneratorContext || InAsyncContext)
+            {
+                embeddedParser._functionContexts.Push(new FunctionContext(InAsyncContext, InGeneratorContext));
+            }
+
             var program = embeddedParser.ParseProgram();
             if (program.Body.Length == 0 || program.Body[0] is not ExpressionStatement expressionStatement)
             {

@@ -107,3 +107,21 @@ internal sealed record IteratorMoveNextInstruction(
     int BreakIndex,
     int Next)
     : GeneratorInstruction(Next);
+
+/// <summary>
+///     Marks the beginning of a <c>with</c> statement. Evaluates the object expression
+///     and pushes a with-environment onto the scope chain.
+/// </summary>
+internal sealed record EnterWithInstruction(
+    ExpressionNode ObjectExpression,
+    Symbol WithScopeSlot,
+    int Next)
+    : GeneratorInstruction(Next);
+
+/// <summary>
+///     Marks the end of a <c>with</c> statement. Pops the with-environment from the scope chain.
+/// </summary>
+internal sealed record LeaveWithInstruction(
+    Symbol WithScopeSlot,
+    int Next)
+    : GeneratorInstruction(Next);

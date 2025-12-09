@@ -76,11 +76,18 @@ public static partial class TypedAstEvaluator
             var topLevelLexicalNames = CollectTopLevelLexicalNames(program.Body);
             var catchParameterNames = CollectCatchParameterNames(programBlock);
             var simpleCatchParameterNames = CollectSimpleCatchParameterNames(programBlock);
-            var bodyLexicalNames = lexicalNames.Count == 0
+            // For blocking function var names (Annex B), we need ALL lexical names including nested
+            var blockedFunctionVarNames = lexicalNames.Count == 0
                 ? lexicalNames
                 : new HashSet<Symbol>(lexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
-            bodyLexicalNames.ExceptWith(simpleCatchParameterNames);
-            context.BlockedFunctionVarNames = bodyLexicalNames;
+            blockedFunctionVarNames.ExceptWith(simpleCatchParameterNames);
+            context.BlockedFunctionVarNames = blockedFunctionVarNames;
+            // For bodyLexicalNames used in global/var conflict checks, we only use TOP-LEVEL names.
+            // Per ES spec GlobalDeclarationInstantiation, var declarations only conflict with
+            // top-level lexical declarations, not with block-scoped let/const in nested blocks.
+            var bodyLexicalNames = topLevelLexicalNames.Count == 0
+                ? topLevelLexicalNames
+                : new HashSet<Symbol>(topLevelLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
             var functionScope = executionEnvironment.GetFunctionScope();
             // Get the engine's true GlobalEnvironment for storing/checking lexical names.
             // GlobalExecutionScope gets overwritten by each script, but GlobalEnvironment

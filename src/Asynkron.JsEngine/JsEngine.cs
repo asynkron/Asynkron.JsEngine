@@ -440,9 +440,10 @@ public sealed class JsEngine : IAsyncDisposable
         string source,
         bool forceStrict = false,
         bool allowTopLevelAwait = false,
-        bool allowHtmlComments = true)
+        bool allowHtmlComments = true,
+        IJsEngineOptions? options = null)
     {
-        var typedProgram = ParseTypedProgram(source, forceStrict, allowTopLevelAwait, allowHtmlComments, Options);
+        var typedProgram = ParseTypedProgram(source, forceStrict, allowTopLevelAwait, allowHtmlComments, options ?? Options);
         if (forceStrict && !typedProgram.IsStrict)
         {
             typedProgram = new ProgramNode(typedProgram.Source, typedProgram.Body, true);

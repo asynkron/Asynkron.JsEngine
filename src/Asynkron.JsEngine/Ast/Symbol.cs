@@ -11,6 +11,7 @@ public sealed class Symbol : IEquatable<Symbol>
     public static readonly Symbol This = Intern("this");
     public static readonly Symbol Super = Intern("super");
     public static readonly Symbol NewTarget = Intern("new.target");
+    public static readonly Symbol ImportMeta = Intern("import.meta");
     public static readonly Symbol ThisInitialized = Intern("[[thisInitialized]]");
     public static readonly Symbol LexicalThisEnvironment = Intern("[[lexicalThisEnvironment]]");
     public static readonly Symbol Arguments = Intern("arguments");

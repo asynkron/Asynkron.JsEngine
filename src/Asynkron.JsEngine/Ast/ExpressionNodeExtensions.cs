@@ -108,6 +108,7 @@ public static partial class TypedAstEvaluator
                 NewTargetExpression => environment.TryGet(Symbol.NewTarget, out var newTarget)
                     ? newTarget
                     : Symbol.Undefined,
+                ImportMetaExpression => EvaluateImportMeta(environment, context),
                 ArrayExpression array => EvaluateArray(array, environment, context),
                 ObjectExpression obj => EvaluateObject(obj, environment, context),
                 ClassExpression classExpression => EvaluateClassExpression(classExpression, environment, context),
@@ -489,5 +490,29 @@ public static partial class TypedAstEvaluator
             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
             throw new ThrowSignal(errorObject);
         }
+    }
+
+    /// <summary>
+    ///     Evaluates an import.meta expression. Returns the import.meta object for the current module.
+    /// </summary>
+    private static object? EvaluateImportMeta(JsEnvironment environment, EvaluationContext context)
+    {
+        // Try to get the import.meta object from the environment
+        // If running in module context, this should be set by the module loader
+        if (environment.TryGet(Symbol.ImportMeta, out var importMeta))
+        {
+            return importMeta;
+        }
+
+        // Return a basic import.meta object with a url property
+        var metaObject = new JsObject();
+        if (context.RealmState?.ObjectPrototype is not null)
+        {
+            metaObject.SetPrototype(context.RealmState.ObjectPrototype);
+        }
+
+        // Set a default URL if we can determine it from the environment
+        metaObject.SetProperty("url", string.Empty);
+        return metaObject;
     }
 }

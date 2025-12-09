@@ -144,23 +144,6 @@
         ModuleCode_topLevelAwait("language/module-code/top-level-await/module-sync-import-async-resolution-ticks.js",True)
        ModuleCode_topLevelAwait_syntax
         ModuleCode_topLevelAwait_syntax("language/module-code/top-level-await/syntax/await-expr-dyn-import.js",True)
-       StatementList
-        StatementList("language/statementList/class-regexp-literal-flags.js",False)
-        StatementList("language/statementList/class-regexp-literal-flags.js",True)
-        StatementList("language/statementList/class-regexp-literal.js",False)
-        StatementList("language/statementList/class-regexp-literal.js",True)
-        StatementList("language/statementList/eval-class-regexp-literal-flags.js",False)
-        StatementList("language/statementList/eval-class-regexp-literal-flags.js",True)
-        StatementList("language/statementList/eval-class-regexp-literal.js",False)
-        StatementList("language/statementList/eval-class-regexp-literal.js",True)
-        StatementList("language/statementList/eval-fn-regexp-literal-flags.js",False)
-        StatementList("language/statementList/eval-fn-regexp-literal-flags.js",True)
-        StatementList("language/statementList/eval-fn-regexp-literal.js",False)
-        StatementList("language/statementList/eval-fn-regexp-literal.js",True)
-        StatementList("language/statementList/fn-regexp-literal-flags.js",False)
-        StatementList("language/statementList/fn-regexp-literal-flags.js",True)
-        StatementList("language/statementList/fn-regexp-literal.js",False)
-        StatementList("language/statementList/fn-regexp-literal.js",True)
        Statements_asyncGenerator
         Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",False)
         Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",True)
@@ -263,8 +246,3 @@
         Types_object("language/types/object/S8.6.2_A1.js",True)
         Types_object("language/types/object/S8.6.2_A8.js",False)
         Types_object("language/types/object/S8.6.2_A8.js",True)
-       Types_reference
-        Types_reference("language/types/reference/put-value-prop-base-primitive-realm.js",False)
-        Types_reference("language/types/reference/put-value-prop-base-primitive-realm.js",True)
-        Types_reference("language/types/reference/put-value-prop-base-primitive.js",False)
-        Types_reference("language/types/reference/put-value-prop-base-primitive.js",True)

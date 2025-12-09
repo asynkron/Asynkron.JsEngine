@@ -411,10 +411,17 @@ public static partial class TypedAstEvaluator
             // Build source as a generator function (note the *)
             var functionSource = $"(function* anonymous({paramList}\n) {{\n{bodySource}\n}})";
 
+            // Per ES spec, Generator constructor parses with Script goal, which means
+            // import.meta is not allowed (it's only valid in Module goal).
+            var scriptGoalOptions = new JsEngineOptions
+            {
+                AllowImportMeta = false
+            };
+
             ParsedProgram program;
             try
             {
-                program = engine.ParseForExecution(functionSource);
+                program = engine.ParseForExecution(functionSource, options: scriptGoalOptions);
             }
             catch (Parser.ParseException parseException)
             {

@@ -1181,6 +1181,13 @@ public static partial class StandardLibrary
                 return Symbol.Undefined;
             }
 
+            // Per ES spec, if the object is not extensible, the [[SetPrototypeOf]] internal method
+            // should return false (and we silently ignore in sloppy mode)
+            if (!IsTargetExtensible(obj))
+            {
+                return Symbol.Undefined;
+            }
+
             obj.SetPrototype(newProto);
             return Symbol.Undefined;
         }

@@ -55,7 +55,8 @@ public sealed record FunctionExpression(
     bool IsGenerator,
     bool IsArrow = false,
     bool WasAsync = false,
-    bool IsHoistableDefaultExport = false)
+    bool IsHoistableDefaultExport = false,
+    bool IsDefaultDerivedConstructor = false)
     : ExpressionNode(Source);
 
 /// <summary>
@@ -105,6 +106,11 @@ public sealed record MemberExpression(
 ///     Represents the meta-property new.target.
 /// </summary>
 public sealed record NewTargetExpression(SourceReference? Source) : ExpressionNode(Source);
+
+/// <summary>
+///     Represents the meta-property import.meta.
+/// </summary>
+public sealed record ImportMetaExpression(SourceReference? Source) : ExpressionNode(Source);
 
 /// <summary>
 ///     Represents an assignment to an identifier.

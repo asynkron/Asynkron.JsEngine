@@ -380,7 +380,14 @@ namespace Asynkron.JsEngine.JsTypes;
                     return target.Invoke(finalArgs, boundThis);
                 }
 
-                return StandardLibrary.Construct(target, finalArgs, newTargetCtor, realm);
+                // Per ES spec 10.4.1.2 [[Construct]] step 5:
+                // If SameValue(F, newTarget) is true, set newTarget to target.
+                // When the bound function is used as new.target, substitute the original target.
+                var effectiveNewTarget = ReferenceEquals(newTargetCtor, boundFunction)
+                    ? target
+                    : newTargetCtor;
+
+                return StandardLibrary.Construct(target, finalArgs, effectiveNewTarget, realm);
             }
 
             return target.Invoke(finalArgs, boundThis);

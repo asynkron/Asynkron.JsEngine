@@ -20,6 +20,13 @@ public interface IJsEngineOptions
     ///     emulate a specific environment.
     /// </summary>
     TimeZoneInfo TimeZone { get; }
+
+    /// <summary>
+    ///     Controls whether import.meta expressions are allowed. Per ES spec, import.meta is only
+    ///     valid when the syntactic goal symbol is Module. Set to false when parsing in Script goal
+    ///     (such as the Function constructor). Defaults to true.
+    /// </summary>
+    bool AllowImportMeta { get; }
 }
 
 /// <summary>
@@ -34,4 +41,5 @@ public sealed class JsEngineOptions : IJsEngineOptions
 
     public bool EnableAnnexBFunctionExtensions { get; init; } = true;
     public TimeZoneInfo TimeZone { get; init; } = TimeZoneInfo.Utc;
+    public bool AllowImportMeta { get; init; } = true;
 }

@@ -247,10 +247,17 @@ public static partial class StandardLibrary
             // so HTML-like comments (<!--/-->) are recognized using the Script goal rules.
             var functionSource = $"(function anonymous({paramList}\n) {{\n{bodySource}\n}})";
 
+            // Per ES spec, Function constructor parses with Script goal, which means
+            // import.meta is not allowed (it's only valid in Module goal).
+            var scriptGoalOptions = new JsEngineOptions
+            {
+                AllowImportMeta = false
+            };
+
             ParsedProgram program;
             try
             {
-                program = engine.ParseForExecution(functionSource);
+                program = engine.ParseForExecution(functionSource, options: scriptGoalOptions);
             }
             catch (ParseException parseException)
             {

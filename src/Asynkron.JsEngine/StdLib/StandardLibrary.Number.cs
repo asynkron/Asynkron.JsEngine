@@ -520,17 +520,12 @@ public static partial class StandardLibrary
                 false);
         }
 
-        numberConstructor.SetHostedProperty("isInteger", NumberIsInteger);
-
-        numberConstructor.SetHostedProperty("isFinite", NumberIsFinite);
-
-        numberConstructor.SetHostedProperty("isNaN", NumberIsNaN);
-
-        numberConstructor.SetHostedProperty("isSafeInteger", NumberIsSafeInteger);
-
-        numberConstructor.SetHostedProperty("parseFloat", NumberParseFloat);
-
-        numberConstructor.SetHostedProperty("parseInt", NumberParseInt);
+        DefineBuiltinFunction(numberConstructor.PropertiesObject, "isInteger", new HostFunction(NumberIsInteger), 1);
+        DefineBuiltinFunction(numberConstructor.PropertiesObject, "isFinite", new HostFunction(NumberIsFinite), 1);
+        DefineBuiltinFunction(numberConstructor.PropertiesObject, "isNaN", new HostFunction(NumberIsNaN), 1);
+        DefineBuiltinFunction(numberConstructor.PropertiesObject, "isSafeInteger", new HostFunction(NumberIsSafeInteger), 1);
+        DefineBuiltinFunction(numberConstructor.PropertiesObject, "parseFloat", new HostFunction(NumberParseFloat), 1);
+        DefineBuiltinFunction(numberConstructor.PropertiesObject, "parseInt", new HostFunction(NumberParseInt), 2);
 
         DefineConstantProperty(numberConstructor, "EPSILON", double.Epsilon);
 

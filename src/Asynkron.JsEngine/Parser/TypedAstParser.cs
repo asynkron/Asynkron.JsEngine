@@ -1097,6 +1097,9 @@ public sealed class TypedAstParser(
                     emptyBody, false, false);
             }
 
+            // Per ES spec 15.7.14: The default derived constructor should forward arguments to super()
+            // without invoking the iterator protocol. We mark this constructor as a default derived
+            // constructor so the evaluator can handle argument forwarding specially.
             var argsSymbol = Symbol.Intern("args");
             var restParameter =
                 new FunctionParameter(null, argsSymbol, true, null, null);
@@ -1106,7 +1109,8 @@ public sealed class TypedAstParser(
             var statements = ImmutableArray.Create<StatementNode>(new ExpressionStatement(null, superCall));
             var body = new BlockStatement(null, statements, true);
             return new FunctionExpression(body.Source, className, [restParameter], body, false,
-                false);
+                false, IsArrow: false, WasAsync: false, IsHoistableDefaultExport: false,
+                IsDefaultDerivedConstructor: true);
         }
 
         private StatementNode ParseImportStatement()
@@ -2397,6 +2401,30 @@ public sealed class TypedAstParser(
             if (Match(TokenType.Import))
             {
                 var importToken = Previous();
+                // Per ES spec, import.meta is only valid when the syntactic goal symbol is Module.
+                // In Script goal (including Function constructor bodies), import.meta is a SyntaxError.
+                // Check for import.meta pattern and reject it when not in module context.
+                if (Match(TokenType.Dot))
+                {
+                    var metaToken = Consume(TokenType.Identifier, "Expected 'meta' after 'import.'.");
+                    if (!string.Equals(metaToken.Lexeme, "meta", StringComparison.Ordinal))
+                    {
+                        throw new ParseException("Expected 'meta' after 'import.'.", metaToken, _source);
+                    }
+
+                    // import.meta is only valid in module context.
+                    if (!_options.AllowImportMeta)
+                    {
+                        throw new ParseException(
+                            "'import.meta' is only valid in module code.",
+                            importToken,
+                            _source);
+                    }
+
+                    // Create an ImportMetaExpression node for module context
+                    return new ImportMetaExpression(CreateSourceReference(importToken));
+                }
+
                 var importSymbol = Symbol.Intern(importToken.Lexeme);
                 expr = new IdentifierExpression(CreateSourceReference(importToken), importSymbol);
                 return ApplyCallSuffix(expr, allowCallSuffix);

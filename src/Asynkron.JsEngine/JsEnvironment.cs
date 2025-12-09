@@ -962,6 +962,32 @@ public sealed class JsEnvironment
     }
 
     /// <summary>
+    /// Checks if the given name has a var declaration in this environment or the global object.
+    /// Used by GlobalDeclarationInstantiation step 5.a to detect lexical declarations that
+    /// conflict with existing var declarations.
+    /// </summary>
+    public bool HasVarDeclaration(Symbol name)
+    {
+        // Check if there's a non-lexical binding in _values
+        if (_values.TryGetValue(name, out var binding) && !binding.IsLexical)
+        {
+            return true;
+        }
+
+        // For global scope, also check the global object for var declarations
+        if (IsGlobalFunctionScope)
+        {
+            var globalObject = GetRootGlobalObject();
+            if (globalObject is not null && globalObject.GetOwnPropertyDescriptor(name.Name) is not null)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Checks if the given name is a lexical declaration in the global environment.
     /// This checks the current scope's body lexical names and traverses enclosing scopes.
     /// Used by GlobalDeclarationInstantiation to detect var/function declarations that

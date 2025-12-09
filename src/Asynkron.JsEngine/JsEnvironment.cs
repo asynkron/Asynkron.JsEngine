@@ -227,8 +227,31 @@ public sealed class JsEnvironment
                 context?.RealmState);
         }
 
+        // Per ES spec GlobalDeclarationInstantiation step 6:
+        // If envRec.HasLexicalDeclaration(name) is true, throw a SyntaxError.
+        // This check must happen before checking _values because lexical bindings
+        // may be tracked separately in bodyLexicalNames across script evaluations.
+        // We need to check both the current scope AND enclosing scopes because
+        // strict scripts create wrapper environments around the global scope.
+        if (isGlobalScope && !isAnnexBFunction && HasGlobalLexicalName(scope, name))
+        {
+            throw StandardLibrary.ThrowSyntaxError(
+                $"Identifier '{name.Name}' has already been declared",
+                context,
+                context?.RealmState);
+        }
+
         if (scope._values.TryGetValue(name, out var existing))
         {
+            // Also check existing lexical bindings in the local scope
+            if (isGlobalScope && existing.IsLexical && !isAnnexBFunction)
+            {
+                throw StandardLibrary.ThrowSyntaxError(
+                    $"Identifier '{name.Name}' has already been declared",
+                    context,
+                    context?.RealmState);
+            }
+
             if (existing.IsConst || existing.IsGlobalConstant)
             {
                 TrackAnnexBBinding();
@@ -925,9 +948,114 @@ public sealed class JsEnvironment
         _bodyLexicalNames = names;
     }
 
+    /// <summary>
+    /// Merges the given lexical names into the existing set of body lexical names.
+    /// This is used during global script evaluation to preserve lexical bindings
+    /// from previous evalScript calls.
+    /// </summary>
+    internal void MergeBodyLexicalNames(HashSet<Symbol> names)
+    {
+        if (names.Count == 0)
+        {
+            return;
+        }
+
+        if (_bodyLexicalNames is null)
+        {
+            _bodyLexicalNames = new HashSet<Symbol>(names, ReferenceEqualityComparer<Symbol>.Instance);
+        }
+        else
+        {
+            _bodyLexicalNames.UnionWith(names);
+        }
+    }
+
     internal bool HasBodyLexicalName(Symbol name)
     {
         return _bodyLexicalNames is not null && _bodyLexicalNames.Contains(name);
+    }
+
+    /// <summary>
+    /// Checks if the given name has a var declaration in this environment or the global object.
+    /// Used by GlobalDeclarationInstantiation step 5.a to detect lexical declarations that
+    /// conflict with existing var declarations.
+    /// </summary>
+    public bool HasVarDeclaration(Symbol name)
+    {
+        // Check if there's a non-lexical binding in _values
+        if (_values.TryGetValue(name, out var binding) && !binding.IsLexical)
+        {
+            return true;
+        }
+
+        // For global scope, also check the global object for var declarations
+        if (IsGlobalFunctionScope)
+        {
+            var globalObject = GetRootGlobalObject();
+            if (globalObject is not null && globalObject.GetOwnPropertyDescriptor(name.Name) is not null)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if the given name is a lexical declaration in the global environment.
+    /// This checks the current scope's body lexical names and traverses enclosing scopes.
+    /// Used by GlobalDeclarationInstantiation to detect var/function declarations that
+    /// conflict with existing let/const/class bindings.
+    /// </summary>
+    public bool HasGlobalLexicalDeclaration(Symbol name)
+    {
+        // Check the current scope and all enclosing scopes for the lexical name
+        var current = this;
+        while (current is not null)
+        {
+            if (current.HasBodyLexicalName(name))
+            {
+                return true;
+            }
+
+            // Also check if there's a lexical binding in _values
+            if (current._values.TryGetValue(name, out var binding) && binding.IsLexical)
+            {
+                return true;
+            }
+
+            current = current.Enclosing;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if the given name is a lexical binding in the global environment chain.
+    /// This traverses the entire chain from the given scope up to the root global scope
+    /// to check for lexical bindings that might have been created in strict script wrappers.
+    /// </summary>
+    private static bool HasGlobalLexicalName(JsEnvironment scope, Symbol name)
+    {
+        var current = scope;
+        while (current is not null)
+        {
+            if (current.HasBodyLexicalName(name))
+            {
+                return true;
+            }
+
+            // Also check if there's a lexical binding in _values
+            if (current._values.TryGetValue(name, out var binding) && binding.IsLexical)
+            {
+                return true;
+            }
+
+            // Continue to enclosing scopes (important for strict script wrappers)
+            current = current.Enclosing;
+        }
+
+        return false;
     }
 
     internal void SetSimpleCatchParameters(HashSet<Symbol> names)

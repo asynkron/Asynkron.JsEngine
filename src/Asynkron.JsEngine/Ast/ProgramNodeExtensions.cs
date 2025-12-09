@@ -81,19 +81,18 @@ public static partial class TypedAstEvaluator
                 : new HashSet<Symbol>(lexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
             bodyLexicalNames.ExceptWith(simpleCatchParameterNames);
             context.BlockedFunctionVarNames = bodyLexicalNames;
-            executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
             var functionScope = executionEnvironment.GetFunctionScope();
-            if (executionKind != ExecutionKind.Eval)
-            {
-                functionScope.SetBodyLexicalNames(topLevelLexicalNames);
-                if (functionScope.IsGlobalFunctionScope &&
-                    functionScope.Enclosing is { IsGlobalFunctionScope: true } enclosingGlobal)
-                {
-                    enclosingGlobal.SetBodyLexicalNames(topLevelLexicalNames);
-                }
-            }
+            // Get the engine's true GlobalEnvironment for storing/checking lexical names.
+            // GlobalExecutionScope gets overwritten by each script, but GlobalEnvironment
+            // persists and should be the canonical location for global lexical declarations.
+            var trueGlobalEnvironment = context.RealmState.Engine?.GlobalEnvironment;
+            var globalScopeToCheck = trueGlobalEnvironment ?? functionScope;
+
+            // IMPORTANT: All conflict checks must happen BEFORE we merge any names.
+            // Otherwise we'd detect conflicts with names we just added ourselves.
             if (functionScope.IsGlobalFunctionScope)
             {
+                // Check if any new lexical names conflict with restricted globals
                 foreach (var blockedName in bodyLexicalNames)
                 {
                     if (functionScope.HasRestrictedGlobalProperty(blockedName))
@@ -103,6 +102,73 @@ public static partial class TypedAstEvaluator
                             context,
                             context.RealmState);
                     }
+                }
+
+                // Per ES spec GlobalDeclarationInstantiation step 5:
+                // For each name in lexNames (new script's let/const/class declarations):
+                //   5.a. If envRec.HasVarDeclaration(name) is true, throw SyntaxError
+                //   5.b. If envRec.HasLexicalDeclaration(name) is true, throw SyntaxError
+                //
+                // This checks new lexical names against EXISTING lexical declarations from
+                // previous scripts, preventing `let x` in a new script when `let x` already exists.
+                foreach (var lexicalName in topLevelLexicalNames)
+                {
+                    // Step 5.a: Check against existing var declarations
+                    if (functionScope.HasVarDeclaration(lexicalName))
+                    {
+                        throw StandardLibrary.ThrowSyntaxError(
+                            $"Identifier '{lexicalName.Name}' has already been declared",
+                            context,
+                            context.RealmState);
+                    }
+                    // Step 5.b: Check against existing lexical declarations
+                    if (globalScopeToCheck.HasGlobalLexicalDeclaration(lexicalName))
+                    {
+                        throw StandardLibrary.ThrowSyntaxError(
+                            $"Identifier '{lexicalName.Name}' has already been declared",
+                            context,
+                            context.RealmState);
+                    }
+                }
+
+                // Per ES spec GlobalDeclarationInstantiation step 6:
+                // Check ALL var names for conflicts with existing lexical declarations BEFORE
+                // creating any bindings. This ensures that a script like 'var x; var existingLet;'
+                // doesn't create 'x' when it should throw SyntaxError for 'existingLet'.
+                var allVarNames = CollectAllVarNames(program.Body);
+                foreach (var varName in allVarNames)
+                {
+                    if (globalScopeToCheck.HasGlobalLexicalDeclaration(varName))
+                    {
+                        throw StandardLibrary.ThrowSyntaxError(
+                            $"Identifier '{varName.Name}' has already been declared",
+                            context,
+                            context.RealmState);
+                    }
+                }
+            }
+
+            // Now that all conflict checks passed, merge/set the lexical names.
+            // For non-global scripts (eval, strict wrappers), we can SET since they're isolated.
+            // For the true GlobalEnvironment (non-strict global scripts), we must MERGE to preserve
+            // lexical names from previous evalScript calls.
+            if (executionKind != ExecutionKind.Eval &&
+                trueGlobalEnvironment is not null &&
+                ReferenceEquals(executionEnvironment, trueGlobalEnvironment))
+            {
+                // executionEnvironment IS the GlobalEnvironment - must merge to preserve cross-script names
+                trueGlobalEnvironment.MergeBodyLexicalNames(bodyLexicalNames);
+            }
+            else
+            {
+                // Isolated scope (eval, strict wrapper, etc.) - safe to set
+                executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+
+                // For strict wrappers, also merge top-level names to the true GlobalEnvironment
+                // so cross-script checks work correctly
+                if (executionKind != ExecutionKind.Eval && trueGlobalEnvironment is not null)
+                {
+                    trueGlobalEnvironment.MergeBodyLexicalNames(topLevelLexicalNames);
                 }
             }
 
@@ -213,6 +279,97 @@ public static partial class TypedAstEvaluator
             }
 
             break;
+        }
+    }
+
+    /// <summary>
+    /// Collects all var-declared names from the program body, including function declarations.
+    /// This is used for GlobalDeclarationInstantiation to check for conflicts before creating bindings.
+    /// </summary>
+    private static HashSet<Symbol> CollectAllVarNames(ImmutableArray<StatementNode> statements)
+    {
+        var names = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+        CollectVarNamesFromStatements(statements, names);
+        return names;
+    }
+
+    private static void CollectVarNamesFromStatements(ImmutableArray<StatementNode> statements, HashSet<Symbol> names)
+    {
+        foreach (var statement in statements)
+        {
+            CollectVarNamesFromStatement(statement, names);
+        }
+    }
+
+    private static void CollectVarNamesFromStatement(StatementNode statement, HashSet<Symbol> names)
+    {
+        switch (statement)
+        {
+            case VariableDeclaration { Kind: VariableKind.Var } varDeclaration:
+                foreach (var declarator in varDeclaration.Declarators)
+                {
+                    CollectBindingNames(declarator.Target, names);
+                }
+                break;
+            case FunctionDeclaration functionDeclaration:
+                names.Add(functionDeclaration.Name);
+                break;
+            case BlockStatement block:
+                CollectVarNamesFromStatements(block.Statements, names);
+                break;
+            case IfStatement ifStatement:
+                CollectVarNamesFromStatement(ifStatement.Then, names);
+                if (ifStatement.Else is not null)
+                {
+                    CollectVarNamesFromStatement(ifStatement.Else, names);
+                }
+                break;
+            case WhileStatement whileStatement:
+                CollectVarNamesFromStatement(whileStatement.Body, names);
+                break;
+            case DoWhileStatement doWhileStatement:
+                CollectVarNamesFromStatement(doWhileStatement.Body, names);
+                break;
+            case ForStatement forStatement:
+                if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar)
+                {
+                    foreach (var declarator in initVar.Declarators)
+                    {
+                        CollectBindingNames(declarator.Target, names);
+                    }
+                }
+                CollectVarNamesFromStatement(forStatement.Body, names);
+                break;
+            case ForEachStatement forEachStatement when forEachStatement.DeclarationKind == VariableKind.Var:
+                CollectBindingNames(forEachStatement.Target, names);
+                CollectVarNamesFromStatement(forEachStatement.Body, names);
+                break;
+            case ForEachStatement forEachStatement:
+                CollectVarNamesFromStatement(forEachStatement.Body, names);
+                break;
+            case TryStatement tryStatement:
+                CollectVarNamesFromStatements(tryStatement.TryBlock.Statements, names);
+                if (tryStatement.Catch is not null)
+                {
+                    CollectVarNamesFromStatements(tryStatement.Catch.Body.Statements, names);
+                }
+                if (tryStatement.Finally is not null)
+                {
+                    CollectVarNamesFromStatements(tryStatement.Finally.Statements, names);
+                }
+                break;
+            case SwitchStatement switchStatement:
+                foreach (var switchCase in switchStatement.Cases)
+                {
+                    CollectVarNamesFromStatements(switchCase.Body.Statements, names);
+                }
+                break;
+            case LabeledStatement labeledStatement:
+                CollectVarNamesFromStatement(labeledStatement.Statement, names);
+                break;
+            case WithStatement withStatement:
+                CollectVarNamesFromStatement(withStatement.Body, names);
+                break;
         }
     }
 }

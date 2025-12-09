@@ -7,26 +7,66 @@ internal static class Program
     {
         await using var engine = new JsEngine();
 
-        var code = @"
-// Test generator prototype property
-var obj = {
-  *method() {}
-};
+        var code = """
+var log = [];
+function source() {
+    log.push('source');
+    var iterator = {
+        next: function() {
+            log.push('iterator-step');
+            return {
+                get done() {
+                    log.push('iterator-done');
+                    return true;
+                },
+                get value() {
+                    log.push('iterator-value');
+                    return 1;
+                }
+            };
+        }
+    };
+    var source = {};
+    source[Symbol.iterator] = function() {
+        log.push('iterator');
+        return iterator;
+    };
+    return source;
+}
+function target() {
+    log.push('target');
+    return target = {
+        set q(v) {
+            log.push('set');
+        }
+    };
+}
+function targetKey() {
+    log.push('target-key');
+    return {
+        toString: function() {
+            log.push('target-key-tostring');
+            return 'q';
+        }
+    };
+}
 
-var g = obj.method;
-console.log('g.prototype:', g.prototype);
-console.log('g has prototype:', 'prototype' in g);
-console.log('hasOwnProperty prototype:', Object.prototype.hasOwnProperty.call(g, 'prototype'));
-console.log('g.prototype constructor:', g.prototype?.constructor === g);
+([target()[targetKey()]] = source());
 
-var desc = Object.getOwnPropertyDescriptor(g, 'prototype');
-console.log('descriptor:', desc);
-console.log('desc.value:', desc?.value);
-console.log('desc.writable:', desc?.writable);
-console.log('desc.enumerable:', desc?.enumerable);
-console.log('desc.configurable:', desc?.configurable);
-";
+console.log('Actual:', JSON.stringify(log));
+console.log('Expected:', JSON.stringify([
+    'source', 'iterator',
+    'target', 'target-key',
+    'iterator-step', 'iterator-done',
+    'target-key-tostring', 'set',
+]));
+""";
 
-        engine.Evaluate(code);
+        await engine.Evaluate(code);
+
+        // Get the log array and print it
+        var log = await engine.Evaluate("JSON.stringify(log)");
+        Console.WriteLine($"Actual: {log}");
+        Console.WriteLine("Expected: [\"source\",\"iterator\",\"target\",\"target-key\",\"iterator-step\",\"iterator-done\",\"target-key-tostring\",\"set\"]");
     }
 }

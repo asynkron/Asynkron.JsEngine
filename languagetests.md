@@ -1,6 +1,3 @@
-       Expressions_arrowFunction
-        Expressions_arrowFunction("language/expressions/arrow-function/prototype-rules.js",False)
-        Expressions_arrowFunction("language/expressions/arrow-function/prototype-rules.js",True)
        Expressions_assignment_destructuring
         Expressions_assignment_destructuring("language/expressions/assignment/destructuring/iterator-destructuring-property-reference-target-evaluation-order.js",False)
         Expressions_assignment_destructuring("language/expressions/assignment/destructuring/iterator-destructuring-property-reference-target-evaluation-order.js",True)
@@ -56,11 +53,6 @@
         Expressions_import_meta_syntax("language/expressions/import.meta/syntax/goal-function-params-or-body.js",True)
         Expressions_import_meta_syntax("language/expressions/import.meta/syntax/goal-generator-params-or-body.js",False)
         Expressions_import_meta_syntax("language/expressions/import.meta/syntax/goal-generator-params-or-body.js",True)
-       Expressions_instanceof
-        Expressions_instanceof("language/expressions/instanceof/prototype-getter-with-object-throws.js",False)
-        Expressions_instanceof("language/expressions/instanceof/prototype-getter-with-object-throws.js",True)
-        Expressions_instanceof("language/expressions/instanceof/prototype-getter-with-object.js",False)
-        Expressions_instanceof("language/expressions/instanceof/prototype-getter-with-object.js",True)
        Expressions_object
         Expressions_object("language/expressions/object/__proto__-permitted-dup-shorthand.js",False)
         Expressions_object("language/expressions/object/__proto__-permitted-dup-shorthand.js",True)
@@ -73,8 +65,6 @@
         Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-ownkeys-returned-keys-order.js",True)
        Expressions_object_methodDefinition
         Expressions_object_methodDefinition("language/expressions/object/method-definition/generator-invoke-fn-no-strict.js",False)
-        Expressions_object_methodDefinition("language/expressions/object/method-definition/generator-prototype-prop.js",False)
-        Expressions_object_methodDefinition("language/expressions/object/method-definition/generator-prototype-prop.js",True)
         Expressions_object_methodDefinition("language/expressions/object/method-definition/generator-super-prop-param.js",False)
         Expressions_object_methodDefinition("language/expressions/object/method-definition/generator-super-prop-param.js",True)
         Expressions_object_methodDefinition("language/expressions/object/method-definition/name-super-prop-param.js",False)
@@ -104,9 +94,6 @@
         Expressions_super("language/expressions/super/prop-expr-getsuperbase-before-topropertykey-putvalue-increment.js",True)
         Expressions_super("language/expressions/super/realm.js",False)
         Expressions_super("language/expressions/super/realm.js",True)
-       Expressions_typeof
-        Expressions_typeof("language/expressions/typeof/proxy.js",False)
-        Expressions_typeof("language/expressions/typeof/proxy.js",True)
        Expressions_yield
         Expressions_yield("language/expressions/yield/from-with.js",False)
         Expressions_yield("language/expressions/yield/rhs-template-middle.js",False)
@@ -229,17 +216,6 @@
        Statements_awaitUsing
         Statements_awaitUsing("language/statements/await-using/throws-if-initializer-not-object.js",False)
         Statements_awaitUsing("language/statements/await-using/throws-if-initializer-not-object.js",True)
-       Statements_class_definition
-        Statements_class_definition("language/statements/class/definition/accessors.js",False)
-        Statements_class_definition("language/statements/class/definition/accessors.js",True)
-        Statements_class_definition("language/statements/class/definition/getters-prop-desc.js",False)
-        Statements_class_definition("language/statements/class/definition/getters-prop-desc.js",True)
-        Statements_class_definition("language/statements/class/definition/methods.js",False)
-        Statements_class_definition("language/statements/class/definition/methods.js",True)
-        Statements_class_definition("language/statements/class/definition/numeric-property-names.js",False)
-        Statements_class_definition("language/statements/class/definition/numeric-property-names.js",True)
-        Statements_class_definition("language/statements/class/definition/setters-prop-desc.js",False)
-        Statements_class_definition("language/statements/class/definition/setters-prop-desc.js",True)
        Statements_class_elements
         Statements_class_elements("language/statements/class/elements/privatename-not-valid-eval-earlyerr-1.js",False)
         Statements_class_elements("language/statements/class/elements/privatename-not-valid-eval-earlyerr-1.js",True)
@@ -273,9 +249,6 @@
         Statements_class_subclass("language/statements/class/subclass/default-constructor-2.js",True)
         Statements_class_subclass("language/statements/class/subclass/default-constructor-spread-override.js",False)
         Statements_class_subclass("language/statements/class/subclass/default-constructor-spread-override.js",True)
-       Statements_class_subclass_builtinObjects_Object
-        Statements_class_subclass_builtinObjects_Object("language/statements/class/subclass/builtin-objects/Object/constructor-return-undefined-throws.js",False)
-        Statements_class_subclass_builtinObjects_Object("language/statements/class/subclass/builtin-objects/Object/constructor-return-undefined-throws.js",True)
        Statements_const_syntax
         Statements_const_syntax("language/statements/const/syntax/const-invalid-assignment-next-expression-for.js",False)
         Statements_const_syntax("language/statements/const/syntax/const-invalid-assignment-next-expression-for.js",True)
@@ -313,8 +286,6 @@
         Statements_function("language/statements/function/S13.2_A8_T1.js",True)
         Statements_function("language/statements/function/S13.2_A8_T2.js",True)
        Statements_labeled
-        Statements_labeled("language/statements/labeled/cptn-break.js",False)
-        Statements_labeled("language/statements/labeled/cptn-break.js",True)
         Statements_labeled("language/statements/labeled/value-await-non-module.js",False)
         Statements_labeled("language/statements/labeled/value-await-non-module.js",True)
         Statements_labeled("language/statements/labeled/value-yield-non-strict.js",False)
@@ -327,18 +298,6 @@
        Statements_try
         Statements_try("language/statements/try/catch-parameter-boundnames-restriction-arguments-eval-throws.js",True)
         Statements_try("language/statements/try/catch-parameter-boundnames-restriction-eval-eval-throws.js",True)
-        Statements_try("language/statements/try/completion-values.js",False)
-        Statements_try("language/statements/try/completion-values.js",True)
-        Statements_try("language/statements/try/cptn-catch.js",False)
-        Statements_try("language/statements/try/cptn-catch.js",True)
-        Statements_try("language/statements/try/cptn-finally-from-catch.js",False)
-        Statements_try("language/statements/try/cptn-finally-from-catch.js",True)
-        Statements_try("language/statements/try/cptn-finally-skip-catch.js",False)
-        Statements_try("language/statements/try/cptn-finally-skip-catch.js",True)
-        Statements_try("language/statements/try/cptn-finally-wo-catch.js",False)
-        Statements_try("language/statements/try/cptn-finally-wo-catch.js",True)
-        Statements_try("language/statements/try/cptn-try.js",False)
-        Statements_try("language/statements/try/cptn-try.js",True)
         Statements_try("language/statements/try/S12.14_A17.js",False)
         Statements_try("language/statements/try/S12.14_A17.js",True)
        Statements_using

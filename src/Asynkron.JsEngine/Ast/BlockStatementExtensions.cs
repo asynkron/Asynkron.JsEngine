@@ -97,7 +97,10 @@ public static partial class TypedAstEvaluator
                 if (functionDeclaration.Function.IsAsync || functionDeclaration.Function.IsGenerator)
                 {
                     // Create a lexical binding for async/generator functions (they're block-scoped only)
-                    var asyncGenFunctionValue = CreateFunctionValue(functionDeclaration.Function, blockEnvironment, context);
+                    // Pass createFunctionNameEnvironment: true so the function doesn't create an internal
+                    // const binding for its name (the binding is handled by blockEnvironment.Define below).
+                    var asyncGenFunctionValue = CreateFunctionValue(functionDeclaration.Function, blockEnvironment, context,
+                        createFunctionNameEnvironment: true);
                     blockEnvironment.Define(
                         functionDeclaration.Name,
                         asyncGenFunctionValue,
@@ -129,7 +132,10 @@ public static partial class TypedAstEvaluator
                     (functionScope.IsGlobalFunctionScope &&
                      functionScope.HasOwnLexicalBinding(functionDeclaration.Name));
 
-                var functionValue = CreateFunctionValue(functionDeclaration.Function, blockEnvironment, context);
+                // Pass createFunctionNameEnvironment: true so the function doesn't create an internal
+                // const binding for its name (the binding is handled by blockEnvironment.Define below).
+                var functionValue = CreateFunctionValue(functionDeclaration.Function, blockEnvironment, context,
+                    createFunctionNameEnvironment: true);
 
                 blockEnvironment.Define(functionDeclaration.Name, functionValue, isLexical: true,
                     blocksFunctionScopeOverride: true);
@@ -218,7 +224,10 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
-                var functionValue = CreateFunctionValue(functionDeclaration.Function, blockEnvironment, context);
+                // Pass createFunctionNameEnvironment: true so the function doesn't create an internal
+                // const binding for its name (the binding is handled by blockEnvironment.Define below).
+                var functionValue = CreateFunctionValue(functionDeclaration.Function, blockEnvironment, context,
+                    createFunctionNameEnvironment: true);
                 blockEnvironment.Define(
                     functionDeclaration.Name,
                     functionValue,

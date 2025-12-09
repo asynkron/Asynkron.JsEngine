@@ -259,7 +259,11 @@ public static partial class TypedAstEvaluator
 
                         if (hoistFunctionValues)
                         {
-                            var functionValue = CreateFunctionValue(functionDeclaration.Function, environment, context);
+                            // Pass createFunctionNameEnvironment: true so the TypedFunction doesn't create
+                            // an internal const binding for the function name. For function declarations,
+                            // the name binding lives in the outer (function/global) scope and is mutable.
+                            var functionValue = CreateFunctionValue(functionDeclaration.Function, environment, context,
+                                createFunctionNameEnvironment: true);
                             environment.DefineFunctionScoped(
                                 functionDeclaration.Name,
                                 functionValue,

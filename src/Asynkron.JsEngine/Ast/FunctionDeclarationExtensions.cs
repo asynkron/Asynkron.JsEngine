@@ -29,7 +29,10 @@ public static partial class TypedAstEvaluator
                     return EmptyCompletion;
                 }
 
-                var functionValue = CreateFunctionValue(declaration.Function, environment, context);
+                // Pass createFunctionNameEnvironment: true so the function doesn't create an internal
+                // const binding for its name (the binding is handled by functionScope.DefineFunctionScoped below).
+                var functionValue = CreateFunctionValue(declaration.Function, environment, context,
+                    createFunctionNameEnvironment: true);
                 bool? globalFunctionConfigurable = functionScope.IsGlobalFunctionScope ? true : null;
                 bool? globalVarConfigurable = functionScope.IsGlobalFunctionScope ? true : null;
                 functionScope.DefineFunctionScoped(

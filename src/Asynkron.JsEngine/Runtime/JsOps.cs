@@ -1443,6 +1443,25 @@ internal static class JsOps
                     return jsObject.TryGetProperty(propertyName, target, context, out value);
                 }
 
+                // For Symbol primitives, first try own properties, then fall back to Symbol.prototype
+                if (propertyAccessor is TypedAstSymbol symbol)
+                {
+                    if (symbol.TryGetProperty(propertyName, out value))
+                    {
+                        return true;
+                    }
+
+                    // Look up in Symbol.prototype chain
+                    var symbolProto = context?.RealmState?.SymbolPrototype;
+                    if (symbolProto is not null && symbolProto.TryGetProperty(propertyName, target, context, out value))
+                    {
+                        return true;
+                    }
+
+                    value = null;
+                    return false;
+                }
+
                 return propertyAccessor.TryGetProperty(propertyName, target, out value);
             }
             catch (ThrowSignal signal)

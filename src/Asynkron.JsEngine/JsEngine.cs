@@ -607,6 +607,79 @@ public sealed class JsEngine : IAsyncDisposable
         return Evaluate(program, cancellationToken);
     }
 
+    /// <summary>
+    ///     Synchronously evaluates JavaScript source code without using the event loop.
+    ///     This is much faster for code that doesn't require async features (setTimeout,
+    ///     Promises, async/await, etc.). Use this when you know the code is purely synchronous.
+    /// </summary>
+    /// <remarks>
+    ///     This method does NOT support:
+    ///     - setTimeout/setInterval callbacks
+    ///     - Promise resolution (Promises will be returned but not awaited)
+    ///     - async/await (will throw or return unresolved promises)
+    ///     - Any other event-loop dependent features
+    ///
+    ///     For code that uses these features, use <see cref="Evaluate"/> instead.
+    /// </remarks>
+    /// <param name="source">The JavaScript source code to evaluate.</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    /// <returns>The result of the evaluation.</returns>
+    public object? EvaluateSync(string source, CancellationToken cancellationToken = default)
+    {
+        var program = ParseForExecution(source);
+        return EvaluateSyncInternal(program, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Synchronously evaluates a pre-parsed program without using the event loop.
+    /// </summary>
+    private object? EvaluateSyncInternal(
+        ParsedProgram program,
+        CancellationToken cancellationToken = default,
+        string? sourcePath = null,
+        bool forceModule = false)
+    {
+        var combinedToken = CreateEvaluationCancellationToken(cancellationToken, out var timeoutCts);
+        try
+        {
+            var isModule = forceModule || HasModuleStatements(program.Typed);
+            if (isModule)
+            {
+                string? moduleKey = null;
+                ModuleEntry entry;
+                if (!string.IsNullOrEmpty(sourcePath))
+                {
+                    moduleKey = NormalizeModulePath(sourcePath!, null);
+                    if (!_moduleRegistry.TryGetValue(moduleKey, out entry!))
+                    {
+                        entry = CreateModuleEntry(EnsureStrictProgram(program),
+                            CreateModuleEnvironment(),
+                            new JsObject(),
+                            moduleKey);
+                        _moduleRegistry[moduleKey] = entry;
+                    }
+                }
+                else
+                {
+                    entry = CreateModuleEntry(EnsureStrictProgram(program),
+                        CreateModuleEnvironment(),
+                        new JsObject(),
+                        string.Empty);
+                }
+
+                EnsureModuleInstantiated(entry);
+                EnsureModuleEvaluated(entry);
+                return entry.LastValue;
+            }
+
+            return ExecuteProgram(program, GlobalEnvironment, combinedToken);
+        }
+        finally
+        {
+            timeoutCts?.Dispose();
+        }
+    }
+
     public Task<object?> EvaluateModule(string source, string? sourcePath = null,
         CancellationToken cancellationToken = default)
     {

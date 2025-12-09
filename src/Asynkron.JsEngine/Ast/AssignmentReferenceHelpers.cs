@@ -190,72 +190,126 @@ public static partial class TypedAstEvaluator
             _ => throw new InvalidOperationException($"Unexpected primitive type: {primitiveTarget?.GetType()}")
         };
 
-        // Per ES spec, primitives are wrapped in non-extensible objects for [[Set]] purposes.
-        // We need to perform the [[Set]] operation which may invoke setters from the prototype chain.
-        // The receiver (thisValue) is the original primitive, not the wrapper.
+        // Per ES spec 6.2.3.2 PutValue, the [[Set]] operation is performed on the wrapper object
+        // with the original primitive as the receiver. The wrapper object's SetProperty method
+        // will handle the prototype chain lookup, including Proxy traps.
+        //
+        // Per ES spec OrdinarySet, when the receiver differs from the target (which is the case
+        // for primitives where receiver is the primitive but target is the wrapper), and no
+        // property is found on the receiver, [[Set]] returns false for creating own properties.
+        //
+        // We use the OrdinaryObjectInternalSlotOperations approach:
+        // 1. Check if wrapper has the property (own or inherited)
+        // 2. If inherited accessor with setter, invoke it with primitive receiver
+        // 3. If trying to create a new own property on the primitive receiver, fail
 
-        // Check for setters in the prototype chain first
-        var setter = wrapper.GetSetter(propertyName);
-        if (setter is not null)
-        {
-            // Invoke the setter with the original primitive as the receiver
-            InvokeCallable(setter, [value], primitiveTarget, context);
-            return;
-        }
+        // Try to perform the [[Set]] operation through the wrapper's prototype chain
+        var succeeded = TrySetPrimitiveProperty(wrapper, propertyName, value, primitiveTarget, context);
 
-        // Check the prototype chain for inherited accessor properties with setters
-        var prototype = wrapper.Prototype;
-        while (prototype is not null)
-        {
-            var inheritedDescriptor = prototype.GetOwnPropertyDescriptor(propertyName);
-            if (inheritedDescriptor is not null)
-            {
-                if (inheritedDescriptor.IsAccessorDescriptor)
-                {
-                    if (inheritedDescriptor.Set is not null)
-                    {
-                        // Invoke the setter with the original primitive as the receiver
-                        InvokeCallable(inheritedDescriptor.Set, [value], primitiveTarget, context);
-                        return;
-                    }
-
-                    // Accessor with no setter: fail silently in sloppy mode, throw in strict
-                    if (isStrict)
-                    {
-                        throw StandardLibrary.ThrowTypeError(
-                            $"Cannot set property '{propertyName}' that has only a getter.",
-                            context,
-                            realm);
-                    }
-
-                    return;
-                }
-
-                // Data property found in prototype - primitives can't have own properties,
-                // so we can't create a new own property. This is a silent failure in sloppy mode.
-                if (isStrict)
-                {
-                    throw StandardLibrary.ThrowTypeError(
-                        $"Cannot create property '{propertyName}' on {GetPrimitiveTypeName(primitiveTarget)} '{primitiveTarget}'",
-                        context,
-                        realm);
-                }
-
-                return;
-            }
-
-            prototype = prototype.Prototype;
-        }
-
-        // No property found anywhere - trying to add a new property to a primitive.
-        // This is a silent no-op in sloppy mode, TypeError in strict mode.
-        if (isStrict)
+        // Per ES spec 6.2.3.2 step 6.c: If succeeded is false and IsStrictReference(V) is true,
+        // throw a TypeError exception.
+        if (!succeeded && isStrict)
         {
             throw StandardLibrary.ThrowTypeError(
                 $"Cannot create property '{propertyName}' on {GetPrimitiveTypeName(primitiveTarget)} '{primitiveTarget}'",
                 context,
                 realm);
         }
+    }
+
+    /// <summary>
+    ///     Attempts to set a property on a primitive's wrapper object with the primitive as the receiver.
+    ///     Returns true if the operation succeeded (setter was invoked), false otherwise.
+    /// </summary>
+    private static bool TrySetPrimitiveProperty(
+        JsObject wrapper,
+        string propertyName,
+        object? value,
+        object? receiver,
+        EvaluationContext context)
+    {
+        // First check if there's an own property on the wrapper
+        var ownDescriptor = wrapper.GetOwnPropertyDescriptor(propertyName);
+        if (ownDescriptor is not null)
+        {
+            if (ownDescriptor.IsAccessorDescriptor)
+            {
+                if (ownDescriptor.Set is not null)
+                {
+                    InvokeCallable(ownDescriptor.Set, [value], receiver, context);
+                    return true;
+                }
+                // Accessor with only getter - [[Set]] returns false
+                return false;
+            }
+            // Data property - primitives can't have own data properties that are writable
+            // Return false since we can't create an own property on the receiver
+            return false;
+        }
+
+        // Walk the prototype chain looking for properties
+        // Use IJsPropertyAccessor to handle both JsObject and other types (like JsProxy)
+        IJsPropertyAccessor? current = wrapper.Prototype;
+        if (current is null && wrapper is IPrototypeAccessorProvider provider)
+        {
+            current = provider.PrototypeAccessor;
+        }
+
+        while (current is not null)
+        {
+            // Handle JsProxy specially - delegate [[Set]] to the proxy
+            if (current is JsProxy proxy)
+            {
+                // Proxy's SetProperty will invoke the 'set' trap if defined
+                // The trap receives (target, propertyName, value, receiver)
+                try
+                {
+                    proxy.SetProperty(propertyName, value, receiver);
+                    return true;
+                }
+                catch (ThrowSignal)
+                {
+                    // Proxy trap threw - re-throw
+                    throw;
+                }
+            }
+
+            var inheritedDescriptor = current.GetOwnPropertyDescriptor(propertyName);
+            if (inheritedDescriptor is not null)
+            {
+                if (inheritedDescriptor.IsAccessorDescriptor)
+                {
+                    if (inheritedDescriptor.Set is not null)
+                    {
+                        InvokeCallable(inheritedDescriptor.Set, [value], receiver, context);
+                        return true;
+                    }
+                    // Accessor with only getter - [[Set]] returns false
+                    return false;
+                }
+
+                // Inherited data property found. Per ES spec, when receiver differs from the
+                // object where the property was found, [[Set]] attempts to create an own
+                // property on the receiver. But for primitives, this always fails.
+                return false;
+            }
+
+            // Move to next prototype in the chain
+            IJsPropertyAccessor? next = null;
+            if (current is IJsObjectLike objectLike)
+            {
+                next = objectLike.Prototype;
+            }
+            if (next is null && current is IPrototypeAccessorProvider protoProvider)
+            {
+                next = protoProvider.PrototypeAccessor;
+            }
+            current = next;
+        }
+
+        // No property found in the chain. Per ES spec, [[Set]] would try to create
+        // an own property on the receiver. For primitives, this is not possible.
+        return false;
     }
 
     private static JsObject CreateBooleanWrapper(bool value, RealmState? realm)

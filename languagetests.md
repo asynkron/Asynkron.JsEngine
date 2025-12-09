@@ -1,14 +1,4 @@
-       EvalCode_direct
-        EvalCode_direct("language/eval-code/direct/lex-env-distinct-cls.js",False)
-        EvalCode_direct("language/eval-code/direct/lex-env-distinct-const.js",False)
-        EvalCode_direct("language/eval-code/direct/lex-env-distinct-let.js",False)
        EvalCode_indirect
-        EvalCode_indirect("language/eval-code/indirect/lex-env-distinct-cls.js",False)
-        EvalCode_indirect("language/eval-code/indirect/lex-env-distinct-cls.js",True)
-        EvalCode_indirect("language/eval-code/indirect/lex-env-distinct-const.js",False)
-        EvalCode_indirect("language/eval-code/indirect/lex-env-distinct-const.js",True)
-        EvalCode_indirect("language/eval-code/indirect/lex-env-distinct-let.js",False)
-        EvalCode_indirect("language/eval-code/indirect/lex-env-distinct-let.js",True)
         EvalCode_indirect("language/eval-code/indirect/var-env-lower-lex-non-strict.js",False)
         EvalCode_indirect("language/eval-code/indirect/var-env-lower-lex-non-strict.js",True)
        Expressions_dynamicImport

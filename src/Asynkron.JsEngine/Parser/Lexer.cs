@@ -1489,23 +1489,28 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
 
         var lastToken = _tokens[^1].Type;
 
-        // Check for function/class body context (produces a value - division follows)
-        // After ) with function/class/method declaration pattern: function() { }, class { }
+        // Check for function body context
+        // After ) with function pattern: function() { }, async function() { }
         if (lastToken == TokenType.RightParen)
         {
-            // Look back for function/async/class to identify function bodies
-            // Pattern: function(...) { } or async function(...) { } or method(...) { }
-            if (IsFunctionBodyContext())
+            // Look back for function/async to identify function bodies
+            var funcContext = IsFunctionBodyContext();
+            if (funcContext.IsFunctionBody)
             {
-                return BraceKind.FunctionBody;
+                // Function declarations allow regex after closing brace (they're statements)
+                // Function expressions produce values, so division follows
+                return funcContext.IsDeclaration ? BraceKind.StatementBlock : BraceKind.FunctionBody;
             }
         }
 
         // Class body after class keyword or extends clause
         // Pattern: class { } or class X { } or class X extends Y { }
-        if (IsClassBodyContext())
+        var classContext = IsClassBodyContext();
+        if (classContext.IsClassBody)
         {
-            return BraceKind.FunctionBody; // Class bodies are similar to function bodies
+            // Class declarations allow regex after closing brace (they're statements)
+            // Class expressions produce values, so division follows (they're expressions)
+            return classContext.IsDeclaration ? BraceKind.StatementBlock : BraceKind.FunctionBody;
         }
 
         // Arrow function body: () => { }
@@ -1584,8 +1589,9 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
     /// <summary>
     /// Checks if the current { is a function body by looking back through tokens.
     /// Called when last token is RightParen.
+    /// Returns (isFunctionBody: bool, isDeclaration: bool).
     /// </summary>
-    private bool IsFunctionBodyContext()
+    private (bool IsFunctionBody, bool IsDeclaration) IsFunctionBodyContext()
     {
         // Look back for function keyword or method-like patterns
         // We need to skip the parentheses and look for function/async
@@ -1609,7 +1615,9 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                         // function(...) or async function(...) or *generator syntax
                         if (beforeParen is TokenType.Function)
                         {
-                            return true;
+                            // Anonymous function: function() { }
+                            // Check if it's a declaration (can't be - anonymous functions are expressions)
+                            return (true, false);
                         }
                         // function name(...) pattern
                         if (beforeParen is TokenType.Identifier)
@@ -1618,32 +1626,56 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                             if (i > 1)
                             {
                                 var beforeIdent = _tokens[i - 2].Type;
-                                if (beforeIdent is TokenType.Function or TokenType.Async or TokenType.Star)
+                                if (beforeIdent is TokenType.Function)
                                 {
-                                    return true;
+                                    // function name() { } - check if declaration
+                                    var isDecl = IsDeclarationContext(i - 2);
+                                    return (true, isDecl);
+                                }
+                                if (beforeIdent is TokenType.Star && i > 2)
+                                {
+                                    // *name() or function *name() { } - generator
+                                    var beforeStar = _tokens[i - 3].Type;
+                                    if (beforeStar is TokenType.Function)
+                                    {
+                                        var isDecl = IsDeclarationContext(i - 3);
+                                        return (true, isDecl);
+                                    }
+                                    // Method generator: * name() in class/object
+                                    return (true, false);
+                                }
+                                if (beforeIdent is TokenType.Async)
+                                {
+                                    // async name() { }
+                                    var isDecl = IsDeclarationContext(i - 2);
+                                    return (true, isDecl);
                                 }
                                 // async function name(...)
                                 if (beforeIdent is TokenType.Identifier && i > 2 &&
                                     _tokens[i - 3].Type is TokenType.Async)
                                 {
-                                    return true;
+                                    // Check if there's 'function' between async and name
+                                    if (i > 3 && _tokens[i - 2].Lexeme == "function")
+                                    {
+                                        var isDecl = IsDeclarationContext(i - 3);
+                                        return (true, isDecl);
+                                    }
+                                    return (true, false);
                                 }
                             }
                             // Method syntax: name(...) { } in object/class
-                            // Check if we're in an appropriate context
-                            // For simplicity, if we see an identifier followed by (...),
-                            // and we're not at the start, treat as method
-                            return true; // Treat methods as function bodies
+                            // Methods are never declarations at the top level
+                            return (true, false);
                         }
                         // get/set accessor: get name() or set name()
                         if (beforeParen is TokenType.Get or TokenType.Set)
                         {
-                            return true;
+                            return (true, false); // Accessors are always in objects/classes
                         }
                         // Static method: static name(...)
                         if (beforeParen is TokenType.Static)
                         {
-                            return true;
+                            return (true, false); // Static methods are always in classes
                         }
                         // Arrow function with params: (...) => {}
                         // This is handled separately via Arrow token
@@ -1652,13 +1684,14 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                 }
             }
         }
-        return false;
+        return (false, false);
     }
 
     /// <summary>
-    /// Checks if the current { is a class body.
+    /// Checks if the current { is a class body and determines if it's a declaration or expression.
+    /// Returns (isClassBody: bool, isDeclaration: bool).
     /// </summary>
-    private bool IsClassBodyContext()
+    private (bool IsClassBody, bool IsDeclaration) IsClassBodyContext()
     {
         // Look back for class keyword
         // Patterns: class { }, class X { }, class X extends Y { }
@@ -1667,16 +1700,56 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             var token = _tokens[i].Type;
             if (token is TokenType.Class)
             {
-                return true;
+                // Found class keyword - now check if it's a declaration or expression
+                // Class declaration: class appears at statement position (after ; } { or at start)
+                // Class expression: class appears in expression context (after = ( [ , : etc.)
+                var isDeclaration = IsDeclarationContext(i);
+                return (true, isDeclaration);
             }
             // Stop looking if we hit something that couldn't be part of a class header
             if (token is TokenType.Semicolon or TokenType.LeftBrace or TokenType.RightBrace or
                 TokenType.Function or TokenType.Return or TokenType.If or TokenType.For or
                 TokenType.While or TokenType.Do or TokenType.Switch or TokenType.Try)
             {
-                return false;
+                return (false, false);
             }
         }
+        return (false, false);
+    }
+
+    /// <summary>
+    /// Determines if the token at the given index is at a declaration (statement) position.
+    /// A declaration position is after ;, {, }, or at the start of the token stream.
+    /// </summary>
+    private bool IsDeclarationContext(int classOrFunctionIndex)
+    {
+        if (classOrFunctionIndex == 0)
+        {
+            return true; // Start of file is declaration context
+        }
+
+        var prevToken = _tokens[classOrFunctionIndex - 1].Type;
+
+        // Declaration context: after statement terminators or block delimiters
+        // These indicate the start of a new statement where declarations are allowed
+        if (prevToken is TokenType.Semicolon or TokenType.LeftBrace or TokenType.RightBrace)
+        {
+            return true;
+        }
+
+        // After control flow keywords that start statements
+        if (prevToken is TokenType.Else or TokenType.Do)
+        {
+            return true;
+        }
+
+        // After colon in case/default statements (statements follow)
+        // But NOT after colon in object literals (expressions follow)
+        // This is tricky - for now, treat colon as expression context
+        // since object literals are more common
+
+        // Everything else is expression context
+        // This includes: = ( [ , : ? || && + - * / etc.
         return false;
     }
 

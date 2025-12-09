@@ -27,7 +27,7 @@ public static partial class TypedAstEvaluator
             cancellationToken,
             executionKind,
             false);
-        if (inheritedPrivateNameScopes is { IsDefault: false } scopes && scopes.Length > 0)
+        if (inheritedPrivateNameScopes is { IsDefault: false, Length: > 0 } scopes)
         {
             context.EnterPrivateNameScopes(scopes);
             context.RealmState.Logger?.LogInformation(
@@ -39,9 +39,9 @@ public static partial class TypedAstEvaluator
         using var nameHintHandle = functionNameHint is not null
             ? context.EnterFunctionNameHint(functionNameHint)
             : null;
-            using var programActivity =
-                Activity.Current?.StartEvaluatorActivity("Program", context, program.Source);
-            programActivity?.SetTag("js.program.strict", program.IsStrict);
+        using var programActivity =
+            Activity.Current?.StartEvaluatorActivity("Program", context, program.Source);
+        programActivity?.SetTag("js.program.strict", program.IsStrict);
             var executionEnvironment = program.IsStrict && createStrictEnvironment
                 ? new JsEnvironment(environment, true, true,
                     treatAsGlobalFunctionScope: environment.IsGlobalFunctionScope)
@@ -303,73 +303,85 @@ public static partial class TypedAstEvaluator
 
     private static void CollectVarNamesFromStatement(StatementNode statement, HashSet<Symbol> names)
     {
-        switch (statement)
+        while (true)
         {
-            case VariableDeclaration { Kind: VariableKind.Var } varDeclaration:
-                foreach (var declarator in varDeclaration.Declarators)
-                {
-                    CollectBindingNames(declarator.Target, names);
-                }
-                break;
-            case FunctionDeclaration functionDeclaration:
-                names.Add(functionDeclaration.Name);
-                break;
-            case BlockStatement block:
-                CollectVarNamesFromStatements(block.Statements, names);
-                break;
-            case IfStatement ifStatement:
-                CollectVarNamesFromStatement(ifStatement.Then, names);
-                if (ifStatement.Else is not null)
-                {
-                    CollectVarNamesFromStatement(ifStatement.Else, names);
-                }
-                break;
-            case WhileStatement whileStatement:
-                CollectVarNamesFromStatement(whileStatement.Body, names);
-                break;
-            case DoWhileStatement doWhileStatement:
-                CollectVarNamesFromStatement(doWhileStatement.Body, names);
-                break;
-            case ForStatement forStatement:
-                if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar)
-                {
-                    foreach (var declarator in initVar.Declarators)
+            switch (statement)
+            {
+                case VariableDeclaration { Kind: VariableKind.Var } varDeclaration:
+                    foreach (var declarator in varDeclaration.Declarators)
                     {
                         CollectBindingNames(declarator.Target, names);
                     }
-                }
-                CollectVarNamesFromStatement(forStatement.Body, names);
-                break;
-            case ForEachStatement forEachStatement when forEachStatement.DeclarationKind == VariableKind.Var:
-                CollectBindingNames(forEachStatement.Target, names);
-                CollectVarNamesFromStatement(forEachStatement.Body, names);
-                break;
-            case ForEachStatement forEachStatement:
-                CollectVarNamesFromStatement(forEachStatement.Body, names);
-                break;
-            case TryStatement tryStatement:
-                CollectVarNamesFromStatements(tryStatement.TryBlock.Statements, names);
-                if (tryStatement.Catch is not null)
-                {
-                    CollectVarNamesFromStatements(tryStatement.Catch.Body.Statements, names);
-                }
-                if (tryStatement.Finally is not null)
-                {
-                    CollectVarNamesFromStatements(tryStatement.Finally.Statements, names);
-                }
-                break;
-            case SwitchStatement switchStatement:
-                foreach (var switchCase in switchStatement.Cases)
-                {
-                    CollectVarNamesFromStatements(switchCase.Body.Statements, names);
-                }
-                break;
-            case LabeledStatement labeledStatement:
-                CollectVarNamesFromStatement(labeledStatement.Statement, names);
-                break;
-            case WithStatement withStatement:
-                CollectVarNamesFromStatement(withStatement.Body, names);
-                break;
+
+                    break;
+                case FunctionDeclaration functionDeclaration:
+                    names.Add(functionDeclaration.Name);
+                    break;
+                case BlockStatement block:
+                    CollectVarNamesFromStatements(block.Statements, names);
+                    break;
+                case IfStatement ifStatement:
+                    CollectVarNamesFromStatement(ifStatement.Then, names);
+                    if (ifStatement.Else is not null)
+                    {
+                        statement = ifStatement.Else;
+                        continue;
+                    }
+
+                    break;
+                case WhileStatement whileStatement:
+                    statement = whileStatement.Body;
+                    continue;
+                case DoWhileStatement doWhileStatement:
+                    statement = doWhileStatement.Body;
+                    continue;
+                case ForStatement forStatement:
+                    if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar)
+                    {
+                        foreach (var declarator in initVar.Declarators)
+                        {
+                            CollectBindingNames(declarator.Target, names);
+                        }
+                    }
+
+                    statement = forStatement.Body;
+                    continue;
+                case ForEachStatement { DeclarationKind: VariableKind.Var } forEachStatement:
+                    CollectBindingNames(forEachStatement.Target, names);
+                    statement = forEachStatement.Body;
+                    continue;
+                case ForEachStatement forEachStatement:
+                    statement = forEachStatement.Body;
+                    continue;
+                case TryStatement tryStatement:
+                    CollectVarNamesFromStatements(tryStatement.TryBlock.Statements, names);
+                    if (tryStatement.Catch is not null)
+                    {
+                        CollectVarNamesFromStatements(tryStatement.Catch.Body.Statements, names);
+                    }
+
+                    if (tryStatement.Finally is not null)
+                    {
+                        CollectVarNamesFromStatements(tryStatement.Finally.Statements, names);
+                    }
+
+                    break;
+                case SwitchStatement switchStatement:
+                    foreach (var switchCase in switchStatement.Cases)
+                    {
+                        CollectVarNamesFromStatements(switchCase.Body.Statements, names);
+                    }
+
+                    break;
+                case LabeledStatement labeledStatement:
+                    statement = labeledStatement.Statement;
+                    continue;
+                case WithStatement withStatement:
+                    statement = withStatement.Body;
+                    continue;
+            }
+
+            break;
         }
     }
 }

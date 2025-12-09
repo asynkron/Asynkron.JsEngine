@@ -2120,7 +2120,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             {
                 case SuperExpression:
                     return true;
-                case MemberExpression member when member.Target is SuperExpression:
+                case MemberExpression { Target: SuperExpression }:
                     return true;
                 case MemberExpression member:
                     return ExpressionContainsSuper(member.Target, includeFunctionBodies) ||

@@ -829,4 +829,40 @@ export default function() { return 23; };
 
         Assert.Equal(23.0, result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task ExportDefaultFunctionCanReassignSelf()
+    {
+        // Test262: language/module-code/eval-gtbndng-indirect-update-dflt.js
+        // A named function exported as default can reassign its own binding
+        await using var engine = new JsEngine();
+
+        engine.SetModuleLoader(modulePath =>
+        {
+            if (modulePath == "fixture.js")
+            {
+                return """
+                       export default function fn() {
+                         fn = 2;
+                         return 1;
+                       }
+                       """;
+            }
+
+            throw new FileNotFoundException($"Module not found: {modulePath}");
+        });
+
+        var result = await engine.EvaluateModule("""
+                                                 import val from 'fixture.js';
+                                                 var r1 = val();
+                                                 var r2 = val;
+                                                 [r1, r2];
+                                                 """);
+
+        var arr = Assert.IsType<JsTypes.JsArray>(result);
+        arr.TryGetProperty("0", out var r1);
+        arr.TryGetProperty("1", out var r2);
+        Assert.Equal(1.0, r1);
+        Assert.Equal(2.0, r2);
+    }
 }

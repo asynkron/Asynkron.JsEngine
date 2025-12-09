@@ -8,6 +8,9 @@ public static partial class TypedAstEvaluator
     /// <summary>
     /// Creates a function value for module-level function hoisting.
     /// This is used during module instantiation to hoist function declarations.
+    /// For module-level function declarations, the function name binding is created
+    /// in the module environment (not inside the function), so we set hasFunctionNameEnvironment=true
+    /// to prevent the function from creating its own internal const binding for the name.
     /// </summary>
     internal static IJsCallable CreateModuleFunction(
         FunctionExpression funcExpr,
@@ -16,12 +19,18 @@ public static partial class TypedAstEvaluator
         bool isStrict,
         string? functionName = null)
     {
+        // Module-level function declarations have their name binding in the module environment,
+        // which is mutable. Setting hasFunctionNameEnvironment=true prevents the function
+        // from creating an internal immutable binding that would shadow the module binding.
+        // This allows code like `export default function fn() { fn = 2; }` to work correctly.
+        var hasNameInEnvironment = funcExpr.Name is not null;
+
         IJsCallable result;
         if (funcExpr.IsGenerator)
         {
             if (funcExpr.IsAsync)
             {
-                var asyncGen = new AsyncGeneratorFactory(funcExpr, moduleEnv, realmState, isStrict, true);
+                var asyncGen = new AsyncGeneratorFactory(funcExpr, moduleEnv, realmState, isStrict, hasNameInEnvironment);
                 if (functionName != null)
                 {
                     asyncGen.EnsureHasName(functionName, overwriteExisting: true);
@@ -30,7 +39,7 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                var gen = new TypedGeneratorFactory(funcExpr, moduleEnv, realmState, isStrict, true);
+                var gen = new TypedGeneratorFactory(funcExpr, moduleEnv, realmState, isStrict, hasNameInEnvironment);
                 if (functionName != null)
                 {
                     gen.EnsureHasName(functionName, overwriteExisting: true);
@@ -40,7 +49,7 @@ public static partial class TypedAstEvaluator
         }
         else
         {
-            var fn = new TypedFunction(funcExpr, moduleEnv, realmState, isStrict, false, true);
+            var fn = new TypedFunction(funcExpr, moduleEnv, realmState, isStrict, hasNameInEnvironment, true);
             if (functionName != null)
             {
                 fn.EnsureHasName(functionName, overwriteExisting: true);

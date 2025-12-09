@@ -1,20 +1,9 @@
-       Expressions_assignment_destructuring
-        Expressions_assignment_destructuring("language/expressions/assignment/destructuring/iterator-destructuring-property-reference-target-evaluation-order.js",False)
-        Expressions_assignment_destructuring("language/expressions/assignment/destructuring/iterator-destructuring-property-reference-target-evaluation-order.js",True)
-       Expressions_asyncGenerator
-        Expressions_asyncGenerator("language/expressions/async-generator/default-proto.js",False)
-        Expressions_asyncGenerator("language/expressions/async-generator/default-proto.js",True)
-        Expressions_asyncGenerator("language/expressions/async-generator/eval-body-proto-realm.js",False)
-        Expressions_asyncGenerator("language/expressions/async-generator/eval-body-proto-realm.js",True)
-        Expressions_asyncGenerator("language/expressions/async-generator/generator-created-after-decl-inst.js",False)
-        Expressions_asyncGenerator("language/expressions/async-generator/generator-created-after-decl-inst.js",True)
+      LanguageTests
        Expressions_division
         Expressions_division("language/expressions/division/no-magic-asi-from-block-eval.js",False)
         Expressions_division("language/expressions/division/no-magic-asi-from-block-eval.js",True)
         Expressions_division("language/expressions/division/no-magic-asi.js",False)
         Expressions_division("language/expressions/division/no-magic-asi.js",True)
-        Expressions_division("language/expressions/division/S11.5.2_A3_T1.5.js",False)
-        Expressions_division("language/expressions/division/S11.5.2_A3_T1.5.js",True)
        Expressions_dynamicImport
         Expressions_dynamicImport("language/expressions/dynamic-import/returns-promise.js",False)
         Expressions_dynamicImport("language/expressions/dynamic-import/returns-promise.js",True)
@@ -30,11 +19,7 @@
         Expressions_dynamicImport_importAttributes("language/expressions/dynamic-import/import-attributes/2nd-param-with-enumeration-enumerable.js",False)
         Expressions_dynamicImport_importAttributes("language/expressions/dynamic-import/import-attributes/2nd-param-with-enumeration-enumerable.js",True)
        Expressions_function
-        Expressions_function("language/expressions/function/named-no-strict-reassign-fn-name-in-body-in-arrow.js",False)
-        Expressions_function("language/expressions/function/named-no-strict-reassign-fn-name-in-body-in-eval.js",False)
-        Expressions_function("language/expressions/function/named-no-strict-reassign-fn-name-in-body.js",False)
         Expressions_function("language/expressions/function/param-dflt-yield-non-strict.js",False)
-        Expressions_function("language/expressions/function/scope-name-var-open-non-strict.js",False)
        Expressions_generators
         Expressions_generators("language/expressions/generators/named-no-strict-reassign-fn-name-in-body-in-arrow.js",False)
         Expressions_generators("language/expressions/generators/named-no-strict-reassign-fn-name-in-body-in-eval.js",False)
@@ -174,7 +159,6 @@
         Literals_string("language/literals/string/legacy-non-octal-escape-sequence-8-non-strict.js",False)
         Literals_string("language/literals/string/legacy-non-octal-escape-sequence-9-non-strict.js",False)
        ModuleCode
-        ModuleCode("language/module-code/eval-gtbndng-indirect-update-dflt.js",True)
         ModuleCode("language/module-code/eval-rqstd-once.js",True)
         ModuleCode("language/module-code/eval-rqstd-order.js",True)
         ModuleCode("language/module-code/export-expname-binding-index.js",True)
@@ -209,8 +193,6 @@
         ModuleCode_topLevelAwait("language/module-code/top-level-await/module-sync-import-async-resolution-ticks.js",True)
         ModuleCode_topLevelAwait("language/module-code/top-level-await/while-dynamic-evaluation.js",True)
        Statements_asyncGenerator
-        Statements_asyncGenerator("language/statements/async-generator/generator-created-after-decl-inst.js",False)
-        Statements_asyncGenerator("language/statements/async-generator/generator-created-after-decl-inst.js",True)
         Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",False)
         Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",True)
        Statements_awaitUsing
@@ -325,10 +307,6 @@
         Types_object("language/types/object/S8.6.2_A8.js",False)
         Types_object("language/types/object/S8.6.2_A8.js",True)
        Types_reference
-        Types_reference("language/types/reference/get-value-prop-base-primitive-realm.js",False)
-        Types_reference("language/types/reference/get-value-prop-base-primitive-realm.js",True)
-        Types_reference("language/types/reference/get-value-prop-base-primitive.js",False)
-        Types_reference("language/types/reference/get-value-prop-base-primitive.js",True)
         Types_reference("language/types/reference/put-value-prop-base-primitive-realm.js",False)
         Types_reference("language/types/reference/put-value-prop-base-primitive-realm.js",True)
         Types_reference("language/types/reference/put-value-prop-base-primitive.js",False)

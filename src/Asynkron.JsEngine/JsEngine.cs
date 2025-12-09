@@ -1921,6 +1921,15 @@ public sealed class JsEngine : IAsyncDisposable
                             if (resolved != null) return resolved;
                         }
                         break;
+                    case ExportNamespaceAsStatement exportNamespace:
+                        if (exportNamespace.Exported.Name == exportName)
+                        {
+                            // For "export * as X from 'module'", the binding is a namespace object.
+                            // The binding itself lives in this module's environment under the export name.
+                            // Return a special marker indicating this is a namespace re-export.
+                            return (module, exportNamespace.Exported);
+                        }
+                        break;
                 }
             }
             // It's a local export
@@ -2194,7 +2203,10 @@ public sealed class JsEngine : IAsyncDisposable
                     break;
                 case ExportNamespaceAsStatement exportNamespace:
                     var namespaceEntry = LoadModule(exportNamespace.ModulePath, modulePath, ImportPhase.Module);
-                    exports[exportNamespace.Exported.Name] = GetModuleNamespace(namespaceEntry);
+                    var namespaceObj = GetModuleNamespace(namespaceEntry);
+                    exports[exportNamespace.Exported.Name] = namespaceObj;
+                    // Also define in the environment so import bindings can read it
+                    moduleEnv.Define(exportNamespace.Exported, namespaceObj, isConst: true, isLexical: true, blocksFunctionScopeOverride: false);
                     break;
                 case FunctionDeclaration:
                     // Function declarations are already hoisted during module instantiation,

@@ -32,6 +32,13 @@ public static partial class TypedAstEvaluator
             blockActivity?.SetTag("js.block.statementCount", block.Statements.Length);
 
             var currentFrame = context.CurrentScope;
+
+            // Per ES spec, lexical declarations (let/const/class) must be hoisted to create
+            // bindings in the TDZ (Temporal Dead Zone) BEFORE function hoisting.
+            // This ensures closures that reference lexical variables will find TDZ bindings
+            // and throw ReferenceError if accessed before initialization.
+            HoistBlockLexicalDeclarations(scope);
+
             if (currentFrame.SkipAnnexBInstantiation || !currentFrame.AllowAnnexB)
             {
                 InstantiateLexicalBlockFunctions(block, scope, context);

@@ -1733,6 +1733,11 @@ internal static class JsOps
 
             if (TryResolveArrayIndex(propertyKey, out var index, context))
             {
+                if (propertyName is not null && TryHandleArrayIndexedAssignment(jsArray, propertyName, value, context))
+                {
+                    return true;
+                }
+
                 jsArray.SetElement(index, value);
                 return true;
             }
@@ -1745,6 +1750,75 @@ internal static class JsOps
         }
 
         return false;
+    }
+
+    private static bool TryHandleArrayIndexedAssignment(
+        JsArray array,
+        string propertyName,
+        object? value,
+        EvaluationContext? context)
+    {
+        var descriptor = FindPropertyDescriptorInChain(array, propertyName);
+        if (descriptor is null)
+        {
+            return false;
+        }
+
+        if (descriptor.IsAccessorDescriptor)
+        {
+            if (descriptor.Set is null)
+            {
+                if (context?.CurrentScope.IsStrict == true)
+                {
+                    throw StandardLibrary.ThrowTypeError(
+                        $"Cannot set property '{propertyName}' that has only a getter.",
+                        context,
+                        context.RealmState);
+                }
+
+                return true;
+            }
+
+            descriptor.Set.Invoke([value], array);
+            return true;
+        }
+
+        if (!descriptor.Writable)
+        {
+            if (context?.CurrentScope.IsStrict == true)
+            {
+                throw StandardLibrary.ThrowTypeError(
+                    $"Cannot assign to read only property '{propertyName}'.",
+                    context,
+                    context.RealmState);
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static PropertyDescriptor? FindPropertyDescriptorInChain(IJsPropertyAccessor start, string propertyName)
+    {
+        IJsPropertyAccessor? current = start;
+        while (current is not null)
+        {
+            var descriptor = current.GetOwnPropertyDescriptor(propertyName);
+            if (descriptor is not null)
+            {
+                return descriptor;
+            }
+
+            current = current switch
+            {
+                IJsObjectLike objectLike => objectLike.Prototype,
+                IPrototypeAccessorProvider provider => provider.PrototypeAccessor,
+                _ => null
+            };
+        }
+
+        return null;
     }
 
     public static bool DeletePropertyValue(object? target, object? propertyKey, EvaluationContext? context = null)

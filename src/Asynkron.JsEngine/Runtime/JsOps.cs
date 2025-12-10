@@ -1521,7 +1521,7 @@ internal static class JsOps
         {
             case bool b:
                 var booleanWrapper = StandardLibrary.CreateBooleanWrapper(b, context, context?.RealmState);
-                if (booleanWrapper.TryGetProperty(propertyName, out value))
+                if (booleanWrapper.TryGetProperty(propertyName, receiver: target, context, out value))
                 {
                     return true;
                 }
@@ -1529,7 +1529,7 @@ internal static class JsOps
                 break;
             case double num:
                 var numberWrapper = StandardLibrary.CreateNumberWrapper(num, context, context?.RealmState);
-                if (numberWrapper.TryGetProperty(propertyName, out value))
+                if (numberWrapper.TryGetProperty(propertyName, receiver: target, context, out value))
                 {
                     return true;
                 }
@@ -1537,7 +1537,7 @@ internal static class JsOps
                 break;
             case JsBigInt bigInt:
                 var bigIntWrapper = StandardLibrary.CreateBigIntWrapper(bigInt, context, context?.RealmState);
-                if (bigIntWrapper.TryGetProperty(propertyName, out value))
+                if (bigIntWrapper.TryGetProperty(propertyName, receiver: target, context, out value))
                 {
                     return true;
                 }
@@ -1558,7 +1558,7 @@ internal static class JsOps
                 }
 
                 var stringWrapper = StandardLibrary.CreateStringWrapper(str, context, context?.RealmState);
-                if (stringWrapper.TryGetProperty(propertyName, out value))
+                if (stringWrapper.TryGetProperty(propertyName, receiver: target, context, out value))
                 {
                     return true;
                 }

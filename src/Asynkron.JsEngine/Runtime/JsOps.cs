@@ -1725,22 +1725,126 @@ internal static class JsOps
                 return true;
             }
 
+            if (propertyName is null)
+            {
+                return true;
+            }
+
             if (string.Equals(propertyName, "length", StringComparison.Ordinal))
             {
                 jsArray.SetLength(value, context);
                 return true;
             }
 
-            if (TryResolveArrayIndex(propertyKey, out var index, context))
+            var isArrayIndex = TryResolveArrayIndex(propertyKey, out var index, context);
+            var ownDescriptor = jsArray.GetOwnPropertyDescriptor(propertyName);
+
+            if (isArrayIndex)
             {
-                if (propertyName is not null && TryHandleArrayIndexedAssignment(jsArray, propertyName, value, context))
+                if (ownDescriptor is not null)
                 {
+                    if (ownDescriptor.IsAccessorDescriptor)
+                    {
+                        if (ownDescriptor.Set is null)
+                        {
+                            if (context?.CurrentScope.IsStrict == true)
+                            {
+                                throw StandardLibrary.ThrowTypeError(
+                                    $"Cannot set property '{propertyName}' that has only a getter.",
+                                    context,
+                                    context.RealmState);
+                            }
+
+                            return true;
+                        }
+
+                        TypedAstEvaluator.InvokeCallable(ownDescriptor.Set, [value], jsArray, context);
+                        return true;
+                    }
+
+                    if (!ownDescriptor.Writable)
+                    {
+                        if (context?.CurrentScope.IsStrict == true)
+                        {
+                            throw StandardLibrary.ThrowTypeError(
+                                $"Cannot assign to read only property '{propertyName}'.",
+                                context,
+                                context.RealmState);
+                        }
+
+                        return true;
+                    }
+
+                    jsArray.SetElement(index, value);
                     return true;
+                }
+
+                IJsPropertyAccessor? current = jsArray.PrototypeAccessor ?? jsArray.Prototype;
+                while (current is not null)
+                {
+                    var inheritedDescriptor = current.GetOwnPropertyDescriptor(propertyName);
+                    if (inheritedDescriptor is not null)
+                    {
+                        if (inheritedDescriptor.IsAccessorDescriptor)
+                        {
+                            if (inheritedDescriptor.Set is null)
+                            {
+                                if (context?.CurrentScope.IsStrict == true)
+                                {
+                                    throw StandardLibrary.ThrowTypeError(
+                                        $"Cannot set property '{propertyName}' that has only a getter.",
+                                        context,
+                                        context.RealmState);
+                                }
+
+                                return true;
+                            }
+
+                            TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [value], jsArray, context);
+                            return true;
+                        }
+
+                        if (!inheritedDescriptor.Writable)
+                        {
+                            if (context?.CurrentScope.IsStrict == true)
+                            {
+                                throw StandardLibrary.ThrowTypeError(
+                                    $"Cannot assign to read only property '{propertyName}'.",
+                                    context,
+                                    context.RealmState);
+                            }
+
+                            return true;
+                        }
+
+                        jsArray.DefineProperty(propertyName, new PropertyDescriptor
+                        {
+                            Value = value,
+                            Writable = true,
+                            Enumerable = inheritedDescriptor.Enumerable,
+                            Configurable = inheritedDescriptor.Configurable,
+                            HasValue = true,
+                            HasWritable = true,
+                            HasEnumerable = inheritedDescriptor.HasEnumerable,
+                            HasConfigurable = inheritedDescriptor.HasConfigurable
+                        });
+                        return true;
+                    }
+
+                    current = current switch
+                    {
+                        IJsObjectLike objectLike => objectLike.Prototype,
+                        IPrototypeAccessorProvider provider => provider.PrototypeAccessor,
+                        _ => null
+                    };
                 }
 
                 jsArray.SetElement(index, value);
                 return true;
             }
+
+            jsArray.SetProperty(propertyName, value, jsArray);
+            return true;
         }
 
         if (target is TypedArrayBase typedArray && TryResolveArrayIndex(propertyKey, out var typedIndex, context))
@@ -1750,75 +1854,6 @@ internal static class JsOps
         }
 
         return false;
-    }
-
-    private static bool TryHandleArrayIndexedAssignment(
-        JsArray array,
-        string propertyName,
-        object? value,
-        EvaluationContext? context)
-    {
-        var descriptor = FindPropertyDescriptorInChain(array, propertyName);
-        if (descriptor is null)
-        {
-            return false;
-        }
-
-        if (descriptor.IsAccessorDescriptor)
-        {
-            if (descriptor.Set is null)
-            {
-                if (context?.CurrentScope.IsStrict == true)
-                {
-                    throw StandardLibrary.ThrowTypeError(
-                        $"Cannot set property '{propertyName}' that has only a getter.",
-                        context,
-                        context.RealmState);
-                }
-
-                return true;
-            }
-
-            descriptor.Set.Invoke([value], array);
-            return true;
-        }
-
-        if (!descriptor.Writable)
-        {
-            if (context?.CurrentScope.IsStrict == true)
-            {
-                throw StandardLibrary.ThrowTypeError(
-                    $"Cannot assign to read only property '{propertyName}'.",
-                    context,
-                    context.RealmState);
-            }
-
-            return true;
-        }
-
-        return false;
-    }
-
-    private static PropertyDescriptor? FindPropertyDescriptorInChain(IJsPropertyAccessor start, string propertyName)
-    {
-        IJsPropertyAccessor? current = start;
-        while (current is not null)
-        {
-            var descriptor = current.GetOwnPropertyDescriptor(propertyName);
-            if (descriptor is not null)
-            {
-                return descriptor;
-            }
-
-            current = current switch
-            {
-                IJsObjectLike objectLike => objectLike.Prototype,
-                IPrototypeAccessorProvider provider => provider.PrototypeAccessor,
-                _ => null
-            };
-        }
-
-        return null;
     }
 
     public static bool DeletePropertyValue(object? target, object? propertyKey, EvaluationContext? context = null)

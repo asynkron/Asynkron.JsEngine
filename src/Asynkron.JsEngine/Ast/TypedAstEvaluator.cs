@@ -422,11 +422,17 @@ public static partial class TypedAstEvaluator
 
     private static object? CreateResolvedPromise(object? value, JsEnvironment environment)
     {
+        object? resolveCandidate = null;
         if (!environment.TryGet(Symbol.PromiseIdentifier, out var promiseCtor) ||
             promiseCtor is not IJsPropertyAccessor accessor ||
-            !accessor.TryGetProperty("resolve", out var resolveValue) ||
-            resolveValue is not IJsCallable resolveCallable)
+            !accessor.TryGetProperty("resolve", out resolveCandidate) ||
+            resolveCandidate is not IJsCallable resolveCallable)
         {
+            environment.RealmState?.Logger?.LogInformation(
+                "CreateResolvedPromise falling back (promiseCtorType={CtorType}, hasResolve={HasResolve}, resolveCallable={ResolveCallable})",
+                promiseCtor?.GetType().Name ?? "null",
+                promiseCtor is IJsPropertyAccessor a && a.TryGetProperty("resolve", out _),
+                resolveCandidate is IJsCallable);
             return value;
         }
 

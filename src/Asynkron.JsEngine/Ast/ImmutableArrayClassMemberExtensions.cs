@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -22,6 +23,15 @@ public static partial class TypedAstEvaluator
                 {
                     return;
                 }
+
+                context.RealmState.Logger?.LogInformation(
+                    "Defining class member name='{Name}' isStatic={IsStatic} isPrivate={IsPrivate} isAsync={IsAsync} wasAsync={WasAsync} kind={Kind}",
+                    propertyName,
+                    member.IsStatic,
+                    member.IsPrivate,
+                    member.Function.IsAsync,
+                    member.Function.WasAsync,
+                    member.Kind);
 
                 var baseDisplayName = member.IsPrivate ? member.Name : propertyName;
                 var displayName = member.Kind switch

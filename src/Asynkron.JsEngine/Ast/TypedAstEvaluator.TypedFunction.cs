@@ -381,6 +381,11 @@ public static partial class TypedAstEvaluator
             var context = _realmState.CreateContext(pushScope: false);
             var callerRestore = _caller;
             using var callerFrame = context.PushCaller(this, out var previousCaller);
+            _realmState.Logger?.LogInformation(
+                "InvokeWithContext enter func={Function} isAsync={IsAsync} wasAsync={WasAsync}",
+                _function.Name?.Name ?? "<anonymous>",
+                IsAsyncFunction,
+                _wasAsyncFunction);
             if (!_isStrict && !IsArrowFunction)
             {
                 _caller = previousCaller;
@@ -847,7 +852,9 @@ public static partial class TypedAstEvaluator
                     throw new ThrowSignal(thrown);
                 }
 
-                if (!IsAsyncFunction)
+                // Use IsAsyncLike so CPS-transformed async functions (WasAsync=true, IsAsync=false)
+                // still wrap completion values in a promise.
+                if (!IsAsyncLike)
                 {
                     if (!context.IsReturn)
                     {
@@ -949,6 +956,12 @@ public static partial class TypedAstEvaluator
                     completionValue = Symbol.Undefined;
                 }
 
+                _realmState.Logger?.LogInformation(
+                    "Async completion func={Function} isAsync={IsAsync} wasAsync={WasAsync} completionType={Type}",
+                    _function.Name?.Name ?? "<anonymous>",
+                    IsAsyncFunction,
+                    _wasAsyncFunction,
+                    completionValue?.GetType().Name ?? "null");
                 return CreateResolvedPromise(completionValue, executionEnvironment);
             }
             catch (ThrowSignal signal) when (IsAsyncFunction || _wasAsyncFunction)

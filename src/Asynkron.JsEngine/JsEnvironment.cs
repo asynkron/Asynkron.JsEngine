@@ -1116,14 +1116,11 @@ public sealed class JsEnvironment
             current = current.Enclosing;
         }
 
-        if (IsGlobalFunctionScope)
+        var rootGlobal = GetRootGlobalObject();
+        if (rootGlobal is not null && rootGlobal.TryGetProperty(name.Name, out var propertyValue))
         {
-            var rootGlobal = GetRootGlobalObject();
-            if (rootGlobal is not null && rootGlobal.TryGetProperty(name.Name, out var propertyValue))
-            {
-                value = propertyValue;
-                return true;
-            }
+            value = propertyValue;
+            return true;
         }
 
         value = null;

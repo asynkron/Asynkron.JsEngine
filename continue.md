@@ -28,6 +28,7 @@
 - Promise constructor is exposed on RealmState and pulled from closure or realm for async generators; `Array.fromAsync` async-path now drives iteration iteratively (no recursive promise callbacks) and the full `Array_fromAsync` filter passes. Strict `arguments-object` assignment tests now build proper JS error objects and pass.
 - Module evaluation now walks requested modules ahead of body execution, ResolveExport/export\* follow the spec (cycle-aware, ambiguous names filtered), module namespaces expose unambiguous exports only, and namespace [[Set]]/Reflect.set return false instead of throwing.
 - Object destructuring rest now walks [[OwnPropertyKeys]] with exclusions checked before GetOwnPropertyDescriptor, skips Get for non-enumerables, and uses the original object (including proxies) instead of cloning; the proxy rest destructuring get/gOPD/ownKeys-order tests are passing.
+- Async functions now resolve their completion through the global Promise constructor even when executed from nested scopes (class/field environments fall back to the root global object), so the async class element clusters involving same-line static async methods/private names are green again.
 
 ## Next Iteration Plan
 1. When resuming broader work, run a narrow Language filter outside `ArgumentsObject`/`Array_fromAsync` to find the next hot cluster (avoid full 43k sweep).

@@ -24,6 +24,7 @@
 - Array index assignments now walk prototype accessors/writable descriptors (including inherited setters) before falling back to element storage, so member-expression for-in targets trigger Array.prototype setters and typed array for-in over resizable buffers enumerates the expected indices.
 - `using` and `await using` declarations still TypeError on non-object initializers but now allow initializer-less for-in/of heads with per-iteration lexical environments, so the TDZ/fresh-binding for-of cases are green.
 - Typed array subclass instances now report their concrete @@toStringTag, generator/async generator functions (and their bound/proxy wrappers) are treated as non-constructors during class heritage resolution, and derived classes extending null leave `this` uninitialized until super, so the class subclass builtins/null-proto/generator superclass cases are green.
+- Module evaluation now walks requested modules ahead of body execution, ResolveExport/export\* follow the spec (cycle-aware, ambiguous names filtered), module namespaces expose unambiguous exports only, and namespace [[Set]]/Reflect.set return false instead of throwing.
 - Object destructuring rest now walks [[OwnPropertyKeys]] with exclusions checked before GetOwnPropertyDescriptor, skips Get for non-enumerables, and uses the original object (including proxies) instead of cloning; the proxy rest destructuring get/gOPD/ownKeys-order tests are passing.
 
 ## Next Iteration Plan

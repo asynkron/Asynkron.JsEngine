@@ -183,7 +183,7 @@ public static partial class TypedAstEvaluator
                 return prototypeObject;
             }
 
-            return realmState.ObjectPrototype;
+            return realmState.AsyncGeneratorPrototype ?? realmState.ObjectPrototype;
         }
     }
 }

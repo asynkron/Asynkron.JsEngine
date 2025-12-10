@@ -51,6 +51,8 @@ public sealed class RealmState
     public HostFunction? GeneratorFunctionConstructor { get; set; }
     public JsObject? AsyncGeneratorFunctionPrototype { get; set; }
     public JsObject? AsyncGeneratorPrototype { get; set; }
+    public JsObject? AsyncIteratorPrototype { get; set; }
+    public HostFunction? AsyncGeneratorFunctionConstructor { get; set; }
     public IJsCallable? PromiseConstructor { get; set; }
 
     // Internal flags to avoid re-attaching built-in surfaces per instance

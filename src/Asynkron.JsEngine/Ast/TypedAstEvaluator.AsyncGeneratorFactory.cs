@@ -287,9 +287,82 @@ public static partial class TypedAstEvaluator
                 : "[AsyncGeneratorFunction]";
         }
 
+        private void EnsureAsyncGeneratorIntrinsics()
+        {
+            // %AsyncIteratorPrototype% (inherits from %Object.prototype%)
+            if (_realmState.AsyncIteratorPrototype is null)
+            {
+                var asyncIteratorProto = new JsObject();
+                if (_realmState.ObjectPrototype is not null)
+                {
+                    asyncIteratorProto.SetPrototype(_realmState.ObjectPrototype);
+                }
+
+                _realmState.AsyncIteratorPrototype = asyncIteratorProto;
+            }
+
+            // %AsyncGeneratorPrototype% (inherits from %AsyncIteratorPrototype%)
+            if (_realmState.AsyncGeneratorPrototype is null)
+            {
+                var asyncGenProto = new JsObject();
+                asyncGenProto.SetPrototype(_realmState.AsyncIteratorPrototype ?? _realmState.ObjectPrototype);
+                _realmState.AsyncGeneratorPrototype = asyncGenProto;
+            }
+
+            // %AsyncGeneratorFunction.prototype%
+            if (_realmState.AsyncGeneratorFunctionPrototype is null && _realmState.FunctionPrototype is not null)
+            {
+                var asyncGenFuncProto = new JsObject();
+                asyncGenFuncProto.SetPrototype(_realmState.FunctionPrototype);
+
+                asyncGenFuncProto.DefineProperty("prototype",
+                    new PropertyDescriptor
+                    {
+                        Value = _realmState.AsyncGeneratorPrototype,
+                        Writable = false,
+                        Enumerable = false,
+                        Configurable = true,
+                        HasValue = true,
+                        HasWritable = true,
+                        HasEnumerable = true,
+                        HasConfigurable = true
+                    });
+
+                // Minimal AsyncGeneratorFunction constructor so constructor.prototype.prototype matches spec shape
+                if (_realmState.AsyncGeneratorFunctionConstructor is null)
+                {
+                    var constructor = new HostFunction(_ => null);
+                    constructor.Properties.SetPrototype(_realmState.FunctionPrototype);
+                    constructor.SetProperty("prototype", asyncGenFuncProto);
+                    _realmState.AsyncGeneratorFunctionConstructor = constructor;
+                }
+
+                asyncGenFuncProto.DefineProperty("constructor",
+                    new PropertyDescriptor
+                    {
+                        Value = _realmState.AsyncGeneratorFunctionConstructor,
+                        Writable = false,
+                        Enumerable = false,
+                        Configurable = true,
+                        HasValue = true,
+                        HasWritable = true,
+                        HasEnumerable = true,
+                        HasConfigurable = true
+                    });
+
+                _realmState.AsyncGeneratorFunctionPrototype = asyncGenFuncProto;
+            }
+        }
+
         private void InitializeProperties()
         {
-            if (_realmState.FunctionPrototype is { } functionPrototype)
+            EnsureAsyncGeneratorIntrinsics();
+
+            if (_realmState.AsyncGeneratorFunctionPrototype is { } asyncGenFuncProto)
+            {
+                _properties.SetPrototype(asyncGenFuncProto);
+            }
+            else if (_realmState.FunctionPrototype is { } functionPrototype)
             {
                 _properties.SetPrototype(functionPrototype);
             }
@@ -297,7 +370,7 @@ public static partial class TypedAstEvaluator
             if (_isConstructorEnabled && _realmState.ObjectPrototype is not null)
             {
                 var generatorPrototype = new JsObject();
-                generatorPrototype.SetPrototype(_realmState.ObjectPrototype);
+                generatorPrototype.SetPrototype(_realmState.AsyncGeneratorPrototype ?? _realmState.ObjectPrototype);
                 generatorPrototype.DefineProperty("constructor",
                     new PropertyDescriptor
                     {

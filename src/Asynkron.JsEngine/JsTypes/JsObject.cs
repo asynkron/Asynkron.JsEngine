@@ -999,6 +999,21 @@ namespace Asynkron.JsEngine.JsTypes;
         return null;
     }
 
+    internal bool ForceDeleteOwnProperty(string name)
+    {
+        var deletedDescriptor = _descriptors.Remove(name);
+        Remove(GetterPrefix + name);
+        Remove(SetterPrefix + name);
+        var deletedValue = Remove(name);
+        if (deletedDescriptor || deletedValue)
+        {
+            RemoveFromInsertionOrder(name);
+            return true;
+        }
+
+        return false;
+    }
+
     public bool DeleteOwnProperty(string name)
     {
         if (_descriptors.TryGetValue(name, out var descriptor))

@@ -20,6 +20,10 @@ public static partial class TypedAstEvaluator
                 declarator.Initializer is not null &&
                 targetIdentifier is not null)
             {
+                // Var bindings are hoisted to the nearest function scope before evaluating
+                // the initializer so resolution targets the correct environment.
+                EnsureFunctionScopedVarBinding(environment, targetIdentifier.Name, context);
+
                 var identifierExpression = new IdentifierExpression(declarator.Source, targetIdentifier.Name);
                 preResolvedVarReference = AssignmentReferenceResolver.Resolve(
                     identifierExpression,

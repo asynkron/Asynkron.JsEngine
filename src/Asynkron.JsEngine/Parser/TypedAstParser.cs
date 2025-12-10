@@ -867,7 +867,10 @@ public sealed class TypedAstParser(
                     continue;
                 }
 
-                if (Check(TokenType.Get) || Check(TokenType.Set))
+                var isAccessorKeyword = (Check(TokenType.Get) || Check(TokenType.Set)) &&
+                                        !HasLineTerminatorAfterCurrentToken();
+
+                if (isAccessorKeyword)
                 {
                     var accessorToken = Advance();
                     var isGetter = accessorToken.Type == TokenType.Get;
@@ -4162,9 +4165,24 @@ public sealed class TypedAstParser(
                 return false;
             }
 
-            return next.Type is TokenType.Identifier ||
-                   next.Type is TokenType.Async or TokenType.Await or TokenType.Yield ||
-                   IsContextualIdentifierToken(next);
+            if (next.Type is TokenType.Identifier ||
+                next.Type is TokenType.Async or TokenType.Await or TokenType.Yield ||
+                IsContextualIdentifierToken(next))
+            {
+                return true;
+            }
+
+            if (!InStrictContext && next.Type is TokenType.Static or TokenType.Let)
+            {
+                return true;
+            }
+
+            if (next.Type is TokenType.Using)
+            {
+                return true;
+            }
+
+            return false;
         }
 
         private Token Advance()
@@ -4365,13 +4383,18 @@ public sealed class TypedAstParser(
                 return true;
             }
 
-            if (token.Type is TokenType.Async or TokenType.Await or TokenType.Yield ||
+            if (token.Type is TokenType.Async or TokenType.Await or TokenType.Yield or TokenType.Using ||
                 IsContextualIdentifierToken(token))
             {
                 return true;
             }
 
             if (!InStrictContext && token.Type is TokenType.Static or TokenType.Let)
+            {
+                return true;
+            }
+
+            if (token.Type is TokenType.Using)
             {
                 return true;
             }
@@ -4499,6 +4522,18 @@ public sealed class TypedAstParser(
             var previousToken = _tokens[_current - 1];
             var currentToken = _tokens[_current];
             return currentToken.Line > previousToken.Line;
+        }
+
+        private bool HasLineTerminatorAfterCurrentToken()
+        {
+            if (_current < 0 || _current + 1 >= _tokens.Count)
+            {
+                return false;
+            }
+
+            var currentToken = _tokens[_current];
+            var nextToken = _tokens[_current + 1];
+            return nextToken.Line > currentToken.Line;
         }
 
         private bool IsAsyncToken()

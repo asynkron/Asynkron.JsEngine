@@ -443,7 +443,10 @@ namespace Asynkron.JsEngine.JsTypes;
 
     private void RemovePrototypeDataProperty()
     {
-        Properties.DeleteOwnProperty("prototype");
+        if (!Properties.DeleteOwnProperty("prototype"))
+        {
+            Properties.ForceDeleteOwnProperty("prototype");
+        }
     }
 
     private bool HasPrototypeDataProperty()

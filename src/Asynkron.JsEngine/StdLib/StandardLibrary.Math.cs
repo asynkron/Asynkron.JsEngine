@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Numerics;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Converters;
@@ -19,6 +20,9 @@ public static partial class StandardLibrary
             math.SetPrototype(realm.ObjectPrototype);
         }
 
+        HostFunction Fn(Func<IReadOnlyList<object?>, object?> impl) =>
+            new HostFunction(impl, realm, isConstructor: false);
+
         var toStringTagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
         math.DefineProperty(toStringTagKey,
             new PropertyDescriptor { Value = "Math", Writable = false, Enumerable = false, Configurable = true });
@@ -34,7 +38,7 @@ public static partial class StandardLibrary
         DefineConstantProperty(math, "SQRT2", Math.Sqrt(2));
 
         // Methods
-        math["abs"] = new HostFunction(args =>
+        math["abs"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -49,7 +53,7 @@ public static partial class StandardLibrary
             };
         });
 
-        math["ceil"] = new HostFunction(args =>
+        math["ceil"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -59,7 +63,7 @@ public static partial class StandardLibrary
             return args[0] is double d ? Math.Ceiling(d) : double.NaN;
         });
 
-        math["floor"] = new HostFunction(args =>
+        math["floor"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -69,7 +73,7 @@ public static partial class StandardLibrary
             return args[0] is double d ? Math.Floor(d) : double.NaN;
         });
 
-        math["round"] = new HostFunction(args =>
+        math["round"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -91,7 +95,7 @@ public static partial class StandardLibrary
             return Math.Ceiling(d - 0.5);
         });
 
-        math["sqrt"] = new HostFunction(args =>
+        math["sqrt"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -101,7 +105,7 @@ public static partial class StandardLibrary
             return args[0] is double d ? Math.Sqrt(d) : double.NaN;
         });
 
-        math["pow"] = new HostFunction(args =>
+        math["pow"] = Fn(args =>
         {
             if (args.Count < 2)
             {
@@ -113,7 +117,7 @@ public static partial class StandardLibrary
             return JsOps.MathPow(baseValue, exponent);
         });
 
-        math["max"] = new HostFunction(args =>
+        math["max"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -140,7 +144,7 @@ public static partial class StandardLibrary
             return max;
         });
 
-        math["min"] = new HostFunction(args =>
+        math["min"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -167,9 +171,9 @@ public static partial class StandardLibrary
             return min;
         });
 
-        math["random"] = new HostFunction(_ => Random.Shared.NextDouble());
+        math["random"] = Fn(_ => Random.Shared.NextDouble());
 
-        math["sin"] = new HostFunction(args =>
+        math["sin"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -179,7 +183,7 @@ public static partial class StandardLibrary
             return args[0] is double d ? Math.Sin(d) : double.NaN;
         });
 
-        math["cos"] = new HostFunction(args =>
+        math["cos"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -189,7 +193,7 @@ public static partial class StandardLibrary
             return args[0] is double d ? Math.Cos(d) : double.NaN;
         });
 
-        math["tan"] = new HostFunction(args =>
+        math["tan"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -199,7 +203,7 @@ public static partial class StandardLibrary
             return args[0] is double d ? Math.Tan(d) : double.NaN;
         });
 
-        math["asin"] = new HostFunction(args =>
+        math["asin"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -209,7 +213,7 @@ public static partial class StandardLibrary
             return args[0] is double d ? Math.Asin(d) : double.NaN;
         });
 
-        math["acos"] = new HostFunction(args =>
+        math["acos"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -219,7 +223,7 @@ public static partial class StandardLibrary
             return args[0] is double d ? Math.Acos(d) : double.NaN;
         });
 
-        math["atan"] = new HostFunction(args =>
+        math["atan"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -229,7 +233,7 @@ public static partial class StandardLibrary
             return args[0] is double d ? Math.Atan(d) : double.NaN;
         });
 
-        math["atan2"] = new HostFunction(args =>
+        math["atan2"] = Fn(args =>
         {
             if (args.Count < 2)
             {
@@ -241,7 +245,7 @@ public static partial class StandardLibrary
             return Math.Atan2(y, x);
         });
 
-        math["exp"] = new HostFunction(args =>
+        math["exp"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -251,7 +255,7 @@ public static partial class StandardLibrary
             return args[0] is double d ? Math.Exp(d) : double.NaN;
         });
 
-        math["log"] = new HostFunction(args =>
+        math["log"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -261,7 +265,7 @@ public static partial class StandardLibrary
             return args[0] is double d ? Math.Log(d) : double.NaN;
         });
 
-        math["log10"] = new HostFunction(args =>
+        math["log10"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -271,7 +275,7 @@ public static partial class StandardLibrary
             return args[0] is double d ? Math.Log10(d) : double.NaN;
         });
 
-        math["log2"] = new HostFunction(args =>
+        math["log2"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -281,7 +285,7 @@ public static partial class StandardLibrary
             return args[0] is double d ? Math.Log2(d) : double.NaN;
         });
 
-        math["trunc"] = new HostFunction(args =>
+        math["trunc"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -291,7 +295,7 @@ public static partial class StandardLibrary
             return args[0] is double d ? Math.Truncate(d) : double.NaN;
         });
 
-        math["sign"] = new HostFunction(args =>
+        math["sign"] = Fn(args =>
         {
             if (args.Count == 0 || args[0] is not double d || double.IsNaN(d))
             {
@@ -302,7 +306,7 @@ public static partial class StandardLibrary
         });
 
         // ES6+ Math methods
-        math["cbrt"] = new HostFunction(args =>
+        math["cbrt"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -312,7 +316,7 @@ public static partial class StandardLibrary
             return args[0] is double d ? Math.Cbrt(d) : double.NaN;
         });
 
-        math["clz32"] = new HostFunction(args =>
+        math["clz32"] = Fn(args =>
         {
             var number = args.Count > 0 ? JsOps.ToNumber(args[0]) : 0d;
             var value = JsNumericConversions.ToUInt32(number);
@@ -324,7 +328,7 @@ public static partial class StandardLibrary
             return (double)BitOperations.LeadingZeroCount(value);
         });
 
-        math["imul"] = new HostFunction(args =>
+        math["imul"] = Fn(args =>
         {
             var left = args.Count > 0 ? JsOps.ToNumber(args[0]) : 0d;
             var right = args.Count > 1 ? JsOps.ToNumber(args[1]) : 0d;
@@ -333,7 +337,7 @@ public static partial class StandardLibrary
             return (double)(a * b);
         });
 
-        math["fround"] = new HostFunction(args =>
+        math["fround"] = Fn(args =>
         {
             if (args.Count == 0 || args[0] is not double d)
             {
@@ -343,7 +347,7 @@ public static partial class StandardLibrary
             return (double)(float)d;
         });
 
-        var hypot = new HostFunction(args =>
+        var hypot = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -382,7 +386,7 @@ public static partial class StandardLibrary
             }
 
             return hasNaN ? double.NaN : Math.Sqrt(sumOfSquares);
-        }, isConstructor: false);
+        });
         hypot.Properties.DeleteOwnProperty("prototype");
         hypot.DefineProperty("name",
             new PropertyDescriptor { Value = "hypot", Writable = false, Enumerable = false, Configurable = true });
@@ -391,7 +395,7 @@ public static partial class StandardLibrary
         math.DefineProperty("hypot",
             new PropertyDescriptor { Value = hypot, Writable = true, Enumerable = false, Configurable = true });
 
-        math["acosh"] = new HostFunction(args =>
+        math["acosh"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -401,7 +405,7 @@ public static partial class StandardLibrary
             return args[0] is double d ? Math.Acosh(d) : double.NaN;
         });
 
-        math["asinh"] = new HostFunction(args =>
+        math["asinh"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -411,7 +415,7 @@ public static partial class StandardLibrary
             return args[0] is double d ? Math.Asinh(d) : double.NaN;
         });
 
-        math["atanh"] = new HostFunction(args =>
+        math["atanh"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -421,7 +425,7 @@ public static partial class StandardLibrary
             return args[0] is double d ? Math.Atanh(d) : double.NaN;
         });
 
-        math["cosh"] = new HostFunction(args =>
+        math["cosh"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -431,7 +435,7 @@ public static partial class StandardLibrary
             return args[0] is double d ? Math.Cosh(d) : double.NaN;
         });
 
-        math["sinh"] = new HostFunction(args =>
+        math["sinh"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -441,7 +445,7 @@ public static partial class StandardLibrary
             return args[0] is double d ? Math.Sinh(d) : double.NaN;
         });
 
-        math["tanh"] = new HostFunction(args =>
+        math["tanh"] = Fn(args =>
         {
             if (args.Count == 0)
             {
@@ -451,7 +455,7 @@ public static partial class StandardLibrary
             return args[0] is double d ? Math.Tanh(d) : double.NaN;
         });
 
-        math["expm1"] = new HostFunction(args =>
+        math["expm1"] = Fn(args =>
         {
             if (args.Count == 0 || args[0] is not double d)
             {
@@ -462,7 +466,7 @@ public static partial class StandardLibrary
             return Math.Exp(d) - 1;
         });
 
-        math["log1p"] = new HostFunction(args =>
+        math["log1p"] = Fn(args =>
         {
             if (args.Count == 0 || args[0] is not double d)
             {

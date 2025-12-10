@@ -1,3 +1,12 @@
+       BlockScope_shadowing
+        BlockScope_shadowing("language/block-scope/shadowing/catch-parameter-shadowing-catch-parameter.js",False)
+        BlockScope_shadowing("language/block-scope/shadowing/catch-parameter-shadowing-var-variable.js",False)
+        BlockScope_shadowing("language/block-scope/shadowing/const-declaration-shadowing-catch-parameter.js",False)
+        BlockScope_shadowing("language/block-scope/shadowing/const-declarations-shadowing-parameter-name-let-const-and-var-variables.js",False)
+        BlockScope_shadowing("language/block-scope/shadowing/parameter-name-shadowing-catch-parameter.js",False)
+       Expressions_class_decorator_syntax_classValid
+        Expressions_class_decorator_syntax_classValid("language/expressions/class/decorator/syntax/class-valid/decorator-member-expr-private-identifier.js",False)
+        Expressions_class_decorator_syntax_classValid("language/expressions/class/decorator/syntax/class-valid/decorator-member-expr-private-identifier.js",True)
        Expressions_dynamicImport
         Expressions_dynamicImport("language/expressions/dynamic-import/returns-promise.js",False)
         Expressions_dynamicImport("language/expressions/dynamic-import/returns-promise.js",True)
@@ -7,22 +16,11 @@
         Expressions_dynamicImport_assignmentExpression("language/expressions/dynamic-import/assignment-expression/import-meta.js",True)
        Expressions_function
         Expressions_function("language/expressions/function/param-dflt-yield-non-strict.js",False)
-       Expressions_generators
-        Expressions_generators("language/expressions/generators/named-no-strict-reassign-fn-name-in-body-in-arrow.js",False)
-        Expressions_generators("language/expressions/generators/named-no-strict-reassign-fn-name-in-body-in-eval.js",False)
-        Expressions_generators("language/expressions/generators/named-no-strict-reassign-fn-name-in-body.js",False)
-        Expressions_generators("language/expressions/generators/scope-name-var-open-non-strict.js",False)
        Expressions_import_meta
         Expressions_import_meta("language/expressions/import.meta/distinct-for-each-module.js",True)
         Expressions_import_meta("language/expressions/import.meta/import-meta-is-an-ordinary-object.js",True)
         Expressions_import_meta("language/expressions/import.meta/not-accessible-from-direct-eval.js",True)
         Expressions_import_meta("language/expressions/import.meta/same-object-returned.js",True)
-       Expressions_object_methodDefinition
-        Expressions_object_methodDefinition("language/expressions/object/method-definition/generator-invoke-fn-no-strict.js",False)
-        Expressions_object_methodDefinition("language/expressions/object/method-definition/generator-super-prop-param.js",False)
-        Expressions_object_methodDefinition("language/expressions/object/method-definition/generator-super-prop-param.js",True)
-        Expressions_object_methodDefinition("language/expressions/object/method-definition/name-super-prop-param.js",False)
-        Expressions_object_methodDefinition("language/expressions/object/method-definition/name-super-prop-param.js",True)
        Expressions_optionalChaining
         Expressions_optionalChaining("language/expressions/optional-chaining/eval-optional-call.js",False)
         Expressions_optionalChaining("language/expressions/optional-chaining/eval-optional-call.js",True)
@@ -35,33 +33,23 @@
         Expressions_prefixDecrement("language/expressions/prefix-decrement/eval-nostrict.js",False)
        Expressions_prefixIncrement
         Expressions_prefixIncrement("language/expressions/prefix-increment/eval-nostrict.js",False)
-       Expressions_yield
-        Expressions_yield("language/expressions/yield/star-rhs-iter-thrw-res-done-no-value.js",False)
-        Expressions_yield("language/expressions/yield/star-rhs-iter-thrw-res-done-no-value.js",True)
-        Expressions_yield("language/expressions/yield/star-rhs-iter-thrw-res-value-final.js",False)
-        Expressions_yield("language/expressions/yield/star-rhs-iter-thrw-res-value-final.js",True)
        FunctionCode
         FunctionCode("language/function-code/10.4.3-1-104.js",True)
         FunctionCode("language/function-code/10.4.3-1-106.js",True)
-       FutureReservedWords
-        FutureReservedWords("language/future-reserved-words/static.js",False)
-       GlobalCode
-        GlobalCode("language/global-code/decl-lex-restricted-global.js",True)
-        GlobalCode("language/global-code/script-decl-func-err-non-extensible.js",False)
-        GlobalCode("language/global-code/script-decl-func-err-non-extensible.js",True)
-        GlobalCode("language/global-code/script-decl-lex-var-declared-via-eval.js",False)
        ModuleCode_topLevelAwait
         ModuleCode_topLevelAwait("language/module-code/top-level-await/async-module-does-not-block-sibling-modules.js",True)
         ModuleCode_topLevelAwait("language/module-code/top-level-await/await-dynamic-import-resolution.js",True)
         ModuleCode_topLevelAwait("language/module-code/top-level-await/module-graphs-does-not-hang.js",True)
        ModuleCode_topLevelAwait_syntax
         ModuleCode_topLevelAwait_syntax("language/module-code/top-level-await/syntax/await-expr-dyn-import.js",True)
-       ReservedWords
-        ReservedWords("language/reserved-words/unreserved-words.js",False)
-        ReservedWords("language/reserved-words/unreserved-words.js",True)
        Statements_asyncGenerator
         Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",False)
         Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",True)
+       Statements_class
+        Statements_class("language/statements/class/static-init-scope-var-close.js",False)
+        Statements_class("language/statements/class/static-init-scope-var-close.js",True)
+        Statements_class("language/statements/class/static-init-scope-var-open.js",False)
+        Statements_class("language/statements/class/static-init-scope-var-open.js",True)
        Statements_class_definition
         Statements_class_definition("language/statements/class/definition/invalid-extends.js",True)
        Statements_class_elements_syntax_valid
@@ -74,18 +62,3 @@
         Statements_const_syntax("language/statements/const/syntax/const-invalid-assignment-next-expression-for.js",True)
        Statements_function
         Statements_function("language/statements/function/param-dflt-yield-non-strict.js",False)
-       Statements_labeled
-        Statements_labeled("language/statements/labeled/value-await-non-module.js",False)
-        Statements_labeled("language/statements/labeled/value-await-non-module.js",True)
-        Statements_labeled("language/statements/labeled/value-yield-non-strict.js",False)
-       Statements_switch
-        Statements_switch("language/statements/switch/scope-lex-async-function.js",False)
-       Statements_variable
-        Statements_variable("language/statements/variable/binding-resolution.js",False)
-       Statements_variable_dstr
-        Statements_variable_dstr("language/statements/variable/dstr/obj-ptrn-elem-id-static-init-await-valid.js",False)
-        Statements_variable_dstr("language/statements/variable/dstr/obj-ptrn-elem-id-static-init-await-valid.js",True)
-       Statements_with
-        Statements_with("language/statements/with/has-binding-call-with-proxy-env.js",False)
-        Statements_with("language/statements/with/set-mutable-binding-binding-deleted-in-get-unscopables-strict-mode.js",False)
-        Statements_with("language/statements/with/set-mutable-binding-binding-deleted-with-typed-array-in-proto-chain.js",False)

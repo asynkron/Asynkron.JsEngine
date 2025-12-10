@@ -1670,17 +1670,22 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         EnsureModuleInstantiated(entry, phase);
-        // Only evaluate if the module is not currently being instantiated (cyclic import)
-        // For cyclic imports, the namespace is accessed during instantiation before evaluation
-        if (phase == ImportPhase.Module && !entry.Instantiating)
+        var exportedNames = GetExportedNames(entry, new HashSet<string>(StringComparer.Ordinal));
+        var resolvedNames = new List<string>();
+        foreach (var name in exportedNames)
         {
-            EnsureModuleEvaluated(entry);
+            var resolution = ResolveExport(entry, name, phase, new HashSet<(ModuleEntry, string)>());
+            if (resolution.Kind == ExportResolutionKind.Resolved &&
+                !name.StartsWith("__getter__", StringComparison.Ordinal) &&
+                !name.StartsWith("__setter__", StringComparison.Ordinal) &&
+                !name.StartsWith("@@symbol:", StringComparison.Ordinal))
+            {
+                resolvedNames.Add(name);
+            }
         }
 
-        var exportNames = entry.Exports.Keys
-            .Where(k => !k.StartsWith("__getter__", StringComparison.Ordinal) &&
-                        !k.StartsWith("__setter__", StringComparison.Ordinal) &&
-                        !k.StartsWith("@@symbol:", StringComparison.Ordinal))
+        var exportNames = resolvedNames
+            .OrderBy(n => n, StringComparer.Ordinal)
             .ToArray();
 
         object? Lookup(string name)
@@ -1797,7 +1802,6 @@ public sealed class JsEngine : IAsyncDisposable
 
                     break;
                 case ExportAllStatement exportAll:
-                    // Use LoadModuleForInstantiation to avoid evaluating the module during instantiation phase
                     var sourceEntry = LoadModuleForInstantiation(exportAll.ModulePath, modulePath, phase, exportStarSet);
                     if (exportStarSet.Contains(sourceEntry.Path))
                     {
@@ -1806,14 +1810,20 @@ public sealed class JsEngine : IAsyncDisposable
 
                     exportStarSet.Add(sourceEntry.Path);
                     EnsureModuleInstantiated(sourceEntry, phase, exportStarSet);
-                    foreach (var entry in sourceEntry.Exports.Keys)
+                    var exportedNames = GetExportedNames(sourceEntry, exportStarSet);
+                    foreach (var name in exportedNames)
                     {
-                        if (string.Equals(entry, "default", StringComparison.Ordinal))
+                        if (string.Equals(name, "default", StringComparison.Ordinal))
                         {
                             continue;
                         }
 
-                        exports[entry] = UninitializedExportMarker;
+                        var resolution =
+                            ResolveExport(sourceEntry, name, phase, new HashSet<(ModuleEntry, string)>());
+                        if (resolution.Kind == ExportResolutionKind.Resolved)
+                        {
+                            exports[name] = UninitializedExportMarker;
+                        }
                     }
 
                     exportStarSet.Remove(sourceEntry.Path);
@@ -1848,7 +1858,7 @@ public sealed class JsEngine : IAsyncDisposable
                 // Handle default import
                 if (importStatement.DefaultBinding is { } defaultBinding)
                 {
-                    CreateImportBinding(moduleEnv, defaultBinding, importedModule, Symbol.Intern("default"));
+                    CreateImportBinding(moduleEnv, defaultBinding, importedModule, Symbol.Intern("default"), importPhase);
                 }
 
                 // Handle namespace import
@@ -1864,107 +1874,235 @@ public sealed class JsEngine : IAsyncDisposable
                 // Handle named imports
                 foreach (var specifier in importStatement.NamedImports)
                 {
-                    CreateImportBinding(moduleEnv, specifier.Local, importedModule, specifier.Imported);
+                    CreateImportBinding(moduleEnv, specifier.Local, importedModule, specifier.Imported, importPhase);
                 }
             }
         }
     }
 
-    private void CreateImportBinding(JsEnvironment moduleEnv, Symbol localName, ModuleEntry importedModule, Symbol importedName)
+    private enum ExportResolutionKind
     {
-        // Resolve the export - it may be re-exported from another module
-        var resolved = ResolveExport(importedModule, importedName.Name);
-        if (resolved == null)
-        {
-            throw new InvalidOperationException($"SyntaxError: The requested module '{importedModule.Path}' does not provide an export named '{importedName.Name}'");
-        }
-
-        // Create an import binding that references the resolved module and binding
-        // The binding is created as a getter that reads from the source module
-        var (sourceModule, bindingName) = resolved.Value;
-
-        // Create a binding that proxies to the source module's environment
-        moduleEnv.DefineImportBinding(localName, sourceModule.Environment, bindingName);
+        NotFound,
+        Resolved,
+        Ambiguous
     }
 
-    private (ModuleEntry Module, Symbol BindingName)? ResolveExport(ModuleEntry module, string exportName)
+    private readonly record struct ExportResolution(ExportResolutionKind Kind, ModuleEntry? Module, Symbol BindingName)
     {
-        // Check if this module directly exports the name
-        if (module.Exports.TryGetValue(exportName, out _))
+        public static readonly ExportResolution NotFound = new(ExportResolutionKind.NotFound, null, default);
+        public static readonly ExportResolution Ambiguous = new(ExportResolutionKind.Ambiguous, null, default);
+
+        public ExportResolution(ModuleEntry module, Symbol bindingName) : this(ExportResolutionKind.Resolved, module,
+            bindingName)
         {
-            // Check if it's re-exported from another module
-            foreach (var statement in module.Program.Body)
+        }
+
+        public bool IsResolved => Kind == ExportResolutionKind.Resolved && Module is not null;
+    }
+
+    private void CreateImportBinding(
+        JsEnvironment moduleEnv,
+        Symbol localName,
+        ModuleEntry importedModule,
+        Symbol importedName,
+        ImportPhase importPhase)
+    {
+        var resolved = ResolveExport(importedModule, importedName.Name, importPhase,
+            new HashSet<(ModuleEntry, string)>());
+        if (!resolved.IsResolved)
+        {
+            throw new InvalidOperationException(
+                $"SyntaxError: The requested module '{importedModule.Path}' does not provide an export named '{importedName.Name}'");
+        }
+
+        moduleEnv.DefineImportBinding(localName, resolved.Module!.Environment, resolved.BindingName);
+    }
+
+    private Symbol GetDefaultExportBindingName(ExportDefaultStatement exportDefault)
+    {
+        if (exportDefault.Value is ExportDefaultDeclaration { Declaration: FunctionDeclaration funcDecl })
+        {
+            return funcDecl.Name.Name == "" ? Symbol.Intern("*default*") : funcDecl.Name;
+        }
+
+        if (exportDefault.Value is ExportDefaultDeclaration { Declaration: ClassDeclaration classDecl })
+        {
+            return classDecl.Name.Name == "" ? Symbol.Intern("*default*") : classDecl.Name;
+        }
+
+        return Symbol.Intern("*default*");
+    }
+
+    private IEnumerable<string> GetExportedNames(ModuleEntry module, HashSet<string> exportStarSet)
+    {
+        if (exportStarSet.Contains(module.Path))
+        {
+            return Array.Empty<string>();
+        }
+
+        exportStarSet.Add(module.Path);
+        if (module.Program.Body.IsEmpty && module.Exports.Count > 0)
+        {
+            exportStarSet.Remove(module.Path);
+            return module.Exports.Keys;
+        }
+
+        var exportedNames = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var statement in module.Program.Body)
+        {
+            switch (statement)
             {
-                switch (statement)
-                {
-                    case ExportNamedStatement { FromModule: not null } exportNamed:
-                        foreach (var specifier in exportNamed.Specifiers)
-                        {
-                            if (specifier.Exported.Name == exportName)
-                            {
-                                var sourceModule = LoadModuleForInstantiation(exportNamed.FromModule, module.Path, ImportPhase.Module);
-                                return ResolveExport(sourceModule, specifier.Local.Name);
-                            }
-                        }
-                        break;
-                    case ExportNamedStatement { FromModule: null } localExportNamed:
-                        // Local named exports: export { x as y } exports local binding x under name y
-                        foreach (var specifier in localExportNamed.Specifiers)
-                        {
-                            if (specifier.Exported.Name == exportName)
-                            {
-                                // Return the local binding name, not the exported name
-                                return (module, specifier.Local);
-                            }
-                        }
-                        break;
-                    case ExportAllStatement exportAll:
-                        if (exportName != "default")
-                        {
-                            var sourceModule = LoadModuleForInstantiation(exportAll.ModulePath, module.Path, ImportPhase.Module);
-                            var resolved = ResolveExport(sourceModule, exportName);
-                            if (resolved != null) return resolved;
-                        }
-                        break;
-                    case ExportNamespaceAsStatement exportNamespace:
-                        if (exportNamespace.Exported.Name == exportName)
-                        {
-                            // For "export * as X from 'module'", the binding is a namespace object.
-                            // The binding itself lives in this module's environment under the export name.
-                            // Return a special marker indicating this is a namespace re-export.
-                            return (module, exportNamespace.Exported);
-                        }
-                        break;
-                }
-            }
-            // It's a local export
-            // For default exports, resolve to the actual binding name
-            if (exportName == "default")
-            {
-                foreach (var stmt in module.Program.Body)
-                {
-                    if (stmt is ExportDefaultStatement exportDefaultStmt)
+                case ExportDefaultStatement:
+                    exportedNames.Add("default");
+                    break;
+                case ExportDeclarationStatement exportDeclaration:
+                    foreach (var symbol in GetDeclaredSymbols(exportDeclaration.Declaration))
                     {
-                        // Named function declarations - binding is the function name
-                        if (exportDefaultStmt.Value is ExportDefaultDeclaration { Declaration: FunctionDeclaration namedFuncDecl })
-                        {
-                            return (module, namedFuncDecl.Name);
-                        }
-                        // Named class declarations - binding is the class name
-                        if (exportDefaultStmt.Value is ExportDefaultDeclaration { Declaration: ClassDeclaration namedClassDecl })
-                        {
-                            return (module, namedClassDecl.Name);
-                        }
-                        // All other default exports (including anonymous functions/classes and expression exports)
-                        // use the *default* binding
-                        return (module, Symbol.Intern("*default*"));
+                        exportedNames.Add(symbol.Name);
                     }
-                }
+
+                    break;
+                case ExportNamedStatement exportNamed:
+                    foreach (var specifier in exportNamed.Specifiers)
+                    {
+                        exportedNames.Add(specifier.Exported.Name);
+                    }
+
+                    break;
+                case ExportNamespaceAsStatement exportNamespace:
+                    exportedNames.Add(exportNamespace.Exported.Name);
+                    break;
+                case ExportAllStatement exportAll:
+                    var sourceModule =
+                        LoadModuleForInstantiation(exportAll.ModulePath, module.Path, ImportPhase.Module, exportStarSet);
+                    EnsureModuleInstantiated(sourceModule, ImportPhase.Module, exportStarSet);
+                    foreach (var name in GetExportedNames(sourceModule, exportStarSet))
+                    {
+                        if (string.Equals(name, "default", StringComparison.Ordinal))
+                        {
+                            continue;
+                        }
+
+                        exportedNames.Add(name);
+                    }
+
+                    break;
             }
-            return (module, Symbol.Intern(exportName));
         }
 
-        return null;
+        exportStarSet.Remove(module.Path);
+        return exportedNames;
+    }
+
+    private ExportResolution ResolveExport(
+        ModuleEntry module,
+        string exportName,
+        ImportPhase phase,
+        HashSet<(ModuleEntry, string)>? resolveSet = null)
+    {
+        resolveSet ??= new HashSet<(ModuleEntry, string)>();
+        if (resolveSet.Contains((module, exportName)))
+        {
+            return ExportResolution.NotFound;
+        }
+
+        resolveSet.Add((module, exportName));
+
+        if (module.Program.Body.IsEmpty && module.Exports.ContainsKey(exportName))
+        {
+            return new ExportResolution(module, Symbol.Intern(exportName));
+        }
+
+        foreach (var statement in module.Program.Body)
+        {
+            switch (statement)
+            {
+                case ExportDefaultStatement exportDefault when string.Equals(exportName, "default", StringComparison.Ordinal):
+                    return new ExportResolution(module, GetDefaultExportBindingName(exportDefault));
+                case ExportDeclarationStatement exportDeclaration:
+                    foreach (var symbol in GetDeclaredSymbols(exportDeclaration.Declaration))
+                    {
+                        if (string.Equals(symbol.Name, exportName, StringComparison.Ordinal))
+                        {
+                            return new ExportResolution(module, symbol);
+                        }
+                    }
+
+                    break;
+                case ExportNamedStatement { FromModule: null } localExport:
+                    foreach (var specifier in localExport.Specifiers)
+                    {
+                        if (string.Equals(specifier.Exported.Name, exportName, StringComparison.Ordinal))
+                        {
+                            return new ExportResolution(module, specifier.Local);
+                        }
+                    }
+
+                    break;
+                case ExportNamespaceAsStatement exportNamespace
+                    when string.Equals(exportNamespace.Exported.Name, exportName, StringComparison.Ordinal):
+                    return new ExportResolution(module, exportNamespace.Exported);
+                case ExportNamedStatement { FromModule: { } fromModule } reExport:
+                    foreach (var specifier in reExport.Specifiers)
+                    {
+                        if (!string.Equals(specifier.Exported.Name, exportName, StringComparison.Ordinal))
+                        {
+                            continue;
+                        }
+
+                        var sourceModule =
+                            LoadModuleForInstantiation(fromModule, module.Path, phase);
+                        var resolved = ResolveExport(sourceModule, specifier.Local.Name, phase, resolveSet);
+                        return resolved;
+                    }
+
+                    break;
+            }
+        }
+
+        ExportResolution? starResolution = null;
+        foreach (var statement in module.Program.Body)
+        {
+            if (statement is not ExportAllStatement exportAll)
+            {
+                continue;
+            }
+
+            if (string.Equals(exportName, "default", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var sourceModule = LoadModuleForInstantiation(exportAll.ModulePath, module.Path, phase);
+            var resolved = ResolveExport(sourceModule, exportName, phase, resolveSet);
+            if (resolved.Kind == ExportResolutionKind.NotFound)
+            {
+                continue;
+            }
+
+            if (resolved.Kind == ExportResolutionKind.Ambiguous)
+            {
+                return ExportResolution.Ambiguous;
+            }
+
+            if (starResolution is null)
+            {
+                starResolution = resolved;
+            }
+            else if (!ReferenceEquals(starResolution.Value.Module, resolved.Module) ||
+                     !Equals(starResolution.Value.BindingName, resolved.BindingName))
+            {
+                return ExportResolution.Ambiguous;
+            }
+        }
+
+        return starResolution ?? ExportResolution.NotFound;
+    }
+
+    private static object CreateLiveBinding(ExportResolution resolution)
+    {
+        return new LiveExportBinding(() => resolution.Module!.Environment.Get(resolution.BindingName));
     }
 
     /// <summary>
@@ -2183,6 +2321,38 @@ public sealed class JsEngine : IAsyncDisposable
         }
     }
 
+    private void EvaluateRequestedModules(ProgramNode program, string? modulePath)
+    {
+        foreach (var statement in program.Body)
+        {
+            switch (statement)
+            {
+                case ImportStatement importStatement:
+                    var importPhase = importStatement.IsDeferred ? ImportPhase.Defer : ImportPhase.Module;
+                    if (importPhase == ImportPhase.Module)
+                    {
+                        LoadModule(importStatement.ModulePath, modulePath, importPhase, null, importStatement.Attributes);
+                    }
+                    else
+                    {
+                        LoadModuleForInstantiation(importStatement.ModulePath, modulePath, importPhase, null,
+                            importStatement.Attributes);
+                    }
+
+                    break;
+                case ExportNamedStatement { FromModule: { } fromModule }:
+                    LoadModule(fromModule, modulePath, ImportPhase.Module);
+                    break;
+                case ExportAllStatement exportAll:
+                    LoadModule(exportAll.ModulePath, modulePath, ImportPhase.Module);
+                    break;
+                case ExportNamespaceAsStatement exportNamespace:
+                    LoadModule(exportNamespace.ModulePath, modulePath, ImportPhase.Module);
+                    break;
+            }
+        }
+    }
+
     private object? ExecuteModuleBody(
         ProgramNode typedProgram,
         JsEnvironment moduleEnv,
@@ -2190,6 +2360,7 @@ public sealed class JsEngine : IAsyncDisposable
         string? modulePath)
     {
         object? lastValue = null;
+        EvaluateRequestedModules(typedProgram, modulePath);
         foreach (var statement in typedProgram.Body)
         {
             switch (statement)
@@ -2371,9 +2542,11 @@ public sealed class JsEngine : IAsyncDisposable
             var sourceEntry = LoadModule(fromModule, modulePath, ImportPhase.Module);
             foreach (var specifier in statement.Specifiers)
             {
-                if (sourceEntry.Exports.TryGetValue(specifier.Local.Name, out var value))
+                var resolution = ResolveExport(sourceEntry, specifier.Local.Name, ImportPhase.Module,
+                    new HashSet<(ModuleEntry, string)>());
+                if (resolution.Kind == ExportResolutionKind.Resolved)
                 {
-                    exports[specifier.Exported.Name] = value;
+                    exports[specifier.Exported.Name] = CreateLiveBinding(resolution);
                 }
             }
 
@@ -2401,26 +2574,25 @@ public sealed class JsEngine : IAsyncDisposable
     private void EvaluateExportAll(ExportAllStatement statement, JsObject exports, string? modulePath)
     {
         var sourceEntry = LoadModule(statement.ModulePath, modulePath, ImportPhase.Module);
-        foreach (var entry in sourceEntry.Exports.Keys)
+        var exportedNames = GetExportedNames(sourceEntry, new HashSet<string>(StringComparer.Ordinal));
+        foreach (var name in exportedNames)
         {
-            if (entry.StartsWith("__getter__", StringComparison.Ordinal) ||
-                entry.StartsWith("__setter__", StringComparison.Ordinal) ||
-                entry.StartsWith("@@symbol:", StringComparison.Ordinal))
+            if (name.StartsWith("__getter__", StringComparison.Ordinal) ||
+                name.StartsWith("__setter__", StringComparison.Ordinal) ||
+                name.StartsWith("@@symbol:", StringComparison.Ordinal) ||
+                string.Equals(name, "default", StringComparison.Ordinal))
             {
                 continue;
             }
 
-            if (string.Equals(entry, "default", StringComparison.Ordinal))
+            var resolution = ResolveExport(sourceEntry, name, ImportPhase.Module,
+                new HashSet<(ModuleEntry, string)>());
+            if (resolution.Kind != ExportResolutionKind.Resolved)
             {
                 continue;
             }
 
-            if (!sourceEntry.Exports.TryGetValue(entry, out var value))
-            {
-                continue;
-            }
-
-            exports[entry] = value;
+            exports[name] = CreateLiveBinding(resolution);
         }
     }
 

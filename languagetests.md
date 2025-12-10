@@ -85,7 +85,6 @@
         ModuleCode_topLevelAwait("language/module-code/top-level-await/module-graphs-does-not-hang.js",True)
         ModuleCode_topLevelAwait("language/module-code/top-level-await/module-sync-import-async-resolution-ticks.js",True)
        ModuleCode_topLevelAwait_syntax
-        ModuleCode_topLevelAwait_syntax("language/module-code/top-level-await/syntax/await-expr-dyn-import.js",True)
        Statements_asyncGenerator
         Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",False)
         Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",True)
@@ -122,18 +121,6 @@
         Statements_forAwaitOf("language/statements/for-await-of/async-gen-decl-dstr-array-elem-target-simple-no-strict.js",False)
         Statements_forAwaitOf("language/statements/for-await-of/async-gen-decl-dstr-obj-id-init-simple-no-strict.js",False)
         Statements_forAwaitOf("language/statements/for-await-of/async-gen-decl-dstr-obj-id-simple-no-strict.js",False)
-       Statements_forIn
-        Statements_forIn("language/statements/for-in/head-lhs-let.js",False)
-        Statements_forIn("language/statements/for-in/resizable-buffer.js",False)
-        Statements_forIn("language/statements/for-in/resizable-buffer.js",True)
-       Statements_forOf
-        Statements_forOf("language/statements/for-of/head-await-using-bound-names-fordecl-tdz.js",False)
-        Statements_forOf("language/statements/for-of/head-await-using-bound-names-fordecl-tdz.js",True)
-        Statements_forOf("language/statements/for-of/head-await-using-fresh-binding-per-iteration.js",True)
-        Statements_forOf("language/statements/for-of/head-using-bound-names-fordecl-tdz.js",False)
-        Statements_forOf("language/statements/for-of/head-using-bound-names-fordecl-tdz.js",True)
-        Statements_forOf("language/statements/for-of/head-using-fresh-binding-per-iteration.js",False)
-        Statements_forOf("language/statements/for-of/head-using-fresh-binding-per-iteration.js",True)
        Statements_function
         Statements_function("language/statements/function/param-dflt-yield-non-strict.js",False)
        Statements_labeled

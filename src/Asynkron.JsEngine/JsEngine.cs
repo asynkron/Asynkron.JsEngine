@@ -964,12 +964,16 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     ///     Registers a value in the global scope.
     /// </summary>
-    private void SetGlobal(string name, object? value, bool isGlobalConstant = false)
+    private void SetGlobal(string name, object? value, bool isGlobalConstant = false, bool registerBinding = false)
     {
         var symbol = Symbol.Intern(name);
-        // Global built-ins are properties of the global object (ES GlobalDeclarationInstantiation),
-        // so they are registered as var-scoped bindings rather than lexical declarations.
-        GlobalEnvironment.Define(symbol, value, isGlobalConstant: isGlobalConstant, isLexical: false);
+        if (registerBinding)
+        {
+            // Only register a binding when explicitly requested (e.g., host-added globals).
+            // Built-ins defined during engine initialization are exposed as global object
+            // properties so they don't block later lexical declarations (let/const).
+            GlobalEnvironment.Define(symbol, value, isGlobalConstant: isGlobalConstant, isLexical: false);
+        }
 
         // Also mirror globals onto the global object so that code using
         // `this.foo` or `global.foo` can see host-provided bindings.
@@ -1003,7 +1007,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public void SetGlobalValue(string name, object? value)
     {
-        SetGlobal(name, value);
+        SetGlobal(name, value, registerBinding: true);
     }
 
     /// <summary>
@@ -1011,7 +1015,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public void SetGlobalFunction(string name, Func<IReadOnlyList<object?>, object?> handler)
     {
-        GlobalEnvironment.Define(Symbol.Intern(name), new HostFunction(handler) { Realm = GlobalObject });
+        SetGlobal(name, new HostFunction(handler) { Realm = GlobalObject }, registerBinding: true);
     }
 
     /// <summary>

@@ -639,7 +639,7 @@ public static partial class TypedAstEvaluator
 
                 object? initialThisValue;
                 var initialThisInitialized = true;
-                if (_isDerivedClassConstructor && _superConstructor is not null)
+                if (_isDerivedClassConstructor)
                 {
                     context.MarkThisUninitialized();
                     initialThisInitialized = false;
@@ -708,7 +708,7 @@ public static partial class TypedAstEvaluator
 
                 if (_isClassConstructor && boundThis is JsObject thisInstance)
                 {
-                    if (_isDerivedClassConstructor && _superConstructor is not null)
+                    if (_isDerivedClassConstructor)
                     {
                         pendingFieldInitialization = new PendingClassFieldInitialization(this, functionEnvironment);
                         context.PushClassFieldInitializer(pendingFieldInitialization);

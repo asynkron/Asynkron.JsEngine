@@ -1626,6 +1626,11 @@ internal static class JsOps
 
     public static bool IsConstructor(object? value)
     {
+        if (value is JsProxy proxy)
+        {
+            return IsConstructor(proxy.Target);
+        }
+
         if (value is HostFunction host)
         {
             return host is { IsConstructor: true, DisallowConstruct: false };

@@ -81,7 +81,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 typedFunction.SetInstanceFields(resolvedInstanceFields);
-                typedFunction.SetIsClassConstructor(superConstructor is not null);
+                typedFunction.SetIsClassConstructor(definition.Extends is not null);
                 typedFunction.SetPrivateNameScope(privateNameScope);
                 if (privateNameScope is not null)
                 {

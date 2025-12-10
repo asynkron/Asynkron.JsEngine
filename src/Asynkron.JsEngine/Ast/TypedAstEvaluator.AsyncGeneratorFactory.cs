@@ -9,7 +9,7 @@ public static partial class TypedAstEvaluator
 {
     private sealed class AsyncGeneratorFactory : IJsCallable, IJsObjectLike, IPropertyDefinitionHost,
         IExtensibilityControl,
-        IFunctionNameTarget
+        IFunctionNameTarget, ICallableMetadata
     {
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
@@ -114,6 +114,10 @@ public static partial class TypedAstEvaluator
 
         public bool IsSealed => _properties.IsSealed;
         public bool IsFrozen => _properties.IsFrozen;
+
+        public bool IsArrowFunction => false;
+        public bool DisallowConstruct => true;
+        public RealmState RealmState => _realmState;
 
         public IEnumerable<string> Keys => _properties.Keys;
 

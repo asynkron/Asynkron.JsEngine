@@ -1001,16 +1001,6 @@ public sealed class JsEnvironment
             return true;
         }
 
-        // For global scope, also check the global object for var declarations
-        if (IsGlobalFunctionScope)
-        {
-            var globalObject = GetRootGlobalObject();
-            if (globalObject is not null && globalObject.GetOwnPropertyDescriptor(name.Name) is not null)
-            {
-                return true;
-            }
-        }
-
         return false;
     }
 

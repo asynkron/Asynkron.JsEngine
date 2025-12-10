@@ -547,6 +547,15 @@ public static partial class StandardLibrary
         constructor.SetProperty("BYTES_PER_ELEMENT", (double)bytesPerElement);
         prototype.SetPrototype(realm.ObjectPrototype);
         prototype.SetProperty("constructor", constructor);
+        var toStringTagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
+        prototype.DefineProperty(toStringTagKey,
+            new PropertyDescriptor
+            {
+                Value = constructorName,
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
         constructor.DefineProperty("name",
             new PropertyDescriptor
             {

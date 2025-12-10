@@ -21,9 +21,10 @@
 - Private name assignments now route through private scope/brand resolution, so instance/static private setter brand-checks across multiple class evaluations (factory/eval/realm variants) are passing alongside the private static getter/setter cases.
 - Super() in derived class constructors now finds the owning `this` binding without triggering TDZ ReferenceErrors, so the `this-access-restriction` class definition cases are green in strict and sloppy mode.
 - Logical assignment short-circuits skip `PutValue` (including private refs/accessors), and RHS NamedEvaluation now applies to ||=/&&=/??= with identifier LHS, so the logical-assignment cluster (read-only/accessor/non-extensible and name inference) is green.
-- `using` and `await using` declarations parse correctly and throw TypeError on non-object initializers, so the explicit resource management statement cases now pass.
+- Array index assignments now walk prototype accessors/writable descriptors (including inherited setters) before falling back to element storage, so member-expression for-in targets trigger Array.prototype setters and typed array for-in over resizable buffers enumerates the expected indices.
+- `using` and `await using` declarations still TypeError on non-object initializers but now allow initializer-less for-in/of heads with per-iteration lexical environments, so the TDZ/fresh-binding for-of cases are green.
 
 ## Next Iteration Plan
-1. Re-run the Language suite to refresh the current failure set after the this-access/super binding fixes.
+1. Re-run the Language suite to refresh the current failure set after the for-in/of using and array setter fixes.
 2. Triage the next largest failing cluster from that run (modules/import/defer if they resurface, otherwise whatever is hottest), adding realm logging if the failure isn’t obvious.
 3. Iterate through the refreshed list in priority order, landing targeted fixes and re-running the filtered clusters as they’re addressed.

@@ -61,12 +61,8 @@
        FutureReservedWords
         FutureReservedWords("language/future-reserved-words/static.js",False)
        GlobalCode
-        GlobalCode("language/global-code/decl-lex-configurable-global.js",False)
-        GlobalCode("language/global-code/decl-lex-configurable-global.js",True)
         GlobalCode("language/global-code/script-decl-func-err-non-extensible.js",False)
         GlobalCode("language/global-code/script-decl-func-err-non-extensible.js",True)
-        GlobalCode("language/global-code/script-decl-lex-restricted-global.js",False)
-        GlobalCode("language/global-code/script-decl-lex-restricted-global.js",True)
         GlobalCode("language/global-code/script-decl-lex-var-declared-via-eval.js",False)
        ModuleCode
         ModuleCode("language/module-code/eval-rqstd-order.js",True)
@@ -85,6 +81,7 @@
         ModuleCode_topLevelAwait("language/module-code/top-level-await/module-graphs-does-not-hang.js",True)
         ModuleCode_topLevelAwait("language/module-code/top-level-await/module-sync-import-async-resolution-ticks.js",True)
        ModuleCode_topLevelAwait_syntax
+        ModuleCode_topLevelAwait_syntax("language/module-code/top-level-await/syntax/await-expr-dyn-import.js",True)
        Statements_asyncGenerator
         Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",False)
         Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",True)
@@ -102,10 +99,6 @@
         Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-set-followed-by-generator-asi.js",False)
         Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-set-followed-by-generator-asi.js",True)
        Statements_class_subclass
-        Statements_class_subclass("language/statements/class/subclass/builtins.js",False)
-        Statements_class_subclass("language/statements/class/subclass/builtins.js",True)
-        Statements_class_subclass("language/statements/class/subclass/class-definition-null-proto-this.js",False)
-        Statements_class_subclass("language/statements/class/subclass/class-definition-null-proto-this.js",True)
         Statements_class_subclass("language/statements/class/subclass/superclass-async-generator-function.js",False)
         Statements_class_subclass("language/statements/class/subclass/superclass-async-generator-function.js",True)
         Statements_class_subclass("language/statements/class/subclass/superclass-generator-function.js",False)
@@ -113,14 +106,6 @@
        Statements_const_syntax
         Statements_const_syntax("language/statements/const/syntax/const-invalid-assignment-next-expression-for.js",False)
         Statements_const_syntax("language/statements/const/syntax/const-invalid-assignment-next-expression-for.js",True)
-       Statements_forAwaitOf
-        Statements_forAwaitOf("language/statements/for-await-of/async-func-decl-dstr-array-elem-init-simple-no-strict.js",False)
-        Statements_forAwaitOf("language/statements/for-await-of/async-func-decl-dstr-obj-id-init-simple-no-strict.js",False)
-        Statements_forAwaitOf("language/statements/for-await-of/async-func-decl-dstr-obj-id-simple-no-strict.js",False)
-        Statements_forAwaitOf("language/statements/for-await-of/async-gen-decl-dstr-array-elem-init-simple-no-strict.js",False)
-        Statements_forAwaitOf("language/statements/for-await-of/async-gen-decl-dstr-array-elem-target-simple-no-strict.js",False)
-        Statements_forAwaitOf("language/statements/for-await-of/async-gen-decl-dstr-obj-id-init-simple-no-strict.js",False)
-        Statements_forAwaitOf("language/statements/for-await-of/async-gen-decl-dstr-obj-id-simple-no-strict.js",False)
        Statements_function
         Statements_function("language/statements/function/param-dflt-yield-non-strict.js",False)
        Statements_labeled

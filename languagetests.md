@@ -86,23 +86,12 @@
         Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",False)
         Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",True)
        Statements_class_definition
-        Statements_class_definition("language/statements/class/definition/constructable-but-no-prototype.js",False)
-        Statements_class_definition("language/statements/class/definition/constructable-but-no-prototype.js",True)
         Statements_class_definition("language/statements/class/definition/invalid-extends.js",True)
-        Statements_class_definition("language/statements/class/definition/prototype-getter.js",False)
-        Statements_class_definition("language/statements/class/definition/prototype-getter.js",True)
-        Statements_class_definition("language/statements/class/definition/prototype-setter.js",False)
-        Statements_class_definition("language/statements/class/definition/prototype-setter.js",True)
        Statements_class_elements_syntax_valid
         Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-get-followed-by-generator-asi.js",False)
         Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-get-followed-by-generator-asi.js",True)
         Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-set-followed-by-generator-asi.js",False)
         Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-set-followed-by-generator-asi.js",True)
-       Statements_class_subclass
-        Statements_class_subclass("language/statements/class/subclass/superclass-async-generator-function.js",False)
-        Statements_class_subclass("language/statements/class/subclass/superclass-async-generator-function.js",True)
-        Statements_class_subclass("language/statements/class/subclass/superclass-generator-function.js",False)
-        Statements_class_subclass("language/statements/class/subclass/superclass-generator-function.js",True)
        Statements_const_syntax
         Statements_const_syntax("language/statements/const/syntax/const-invalid-assignment-next-expression-for.js",False)
         Statements_const_syntax("language/statements/const/syntax/const-invalid-assignment-next-expression-for.js",True)

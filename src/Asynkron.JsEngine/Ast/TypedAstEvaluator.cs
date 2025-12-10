@@ -248,6 +248,29 @@ public static partial class TypedAstEvaluator
                 yield break;
             }
 
+            case TypedArrayBase typedArray:
+            {
+                // TypedArray for-in only exposes own enumerable properties (indices and custom slots).
+                var seenKeys = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var key in typedArray.GetOwnPropertyNames().ToList())
+                {
+                    if (!seenKeys.Add(key))
+                    {
+                        continue;
+                    }
+
+                    var desc = typedArray.GetOwnPropertyDescriptor(key);
+                    if (desc is null || desc is { Enumerable: false })
+                    {
+                        continue;
+                    }
+
+                    yield return key;
+                }
+
+                yield break;
+            }
+
             case string s:
             {
                 for (var i = 0; i < s.Length; i++)

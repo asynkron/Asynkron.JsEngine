@@ -1604,12 +1604,52 @@ public sealed class TypedAstParser(
             }
             else
             {
+                if (Check(TokenType.Await) && CheckAhead(TokenType.Using))
+                {
+                    if (!IsAwaitAllowed)
+                    {
+                        throw new ParseException("'await using' is only allowed inside async contexts.", Peek(),
+                            _source);
+                    }
+
+                    Advance(); // await
+                    Advance(); // using
+                    var previousAllowIn = _allowInExpressions;
+                    _allowInExpressions = false;
+                    try
+                    {
+                        initializerDeclaration =
+                            (VariableDeclaration)ParseVariableDeclaration(VariableKind.AwaitUsing, false, true);
+                        initializer = initializerDeclaration;
+                    }
+                    finally
+                    {
+                        _allowInExpressions = previousAllowIn;
+                    }
+                }
+                else if (Match(TokenType.Using))
+                {
+                    var previousAllowIn = _allowInExpressions;
+                    _allowInExpressions = false;
+                    try
+                    {
+                        initializerDeclaration =
+                            (VariableDeclaration)ParseVariableDeclaration(VariableKind.Using, false, true);
+                        initializer = initializerDeclaration;
+                    }
+                    finally
+                    {
+                        _allowInExpressions = previousAllowIn;
+                    }
+                }
+                else
                 // In non-strict mode, 'for (let' is only a lexical declaration if followed by '[', '{'
                 // or a binding identifier. Otherwise 'let' is just an identifier expression.
                 // See: for ( [lookahead ∉ { let [ }] Expression
                 if (Check(TokenType.Let) &&
                     (InStrictContext || CheckAhead(TokenType.LeftBracket) || CheckAhead(TokenType.LeftBrace) ||
-                     (CheckAheadBindingIdentifier() && !CheckAhead(TokenType.Let))))
+                     (CheckAheadBindingIdentifier() && !CheckAhead(TokenType.Let)) &&
+                     !CheckAhead(TokenType.In)))
                 {
                     Advance(); // consume 'let'
                     var previousAllowIn = _allowInExpressions;

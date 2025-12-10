@@ -159,6 +159,20 @@ internal static class AssignmentReferenceResolver
 
         if (target is JsArray jsArray && JsOps.TryResolveArrayIndex(propertyValue, out var arrayIndex, context))
         {
+            var propertyName = JsOps.GetRequiredPropertyName(propertyValue, context);
+            if (ShouldUsePropertyHandle(jsArray, propertyName))
+            {
+                var propertyHandle = TypedAstEvaluator.PropertyHandle.Resolve(
+                    jsArray,
+                    propertyName,
+                    context,
+                    context.CurrentScope.IsStrict,
+                    allowPrivate: !member.IsComputed);
+                return new AssignmentReference(
+                    () => propertyHandle.GetValue(),
+                    newValue => propertyHandle.SetValue(newValue));
+            }
+
             return new AssignmentReference(
                 () => jsArray.GetElement(arrayIndex),
                 newValue => jsArray.SetElement(arrayIndex, newValue));
@@ -189,6 +203,28 @@ internal static class AssignmentReferenceResolver
         return new AssignmentReference(
             () => handle.GetValue(),
             newValue => handle.SetValue(newValue));
+    }
+
+    private static bool ShouldUsePropertyHandle(IJsPropertyAccessor target, string propertyName)
+    {
+        IJsPropertyAccessor? current = target;
+        while (current is not null)
+        {
+            var descriptor = current.GetOwnPropertyDescriptor(propertyName);
+            if (descriptor is not null)
+            {
+                return descriptor.IsAccessorDescriptor || descriptor is { Writable: false };
+            }
+
+            current = current switch
+            {
+                IJsObjectLike objectLike => objectLike.Prototype,
+                IPrototypeAccessorProvider provider => provider.PrototypeAccessor,
+                _ => null
+            };
+        }
+
+        return false;
     }
 
     internal static object? ReadIdentifierValue(Func<object?> getter, EvaluationContext context)

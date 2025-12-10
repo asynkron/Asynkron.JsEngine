@@ -208,8 +208,12 @@ public static partial class TypedAstEvaluator
                     // if needed. Pass null here; the caller will use the nextResult object directly.
                     value = null;
                 }
-                var delegatedCompletion = _isGeneratorObject && (propagateThrow || propagateReturn);
-                var propagateThrowResult = _isGeneratorObject && propagateThrow && done;
+                // Delegated completion occurs when:
+                // 1. Inner iterator is a generator AND we propagated throw/return, OR
+                // 2. We propagated return AND inner iterator completed (done: true) - even for non-generator iterators
+                var delegatedCompletion = (_isGeneratorObject && (propagateThrow || propagateReturn)) ||
+                                         (propagateReturn && done);
+                var propagateThrowResult = propagateThrow && done;
                 return (value, done, delegatedCompletion, propagateThrowResult, nextResult);
             }
 

@@ -4163,7 +4163,24 @@ public sealed class TypedAstParser(
 
         private Token ConsumeBindingIdentifier(string message)
         {
-            return ConsumeParameterIdentifier(message);
+            var token = ConsumeParameterIdentifier(message);
+
+            // In strict mode, 'eval' and 'arguments' cannot be used as binding identifiers
+            // This covers variable declarations (var/let/const), catch parameters, etc.
+            if (InStrictContext)
+            {
+                var lexeme = token.Lexeme;
+                if (string.Equals(lexeme, "eval", StringComparison.Ordinal) ||
+                    string.Equals(lexeme, "arguments", StringComparison.Ordinal))
+                {
+                    throw new ParseException(
+                        $"'{lexeme}' cannot be used as a binding identifier in strict mode.",
+                        token,
+                        _source);
+                }
+            }
+
+            return token;
         }
 
         private bool IsUseStrictDirectiveLiteral(Token token)

@@ -83,6 +83,13 @@ public static partial class TypedAstEvaluator
             var args = hasArgument ? new[] { argument } : Array.Empty<object?>();
             var realm = (iterator as JsObject)?.RealmState ?? context.RealmState;
             result = InvokeCallable(callable, args, iterator, context, realm?.Engine?.GlobalEnvironment);
+
+            // Check if the method threw an error
+            if (context.IsThrow)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+
             return true;
         }
 

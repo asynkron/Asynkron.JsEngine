@@ -126,13 +126,28 @@ public static partial class TypedAstEvaluator
                 instance = new JsObject();
                 if (typedConstructor is not null)
                 {
-                    var protoObject = typedConstructor.GetOrCreatePrototypeObject();
-                    instance.SetPrototype(protoObject);
-                    logger?.LogInformation(
-                        "new: pre-call [[Prototype]] set instance={Instance} proto={Proto} derived={Derived}",
-                        DescribeInstance(instance),
-                        DescribePrototype(protoObject),
-                        isDerivedClassCtor);
+                    // Use TryGetPrototypeValue to get any object-like prototype (including functions)
+                    // Per ES spec, if Constructor.prototype is not an object, use %Object.prototype%
+                    if (typedConstructor.TryGetPrototypeValue(out var protoValue) && protoValue is not null)
+                    {
+                        instance.SetPrototype(protoValue);
+                        logger?.LogInformation(
+                            "new: pre-call [[Prototype]] set instance={Instance} proto={Proto} derived={Derived}",
+                            DescribeInstance(instance),
+                            DescribePrototype(protoValue),
+                            isDerivedClassCtor);
+                    }
+                    else
+                    {
+                        // Fall back to creating/getting a JsObject prototype
+                        var protoObject = typedConstructor.GetOrCreatePrototypeObject();
+                        instance.SetPrototype(protoObject);
+                        logger?.LogInformation(
+                            "new: pre-call [[Prototype]] set instance={Instance} proto={Proto} derived={Derived}",
+                            DescribeInstance(instance),
+                            DescribePrototype(protoObject),
+                            isDerivedClassCtor);
+                    }
                 }
                 else if (TryGetPropertyValue(constructor, "prototype", out var prototype) &&
                          prototype is IJsPropertyAccessor protoAccessor)
@@ -190,17 +205,35 @@ public static partial class TypedAstEvaluator
             {
                 if (typedConstructor is not null)
                 {
-                    var finalProto = typedConstructor.GetOrCreatePrototypeObject();
-                    if (!ReferenceEquals(instance.PrototypeAccessor, finalProto))
+                    // Use TryGetPrototypeValue to get any object-like prototype (including functions)
+                    if (typedConstructor.TryGetPrototypeValue(out var finalProtoValue) && finalProtoValue is not null)
                     {
-                        instance.SetPrototype(finalProto);
-                    }
+                        if (!ReferenceEquals(instance.PrototypeAccessor, finalProtoValue))
+                        {
+                            instance.SetPrototype(finalProtoValue);
+                        }
 
-                    logger?.LogInformation(
-                        "new: final [[Prototype]] set instance={Instance} proto={Proto} derived={Derived}",
-                        DescribeInstance(instance),
-                        DescribePrototype(finalProto),
-                        isDerivedClassCtor);
+                        logger?.LogInformation(
+                            "new: final [[Prototype]] set instance={Instance} proto={Proto} derived={Derived}",
+                            DescribeInstance(instance),
+                            DescribePrototype(finalProtoValue),
+                            isDerivedClassCtor);
+                    }
+                    else
+                    {
+                        // Fall back to creating/getting a JsObject prototype
+                        var finalProto = typedConstructor.GetOrCreatePrototypeObject();
+                        if (!ReferenceEquals(instance.PrototypeAccessor, finalProto))
+                        {
+                            instance.SetPrototype(finalProto);
+                        }
+
+                        logger?.LogInformation(
+                            "new: final [[Prototype]] set instance={Instance} proto={Proto} derived={Derived}",
+                            DescribeInstance(instance),
+                            DescribePrototype(finalProto),
+                            isDerivedClassCtor);
+                    }
                 }
                 else if (TryGetPropertyValue(constructor, "prototype", out var finalPrototype, context) &&
                          finalPrototype is IJsPropertyAccessor finalProtoAccessor)
@@ -245,10 +278,21 @@ public static partial class TypedAstEvaluator
                 constructedResult is JsObject constructedJsObj &&
                 ReferenceEquals(constructedJsObj, instance))
             {
-                var ctorProto = typedConstructor.GetOrCreatePrototypeObject();
-                if (!ReferenceEquals(constructedJsObj.PrototypeAccessor, ctorProto))
+                // Use TryGetPrototypeValue to get any object-like prototype (including functions)
+                if (typedConstructor.TryGetPrototypeValue(out var ctorProtoValue) && ctorProtoValue is not null)
                 {
-                    constructedJsObj.SetPrototype(ctorProto);
+                    if (!ReferenceEquals(constructedJsObj.PrototypeAccessor, ctorProtoValue))
+                    {
+                        constructedJsObj.SetPrototype(ctorProtoValue);
+                    }
+                }
+                else
+                {
+                    var ctorProto = typedConstructor.GetOrCreatePrototypeObject();
+                    if (!ReferenceEquals(constructedJsObj.PrototypeAccessor, ctorProto))
+                    {
+                        constructedJsObj.SetPrototype(ctorProto);
+                    }
                 }
             }
 

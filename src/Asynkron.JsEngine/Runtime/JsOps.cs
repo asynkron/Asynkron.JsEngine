@@ -1424,11 +1424,51 @@ internal static class JsOps
     /// <summary>
     /// Implements [[HasProperty]] internal method for the 'in' operator.
     /// Returns true if the property exists on the object or its prototype chain.
+    /// Per ES spec, [[HasProperty]] uses [[GetOwnProperty]] to check for existence,
+    /// it does NOT invoke getters like [[Get]] would.
     /// </summary>
     public static bool HasProperty(object? target, string propertyName, EvaluationContext? context = null)
     {
-        // For objects, check if property exists (TryGetPropertyValue returning true means property exists)
-        return TryGetPropertyValue(target, propertyName, out _, context);
+        // Walk the prototype chain checking for the property via [[GetOwnProperty]]
+        // This does NOT invoke getters - it only checks if the property exists
+        var current = target;
+        while (current is not null)
+        {
+            if (current is IJsObjectLike objLike)
+            {
+                var descriptor = objLike.GetOwnPropertyDescriptor(propertyName);
+                if (descriptor is not null)
+                {
+                    return true;
+                }
+                // Move to prototype
+                current = objLike.Prototype;
+            }
+            else if (current is IJsPropertyAccessor accessor)
+            {
+                // For non-IJsObjectLike property accessors, fall back to TryGetProperty
+                // but wrap in try-catch to handle poison pill getters
+                try
+                {
+                    if (accessor.TryGetProperty(propertyName, out _))
+                    {
+                        return true;
+                    }
+                }
+                catch (ThrowSignal)
+                {
+                    // Property exists but getter threw - per spec, HasProperty should return true
+                    // because the property exists (it has a getter descriptor)
+                    return true;
+                }
+                break;
+            }
+            else
+            {
+                break;
+            }
+        }
+        return false;
     }
 
     public static bool TryGetPropertyValue(object? target, string propertyName, out object? value,

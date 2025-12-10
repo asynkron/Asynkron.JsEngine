@@ -499,23 +499,29 @@ public sealed partial class ArrayPrototype
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
-        var elements = new List<(string Key, long Index)>((int)Math.Min(length, int.MaxValue));
+        // Collect all values upfront - this is the "snapshot" approach required by ES spec
+        // We need to materialize values before sorting because the comparator could mutate the array
+        var elements = new List<(object? Value, long OriginalIndex)>((int)Math.Min(length, int.MaxValue));
+        var holes = new List<long>(); // Track holes (sparse array indices with no property)
+
         for (long k = 0; k < length; k++)
         {
             var key = ToIndexString(k);
             if (HasProperty(accessor, key))
             {
-                elements.Add((key, k));
+                var value = GetElementOrUndefined(accessor, key);
+                elements.Add((value, k));
+            }
+            else
+            {
+                holes.Add(k);
             }
         }
 
-
-
-        int Comparer((string Key, long Index) a, (string Key, long Index) b)
+        int Comparer((object? Value, long OriginalIndex) a, (object? Value, long OriginalIndex) b)
         {
-            // Fetch current values lazily to observe getters/side-effects
-            var aVal = GetElementOrUndefined(accessor, a.Key);
-            var bVal = GetElementOrUndefined(accessor, b.Key);
+            var aVal = a.Value;
+            var bVal = b.Value;
 
             if (compareFn is not null)
             {
@@ -528,49 +534,33 @@ public sealed partial class ArrayPrototype
                 }
                 if (double.IsNaN(num))
                 {
-                    return a.Index.CompareTo(b.Index);
+                    return a.OriginalIndex.CompareTo(b.OriginalIndex);
                 }
                 var cmp = num > 0 ? 1 : num < 0 ? -1 : 0;
-                return cmp != 0 ? cmp : a.Index.CompareTo(b.Index);
+                return cmp != 0 ? cmp : a.OriginalIndex.CompareTo(b.OriginalIndex);
             }
 
             var aUndef = ReferenceEquals(aVal, Symbol.Undefined);
             var bUndef = ReferenceEquals(bVal, Symbol.Undefined);
             if (aUndef || bUndef)
             {
-                if (aUndef && bUndef) return a.Index.CompareTo(b.Index);
+                if (aUndef && bUndef) return a.OriginalIndex.CompareTo(b.OriginalIndex);
                 return aUndef ? 1 : -1;
             }
 
             var aStr = JsValueToString(aVal, realm);
             var bStr = JsValueToString(bVal, realm);
             var ord = string.CompareOrdinal(aStr, bStr);
-            return ord != 0 ? ord : a.Index.CompareTo(b.Index);
+            return ord != 0 ? ord : a.OriginalIndex.CompareTo(b.OriginalIndex);
         }
 
         elements.Sort((x, y) => Comparer(x, y));
 
+        // Write sorted values back to the array
         long index = 0;
         foreach (var pair in elements)
         {
-            var keyNow = pair.Key;
-            var existsNow = HasProperty(accessor, keyNow);
-            if (existsNow)
-            {
-                var value = GetElementOrUndefined(accessor, keyNow);
-                accessor.SetProperty(ToIndexString(index++), value);
-            }
-            else
-            {
-                if (objectLike is not null)
-                {
-                    objectLike.Delete(ToIndexString(index++));
-                }
-                else
-                {
-                    accessor.SetProperty(ToIndexString(index++), Symbol.Undefined);
-                }
-            }
+            accessor.SetProperty(ToIndexString(index++), pair.Value);
         }
 
         if (objectLike is not null)

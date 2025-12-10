@@ -1032,6 +1032,38 @@ public static partial class TypedAstEvaluator
             _instanceFields = fields;
         }
 
+        /// <summary>
+        /// Tries to get the current prototype value, which could be any object-like value
+        /// (JsObject, TypedFunction, HostFunction, etc). Returns true if a valid prototype exists.
+        /// </summary>
+        internal bool TryGetPrototypeValue(out IJsObjectLike? prototype)
+        {
+            // Always check the current prototype property value first, in case it was reassigned
+            // (e.g., FooObj.prototype = anotherFunction). Per ES spec, if the prototype property
+            // is not an object, we should use the intrinsic %Object.prototype% instead, but
+            // this is handled at the call site.
+            if (_properties.TryGetProperty("prototype", this, out var value) && value is IJsObjectLike objLike)
+            {
+                prototype = objLike;
+                // Also cache if it's a JsObject for backwards compatibility
+                if (objLike is JsObject jsObj)
+                {
+                    _prototypeObject = jsObj;
+                }
+                return true;
+            }
+
+            // Return cached value if we previously created one
+            if (_prototypeObject is not null)
+            {
+                prototype = _prototypeObject;
+                return true;
+            }
+
+            prototype = null;
+            return false;
+        }
+
         internal JsObject GetOrCreatePrototypeObject()
         {
             // Always check the current prototype property value first, in case it was reassigned

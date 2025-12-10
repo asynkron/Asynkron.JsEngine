@@ -42,10 +42,12 @@ public static partial class TypedAstEvaluator
                         callingEnvironment: loopEnvironment);
                     if (!throwBeforeNext && context.IsThrow)
                     {
-                        // Keep iteratorDone false so IteratorClose runs on the way out.
-                        iteratorDone = false;
-                        // Bubble to outer catch to preserve the iterator-thrown completion.
-                        continue;
+                        // Per ES spec 13.6.4.13 step 5.d: if IteratorStep (calling next())
+                        // returns an abrupt completion, we return that completion directly
+                        // WITHOUT calling IteratorClose.
+                        var thrown = context.FlowValue;
+                        context.Clear();
+                        throw new ThrowSignal(thrown);
                     }
                 }
                 else if (state.Enumerator is not null)

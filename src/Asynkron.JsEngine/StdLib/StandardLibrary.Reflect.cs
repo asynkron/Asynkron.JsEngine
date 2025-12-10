@@ -363,8 +363,16 @@ public static partial class StandardLibrary
         var receiver = args.Count > 3 ? args[3] : target;
         if (target is ModuleNamespace moduleNamespace)
         {
-            moduleNamespace.SetProperty(propertyKey, value, receiver);
-            return true;
+            try
+            {
+                moduleNamespace.SetProperty(propertyKey, value, receiver);
+            }
+            catch (ThrowSignal)
+            {
+                return false;
+            }
+
+            return false;
         }
 
         if (target is JsArray jsArray && string.Equals(propertyKey, "length", StringComparison.Ordinal))

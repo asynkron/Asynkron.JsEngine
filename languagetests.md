@@ -17,13 +17,6 @@
         Expressions_import_meta("language/expressions/import.meta/import-meta-is-an-ordinary-object.js",True)
         Expressions_import_meta("language/expressions/import.meta/not-accessible-from-direct-eval.js",True)
         Expressions_import_meta("language/expressions/import.meta/same-object-returned.js",True)
-       Expressions_object_dstr
-        Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-get-not-called-on-dontenum-keys.js",False)
-        Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-get-not-called-on-dontenum-keys.js",True)
-        Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-gopd-not-called-on-excluded-keys.js",False)
-        Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-gopd-not-called-on-excluded-keys.js",True)
-        Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-ownkeys-returned-keys-order.js",False)
-        Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-ownkeys-returned-keys-order.js",True)
        Expressions_object_methodDefinition
         Expressions_object_methodDefinition("language/expressions/object/method-definition/generator-invoke-fn-no-strict.js",False)
         Expressions_object_methodDefinition("language/expressions/object/method-definition/generator-super-prop-param.js",False)
@@ -64,45 +57,21 @@
         GlobalCode("language/global-code/script-decl-func-err-non-extensible.js",False)
         GlobalCode("language/global-code/script-decl-func-err-non-extensible.js",True)
         GlobalCode("language/global-code/script-decl-lex-var-declared-via-eval.js",False)
-       ModuleCode
-        ModuleCode("language/module-code/eval-rqstd-order.js",True)
-        ModuleCode("language/module-code/export-expname-binding-index.js",True)
-        ModuleCode("language/module-code/instn-iee-star-cycle.js",True)
-        ModuleCode("language/module-code/instn-star-ambiguous.js",True)
-        ModuleCode("language/module-code/instn-star-equality.js",True)
-        ModuleCode("language/module-code/instn-star-iee-cycle.js",True)
-        ModuleCode("language/module-code/instn-star-star-cycle.js",True)
-       ModuleCode_namespace_internals
-        ModuleCode_namespace_internals("language/module-code/namespace/internals/set.js",True)
        ModuleCode_topLevelAwait
         ModuleCode_topLevelAwait("language/module-code/top-level-await/async-module-does-not-block-sibling-modules.js",True)
         ModuleCode_topLevelAwait("language/module-code/top-level-await/await-dynamic-import-resolution.js",True)
-        ModuleCode_topLevelAwait("language/module-code/top-level-await/module-async-import-async-resolution-ticks.js",True)
         ModuleCode_topLevelAwait("language/module-code/top-level-await/module-graphs-does-not-hang.js",True)
-        ModuleCode_topLevelAwait("language/module-code/top-level-await/module-sync-import-async-resolution-ticks.js",True)
        ModuleCode_topLevelAwait_syntax
-        ModuleCode_topLevelAwait_syntax("language/module-code/top-level-await/syntax/await-expr-dyn-import.js",True)
        Statements_asyncGenerator
         Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",False)
         Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",True)
        Statements_class_definition
-        Statements_class_definition("language/statements/class/definition/constructable-but-no-prototype.js",False)
-        Statements_class_definition("language/statements/class/definition/constructable-but-no-prototype.js",True)
         Statements_class_definition("language/statements/class/definition/invalid-extends.js",True)
-        Statements_class_definition("language/statements/class/definition/prototype-getter.js",False)
-        Statements_class_definition("language/statements/class/definition/prototype-getter.js",True)
-        Statements_class_definition("language/statements/class/definition/prototype-setter.js",False)
-        Statements_class_definition("language/statements/class/definition/prototype-setter.js",True)
        Statements_class_elements_syntax_valid
         Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-get-followed-by-generator-asi.js",False)
         Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-get-followed-by-generator-asi.js",True)
         Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-set-followed-by-generator-asi.js",False)
         Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-set-followed-by-generator-asi.js",True)
-       Statements_class_subclass
-        Statements_class_subclass("language/statements/class/subclass/superclass-async-generator-function.js",False)
-        Statements_class_subclass("language/statements/class/subclass/superclass-async-generator-function.js",True)
-        Statements_class_subclass("language/statements/class/subclass/superclass-generator-function.js",False)
-        Statements_class_subclass("language/statements/class/subclass/superclass-generator-function.js",True)
        Statements_const_syntax
         Statements_const_syntax("language/statements/const/syntax/const-invalid-assignment-next-expression-for.js",False)
         Statements_const_syntax("language/statements/const/syntax/const-invalid-assignment-next-expression-for.js",True)

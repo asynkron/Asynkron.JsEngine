@@ -1180,87 +1180,31 @@ public static partial class TypedAstEvaluator
         return Enumerate().GetEnumerator();
     }
 
-    private static JsObject ToObjectForDestructuring(object? value, EvaluationContext context)
+    private static IJsObjectLike ToObjectForDestructuring(object? value, EvaluationContext context)
     {
         var realm = context.RealmState;
         switch (value)
         {
-            case JsObject jsObj:
-                return jsObj;
-            case JsArray jsArray:
-            {
-                var obj = new JsObject();
-                if (realm?.ArrayPrototype is not null)
-                {
-                    obj.SetPrototype(realm.ArrayPrototype);
-                }
-
-                var length = jsArray.Length;
-                var count = length > int.MaxValue ? int.MaxValue : (int)length;
-                for (var i = 0; i < count; i++)
-                {
-                    obj.SetProperty(i.ToString(CultureInfo.InvariantCulture), jsArray.GetElement(i));
-                }
-
-                obj.SetProperty("length", length);
-                return obj;
-            }
             case null:
             case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
             case IIsHtmlDda:
                 throw StandardLibrary.ThrowTypeError("Cannot destructure undefined or null", context, realm);
-            case string s:
-                return StandardLibrary.CreateStringWrapper(s, context, realm);
-            case JsBigInt bi:
-                return StandardLibrary.CreateBigIntWrapper(bi, context, realm);
-            case TypedAstSymbol symbolValue:
-            {
-                var obj = new JsObject();
-                if (realm?.ObjectPrototype is not null)
-                {
-                    obj.SetPrototype(realm.ObjectPrototype);
-                }
-
-                obj.SetProperty("__value__", symbolValue);
-                return obj;
-            }
-            case double:
-            case float:
-            case decimal:
-            case int:
-            case uint:
-            case long:
-            case ulong:
-            case short:
-            case ushort:
-            case byte:
-            case sbyte:
-            {
-                var num = Convert.ToDouble(value, CultureInfo.InvariantCulture);
-                return StandardLibrary.CreateNumberWrapper(num, context, realm);
-            }
-            case bool b:
-            {
-                var obj = new JsObject();
-                if (realm?.BooleanPrototype is not null)
-                {
-                    obj.SetPrototype(realm.BooleanPrototype);
-                }
-
-                obj.SetProperty("__value__", b);
-                return obj;
-            }
-            default:
-            {
-                var obj = new JsObject();
-                if (realm?.ObjectPrototype is not null)
-                {
-                    obj.SetPrototype(realm.ObjectPrototype);
-                }
-
-                return obj;
-            }
+            case IJsObjectLike objectLike:
+                return objectLike;
         }
+
+        if (realm is not null && StandardLibrary.TryGetObject(value, realm, out var coerced))
+        {
+            return coerced;
+        }
+
+        var obj = new JsObject();
+        if (realm?.ObjectPrototype is not null)
+        {
+            obj.SetPrototype(realm.ObjectPrototype);
+        }
+
+        return obj;
     }
 
     private static JsObject CreateGeneratorIteratorObject(

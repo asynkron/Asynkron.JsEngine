@@ -55,7 +55,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 usedKeys.Add(propertyName);
-                var hasProperty = obj.TryGetProperty(propertyName, obj, context, out var val);
+                var hasProperty = JsOps.TryGetPropertyValue(obj, propertyName, out var val, context);
                 if (context.ShouldStopEvaluation)
                 {
                     throw new ThrowSignal(context.FlowValue);
@@ -107,18 +107,26 @@ public static partial class TypedAstEvaluator
                 restObject.SetPrototype(context.RealmState.ObjectPrototype);
             }
 
-            foreach (var key in GetEnumerableOwnPropertyKeysInOrder(obj))
+            foreach (var key in obj.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
             {
-                if (!usedKeys.Contains(key))
+                if (usedKeys.Contains(key))
                 {
-                    if (obj.TryGetProperty(key, obj, context, out var restValue))
-                    {
-                        restObject.SetProperty(key, restValue);
-                    }
-                    else if (context.ShouldStopEvaluation)
-                    {
-                        throw new ThrowSignal(context.FlowValue);
-                    }
+                    continue;
+                }
+
+                var descriptor = obj.GetOwnPropertyDescriptor(key);
+                if (descriptor is not { Enumerable: true })
+                {
+                    continue;
+                }
+
+                if (JsOps.TryGetPropertyValue(obj, key, out var restValue, context))
+                {
+                    restObject.SetProperty(key, restValue);
+                }
+                else if (context.ShouldStopEvaluation)
+                {
+                    throw new ThrowSignal(context.FlowValue);
                 }
             }
 

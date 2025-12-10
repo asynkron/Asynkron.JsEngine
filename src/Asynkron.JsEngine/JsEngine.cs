@@ -696,6 +696,7 @@ public sealed class JsEngine : IAsyncDisposable
         try
         {
             var isModule = forceModule || HasModuleStatements(program.Typed);
+            EnsureImportMetaAllowed(program.Typed, isModule);
             if (isModule)
             {
                 string? moduleKey = null;
@@ -850,6 +851,7 @@ public sealed class JsEngine : IAsyncDisposable
         try
         {
             var isModule = forceModule || HasModuleStatements(program.Typed);
+            EnsureImportMetaAllowed(program.Typed, isModule);
             if (isModule)
             {
                 string? moduleKey = null;
@@ -901,6 +903,443 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         return false;
+    }
+
+    internal static bool ProgramContainsImportMeta(ProgramNode program)
+    {
+        return StatementsContainImportMeta(program.Body);
+    }
+
+    private void EnsureImportMetaAllowed(ProgramNode program, bool isModule, EvaluationContext? context = null)
+    {
+        if (isModule || !ProgramContainsImportMeta(program))
+        {
+            return;
+        }
+
+        var syntaxError = StandardLibrary.CreateSyntaxError(
+            "'import.meta' is only valid in module code.",
+            context,
+            RealmState);
+        throw new ThrowSignal(syntaxError);
+    }
+
+    private static bool StatementsContainImportMeta(ImmutableArray<StatementNode> statements)
+    {
+        foreach (var statement in statements)
+        {
+            if (StatementContainsImportMeta(statement))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool StatementContainsImportMeta(StatementNode statement)
+    {
+        switch (statement)
+        {
+            case BlockStatement block:
+                return StatementsContainImportMeta(block.Statements);
+            case VariableDeclaration variableDeclaration:
+                foreach (var declarator in variableDeclaration.Declarators)
+                {
+                    if (BindingContainsImportMeta(declarator.Target))
+                    {
+                        return true;
+                    }
+
+                    if (declarator.Initializer is { } initializer &&
+                        ExpressionContainsImportMeta(initializer))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            case ExpressionStatement expressionStatement:
+                return ExpressionContainsImportMeta(expressionStatement.Expression);
+            case ReturnStatement returnStatement:
+                return returnStatement.Expression is { } returnExpression &&
+                       ExpressionContainsImportMeta(returnExpression);
+            case ThrowStatement throwStatement:
+                return ExpressionContainsImportMeta(throwStatement.Expression);
+            case IfStatement ifStatement:
+                return ExpressionContainsImportMeta(ifStatement.Condition) ||
+                       StatementContainsImportMeta(ifStatement.Then) ||
+                       (ifStatement.Else is { } elseBranch && StatementContainsImportMeta(elseBranch));
+            case WhileStatement whileStatement:
+                return ExpressionContainsImportMeta(whileStatement.Condition) ||
+                       StatementContainsImportMeta(whileStatement.Body);
+            case DoWhileStatement doWhileStatement:
+                return StatementContainsImportMeta(doWhileStatement.Body) ||
+                       ExpressionContainsImportMeta(doWhileStatement.Condition);
+            case WithStatement withStatement:
+                return ExpressionContainsImportMeta(withStatement.Object) ||
+                       StatementContainsImportMeta(withStatement.Body);
+            case ForStatement forStatement:
+                if (forStatement.Initializer is { } forInitializer && StatementContainsImportMeta(forInitializer))
+                {
+                    return true;
+                }
+
+                if (forStatement.Condition is { } condition && ExpressionContainsImportMeta(condition))
+                {
+                    return true;
+                }
+
+                if (forStatement.Increment is { } increment && ExpressionContainsImportMeta(increment))
+                {
+                    return true;
+                }
+
+                return StatementContainsImportMeta(forStatement.Body);
+            case ForEachStatement forEachStatement:
+                return BindingContainsImportMeta(forEachStatement.Target) ||
+                       ExpressionContainsImportMeta(forEachStatement.Iterable) ||
+                       StatementContainsImportMeta(forEachStatement.Body);
+            case LabeledStatement labeledStatement:
+                return StatementContainsImportMeta(labeledStatement.Statement);
+            case TryStatement tryStatement:
+                if (StatementContainsImportMeta(tryStatement.TryBlock))
+                {
+                    return true;
+                }
+
+                if (tryStatement.Catch is { } catchClause)
+                {
+                    if (BindingContainsImportMeta(catchClause.Binding))
+                    {
+                        return true;
+                    }
+
+                    if (StatementContainsImportMeta(catchClause.Body))
+                    {
+                        return true;
+                    }
+                }
+
+                if (tryStatement.Finally is { } finallyBlock && StatementContainsImportMeta(finallyBlock))
+                {
+                    return true;
+                }
+
+                return false;
+            case SwitchStatement switchStatement:
+                if (ExpressionContainsImportMeta(switchStatement.Discriminant))
+                {
+                    return true;
+                }
+
+                foreach (var switchCase in switchStatement.Cases)
+                {
+                    if (switchCase.Test is { } test && ExpressionContainsImportMeta(test))
+                    {
+                        return true;
+                    }
+
+                    if (StatementContainsImportMeta(switchCase.Body))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            case FunctionDeclaration functionDeclaration:
+                return FunctionContainsImportMeta(functionDeclaration.Function);
+            case ClassDeclaration classDeclaration:
+                return ClassContainsImportMeta(classDeclaration.Definition);
+            case ModuleStatement moduleStatement:
+                return ModuleStatementContainsImportMeta(moduleStatement);
+            default:
+                return false;
+        }
+    }
+
+    private static bool ModuleStatementContainsImportMeta(ModuleStatement moduleStatement)
+    {
+        switch (moduleStatement)
+        {
+            case ExportDefaultStatement { Value: ExportDefaultExpression { Expression: { } expression } }:
+                return ExpressionContainsImportMeta(expression);
+            case ExportDefaultStatement
+            {
+                Value: ExportDefaultDeclaration { Declaration: { } declaration }
+            }:
+                return StatementContainsImportMeta(declaration);
+            case ExportDeclarationStatement { Declaration: { } declaration }:
+                return StatementContainsImportMeta(declaration);
+            default:
+                return false;
+        }
+    }
+
+    private static bool ClassContainsImportMeta(ClassDefinition definition)
+    {
+        if (definition.Extends is { } extends && ExpressionContainsImportMeta(extends))
+        {
+            return true;
+        }
+
+        if (FunctionContainsImportMeta(definition.Constructor))
+        {
+            return true;
+        }
+
+        foreach (var member in definition.Members)
+        {
+            if (member.IsComputed && member.ComputedName is { } computedName &&
+                ExpressionContainsImportMeta(computedName))
+            {
+                return true;
+            }
+
+            if (FunctionContainsImportMeta(member.Function))
+            {
+                return true;
+            }
+        }
+
+        foreach (var field in definition.Fields)
+        {
+            if (field.IsComputed && field.ComputedName is { } computedName &&
+                ExpressionContainsImportMeta(computedName))
+            {
+                return true;
+            }
+
+            if (field.Initializer is { } initializer && ExpressionContainsImportMeta(initializer))
+            {
+                return true;
+            }
+        }
+
+        foreach (var staticBlock in definition.StaticBlocks)
+        {
+            if (StatementsContainImportMeta(staticBlock.Body.Statements))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool FunctionContainsImportMeta(FunctionExpression function)
+    {
+        foreach (var parameter in function.Parameters)
+        {
+            if (BindingContainsImportMeta(parameter.Pattern))
+            {
+                return true;
+            }
+
+            if (parameter.DefaultValue is { } defaultValue && ExpressionContainsImportMeta(defaultValue))
+            {
+                return true;
+            }
+        }
+
+        return StatementsContainImportMeta(function.Body.Statements);
+    }
+
+    private static bool BindingContainsImportMeta(BindingTarget? target)
+    {
+        switch (target)
+        {
+            case null:
+                return false;
+            case IdentifierBinding:
+                return false;
+            case ArrayBinding arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    if (BindingContainsImportMeta(element.Target))
+                    {
+                        return true;
+                    }
+
+                    if (element.DefaultValue is { } defaultValue &&
+                        ExpressionContainsImportMeta(defaultValue))
+                    {
+                        return true;
+                    }
+                }
+
+                return BindingContainsImportMeta(arrayBinding.RestElement);
+            case ObjectBinding objectBinding:
+                foreach (var property in objectBinding.Properties)
+                {
+                    if (BindingContainsImportMeta(property.Target))
+                    {
+                        return true;
+                    }
+
+                    if (property.DefaultValue is { } defaultValue &&
+                        ExpressionContainsImportMeta(defaultValue))
+                    {
+                        return true;
+                    }
+
+                    if (property.NameExpression is { } nameExpression &&
+                        ExpressionContainsImportMeta(nameExpression))
+                    {
+                        return true;
+                    }
+                }
+
+                return BindingContainsImportMeta(objectBinding.RestElement);
+            case AssignmentTargetBinding assignmentTarget:
+                return ExpressionContainsImportMeta(assignmentTarget.Expression);
+            default:
+                return false;
+        }
+    }
+
+    private static bool ExpressionContainsImportMeta(ExpressionNode expression)
+    {
+        switch (expression)
+        {
+            case ImportMetaExpression:
+                return true;
+            case LiteralExpression:
+            case IdentifierExpression:
+            case PrivateIdentifierExpression:
+            case ThisExpression:
+            case SuperExpression:
+            case NewTargetExpression:
+                return false;
+            case BinaryExpression binary:
+                return ExpressionContainsImportMeta(binary.Left) || ExpressionContainsImportMeta(binary.Right);
+            case UnaryExpression unary:
+                return ExpressionContainsImportMeta(unary.Operand);
+            case ConditionalExpression conditional:
+                return ExpressionContainsImportMeta(conditional.Test) ||
+                       ExpressionContainsImportMeta(conditional.Consequent) ||
+                       ExpressionContainsImportMeta(conditional.Alternate);
+            case FunctionExpression function:
+                return FunctionContainsImportMeta(function);
+            case CallExpression call:
+                if (ExpressionContainsImportMeta(call.Callee))
+                {
+                    return true;
+                }
+
+                foreach (var argument in call.Arguments)
+                {
+                    if (ExpressionContainsImportMeta(argument.Expression))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            case NewExpression newExpression:
+                if (ExpressionContainsImportMeta(newExpression.Constructor))
+                {
+                    return true;
+                }
+
+                foreach (var argument in newExpression.Arguments)
+                {
+                    if (ExpressionContainsImportMeta(argument.Expression))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            case MemberExpression member:
+                return ExpressionContainsImportMeta(member.Target) ||
+                       ExpressionContainsImportMeta(member.Property);
+            case AssignmentExpression assignment:
+                return ExpressionContainsImportMeta(assignment.Value);
+            case PropertyAssignmentExpression propertyAssignment:
+                return ExpressionContainsImportMeta(propertyAssignment.Target) ||
+                       ExpressionContainsImportMeta(propertyAssignment.Property) ||
+                       ExpressionContainsImportMeta(propertyAssignment.Value);
+            case IndexAssignmentExpression indexAssignment:
+                return ExpressionContainsImportMeta(indexAssignment.Target) ||
+                       ExpressionContainsImportMeta(indexAssignment.Index) ||
+                       ExpressionContainsImportMeta(indexAssignment.Value);
+            case SequenceExpression sequence:
+                return ExpressionContainsImportMeta(sequence.Left) ||
+                       ExpressionContainsImportMeta(sequence.Right);
+            case DestructuringAssignmentExpression destructuringAssignment:
+                return BindingContainsImportMeta(destructuringAssignment.Target) ||
+                       ExpressionContainsImportMeta(destructuringAssignment.Value);
+            case ArrayExpression arrayExpression:
+                foreach (var element in arrayExpression.Elements)
+                {
+                    if (element.Expression is { } elementExpression &&
+                        ExpressionContainsImportMeta(elementExpression))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            case ObjectExpression objectExpression:
+                foreach (var member in objectExpression.Members)
+                {
+                    if (member.IsComputed && member.Key is ExpressionNode computedKey &&
+                        ExpressionContainsImportMeta(computedKey))
+                    {
+                        return true;
+                    }
+
+                    if (member.Value is { } value && ExpressionContainsImportMeta(value))
+                    {
+                        return true;
+                    }
+
+                    if (member.Function is { } functionMember && FunctionContainsImportMeta(functionMember))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            case ClassExpression classExpression:
+                return ClassContainsImportMeta(classExpression.Definition);
+            case TemplateLiteralExpression template:
+                foreach (var part in template.Parts)
+                {
+                    if (part.Expression is { } partExpression &&
+                        ExpressionContainsImportMeta(partExpression))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            case TaggedTemplateExpression taggedTemplate:
+                if (ExpressionContainsImportMeta(taggedTemplate.Tag) ||
+                    ExpressionContainsImportMeta(taggedTemplate.StringsArray) ||
+                    ExpressionContainsImportMeta(taggedTemplate.RawStringsArray))
+                {
+                    return true;
+                }
+
+                foreach (var expr in taggedTemplate.Expressions)
+                {
+                    if (ExpressionContainsImportMeta(expr))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            case YieldExpression yieldExpression:
+                return yieldExpression.Expression is { } yieldValue &&
+                       ExpressionContainsImportMeta(yieldValue);
+            case AwaitExpression awaitExpression:
+                return ExpressionContainsImportMeta(awaitExpression.Expression);
+            default:
+                return false;
+        }
     }
 
     private ProgramNode EnsureStrictProgram(ParsedProgram program)

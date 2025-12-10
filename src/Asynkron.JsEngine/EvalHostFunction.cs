@@ -79,6 +79,14 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 environment.RealmState);
         }
 
+        if (JsEngine.ProgramContainsImportMeta(program.Typed))
+        {
+            throw StandardLibrary.ThrowSyntaxError(
+                "'import.meta' is only valid in module code.",
+                CallingContext,
+                environment.RealmState);
+        }
+
         var insideClassFieldInitializer = InClassFieldInitializer ||
                                           CallingContext?.InClassFieldInitializer == true ||
                                           (CallingJsEnvironment?.HasBinding(FieldInitializerEvalFlag) ?? false);

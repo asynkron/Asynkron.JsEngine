@@ -2497,7 +2497,8 @@ public sealed class TypedAstParser(
                     }
 
                     // Create an ImportMetaExpression node for module context
-                    return new ImportMetaExpression(CreateSourceReference(importToken));
+                    var importMetaExpr = new ImportMetaExpression(CreateSourceReference(importToken));
+                    return ApplyCallSuffix(importMetaExpr, allowCallSuffix);
                 }
 
                 var importSymbol = Symbol.Intern(importToken.Lexeme);

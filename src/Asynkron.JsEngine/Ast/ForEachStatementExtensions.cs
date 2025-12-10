@@ -17,12 +17,14 @@ public static partial class TypedAstEvaluator
             }
 
             var iterableEnvironment = environment;
-            if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const)
+            if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
+                or VariableKind.AwaitUsing)
             {
                 iterableEnvironment = new JsEnvironment(environment, creatingSource: statement.Source,
                     description: "for-each-head-tdz");
-                statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment,
-                    statement.DeclarationKind == VariableKind.Const);
+                var isConstDeclaration = statement.DeclarationKind is VariableKind.Const or VariableKind.Using
+                    or VariableKind.AwaitUsing;
+                statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment, isConstDeclaration);
             }
 
             var iterable = EvaluateExpression(statement.Iterable, iterableEnvironment, context);
@@ -86,6 +88,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 var iterationEnvironment = statement.DeclarationKind is VariableKind.Let or VariableKind.Const
+                    or VariableKind.Using or VariableKind.AwaitUsing
                     ? new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
                         description: "for-each-iteration")
                     : loopEnvironment;
@@ -118,12 +121,14 @@ public static partial class TypedAstEvaluator
             EvaluationContext context, Symbol? loopLabel)
         {
             var iterableEnvironment = environment;
-            if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const)
+            if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
+                or VariableKind.AwaitUsing)
             {
                 iterableEnvironment = new JsEnvironment(environment, creatingSource: statement.Source,
                     description: "for-each-head-tdz");
-                statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment,
-                    statement.DeclarationKind == VariableKind.Const);
+                var isConstDeclaration = statement.DeclarationKind is VariableKind.Const or VariableKind.Using
+                    or VariableKind.AwaitUsing;
+                statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment, isConstDeclaration);
             }
 
             var iterable = EvaluateExpression(statement.Iterable, iterableEnvironment, context);

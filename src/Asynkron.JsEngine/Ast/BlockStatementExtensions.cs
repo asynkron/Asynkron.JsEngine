@@ -39,9 +39,12 @@ public static partial class TypedAstEvaluator
             // and throw ReferenceError if accessed before initialization.
             foreach (var stmt in block.Statements)
             {
-                if (stmt is VariableDeclaration { Kind: VariableKind.Let or VariableKind.Const } lexDecl)
+                if (stmt is VariableDeclaration
+                    {
+                        Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
+                    } lexDecl)
                 {
-                    var isConst = lexDecl.Kind == VariableKind.Const;
+                    var isConst = lexDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
                     foreach (var declarator in lexDecl.Declarators)
                     {
                         HoistLexicalBindingTargetForTdz(block, declarator.Target, scope, isConst);

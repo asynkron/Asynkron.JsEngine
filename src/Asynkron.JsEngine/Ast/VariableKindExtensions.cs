@@ -1,6 +1,8 @@
 namespace Asynkron.JsEngine.Ast;
 
 using Microsoft.Extensions.Logging;
+using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.StdLib;
 
 public static partial class TypedAstEvaluator
 {
@@ -27,11 +29,32 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
+            if (kind is VariableKind.Using or VariableKind.AwaitUsing)
+            {
+                if (value is not null &&
+                    !ReferenceEquals(value, Symbol.Undefined) &&
+                    value is not IJsObjectLike)
+                {
+                    throw StandardLibrary.ThrowTypeError(
+                        "using declarations require an object value",
+                        context,
+                        context.RealmState);
+                }
+
+                if (value is IJsObjectLike)
+                {
+                    throw new NotSupportedException(
+                        "Explicit resource management is not implemented for object resources.");
+                }
+            }
+
             var mode = kind switch
             {
                 VariableKind.Var => BindingMode.DefineVar,
                 VariableKind.Let => BindingMode.DefineLet,
                 VariableKind.Const => BindingMode.DefineConst,
+                VariableKind.Using => BindingMode.DefineConst,
+                VariableKind.AwaitUsing => BindingMode.DefineConst,
                 _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
             };
 

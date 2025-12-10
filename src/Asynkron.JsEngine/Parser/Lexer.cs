@@ -31,6 +31,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
         ["let"] = TokenType.Let,
         ["var"] = TokenType.Var,
         ["const"] = TokenType.Const,
+        ["using"] = TokenType.Using,
         ["class"] = TokenType.Class,
         ["extends"] = TokenType.Extends,
         ["function"] = TokenType.Function,

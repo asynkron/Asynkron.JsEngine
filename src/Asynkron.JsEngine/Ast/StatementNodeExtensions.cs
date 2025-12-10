@@ -299,7 +299,10 @@ public static partial class TypedAstEvaluator
                         }
 
                         break;
-                    case VariableDeclaration { Kind: VariableKind.Let or VariableKind.Const } letDecl:
+                    case VariableDeclaration
+                    {
+                        Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
+                    } letDecl:
                         foreach (var declarator in letDecl.Declarators)
                         {
                             CollectSymbolsFromBinding(declarator.Target, names);
@@ -334,7 +337,7 @@ public static partial class TypedAstEvaluator
                     case ForStatement forStatement:
                         if (forStatement.Initializer is VariableDeclaration
                             {
-                                Kind: VariableKind.Let or VariableKind.Const
+                                Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
                             } decl)
                         {
                             foreach (var declarator in decl.Declarators)
@@ -346,7 +349,8 @@ public static partial class TypedAstEvaluator
                         statement = forStatement.Body;
                         continue;
                     case ForEachStatement forEachStatement:
-                        if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const)
+                        if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const
+                            or VariableKind.Using or VariableKind.AwaitUsing)
                         {
                             CollectSymbolsFromBinding(forEachStatement.Target, names);
                         }

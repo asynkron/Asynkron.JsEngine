@@ -69,6 +69,7 @@ public enum TokenType
     Let,
     Var,
     Const,
+    Using,
     Class,
     Extends,
     Function,

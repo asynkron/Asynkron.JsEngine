@@ -191,8 +191,11 @@ public static partial class TypedAstEvaluator
             {
                 switch (stmt)
                 {
-                    case VariableDeclaration { Kind: VariableKind.Let or VariableKind.Const } lexDecl:
-                        var isConst = lexDecl.Kind == VariableKind.Const;
+                    case VariableDeclaration
+                    {
+                        Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
+                    } lexDecl:
+                        var isConst = lexDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
                         foreach (var declarator in lexDecl.Declarators)
                         {
                             HoistLexicalBindingTargetForGlobalTdz(declarator.Target, executionEnvironment, isConst);
@@ -259,7 +262,10 @@ public static partial class TypedAstEvaluator
         {
             switch (statement)
             {
-                case VariableDeclaration { Kind: VariableKind.Let or VariableKind.Const } decl:
+                case VariableDeclaration
+                {
+                    Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
+                } decl:
                     foreach (var declarator in decl.Declarators)
                     {
                         CollectBindingNames(declarator.Target, names);

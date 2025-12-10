@@ -107,12 +107,15 @@ public static partial class TypedAstEvaluator
             {
                 foreach (var stmt in switchCase.Body.Statements)
                 {
-                    if (stmt is VariableDeclaration { Kind: VariableKind.Let or VariableKind.Const } varDecl)
+                    if (stmt is VariableDeclaration
+                        {
+                            Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
+                        } varDecl)
                     {
+                        var isConst = varDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
                         foreach (var declarator in varDecl.Declarators)
                         {
-                            declarator.Target.CreateUninitializedLexicalBindings(switchEnv,
-                                isConst: varDecl.Kind == VariableKind.Const);
+                            declarator.Target.CreateUninitializedLexicalBindings(switchEnv, isConst: isConst);
                         }
                     }
                     else if (stmt is FunctionDeclaration funcDecl)

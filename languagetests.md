@@ -89,9 +89,6 @@
        Statements_asyncGenerator
         Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",False)
         Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",True)
-       Statements_awaitUsing
-        Statements_awaitUsing("language/statements/await-using/throws-if-initializer-not-object.js",False)
-        Statements_awaitUsing("language/statements/await-using/throws-if-initializer-not-object.js",True)
        Statements_class_definition
         Statements_class_definition("language/statements/class/definition/constructable-but-no-prototype.js",False)
         Statements_class_definition("language/statements/class/definition/constructable-but-no-prototype.js",True)
@@ -145,9 +142,6 @@
         Statements_labeled("language/statements/labeled/value-yield-non-strict.js",False)
        Statements_switch
         Statements_switch("language/statements/switch/scope-lex-async-function.js",False)
-       Statements_using
-        Statements_using("language/statements/using/throws-if-initializer-not-object.js",False)
-        Statements_using("language/statements/using/throws-if-initializer-not-object.js",True)
        Statements_variable
         Statements_variable("language/statements/variable/binding-resolution.js",False)
        Statements_variable_dstr

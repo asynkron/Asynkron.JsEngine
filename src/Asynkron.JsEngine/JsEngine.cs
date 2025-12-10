@@ -1994,10 +1994,14 @@ public sealed class JsEngine : IAsyncDisposable
     {
         switch (statement)
         {
-            case VariableDeclaration { Kind: VariableKind.Let or VariableKind.Const } lexDecl:
+            case VariableDeclaration
+            {
+                Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
+            } lexDecl:
                 foreach (var declarator in lexDecl.Declarators)
                 {
-                    HoistLexicalBinding(declarator.Target, moduleEnv, lexDecl.Kind == VariableKind.Const);
+                    var isConst = lexDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
+                    HoistLexicalBinding(declarator.Target, moduleEnv, isConst);
                 }
                 break;
             case ClassDeclaration classDecl:

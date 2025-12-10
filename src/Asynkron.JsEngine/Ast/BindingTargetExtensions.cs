@@ -20,8 +20,10 @@ public static partial class TypedAstEvaluator
                     break;
                 case VariableKind.Let:
                 case VariableKind.Const:
+                case VariableKind.Using:
+                case VariableKind.AwaitUsing:
                     DefineBindingTarget(target, value, loopEnvironment, context,
-                        declarationKind == VariableKind.Const);
+                        declarationKind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing);
                     CollectSymbolsFromBinding(target, context.BlockedFunctionVarNames);
                     break;
                 default:

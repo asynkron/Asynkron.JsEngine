@@ -724,7 +724,6 @@ Generated from failing/ecma262.testsession (BuiltInsTests section). Each entry l
 - **SharedArrayBuffer_prototype_slice** – 64 failing tests. Sample: built-ins/SharedArrayBuffer/prototype/slice/context-is-not-arraybuffer-object.js, built-ins/SharedArrayBuffer/prototype/slice/context-is-not-object.js, built-ins/SharedArrayBuffer/prototype/slice/descriptor.js.
 - **Statements_asyncFunction** – 2 failing tests. Sample: language/statements/async-function/unscopables-with-in-nested-fn.js, language/statements/async-function/unscopables-with.js.
 - **Statements_asyncGenerator** – 13 failing tests. Sample: language/statements/async-generator/eval-var-scope-syntax-err.js, language/statements/async-generator/unscopables-with-in-nested-fn.js, language/statements/async-generator/unscopables-with.js.
-- **Statements_awaitUsing** – 2 failing tests. Sample: language/statements/await-using/throws-if-initializer-not-object.js.
 - **Statements_break** – 2 failing tests. Sample: language/statements/break/S12.8_A7.js.
 - **Statements_class** – 24 failing tests. Sample: language/statements/class/accessor-name-inst-computed-yield-expr.js, language/statements/class/accessor-name-static-computed-yield-expr.js, language/statements/class/classelementname-abrupt-completion.js.
 - **Statements_class_accessorNameInst** – 2 failing tests. Sample: language/statements/class/accessor-name-inst/literal-numeric-non-canonical.js.
@@ -785,7 +784,6 @@ Generated from failing/ecma262.testsession (BuiltInsTests section). Each entry l
 - **Statements_let_syntax** – 10 failing tests. Sample: language/statements/let/syntax/let-closure-inside-condition.js, language/statements/let/syntax/let-closure-inside-initialization.js, language/statements/let/syntax/let-closure-inside-next-expression.js.
 - **Statements_switch** – 55 failing tests. Sample: language/statements/switch/cptn-a-abrupt-empty.js, language/statements/switch/cptn-a-fall-thru-abrupt-empty.js, language/statements/switch/cptn-a-fall-thru-nrml.js.
 - **Statements_try** – 36 failing tests. Sample: language/statements/try/catch-parameter-boundnames-restriction-arguments-eval-throws.js, language/statements/try/catch-parameter-boundnames-restriction-eval-eval-throws.js, language/statements/try/completion-values.js.
-- **Statements_using** – 2 failing tests. Sample: language/statements/using/throws-if-initializer-not-object.js.
 - **Statements_variable** – 12 failing tests. Sample: language/statements/variable/12.2.1-10-s.js, language/statements/variable/12.2.1-18-s.js, language/statements/variable/12.2.1-21-s.js.
 - **Statements_variable_dstr** – 2 failing tests. Sample: language/statements/variable/dstr/obj-ptrn-elem-id-static-init-await-valid.js, language/types/number/S8.5_A9.js.
 - **String** – 64 failing tests. Sample: built-ins/String/length.js, built-ins/String/numeric-properties.js, built-ins/String/prop-desc.js.

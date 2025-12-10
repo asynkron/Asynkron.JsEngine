@@ -281,7 +281,7 @@ internal sealed class SyncGeneratorIrBuilder
 
                 case ForEachStatement { Kind: ForEachKind.Of } forEachStatement
                     when IsSimpleForOfBinding(forEachStatement):
-                    if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const &&
+                    if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing &&
                         !AstShapeAnalyzer.StatementContainsYield(forEachStatement.Body) &&
                         !AstShapeAnalyzer.ContainsYield(forEachStatement.Iterable))
                     {

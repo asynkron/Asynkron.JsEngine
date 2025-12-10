@@ -21,6 +21,7 @@
 - Private name assignments now route through private scope/brand resolution, so instance/static private setter brand-checks across multiple class evaluations (factory/eval/realm variants) are passing alongside the private static getter/setter cases.
 - Super() in derived class constructors now finds the owning `this` binding without triggering TDZ ReferenceErrors, so the `this-access-restriction` class definition cases are green in strict and sloppy mode.
 - Logical assignment short-circuits skip `PutValue` (including private refs/accessors), and RHS NamedEvaluation now applies to ||=/&&=/??= with identifier LHS, so the logical-assignment cluster (read-only/accessor/non-extensible and name inference) is green.
+- `using` and `await using` declarations parse correctly and throw TypeError on non-object initializers, so the explicit resource management statement cases now pass.
 
 ## Next Iteration Plan
 1. Re-run the Language suite to refresh the current failure set after the this-access/super binding fixes.

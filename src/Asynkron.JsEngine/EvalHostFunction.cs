@@ -557,7 +557,10 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     }
 
                     break;
-                case VariableDeclaration { Kind: VariableKind.Let or VariableKind.Const } decl:
+                case VariableDeclaration
+                {
+                    Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
+                } decl:
                     foreach (var declarator in decl.Declarators)
                     {
                         CollectBindingNames(declarator.Target, names);
@@ -591,7 +594,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case ForStatement forStatement:
                     if (forStatement.Initializer is VariableDeclaration
                         {
-                            Kind: VariableKind.Let or VariableKind.Const
+                            Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
                         } initDecl)
                     {
                         foreach (var declarator in initDecl.Declarators)
@@ -608,7 +611,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     break;
                 case ForEachStatement forEachStatement:
-                    if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const)
+                    if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const
+                        or VariableKind.Using or VariableKind.AwaitUsing)
                     {
                         CollectBindingNames(forEachStatement.Target, names);
                     }
@@ -2324,9 +2328,12 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     }
 
                     break;
-                case VariableDeclaration { Kind: VariableKind.Let or VariableKind.Const } lexicalDeclaration:
+                case VariableDeclaration
                 {
-                    var isConst = lexicalDeclaration.Kind == VariableKind.Const;
+                    Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
+                } lexicalDeclaration:
+                {
+                    var isConst = lexicalDeclaration.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
                     foreach (var declarator in lexicalDeclaration.Declarators)
                     {
                         CollectLexicalDeclarationNames(declarator.Target, isConst, declarations);
@@ -2358,10 +2365,10 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case ForStatement forStatement:
                     if (forStatement.Initializer is VariableDeclaration
                         {
-                            Kind: VariableKind.Let or VariableKind.Const
+                            Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
                         } initDecl)
                     {
-                        var isConst = initDecl.Kind == VariableKind.Const;
+                        var isConst = initDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
                         foreach (var declarator in initDecl.Declarators)
                         {
                             CollectLexicalDeclarationNames(declarator.Target, isConst, declarations);
@@ -2376,9 +2383,11 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     break;
                 case ForEachStatement forEachStatement:
-                    if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const)
+                    if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const
+                        or VariableKind.Using or VariableKind.AwaitUsing)
                     {
-                        var isConst = forEachStatement.DeclarationKind == VariableKind.Const;
+                        var isConst = forEachStatement.DeclarationKind is VariableKind.Const or VariableKind.Using
+                            or VariableKind.AwaitUsing;
                         CollectLexicalDeclarationNames(forEachStatement.Target, isConst, declarations);
                     }
 

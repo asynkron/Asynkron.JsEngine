@@ -53,7 +53,10 @@ internal static class LoopNormalizer
 
             // Check if the initializer contains let/const declarations
             // These require per-iteration environment creation
-            if (statement.Initializer is VariableDeclaration { Kind: VariableKind.Let or VariableKind.Const } decl)
+            if (statement.Initializer is VariableDeclaration
+                {
+                    Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
+                } decl)
             {
                 var bindingNames = new List<Symbol>();
                 foreach (var declarator in decl.Declarators)

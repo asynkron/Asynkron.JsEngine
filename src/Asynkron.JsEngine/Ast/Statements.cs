@@ -24,7 +24,9 @@ public enum VariableKind
 {
     Var,
     Let,
-    Const
+    Const,
+    Using,
+    AwaitUsing
 }
 
 /// <summary>

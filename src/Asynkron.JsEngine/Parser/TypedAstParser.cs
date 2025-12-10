@@ -185,6 +185,23 @@ public sealed class TypedAstParser(
                 return ParseBlock(true);
             }
 
+            if (allowLexicalDeclarations && Check(TokenType.Await) && CheckAheadOnSameLine(TokenType.Using))
+            {
+                if (!IsAwaitAllowed)
+                {
+                    throw new ParseException("'await using' is only allowed in async contexts.", Peek(), _source);
+                }
+
+                Advance(); // await
+                Advance(); // using
+                return ParseVariableDeclaration(VariableKind.AwaitUsing);
+            }
+
+            if (allowLexicalDeclarations && Match(TokenType.Using))
+            {
+                return ParseVariableDeclaration(VariableKind.Using);
+            }
+
             // In non-strict mode, 'let' can be an identifier in expression statements
             // It's only a lexical declaration if followed by '[', '{', or a binding identifier
             // See: Statement : LexicalDeclaration [lookahead ∉ {let [}]
@@ -359,11 +376,17 @@ public sealed class TypedAstParser(
             {
                 var target = ParseBindingTarget("Expected variable name.");
                 ExpressionNode? initializer = null;
-                var requiresInitializer = target is not IdentifierBinding;
+                var requiresInitializer = target is not IdentifierBinding ||
+                                          kind is VariableKind.Using or VariableKind.AwaitUsing;
 
                 if (Match(TokenType.Equal))
                 {
                     initializer = ParseExpression(false);
+                }
+                else if (kind is VariableKind.Using or VariableKind.AwaitUsing)
+                {
+                    var message = "Using declarations require an initializer.";
+                    throw new ParseException(message, Peek(), _source);
                 }
                 else if (!allowInitializerless && (kind == VariableKind.Const || requiresInitializer))
                 {
@@ -4017,6 +4040,7 @@ public sealed class TypedAstParser(
                     TokenType.Typeof or TokenType.Instanceof or TokenType.Void or TokenType.Delete or
                     TokenType.Get or TokenType.Set or TokenType.Yield or TokenType.Async or
                     TokenType.Await or TokenType.Static or TokenType.Import or TokenType.Export
+                    or TokenType.Using
                     or TokenType.With => true,
                 _ => false
             };

@@ -55,6 +55,7 @@ public sealed class JsEngine : IAsyncDisposable
         internal ModuleNamespace? DeferredNamespace { get; set; }
         internal JsObject? ImportMeta { get; set; }
         internal object? LastValue { get; set; }
+        internal bool HasAsyncDependency { get; set; }
     }
 
     // Module registry: maps module paths to their exported values
@@ -718,6 +719,8 @@ public sealed class JsEngine : IAsyncDisposable
                             moduleKey);
                         _moduleRegistry[moduleKey] = entry;
                     }
+                    entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
+                        new HashSet<string>(StringComparer.Ordinal));
                 }
                 else
                 {
@@ -725,10 +728,19 @@ public sealed class JsEngine : IAsyncDisposable
                         CreateModuleEnvironment(moduleKey),
                         new JsObject(),
                         string.Empty);
+                    entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
+                        new HashSet<string>(StringComparer.Ordinal));
                 }
 
                 EnsureModuleInstantiated(entry);
-                EnsureModuleEvaluated(entry);
+                if (entry.IsAsync || entry.HasAsyncDependency)
+                {
+                    EnsureModuleEvaluatedAsync(entry).GetAwaiter().GetResult();
+                }
+                else
+                {
+                    EnsureModuleEvaluated(entry);
+                }
                 return entry.LastValue;
             }
 
@@ -785,6 +797,8 @@ public sealed class JsEngine : IAsyncDisposable
                             moduleKey);
                         _moduleRegistry[moduleKey] = entry;
                     }
+                    entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
+                        new HashSet<string>(StringComparer.Ordinal));
                 }
                 else
                 {
@@ -792,10 +806,12 @@ public sealed class JsEngine : IAsyncDisposable
                         CreateModuleEnvironment(moduleKey),
                         new JsObject(),
                         string.Empty);
+                    entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
+                        new HashSet<string>(StringComparer.Ordinal));
                 }
 
                 EnsureModuleInstantiated(entry);
-                if (entry.IsAsync)
+                if (entry.IsAsync || entry.HasAsyncDependency)
                 {
                     await EnsureModuleEvaluatedAsync(entry).ConfigureAwait(false);
                 }
@@ -883,6 +899,8 @@ public sealed class JsEngine : IAsyncDisposable
                             moduleKey);
                         _moduleRegistry[moduleKey] = entry;
                     }
+                    entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
+                        new HashSet<string>(StringComparer.Ordinal));
                 }
                 else
                 {
@@ -890,10 +908,12 @@ public sealed class JsEngine : IAsyncDisposable
                         CreateModuleEnvironment(moduleKey),
                         new JsObject(),
                         string.Empty);
+                    entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
+                        new HashSet<string>(StringComparer.Ordinal));
                 }
 
                 EnsureModuleInstantiated(entry);
-                if (entry.IsAsync)
+                if (entry.IsAsync || entry.HasAsyncDependency)
                 {
                     EnsureModuleEvaluatedAsync(entry).GetAwaiter().GetResult();
                 }
@@ -1449,7 +1469,9 @@ public sealed class JsEngine : IAsyncDisposable
                     var importPhase = importStatement.IsDeferred ? ImportPhase.Defer : ImportPhase.Module;
                     var imported = LoadModuleForInstantiation(importStatement.ModulePath, modulePath, importPhase, null,
                         importStatement.Attributes, computeAsyncDependencies: false);
-                    if (imported.IsAsync || ModuleHasAsyncDependency(imported.Program, imported.Path, visited))
+                    if (imported.IsAsync ||
+                        imported.HasAsyncDependency ||
+                        ModuleHasAsyncDependency(imported.Program, imported.Path, visited))
                     {
                         return true;
                     }
@@ -1459,7 +1481,9 @@ public sealed class JsEngine : IAsyncDisposable
                 {
                     var sourceEntry = LoadModuleForInstantiation(fromModule, modulePath, ImportPhase.Module,
                         computeAsyncDependencies: false);
-                    if (sourceEntry.IsAsync || ModuleHasAsyncDependency(sourceEntry.Program, sourceEntry.Path, visited))
+                    if (sourceEntry.IsAsync ||
+                        sourceEntry.HasAsyncDependency ||
+                        ModuleHasAsyncDependency(sourceEntry.Program, sourceEntry.Path, visited))
                     {
                         return true;
                     }
@@ -1470,7 +1494,9 @@ public sealed class JsEngine : IAsyncDisposable
                 {
                     var sourceEntry = LoadModuleForInstantiation(exportAll.ModulePath, modulePath, ImportPhase.Module,
                         computeAsyncDependencies: false);
-                    if (sourceEntry.IsAsync || ModuleHasAsyncDependency(sourceEntry.Program, sourceEntry.Path, visited))
+                    if (sourceEntry.IsAsync ||
+                        sourceEntry.HasAsyncDependency ||
+                        ModuleHasAsyncDependency(sourceEntry.Program, sourceEntry.Path, visited))
                     {
                         return true;
                     }
@@ -1482,6 +1508,7 @@ public sealed class JsEngine : IAsyncDisposable
                     var namespaceEntry = LoadModuleForInstantiation(exportNamespace.ModulePath, modulePath,
                         ImportPhase.Module, computeAsyncDependencies: false);
                     if (namespaceEntry.IsAsync ||
+                        namespaceEntry.HasAsyncDependency ||
                         ModuleHasAsyncDependency(namespaceEntry.Program, namespaceEntry.Path, visited))
                     {
                         return true;
@@ -1575,7 +1602,9 @@ public sealed class JsEngine : IAsyncDisposable
 
         EnsureModuleInstantiated(entry);
 
-        if (!entry.IsAsync)
+        var requiresAsyncEvaluation = entry.IsAsync || entry.HasAsyncDependency;
+
+        if (!requiresAsyncEvaluation)
         {
             if (entry.Evaluating)
             {
@@ -1598,7 +1627,9 @@ public sealed class JsEngine : IAsyncDisposable
         if (entry.EvaluationTask is null)
         {
             entry.Evaluating = true;
-            entry.EvaluationTask = EvaluateModuleBodyWithTopLevelAwait(entry, waitForAsync);
+            entry.EvaluationTask = entry.IsAsync
+                ? EvaluateModuleBodyWithTopLevelAwait(entry, waitForAsync)
+                : EvaluateModuleBodyWithAsyncDependencies(entry, waitForAsync);
         }
 
         if (!waitForAsync)
@@ -2112,7 +2143,7 @@ public sealed class JsEngine : IAsyncDisposable
                     // Load the module synchronously (it's cached if already loaded)
                     var referrerPath = callee?.CallingJsEnvironment is JsEnvironment env ? env.ModulePath : _currentModulePath;
                     var moduleEntry = LoadModule(specifierString, referrerPath, phase);
-                    if (moduleEntry.IsAsync)
+                    if (moduleEntry.IsAsync || moduleEntry.HasAsyncDependency)
                     {
                         await EnsureModuleEvaluatedAsync(moduleEntry).ConfigureAwait(false);
                     }
@@ -2176,10 +2207,14 @@ public sealed class JsEngine : IAsyncDisposable
         if (_moduleRegistry.TryGetValue(resolvedPath, out var cachedEntry))
         {
             EnsureModuleImportMeta(cachedEntry);
+            var cachedHasAsyncDependency = ModuleHasAsyncDependency(cachedEntry.Program, cachedEntry.Path,
+                new HashSet<string>(StringComparer.Ordinal));
+            cachedEntry.HasAsyncDependency = cachedHasAsyncDependency;
+            cachedEntry.Environment.IsAsyncModule = cachedEntry.IsAsync;
             EnsureModuleInstantiated(cachedEntry, phase, exportStarSet);
             if (phase == ImportPhase.Module)
             {
-                if (cachedEntry.IsAsync)
+                if (cachedEntry.IsAsync || cachedEntry.HasAsyncDependency)
                 {
                     EnsureModuleEvaluatedAsync(cachedEntry, waitForAsync: false);
                 }
@@ -2223,10 +2258,15 @@ public sealed class JsEngine : IAsyncDisposable
 
         _moduleRegistry[resolvedPath] = entry;
 
+        var computedHasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
+            new HashSet<string>(StringComparer.Ordinal));
+        entry.HasAsyncDependency = computedHasAsyncDependency;
+        entry.Environment.IsAsyncModule = entry.IsAsync;
+
         EnsureModuleInstantiated(entry, phase, exportStarSet);
         if (phase == ImportPhase.Module)
         {
-            if (entry.IsAsync)
+            if (entry.IsAsync || entry.HasAsyncDependency)
             {
                 EnsureModuleEvaluatedAsync(entry, waitForAsync: false);
             }
@@ -2308,11 +2348,7 @@ public sealed class JsEngine : IAsyncDisposable
             {
                 var hasAsyncDependency = ModuleHasAsyncDependency(cachedEntry.Program, cachedEntry.Path,
                     new HashSet<string>(StringComparer.Ordinal));
-                if (hasAsyncDependency)
-                {
-                    cachedEntry.IsAsync = true;
-                }
-
+                cachedEntry.HasAsyncDependency = hasAsyncDependency;
                 cachedEntry.Environment.IsAsyncModule = cachedEntry.IsAsync;
             }
             // Only instantiate, don't evaluate
@@ -2353,6 +2389,7 @@ public sealed class JsEngine : IAsyncDisposable
         {
             var hasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
                 new HashSet<string>(StringComparer.Ordinal));
+            entry.HasAsyncDependency = hasAsyncDependency;
             entry.Environment.IsAsyncModule = entry.IsAsync;
         }
 
@@ -3315,6 +3352,44 @@ public sealed class JsEngine : IAsyncDisposable
         return dependencies;
     }
 
+    private async Task<object?> EvaluateModuleBodyWithAsyncDependencies(
+        ModuleEntry entry,
+        bool drainAwaitMicrotasks = true)
+    {
+        entry.Evaluating = true;
+        try
+        {
+            foreach (var dependency in GetModuleDependencies(entry))
+            {
+                EnsureModuleInstantiated(dependency);
+                await EnsureModuleEvaluatedAsync(dependency, waitForAsync: true).ConfigureAwait(false);
+            }
+
+            var previousModulePath = _currentModulePath;
+            _currentModulePath = entry.Path;
+            try
+            {
+                var result = ExecuteModuleBody(
+                    entry.Program,
+                    entry.Environment,
+                    entry.Exports,
+                    entry.Path,
+                    drainAwaitMicrotasks);
+                entry.LastValue = result;
+                entry.Evaluated = true;
+                return result;
+            }
+            finally
+            {
+                _currentModulePath = previousModulePath;
+            }
+        }
+        finally
+        {
+            entry.Evaluating = false;
+        }
+    }
+
     private async Task<object?> EvaluateModuleBodyWithTopLevelAwait(
         ModuleEntry entry,
         bool drainAwaitMicrotasks = true)
@@ -3322,16 +3397,10 @@ public sealed class JsEngine : IAsyncDisposable
         entry.Evaluating = true;
         try
         {
-            var dependencyTasks = new List<Task<object?>>();
             foreach (var dependency in GetModuleDependencies(entry))
             {
                 EnsureModuleInstantiated(dependency);
-                dependencyTasks.Add(EnsureModuleEvaluatedAsync(dependency, waitForAsync: true));
-            }
-
-            if (dependencyTasks.Count > 0)
-            {
-                await Task.WhenAll(dependencyTasks).ConfigureAwait(false);
+                await EnsureModuleEvaluatedAsync(dependency, waitForAsync: true).ConfigureAwait(false);
             }
 
             var result = await Task
@@ -3398,9 +3467,7 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         var engine = moduleEnv.RealmState?.Engine;
-        var hasBindings = importStatement.DefaultBinding is not null ||
-                          importStatement.NamespaceBinding is not null ||
-                          !importStatement.NamedImports.IsEmpty;
+        var isAsyncImport = moduleEntry.IsAsync || moduleEntry.HasAsyncDependency;
 
         List<Action>? preservedMicrotasks = null;
 
@@ -3408,8 +3475,7 @@ public sealed class JsEngine : IAsyncDisposable
         {
             var shouldWaitForAsync =
                 !importStatement.IsDeferred &&
-                moduleEntry.IsAsync &&
-                hasBindings &&
+                isAsyncImport &&
                 !string.Equals(moduleEntry.Path, referrerPath, StringComparison.Ordinal) &&
                 engine is not null;
 
@@ -3420,17 +3486,10 @@ public sealed class JsEngine : IAsyncDisposable
 
             if (!importStatement.IsDeferred)
             {
-                if (moduleEntry.IsAsync &&
+                if (isAsyncImport &&
                     !string.Equals(moduleEntry.Path, referrerPath, StringComparison.Ordinal))
                 {
-                    if (!hasBindings)
-                    {
-                        EnsureModuleEvaluatedAsync(moduleEntry, waitForAsync: false);
-                    }
-                    else
-                    {
-                        EnsureModuleEvaluatedAsync(moduleEntry).GetAwaiter().GetResult();
-                    }
+                    EnsureModuleEvaluatedAsync(moduleEntry).GetAwaiter().GetResult();
                 }
                 else
                 {

@@ -22,6 +22,10 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
     public EvalHostFunction(JsEngine engine)
     {
         _engine = engine ?? throw new ArgumentNullException(nameof(engine));
+        if (_engine.RealmState.FunctionPrototype is { } functionPrototype)
+        {
+            _properties.SetPrototype(functionPrototype);
+        }
         _properties.SetProperty("prototype", new JsObject());
     }
 

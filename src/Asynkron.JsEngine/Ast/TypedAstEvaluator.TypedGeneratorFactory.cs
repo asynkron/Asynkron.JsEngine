@@ -210,27 +210,27 @@ public static partial class TypedAstEvaluator
                     value = new HostFunction((_, args) =>
                     {
                         var boundThis = args.GetArgument(0);
-                        var boundArgs = args.SliceFrom(1);
+                    var boundArgs = args.SliceFrom(1);
 
-                        // Generator functions are never constructors, so bound generator functions
-                        // must also have DisallowConstruct = true per ES spec.
-                        return new HostFunction((_, innerArgs) =>
-                        {
-                            if (boundArgs.Count == 0)
-                                return callable.Invoke(innerArgs, boundThis);
-                            if (innerArgs.Count == 0)
-                                return callable.Invoke(boundArgs, boundThis);
+                    // Generator functions are never constructors, so bound generator functions
+                    // must also have DisallowConstruct = true per ES spec.
+                    return new HostFunction((_, innerArgs) =>
+                    {
+                        if (boundArgs.Count == 0)
+                            return callable.Invoke(innerArgs, boundThis);
+                        if (innerArgs.Count == 0)
+                            return callable.Invoke(boundArgs, boundThis);
 
-                            var finalArgs = new object?[boundArgs.Count + innerArgs.Count];
-                            for (var i = 0; i < boundArgs.Count; i++)
-                                finalArgs[i] = boundArgs[i];
-                            for (var i = 0; i < innerArgs.Count; i++)
-                                finalArgs[boundArgs.Count + i] = innerArgs[i];
+                        var finalArgs = new object?[boundArgs.Count + innerArgs.Count];
+                        for (var i = 0; i < boundArgs.Count; i++)
+                            finalArgs[i] = boundArgs[i];
+                        for (var i = 0; i < innerArgs.Count; i++)
+                            finalArgs[boundArgs.Count + i] = innerArgs[i];
 
-                            return callable.Invoke(finalArgs, boundThis);
-                        }) { DisallowConstruct = true };
-                    });
-                    return true;
+                        return callable.Invoke(finalArgs, boundThis);
+                    }, _realmState, isConstructor: false) { DisallowConstruct = true };
+                });
+                return true;
             }
 
             // Fall back to properties lookup for all other properties

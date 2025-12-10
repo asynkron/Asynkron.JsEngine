@@ -218,7 +218,7 @@ public static partial class TypedAstEvaluator
                                 finalArgs[boundArgs.Count + i] = innerArgs[i];
 
                             return callable.Invoke(finalArgs, boundThis);
-                        }) { DisallowConstruct = true };
+                        }, _realmState, isConstructor: false) { DisallowConstruct = true };
                     });
                     return true;
             }

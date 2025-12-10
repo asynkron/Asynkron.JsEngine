@@ -347,12 +347,11 @@ namespace Asynkron.JsEngine.JsTypes;
         {
             var finalArgs = Combine(boundArgs, innerArgs);
             return target.Invoke(finalArgs, boundThis);
-        }, realmState, isConstructor: targetIsConstructor)
+        }, realmState, isConstructor: false)
         {
-            IsBoundFunction = true
+            IsBoundFunction = true,
+            IsConstructor = targetIsConstructor
         };
-
-        boundFunction.PropertiesObject.DeleteOwnProperty("prototype");
 
         boundFunction.SetInvokeWithContext((invokeArgs, _, context, newTarget) =>
         {
@@ -424,7 +423,7 @@ namespace Asynkron.JsEngine.JsTypes;
 
     private void EnsurePrototypeDataProperty()
     {
-        if (!_isConstructor || HasPrototypeDataProperty())
+        if (!_isConstructor || HasPrototypeDataProperty() || IsBoundFunction)
         {
             return;
         }

@@ -620,25 +620,9 @@ public static partial class TypedAstEvaluator
                 {
                     if (thisValue is null || ReferenceEquals(thisValue, Symbol.Undefined))
                     {
-                        try
-                        {
-                            boundThis = CallingJsEnvironment?.Get(Symbol.This);
-                        }
-                        catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
-                                     StringComparison.Ordinal))
-                        {
-                            // If the caller's `this` binding is uninitialized (e.g., derived ctor before super()),
-                            // fall back to the global object per non-strict this-binding semantics.
-                            boundThis = Symbol.Undefined;
-                        }
-                        if (boundThis is null || ReferenceEquals(boundThis, Symbol.Undefined))
-                        {
-                            boundThis = _realmState.Engine?.GlobalObject;
-                            if (boundThis is null)
-                            {
-                                boundThis = Symbol.Undefined;
-                            }
-                        }
+                        boundThis = _realmState.Engine is { GlobalObject: { } globalObj }
+                            ? globalObj
+                            : (object)Symbol.Undefined;
                     }
 
                     if (boundThis is not IJsPropertyAccessor &&

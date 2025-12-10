@@ -1,26 +1,3 @@
-       BlockScope_shadowing
-        BlockScope_shadowing("language/block-scope/shadowing/catch-parameter-shadowing-catch-parameter.js",False)
-        BlockScope_shadowing("language/block-scope/shadowing/catch-parameter-shadowing-var-variable.js",False)
-        BlockScope_shadowing("language/block-scope/shadowing/const-declaration-shadowing-catch-parameter.js",False)
-        BlockScope_shadowing("language/block-scope/shadowing/const-declarations-shadowing-parameter-name-let-const-and-var-variables.js",False)
-        BlockScope_shadowing("language/block-scope/shadowing/parameter-name-shadowing-catch-parameter.js",False)
-       Expressions_class_decorator_syntax_classValid
-        Expressions_class_decorator_syntax_classValid("language/expressions/class/decorator/syntax/class-valid/decorator-member-expr-private-identifier.js",False)
-        Expressions_class_decorator_syntax_classValid("language/expressions/class/decorator/syntax/class-valid/decorator-member-expr-private-identifier.js",True)
-       Expressions_dynamicImport
-        Expressions_dynamicImport("language/expressions/dynamic-import/returns-promise.js",False)
-        Expressions_dynamicImport("language/expressions/dynamic-import/returns-promise.js",True)
-        Expressions_dynamicImport("language/expressions/dynamic-import/usage-from-eval.js",False)
-        Expressions_dynamicImport("language/expressions/dynamic-import/usage-from-eval.js",True)
-       Expressions_dynamicImport_assignmentExpression
-        Expressions_dynamicImport_assignmentExpression("language/expressions/dynamic-import/assignment-expression/import-meta.js",True)
-       Expressions_function
-        Expressions_function("language/expressions/function/param-dflt-yield-non-strict.js",False)
-       Expressions_import_meta
-        Expressions_import_meta("language/expressions/import.meta/distinct-for-each-module.js",True)
-        Expressions_import_meta("language/expressions/import.meta/import-meta-is-an-ordinary-object.js",True)
-        Expressions_import_meta("language/expressions/import.meta/not-accessible-from-direct-eval.js",True)
-        Expressions_import_meta("language/expressions/import.meta/same-object-returned.js",True)
        Expressions_optionalChaining
         Expressions_optionalChaining("language/expressions/optional-chaining/eval-optional-call.js",False)
         Expressions_optionalChaining("language/expressions/optional-chaining/eval-optional-call.js",True)
@@ -42,23 +19,3 @@
         ModuleCode_topLevelAwait("language/module-code/top-level-await/module-graphs-does-not-hang.js",True)
        ModuleCode_topLevelAwait_syntax
         ModuleCode_topLevelAwait_syntax("language/module-code/top-level-await/syntax/await-expr-dyn-import.js",True)
-       Statements_asyncGenerator
-        Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",False)
-        Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",True)
-       Statements_class
-        Statements_class("language/statements/class/static-init-scope-var-close.js",False)
-        Statements_class("language/statements/class/static-init-scope-var-close.js",True)
-        Statements_class("language/statements/class/static-init-scope-var-open.js",False)
-        Statements_class("language/statements/class/static-init-scope-var-open.js",True)
-       Statements_class_definition
-        Statements_class_definition("language/statements/class/definition/invalid-extends.js",True)
-       Statements_class_elements_syntax_valid
-        Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-get-followed-by-generator-asi.js",False)
-        Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-get-followed-by-generator-asi.js",True)
-        Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-set-followed-by-generator-asi.js",False)
-        Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-set-followed-by-generator-asi.js",True)
-       Statements_const_syntax
-        Statements_const_syntax("language/statements/const/syntax/const-invalid-assignment-next-expression-for.js",False)
-        Statements_const_syntax("language/statements/const/syntax/const-invalid-assignment-next-expression-for.js",True)
-       Statements_function
-        Statements_function("language/statements/function/param-dflt-yield-non-strict.js",False)

@@ -225,7 +225,8 @@ public static partial class TypedAstEvaluator
             if (callable is EvalHostFunction evalHostFunction)
             {
                 evalHost = evalHostFunction;
-                isDirectEvalCall = expression.Callee is IdentifierExpression { Name.Name: "eval" } &&
+                isDirectEvalCall = !expression.IsOptional &&
+                                   expression.Callee is IdentifierExpression { Name.Name: "eval" } &&
                                    ReferenceEquals(thisValue, Symbol.Undefined) &&
                                    ReferenceEquals(evalHostFunction.Engine, environment.RealmState?.Engine);
                 evalHost.IsDirectCall = isDirectEvalCall;

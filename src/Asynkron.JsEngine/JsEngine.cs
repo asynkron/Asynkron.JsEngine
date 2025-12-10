@@ -48,6 +48,7 @@ public sealed class JsEngine : IAsyncDisposable
         internal bool Evaluating { get; set; }
         internal ModuleNamespace? Namespace { get; set; }
         internal ModuleNamespace? DeferredNamespace { get; set; }
+        internal JsObject? ImportMeta { get; set; }
         internal object? LastValue { get; set; }
     }
 
@@ -912,7 +913,44 @@ public sealed class JsEngine : IAsyncDisposable
     private ModuleEntry CreateModuleEntry(ProgramNode program, JsEnvironment environment, JsObject exports,
         string modulePath)
     {
-        return new ModuleEntry(modulePath ?? string.Empty, program, environment, exports);
+        var entry = new ModuleEntry(modulePath ?? string.Empty, program, environment, exports);
+        EnsureModuleImportMeta(entry);
+        return entry;
+    }
+
+    private JsObject EnsureModuleImportMeta(ModuleEntry entry)
+    {
+        if (entry.ImportMeta is { } existing)
+        {
+            if (!entry.Environment.TryGet(Symbol.ImportMeta, out _))
+            {
+                entry.Environment.Define(Symbol.ImportMeta, existing, isConst: true, isLexical: true,
+                    blocksFunctionScopeOverride: false);
+            }
+
+            return existing;
+        }
+
+        var importMeta = new JsObject();
+        importMeta.RealmState = RealmState;
+        importMeta.SetPrototype(null);
+        importMeta.DefineProperty("url",
+            new PropertyDescriptor
+            {
+                Value = entry.Path ?? string.Empty,
+                Writable = true,
+                Enumerable = true,
+                Configurable = true,
+                HasValue = true,
+                HasWritable = true,
+                HasEnumerable = true,
+                HasConfigurable = true
+            });
+
+        entry.Environment.Define(Symbol.ImportMeta, importMeta, isConst: true, isLexical: true,
+            blocksFunctionScopeOverride: false);
+        entry.ImportMeta = importMeta;
+        return importMeta;
     }
 
     /// <summary>
@@ -931,6 +969,8 @@ public sealed class JsEngine : IAsyncDisposable
         ImportPhase phase = ImportPhase.Module,
         HashSet<string>? exportStarSet = null)
     {
+        EnsureModuleImportMeta(entry);
+
         if (entry.Instantiated || entry.Instantiating)
         {
             return;
@@ -1333,10 +1373,8 @@ public sealed class JsEngine : IAsyncDisposable
         var promise = new JsPromise(this);
         var promiseObj = promise.JsObject;
 
-        if (GlobalObject.TryGetProperty("Promise", out var promiseCtor) &&
-            promiseCtor is IJsPropertyAccessor promiseCtorAccessor &&
-            promiseCtorAccessor.TryGetProperty("prototype", out var promiseProto) &&
-            promiseProto is IJsPropertyAccessor promisePrototype)
+        var promisePrototype = ResolvePromisePrototype();
+        if (promisePrototype is not null)
         {
             promiseObj.SetPrototype(promisePrototype);
         }
@@ -1413,6 +1451,26 @@ public sealed class JsEngine : IAsyncDisposable
         });
 
         return promiseObj;
+
+        IJsPropertyAccessor? ResolvePromisePrototype()
+        {
+            if (RealmState?.PromiseConstructor is IJsPropertyAccessor realmPromiseCtor &&
+                realmPromiseCtor.TryGetProperty("prototype", out var realmPrototype) &&
+                realmPrototype is IJsPropertyAccessor realmPromisePrototype)
+            {
+                return realmPromisePrototype;
+            }
+
+            if (GlobalObject.TryGetProperty("Promise", out var promiseCtor) &&
+                promiseCtor is IJsPropertyAccessor promiseCtorAccessor &&
+                promiseCtorAccessor.TryGetProperty("prototype", out var promiseProto) &&
+                promiseProto is IJsPropertyAccessor promisePrototypeAccessor)
+            {
+                return promisePrototypeAccessor;
+            }
+
+            return null;
+        }
     }
 
     /// <summary>
@@ -1447,6 +1505,7 @@ public sealed class JsEngine : IAsyncDisposable
         // Check if module is already loaded
         if (_moduleRegistry.TryGetValue(resolvedPath, out var cachedEntry))
         {
+            EnsureModuleImportMeta(cachedEntry);
             EnsureModuleInstantiated(cachedEntry, phase, exportStarSet);
             if (phase == ImportPhase.Module)
             {
@@ -1559,6 +1618,7 @@ public sealed class JsEngine : IAsyncDisposable
         // Check if module is already loaded
         if (_moduleRegistry.TryGetValue(resolvedPath, out var cachedEntry))
         {
+            EnsureModuleImportMeta(cachedEntry);
             // Only instantiate, don't evaluate
             EnsureModuleInstantiated(cachedEntry, phase, exportStarSet);
             return cachedEntry;

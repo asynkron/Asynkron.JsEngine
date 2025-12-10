@@ -27,6 +27,10 @@ public static partial class StandardLibrary
 
         promiseConstructor.SetHostedProperty("race", PromiseRace);
 
+        promiseConstructor.SetHostedProperty("allSettled", PromiseAllSettled);
+
+        promiseConstructor.SetHostedProperty("any", PromiseAny);
+
         if (promisePrototype is not null)
         {
             AttachPrototypeMethods(promisePrototype);
@@ -154,6 +158,14 @@ public static partial class StandardLibrary
         object? PromiseResolve(IReadOnlyList<object?> args)
         {
             var value = args.Count > 0 ? args[0] : null;
+
+            if (value is JsObject jsObject && JsPromise.TryGetInternalPromise(jsObject, out var _) &&
+                jsObject.TryGetProperty("constructor", out var ctor) &&
+                ReferenceEquals(ctor, promiseConstructor))
+            {
+                return value;
+            }
+
             var promise = new JsPromise(engine);
             AssignPromisePrototype(promise.JsObject);
             AddPromiseInstanceMethods(promise.JsObject, promise, engine);
@@ -327,6 +339,202 @@ public static partial class StandardLibrary
                 }
 
                 return new HostFunction(Reject);
+            }
+        }
+
+        object? PromiseAllSettled(IReadOnlyList<object?> args)
+        {
+            if (args.Count == 0 || args[0] is not JsArray array)
+            {
+                return null;
+            }
+
+            var resultPromise = new JsPromise(engine);
+            AssignPromisePrototype(resultPromise.JsObject);
+            AddPromiseInstanceMethods(resultPromise.JsObject, resultPromise, engine);
+
+            var remaining = array.Items.Count;
+            var results = new object?[remaining];
+
+            if (remaining == 0)
+            {
+                resultPromise.Resolve(new JsArray(engine.RealmState));
+                return resultPromise.JsObject;
+            }
+
+            for (var i = 0; i < array.Items.Count; i++)
+            {
+                var index = i;
+                var item = array.Items[i];
+                if (item is JsObject itemObj && itemObj.TryGetProperty("then", out var thenMethod) &&
+                    thenMethod is IJsCallable thenCallable)
+                {
+                    thenCallable.Invoke([CreateResolve(index), CreateReject(index)], itemObj);
+                }
+                else
+                {
+                    Resolve(index, item, false);
+                }
+            }
+
+            return resultPromise.JsObject;
+
+            HostFunction CreateResolve(int index)
+            {
+                object? ResolveWrapper(object? _, IReadOnlyList<object?> resolveArgs)
+                {
+                    Resolve(index, resolveArgs.Count > 0 ? resolveArgs[0] : null, false);
+                    return null;
+                }
+
+                return new HostFunction(ResolveWrapper);
+            }
+
+            HostFunction CreateReject(int index)
+            {
+                object? RejectWrapper(object? _, IReadOnlyList<object?> rejectArgs)
+                {
+                    Resolve(index, rejectArgs.Count > 0 ? rejectArgs[0] : null, true);
+                    return null;
+                }
+
+                return new HostFunction(RejectWrapper);
+            }
+
+            void Resolve(int index, object? value, bool isRejected)
+            {
+                results[index] = CreateAllSettledResult(value, isRejected);
+                remaining--;
+                if (remaining != 0)
+                {
+                    return;
+                }
+
+                var resultArray = new JsArray(engine.RealmState);
+                foreach (var result in results)
+                {
+                    resultArray.Push(result);
+                }
+
+                resultPromise.Resolve(resultArray);
+            }
+
+            JsObject CreateAllSettledResult(object? value, bool isRejected)
+            {
+                var result = new JsObject();
+                if (engine.RealmState?.ObjectPrototype is not null)
+                {
+                    result.SetPrototype(engine.RealmState.ObjectPrototype);
+                }
+
+                result.SetProperty("status", isRejected ? "rejected" : "fulfilled");
+                result.SetProperty(isRejected ? "reason" : "value", value);
+                return result;
+            }
+        }
+
+        object? PromiseAny(IReadOnlyList<object?> args)
+        {
+            if (args.Count == 0 || args[0] is not JsArray array)
+            {
+                return null;
+            }
+
+            var resultPromise = new JsPromise(engine);
+            AssignPromisePrototype(resultPromise.JsObject);
+            AddPromiseInstanceMethods(resultPromise.JsObject, resultPromise, engine);
+
+            var errors = new JsArray(engine.RealmState);
+            var remaining = array.Items.Count;
+            var resolved = false;
+
+            if (remaining == 0)
+            {
+                resultPromise.Reject(CreateAggregateError(errors));
+                return resultPromise.JsObject;
+            }
+
+            for (var i = 0; i < array.Items.Count; i++)
+            {
+                var item = array.Items[i];
+                if (item is JsObject itemObj && itemObj.TryGetProperty("then", out var thenMethod) &&
+                    thenMethod is IJsCallable thenCallable)
+                {
+                    thenCallable.Invoke([CreateResolve(), CreateReject()], itemObj);
+                }
+                else
+                {
+                    Resolve(item);
+                }
+            }
+
+            return resultPromise.JsObject;
+
+            HostFunction CreateResolve()
+            {
+                object? ResolveWrapper(object? _, IReadOnlyList<object?> resolveArgs)
+                {
+                    Resolve(resolveArgs.Count > 0 ? resolveArgs[0] : null);
+                    return null;
+                }
+
+                return new HostFunction(ResolveWrapper);
+            }
+
+            HostFunction CreateReject()
+            {
+                object? RejectWrapper(object? _, IReadOnlyList<object?> rejectArgs)
+                {
+                    Reject(rejectArgs.Count > 0 ? rejectArgs[0] : null);
+                    return null;
+                }
+
+                return new HostFunction(RejectWrapper);
+            }
+
+            void Resolve(object? value)
+            {
+                if (resolved)
+                {
+                    return;
+                }
+
+                resolved = true;
+                resultPromise.Resolve(value);
+            }
+
+            void Reject(object? reason)
+            {
+                if (resolved)
+                {
+                    return;
+                }
+
+                errors.Push(reason);
+                remaining--;
+                if (remaining == 0)
+                {
+                    resultPromise.Reject(CreateAggregateError(errors));
+                }
+            }
+
+            object CreateAggregateError(JsArray rejectionErrors)
+            {
+                if (engine.GlobalObject.TryGetProperty("AggregateError", out var aggregateCtor) &&
+                    aggregateCtor is IJsCallable callable)
+                {
+                    try
+                    {
+                        return callable.Invoke([rejectionErrors, "All promises were rejected"], null) ??
+                               rejectionErrors;
+                    }
+                    catch
+                    {
+                        // Fall through to returning the errors array
+                    }
+                }
+
+                return rejectionErrors;
             }
         }
     }

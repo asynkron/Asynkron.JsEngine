@@ -5,11 +5,6 @@
         Expressions_dynamicImport("language/expressions/dynamic-import/usage-from-eval.js",True)
        Expressions_dynamicImport_assignmentExpression
         Expressions_dynamicImport_assignmentExpression("language/expressions/dynamic-import/assignment-expression/import-meta.js",True)
-       Expressions_dynamicImport_importAttributes
-        Expressions_dynamicImport_importAttributes("language/expressions/dynamic-import/import-attributes/2nd-param-evaluation-abrupt-return.js",False)
-        Expressions_dynamicImport_importAttributes("language/expressions/dynamic-import/import-attributes/2nd-param-evaluation-abrupt-return.js",True)
-        Expressions_dynamicImport_importAttributes("language/expressions/dynamic-import/import-attributes/2nd-param-with-enumeration-enumerable.js",False)
-        Expressions_dynamicImport_importAttributes("language/expressions/dynamic-import/import-attributes/2nd-param-with-enumeration-enumerable.js",True)
        Expressions_function
         Expressions_function("language/expressions/function/param-dflt-yield-non-strict.js",False)
        Expressions_generators
@@ -21,6 +16,7 @@
         Expressions_import_meta("language/expressions/import.meta/distinct-for-each-module.js",True)
         Expressions_import_meta("language/expressions/import.meta/import-meta-is-an-ordinary-object.js",True)
         Expressions_import_meta("language/expressions/import.meta/not-accessible-from-direct-eval.js",True)
+        Expressions_import_meta("language/expressions/import.meta/same-object-returned.js",True)
        Expressions_object_dstr
         Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-get-not-called-on-dontenum-keys.js",False)
         Expressions_object_dstr("language/expressions/object/dstr/object-rest-proxy-get-not-called-on-dontenum-keys.js",True)
@@ -54,6 +50,11 @@
         Expressions_super("language/expressions/super/prop-expr-getsuperbase-before-topropertykey-putvalue-increment.js",True)
         Expressions_super("language/expressions/super/realm.js",False)
         Expressions_super("language/expressions/super/realm.js",True)
+       Expressions_yield
+        Expressions_yield("language/expressions/yield/star-rhs-iter-thrw-res-done-no-value.js",False)
+        Expressions_yield("language/expressions/yield/star-rhs-iter-thrw-res-done-no-value.js",True)
+        Expressions_yield("language/expressions/yield/star-rhs-iter-thrw-res-value-final.js",False)
+        Expressions_yield("language/expressions/yield/star-rhs-iter-thrw-res-value-final.js",True)
        FunctionCode
         FunctionCode("language/function-code/10.4.3-1-104.js",True)
         FunctionCode("language/function-code/10.4.3-1-106.js",True)
@@ -67,33 +68,6 @@
         GlobalCode("language/global-code/script-decl-lex-restricted-global.js",False)
         GlobalCode("language/global-code/script-decl-lex-restricted-global.js",True)
         GlobalCode("language/global-code/script-decl-lex-var-declared-via-eval.js",False)
-       Import_importAttributes
-        Import_importAttributes("language/import/import-attributes/json-value-array.js",True)
-        Import_importAttributes("language/import/import-attributes/json-value-object.js",True)
-       Import_importDefer_deferredNamespaceObject
-        Import_importDefer_deferredNamespaceObject("language/import/import-defer/deferred-namespace-object/exotic-object-behavior.js",True)
-        Import_importDefer_deferredNamespaceObject("language/import/import-defer/deferred-namespace-object/identity.js",True)
-        Import_importDefer_deferredNamespaceObject("language/import/import-defer/deferred-namespace-object/to-string-tag.js",True)
-       Import_importDefer_errors
-        Import_importDefer_errors("language/import/import-defer/errors/get-self-while-evaluating.js",True)
-       Import_importDefer_errors_getOtherWhileDepEvaluating
-        Import_importDefer_errors_getOtherWhileDepEvaluating("language/import/import-defer/errors/get-other-while-dep-evaluating/main.js",True)
-       Import_importDefer_errors_getOtherWhileEvaluating
-        Import_importDefer_errors_getOtherWhileEvaluating("language/import/import-defer/errors/get-other-while-evaluating/main.js",True)
-       Import_importDefer_errors_getSelfWhileDeferEvaluating
-        Import_importDefer_errors_getSelfWhileDeferEvaluating("language/import/import-defer/errors/get-self-while-defer-evaluating/main.js",True)
-       Import_importDefer_errors_getSelfWhileEvaluatingAsync
-        Import_importDefer_errors_getSelfWhileEvaluatingAsync("language/import/import-defer/errors/get-self-while-evaluating-async/main.js",True)
-       Import_importDefer_errors_moduleThrows
-        Import_importDefer_errors_moduleThrows("language/import/import-defer/errors/module-throws/trigger-evaluation.js",True)
-       Import_importDefer_evaluationTopLevelAwait_flatteningOrder
-        Import_importDefer_evaluationTopLevelAwait_flatteningOrder("language/import/import-defer/evaluation-top-level-await/flattening-order/main.js",True)
-       Import_importDefer_evaluationTopLevelAwait_importDeferAsyncModule
-        Import_importDefer_evaluationTopLevelAwait_importDeferAsyncModule("language/import/import-defer/evaluation-top-level-await/import-defer-async-module/main.js",True)
-       Import_importDefer_evaluationTopLevelAwait_importDeferTransitiveAsyncModule
-        Import_importDefer_evaluationTopLevelAwait_importDeferTransitiveAsyncModule("language/import/import-defer/evaluation-top-level-await/import-defer-transitive-async-module/main.js",True)
-       Import_importDefer_evaluationTopLevelAwait_syncDependencyOfDeferredAsyncModule
-        Import_importDefer_evaluationTopLevelAwait_syncDependencyOfDeferredAsyncModule("language/import/import-defer/evaluation-top-level-await/sync-dependency-of-deferred-async-module/main.js",True)
        ModuleCode
         ModuleCode("language/module-code/eval-rqstd-order.js",True)
         ModuleCode("language/module-code/export-expname-binding-index.js",True)
@@ -102,8 +76,6 @@
         ModuleCode("language/module-code/instn-star-equality.js",True)
         ModuleCode("language/module-code/instn-star-iee-cycle.js",True)
         ModuleCode("language/module-code/instn-star-star-cycle.js",True)
-       ModuleCode_importAttributes
-        ModuleCode_importAttributes("language/module-code/import-attributes/import-attribute-empty.js",True)
        ModuleCode_namespace_internals
         ModuleCode_namespace_internals("language/module-code/namespace/internals/set.js",True)
        ModuleCode_topLevelAwait
@@ -120,6 +92,14 @@
        Statements_awaitUsing
         Statements_awaitUsing("language/statements/await-using/throws-if-initializer-not-object.js",False)
         Statements_awaitUsing("language/statements/await-using/throws-if-initializer-not-object.js",True)
+       Statements_class_definition
+        Statements_class_definition("language/statements/class/definition/constructable-but-no-prototype.js",False)
+        Statements_class_definition("language/statements/class/definition/constructable-but-no-prototype.js",True)
+        Statements_class_definition("language/statements/class/definition/invalid-extends.js",True)
+        Statements_class_definition("language/statements/class/definition/prototype-getter.js",False)
+        Statements_class_definition("language/statements/class/definition/prototype-getter.js",True)
+        Statements_class_definition("language/statements/class/definition/prototype-setter.js",False)
+        Statements_class_definition("language/statements/class/definition/prototype-setter.js",True)
        Statements_class_elements_syntax_valid
         Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-get-followed-by-generator-asi.js",False)
         Statements_class_elements_syntax_valid("language/statements/class/elements/syntax/valid/grammar-field-named-get-followed-by-generator-asi.js",True)
@@ -130,6 +110,10 @@
         Statements_class_subclass("language/statements/class/subclass/builtins.js",True)
         Statements_class_subclass("language/statements/class/subclass/class-definition-null-proto-this.js",False)
         Statements_class_subclass("language/statements/class/subclass/class-definition-null-proto-this.js",True)
+        Statements_class_subclass("language/statements/class/subclass/superclass-async-generator-function.js",False)
+        Statements_class_subclass("language/statements/class/subclass/superclass-async-generator-function.js",True)
+        Statements_class_subclass("language/statements/class/subclass/superclass-generator-function.js",False)
+        Statements_class_subclass("language/statements/class/subclass/superclass-generator-function.js",True)
        Statements_const_syntax
         Statements_const_syntax("language/statements/const/syntax/const-invalid-assignment-next-expression-for.js",False)
         Statements_const_syntax("language/statements/const/syntax/const-invalid-assignment-next-expression-for.js",True)
@@ -153,23 +137,14 @@
         Statements_forOf("language/statements/for-of/head-using-bound-names-fordecl-tdz.js",True)
         Statements_forOf("language/statements/for-of/head-using-fresh-binding-per-iteration.js",False)
         Statements_forOf("language/statements/for-of/head-using-fresh-binding-per-iteration.js",True)
-        Statements_forOf("language/statements/for-of/iterator-next-error.js",False)
-        Statements_forOf("language/statements/for-of/iterator-next-error.js",True)
        Statements_function
         Statements_function("language/statements/function/param-dflt-yield-non-strict.js",False)
        Statements_labeled
         Statements_labeled("language/statements/labeled/value-await-non-module.js",False)
         Statements_labeled("language/statements/labeled/value-await-non-module.js",True)
         Statements_labeled("language/statements/labeled/value-yield-non-strict.js",False)
-       Statements_let
-        Statements_let("language/statements/let/block-local-closure-set-before-initialization.js",False)
-        Statements_let("language/statements/let/function-local-closure-set-before-initialization.js",False)
-        Statements_let("language/statements/let/global-closure-set-before-initialization.js",False)
        Statements_switch
         Statements_switch("language/statements/switch/scope-lex-async-function.js",False)
-       Statements_try
-        Statements_try("language/statements/try/S12.14_A17.js",False)
-        Statements_try("language/statements/try/S12.14_A17.js",True)
        Statements_using
         Statements_using("language/statements/using/throws-if-initializer-not-object.js",False)
         Statements_using("language/statements/using/throws-if-initializer-not-object.js",True)

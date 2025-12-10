@@ -228,7 +228,7 @@ public sealed class TypedAstParser(
                 return ParseVariableDeclaration(VariableKind.Var);
             }
 
-            if (Check(TokenType.Identifier) && PeekNext().Type == TokenType.Colon)
+            if (IsLabelIdentifierStart() && PeekNext().Type == TokenType.Colon)
             {
                 return ParseLabeledStatement();
             }
@@ -571,6 +571,18 @@ public sealed class TypedAstParser(
                     ? bigInt.Value.ToString(CultureInfo.InvariantCulture)
                     : token.Lexeme.TrimEnd('n');
                 return (value, false, token);
+            }
+
+            if (Check(TokenType.Await) && !IsAwaitAllowed)
+            {
+                var awaitToken = Advance();
+                return (awaitToken.Lexeme, true, awaitToken);
+            }
+
+            if (Check(TokenType.Yield) && !InGeneratorContext && !InStrictContext)
+            {
+                var yieldToken = Advance();
+                return (yieldToken.Lexeme, true, yieldToken);
             }
 
             if (Check(TokenType.Identifier))
@@ -4280,6 +4292,29 @@ public sealed class TypedAstParser(
 
             return token.Lexeme is "implements" or "interface" or "let" or "package" or "private" or "protected" or
                 "public" or "static" or "yield";
+        }
+
+        private bool IsLabelIdentifierStart()
+        {
+            var token = Peek();
+            if (token.Type == TokenType.Identifier)
+            {
+                return true;
+            }
+
+            if (token.Type == TokenType.Yield)
+            {
+                // `yield` is only reserved in generators or strict mode
+                return !InGeneratorContext && !InStrictContext;
+            }
+
+            if (token.Type == TokenType.Await)
+            {
+                // Outside modules/async contexts, await is just an identifier
+                return !IsAwaitAllowed;
+            }
+
+            return false;
         }
 
         private bool CheckForUseStrictDirective()

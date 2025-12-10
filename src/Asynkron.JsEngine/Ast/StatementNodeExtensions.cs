@@ -212,6 +212,7 @@ public static partial class TypedAstEvaluator
                             inBlockScope &&
                             context.CurrentScope is { IsStrict: false, AllowAnnexB: true } &&
                             !functionDeclaration.Function.IsAsync &&
+                            !functionDeclaration.Function.WasAsync &&
                             !functionDeclaration.Function.IsGenerator;
 
                         if (isAnnexBBlockFunction)

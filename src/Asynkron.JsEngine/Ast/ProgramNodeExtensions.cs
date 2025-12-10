@@ -146,7 +146,8 @@ public static partial class TypedAstEvaluator
                 // Check ALL var names for conflicts with existing lexical declarations BEFORE
                 // creating any bindings. This ensures that a script like 'var x; var existingLet;'
                 // doesn't create 'x' when it should throw SyntaxError for 'existingLet'.
-                var allVarNames = CollectAllVarNames(program.Body);
+                var allowAnnexBVarFuncs = context.Options.EnableAnnexBFunctionExtensions && !program.IsStrict;
+                var allVarNames = CollectAllVarNames(program.Body, allowAnnexBVarFuncs, program.IsStrict);
                 foreach (var varName in allVarNames)
                 {
                     if (globalScopeToCheck.HasGlobalLexicalDeclaration(varName))
@@ -329,22 +330,35 @@ public static partial class TypedAstEvaluator
     /// Collects all var-declared names from the program body, including function declarations.
     /// This is used for GlobalDeclarationInstantiation to check for conflicts before creating bindings.
     /// </summary>
-    private static HashSet<Symbol> CollectAllVarNames(ImmutableArray<StatementNode> statements)
+    private static HashSet<Symbol> CollectAllVarNames(
+        ImmutableArray<StatementNode> statements,
+        bool allowAnnexB,
+        bool isStrict)
     {
         var names = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
-        CollectVarNamesFromStatements(statements, names);
+        CollectVarNamesFromStatements(statements, names, allowAnnexB, isStrict, inBlockScope: false);
         return names;
     }
 
-    private static void CollectVarNamesFromStatements(ImmutableArray<StatementNode> statements, HashSet<Symbol> names)
+    private static void CollectVarNamesFromStatements(
+        ImmutableArray<StatementNode> statements,
+        HashSet<Symbol> names,
+        bool allowAnnexB,
+        bool isStrict,
+        bool inBlockScope)
     {
         foreach (var statement in statements)
         {
-            CollectVarNamesFromStatement(statement, names);
+            CollectVarNamesFromStatement(statement, names, allowAnnexB, isStrict, inBlockScope);
         }
     }
 
-    private static void CollectVarNamesFromStatement(StatementNode statement, HashSet<Symbol> names)
+    private static void CollectVarNamesFromStatement(
+        StatementNode statement,
+        HashSet<Symbol> names,
+        bool allowAnnexB,
+        bool isStrict,
+        bool inBlockScope)
     {
         while (true)
         {
@@ -358,13 +372,19 @@ public static partial class TypedAstEvaluator
 
                     break;
                 case FunctionDeclaration functionDeclaration:
-                    names.Add(functionDeclaration.Name);
+                    if (!inBlockScope ||
+                        allowAnnexB && !isStrict && !functionDeclaration.Function.IsAsync &&
+                        !functionDeclaration.Function.IsGenerator)
+                    {
+                        names.Add(functionDeclaration.Name);
+                    }
+
                     break;
                 case BlockStatement block:
-                    CollectVarNamesFromStatements(block.Statements, names);
+                    CollectVarNamesFromStatements(block.Statements, names, allowAnnexB, isStrict, true);
                     break;
                 case IfStatement ifStatement:
-                    CollectVarNamesFromStatement(ifStatement.Then, names);
+                    CollectVarNamesFromStatement(ifStatement.Then, names, allowAnnexB, isStrict, inBlockScope: true);
                     if (ifStatement.Else is not null)
                     {
                         statement = ifStatement.Else;
@@ -397,22 +417,24 @@ public static partial class TypedAstEvaluator
                     statement = forEachStatement.Body;
                     continue;
                 case TryStatement tryStatement:
-                    CollectVarNamesFromStatements(tryStatement.TryBlock.Statements, names);
+                    CollectVarNamesFromStatements(tryStatement.TryBlock.Statements, names, allowAnnexB, isStrict, true);
                     if (tryStatement.Catch is not null)
                     {
-                        CollectVarNamesFromStatements(tryStatement.Catch.Body.Statements, names);
+                        CollectVarNamesFromStatements(tryStatement.Catch.Body.Statements, names, allowAnnexB,
+                            isStrict, true);
                     }
 
                     if (tryStatement.Finally is not null)
                     {
-                        CollectVarNamesFromStatements(tryStatement.Finally.Statements, names);
+                        CollectVarNamesFromStatements(tryStatement.Finally.Statements, names, allowAnnexB, isStrict,
+                            true);
                     }
 
                     break;
                 case SwitchStatement switchStatement:
                     foreach (var switchCase in switchStatement.Cases)
                     {
-                        CollectVarNamesFromStatements(switchCase.Body.Statements, names);
+                        CollectVarNamesFromStatements(switchCase.Body.Statements, names, allowAnnexB, isStrict, true);
                     }
 
                     break;

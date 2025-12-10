@@ -12,6 +12,25 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment, EvaluationContext context)
         {
             var targetIdentifier = declarator.Target as IdentifierBinding;
+            AssignmentReference? preResolvedVarReference = null;
+
+            // Var declarations resolve their binding before evaluating the initializer so
+            // `with` environments/proxies see the correct lookup order (ResolveBinding step).
+            if (kind == VariableKind.Var &&
+                declarator.Initializer is not null &&
+                targetIdentifier is not null)
+            {
+                var identifierExpression = new IdentifierExpression(declarator.Source, targetIdentifier.Name);
+                preResolvedVarReference = AssignmentReferenceResolver.Resolve(
+                    identifierExpression,
+                    environment,
+                    context,
+                    EvaluateExpression);
+                if (context.ShouldStopEvaluation)
+                {
+                    return;
+                }
+            }
             // Per ES spec 13.3.1.4: If IsAnonymousFunctionDefinition(Initializer) is true,
             // then perform SetFunctionName(value, bindingId).
             using var functionNameHint = targetIdentifier is not null &&
@@ -67,6 +86,18 @@ public static partial class TypedAstEvaluator
                     environment.Depth,
                     environment.IsStrict,
                     value);
+            }
+
+            if (preResolvedVarReference is { } resolvedReference && targetIdentifier is not null)
+            {
+                var assignedBlockedBinding = environment.TryAssignBlockedBinding(targetIdentifier.Name, value);
+                EnsureFunctionScopedVarBinding(environment, targetIdentifier.Name, context);
+                if (!assignedBlockedBinding)
+                {
+                    resolvedReference.SetValue(value);
+                }
+
+                return;
             }
 
             // Per ES spec 13.3.1.4: Name inference only applies if IsAnonymousFunctionDefinition(Initializer) is true

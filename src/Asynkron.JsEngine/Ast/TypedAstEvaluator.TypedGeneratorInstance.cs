@@ -220,6 +220,7 @@ public static partial class TypedAstEvaluator
 
             JsEnvironment parameterEnvironment;
             JsEnvironment functionEnvironment;
+            JsEnvironment varEnvironment;
             if (hasParameterExpressions)
             {
                 functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
@@ -229,6 +230,10 @@ public static partial class TypedAstEvaluator
                 parameterEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict, _function.Source,
                     description, isParameterEnvironment: true);
                 parameterEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+
+                varEnvironment = new JsEnvironment(parameterEnvironment, true, _isStrict, _function.Source,
+                    description);
+                varEnvironment.SetBodyLexicalNames(bodyLexicalNames);
             }
             else
             {
@@ -236,9 +241,10 @@ public static partial class TypedAstEvaluator
                     description);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
                 parameterEnvironment = functionEnvironment;
+                varEnvironment = functionEnvironment;
             }
 
-            var executionEnvironment = new JsEnvironment(parameterEnvironment, false, _isStrict,
+            var executionEnvironment = new JsEnvironment(varEnvironment, false, _isStrict,
                 _function.Source, description, isBodyEnvironment: true);
             executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
 

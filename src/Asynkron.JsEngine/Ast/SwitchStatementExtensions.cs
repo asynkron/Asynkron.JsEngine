@@ -123,7 +123,8 @@ public static partial class TypedAstEvaluator
                         // Function declarations in switch case blocks create lexical bindings
                         // For async/generator functions, create uninitialized binding (they'll be initialized when evaluated)
                         // For regular functions, create and initialize the binding immediately
-                        var isAsyncOrGenerator = funcDecl.Function.IsAsync || funcDecl.Function.IsGenerator;
+                        var isAsyncOrGenerator = funcDecl.Function.IsAsync || funcDecl.Function.WasAsync ||
+                                                 funcDecl.Function.IsGenerator;
                         if (isAsyncOrGenerator)
                         {
                             // Async and generator functions are always lexically scoped, never Annex B
@@ -176,7 +177,7 @@ public static partial class TypedAstEvaluator
                 // Special handling for async/generator function declarations
                 // They need to be initialized when evaluated (not during instantiation)
                 if (stmt is FunctionDeclaration funcDecl &&
-                    (funcDecl.Function.IsAsync || funcDecl.Function.IsGenerator))
+                    (funcDecl.Function.IsAsync || funcDecl.Function.WasAsync || funcDecl.Function.IsGenerator))
                 {
                     // Pass skipInternalNameBinding: true so the function doesn't create an internal
                     // const binding for its name (the binding was already defined during instantiation).

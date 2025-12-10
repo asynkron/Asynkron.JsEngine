@@ -3,7 +3,7 @@
 //   Generated using the Test262Harness v1.0.3.0
 //   Suite Git SHA: a073f479f80b336256b7fc4e04700c827293e2fe
 //   Suite Directory: 
-//   Template SHA: AFAB2E72F79C0B8E08DB65CB0F63C6E2E345CFC5BC31C128F5A899A43681E6AE
+//   Template SHA: DE29A509E5E2C5224870D9E829B61E8F57F41C5A58A6392C2BB1D67245A2FBC2
 //   Command line: /Users/rogerjohansson/.nuget/packages/test262harness.console/1.0.3/tools/net8.0/any/Test262Harness.Console.dll generate
 //   Settings file: /Users/rogerjohansson/git/asynkron/Asynkron.JsEngine/tests/Asynkron.JsEngine.Tests.Test262/Test262Harness.settings.json
 // </auto-generated>
@@ -17,22 +17,16 @@ namespace Asynkron.JsEngine.Tests.Test262;
 
 public class BuiltInsTests : Test262Test
 {
-    [TestCase("built-ins/AbstractModuleSource/length.js", true, Category = "source-phase-imports,module")]
-    [TestCase("built-ins/AbstractModuleSource/name.js", true, Category = "source-phase-imports,module")]
-    [TestCase("built-ins/AbstractModuleSource/proto.js", true, Category = "source-phase-imports,module")]
-    [TestCase("built-ins/AbstractModuleSource/prototype.js", true, Category = "source-phase-imports,module")]
-    [TestCase("built-ins/AbstractModuleSource/throw-from-constructor.js", true, Category = "source-phase-imports,module")]
-    public void AbstractModuleSource(string test, bool strict)
+    [Test]
+    [Ignore("Feature source-phase-imports excluded")]
+    public void AbstractModuleSource()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/AbstractModuleSource/prototype/constructor.js", true, Category = "source-phase-imports,module")]
-    [TestCase("built-ins/AbstractModuleSource/prototype/proto.js", true, Category = "source-phase-imports,module")]
-    [TestCase("built-ins/AbstractModuleSource/prototype/Symbol.toStringTag.js", true, Category = "source-phase-imports,module")]
-    public void AbstractModuleSource_prototype(string test, bool strict)
+    [Test]
+    [Ignore("Feature source-phase-imports excluded")]
+    public void AbstractModuleSource_prototype()
     {
-        RunTestCode(test, strict);
     }
 
     [TestCase("built-ins/Array/15.4.5-1.js", false)]

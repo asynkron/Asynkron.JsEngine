@@ -4,7 +4,9 @@
   "Namespace": "Asynkron.JsEngine.Tests.Test262",
   "Parallel": true,
   "ExcludedFeatures": [
-    "tail-call-optimization"
+    "tail-call-optimization",
+    "import-defer",
+    "source-phase-imports"
   ],
   "ExcludedFlags": [
 

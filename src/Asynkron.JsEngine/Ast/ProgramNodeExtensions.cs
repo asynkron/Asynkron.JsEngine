@@ -183,6 +183,32 @@ public static partial class TypedAstEvaluator
                 }
             }
 
+            // Per ES spec, lexical declarations (let/const/class) must be hoisted to create
+            // bindings in the TDZ (Temporal Dead Zone) BEFORE function hoisting.
+            // This ensures closures that reference lexical variables will find TDZ bindings
+            // and throw ReferenceError if accessed before initialization.
+            foreach (var stmt in program.Body)
+            {
+                switch (stmt)
+                {
+                    case VariableDeclaration { Kind: VariableKind.Let or VariableKind.Const } lexDecl:
+                        var isConst = lexDecl.Kind == VariableKind.Const;
+                        foreach (var declarator in lexDecl.Declarators)
+                        {
+                            HoistLexicalBindingTargetForGlobalTdz(declarator.Target, executionEnvironment, isConst);
+                        }
+                        break;
+                    case ClassDeclaration classDecl:
+                        // Class declarations are also lexically scoped and need TDZ
+                        if (!executionEnvironment.HasBinding(classDecl.Name))
+                        {
+                            executionEnvironment.Define(classDecl.Name, JsEnvironment.Uninitialized, isLexical: true,
+                                blocksFunctionScopeOverride: true, isConst: true);
+                        }
+                        break;
+                }
+            }
+
             HoistVarDeclarations(
                 programBlock,
                 executionEnvironment,
@@ -393,6 +419,43 @@ public static partial class TypedAstEvaluator
             }
 
             break;
+        }
+    }
+
+    private static void HoistLexicalBindingTargetForGlobalTdz(BindingTarget target, JsEnvironment environment, bool isConst)
+    {
+        switch (target)
+        {
+            case IdentifierBinding id:
+                if (!environment.HasBinding(id.Name))
+                {
+                    environment.Define(id.Name, JsEnvironment.Uninitialized, isLexical: true,
+                        blocksFunctionScopeOverride: true, isConst: isConst);
+                }
+                break;
+            case ArrayBinding arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    if (element.Target is { } elementTarget)
+                    {
+                        HoistLexicalBindingTargetForGlobalTdz(elementTarget, environment, isConst);
+                    }
+                }
+                if (arrayBinding.RestElement is { } restTarget)
+                {
+                    HoistLexicalBindingTargetForGlobalTdz(restTarget, environment, isConst);
+                }
+                break;
+            case ObjectBinding objectBinding:
+                foreach (var prop in objectBinding.Properties)
+                {
+                    HoistLexicalBindingTargetForGlobalTdz(prop.Target, environment, isConst);
+                }
+                if (objectBinding.RestElement is { } restObjTarget)
+                {
+                    HoistLexicalBindingTargetForGlobalTdz(restObjTarget, environment, isConst);
+                }
+                break;
         }
     }
 }

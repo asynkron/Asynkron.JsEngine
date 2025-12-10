@@ -54,15 +54,6 @@
         Expressions_super("language/expressions/super/prop-expr-getsuperbase-before-topropertykey-putvalue-increment.js",True)
         Expressions_super("language/expressions/super/realm.js",False)
         Expressions_super("language/expressions/super/realm.js",True)
-       Expressions_yield
-        Expressions_yield("language/expressions/yield/star-rhs-iter-nrml-res-value-final.js",False)
-        Expressions_yield("language/expressions/yield/star-rhs-iter-nrml-res-value-final.js",True)
-        Expressions_yield("language/expressions/yield/star-rhs-iter-rtrn-res-done-no-value.js",False)
-        Expressions_yield("language/expressions/yield/star-rhs-iter-rtrn-res-done-no-value.js",True)
-        Expressions_yield("language/expressions/yield/star-rhs-iter-rtrn-res-value-final.js",False)
-        Expressions_yield("language/expressions/yield/star-rhs-iter-rtrn-res-value-final.js",True)
-        Expressions_yield("language/expressions/yield/star-rhs-iter-thrw-violation-rtrn-call-err.js",False)
-        Expressions_yield("language/expressions/yield/star-rhs-iter-thrw-violation-rtrn-call-err.js",True)
        FunctionCode
         FunctionCode("language/function-code/10.4.3-1-104.js",True)
         FunctionCode("language/function-code/10.4.3-1-106.js",True)
@@ -166,14 +157,6 @@
         Statements_forOf("language/statements/for-of/iterator-next-error.js",True)
        Statements_function
         Statements_function("language/statements/function/param-dflt-yield-non-strict.js",False)
-        Statements_function("language/statements/function/S13.2.1_A5_T1.js",False)
-        Statements_function("language/statements/function/S13.2.1_A5_T1.js",True)
-        Statements_function("language/statements/function/S13.2.2_A1_T1.js",False)
-        Statements_function("language/statements/function/S13.2.2_A1_T1.js",True)
-        Statements_function("language/statements/function/S13.2.2_A1_T2.js",False)
-        Statements_function("language/statements/function/S13.2.2_A1_T2.js",True)
-        Statements_function("language/statements/function/S13.2_A8_T1.js",True)
-        Statements_function("language/statements/function/S13.2_A8_T2.js",True)
        Statements_labeled
         Statements_labeled("language/statements/labeled/value-await-non-module.js",False)
         Statements_labeled("language/statements/labeled/value-await-non-module.js",True)
@@ -185,19 +168,12 @@
        Statements_switch
         Statements_switch("language/statements/switch/scope-lex-async-function.js",False)
        Statements_try
-        Statements_try("language/statements/try/catch-parameter-boundnames-restriction-arguments-eval-throws.js",True)
-        Statements_try("language/statements/try/catch-parameter-boundnames-restriction-eval-eval-throws.js",True)
         Statements_try("language/statements/try/S12.14_A17.js",False)
         Statements_try("language/statements/try/S12.14_A17.js",True)
        Statements_using
         Statements_using("language/statements/using/throws-if-initializer-not-object.js",False)
         Statements_using("language/statements/using/throws-if-initializer-not-object.js",True)
        Statements_variable
-        Statements_variable("language/statements/variable/12.2.1-18-s.js",True)
-        Statements_variable("language/statements/variable/12.2.1-22-s.js",False)
-        Statements_variable("language/statements/variable/12.2.1-22-s.js",True)
-        Statements_variable("language/statements/variable/12.2.1-3-s.js",True)
-        Statements_variable("language/statements/variable/12.2.1-7-s.js",True)
         Statements_variable("language/statements/variable/binding-resolution.js",False)
        Statements_variable_dstr
         Statements_variable_dstr("language/statements/variable/dstr/obj-ptrn-elem-id-static-init-await-valid.js",False)

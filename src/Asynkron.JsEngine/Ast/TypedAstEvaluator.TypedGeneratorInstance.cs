@@ -757,6 +757,22 @@ public static partial class TypedAstEvaluator
                                     return CompleteReturn(abruptValue);
                                 }
 
+                                // If the delegated iterator's throw method completed (done=true),
+                                // the yield* expression completes normally with that value (no further delegation).
+                                if (propagateThrow && iteratorResult.Done)
+                                {
+                                    yieldStarState.State = null;
+                                    yieldStarState.AwaitingResume = false;
+                                    environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
+                                    if (yieldStarInstruction.ResultSlotSymbol is { } throwResultSlot)
+                                    {
+                                        StoreSymbolValue(environment, throwResultSlot, iteratorResult.Value);
+                                    }
+
+                                    _programCounter = yieldStarInstruction.Next;
+                                    break;
+                                }
+
                                 if (iteratorResult.Done && !propagateThrow && !propagateReturn)
                                 {
                                     yieldStarState.State = null;

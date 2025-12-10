@@ -31,6 +31,7 @@
 - Async functions now resolve their completion through the global Promise constructor even when executed from nested scopes (class/field environments fall back to the root global object), so the async class element clusters involving same-line static async methods/private names are green again.
 - Parameter environments now hang off their function environments so default-parameter `super`/`this` lookups see the right bindings, and sloppy generator methods coerce `this` to the realm global object; the object method definition default-super/sloppy-this generators are passing.
 - Named generator function expressions now skip the internal const name binding when a function-name environment already exists, so sloppy reassignments of the generator name are ignored instead of throwing (covers the generator `reassign-fn-name` and `scope-name-var-open` tests).
+- `yield*` now treats a delegated iterator's `throw` result with `done: true` as a normal completion, propagating the returned `value` and finalizing delegation instead of yielding again (fixes the `star-rhs-iter-thrw-res-*` throw/done cases).
 
 ## Next Iteration Plan
 1. When resuming broader work, run a narrow Language filter outside `ArgumentsObject`/`Array_fromAsync` to find the next hot cluster (avoid full 43k sweep).

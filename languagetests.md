@@ -35,14 +35,6 @@
         Expressions_prefixDecrement("language/expressions/prefix-decrement/eval-nostrict.js",False)
        Expressions_prefixIncrement
         Expressions_prefixIncrement("language/expressions/prefix-increment/eval-nostrict.js",False)
-       Expressions_super
-        Expressions_super("language/expressions/super/call-arg-evaluation-err.js",False)
-        Expressions_super("language/expressions/super/call-construct-invocation.js",False)
-        Expressions_super("language/expressions/super/call-construct-invocation.js",True)
-        Expressions_super("language/expressions/super/prop-expr-getsuperbase-before-topropertykey-putvalue-increment.js",False)
-        Expressions_super("language/expressions/super/prop-expr-getsuperbase-before-topropertykey-putvalue-increment.js",True)
-        Expressions_super("language/expressions/super/realm.js",False)
-        Expressions_super("language/expressions/super/realm.js",True)
        Expressions_yield
         Expressions_yield("language/expressions/yield/star-rhs-iter-thrw-res-done-no-value.js",False)
         Expressions_yield("language/expressions/yield/star-rhs-iter-thrw-res-done-no-value.js",True)
@@ -54,6 +46,7 @@
        FutureReservedWords
         FutureReservedWords("language/future-reserved-words/static.js",False)
        GlobalCode
+        GlobalCode("language/global-code/decl-lex-restricted-global.js",True)
         GlobalCode("language/global-code/script-decl-func-err-non-extensible.js",False)
         GlobalCode("language/global-code/script-decl-func-err-non-extensible.js",True)
         GlobalCode("language/global-code/script-decl-lex-var-declared-via-eval.js",False)
@@ -62,6 +55,10 @@
         ModuleCode_topLevelAwait("language/module-code/top-level-await/await-dynamic-import-resolution.js",True)
         ModuleCode_topLevelAwait("language/module-code/top-level-await/module-graphs-does-not-hang.js",True)
        ModuleCode_topLevelAwait_syntax
+        ModuleCode_topLevelAwait_syntax("language/module-code/top-level-await/syntax/await-expr-dyn-import.js",True)
+       ReservedWords
+        ReservedWords("language/reserved-words/unreserved-words.js",False)
+        ReservedWords("language/reserved-words/unreserved-words.js",True)
        Statements_asyncGenerator
         Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",False)
         Statements_asyncGenerator("language/statements/async-generator/yield-star-async-from-sync-iterator-inaccessible.js",True)

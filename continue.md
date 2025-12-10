@@ -29,6 +29,7 @@
 - Module evaluation now walks requested modules ahead of body execution, ResolveExport/export\* follow the spec (cycle-aware, ambiguous names filtered), module namespaces expose unambiguous exports only, and namespace [[Set]]/Reflect.set return false instead of throwing.
 - Object destructuring rest now walks [[OwnPropertyKeys]] with exclusions checked before GetOwnPropertyDescriptor, skips Get for non-enumerables, and uses the original object (including proxies) instead of cloning; the proxy rest destructuring get/gOPD/ownKeys-order tests are passing.
 - Async functions now resolve their completion through the global Promise constructor even when executed from nested scopes (class/field environments fall back to the root global object), so the async class element clusters involving same-line static async methods/private names are green again.
+- Parameter environments now hang off their function environments so default-parameter `super`/`this` lookups see the right bindings, and sloppy generator methods coerce `this` to the realm global object; the object method definition default-super/sloppy-this generators are passing.
 
 ## Next Iteration Plan
 1. When resuming broader work, run a narrow Language filter outside `ArgumentsObject`/`Array_fromAsync` to find the next hot cluster (avoid full 43k sweep).

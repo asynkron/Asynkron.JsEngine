@@ -219,12 +219,13 @@ public static partial class TypedAstEvaluator
             JsEnvironment functionEnvironment;
             if (hasParameterExpressions)
             {
-                parameterEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
+                functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
+                    description);
+                functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+
+                parameterEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict, _function.Source,
                     description, isParameterEnvironment: true);
                 parameterEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-                functionEnvironment = new JsEnvironment(parameterEnvironment, true, _isStrict,
-                    _function.Source, description);
-                functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
             }
             else
             {
@@ -234,23 +235,52 @@ public static partial class TypedAstEvaluator
                 parameterEnvironment = functionEnvironment;
             }
 
-            var executionEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict,
+            var executionEnvironment = new JsEnvironment(parameterEnvironment, false, _isStrict,
                 _function.Source, description, isBodyEnvironment: true);
             executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
 
-            functionEnvironment.Define(Symbol.This, _thisValue ?? new JsObject());
+            var generatorContext = _realmState.CreateContext(
+                ScopeKind.Function,
+                DetermineGeneratorScopeMode(),
+                true);
+
+            object? boundThis = _thisValue;
+            if (!_isStrict)
+            {
+                if (boundThis is null || ReferenceEquals(boundThis, Symbol.Undefined))
+                {
+                    boundThis = _realmState.Engine?.GlobalObject;
+                    boundThis ??= Symbol.Undefined;
+                }
+
+                if (boundThis is null)
+                {
+                    boundThis = new JsObject
+                    {
+                        RealmState = _realmState
+                    };
+                }
+                else if (boundThis is not IJsPropertyAccessor &&
+                         !IsNullish(boundThis) &&
+                         boundThis is not IIsHtmlDda)
+                {
+                    boundThis = ToObjectForDestructuring(boundThis, generatorContext);
+                }
+            }
+
+            functionEnvironment.Define(Symbol.This, boundThis);
             functionEnvironment.Define(Symbol.YieldResumeContextSymbol, _resumeContext);
             functionEnvironment.Define(Symbol.GeneratorInstanceSymbol, this);
 
             var superPrototype = _homeObject?.Prototype;
-            if (superPrototype is null && _thisValue is JsObject thisObj)
+            if (superPrototype is null && boundThis is JsObject thisObj)
             {
                 superPrototype = thisObj.Prototype;
             }
 
             if (superPrototype is not null)
             {
-                var superBinding = new SuperBinding(null, superPrototype, _thisValue, true);
+                var superBinding = new SuperBinding(null, superPrototype, boundThis, true);
                 functionEnvironment.Define(Symbol.Super, superBinding);
             }
 
@@ -268,10 +298,6 @@ public static partial class TypedAstEvaluator
                 parameterEnvironment.Define(functionName, _callable, isConst: true, isLexical: true, blocksFunctionScopeOverride: true);
             }
 
-            var generatorContext = _realmState.CreateContext(
-                ScopeKind.Function,
-                DetermineGeneratorScopeMode(),
-                true);
             generatorContext.BlockedFunctionVarNames = blockedFunctionVarNames;
             HoistVarDeclarations(_function.Body, executionEnvironment, generatorContext,
                 lexicalNames: lexicalNames,

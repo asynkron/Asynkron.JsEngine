@@ -462,19 +462,16 @@ public static partial class TypedAstEvaluator
             JsEnvironment functionEnvironment;
             if (hasParameterExpressions)
             {
-                parameterEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
+                functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
+                    description);
+                functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+
+                // Hang the parameter environment off the function environment so defaults
+                // can see `this`/super/new.target while still isolating their bindings
+                // from the body’s var environment.
+                parameterEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict, _function.Source,
                     description, isParameterEnvironment: true);
                 parameterEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-                functionEnvironment = new JsEnvironment(parameterEnvironment, true, _isStrict,
-                    _function.Source, description);
-                functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-                // Parameter expressions (including direct eval) should use the
-                // dedicated parameter environment as their variable environment
-                // (ES 10.2.11, FunctionDeclarationInstantiation step 14 when
-                // HasParameterExpressions is true). This keeps var bindings created
-                // during parameter evaluation (e.g. `eval("var arguments = ...")`)
-                // separate from the function body’s var environment so later body
-                // declarations do not overwrite them.
             }
             else
             {
@@ -484,7 +481,7 @@ public static partial class TypedAstEvaluator
                 parameterEnvironment = functionEnvironment;
             }
 
-            var executionEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict,
+            var executionEnvironment = new JsEnvironment(parameterEnvironment, false, _isStrict,
                 _function.Source, description, isBodyEnvironment: true);
             executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
 

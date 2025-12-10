@@ -32,6 +32,7 @@
 - Parameter environments now hang off their function environments so default-parameter `super`/`this` lookups see the right bindings, and sloppy generator methods coerce `this` to the realm global object; the object method definition default-super/sloppy-this generators are passing.
 - Named generator function expressions now skip the internal const name binding when a function-name environment already exists, so sloppy reassignments of the generator name are ignored instead of throwing (covers the generator `reassign-fn-name` and `scope-name-var-open` tests).
 - `yield*` now treats a delegated iterator's `throw` result with `done: true` as a normal completion, propagating the returned `value` and finalizing delegation instead of yielding again (fixes the `star-rhs-iter-thrw-res-*` throw/done cases).
+- GlobalDeclarationInstantiation now resolves restricted globals against the root global object (so `let undefined` is rejected even in strict wrappers), deletable direct-eval bindings no longer block later global lexical declarations, and function hoists on non-extensible globals throw a proper TypeError instead of null-refing in DefineFunctionScoped.
 
 ## Next Iteration Plan
 1. When resuming broader work, run a narrow Language filter outside `ArgumentsObject`/`Array_fromAsync` to find the next hot cluster (avoid full 43k sweep).

@@ -221,8 +221,11 @@ public sealed class JsEnvironment
 
             if (!canDeclareFunction)
             {
+                var existingConfig = existingDescriptor?.Configurable;
+                var existingWritable = existingDescriptor?.Writable;
+                var existingEnumerable = existingDescriptor?.Enumerable;
                 LogRealm("DefineFunctionScoped cannot declare global function name={Name} existingConfig={Config} writable={Writable} enumerable={Enumerable}",
-                    name.Name, existingDescriptor.Configurable, existingDescriptor.Writable, existingDescriptor.Enumerable);
+                    name.Name, existingConfig, existingWritable, existingEnumerable);
                 throw StandardLibrary.ThrowTypeError("Cannot redeclare non-configurable global function",
                     context, context?.RealmState);
             }
@@ -907,13 +910,12 @@ public sealed class JsEnvironment
             return false;
         }
 
-        if (!scope._values.TryGetValue(Symbol.This, out var thisBinding) ||
-            thisBinding.Value is not JsObject globalObject)
+        var descriptor = scope.GetGlobalOwnPropertyDescriptor(name, out var globalObject);
+        if (globalObject is null)
         {
             return false;
         }
 
-        var descriptor = globalObject.GetOwnPropertyDescriptor(name.Name);
         if (descriptor is not null && !descriptor.Configurable)
         {
             return true;
@@ -999,6 +1001,13 @@ public sealed class JsEnvironment
         // Check if there's a non-lexical binding in _values
         if (_values.TryGetValue(name, out var binding) && !binding.IsLexical)
         {
+            if (binding.CanDelete && IsGlobalFunctionScope)
+            {
+                // Non-strict direct eval creates deletable global var bindings (configurable properties)
+                // which should not block future lexical declarations in GlobalDeclarationInstantiation.
+                return false;
+            }
+
             return true;
         }
 

@@ -15,12 +15,14 @@ public static partial class TypedAstEvaluator
         IJsCallable callable,
         RealmState realmState,
         bool isLexicallyStrict,
+        bool hasFunctionNameEnvironment,
         IJsObjectLike? homeObject,
         PrivateNameScope? privateNameScope,
         ImmutableArray<PrivateNameScope> capturedPrivateNameScopes)
     {
         private readonly TypedGeneratorInstance _inner = new(function, closure, arguments, thisValue, callable,
-            realmState, isLexicallyStrict, homeObject, privateNameScope, capturedPrivateNameScopes);
+            realmState, isLexicallyStrict, hasFunctionNameEnvironment, homeObject, privateNameScope,
+            capturedPrivateNameScopes);
 
         // WAITING ON FULL ASYNC GENERATOR IR SUPPORT:
         // For now we reuse the sync generator IR plan and runtime to execute

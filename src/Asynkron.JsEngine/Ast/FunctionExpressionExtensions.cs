@@ -374,9 +374,9 @@ public static partial class TypedAstEvaluator
             {
                 true when functionExpression.IsAsync => new AsyncGeneratorFactory(functionExpression,
                     closureEnvironment,
-                    context.RealmState, context.CurrentScope.IsStrict, isConstructorFunction),
+                    context.RealmState, context.CurrentScope.IsStrict, hasFunctionNameEnvironment, isConstructorFunction),
                 true => new TypedGeneratorFactory(functionExpression, closureEnvironment, context.RealmState,
-                    context.CurrentScope.IsStrict, isConstructorFunction),
+                    context.CurrentScope.IsStrict, hasFunctionNameEnvironment, isConstructorFunction),
                 _ => new TypedFunction(functionExpression, closureEnvironment, context.RealmState,
                     context.CurrentScope.IsStrict, hasFunctionNameEnvironment, isConstructorFunction)
             };

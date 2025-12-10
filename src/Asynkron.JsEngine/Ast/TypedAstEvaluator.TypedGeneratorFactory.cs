@@ -14,6 +14,7 @@ public static partial class TypedAstEvaluator
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
         private readonly bool _isLexicallyStrict;
+        private readonly bool _hasFunctionNameEnvironment;
         private readonly Dictionary<string, object?> _privateSlots = new(StringComparer.Ordinal);
         private readonly JsObject _properties = new();
         private readonly RealmState _realmState;
@@ -28,6 +29,7 @@ public static partial class TypedAstEvaluator
             JsEnvironment closure,
             RealmState realmState,
             bool isLexicallyStrict,
+            bool hasFunctionNameEnvironment = false,
             bool isConstructorFunction = true)
         {
             if (!function.IsGenerator)
@@ -39,6 +41,7 @@ public static partial class TypedAstEvaluator
             _closure = closure;
             _realmState = realmState;
             _isLexicallyStrict = isLexicallyStrict;
+            _hasFunctionNameEnvironment = hasFunctionNameEnvironment;
             _isConstructorEnabled = isConstructorFunction;
             InitializeProperties();
         }
@@ -105,6 +108,7 @@ public static partial class TypedAstEvaluator
                 this,
                 _realmState,
                 _isLexicallyStrict,
+                _hasFunctionNameEnvironment,
                 _homeObject,
                 _privateNameScope,
                 _capturedPrivateNameScopes);

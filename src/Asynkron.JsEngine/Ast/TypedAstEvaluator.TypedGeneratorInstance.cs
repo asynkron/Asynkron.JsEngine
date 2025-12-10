@@ -17,6 +17,7 @@ public static partial class TypedAstEvaluator
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
         private readonly GeneratorPlan? _plan;
+        private readonly bool _hasFunctionNameEnvironment;
         private readonly bool _isStrict;
         private readonly ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes;
         private readonly RealmState _realmState;
@@ -54,6 +55,7 @@ public static partial class TypedAstEvaluator
             IJsCallable callable,
             RealmState realmState,
             bool isLexicallyStrict,
+            bool hasFunctionNameEnvironment,
             IJsObjectLike? homeObject,
             PrivateNameScope? privateNameScope,
             ImmutableArray<PrivateNameScope> capturedPrivateNameScopes)
@@ -64,6 +66,7 @@ public static partial class TypedAstEvaluator
             _thisValue = thisValue;
             _callable = callable;
             _realmState = realmState;
+            _hasFunctionNameEnvironment = hasFunctionNameEnvironment;
             _homeObject = homeObject;
             _privateNameScope = privateNameScope;
             _capturedPrivateNameScopes = capturedPrivateNameScopes;
@@ -293,7 +296,7 @@ public static partial class TypedAstEvaluator
                 functionEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
             }
 
-            if (_function.Name is { } functionName)
+            if (_function.Name is { } functionName && !_hasFunctionNameEnvironment)
             {
                 parameterEnvironment.Define(functionName, _callable, isConst: true, isLexical: true, blocksFunctionScopeOverride: true);
             }

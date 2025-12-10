@@ -740,7 +740,8 @@ public sealed class JsEnvironment
         {
             // Immutable bindings (named function expression names) throw in strict mode,
             // but silently fail in non-strict mode
-            if (isStrictContext)
+            var bindingIsStrict = bindingEnvironment.IsStrict || bindingEnvironment.GetFunctionScope().IsStrict;
+            if (bindingIsStrict || isStrictContext)
             {
                 throw new ThrowSignal(StandardLibrary.CreateTypeError(
                     $"Cannot reassign constant '{name.Name}'.", realm: realm));

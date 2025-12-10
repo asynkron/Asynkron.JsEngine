@@ -126,6 +126,7 @@ public static partial class TypedAstEvaluator
                 // Get the current value from the current iteration environment
                 var identifierExpr = new IdentifierExpression(null, bindingName);
                 var currentValue = EvaluateExpression(identifierExpr, currentIterationEnvironment, context);
+                var isConstBinding = currentIterationEnvironment.IsConstBinding(bindingName);
 
                 // Define the binding in the new iteration environment
                 // Use let semantics (isLexical=true, isConst=false by default, but the original
@@ -133,7 +134,7 @@ public static partial class TypedAstEvaluator
                 newIterationEnvironment.Define(
                     bindingName,
                     currentValue,
-                    isConst: false,
+                    isConst: isConstBinding,
                     isGlobalConstant: false,
                     isLexical: true,
                     blocksFunctionScopeOverride: false,

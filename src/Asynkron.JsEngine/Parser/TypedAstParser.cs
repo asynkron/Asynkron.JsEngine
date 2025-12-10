@@ -1114,9 +1114,9 @@ public sealed class TypedAstParser(
             bool isAsync)
         {
             Consume(TokenType.LeftParen, "Expected '(' after method name.");
+            using var _ = EnterFunctionContext(isAsync, isGenerator);
             var parameters = ParseParameterList();
             Consume(TokenType.RightParen, "Expected ')' after method parameters.");
-            using var _ = EnterFunctionContext(isAsync, isGenerator);
             var body = ParseBlock();
             var source = body.Source ?? CreateSourceReference(methodNameToken);
             return new FunctionExpression(source, functionName, parameters, body, isAsync, isGenerator,
@@ -2865,9 +2865,9 @@ public sealed class TypedAstParser(
                         if (Check(TokenType.LeftParen))
                         {
                             Advance(); // (
+                            using var _ = EnterFunctionContext(true, isAsyncGeneratorMethod);
                             var parameters = ParseParameterList();
                             Consume(TokenType.RightParen, "Expected ')' after method parameters.");
-                            using var _ = EnterFunctionContext(true, isAsyncGeneratorMethod);
                             var body = ParseBlock();
                             var asyncMethod = new FunctionExpression(body.Source ?? asyncKeySource, null, parameters,
                                 body,
@@ -2920,9 +2920,9 @@ public sealed class TypedAstParser(
 
                 if (Match(TokenType.LeftParen))
                 {
+                    using var _ = EnterFunctionContext(false, isGeneratorMethod);
                     var parameters = ParseParameterList();
                     Consume(TokenType.RightParen, "Expected ')' after method parameters.");
-                    using var _ = EnterFunctionContext(false, isGeneratorMethod);
                     var body = ParseBlock();
                     method = new FunctionExpression(body.Source, null, parameters, body, false, isGeneratorMethod);
                     kind = ObjectMemberKind.Method;
@@ -3199,6 +3199,7 @@ public sealed class TypedAstParser(
 
         private FunctionExpression ParseFunctionTail(Symbol? name, Token startToken, bool isAsync, bool isGenerator)
         {
+            using var _ = EnterFunctionContext(isAsync, isGenerator);
             Consume(TokenType.LeftParen, "Expected '(' after function name.");
             var parameters = ParseParameterList();
             Consume(TokenType.RightParen, "Expected ')' after parameters.");
@@ -3224,7 +3225,6 @@ public sealed class TypedAstParser(
                 ValidateStrictModeParameters(parameters);
             }
 
-            using var _ = EnterFunctionContext(isAsync, isGenerator);
             var body = ParseBlock(leftBraceConsumed: true);
             var source = body.Source ?? CreateSourceReference(startToken);
             return new FunctionExpression(source, name, parameters, body, isAsync, isGenerator, WasAsync: isAsync);

@@ -236,7 +236,7 @@ try {
         ExecuteSource(engine, "function ReduceCollecting(list){ return function(acc, v){ list.push(v); return acc; }; }").Wait();
 
         var moduleSourceCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        engine.SetModuleLoader((specifier, _) =>
+        engine.SetModuleLoader((specifier, referrer) =>
         {
             var normalized = specifier.Replace('\\', '/');
             if (moduleSourceCache.TryGetValue(normalized, out var cached))
@@ -250,17 +250,34 @@ try {
                 return harnessSource;
             }
 
+            var referrerPath = referrer?.Replace('\\', '/');
+            var candidates = new List<string> { normalized };
+            if (!normalized.Contains('/') && !string.IsNullOrEmpty(referrerPath))
+            {
+                var lastSlash = referrerPath.LastIndexOf('/');
+                if (lastSlash >= 0)
+                {
+                    candidates.Add($"{referrerPath[..lastSlash]}/{normalized}");
+                }
+            }
+            candidates.Add($"test/{normalized}");
+
+            foreach (var candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
             try
             {
-                var moduleFile = State.Test262Stream.GetTestFile(normalized);
-                moduleSourceCache[normalized] = moduleFile.Program;
-                return moduleFile.Program;
+                    var moduleFile = State.Test262Stream.GetTestFile(candidate);
+                    moduleSourceCache[normalized] = moduleFile.Program;
+                    return moduleFile.Program;
             }
             catch (Exception ex)
             {
                 try
                 {
-                    var url = $"https://raw.githubusercontent.com/tc39/test262/{State.GitHubSha}/test/{normalized}";
+                        var urlPath = candidate.StartsWith("test/", StringComparison.OrdinalIgnoreCase)
+                            ? candidate
+                            : $"test/{candidate}";
+                    var url = $"https://raw.githubusercontent.com/tc39/test262/{State.GitHubSha}/{urlPath}";
                     using var httpClient = new HttpClient();
                     var source = httpClient.GetStringAsync(url).GetAwaiter().GetResult();
                     moduleSourceCache[normalized] = source;
@@ -268,9 +285,15 @@ try {
                 }
                 catch (Exception)
                 {
-                    throw new FileNotFoundException($"Module not found: {normalized}", ex.GetBaseException() ?? ex);
+                        if (ReferenceEquals(candidate, candidates.Last()))
+                        {
+                            throw new FileNotFoundException($"Module not found: {normalized}", ex.GetBaseException() ?? ex);
+                        }
                 }
             }
+            }
+
+            throw new FileNotFoundException($"Module not found: {normalized}");
         });
 
         // Load includes

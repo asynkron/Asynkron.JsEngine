@@ -143,6 +143,13 @@ public sealed class EvaluationContext(
     public bool IsThrow => CurrentSignal is ThrowFlowSignal;
 
     /// <summary>
+    ///     Controls whether await expressions should synchronously drain the microtask queue
+    ///     to resolve promises. For non-blocking top-level await we defer draining until
+    ///     the host resumes the job.
+    /// </summary>
+    public bool DrainAwaitMicrotasks { get; set; } = true;
+
+    /// <summary>
     ///     Returns true if the current signal is Yield.
     /// </summary>
     public bool IsYield => CurrentSignal is YieldSignal;

@@ -26,6 +26,8 @@ public sealed class JsEnvironment
 
     internal RealmState? RealmState { get; private set; }
     private JsEnvironment? _varEnvironmentOverride;
+    internal bool IsAsyncModule { get; set; }
+    internal string? ModulePath { get; set; }
 
     public JsEnvironment(
         JsEnvironment? enclosing = null,
@@ -50,6 +52,8 @@ public sealed class JsEnvironment
         _treatAsGlobalFunctionScope = treatAsGlobalFunctionScope;
         _inheritStrictness = inheritStrictness;
         RealmState = enclosing?.RealmState;
+        ModulePath = enclosing?.ModulePath;
+        IsAsyncModule = enclosing?.IsAsyncModule ?? false;
 
         Depth = (Enclosing?.Depth ?? -1) + 1;
         if (Depth > MaxDepth)
@@ -118,6 +122,13 @@ public sealed class JsEnvironment
 
         if (_values.TryGetValue(name, out var binding))
         {
+            if (binding is AsyncExportBinding asyncExport)
+            {
+                asyncExport.Value = value;
+                NotifyBindingObservers(name, value);
+                return;
+            }
+
             if (binding.IsConst || binding.IsGlobalConstant)
             {
                 // Generators can execute flattened blocks without recreating the
@@ -143,6 +154,16 @@ public sealed class JsEnvironment
         _values[name] = new Binding(value, isConst, isGlobalConstant, isLexical, blocksFunctionScopeOverride,
             canDelete, isImmutableBinding);
         NotifyBindingObservers(name, value);
+    }
+
+    internal void DefineExportPromiseBinding(Symbol name, JsPromise promise, bool isLexical, bool isConst)
+    {
+        if (_values.ContainsKey(name))
+        {
+            return;
+        }
+
+        _values[name] = new AsyncExportBinding(promise, isConst, isLexical);
     }
 
     /// <summary>
@@ -1808,6 +1829,40 @@ public sealed class JsEnvironment
                 BlocksFunctionScopeOverride = true;
             }
         }
+    }
+
+    private sealed class AsyncExportBinding : Binding
+    {
+        private readonly bool _isConst;
+        private readonly JsPromise _promise;
+        private bool _resolved;
+        private object? _resolvedValue;
+
+        public AsyncExportBinding(JsPromise promise, bool isConst, bool isLexical)
+            : base(promise, isConst: isConst, isGlobalConstant: false, isLexical: isLexical,
+                blocksFunctionScopeOverride: false, canDelete: false, isImmutableBinding: false)
+        {
+            _promise = promise;
+            _isConst = isConst;
+        }
+
+        public override object? Value
+        {
+            get => _resolved ? _resolvedValue : _promise.JsObject;
+            set
+            {
+                if (ReferenceEquals(value, Uninitialized) || _resolved)
+                {
+                    return;
+                }
+
+                _resolved = true;
+                _resolvedValue = value;
+                _promise.Resolve(value);
+            }
+        }
+
+        public override bool IsConst => _isConst;
     }
 
     /// <summary>

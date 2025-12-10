@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -26,15 +27,42 @@ public static partial class TypedAstEvaluator
                 return awaited;
             }
 
-            // For top-level await (module level, no generator), use synchronous blocking.
-            // This ensures promises are resolved before continuing.
-            if (!AwaitScheduler.TryAwaitPromiseSync(awaited, context, out var resolved))
+            // Always await asynchronously: wrap non-promises with Promise.resolve and drive through scheduler.
+            if (awaited is not JsObject jsObj || !AwaitScheduler.IsPromiseLike(jsObj))
             {
-                // TryAwaitPromiseSync returns false if there was a rejection that set context.IsThrow
-                return resolved;
+                var promiseCtor = context.RealmState.PromiseConstructor;
+                JsObject? wrappedPromise = null;
+
+                if (promiseCtor is IJsPropertyAccessor accessor &&
+                    accessor.TryGetProperty("resolve", out var resolveValue) &&
+                    resolveValue is IJsCallable resolveCallable &&
+                    resolveCallable.Invoke([awaited], promiseCtor as object) is JsObject resolvedPromise)
+                {
+                    wrappedPromise = resolvedPromise;
+                }
+
+                if (wrappedPromise is null)
+                {
+                    // Fallback: create a resolved promise in the current realm.
+                    var engine = context.RealmState.Engine;
+                    var promise = engine?.CreateRealmPromise();
+                    promise?.Resolve(awaited);
+                    wrappedPromise = promise?.JsObject;
+                }
+
+                awaited = wrappedPromise ?? awaited;
             }
 
-            return resolved;
+            if (!AwaitScheduler.TryAwaitPromiseSync(
+                    awaited,
+                    context,
+                    out var resolvedValue,
+                    context.DrainAwaitMicrotasks))
+            {
+                return resolvedValue;
+            }
+
+            return resolvedValue;
         }
 
         private Symbol? GetAwaitStateKey()

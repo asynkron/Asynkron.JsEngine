@@ -1,5 +1,8 @@
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.IO;
+using System.Threading;
 using System.Threading.Channels;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
@@ -42,10 +45,12 @@ public sealed class JsEngine : IAsyncDisposable
         internal ProgramNode Program { get; }
         internal JsEnvironment Environment { get; }
         internal JsObject Exports { get; }
+        internal bool IsAsync { get; set; }
         internal bool Instantiating { get; set; }
         internal bool Instantiated { get; set; }
         internal bool Evaluated { get; set; }
         internal bool Evaluating { get; set; }
+        internal Task<object?>? EvaluationTask { get; set; }
         internal ModuleNamespace? Namespace { get; set; }
         internal ModuleNamespace? DeferredNamespace { get; set; }
         internal JsObject? ImportMeta { get; set; }
@@ -67,6 +72,7 @@ public sealed class JsEngine : IAsyncDisposable
 
     // Module loader function: allows custom module loading logic
     private Func<string, string?, string>? _moduleLoader;
+    private string? _currentModulePath;
     private int _nextTimerId = 1;
     private int _pendingTaskCount; // Track pending tasks in the event queue
     private TaskCompletionSource? _drainCompletionSource; // Signals when event loop has drained
@@ -285,28 +291,28 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobalFunction("clearInterval", ClearTimer);
 
         // Register dynamic import function
-        var importFunction = new HostFunction((_, args) => DynamicImport(args, null, ImportPhase.Module), RealmState)
+        var importFunction = new HostFunction((_, args) => DynamicImport(args, null, ImportPhase.Module, null), RealmState)
         {
             IsConstructor = false
         };
         importFunction.SetInvokeWithContext(
-            (args, _, ctx, _) => DynamicImport(args, ctx, ImportPhase.Module));
+            (args, _, ctx, _) => DynamicImport(args, ctx, ImportPhase.Module, importFunction));
 
         var importDeferFunction =
-            new HostFunction((_, args) => DynamicImport(args, null, ImportPhase.Defer), RealmState)
+            new HostFunction((_, args) => DynamicImport(args, null, ImportPhase.Defer, null), RealmState)
             {
                 IsConstructor = false
             };
         importDeferFunction.SetInvokeWithContext(
-            (args, _, ctx, _) => DynamicImport(args, ctx, ImportPhase.Defer));
+            (args, _, ctx, _) => DynamicImport(args, ctx, ImportPhase.Defer, importDeferFunction));
 
         var importSourceFunction =
-            new HostFunction((_, args) => DynamicImport(args, null, ImportPhase.Source), RealmState)
+            new HostFunction((_, args) => DynamicImport(args, null, ImportPhase.Source, null), RealmState)
             {
                 IsConstructor = false
             };
         importSourceFunction.SetInvokeWithContext(
-            (args, _, ctx, _) => DynamicImport(args, ctx, ImportPhase.Source));
+            (args, _, ctx, _) => DynamicImport(args, ctx, ImportPhase.Source, importSourceFunction));
         importFunction.SetProperty("defer", importDeferFunction);
         importFunction.SetProperty("source", importSourceFunction);
         SetGlobal("import", importFunction);
@@ -528,7 +534,7 @@ public sealed class JsEngine : IAsyncDisposable
         return cancellationToken;
     }
 
-    private void StartEventLoop()
+    internal void StartEventLoop()
     {
         if (_eventQueue is not null)
         {
@@ -548,7 +554,7 @@ public sealed class JsEngine : IAsyncDisposable
         _eventLoopTask = Task.Run(() => ProcessEventQueue(_eventQueue));
     }
 
-    private async Task DrainEventLoopAsync(CancellationToken cancellationToken)
+    internal async Task DrainEventLoopAsync(CancellationToken cancellationToken)
     {
         // Check if already drained
         if (IsEventLoopDrained())
@@ -585,7 +591,7 @@ public sealed class JsEngine : IAsyncDisposable
         }
     }
 
-    private bool IsEventLoopDrained()
+    internal bool IsEventLoopDrained()
     {
         var hasActiveTimers = Interlocked.CompareExchange(ref _activeTimerCount, 0, 0) > 0;
         var hasPendingTasks = Interlocked.CompareExchange(ref _pendingTaskCount, 0, 0) > 0;
@@ -703,11 +709,11 @@ public sealed class JsEngine : IAsyncDisposable
                 ModuleEntry entry;
                 if (!string.IsNullOrEmpty(sourcePath))
                 {
-                    moduleKey = NormalizeModulePath(sourcePath!, null);
+                    moduleKey = NormalizeModulePath(sourcePath!, null, _moduleLoader is not null);
                     if (!_moduleRegistry.TryGetValue(moduleKey, out entry!))
                     {
                         entry = CreateModuleEntry(EnsureStrictProgram(program),
-                            CreateModuleEnvironment(),
+                            CreateModuleEnvironment(moduleKey),
                             new JsObject(),
                             moduleKey);
                         _moduleRegistry[moduleKey] = entry;
@@ -716,7 +722,7 @@ public sealed class JsEngine : IAsyncDisposable
                 else
                 {
                     entry = CreateModuleEntry(EnsureStrictProgram(program),
-                        CreateModuleEnvironment(),
+                        CreateModuleEnvironment(moduleKey),
                         new JsObject(),
                         string.Empty);
                 }
@@ -770,11 +776,11 @@ public sealed class JsEngine : IAsyncDisposable
                 ModuleEntry entry;
                 if (!string.IsNullOrEmpty(sourcePath))
                 {
-                    moduleKey = NormalizeModulePath(sourcePath!, null);
+                    moduleKey = NormalizeModulePath(sourcePath!, null, _moduleLoader is not null);
                     if (!_moduleRegistry.TryGetValue(moduleKey, out entry!))
                     {
                         entry = CreateModuleEntry(EnsureStrictProgram(program),
-                            CreateModuleEnvironment(),
+                            CreateModuleEnvironment(moduleKey),
                             new JsObject(),
                             moduleKey);
                         _moduleRegistry[moduleKey] = entry;
@@ -783,19 +789,29 @@ public sealed class JsEngine : IAsyncDisposable
                 else
                 {
                     entry = CreateModuleEntry(EnsureStrictProgram(program),
-                        CreateModuleEnvironment(),
+                        CreateModuleEnvironment(moduleKey),
                         new JsObject(),
                         string.Empty);
                 }
 
                 EnsureModuleInstantiated(entry);
-                EnsureModuleEvaluated(entry);
+                if (entry.IsAsync)
+                {
+                    await EnsureModuleEvaluatedAsync(entry).ConfigureAwait(false);
+                }
+                else
+                {
+                    EnsureModuleEvaluated(entry);
+                }
                 result = entry.LastValue;
             }
             else
             {
                 result = ExecuteProgram(program, GlobalEnvironment, combinedToken);
             }
+
+            // Flush microtasks queued during synchronous execution before checking the event loop
+            DrainMicrotasks();
 
             // Step 2: Check if any async work was scheduled (timers, promises, etc.)
             if (IsEventLoopDrained())
@@ -862,7 +878,7 @@ public sealed class JsEngine : IAsyncDisposable
                     if (!_moduleRegistry.TryGetValue(moduleKey, out entry))
                     {
                         entry = CreateModuleEntry(EnsureStrictProgram(program),
-                            CreateModuleEnvironment(),
+                            CreateModuleEnvironment(moduleKey),
                             new JsObject(),
                             moduleKey);
                         _moduleRegistry[moduleKey] = entry;
@@ -871,17 +887,27 @@ public sealed class JsEngine : IAsyncDisposable
                 else
                 {
                     entry = CreateModuleEntry(EnsureStrictProgram(program),
-                        CreateModuleEnvironment(),
+                        CreateModuleEnvironment(moduleKey),
                         new JsObject(),
                         string.Empty);
                 }
 
                 EnsureModuleInstantiated(entry);
-                EnsureModuleEvaluated(entry);
+                if (entry.IsAsync)
+                {
+                    EnsureModuleEvaluatedAsync(entry).GetAwaiter().GetResult();
+                }
+                else
+                {
+                    EnsureModuleEvaluated(entry);
+                }
+                DrainMicrotasks();
                 return entry.LastValue;
             }
 
-            return ExecuteProgram(program, GlobalEnvironment, combinedToken);
+            var scriptResult = ExecuteProgram(program, GlobalEnvironment, combinedToken);
+            DrainMicrotasks();
+            return scriptResult;
         }
         finally
         {
@@ -1353,8 +1379,120 @@ public sealed class JsEngine : IAsyncDisposable
         string modulePath)
     {
         var entry = new ModuleEntry(modulePath ?? string.Empty, program, environment, exports);
+        entry.IsAsync = ContainsTopLevelAwait(program);
+        environment.IsAsyncModule = entry.IsAsync;
         EnsureModuleImportMeta(entry);
         return entry;
+    }
+
+    private IJsPropertyAccessor? ResolvePromisePrototypeInternal()
+    {
+        if (RealmState?.PromiseConstructor is IJsPropertyAccessor realmPromiseCtor &&
+            realmPromiseCtor.TryGetProperty("prototype", out var realmPrototype) &&
+            realmPrototype is IJsPropertyAccessor realmPromisePrototype)
+        {
+            return realmPromisePrototype;
+        }
+
+        if (GlobalObject.TryGetProperty("Promise", out var promiseCtor) &&
+            promiseCtor is IJsPropertyAccessor promiseCtorAccessor &&
+            promiseCtorAccessor.TryGetProperty("prototype", out var promiseProto) &&
+            promiseProto is IJsPropertyAccessor promisePrototypeAccessor)
+        {
+            return promisePrototypeAccessor;
+        }
+
+        return null;
+    }
+
+    internal JsPromise CreateRealmPromise()
+    {
+        var promise = new JsPromise(this);
+        var prototype = ResolvePromisePrototypeInternal();
+        if (prototype is not null)
+        {
+            promise.JsObject.SetPrototype(prototype);
+        }
+
+        StandardLibrary.AddPromiseInstanceMethods(promise.JsObject, promise, this);
+        return promise;
+    }
+
+    private static bool ContainsTopLevelAwait(ProgramNode program)
+    {
+        foreach (var statement in program.Body)
+        {
+            if (Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(statement))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool ModuleHasAsyncDependency(
+        ProgramNode program,
+        string? modulePath,
+        HashSet<string> visited)
+    {
+        if (!string.IsNullOrEmpty(modulePath) && !visited.Add(modulePath))
+        {
+            return false;
+        }
+
+        foreach (var statement in program.Body)
+        {
+            switch (statement)
+            {
+                case ImportStatement importStatement:
+                    var importPhase = importStatement.IsDeferred ? ImportPhase.Defer : ImportPhase.Module;
+                    var imported = LoadModuleForInstantiation(importStatement.ModulePath, modulePath, importPhase, null,
+                        importStatement.Attributes, computeAsyncDependencies: false);
+                    if (imported.IsAsync || ModuleHasAsyncDependency(imported.Program, imported.Path, visited))
+                    {
+                        return true;
+                    }
+
+                    break;
+                case ExportNamedStatement { FromModule: { } fromModule }:
+                {
+                    var sourceEntry = LoadModuleForInstantiation(fromModule, modulePath, ImportPhase.Module,
+                        computeAsyncDependencies: false);
+                    if (sourceEntry.IsAsync || ModuleHasAsyncDependency(sourceEntry.Program, sourceEntry.Path, visited))
+                    {
+                        return true;
+                    }
+
+                    break;
+                }
+                case ExportAllStatement exportAll:
+                {
+                    var sourceEntry = LoadModuleForInstantiation(exportAll.ModulePath, modulePath, ImportPhase.Module,
+                        computeAsyncDependencies: false);
+                    if (sourceEntry.IsAsync || ModuleHasAsyncDependency(sourceEntry.Program, sourceEntry.Path, visited))
+                    {
+                        return true;
+                    }
+
+                    break;
+                }
+                case ExportNamespaceAsStatement exportNamespace:
+                {
+                    var namespaceEntry = LoadModuleForInstantiation(exportNamespace.ModulePath, modulePath,
+                        ImportPhase.Module, computeAsyncDependencies: false);
+                    if (namespaceEntry.IsAsync ||
+                        ModuleHasAsyncDependency(namespaceEntry.Program, namespaceEntry.Path, visited))
+                    {
+                        return true;
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        return false;
     }
 
     private JsObject EnsureModuleImportMeta(ModuleEntry entry)
@@ -1395,11 +1533,12 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     /// Creates a module environment with the correct `this` binding (undefined per ES spec).
     /// </summary>
-    private JsEnvironment CreateModuleEnvironment()
+    private JsEnvironment CreateModuleEnvironment(string? modulePath = null)
     {
         var moduleEnv = new JsEnvironment(GlobalEnvironment, true, true);
         // Per ECMAScript spec, `this` in module scope is undefined
         moduleEnv.Define(Symbol.This, Symbol.Undefined);
+        moduleEnv.ModulePath = modulePath;
         return moduleEnv;
     }
 
@@ -1424,22 +1563,50 @@ public sealed class JsEngine : IAsyncDisposable
 
     private void EnsureModuleEvaluated(ModuleEntry entry)
     {
-        if (entry.Evaluated || entry.Evaluating)
+        EnsureModuleEvaluatedAsync(entry).GetAwaiter().GetResult();
+    }
+
+    private Task<object?> EnsureModuleEvaluatedAsync(ModuleEntry entry, bool waitForAsync = true)
+    {
+        if (entry.Evaluated)
         {
-            return;
+            return entry.EvaluationTask ?? Task.FromResult(entry.LastValue);
         }
 
         EnsureModuleInstantiated(entry);
-        entry.Evaluating = true;
-        try
+
+        if (!entry.IsAsync)
         {
-            entry.LastValue = ExecuteModuleBody(entry.Program, entry.Environment, entry.Exports, entry.Path);
-            entry.Evaluated = true;
+            if (entry.Evaluating)
+            {
+                return entry.EvaluationTask ?? Task.FromResult(entry.LastValue);
+            }
+
+            entry.Evaluating = true;
+            try
+            {
+                entry.LastValue = ExecuteModuleBody(entry.Program, entry.Environment, entry.Exports, entry.Path);
+                entry.Evaluated = true;
+                return entry.EvaluationTask ?? Task.FromResult(entry.LastValue);
+            }
+            finally
+            {
+                entry.Evaluating = false;
+            }
         }
-        finally
+
+        if (entry.EvaluationTask is null)
         {
-            entry.Evaluating = false;
+            entry.Evaluating = true;
+            entry.EvaluationTask = EvaluateModuleBodyWithTopLevelAwait(entry, waitForAsync);
         }
+
+        if (!waitForAsync)
+        {
+            return entry.EvaluationTask;
+        }
+
+        return entry.EvaluationTask;
     }
 
     /// <summary>
@@ -1599,6 +1766,7 @@ public sealed class JsEngine : IAsyncDisposable
                 }
                 finally
                 {
+                    DrainMicrotasks();
                     // Decrement the pending task count after processing
                     Interlocked.Decrement(ref _pendingTaskCount);
                     TrySignalDrainComplete();
@@ -1620,11 +1788,52 @@ public sealed class JsEngine : IAsyncDisposable
         _microtaskQueue.Enqueue(task);
     }
 
+    internal List<Action> DetachMicrotasks()
+    {
+        var preserved = new List<Action>(_microtaskQueue.Count);
+        while (_microtaskQueue.Count > 0)
+        {
+            preserved.Add(_microtaskQueue.Dequeue());
+        }
+
+        return preserved;
+    }
+
+    internal void PrependMicrotasks(List<Action>? tasks)
+    {
+        if (tasks is null || tasks.Count == 0)
+        {
+            return;
+        }
+
+        if (_microtaskQueue.Count == 0)
+        {
+            foreach (var task in tasks)
+            {
+                _microtaskQueue.Enqueue(task);
+            }
+
+            return;
+        }
+
+        var existing = new Queue<Action>(_microtaskQueue);
+        _microtaskQueue.Clear();
+        foreach (var task in tasks)
+        {
+            _microtaskQueue.Enqueue(task);
+        }
+
+        while (existing.Count > 0)
+        {
+            _microtaskQueue.Enqueue(existing.Dequeue());
+        }
+    }
+
     /// <summary>
     ///     Drains all pending microtasks synchronously.
     ///     Returns when no more microtasks are pending.
     /// </summary>
-    internal void DrainMicrotasks()
+    internal void DrainMicrotasks(int skipExisting = 0)
     {
         // Prevent re-entrancy
         if (_isDrainingMicrotasks)
@@ -1632,12 +1841,31 @@ public sealed class JsEngine : IAsyncDisposable
             return;
         }
 
+        if (skipExisting < 0)
+        {
+            skipExisting = 0;
+        }
+
         _isDrainingMicrotasks = true;
         try
         {
+            if (skipExisting > _microtaskQueue.Count)
+            {
+                skipExisting = _microtaskQueue.Count;
+            }
+
+            List<Action>? deferred = null;
             while (_microtaskQueue.Count > 0)
             {
                 var task = _microtaskQueue.Dequeue();
+                if (skipExisting > 0)
+                {
+                    deferred ??= new List<Action>();
+                    deferred.Add(task);
+                    skipExisting--;
+                    continue;
+                }
+
                 try
                 {
                     task();
@@ -1646,6 +1874,14 @@ public sealed class JsEngine : IAsyncDisposable
                 {
                     // Log but don't propagate - microtask exceptions shouldn't kill the drain
                     Console.Error.WriteLine($"[DrainMicrotasks] Exception: {ex.GetType().Name}: {ex.Message}");
+                }
+            }
+
+            if (deferred is { Count: > 0 })
+            {
+                foreach (var deferredTask in deferred)
+                {
+                    _microtaskQueue.Enqueue(deferredTask);
                 }
             }
         }
@@ -1803,10 +2039,14 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     private object? DynamicImport(IReadOnlyList<object?> args)
     {
-        return DynamicImport(args, null, ImportPhase.Module);
+        return DynamicImport(args, null, ImportPhase.Module, null);
     }
 
-    private object? DynamicImport(IReadOnlyList<object?> args, EvaluationContext? context, ImportPhase phase)
+    private object? DynamicImport(
+        IReadOnlyList<object?> args,
+        EvaluationContext? context,
+        ImportPhase phase,
+        HostFunction? callee)
     {
         // Create a promise that will resolve with the module exports
         var promise = new JsPromise(this);
@@ -1870,7 +2110,16 @@ public sealed class JsEngine : IAsyncDisposable
                 try
                 {
                     // Load the module synchronously (it's cached if already loaded)
-                    var moduleEntry = LoadModule(specifierString, null, phase);
+                    var referrerPath = callee?.CallingJsEnvironment is JsEnvironment env ? env.ModulePath : _currentModulePath;
+                    var moduleEntry = LoadModule(specifierString, referrerPath, phase);
+                    if (moduleEntry.IsAsync)
+                    {
+                        await EnsureModuleEvaluatedAsync(moduleEntry).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        EnsureModuleEvaluated(moduleEntry);
+                    }
                     var namespaceObject = GetModuleNamespace(moduleEntry, phase);
                     promise.Resolve(namespaceObject);
                 }
@@ -1891,25 +2140,7 @@ public sealed class JsEngine : IAsyncDisposable
 
         return promiseObj;
 
-        IJsPropertyAccessor? ResolvePromisePrototype()
-        {
-            if (RealmState?.PromiseConstructor is IJsPropertyAccessor realmPromiseCtor &&
-                realmPromiseCtor.TryGetProperty("prototype", out var realmPrototype) &&
-                realmPrototype is IJsPropertyAccessor realmPromisePrototype)
-            {
-                return realmPromisePrototype;
-            }
-
-            if (GlobalObject.TryGetProperty("Promise", out var promiseCtor) &&
-                promiseCtor is IJsPropertyAccessor promiseCtorAccessor &&
-                promiseCtorAccessor.TryGetProperty("prototype", out var promiseProto) &&
-                promiseProto is IJsPropertyAccessor promisePrototypeAccessor)
-            {
-                return promisePrototypeAccessor;
-            }
-
-            return null;
-        }
+        IJsPropertyAccessor? ResolvePromisePrototype() => ResolvePromisePrototypeInternal();
     }
 
     /// <summary>
@@ -1938,7 +2169,7 @@ public sealed class JsEngine : IAsyncDisposable
         HashSet<string>? exportStarSet = null,
         ImmutableArray<ImportAttribute> attributes = default)
     {
-        var resolvedPath = NormalizeModulePath(modulePath, referrerPath);
+        var resolvedPath = NormalizeModulePath(modulePath, referrerPath, _moduleLoader is not null);
         var isJsonModule = IsJsonModule(attributes);
 
         // Check if module is already loaded
@@ -1948,7 +2179,14 @@ public sealed class JsEngine : IAsyncDisposable
             EnsureModuleInstantiated(cachedEntry, phase, exportStarSet);
             if (phase == ImportPhase.Module)
             {
-                EnsureModuleEvaluated(cachedEntry);
+                if (cachedEntry.IsAsync)
+                {
+                    EnsureModuleEvaluatedAsync(cachedEntry, waitForAsync: false);
+                }
+                else
+                {
+                    EnsureModuleEvaluated(cachedEntry);
+                }
             }
 
             return cachedEntry;
@@ -1979,7 +2217,7 @@ public sealed class JsEngine : IAsyncDisposable
 
             // Create a module exports object
             var exports = new JsObject();
-            var moduleEnv = CreateModuleEnvironment();
+            var moduleEnv = CreateModuleEnvironment(resolvedPath);
             entry = CreateModuleEntry(EnsureStrictProgram(program), moduleEnv, exports, resolvedPath);
         }
 
@@ -1988,7 +2226,14 @@ public sealed class JsEngine : IAsyncDisposable
         EnsureModuleInstantiated(entry, phase, exportStarSet);
         if (phase == ImportPhase.Module)
         {
-            EnsureModuleEvaluated(entry);
+            if (entry.IsAsync)
+            {
+                EnsureModuleEvaluatedAsync(entry, waitForAsync: false);
+            }
+            else
+            {
+                EnsureModuleEvaluated(entry);
+            }
         }
 
         return entry;
@@ -2021,7 +2266,7 @@ public sealed class JsEngine : IAsyncDisposable
         var exports = new JsObject();
         exports["default"] = jsonValue;
 
-        var moduleEnv = CreateModuleEnvironment();
+        var moduleEnv = CreateModuleEnvironment(resolvedPath);
 
         // IMPORTANT: Define the "default" binding in the module environment
         // This is needed for import binding resolution to work correctly
@@ -2049,15 +2294,27 @@ public sealed class JsEngine : IAsyncDisposable
         string? referrerPath,
         ImportPhase phase,
         HashSet<string>? exportStarSet = null,
-        ImmutableArray<ImportAttribute> attributes = default)
+        ImmutableArray<ImportAttribute> attributes = default,
+        bool computeAsyncDependencies = true)
     {
-        var resolvedPath = NormalizeModulePath(modulePath, referrerPath);
+        var resolvedPath = NormalizeModulePath(modulePath, referrerPath, _moduleLoader is not null);
         var isJsonModule = IsJsonModule(attributes);
 
         // Check if module is already loaded
         if (_moduleRegistry.TryGetValue(resolvedPath, out var cachedEntry))
         {
             EnsureModuleImportMeta(cachedEntry);
+            if (computeAsyncDependencies)
+            {
+                var hasAsyncDependency = ModuleHasAsyncDependency(cachedEntry.Program, cachedEntry.Path,
+                    new HashSet<string>(StringComparer.Ordinal));
+                if (hasAsyncDependency)
+                {
+                    cachedEntry.IsAsync = true;
+                }
+
+                cachedEntry.Environment.IsAsyncModule = cachedEntry.IsAsync;
+            }
             // Only instantiate, don't evaluate
             EnsureModuleInstantiated(cachedEntry, phase, exportStarSet);
             return cachedEntry;
@@ -2087,11 +2344,17 @@ public sealed class JsEngine : IAsyncDisposable
 
             // Create a module exports object
             var exports = new JsObject();
-            var moduleEnv = CreateModuleEnvironment();
+            var moduleEnv = CreateModuleEnvironment(resolvedPath);
             entry = CreateModuleEntry(EnsureStrictProgram(program), moduleEnv, exports, resolvedPath);
         }
 
         _moduleRegistry[resolvedPath] = entry;
+        if (computeAsyncDependencies)
+        {
+            var hasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
+                new HashSet<string>(StringComparer.Ordinal));
+            entry.Environment.IsAsyncModule = entry.IsAsync;
+        }
 
         // Only instantiate, don't evaluate
         EnsureModuleInstantiated(entry, phase, exportStarSet);
@@ -2099,27 +2362,45 @@ public sealed class JsEngine : IAsyncDisposable
         return entry;
     }
 
-    private static string NormalizeModulePath(string modulePath, string? referrerPath)
+    private static string NormalizeModulePath(string modulePath, string? referrerPath, bool preferRelative = false)
     {
-        var specifier = (modulePath ?? string.Empty).Replace('\\', '/');
-        var referrer = referrerPath?.Replace('\\', '/');
-
-        if (string.IsNullOrWhiteSpace(specifier))
+        if (string.IsNullOrWhiteSpace(modulePath))
         {
             throw new Exception("Module path cannot be empty.");
         }
 
+        var specifier = modulePath.Replace('\\', '/');
+        var referrer = referrerPath?.Replace('\\', '/');
+
         if (specifier.StartsWith("./", StringComparison.Ordinal) ||
             specifier.StartsWith("../", StringComparison.Ordinal))
         {
-            var baseDir = string.Empty;
-            if (!string.IsNullOrEmpty(referrer))
+            var lastSlash = referrer?.LastIndexOf('/') ?? -1;
+            var baseDir = lastSlash >= 0 ? referrer![..lastSlash] : string.Empty;
+
+            if (!preferRelative && !string.IsNullOrEmpty(referrer) && Path.IsPathRooted(referrer))
             {
-                var lastSlash = referrer.LastIndexOf('/');
-                baseDir = lastSlash >= 0 ? referrer[..lastSlash] : string.Empty;
+                var rootedBase = Path.GetDirectoryName(referrer) ?? string.Empty;
+                var combined = Path.GetFullPath(Path.Combine(rootedBase, specifier));
+                return combined.Replace('\\', '/');
             }
 
             return NormalizeRelativeModulePath(baseDir, specifier);
+        }
+
+        if (Path.IsPathRooted(specifier))
+        {
+            return Path.GetFullPath(specifier).Replace('\\', '/');
+        }
+
+        if (preferRelative && !string.IsNullOrEmpty(referrer))
+        {
+            var lastSlash = referrer.LastIndexOf('/');
+            var baseDir = lastSlash >= 0 ? referrer[..lastSlash] : string.Empty;
+            if (!string.IsNullOrEmpty(baseDir))
+            {
+                return NormalizeRelativeModulePath(baseDir, "./" + specifier);
+            }
         }
 
         return specifier;
@@ -2238,7 +2519,17 @@ public sealed class JsEngine : IAsyncDisposable
             switch (statement)
             {
                 case ExportDefaultStatement exportDefaultStmt:
-                    exports["default"] = UninitializedExportMarker;
+                    if (moduleEnv.IsAsyncModule)
+                    {
+                        var promise = CreateRealmPromise();
+                        exports["default"] = promise.JsObject;
+                        moduleEnv.DefineExportPromiseBinding(Symbol.Intern("*default*"), promise, isLexical: false,
+                            isConst: false);
+                    }
+                    else
+                    {
+                        exports["default"] = UninitializedExportMarker;
+                    }
                     // For hoistable anonymous function declarations, binding is created during HoistFunctionDeclarations
                     // For all other default exports (classes, expressions), we need to create the *default* binding here in TDZ
                     // Note: `export default function() {}` is hoistable (flag set), but `export default (function() {})` is not
@@ -2259,7 +2550,16 @@ public sealed class JsEngine : IAsyncDisposable
                         var defaultSymbol = Symbol.Intern("*default*");
                         if (!moduleEnv.HasBinding(defaultSymbol))
                         {
-                            moduleEnv.Define(defaultSymbol, JsEnvironment.Uninitialized, isLexical: false, blocksFunctionScopeOverride: false);
+                            if (moduleEnv.IsAsyncModule && exports.TryGetValue("default", out var defaultExport) &&
+                                defaultExport is JsObject defaultPromise &&
+                                JsPromise.TryGetInternalPromise(defaultPromise, out var promise))
+                            {
+                                moduleEnv.DefineExportPromiseBinding(defaultSymbol, promise, isLexical: false, isConst: false);
+                            }
+                            else
+                            {
+                                moduleEnv.Define(defaultSymbol, JsEnvironment.Uninitialized, isLexical: false, blocksFunctionScopeOverride: false);
+                            }
                         }
                     }
                     break;
@@ -2278,10 +2578,19 @@ public sealed class JsEngine : IAsyncDisposable
                             var exportInitValue = isVar ? Symbol.Undefined : UninitializedExportMarker;
                             var envInitValue = isVar ? (object?)Symbol.Undefined : JsEnvironment.Uninitialized;
 
-                            exports[symbol.Name] = exportInitValue;
-                            moduleEnv.Define(symbol, envInitValue,
-                                isLexical: !isVar,
-                                blocksFunctionScopeOverride: false);
+                            if (moduleEnv.IsAsyncModule)
+                            {
+                                var promise = CreateRealmPromise();
+                                exports[symbol.Name] = promise.JsObject;
+                                moduleEnv.DefineExportPromiseBinding(symbol, promise, isLexical: !isVar, isConst: variableDeclaration.Kind == VariableKind.Const);
+                            }
+                            else
+                            {
+                                exports[symbol.Name] = exportInitValue;
+                                moduleEnv.Define(symbol, envInitValue,
+                                    isLexical: !isVar,
+                                    blocksFunctionScopeOverride: false);
+                            }
                         }
 
                         break;
@@ -2289,16 +2598,34 @@ public sealed class JsEngine : IAsyncDisposable
 
                     foreach (var symbol in GetDeclaredSymbols(exportDeclaration.Declaration))
                     {
-                        exports[symbol.Name] = UninitializedExportMarker;
-                        moduleEnv.Define(symbol, JsEnvironment.Uninitialized, isLexical: true,
-                            blocksFunctionScopeOverride: false);
+                        if (moduleEnv.IsAsyncModule)
+                        {
+                            var promise = CreateRealmPromise();
+                            exports[symbol.Name] = promise.JsObject;
+                            moduleEnv.DefineExportPromiseBinding(symbol, promise, isLexical: true, isConst: true);
+                        }
+                        else
+                        {
+                            exports[symbol.Name] = UninitializedExportMarker;
+                            moduleEnv.Define(symbol, JsEnvironment.Uninitialized, isLexical: true,
+                                blocksFunctionScopeOverride: false);
+                        }
                     }
 
                     break;
                 case ExportNamedStatement exportNamed:
                     foreach (var specifier in exportNamed.Specifiers)
                     {
-                        exports[specifier.Exported.Name] = UninitializedExportMarker;
+                        if (moduleEnv.IsAsyncModule)
+                        {
+                            var promise = CreateRealmPromise();
+                            exports[specifier.Exported.Name] = promise.JsObject;
+                            moduleEnv.DefineExportPromiseBinding(specifier.Local, promise, isLexical: true, isConst: true);
+                        }
+                        else
+                        {
+                            exports[specifier.Exported.Name] = UninitializedExportMarker;
+                        }
                     }
 
                     break;
@@ -2858,49 +3185,183 @@ public sealed class JsEngine : IAsyncDisposable
         ProgramNode typedProgram,
         JsEnvironment moduleEnv,
         JsObject exports,
-        string? modulePath)
+        string? modulePath,
+        bool drainAwaitMicrotasks = true)
     {
+        var previousModulePath = _currentModulePath;
+        _currentModulePath = modulePath;
         object? lastValue = null;
-        EvaluateRequestedModules(typedProgram, modulePath);
-        foreach (var statement in typedProgram.Body)
+        try
+        {
+            EvaluateRequestedModules(typedProgram, modulePath);
+            foreach (var statement in typedProgram.Body)
+            {
+                switch (statement)
+                {
+                    case ImportStatement importStatement:
+                        EvaluateImport(importStatement, moduleEnv, modulePath);
+                        break;
+                    case ExportDefaultStatement exportDefault:
+                        var defaultValue = EvaluateExportDefault(exportDefault, moduleEnv, typedProgram.IsStrict);
+                        exports["default"] = defaultValue;
+                        break;
+                    case ExportNamedStatement exportNamed:
+                        EvaluateExportNamed(exportNamed, moduleEnv, exports, modulePath);
+                        break;
+                    case ExportDeclarationStatement exportDeclaration:
+                        EvaluateExportDeclaration(exportDeclaration, moduleEnv, exports, typedProgram.IsStrict);
+                        break;
+                    case ExportAllStatement exportAll:
+                        EvaluateExportAll(exportAll, exports, modulePath);
+                        break;
+                    case ExportNamespaceAsStatement exportNamespace:
+                        var namespaceEntry = LoadModule(exportNamespace.ModulePath, modulePath, ImportPhase.Module);
+                        var namespaceObj = GetModuleNamespace(namespaceEntry);
+                        exports[exportNamespace.Exported.Name] = namespaceObj;
+                        // Also define in the environment so import bindings can read it
+                        moduleEnv.Define(exportNamespace.Exported, namespaceObj, isConst: true, isLexical: true,
+                            blocksFunctionScopeOverride: false);
+                        break;
+                    case FunctionDeclaration:
+                        // Function declarations are already hoisted during module instantiation,
+                        // so their evaluation is a no-op per ES spec
+                        break;
+                    default:
+                        lastValue = ExecuteTypedStatement(
+                            statement,
+                            moduleEnv,
+                            typedProgram.IsStrict,
+                            false,
+                            drainAwaitMicrotasks: drainAwaitMicrotasks);
+                        break;
+                }
+            }
+
+            return lastValue;
+        }
+        finally
+        {
+            _currentModulePath = previousModulePath;
+        }
+    }
+
+    private IReadOnlyList<ModuleEntry> GetModuleDependencies(ModuleEntry entry)
+    {
+        var dependencies = new List<ModuleEntry>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var modulePath = entry.Path;
+
+        foreach (var statement in entry.Program.Body)
         {
             switch (statement)
             {
                 case ImportStatement importStatement:
-                    EvaluateImport(importStatement, moduleEnv, modulePath);
+                    if (importStatement.IsDeferred)
+                    {
+                        continue;
+                    }
+
+                    var importPhase = importStatement.IsDeferred ? ImportPhase.Defer : ImportPhase.Module;
+                    var imported = LoadModuleForInstantiation(importStatement.ModulePath, modulePath, importPhase, null,
+                        importStatement.Attributes);
+                    if (string.Equals(imported.Path, entry.Path, StringComparison.Ordinal) ||
+                        !seen.Add(imported.Path))
+                    {
+                        continue;
+                    }
+
+                    dependencies.Add(imported);
                     break;
-                case ExportDefaultStatement exportDefault:
-                    var defaultValue = EvaluateExportDefault(exportDefault, moduleEnv, typedProgram.IsStrict);
-                    exports["default"] = defaultValue;
+                case ExportNamedStatement { FromModule: { } fromModule }:
+                {
+                    var sourceEntry = LoadModuleForInstantiation(fromModule, modulePath, ImportPhase.Module);
+                    if (string.Equals(sourceEntry.Path, entry.Path, StringComparison.Ordinal) ||
+                        !seen.Add(sourceEntry.Path))
+                    {
+                        continue;
+                    }
+
+                    dependencies.Add(sourceEntry);
                     break;
-                case ExportNamedStatement exportNamed:
-                    EvaluateExportNamed(exportNamed, moduleEnv, exports, modulePath);
-                    break;
-                case ExportDeclarationStatement exportDeclaration:
-                    EvaluateExportDeclaration(exportDeclaration, moduleEnv, exports, typedProgram.IsStrict);
-                    break;
+                }
                 case ExportAllStatement exportAll:
-                    EvaluateExportAll(exportAll, exports, modulePath);
+                {
+                    var sourceEntry = LoadModuleForInstantiation(exportAll.ModulePath, modulePath, ImportPhase.Module);
+                    if (string.Equals(sourceEntry.Path, entry.Path, StringComparison.Ordinal) ||
+                        !seen.Add(sourceEntry.Path))
+                    {
+                        continue;
+                    }
+
+                    dependencies.Add(sourceEntry);
                     break;
+                }
                 case ExportNamespaceAsStatement exportNamespace:
-                    var namespaceEntry = LoadModule(exportNamespace.ModulePath, modulePath, ImportPhase.Module);
-                    var namespaceObj = GetModuleNamespace(namespaceEntry);
-                    exports[exportNamespace.Exported.Name] = namespaceObj;
-                    // Also define in the environment so import bindings can read it
-                    moduleEnv.Define(exportNamespace.Exported, namespaceObj, isConst: true, isLexical: true, blocksFunctionScopeOverride: false);
+                {
+                    var namespaceEntry =
+                        LoadModuleForInstantiation(exportNamespace.ModulePath, modulePath, ImportPhase.Module);
+                    if (string.Equals(namespaceEntry.Path, entry.Path, StringComparison.Ordinal) ||
+                        !seen.Add(namespaceEntry.Path))
+                    {
+                        continue;
+                    }
+
+                    dependencies.Add(namespaceEntry);
                     break;
-                case FunctionDeclaration:
-                    // Function declarations are already hoisted during module instantiation,
-                    // so their evaluation is a no-op per ES spec
-                    break;
-                default:
-                    lastValue = ExecuteTypedStatement(statement, moduleEnv, typedProgram.IsStrict,
-                        false);
-                    break;
+                }
             }
         }
 
-        return lastValue;
+        return dependencies;
+    }
+
+    private async Task<object?> EvaluateModuleBodyWithTopLevelAwait(
+        ModuleEntry entry,
+        bool drainAwaitMicrotasks = true)
+    {
+        entry.Evaluating = true;
+        try
+        {
+            var dependencyTasks = new List<Task<object?>>();
+            foreach (var dependency in GetModuleDependencies(entry))
+            {
+                EnsureModuleInstantiated(dependency);
+                dependencyTasks.Add(EnsureModuleEvaluatedAsync(dependency, waitForAsync: true));
+            }
+
+            if (dependencyTasks.Count > 0)
+            {
+                await Task.WhenAll(dependencyTasks).ConfigureAwait(false);
+            }
+
+            var result = await Task
+                .Run(() =>
+                {
+                    var previousModulePath = _currentModulePath;
+                    _currentModulePath = entry.Path;
+                    try
+                    {
+                        return ExecuteModuleBody(
+                            entry.Program,
+                            entry.Environment,
+                            entry.Exports,
+                            entry.Path,
+                            drainAwaitMicrotasks);
+                    }
+                    finally
+                    {
+                        _currentModulePath = previousModulePath;
+                    }
+                })
+                .ConfigureAwait(false);
+            entry.LastValue = result;
+            entry.Evaluated = true;
+            return result;
+        }
+        finally
+        {
+            entry.Evaluating = false;
+        }
     }
 
     /// <summary>
@@ -2922,16 +3383,13 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     ///     Processes an import statement and brings imported values into the module environment.
     /// </summary>
-    private void EvaluateImport(ImportStatement importStatement, JsEnvironment moduleEnv, string? referrerPath)
+    private void EvaluateImport(
+        ImportStatement importStatement,
+        JsEnvironment moduleEnv,
+        string? referrerPath)
     {
         var phase = importStatement.IsDeferred ? ImportPhase.Defer : ImportPhase.Module;
         var moduleEntry = LoadModule(importStatement.ModulePath, referrerPath, phase, null, importStatement.Attributes);
-
-        if (importStatement.DefaultBinding is null && importStatement.NamespaceBinding is null &&
-            importStatement.NamedImports.IsEmpty)
-        {
-            return;
-        }
 
         if (importStatement.IsDeferred &&
             (importStatement.DefaultBinding is not null || !importStatement.NamedImports.IsEmpty))
@@ -2939,9 +3397,53 @@ public sealed class JsEngine : IAsyncDisposable
             throw new NotSupportedException("Deferred imports only support namespace bindings.");
         }
 
-        if (!importStatement.IsDeferred)
+        var engine = moduleEnv.RealmState?.Engine;
+        var hasBindings = importStatement.DefaultBinding is not null ||
+                          importStatement.NamespaceBinding is not null ||
+                          !importStatement.NamedImports.IsEmpty;
+
+        List<Action>? preservedMicrotasks = null;
+
+        try
         {
-            EnsureModuleEvaluated(moduleEntry);
+            var shouldWaitForAsync =
+                !importStatement.IsDeferred &&
+                moduleEntry.IsAsync &&
+                hasBindings &&
+                !string.Equals(moduleEntry.Path, referrerPath, StringComparison.Ordinal) &&
+                engine is not null;
+
+            if (shouldWaitForAsync)
+            {
+                preservedMicrotasks = engine.DetachMicrotasks();
+            }
+
+            if (!importStatement.IsDeferred)
+            {
+                if (moduleEntry.IsAsync &&
+                    !string.Equals(moduleEntry.Path, referrerPath, StringComparison.Ordinal))
+                {
+                    if (!hasBindings)
+                    {
+                        EnsureModuleEvaluatedAsync(moduleEntry, waitForAsync: false);
+                    }
+                    else
+                    {
+                        EnsureModuleEvaluatedAsync(moduleEntry).GetAwaiter().GetResult();
+                    }
+                }
+                else
+                {
+                    EnsureModuleEvaluated(moduleEntry);
+                }
+            }
+        }
+        finally
+        {
+            if (preservedMicrotasks is { Count: > 0 })
+            {
+                engine?.PrependMicrotasks(preservedMicrotasks);
+            }
         }
 
         // Import bindings were already created during HoistImportBindings.
@@ -3056,7 +3558,6 @@ public sealed class JsEngine : IAsyncDisposable
 
         foreach (var specifier in statement.Specifiers)
         {
-            var value = moduleEnv.Get(specifier.Local);
             exports[specifier.Exported.Name] = new LiveExportBinding(() => moduleEnv.Get(specifier.Local));
         }
     }
@@ -3104,9 +3605,9 @@ public sealed class JsEngine : IAsyncDisposable
             case VariableDeclaration variableDeclaration:
                 foreach (var declarator in variableDeclaration.Declarators)
                 {
-                    if (declarator.Target is IdentifierBinding identifier)
+                    foreach (var symbol in GetBindingSymbols(declarator.Target))
                     {
-                        yield return identifier.Name;
+                        yield return symbol;
                     }
                 }
 
@@ -3117,6 +3618,58 @@ public sealed class JsEngine : IAsyncDisposable
             case ClassDeclaration classDeclaration:
                 yield return classDeclaration.Name;
                 break;
+        }
+    }
+
+    private static IEnumerable<Symbol> GetBindingSymbols(BindingTarget target)
+    {
+        while (true)
+        {
+            switch (target)
+            {
+                case IdentifierBinding identifier:
+                    yield return identifier.Name;
+                    yield break;
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        if (element.Target is null)
+                        {
+                            continue;
+                        }
+
+                        foreach (var symbol in GetBindingSymbols(element.Target))
+                        {
+                            yield return symbol;
+                        }
+                    }
+
+                    if (arrayBinding.RestElement is not null)
+                    {
+                        target = arrayBinding.RestElement;
+                        continue;
+                    }
+
+                    yield break;
+                case ObjectBinding objectBinding:
+                    foreach (var property in objectBinding.Properties)
+                    {
+                        foreach (var symbol in GetBindingSymbols(property.Target))
+                        {
+                            yield return symbol;
+                        }
+                    }
+
+                    if (objectBinding.RestElement is not null)
+                    {
+                        target = objectBinding.RestElement;
+                        continue;
+                    }
+
+                    yield break;
+                default:
+                    yield break;
+            }
         }
     }
 
@@ -3135,11 +3688,13 @@ public sealed class JsEngine : IAsyncDisposable
         JsEnvironment environment,
         bool isStrict,
         bool createStrictEnvironment = true,
-        Symbol? functionNameHint = null)
+        Symbol? functionNameHint = null,
+        bool drainAwaitMicrotasks = true)
     {
         var program = new ProgramNode(statement.Source, [statement], isStrict);
         return program.EvaluateProgram(environment, RealmState,
             executionKind: ExecutionKind.Script, createStrictEnvironment: createStrictEnvironment,
-            functionNameHint: functionNameHint);
+            functionNameHint: functionNameHint,
+            drainAwaitMicrotasks: drainAwaitMicrotasks);
     }
 }

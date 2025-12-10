@@ -177,7 +177,11 @@ public static partial class TypedAstEvaluator
     // pipeline is in place.
     private static bool TryAwaitPromise(object? candidate, EvaluationContext context, out object? resolvedValue)
     {
-        return AwaitScheduler.TryAwaitPromiseSync(candidate, context, out resolvedValue);
+        return AwaitScheduler.TryAwaitPromiseSync(
+            candidate,
+            context,
+            out resolvedValue,
+            context.DrainAwaitMicrotasks);
     }
 
 

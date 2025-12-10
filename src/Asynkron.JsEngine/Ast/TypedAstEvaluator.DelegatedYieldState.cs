@@ -157,7 +157,11 @@ public static partial class TypedAstEvaluator
                     if (nextCandidate is IJsObjectLike promiseCandidate && IsPromiseLike(promiseCandidate))
                     {
                         awaitedPromise = true;
-                        if (!AwaitScheduler.TryAwaitPromiseSync(promiseCandidate, context, out awaitedCandidate))
+                        if (!AwaitScheduler.TryAwaitPromiseSync(
+                                promiseCandidate,
+                                context,
+                                out awaitedCandidate,
+                                context.DrainAwaitMicrotasks))
                         {
                             return (Symbol.Undefined, true, true, propagateThrow, null);
                         }

@@ -18,7 +18,8 @@ public static partial class TypedAstEvaluator
         ExecutionKind executionKind = ExecutionKind.Script,
         bool createStrictEnvironment = true,
         Symbol? functionNameHint = null,
-        ImmutableArray<PrivateNameScope>? inheritedPrivateNameScopes = null)
+        ImmutableArray<PrivateNameScope>? inheritedPrivateNameScopes = null,
+        bool drainAwaitMicrotasks = true)
     {
         var context = realmState.CreateContext(
             ScopeKind.Program,
@@ -27,6 +28,7 @@ public static partial class TypedAstEvaluator
             cancellationToken,
             executionKind,
             false);
+        context.DrainAwaitMicrotasks = drainAwaitMicrotasks;
         if (inheritedPrivateNameScopes is { IsDefault: false, Length: > 0 } scopes)
         {
             context.EnterPrivateNameScopes(scopes);

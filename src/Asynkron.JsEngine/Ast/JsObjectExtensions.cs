@@ -175,7 +175,11 @@ public static partial class TypedAstEvaluator
 
                 if (IsPromiseLike(returnObject))
                 {
-                    AwaitScheduler.TryAwaitPromiseSync(returnObject, context, out _);
+                    AwaitScheduler.TryAwaitPromiseSync(
+                        returnObject,
+                        context,
+                        out _,
+                        context.DrainAwaitMicrotasks);
                 }
             }
             catch (ThrowSignal)

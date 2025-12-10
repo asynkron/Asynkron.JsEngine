@@ -1,3 +1,4 @@
+using System.Threading;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 
@@ -17,15 +18,22 @@ internal static class AwaitScheduler
                thenValue is IJsCallable;
     }
 
-    public static bool TryAwaitPromiseSync(object? candidate, EvaluationContext context, out object? resolvedValue)
+    public static bool TryAwaitPromiseSync(
+        object? candidate,
+        EvaluationContext context,
+        out object? resolvedValue,
+        bool drainMicrotasks = true)
     {
         resolvedValue = candidate;
 
-        // Drain any pending microtasks first - this may resolve the promise we're about to await
         var engine = context.RealmState?.Engine;
-        engine?.DrainMicrotasks();
+        if (drainMicrotasks)
+        {
+            engine?.DrainMicrotasks();
+        }
 
-        if (candidate is JsPromise jsPromise &&
+        if (drainMicrotasks &&
+            candidate is JsPromise jsPromise &&
             jsPromise.TryGetSettled(out var settledValue, out var isRejected))
         {
             if (isRejected)
@@ -41,7 +49,8 @@ internal static class AwaitScheduler
 
         while (resolvedValue is JsObject promiseObj && IsPromiseLike(promiseObj))
         {
-            if (promiseObj.TryGetProperty("__promise__", out var internalPromise) &&
+            if (drainMicrotasks &&
+                promiseObj.TryGetProperty("__promise__", out var internalPromise) &&
                 internalPromise is JsPromise promise &&
                 promise.TryGetSettled(out var settled, out var rejected))
             {
@@ -56,7 +65,8 @@ internal static class AwaitScheduler
                 continue;
             }
 
-            if (!promiseObj.TryGetProperty("then", out var thenValue) || thenValue is not IJsCallable thenCallable)
+            if (!promiseObj.TryGetProperty("then", out var thenValue) ||
+                thenValue is not IJsCallable thenCallable)
             {
                 break;
             }
@@ -99,32 +109,33 @@ internal static class AwaitScheduler
             (bool Success, object? Value) awaited;
             try
             {
-                // Drain microtasks until the promise settles
-                var maxIterations = 10000; // Prevent infinite loops
-                var iterations = 0;
-                while (!tcs.Task.IsCompleted && iterations++ < maxIterations)
+                if (drainMicrotasks)
                 {
-                    engine?.DrainMicrotasks();
-
-                    // If still not completed after draining, we have an async promise
-                    // that requires the event loop - this shouldn't happen for proper
-                    // top-level await scenarios
-                    if (!tcs.Task.IsCompleted)
+                    var iterations = 0;
+                    while (!tcs.Task.IsCompleted)
                     {
-                        // Try one more drain in case new microtasks were queued
                         engine?.DrainMicrotasks();
+
+                        if (tcs.Task.IsCompleted)
+                        {
+                            break;
+                        }
+
+                        if (engine is not null)
+                        {
+                            engine.StartEventLoop();
+                            engine.DrainEventLoopAsync(CancellationToken.None).GetAwaiter().GetResult();
+                            engine.DrainMicrotasks();
+                        }
+
+                        if (++iterations > 10_000)
+                        {
+                            throw new InvalidOperationException(
+                                "Promise did not resolve after draining microtasks and the event loop.");
+                        }
                     }
                 }
-
-                if (tcs.Task.IsCompleted)
-                {
-                    awaited = tcs.Task.GetAwaiter().GetResult();
-                }
-                else
-                {
-                    throw new InvalidOperationException(
-                        "Promise did not resolve after draining microtasks. This may indicate an infinite promise chain or external async dependency.");
-                }
+                awaited = tcs.Task.GetAwaiter().GetResult();
             }
             catch (InvalidOperationException)
             {
@@ -164,7 +175,7 @@ internal static class AwaitScheduler
         // existing blocking semantics.
         if (!asyncStepMode)
         {
-            return TryAwaitPromiseSync(candidate, context, out resolvedValue);
+            return TryAwaitPromiseSync(candidate, context, out resolvedValue, context.DrainAwaitMicrotasks);
         }
 
         // Async-aware mode: if this is a promise-like object, surface it as

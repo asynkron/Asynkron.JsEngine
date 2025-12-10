@@ -618,7 +618,17 @@ public static partial class TypedAstEvaluator
                 {
                     if (thisValue is null || ReferenceEquals(thisValue, Symbol.Undefined))
                     {
-                        boundThis = CallingJsEnvironment?.Get(Symbol.This);
+                        try
+                        {
+                            boundThis = CallingJsEnvironment?.Get(Symbol.This);
+                        }
+                        catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
+                                     StringComparison.Ordinal))
+                        {
+                            // If the caller's `this` binding is uninitialized (e.g., derived ctor before super()),
+                            // fall back to the global object per non-strict this-binding semantics.
+                            boundThis = Symbol.Undefined;
+                        }
                         if (boundThis is null || ReferenceEquals(boundThis, Symbol.Undefined))
                         {
                             boundThis = _realmState.Engine?.GlobalObject;
@@ -694,7 +704,18 @@ public static partial class TypedAstEvaluator
 
                 if (_homeObject is not null || _superConstructor is not null || prototypeForSuper is not null)
                 {
-                    var binding = new SuperBinding(_superConstructor, prototypeForSuper, boundThis,
+                    var runtimeSuperConstructor = _superConstructor;
+                    if (_isClassConstructor)
+                    {
+                        var runtimeCtorPrototype =
+                            (this as IPrototypeAccessorProvider)?.PrototypeAccessor ?? Prototype;
+                        if (runtimeCtorPrototype is IJsEnvironmentAwareCallable ctorLike)
+                        {
+                            runtimeSuperConstructor = ctorLike;
+                        }
+                    }
+
+                    var binding = new SuperBinding(runtimeSuperConstructor, prototypeForSuper, boundThis,
                         initialThisInitialized);
                     functionEnvironment.RealmState?.Logger?.LogInformation(
                         "SuperBinding: define in function env env={Env} isCtor={IsCtor} isDerivedCtor={IsDerivedCtor} protoNull={ProtoNull} thisInit={ThisInit}",

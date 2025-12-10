@@ -65,23 +65,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
         catch (ParseException parseException)
         {
-            var message = parseException.Message;
-            object? errorObject = message;
-            if (!environment.TryGet(Symbol.SyntaxErrorIdentifier, out var ctor) ||
-                ctor is not IJsCallable callable)
-            {
-                throw new ThrowSignal(errorObject);
-            }
-
-            try
-            {
-                errorObject = callable.Invoke([message], null);
-            }
-            catch (ThrowSignal signal)
-            {
-                errorObject = signal.ThrownValue;
-            }
-
+            var errorObject =
+                StandardLibrary.CreateSyntaxError(parseException.Message, CallingContext, environment.RealmState);
             throw new ThrowSignal(errorObject);
         }
 

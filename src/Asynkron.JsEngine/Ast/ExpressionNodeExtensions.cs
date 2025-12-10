@@ -274,7 +274,8 @@ public static partial class TypedAstEvaluator
                 // For a constructor, the active function is available via NewTarget when it's
                 // a constructor being invoked via 'new'.
                 object? dynamicSuperConstructor = binding.Constructor;
-                if (environment.TryGet(Symbol.NewTarget, out var newTarget) &&
+                if (dynamicSuperConstructor is null &&
+                    environment.TryGet(Symbol.NewTarget, out var newTarget) &&
                     newTarget is IJsObjectLike activeFunction)
                 {
                     // Get the current [[Prototype]] of the active function (constructor)

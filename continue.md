@@ -24,10 +24,11 @@
 - Array index assignments now walk prototype accessors/writable descriptors (including inherited setters) before falling back to element storage, so member-expression for-in targets trigger Array.prototype setters and typed array for-in over resizable buffers enumerates the expected indices.
 - `using` and `await using` declarations still TypeError on non-object initializers but now allow initializer-less for-in/of heads with per-iteration lexical environments, so the TDZ/fresh-binding for-of cases are green.
 - Typed array subclass instances now report their concrete @@toStringTag, generator/async generator functions (and their bound/proxy wrappers) are treated as non-constructors during class heritage resolution, and derived classes extending null leave `this` uninitialized until super, so the class subclass builtins/null-proto/generator superclass cases are green.
+- Super calls now bind sloppy callees through the global when the caller's `this` is uninitialized, resolve the base constructor from the current constructor `[[Prototype]]`, and defer `super` property key coercion until after capturing the super base, so the `Expressions_super` cluster is green.
+- Promise constructor is exposed on RealmState and pulled from closure or realm for async generators; `Array.fromAsync` async-path now drives iteration iteratively (no recursive promise callbacks) and the full `Array_fromAsync` filter passes. Strict `arguments-object` assignment tests now build proper JS error objects and pass.
 - Module evaluation now walks requested modules ahead of body execution, ResolveExport/export\* follow the spec (cycle-aware, ambiguous names filtered), module namespaces expose unambiguous exports only, and namespace [[Set]]/Reflect.set return false instead of throwing.
 - Object destructuring rest now walks [[OwnPropertyKeys]] with exclusions checked before GetOwnPropertyDescriptor, skips Get for non-enumerables, and uses the original object (including proxies) instead of cloning; the proxy rest destructuring get/gOPD/ownKeys-order tests are passing.
 
 ## Next Iteration Plan
-1. Re-run the Language suite to refresh the current failure set after the for-in/of using and array setter fixes.
-2. Triage the next largest failing cluster from that run (modules/import/defer if they resurface, otherwise whatever is hottest), adding realm logging if the failure isn’t obvious.
-3. Iterate through the refreshed list in priority order, landing targeted fixes and re-running the filtered clusters as they’re addressed.
+1. When resuming broader work, run a narrow Language filter outside `ArgumentsObject`/`Array_fromAsync` to find the next hot cluster (avoid full 43k sweep).
+2. Triage any new failures/hangs with targeted filters; add realm logging only if symptoms remain opaque.

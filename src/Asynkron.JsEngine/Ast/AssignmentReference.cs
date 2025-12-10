@@ -104,6 +104,62 @@ internal static class AssignmentReferenceResolver
                     context,
                     context.RealmState);
             }
+
+            var superPropertyValue = evaluateExpression(member.Property, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return new AssignmentReference(() => Symbol.Undefined, _ => { });
+            }
+
+            var binding = TypedAstEvaluator.ExpectSuperBinding(environment, context);
+            string? propertyNameCache = null;
+            string GetPropertyName()
+            {
+                propertyNameCache ??= JsOps.GetRequiredPropertyName(superPropertyValue, context);
+                return propertyNameCache;
+            }
+
+            return new AssignmentReference(
+                () =>
+                {
+                    if (binding.Prototype is null)
+                    {
+                        throw StandardLibrary.ThrowTypeError(
+                            "Cannot read properties of null (reading from super)",
+                            context,
+                            context.RealmState);
+                    }
+
+                    var propertyName = GetPropertyName();
+                    return binding.TryGetProperty(propertyName, out var value)
+                        ? value
+                        : Symbol.Undefined;
+                },
+                newValue =>
+                {
+                    if (!binding.IsThisInitialized)
+                    {
+                        throw TypedAstEvaluator.CreateSuperReferenceError(environment, context, null);
+                    }
+
+                    if (binding.Prototype is null)
+                    {
+                        throw StandardLibrary.ThrowTypeError(
+                            "Cannot assign to super property when prototype is null or undefined.",
+                            context,
+                            context.RealmState);
+                    }
+
+                    var propertyName = GetPropertyName();
+                    if (!binding.TrySetProperty(propertyName, newValue, out _) &&
+                        context.CurrentScope.IsStrict)
+                    {
+                        throw StandardLibrary.ThrowTypeError(
+                            $"Cannot assign to read only property '{propertyName}' of object",
+                            context,
+                            context.RealmState);
+                    }
+                });
         }
 
         var target = evaluateExpression(member.Target, environment, context);

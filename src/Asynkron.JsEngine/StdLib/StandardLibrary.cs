@@ -24,13 +24,13 @@ public static partial class StandardLibrary
             var result = callable.Invoke([message], null);
             if (result is null || ReferenceEquals(result, Symbol.Undefined))
             {
-                return new InvalidOperationException(message);
+                return CreateErrorFallback("TypeError", message, realm);
             }
 
             return result;
         }
 
-        return new InvalidOperationException(message);
+        return CreateErrorFallback("TypeError", message, realm);
     }
 
     //TODO: why is this not used?
@@ -60,10 +60,10 @@ public static partial class StandardLibrary
         realm ??= context?.RealmState;
         if (realm?.RangeErrorConstructor is IJsCallable callable)
         {
-            return callable.Invoke([message], null) ?? new InvalidOperationException(message);
+            return callable.Invoke([message], null) ?? CreateErrorFallback("RangeError", message, realm);
         }
 
-        return new InvalidOperationException(message);
+        return CreateErrorFallback("RangeError", message, realm);
     }
 
     internal static object CreateReferenceError(string message, EvaluationContext? context = null,
@@ -72,10 +72,10 @@ public static partial class StandardLibrary
         realm ??= context?.RealmState;
         if (realm?.ReferenceErrorConstructor is IJsCallable callable)
         {
-            return callable.Invoke([message], null) ?? new InvalidOperationException(message);
+            return callable.Invoke([message], null) ?? CreateErrorFallback("ReferenceError", message, realm);
         }
 
-        return new InvalidOperationException(message);
+        return CreateErrorFallback("ReferenceError", message, realm);
     }
 
     internal static ThrowSignal ThrowTypeError(string message, EvaluationContext? context = null,
@@ -182,10 +182,23 @@ public static partial class StandardLibrary
         realm ??= context?.RealmState;
         if (realm?.SyntaxErrorConstructor is IJsCallable callable)
         {
-            return callable.Invoke([message], null) ?? new InvalidOperationException(message);
+            return callable.Invoke([message], null) ?? CreateErrorFallback("SyntaxError", message, realm);
         }
 
-        return new InvalidOperationException(message);
+        return CreateErrorFallback("SyntaxError", message, realm);
+    }
+
+    private static JsObject CreateErrorFallback(string name, string message, RealmState? realm)
+    {
+        var error = new JsObject { RealmState = realm };
+        if (realm?.ErrorPrototype is not null)
+        {
+            error.SetPrototype(realm.ErrorPrototype);
+        }
+
+        error.SetProperty("name", name);
+        error.SetProperty("message", message);
+        return error;
     }
 
     internal static JsBigInt ToBigInt(object? value, EvaluationContext? context = null, RealmState? realmState = null)

@@ -379,71 +379,88 @@ public static partial class StandardLibrary
 
         private void ProcessIteratorStep()
         {
-            if (_settled || _iterator is null || _nextFn is null)
+            while (!_settled && _iterator is not null && _nextFn is not null)
             {
-                return;
-            }
+                object? step;
+                try
+                {
+                    step = _nextFn.Invoke(Array.Empty<object?>(), _iterator);
+                }
+                catch (ThrowSignal signal)
+                {
+                    RejectSignal(signal);
+                    return;
+                }
 
-            object? step;
-            try
-            {
-                step = _nextFn.Invoke(Array.Empty<object?>(), _iterator);
+                var shouldContinue = HandleIteratorStep(step);
+                if (!shouldContinue)
+                {
+                    return;
+                }
             }
-            catch (ThrowSignal signal)
-            {
-                RejectSignal(signal);
-                return;
-            }
-
-            HandleIteratorStep(step);
         }
 
-        private void HandleIteratorStep(object? stepCandidate)
+        private bool HandleIteratorStep(object? stepCandidate)
         {
             if (_settled)
             {
-                return;
+                return false;
             }
 
-            if (_awaitIteratorResult && TryAwaitPromiseLike(stepCandidate, realm, HandleIteratorStep,
+            if (_awaitIteratorResult && TryAwaitPromiseLike(stepCandidate, realm,
+                    resolved =>
+                    {
+                        if (HandleIteratorStep(resolved))
+                        {
+                            ProcessIteratorStep();
+                        }
+                    },
                     RejectWithClose))
             {
-                return;
+                return false;
             }
 
             if (stepCandidate is not IJsPropertyAccessor stepAccessor)
             {
                 RejectWithClose(CreateTypeError("Array.fromAsync iterator result is not an object", null, realm));
-                return;
+                return false;
             }
 
             var done = stepAccessor.TryGetProperty("done", out var doneValue) && JsOps.ToBoolean(doneValue);
             if (done)
             {
                 ResolveSuccess();
-                return;
+                return false;
             }
 
             if (_index >= MaxConcreteArrayLength)
             {
                 RejectWithClose(CreateTypeError("Array.fromAsync result exceeds 2^32 - 1 elements", null, realm));
-                return;
+                return false;
             }
 
             var value = stepAccessor.TryGetProperty("value", out var entryValue) ? entryValue : Symbol.Undefined;
-            if (TryAwaitPromiseLike(value, realm, HandleIteratorValue, RejectWithClose))
+            if (TryAwaitPromiseLike(value, realm,
+                    resolved =>
+                    {
+                        if (HandleIteratorValue(resolved))
+                        {
+                            ProcessIteratorStep();
+                        }
+                    },
+                    RejectWithClose))
             {
-                return;
+                return false;
             }
 
-            HandleIteratorValue(value);
+            return HandleIteratorValue(value);
         }
 
-        private void HandleIteratorValue(object? value)
+        private bool HandleIteratorValue(object? value)
         {
             if (_settled)
             {
-                return;
+                return false;
             }
 
             if (mapping && mapper is not null)
@@ -456,26 +473,33 @@ public static partial class StandardLibrary
                 catch (ThrowSignal signal)
                 {
                     RejectWithClose(signal.ThrownValue ?? signal);
-                    return;
+                    return false;
                 }
 
-                if (TryAwaitPromiseLike(mapperResult, realm, StoreIteratorValue, RejectWithClose))
+                if (TryAwaitPromiseLike(mapperResult, realm,
+                        resolved =>
+                        {
+                            if (StoreIteratorValue(resolved))
+                            {
+                                ProcessIteratorStep();
+                            }
+                        },
+                        RejectWithClose))
                 {
-                    return;
+                    return false;
                 }
 
-                StoreIteratorValue(mapperResult);
-                return;
+                return StoreIteratorValue(mapperResult);
             }
 
-            StoreIteratorValue(value);
+            return StoreIteratorValue(value);
         }
 
-        private void StoreIteratorValue(object? value)
+        private bool StoreIteratorValue(object? value)
         {
             if (_settled)
             {
-                return;
+                return false;
             }
 
             try
@@ -485,76 +509,67 @@ public static partial class StandardLibrary
             catch (ThrowSignal signal)
             {
                 RejectWithClose(signal.ThrownValue ?? signal);
-                return;
+                return false;
             }
 
             _index++;
-            ProcessIteratorStep();
+            return true;
         }
 
         private void ProcessArrayLike()
         {
-            if (_settled || _arrayLike is null)
+            while (!_settled && _arrayLike is not null)
             {
-                return;
-            }
+                var lengthValue = _arrayLike.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+                var dynamicLength = (long)ToLengthOrZero(lengthValue);
+                if (dynamicLength > MaxConcreteArrayLength)
+                {
+                    RejectFailure(CreateRangeError("Array.fromAsync result exceeds 2^32 - 1 elements", null, realm));
+                    return;
+                }
 
-            var lengthValue = _arrayLike.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-            var dynamicLength = (long)ToLengthOrZero(lengthValue);
-            if (dynamicLength > MaxConcreteArrayLength)
-            {
-                RejectFailure(CreateRangeError("Array.fromAsync result exceeds 2^32 - 1 elements", null, realm));
-                return;
-            }
-            if (_index >= dynamicLength)
-            {
-                ResolveSuccess();
-                return;
-            }
+                if (_index >= dynamicLength)
+                {
+                    ResolveSuccess();
+                    return;
+                }
 
-            if (_index >= MaxConcreteArrayLength)
-            {
-                RejectFailure(CreateTypeError("Array.fromAsync result exceeds 2^32 - 1 elements", null, realm));
-                return;
-            }
+                if (_index >= MaxConcreteArrayLength)
+                {
+                    RejectFailure(CreateTypeError("Array.fromAsync result exceeds 2^32 - 1 elements", null, realm));
+                    return;
+                }
 
-            var key = ToIndexString(_index);
-            var value = GetElementOrUndefined(_arrayLike, key);
-            if (TryAwaitPromiseLike(value, realm, resolved => HandleArrayLikeValue(key, resolved), RejectFailure))
-            {
-                return;
-            }
+                var key = ToIndexString(_index);
+                var value = GetElementOrUndefined(_arrayLike, key);
+                if (TryAwaitPromiseLike(value, realm,
+                        resolved =>
+                        {
+                            if (HandleArrayLikeValue(key, resolved))
+                            {
+                                ProcessArrayLike();
+                            }
+                        },
+                        RejectFailure))
+                {
+                    return;
+                }
 
-            HandleArrayLikeValue(key, value);
+                if (!HandleArrayLikeValue(key, value))
+                {
+                    return;
+                }
+            }
         }
 
-        private void HandleArrayLikeValue(string key, object? resolved)
+        private bool HandleArrayLikeValue(string key, object? resolved)
         {
             if (_settled)
             {
-                return;
+                return false;
             }
 
-            void FinalizeValue(object? finalValue)
-            {
-                if (_settled)
-                {
-                    return;
-                }
-
-                try
-                {
-                    CreateDataPropertyOrThrow(result, key, finalValue, realm, methodName);
-                }
-                catch (ThrowSignal signal)
-                {
-                    RejectFailure(signal.ThrownValue ?? signal);
-                    return;
-                }
-
-                _index++;
-                ProcessArrayLike();
-            }
+            object? finalValue = resolved;
 
             if (mapping && mapper is not null)
             {
@@ -566,19 +581,47 @@ public static partial class StandardLibrary
                 catch (ThrowSignal signal)
                 {
                     RejectFailure(signal.ThrownValue ?? signal);
-                    return;
+                    return false;
                 }
 
-                if (TryAwaitPromiseLike(mapperResult, realm, FinalizeValue, RejectFailure))
+                if (TryAwaitPromiseLike(mapperResult, realm,
+                        mapped =>
+                        {
+                            if (CommitArrayLikeValue(key, mapped))
+                            {
+                                ProcessArrayLike();
+                            }
+                        },
+                        RejectFailure))
                 {
-                    return;
+                    return false;
                 }
 
-                FinalizeValue(mapperResult);
-                return;
+                finalValue = mapperResult;
             }
 
-            FinalizeValue(resolved);
+            return CommitArrayLikeValue(key, finalValue);
+        }
+
+        private bool CommitArrayLikeValue(string key, object? finalValue)
+        {
+            if (_settled)
+            {
+                return false;
+            }
+
+            try
+            {
+                CreateDataPropertyOrThrow(result, key, finalValue, realm, methodName);
+            }
+            catch (ThrowSignal signal)
+            {
+                RejectFailure(signal.ThrownValue ?? signal);
+                return false;
+            }
+
+            _index++;
+            return true;
         }
 
         private void RejectSignal(ThrowSignal signal)

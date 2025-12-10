@@ -104,7 +104,7 @@ public static partial class TypedAstEvaluator
             environment.DefineFunctionScoped(name, Symbol.Undefined, false, context: context, canDelete: allowDelete);
         }
 
-        private SuperBinding ExpectSuperBinding(EvaluationContext context)
+        internal SuperBinding ExpectSuperBinding(EvaluationContext context)
         {
             var logger = environment.RealmState?.Logger;
             try
@@ -220,7 +220,7 @@ public static partial class TypedAstEvaluator
             return true;
         }
 
-        private Exception CreateSuperReferenceError(EvaluationContext context,
+        internal Exception CreateSuperReferenceError(EvaluationContext context,
             Exception? inner)
         {
             environment.RealmState?.Logger?.LogInformation("SuperBinding: reference error thisInit? {ThisInit}", context.IsThisInitialized);

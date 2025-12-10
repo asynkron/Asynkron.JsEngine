@@ -376,23 +376,20 @@ public sealed class TypedAstParser(
             {
                 var target = ParseBindingTarget("Expected variable name.");
                 ExpressionNode? initializer = null;
-                var requiresInitializer = target is not IdentifierBinding ||
-                                          kind is VariableKind.Using or VariableKind.AwaitUsing;
+                var isUsingDeclaration = kind is VariableKind.Using or VariableKind.AwaitUsing;
+                var requiresInitializer = target is not IdentifierBinding;
 
                 if (Match(TokenType.Equal))
                 {
                     initializer = ParseExpression(false);
                 }
-                else if (kind is VariableKind.Using or VariableKind.AwaitUsing)
+                else if (!allowInitializerless && (isUsingDeclaration || kind == VariableKind.Const || requiresInitializer))
                 {
-                    var message = "Using declarations require an initializer.";
-                    throw new ParseException(message, Peek(), _source);
-                }
-                else if (!allowInitializerless && (kind == VariableKind.Const || requiresInitializer))
-                {
-                    var message = requiresInitializer
-                        ? "Destructuring declarations require an initializer."
-                        : "Const declarations require an initializer.";
+                    var message = isUsingDeclaration
+                        ? "Using declarations require an initializer."
+                        : requiresInitializer
+                            ? "Destructuring declarations require an initializer."
+                            : "Const declarations require an initializer.";
                     throw new ParseException(message, Peek(), _source);
                 }
 

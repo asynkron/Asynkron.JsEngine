@@ -3,7 +3,7 @@
 //   Generated using the Test262Harness v1.0.3.0
 //   Suite Git SHA: a073f479f80b336256b7fc4e04700c827293e2fe
 //   Suite Directory: 
-//   Template SHA: DE29A509E5E2C5224870D9E829B61E8F57F41C5A58A6392C2BB1D67245A2FBC2
+//   Template SHA: 7C0AEA452918402D867CAF9D9BF2C4CF551FB959B77EA95A1C8D2D00B86ABE61
 //   Command line: /Users/rogerjohansson/.nuget/packages/test262harness.console/1.0.3/tools/net8.0/any/Test262Harness.Console.dll generate
 //   Settings file: /Users/rogerjohansson/git/asynkron/Asynkron.JsEngine/tests/Asynkron.JsEngine.Tests.Test262/Test262Harness.settings.json
 // </auto-generated>
@@ -7749,21 +7749,10 @@ public class BuiltInsTests : Test262Test
         RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/Atomics/pause/descriptor.js", false, Category = "Atomics.pause")]
-    [TestCase("built-ins/Atomics/pause/descriptor.js", true, Category = "Atomics.pause")]
-    [TestCase("built-ins/Atomics/pause/length.js", false, Category = "Atomics.pause")]
-    [TestCase("built-ins/Atomics/pause/length.js", true, Category = "Atomics.pause")]
-    [TestCase("built-ins/Atomics/pause/name.js", false, Category = "Atomics.pause")]
-    [TestCase("built-ins/Atomics/pause/name.js", true, Category = "Atomics.pause")]
-    [TestCase("built-ins/Atomics/pause/non-integral-iterationnumber-throws.js", false, Category = "Atomics.pause")]
-    [TestCase("built-ins/Atomics/pause/non-integral-iterationnumber-throws.js", true, Category = "Atomics.pause")]
-    [TestCase("built-ins/Atomics/pause/not-a-constructor.js", false, Category = "Reflect.construct,Atomics.pause")]
-    [TestCase("built-ins/Atomics/pause/not-a-constructor.js", true, Category = "Reflect.construct,Atomics.pause")]
-    [TestCase("built-ins/Atomics/pause/returns-undefined.js", false, Category = "Atomics.pause")]
-    [TestCase("built-ins/Atomics/pause/returns-undefined.js", true, Category = "Atomics.pause")]
-    public void Atomics_pause(string test, bool strict)
+    [Test]
+    [Ignore("Feature Atomics.pause excluded")]
+    public void Atomics_pause()
     {
-        RunTestCode(test, strict);
     }
 
     [TestCase("built-ins/Atomics/store/bad-range.js", false, Category = "ArrayBuffer,Atomics,DataView,SharedArrayBuffer,Symbol,TypedArray")]
@@ -11879,33 +11868,10 @@ public class BuiltInsTests : Test262Test
         RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/Error/isError/bigints.js", false, Category = "Error.isError,BigInt")]
-    [TestCase("built-ins/Error/isError/bigints.js", true, Category = "Error.isError,BigInt")]
-    [TestCase("built-ins/Error/isError/error-subclass.js", false, Category = "Error.isError,class")]
-    [TestCase("built-ins/Error/isError/error-subclass.js", true, Category = "Error.isError,class")]
-    [TestCase("built-ins/Error/isError/errors-other-realm.js", false, Category = "Error.isError,cross-realm")]
-    [TestCase("built-ins/Error/isError/errors-other-realm.js", true, Category = "Error.isError,cross-realm")]
-    [TestCase("built-ins/Error/isError/errors.js", false, Category = "Error.isError")]
-    [TestCase("built-ins/Error/isError/errors.js", true, Category = "Error.isError")]
-    [TestCase("built-ins/Error/isError/fake-errors.js", false, Category = "Error.isError")]
-    [TestCase("built-ins/Error/isError/fake-errors.js", true, Category = "Error.isError")]
-    [TestCase("built-ins/Error/isError/is-a-constructor.js", false, Category = "Error.isError,Reflect.construct")]
-    [TestCase("built-ins/Error/isError/is-a-constructor.js", true, Category = "Error.isError,Reflect.construct")]
-    [TestCase("built-ins/Error/isError/name.js", false, Category = "Error.isError")]
-    [TestCase("built-ins/Error/isError/name.js", true, Category = "Error.isError")]
-    [TestCase("built-ins/Error/isError/non-error-objects-other-realm.js", false, Category = "Error.isError,cross-realm")]
-    [TestCase("built-ins/Error/isError/non-error-objects-other-realm.js", true, Category = "Error.isError,cross-realm")]
-    [TestCase("built-ins/Error/isError/non-error-objects.js", false, Category = "Error.isError")]
-    [TestCase("built-ins/Error/isError/non-error-objects.js", true, Category = "Error.isError")]
-    [TestCase("built-ins/Error/isError/primitives.js", false, Category = "Error.isError")]
-    [TestCase("built-ins/Error/isError/primitives.js", true, Category = "Error.isError")]
-    [TestCase("built-ins/Error/isError/prop-desc.js", false, Category = "Error.isError")]
-    [TestCase("built-ins/Error/isError/prop-desc.js", true, Category = "Error.isError")]
-    [TestCase("built-ins/Error/isError/symbols.js", false, Category = "Error.isError,Symbol")]
-    [TestCase("built-ins/Error/isError/symbols.js", true, Category = "Error.isError,Symbol")]
-    public void Error_isError(string test, bool strict)
+    [Test]
+    [Ignore("Feature Error.isError excluded")]
+    public void Error_isError()
     {
-        RunTestCode(test, strict);
     }
 
     [TestCase("built-ins/Error/prototype/no-error-data.js", false, Category = "Symbol.toStringTag")]
@@ -15003,79 +14969,16 @@ public class BuiltInsTests : Test262Test
         RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/Map/prototype/getOrInsert/append-new-values-normalizes-zero-key.js", false, Category = "Symbol,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/append-new-values-normalizes-zero-key.js", true, Category = "Symbol,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/append-new-values.js", false, Category = "Symbol,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/append-new-values.js", true, Category = "Symbol,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/append-value-if-key-is-not-present-different-key-types.js", false, Category = "Symbol,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/append-value-if-key-is-not-present-different-key-types.js", true, Category = "Symbol,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/does-not-have-mapdata-internal-slot-set.js", false, Category = "Set,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/does-not-have-mapdata-internal-slot-set.js", true, Category = "Set,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/does-not-have-mapdata-internal-slot-weakmap.js", false, Category = "WeakMap,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/does-not-have-mapdata-internal-slot-weakmap.js", true, Category = "WeakMap,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/does-not-have-mapdata-internal-slot.js", false, Category = "upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/does-not-have-mapdata-internal-slot.js", true, Category = "upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/getOrInsert.js", false, Category = "upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/getOrInsert.js", true, Category = "upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/length.js", false, Category = "upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/length.js", true, Category = "upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/name.js", false, Category = "upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/name.js", true, Category = "upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/not-a-constructor.js", false, Category = "Map,Reflect.construct,arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/not-a-constructor.js", true, Category = "Map,Reflect.construct,arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/returns-value-if-key-is-not-present-different-key-types.js", false, Category = "Symbol,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/returns-value-if-key-is-not-present-different-key-types.js", true, Category = "Symbol,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/returns-value-if-key-is-present-different-key-types.js", false, Category = "Symbol,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/returns-value-if-key-is-present-different-key-types.js", true, Category = "Symbol,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/returns-value-normalized-zero-key.js", false, Category = "upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/returns-value-normalized-zero-key.js", true, Category = "upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/this-not-object-throw.js", false, Category = "Symbol,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsert/this-not-object-throw.js", true, Category = "Symbol,upsert")]
-    public void Map_prototype_getOrInsert(string test, bool strict)
+    [Test]
+    [Ignore("Feature upsert excluded")]
+    public void Map_prototype_getOrInsert()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/append-new-values-normalizes-zero-key.js", false, Category = "Symbol,arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/append-new-values-normalizes-zero-key.js", true, Category = "Symbol,arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/append-new-values.js", false, Category = "Symbol,arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/append-new-values.js", true, Category = "Symbol,arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/append-value-if-key-is-not-present-different-key-types.js", false, Category = "Symbol,arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/append-value-if-key-is-not-present-different-key-types.js", true, Category = "Symbol,arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/callbackfn-throws.js", false, Category = "upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/callbackfn-throws.js", true, Category = "upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/canonical-key-passed-to-callback.js", false, Category = "upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/canonical-key-passed-to-callback.js", true, Category = "upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/check-callback-fn-args.js", true, Category = "upsert,onlyStrict")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/check-state-after-callback-fn-throws.js", false, Category = "upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/check-state-after-callback-fn-throws.js", true, Category = "upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/different-types-function-callbackfn-does-not-throw.js", false, Category = "arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/different-types-function-callbackfn-does-not-throw.js", true, Category = "arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/does-not-evaluate-callbackfn-if-key-present.js", false, Category = "WeakMap,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/does-not-evaluate-callbackfn-if-key-present.js", true, Category = "WeakMap,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/does-not-have-mapdata-internal-slot-set.js", false, Category = "Set,arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/does-not-have-mapdata-internal-slot-set.js", true, Category = "Set,arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/does-not-have-mapdata-internal-slot-weakmap.js", false, Category = "WeakMap,arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/does-not-have-mapdata-internal-slot-weakmap.js", true, Category = "WeakMap,arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/getOrInsertComputed.js", false, Category = "upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/getOrInsertComputed.js", true, Category = "upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/not-a-constructor.js", false, Category = "Map,Reflect.construct,arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/not-a-constructor.js", true, Category = "Map,Reflect.construct,arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/not-a-function-callbackfn-throws.js", false, Category = "Symbol,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/not-a-function-callbackfn-throws.js", true, Category = "Symbol,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/overwrites-mutation-from-callbackfn.js", false, Category = "upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/overwrites-mutation-from-callbackfn.js", true, Category = "upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/returns-value-if-key-is-not-present-different-key-types.js", false, Category = "Symbol,arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/returns-value-if-key-is-not-present-different-key-types.js", true, Category = "Symbol,arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/returns-value-if-key-is-present-different-key-types.js", false, Category = "Symbol,arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/returns-value-if-key-is-present-different-key-types.js", true, Category = "Symbol,arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/returns-value-normalized-zero-key.js", false, Category = "arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/returns-value-normalized-zero-key.js", true, Category = "arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/this-not-object-throw.js", false, Category = "Symbol,arrow-function,upsert")]
-    [TestCase("built-ins/Map/prototype/getOrInsertComputed/this-not-object-throw.js", true, Category = "Symbol,arrow-function,upsert")]
-    public void Map_prototype_getOrInsertComputed(string test, bool strict)
+    [Test]
+    [Ignore("Feature upsert excluded")]
+    public void Map_prototype_getOrInsertComputed()
     {
-        RunTestCode(test, strict);
     }
 
     [TestCase("built-ins/Map/prototype/has/does-not-have-mapdata-internal-slot-set.js", false, Category = "Set")]
@@ -16059,29 +15962,10 @@ public class BuiltInsTests : Test262Test
         RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/Math/sumPrecise/length.js", false, Category = "Math.sumPrecise")]
-    [TestCase("built-ins/Math/sumPrecise/length.js", true, Category = "Math.sumPrecise")]
-    [TestCase("built-ins/Math/sumPrecise/name.js", false, Category = "Math.sumPrecise")]
-    [TestCase("built-ins/Math/sumPrecise/name.js", true, Category = "Math.sumPrecise")]
-    [TestCase("built-ins/Math/sumPrecise/not-a-constructor.js", false, Category = "Reflect.construct,Math.sumPrecise")]
-    [TestCase("built-ins/Math/sumPrecise/not-a-constructor.js", true, Category = "Reflect.construct,Math.sumPrecise")]
-    [TestCase("built-ins/Math/sumPrecise/prop-desc.js", false, Category = "Math.sumPrecise")]
-    [TestCase("built-ins/Math/sumPrecise/prop-desc.js", true, Category = "Math.sumPrecise")]
-    [TestCase("built-ins/Math/sumPrecise/sum-is-infinite.js", false, Category = "Math.sumPrecise")]
-    [TestCase("built-ins/Math/sumPrecise/sum-is-infinite.js", true, Category = "Math.sumPrecise")]
-    [TestCase("built-ins/Math/sumPrecise/sum-is-minus-zero.js", false, Category = "Math.sumPrecise")]
-    [TestCase("built-ins/Math/sumPrecise/sum-is-minus-zero.js", true, Category = "Math.sumPrecise")]
-    [TestCase("built-ins/Math/sumPrecise/sum-is-NaN.js", false, Category = "Math.sumPrecise")]
-    [TestCase("built-ins/Math/sumPrecise/sum-is-NaN.js", true, Category = "Math.sumPrecise")]
-    [TestCase("built-ins/Math/sumPrecise/sum.js", false, Category = "Math.sumPrecise")]
-    [TestCase("built-ins/Math/sumPrecise/sum.js", true, Category = "Math.sumPrecise")]
-    [TestCase("built-ins/Math/sumPrecise/takes-iterable.js", false, Category = "generators,Math.sumPrecise")]
-    [TestCase("built-ins/Math/sumPrecise/takes-iterable.js", true, Category = "generators,Math.sumPrecise")]
-    [TestCase("built-ins/Math/sumPrecise/throws-on-non-number.js", false, Category = "Math.sumPrecise")]
-    [TestCase("built-ins/Math/sumPrecise/throws-on-non-number.js", true, Category = "Math.sumPrecise")]
-    public void Math_sumPrecise(string test, bool strict)
+    [Test]
+    [Ignore("Feature Math.sumPrecise excluded")]
+    public void Math_sumPrecise()
     {
-        RunTestCode(test, strict);
     }
 
     [TestCase("built-ins/Math/tan/length.js", false)]
@@ -25803,33 +25687,10 @@ public class BuiltInsTests : Test262Test
         RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/Promise/try/args.js", false, Category = "promise-try,async")]
-    [TestCase("built-ins/Promise/try/args.js", true, Category = "promise-try,async")]
-    [TestCase("built-ins/Promise/try/ctx-ctor-throws.js", false, Category = "promise-try")]
-    [TestCase("built-ins/Promise/try/ctx-ctor-throws.js", true, Category = "promise-try")]
-    [TestCase("built-ins/Promise/try/ctx-ctor.js", false, Category = "promise-try,class")]
-    [TestCase("built-ins/Promise/try/ctx-ctor.js", true, Category = "promise-try,class")]
-    [TestCase("built-ins/Promise/try/ctx-non-ctor.js", false, Category = "promise-try")]
-    [TestCase("built-ins/Promise/try/ctx-non-ctor.js", true, Category = "promise-try")]
-    [TestCase("built-ins/Promise/try/ctx-non-object.js", false, Category = "promise-try")]
-    [TestCase("built-ins/Promise/try/ctx-non-object.js", true, Category = "promise-try")]
-    [TestCase("built-ins/Promise/try/length.js", false, Category = "promise-try")]
-    [TestCase("built-ins/Promise/try/length.js", true, Category = "promise-try")]
-    [TestCase("built-ins/Promise/try/name.js", false, Category = "promise-try")]
-    [TestCase("built-ins/Promise/try/name.js", true, Category = "promise-try")]
-    [TestCase("built-ins/Promise/try/not-a-constructor.js", false, Category = "Reflect.construct,promise-try")]
-    [TestCase("built-ins/Promise/try/not-a-constructor.js", true, Category = "Reflect.construct,promise-try")]
-    [TestCase("built-ins/Promise/try/promise.js", false, Category = "promise-try")]
-    [TestCase("built-ins/Promise/try/promise.js", true, Category = "promise-try")]
-    [TestCase("built-ins/Promise/try/prop-desc.js", false, Category = "promise-try")]
-    [TestCase("built-ins/Promise/try/prop-desc.js", true, Category = "promise-try")]
-    [TestCase("built-ins/Promise/try/return-value.js", false, Category = "promise-try,async")]
-    [TestCase("built-ins/Promise/try/return-value.js", true, Category = "promise-try,async")]
-    [TestCase("built-ins/Promise/try/throws.js", false, Category = "promise-try,async")]
-    [TestCase("built-ins/Promise/try/throws.js", true, Category = "promise-try,async")]
-    public void Promise_try(string test, bool strict)
+    [Test]
+    [Ignore("Feature promise-try excluded")]
+    public void Promise_try()
     {
-        RunTestCode(test, strict);
     }
 
     [TestCase("built-ins/Promise/withResolvers/ctx-ctor.js", false, Category = "promise-with-resolvers,class")]
@@ -27940,49 +27801,10 @@ public class BuiltInsTests : Test262Test
         RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/RegExp/escape/cross-realm.js", false, Category = "RegExp.escape,cross-realm")]
-    [TestCase("built-ins/RegExp/escape/cross-realm.js", true, Category = "RegExp.escape,cross-realm")]
-    [TestCase("built-ins/RegExp/escape/escaped-control-characters.js", false, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/escaped-control-characters.js", true, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/escaped-lineterminator.js", false, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/escaped-lineterminator.js", true, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/escaped-otherpunctuators.js", false, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/escaped-otherpunctuators.js", true, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/escaped-solidus-character-mixed.js", false, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/escaped-solidus-character-mixed.js", true, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/escaped-solidus-character-simple.js", false, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/escaped-solidus-character-simple.js", true, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/escaped-surrogates.js", false, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/escaped-surrogates.js", true, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/escaped-syntax-characters-mixed.js", false, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/escaped-syntax-characters-mixed.js", true, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/escaped-syntax-characters-simple.js", false, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/escaped-syntax-characters-simple.js", true, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/escaped-utf16encodecodepoint.js", false, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/escaped-utf16encodecodepoint.js", true, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/escaped-whitespace.js", false, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/escaped-whitespace.js", true, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/initial-char-escape.js", false, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/initial-char-escape.js", true, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/is-function.js", false, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/is-function.js", true, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/length.js", false, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/length.js", true, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/name.js", false, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/name.js", true, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/non-string-inputs.js", false, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/non-string-inputs.js", true, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/not-a-constructor.js", false, Category = "RegExp.escape,Reflect.construct")]
-    [TestCase("built-ins/RegExp/escape/not-a-constructor.js", true, Category = "RegExp.escape,Reflect.construct")]
-    [TestCase("built-ins/RegExp/escape/not-escaped-underscore.js", false, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/not-escaped-underscore.js", true, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/not-escaped.js", false, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/not-escaped.js", true, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/prop-desc.js", false, Category = "RegExp.escape")]
-    [TestCase("built-ins/RegExp/escape/prop-desc.js", true, Category = "RegExp.escape")]
-    public void RegExp_escape(string test, bool strict)
+    [Test]
+    [Ignore("Feature RegExp.escape excluded")]
+    public void RegExp_escape()
     {
-        RunTestCode(test, strict);
     }
 
     [TestCase("built-ins/RegExp/lookBehind/alternations.js", false, Category = "regexp-lookbehind")]
@@ -49810,164 +49632,40 @@ public class BuiltInsTests : Test262Test
         RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/Uint8Array/fromBase64/alphabet.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromBase64/alphabet.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromBase64/descriptor.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromBase64/descriptor.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromBase64/ignores-receiver.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromBase64/ignores-receiver.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromBase64/illegal-characters.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromBase64/illegal-characters.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromBase64/last-chunk-handling.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromBase64/last-chunk-handling.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromBase64/length.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromBase64/length.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromBase64/name.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromBase64/name.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromBase64/nonconstructor.js", false, Category = "uint8array-base64,TypedArray,Reflect.construct")]
-    [TestCase("built-ins/Uint8Array/fromBase64/nonconstructor.js", true, Category = "uint8array-base64,TypedArray,Reflect.construct")]
-    [TestCase("built-ins/Uint8Array/fromBase64/option-coercion.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromBase64/option-coercion.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromBase64/results.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromBase64/results.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromBase64/string-coercion.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromBase64/string-coercion.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromBase64/whitespace.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromBase64/whitespace.js", true, Category = "uint8array-base64,TypedArray")]
-    public void Uint8Array_fromBase64(string test, bool strict)
+    [Test]
+    [Ignore("Feature uint8array-base64 excluded")]
+    public void Uint8Array_fromBase64()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/Uint8Array/fromHex/descriptor.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromHex/descriptor.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromHex/ignores-receiver.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromHex/ignores-receiver.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromHex/illegal-characters.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromHex/illegal-characters.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromHex/length.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromHex/length.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromHex/name.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromHex/name.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromHex/nonconstructor.js", false, Category = "uint8array-base64,TypedArray,Reflect.construct")]
-    [TestCase("built-ins/Uint8Array/fromHex/nonconstructor.js", true, Category = "uint8array-base64,TypedArray,Reflect.construct")]
-    [TestCase("built-ins/Uint8Array/fromHex/odd-length-input.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromHex/odd-length-input.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromHex/results.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromHex/results.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromHex/string-coercion.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/fromHex/string-coercion.js", true, Category = "uint8array-base64,TypedArray")]
-    public void Uint8Array_fromHex(string test, bool strict)
+    [Test]
+    [Ignore("Feature uint8array-base64 excluded")]
+    public void Uint8Array_fromHex()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/alphabet.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/alphabet.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/descriptor.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/descriptor.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/detached-buffer.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/detached-buffer.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/illegal-characters.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/illegal-characters.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/last-chunk-handling.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/last-chunk-handling.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/length.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/length.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/name.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/name.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/nonconstructor.js", false, Category = "uint8array-base64,TypedArray,Reflect.construct")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/nonconstructor.js", true, Category = "uint8array-base64,TypedArray,Reflect.construct")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/option-coercion.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/option-coercion.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/results.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/results.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/string-coercion.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/string-coercion.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/subarray.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/subarray.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/target-size.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/target-size.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/whitespace.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/whitespace.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/writes-up-to-error.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromBase64/writes-up-to-error.js", true, Category = "uint8array-base64,TypedArray")]
-    public void Uint8Array_prototype_setFromBase64(string test, bool strict)
+    [Test]
+    [Ignore("Feature uint8array-base64 excluded")]
+    public void Uint8Array_prototype_setFromBase64()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/descriptor.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/descriptor.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/detached-buffer.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/detached-buffer.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/illegal-characters.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/illegal-characters.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/length.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/length.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/name.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/name.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/nonconstructor.js", false, Category = "uint8array-base64,TypedArray,Reflect.construct")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/nonconstructor.js", true, Category = "uint8array-base64,TypedArray,Reflect.construct")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/results.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/results.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/string-coercion.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/string-coercion.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/subarray.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/subarray.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/target-size.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/target-size.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/throws-when-string-length-is-odd.js", false, Category = "TypedArray,uint8array-base64")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/throws-when-string-length-is-odd.js", true, Category = "TypedArray,uint8array-base64")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/writes-up-to-error.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/setFromHex/writes-up-to-error.js", true, Category = "uint8array-base64,TypedArray")]
-    public void Uint8Array_prototype_setFromHex(string test, bool strict)
+    [Test]
+    [Ignore("Feature uint8array-base64 excluded")]
+    public void Uint8Array_prototype_setFromHex()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/Uint8Array/prototype/toBase64/alphabet.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toBase64/alphabet.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toBase64/descriptor.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toBase64/descriptor.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toBase64/detached-buffer.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toBase64/detached-buffer.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toBase64/length.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toBase64/length.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toBase64/name.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toBase64/name.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toBase64/nonconstructor.js", false, Category = "uint8array-base64,TypedArray,Reflect.construct")]
-    [TestCase("built-ins/Uint8Array/prototype/toBase64/nonconstructor.js", true, Category = "uint8array-base64,TypedArray,Reflect.construct")]
-    [TestCase("built-ins/Uint8Array/prototype/toBase64/omit-padding.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toBase64/omit-padding.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toBase64/option-coercion.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toBase64/option-coercion.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toBase64/receiver-not-uint8array.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toBase64/receiver-not-uint8array.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toBase64/results.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toBase64/results.js", true, Category = "uint8array-base64,TypedArray")]
-    public void Uint8Array_prototype_toBase64(string test, bool strict)
+    [Test]
+    [Ignore("Feature uint8array-base64 excluded")]
+    public void Uint8Array_prototype_toBase64()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/Uint8Array/prototype/toHex/descriptor.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toHex/descriptor.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toHex/detached-buffer.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toHex/detached-buffer.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toHex/length.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toHex/length.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toHex/name.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toHex/name.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toHex/nonconstructor.js", false, Category = "uint8array-base64,TypedArray,Reflect.construct")]
-    [TestCase("built-ins/Uint8Array/prototype/toHex/nonconstructor.js", true, Category = "uint8array-base64,TypedArray,Reflect.construct")]
-    [TestCase("built-ins/Uint8Array/prototype/toHex/receiver-not-uint8array.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toHex/receiver-not-uint8array.js", true, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toHex/results.js", false, Category = "uint8array-base64,TypedArray")]
-    [TestCase("built-ins/Uint8Array/prototype/toHex/results.js", true, Category = "uint8array-base64,TypedArray")]
-    public void Uint8Array_prototype_toHex(string test, bool strict)
+    [Test]
+    [Ignore("Feature uint8array-base64 excluded")]
+    public void Uint8Array_prototype_toHex()
     {
-        RunTestCode(test, strict);
     }
 
     [TestCase("built-ins/undefined/15.1.1.3-0.js", false)]
@@ -50131,43 +49829,10 @@ public class BuiltInsTests : Test262Test
         RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/adds-object-element.js", false, Category = "WeakMap,upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/adds-object-element.js", true, Category = "WeakMap,upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/adds-symbol-element.js", false, Category = "Symbol,WeakMap,symbols-as-weakmap-keys,upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/adds-symbol-element.js", true, Category = "Symbol,WeakMap,symbols-as-weakmap-keys,upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/does-not-have-weakmapdata-internal-slot-array.js", false, Category = "upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/does-not-have-weakmapdata-internal-slot-array.js", true, Category = "upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/does-not-have-weakmapdata-internal-slot-map.js", false, Category = "Map,upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/does-not-have-weakmapdata-internal-slot-map.js", true, Category = "Map,upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/does-not-have-weakmapdata-internal-slot-object.js", false, Category = "upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/does-not-have-weakmapdata-internal-slot-object.js", true, Category = "upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/does-not-have-weakmapdata-internal-slot-set.js", false, Category = "Set,upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/does-not-have-weakmapdata-internal-slot-set.js", true, Category = "Set,upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/does-not-have-weakmapdata-internal-slot-weakmap-prototype.js", false, Category = "upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/does-not-have-weakmapdata-internal-slot-weakmap-prototype.js", true, Category = "upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/getOrInsert.js", false, Category = "upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/getOrInsert.js", true, Category = "upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/length.js", false, Category = "upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/length.js", true, Category = "upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/name.js", false, Category = "upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/name.js", true, Category = "upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/not-a-constructor.js", false, Category = "Reflect.construct,WeakMap,arrow-function,upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/not-a-constructor.js", true, Category = "Reflect.construct,WeakMap,arrow-function,upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/returns-value-if-key-is-not-present-object-key.js", false, Category = "WeakMap,upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/returns-value-if-key-is-not-present-object-key.js", true, Category = "WeakMap,upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/returns-value-if-key-is-not-present-symbol-key.js", false, Category = "Symbol,WeakMap,symbols-as-weakmap-keys,upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/returns-value-if-key-is-not-present-symbol-key.js", true, Category = "Symbol,WeakMap,symbols-as-weakmap-keys,upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/returns-value-if-key-is-present-object-key.js", false, Category = "WeakMap,upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/returns-value-if-key-is-present-object-key.js", true, Category = "WeakMap,upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/returns-value-if-key-is-present-symbol-key.js", false, Category = "Symbol,WeakMap,symbols-as-weakmap-keys,upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/returns-value-if-key-is-present-symbol-key.js", true, Category = "Symbol,WeakMap,symbols-as-weakmap-keys,upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/this-not-object-throw.js", false, Category = "Symbol,upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/this-not-object-throw.js", true, Category = "Symbol,upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/throw-if-key-cannot-be-held-weakly.js", false, Category = "Symbol,WeakMap,upsert")]
-    [TestCase("built-ins/WeakMap/prototype/getOrInsert/throw-if-key-cannot-be-held-weakly.js", true, Category = "Symbol,WeakMap,upsert")]
-    public void WeakMap_prototype_getOrInsert(string test, bool strict)
+    [Test]
+    [Ignore("Feature upsert excluded")]
+    public void WeakMap_prototype_getOrInsert()
     {
-        RunTestCode(test, strict);
     }
 
     [TestCase("built-ins/WeakMap/prototype/has/does-not-have-weakmapdata-internal-slot-array.js", false)]

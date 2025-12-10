@@ -389,7 +389,8 @@ public static partial class TypedAstEvaluator
                     return (withValue, withBinding.BindingObject, false);
                 }
 
-                var calleeValue = EvaluateIdentifier(identifier, environment, context);
+                var reference = environment.ResolveIdentifierAssignmentReference(identifier.Name, context);
+                var calleeValue = AssignmentReferenceResolver.ReadIdentifierValue(reference.GetValue, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return (Symbol.Undefined, null, true);

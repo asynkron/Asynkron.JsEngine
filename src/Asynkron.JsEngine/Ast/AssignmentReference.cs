@@ -319,20 +319,39 @@ internal static class AssignmentReferenceResolver
             return;
         }
 
-        var prototype = target.Prototype;
-        while (prototype is not null)
+        IJsPropertyAccessor? prototypeAccessor = target.PrototypeAccessor ?? target.Prototype;
+        while (prototypeAccessor is not null)
         {
-            var inheritedDescriptor = prototype.GetOwnPropertyDescriptor(propertyName);
-            if (inheritedDescriptor is not null)
+            if (prototypeAccessor is JsObject protoObj)
             {
-                if (inheritedDescriptor.IsAccessorDescriptor)
+                var inheritedDescriptor = protoObj.GetOwnPropertyDescriptor(propertyName);
+                if (inheritedDescriptor is not null)
                 {
-                    if (inheritedDescriptor.Set is null)
+                    if (inheritedDescriptor.IsAccessorDescriptor)
+                    {
+                        if (inheritedDescriptor.Set is null)
+                        {
+                            if (isStrict)
+                            {
+                                throw StandardLibrary.ThrowTypeError(
+                                    $"Cannot set property '{propertyName}' that has only a getter.",
+                                    context,
+                                    realmState);
+                            }
+
+                            return;
+                        }
+
+                        TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [value], receiver, context);
+                        return;
+                    }
+
+                    if (!inheritedDescriptor.Writable)
                     {
                         if (isStrict)
                         {
                             throw StandardLibrary.ThrowTypeError(
-                                $"Cannot set property '{propertyName}' that has only a getter.",
+                                $"Cannot assign to read only property '{propertyName}'.",
                                 context,
                                 realmState);
                         }
@@ -340,39 +359,81 @@ internal static class AssignmentReferenceResolver
                         return;
                     }
 
-                    TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [value], receiver, context);
+                    target.DefineProperty(propertyName, new PropertyDescriptor
+                    {
+                        Value = value,
+                        Writable = true,
+                        Enumerable = inheritedDescriptor.Enumerable,
+                        Configurable = inheritedDescriptor.Configurable,
+                        HasValue = true,
+                        HasWritable = true,
+                        HasEnumerable = inheritedDescriptor.HasEnumerable,
+                        HasConfigurable = inheritedDescriptor.HasConfigurable
+                    });
                     return;
                 }
 
-                if (!inheritedDescriptor.Writable)
+                prototypeAccessor = protoObj.PrototypeAccessor ?? protoObj.Prototype;
+                continue;
+            }
+
+            if (prototypeAccessor is IJsObjectLike objectLike)
+            {
+                var inheritedDescriptor = objectLike.GetOwnPropertyDescriptor(propertyName);
+                if (inheritedDescriptor is not null)
                 {
-                    if (isStrict)
+                    if (inheritedDescriptor.IsAccessorDescriptor)
                     {
-                        throw StandardLibrary.ThrowTypeError(
-                            $"Cannot assign to read only property '{propertyName}'.",
-                            context,
-                            realmState);
+                        if (inheritedDescriptor.Set is null)
+                        {
+                            if (isStrict)
+                            {
+                                throw StandardLibrary.ThrowTypeError(
+                                    $"Cannot set property '{propertyName}' that has only a getter.",
+                                    context,
+                                    realmState);
+                            }
+
+                            return;
+                        }
+
+                        TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [value], receiver, context);
+                        return;
                     }
 
+                    if (!inheritedDescriptor.Writable)
+                    {
+                        if (isStrict)
+                        {
+                            throw StandardLibrary.ThrowTypeError(
+                                $"Cannot assign to read only property '{propertyName}'.",
+                                context,
+                                realmState);
+                        }
+
+                        return;
+                    }
+
+                    target.DefineProperty(propertyName, new PropertyDescriptor
+                    {
+                        Value = value,
+                        Writable = true,
+                        Enumerable = inheritedDescriptor.Enumerable,
+                        Configurable = inheritedDescriptor.Configurable,
+                        HasValue = true,
+                        HasWritable = true,
+                        HasEnumerable = inheritedDescriptor.HasEnumerable,
+                        HasConfigurable = inheritedDescriptor.HasConfigurable
+                    });
                     return;
                 }
 
-                // Writable inherited data property: create/update own data property
-                target.DefineProperty(propertyName, new PropertyDescriptor
-                {
-                    Value = value,
-                    Writable = true,
-                    Enumerable = inheritedDescriptor.Enumerable,
-                    Configurable = inheritedDescriptor.Configurable,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = inheritedDescriptor.HasEnumerable,
-                    HasConfigurable = inheritedDescriptor.HasConfigurable
-                });
+                prototypeAccessor.SetProperty(propertyName, value, receiver);
                 return;
             }
 
-            prototype = prototype.Prototype;
+            prototypeAccessor.SetProperty(propertyName, value, receiver);
+            return;
         }
 
         if (!target.IsExtensible)

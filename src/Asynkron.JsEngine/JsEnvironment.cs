@@ -1501,15 +1501,6 @@ public sealed class JsEnvironment
             return false;
         }
 
-        if (touchedUnscopables && jsObject is not null && originalDescriptor is not null)
-        {
-            var currentDescriptor = jsObject.GetOwnPropertyDescriptor(propertyName);
-            if (currentDescriptor is null)
-            {
-                allowMissingAssignment = true;
-            }
-        }
-
         return true;
     }
 
@@ -1530,15 +1521,47 @@ public sealed class JsEnvironment
             return true;
         }
 
-        var prototype = target.Prototype;
-        while (prototype is not null)
+        var visited = new HashSet<IJsPropertyAccessor>(ReferenceEqualityComparer<IJsPropertyAccessor>.Instance);
+        IJsPropertyAccessor? prototypeAccessor =
+            (target as IPrototypeAccessorProvider)?.PrototypeAccessor ?? target.Prototype;
+
+        while (prototypeAccessor is not null && visited.Add(prototypeAccessor))
         {
-            if (prototype.HasProperty(name))
+            if (prototypeAccessor is JsObject protoObj)
+            {
+                if (protoObj.HasProperty(name))
+                {
+                    return true;
+                }
+
+                prototypeAccessor = protoObj.PrototypeAccessor ?? protoObj.Prototype;
+                continue;
+            }
+
+            if (prototypeAccessor is IJsObjectLike objectLike)
+            {
+                if (objectLike.GetOwnPropertyDescriptor(name) is not null)
+                {
+                    return true;
+                }
+
+                prototypeAccessor =
+                    (objectLike as IPrototypeAccessorProvider)?.PrototypeAccessor ?? objectLike.Prototype;
+                continue;
+            }
+
+            if (prototypeAccessor.TryGetProperty(name, out _))
             {
                 return true;
             }
 
-            prototype = prototype.Prototype;
+            if (prototypeAccessor is IPrototypeAccessorProvider provider)
+            {
+                prototypeAccessor = provider.PrototypeAccessor;
+                continue;
+            }
+
+            break;
         }
 
         return false;
@@ -1578,27 +1601,32 @@ public sealed class JsEnvironment
             }
         }
 
+        if (bindingObject is JsObject jsObject)
+        {
+            AssignmentReferenceResolver.AssignObjectProperty(
+                jsObject,
+                propertyName,
+                value,
+                binding.IsStrictReference,
+                null,
+                realm ?? jsObject.RealmState,
+                bindingObject);
+            return true;
+        }
+
         JsOps.AssignPropertyValueByName(bindingObject, propertyName, value);
-
-        var ownDescriptor = bindingObject.GetOwnPropertyDescriptor(propertyName);
-        if (ownDescriptor is null)
+        if (bindingObject is IJsObjectLike withObject &&
+            bindingObject is IPropertyDefinitionHost definitionHost)
         {
-            return true;
+            var ownDescriptor = withObject.GetOwnPropertyDescriptor(propertyName);
+            if (ownDescriptor is not null && ownDescriptor.IsDataDescriptor)
+            {
+                var descriptorClone = ownDescriptor.Clone();
+                descriptorClone.Value = value;
+                definitionHost.TryDefineProperty(propertyName, descriptorClone);
+            }
         }
 
-        if (bindingObject is not IPropertyDefinitionHost definitionHost)
-        {
-            return true;
-        }
-
-        if (!ownDescriptor.IsDataDescriptor)
-        {
-            return true;
-        }
-
-        var descriptorClone = ownDescriptor.Clone();
-        descriptorClone.Value = value;
-        definitionHost.TryDefineProperty(propertyName, descriptorClone);
         return true;
     }
 

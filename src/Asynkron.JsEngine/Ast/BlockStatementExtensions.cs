@@ -44,7 +44,7 @@ public static partial class TypedAstEvaluator
                     var isConst = lexDecl.Kind == VariableKind.Const;
                     foreach (var declarator in lexDecl.Declarators)
                     {
-                        HoistLexicalBindingTargetForTdz(declarator.Target, scope, isConst);
+                        HoistLexicalBindingTargetForTdz(block, declarator.Target, scope, isConst);
                     }
                 }
             }
@@ -270,22 +270,22 @@ public static partial class TypedAstEvaluator
                     {
                         if (element.Target is { } elementTarget)
                         {
-                            HoistLexicalBindingTargetForTdz(elementTarget, blockEnvironment, isConst);
+                            HoistLexicalBindingTargetForTdz(block, elementTarget, blockEnvironment, isConst);
                         }
                     }
                     if (arrayBinding.RestElement is { } restTarget)
                     {
-                        HoistLexicalBindingTargetForTdz(restTarget, blockEnvironment, isConst);
+                        HoistLexicalBindingTargetForTdz(block, restTarget, blockEnvironment, isConst);
                     }
                     break;
                 case ObjectBinding objectBinding:
                     foreach (var prop in objectBinding.Properties)
                     {
-                        HoistLexicalBindingTargetForTdz(prop.Target, blockEnvironment, isConst);
+                        HoistLexicalBindingTargetForTdz(block, prop.Target, blockEnvironment, isConst);
                     }
                     if (objectBinding.RestElement is { } restObjTarget)
                     {
-                        HoistLexicalBindingTargetForTdz(restObjTarget, blockEnvironment, isConst);
+                        HoistLexicalBindingTargetForTdz(block, restObjTarget, blockEnvironment, isConst);
                     }
                     break;
             }

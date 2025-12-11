@@ -45,7 +45,8 @@
 - DataView constructor/prototype now live under `StdLib/DataView`; constructor resolves new-target prototypes, wraps subclass instances with internal slots, and prototype hosts buffer/byteLength/byteOffset plus all get*/set* numeric accessors.
 - JSON object now lives under `StdLib/Json` with generator wiring; `parse` uses the existing reviver-aware logic and `stringify` retains the current simplified implementation.
 - Console, Reflect, and BigInt now use generator-backed wiring under their own `StdLib/<Type>` folders; the console global is created through the generated prototype, Reflect wraps the existing helpers, and BigInt carries `asIntN`/`asUintN` plus prototype methods via the generator surface.
+- Function.prototype is now generator-backed using a callable prototype object; the Function constructor reuses the generated prototype and keeps the existing parsing/execution semantics for `new Function` while inheriting the generator-wired `call`/`toString`/`valueOf` surface.
 
 ## Next Iteration Plan
-1. Keep migrating remaining non-generator built-ins onto the generator constructor/prototype model; the Function constructor/prototype is the next major holdout.
+1. Keep migrating remaining non-generator built-ins onto the generator constructor/prototype model; next up are the lingering helper-only surfaces (escape/unescape/localStorage) to see what can be expressed via generators.
 2. After each migration, run a focused Test262 slice around the affected built-in to catch regressions before moving on.

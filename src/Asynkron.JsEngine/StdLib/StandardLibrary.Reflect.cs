@@ -105,7 +105,7 @@ public static partial class StandardLibrary
         {
             var invokeWithContext = target.GetType().GetMethod(
                 "InvokeWithContext",
-                new[] { typeof(IReadOnlyList<object?>), typeof(object), typeof(EvaluationContext), typeof(object) });
+                [typeof(IReadOnlyList<object?>), typeof(object), typeof(EvaluationContext), typeof(object)]);
             if (invokeWithContext is not null)
             {
                 var constructContext = realm.CreateContext(pushScope: false);
@@ -247,7 +247,7 @@ public static partial class StandardLibrary
             return moduleNamespace.HasProperty(propertyKey);
         }
 
-        return target.TryGetProperty(propertyKey, out _);
+        return target.TryGetProperty(propertyKey, out var _);
     }
 
     internal static object? ReflectIsExtensible(object? _, IReadOnlyList<object?> args, RealmState? realm)

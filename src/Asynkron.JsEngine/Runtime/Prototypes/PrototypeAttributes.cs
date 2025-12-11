@@ -83,5 +83,6 @@ public sealed class JsConstructorAttribute(string intrinsicName) : Attribute
 public enum PrototypeObjectKind
 {
     Object,
-    Array
+    Array,
+    Function
 }

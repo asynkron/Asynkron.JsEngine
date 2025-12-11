@@ -95,8 +95,11 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         }
 
         var toStringTag = GetNamedValue(prototypeAttr, "ToStringTag");
-        var useArrayInstance = TryGetPrototypeObjectKind(prototypeAttr) == PrototypeObjectKind.Array;
-        return new PrototypeInfo(typeSymbol, getters.ToImmutable(), methods.ToImmutable(), toStringTag, useArrayInstance);
+        var objectKind = TryGetPrototypeObjectKind(prototypeAttr);
+        var useArrayInstance = objectKind == PrototypeObjectKind.Array;
+        var useFunctionInstance = objectKind == PrototypeObjectKind.Function;
+        return new PrototypeInfo(typeSymbol, getters.ToImmutable(), methods.ToImmutable(), toStringTag,
+            useArrayInstance, useFunctionInstance);
     }
 
     private static ConstructorInfo? TransformConstructor(GeneratorSyntaxContext context)
@@ -171,7 +174,12 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         source.AppendLine();
         source.AppendLine("    public static IJsObjectLike CreatePrototype(RealmState realm)");
         source.AppendLine("    {");
-        source.Append("        var prototype = ").Append(info.UseArrayInstance ? "new JsArray(realm)" : "new JsObject()").AppendLine(";");
+        var prototypeExpr = info.UseArrayInstance
+            ? "new JsArray(realm)"
+            : info.UseFunctionInstance
+                ? "new HostFunction((_, _) => Symbol.Undefined, realm, isConstructor: false)"
+                : "new JsObject()";
+        source.Append("        var prototype = ").Append(prototypeExpr).AppendLine(";");
         source.Append("        var typed = new ").Append(info.Symbol.Name)
             .AppendLine("(prototype, realm);");
 
@@ -355,8 +363,13 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         return false;
     }
 
-    private sealed record PrototypeInfo(INamedTypeSymbol Symbol, ImmutableArray<GetterInfo> Getters,
-        ImmutableArray<MethodInfo> Methods, string? ToStringTag, bool UseArrayInstance);
+    private sealed record PrototypeInfo(
+        INamedTypeSymbol Symbol,
+        ImmutableArray<GetterInfo> Getters,
+        ImmutableArray<MethodInfo> Methods,
+        string? ToStringTag,
+        bool UseArrayInstance,
+        bool UseFunctionInstance);
 
     private sealed record GetterInfo(IMethodSymbol MethodSymbol, string PropertyName, string DisplayName, bool Enumerable,
         bool Configurable);
@@ -370,7 +383,8 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
     private enum PrototypeObjectKind
     {
         Object = 0,
-        Array = 1
+        Array = 1,
+        Function = 2
     }
 
     private static PrototypeObjectKind TryGetPrototypeObjectKind(AttributeData attr)

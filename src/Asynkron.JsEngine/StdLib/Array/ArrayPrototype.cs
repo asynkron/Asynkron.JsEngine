@@ -24,7 +24,7 @@ public sealed partial class ArrayPrototype
                 Configurable = false
             });
 
-        var iteratorKey = TypedAstSymbol.PropertyKey("Symbol.iterator");
+        var iteratorKey = TypedAstSymbol.PropertyKey(Symbols.Iterator, Realm);
         if (Prototype.TryGetProperty("values", out var valuesFunction))
         {
             Prototype.DefineProperty(iteratorKey,
@@ -68,7 +68,7 @@ public sealed partial class ArrayPrototype
         Flag("keys");
         Flag("values");
 
-        var symbol = TypedAstSymbol.For("Symbol.unscopables");
+        var symbol = Symbols.Unscopables;
         var key = TypedAstSymbol.PropertyKey(symbol);
         Prototype.DefineProperty(key,
             new PropertyDescriptor

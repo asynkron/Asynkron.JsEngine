@@ -19,8 +19,7 @@ public static partial class StandardLibrary
         RealmState? realm)
     {
         var iterator = new JsObject(realm?.ObjectPrototype);
-        var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
-        var iteratorKey = TypedAstSymbol.PropertyKey(iteratorSymbol);
+        var iteratorKey = TypedAstSymbol.PropertyKey(Symbols.Iterator);
 
         uint index = 0;
         var exhausted = false;

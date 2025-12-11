@@ -31,7 +31,7 @@ public static partial class TypedAstEvaluator
     private const string GeneratorBrandPropertyName = "__generator_brand__";
 
     private static readonly string IteratorSymbolPropertyName =
-        TypedAstSymbol.PropertyKey("Symbol.iterator");
+        TypedAstSymbol.PropertyKey(Symbols.Iterator);
 
     private static readonly object GeneratorBrandMarker = new();
     private static readonly object EmptyCompletion = new();
@@ -82,8 +82,7 @@ public static partial class TypedAstEvaluator
         }
 
         var logger = context.RealmState?.Logger;
-        var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
-        var iteratorKey = TypedAstSymbol.PropertyKey(iteratorSymbol);
+        var iteratorKey = TypedAstSymbol.PropertyKey(Symbols.Iterator);
         logger?.LogInformation("TryGetIteratorFromProtocols start targetType={Type} iteratorKey={Key}",
             iterable?.GetType().Name ?? "null",
             iteratorKey);
@@ -93,7 +92,7 @@ public static partial class TypedAstEvaluator
             logger?.LogInformation("TryGetIteratorFromProtocols keys={Keys}", keysPreview);
         }
 
-        if (TryInvokeSymbolMethod(accessor, iterable, "Symbol.asyncIterator", context, out var asyncIterator))
+        if (TryInvokeSymbolMethod(accessor, iterable, Symbols.AsyncIterator, context, out var asyncIterator))
         {
             logger?.LogInformation("TryGetIteratorFromProtocols asyncIterator invoked stop={Stop} type={IterType}",
                 context.ShouldStopEvaluation,
@@ -114,7 +113,7 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        if (TryInvokeSymbolMethod(accessor, iterable, "Symbol.iterator", context, out var iteratorValue))
+        if (TryInvokeSymbolMethod(accessor, iterable, Symbols.Iterator, context, out var iteratorValue))
         {
             logger?.LogInformation("TryGetIteratorFromProtocols iterator invoked stop={Stop} type={IterType}",
                 context.ShouldStopEvaluation,
@@ -1005,7 +1004,7 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        var hasInstanceSymbol = TypedAstSymbol.For("Symbol.hasInstance");
+        var hasInstanceSymbol = Symbols.HasInstance;
         if (TryGetPropertyValue(right, hasInstanceSymbol, out var hasInstance, context))
         {
             // Check if an error was thrown during property access

@@ -246,7 +246,7 @@ internal static class JsOps
         primitive = null;
         var attempted = false;
 
-        var toPrimitiveKey = TypedAstSymbol.For("Symbol.toPrimitive");
+        var toPrimitiveKey = Symbols.ToPrimitive;
         var symbolPropertyName = TypedAstSymbol.PropertyKey(toPrimitiveKey);
         if (TryGetPropertyValue(accessor, symbolPropertyName, out var toPrimitive, context))
         {
@@ -364,7 +364,7 @@ internal static class JsOps
             hint = "string";
         }
 
-        var toPrimitiveKey = TypedAstSymbol.For("Symbol.toPrimitive");
+        var toPrimitiveKey = Symbols.ToPrimitive;
         var symbolPropertyName = TypedAstSymbol.PropertyKey(toPrimitiveKey);
         object? toPrimitive = null;
 

@@ -28,14 +28,14 @@ public static partial class StandardLibrary
                     return jsObject;
                 }
 
-                if (TryInvokeSymbolIterator(jsObject, "Symbol.asyncIterator", out var asyncIterator))
+                if (TryInvokeSymbolIterator(jsObject, Symbols.AsyncIterator, out var asyncIterator))
                 {
                     engine.WriteAsyncIteratorTrace(
                         $"getAsyncIterator: branch=symbol-asyncIterator hasCallableNext={HasCallableNext(asyncIterator)}");
                     return asyncIterator;
                 }
 
-                if (TryInvokeSymbolIterator(jsObject, "Symbol.iterator", out var iterator))
+                if (TryInvokeSymbolIterator(jsObject, Symbols.Iterator, out var iterator))
                 {
                     engine.WriteAsyncIteratorTrace(
                         $"getAsyncIterator: branch=symbol-iterator hasCallableNext={HasCallableNext(iterator)}");
@@ -64,9 +64,8 @@ public static partial class StandardLibrary
 
             throw new InvalidOperationException($"Value is not iterable: {iterable?.GetType().Name}");
 
-            static bool TryInvokeSymbolIterator(JsObject target, string symbolName, out JsObject? iterator)
+            static bool TryInvokeSymbolIterator(JsObject target, TypedAstSymbol symbol, out JsObject? iterator)
             {
-                var symbol = TypedAstSymbol.For(symbolName);
                 var propertyName = TypedAstSymbol.PropertyKey(symbol);
                 if (target.TryGetProperty(propertyName, out var method) && method is IJsCallable callable)
                 {

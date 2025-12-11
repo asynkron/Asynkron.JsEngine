@@ -7,16 +7,16 @@ namespace Asynkron.JsEngine.StdLib;
 public static partial class StandardLibrary
 {
     internal static readonly string SymbolSpeciesKey =
-        TypedAstSymbol.PropertyKey("Symbol.species");
+        TypedAstSymbol.PropertyKey(Symbols.Species);
 
     internal static readonly string SymbolIteratorKey =
-        TypedAstSymbol.PropertyKey("Symbol.iterator");
+        TypedAstSymbol.PropertyKey(Symbols.Iterator);
 
     internal static readonly string SymbolAsyncIteratorKey =
-        TypedAstSymbol.PropertyKey("Symbol.asyncIterator");
+        TypedAstSymbol.PropertyKey(Symbols.AsyncIterator);
 
     internal static readonly string SymbolIsConcatSpreadableKey =
-        TypedAstSymbol.PropertyKey("Symbol.isConcatSpreadable");
+        TypedAstSymbol.PropertyKey(Symbols.IsConcatSpreadable);
 
     internal static IJsObjectLike ArraySpeciesCreate(object? original, long length, RealmState? realm)
     {

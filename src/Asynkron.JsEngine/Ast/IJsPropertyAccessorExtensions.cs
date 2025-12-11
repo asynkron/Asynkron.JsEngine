@@ -9,11 +9,11 @@ public static partial class TypedAstEvaluator
 {
     extension(IJsPropertyAccessor target)
     {
-        private bool TryInvokeSymbolMethod(object? thisArg, string symbolName,
+        private bool TryInvokeSymbolMethod(object? thisArg, TypedAstSymbol symbol,
             EvaluationContext context,
             out object? result)
         {
-            var symbol = TypedAstSymbol.For(symbolName);
+            var symbolName = symbol.Description ?? symbol.ToString();
             var hashedName = TypedAstSymbol.PropertyKey(symbol);
             var realm = context.RealmState;
             realm?.Logger?.LogInformation("TryInvokeSymbolMethod name={Name} thisType={Type}", symbolName,

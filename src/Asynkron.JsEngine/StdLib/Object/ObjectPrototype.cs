@@ -12,7 +12,7 @@ public sealed partial class ObjectPrototype : JsPrototype
     [JsHostMethod("toString", Length = 0d)]
     public object? ToString(object? thisValue, IReadOnlyList<object?> _)
     {
-        var tagKey = TypedAstSymbol.PropertyKey("Symbol.toStringTag");
+        var tagKey = TypedAstSymbol.PropertyKey(Symbols.ToStringTag, Realm);
         if (thisValue is JsObject obj)
         {
             if (obj.TryGetProperty(tagKey, out var tagValue) && !ReferenceEquals(tagValue, Symbol.Undefined))

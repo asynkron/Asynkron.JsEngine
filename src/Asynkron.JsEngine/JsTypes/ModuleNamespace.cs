@@ -11,9 +11,9 @@ internal sealed class ModuleNamespace : IJsObjectLike
     private readonly ImmutableArray<string> _exportNames;
     private readonly RealmState _realmState;
 
-    private readonly string _toStringTagKey = TypedAstSymbol.PropertyKey("Symbol.toStringTag");
+    private readonly string _toStringTagKey = TypedAstSymbol.PropertyKey(Symbols.ToStringTag);
 
-    private readonly TypedAstSymbol _toStringTagSymbol = TypedAstSymbol.For("Symbol.toStringTag");
+    private readonly TypedAstSymbol _toStringTagSymbol = Symbols.ToStringTag;
     private readonly Action? _ensureEvaluated;
     private readonly bool _isDeferred;
     private readonly object _uninitializedMarker;

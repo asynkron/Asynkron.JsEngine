@@ -57,14 +57,14 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
             return true;
         }
 
-        var toPrimitiveKey = PropertyKey("Symbol.toPrimitive");
+        var toPrimitiveKey = PropertyKey(Symbols.ToPrimitive);
         if (string.Equals(name, toPrimitiveKey, StringComparison.Ordinal))
         {
             value = new HostFunction((thisValue, _) => Unbox(thisValue), isConstructor: false);
             return true;
         }
 
-        var toStringTagKey = PropertyKey("Symbol.toStringTag");
+        var toStringTagKey = PropertyKey(Symbols.ToStringTag);
         if (string.Equals(name, toStringTagKey, StringComparison.Ordinal))
         {
             value = "Symbol";
@@ -134,9 +134,25 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
         return PropertyKeyCache.GetOrAdd(hash, h => $"@@symbol:{h}");
     }
 
-    public static string PropertyKey(string wellKnownName)
+    public static string PropertyKey(TypedAstSymbol symbol, Runtime.RealmState? realm)
     {
-        return PropertyKey(For(wellKnownName));
+        return PropertyKey(symbol);
+    }
+
+    public static string PropertyKey(string wellKnownName, Runtime.RealmState? realm = null)
+    {
+        if (realm is not null && realm.TryGetSymbolPropertyKey(wellKnownName, out var cached))
+        {
+            return cached;
+        }
+
+        var computed = PropertyKey(For(wellKnownName));
+        if (realm is not null)
+        {
+            realm.GetSymbolPropertyKey(wellKnownName);
+        }
+
+        return computed;
     }
 
     public override string ToString()

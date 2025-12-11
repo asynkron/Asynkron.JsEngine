@@ -94,7 +94,7 @@ public sealed partial class SetPrototype
 
         Realm.SetPrototype ??= Prototype as JsObject;
 
-        var iteratorKey = TypedAstSymbol.PropertyKey("Symbol.iterator");
+        var iteratorKey = TypedAstSymbol.PropertyKey(Symbols.Iterator, Realm);
         if (Prototype.TryGetProperty("values", out var values))
         {
             Prototype.DefineProperty(iteratorKey,
@@ -153,8 +153,7 @@ public sealed partial class SetPrototype
             return result;
         });
 
-        var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
-        var iteratorKey = TypedAstSymbol.PropertyKey(iteratorSymbol);
+        var iteratorKey = TypedAstSymbol.PropertyKey(Symbols.Iterator);
         iterator.SetHostedProperty(iteratorKey, (_, _) => iterator);
         return iterator;
     }

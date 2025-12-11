@@ -19,9 +19,9 @@ public static partial class TypedAstEvaluator
             {
                 return symbolProp switch
                 {
-                    "iterator" => TypedAstSymbol.For("Symbol.iterator"),
-                    "asyncIterator" => TypedAstSymbol.For("Symbol.asyncIterator"),
-                    "toStringTag" => TypedAstSymbol.For("Symbol.toStringTag"),
+                    "iterator" => Symbols.Iterator,
+                    "asyncIterator" => Symbols.AsyncIterator,
+                    "toStringTag" => Symbols.ToStringTag,
                     _ => EvaluateDefaultMember(expression, environment, context)
                 };
             }

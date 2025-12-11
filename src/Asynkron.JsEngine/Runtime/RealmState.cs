@@ -12,6 +12,7 @@ public sealed class RealmState
     public IJsEngineOptions Options { get; internal set; } = JsEngineOptions.Default;
     internal JsEngine? Engine { get; set; }
     public ILogger? Logger { get; set; }
+    private readonly Dictionary<string, string> _symbolPropertyKeys = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Per ES spec 13.2.8.4, template objects are cached by parse node (source location).
@@ -67,6 +68,23 @@ public sealed class RealmState
 
     // Internal flags to avoid re-attaching built-in surfaces per instance
     public bool StringPrototypeMethodsInitialized { get; set; }
+
+    internal bool TryGetSymbolPropertyKey(string wellKnownName, out string propertyName)
+    {
+        return _symbolPropertyKeys.TryGetValue(wellKnownName, out propertyName);
+    }
+
+    internal string GetSymbolPropertyKey(string wellKnownName)
+    {
+        if (_symbolPropertyKeys.TryGetValue(wellKnownName, out var propertyName))
+        {
+            return propertyName;
+        }
+
+        propertyName = Ast.TypedAstSymbol.PropertyKey(wellKnownName, null);
+        _symbolPropertyKeys[wellKnownName] = propertyName;
+        return propertyName;
+    }
 
     public EvaluationContext CreateContext(
         ScopeKind kind = ScopeKind.Function,

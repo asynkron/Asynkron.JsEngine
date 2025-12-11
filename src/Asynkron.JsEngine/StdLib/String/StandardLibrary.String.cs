@@ -76,11 +76,11 @@ public static partial class StandardLibrary
     /// </summary>
     internal static void AddStringMethods(JsObject stringObj, RealmState? realm, bool forceAttach = false)
     {
-        var matchKey = TypedAstSymbol.PropertyKey("Symbol.match");
-        var matchAllKey = TypedAstSymbol.PropertyKey("Symbol.matchAll");
-        var replaceKey = TypedAstSymbol.PropertyKey("Symbol.replace");
-        var searchKey = TypedAstSymbol.PropertyKey("Symbol.search");
-        var splitKey = TypedAstSymbol.PropertyKey("Symbol.split");
+        var matchKey = TypedAstSymbol.PropertyKey(Symbols.Match, realm);
+        var matchAllKey = TypedAstSymbol.PropertyKey(Symbols.MatchAll, realm);
+        var replaceKey = TypedAstSymbol.PropertyKey(Symbols.Replace, realm);
+        var searchKey = TypedAstSymbol.PropertyKey(Symbols.Search, realm);
+        var splitKey = TypedAstSymbol.PropertyKey(Symbols.Split, realm);
         if (!forceAttach &&
             realm is { StringPrototype: { } proto, StringPrototypeMethodsInitialized: true } &&
             ReferenceEquals(stringObj, proto))
@@ -140,8 +140,7 @@ public static partial class StandardLibrary
         DefineBuiltinFunction(stringObj, "italics", new HostFunction(Italics), 0);
         DefineBuiltinFunction(stringObj, "link", new HostFunction(Link), 1);
 
-        var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
-        var iteratorKey = TypedAstSymbol.PropertyKey(iteratorSymbol);
+        var iteratorKey = TypedAstSymbol.PropertyKey(Symbols.Iterator, realm);
 
         stringObj.SetHostedProperty(iteratorKey, CreateIterator);
 

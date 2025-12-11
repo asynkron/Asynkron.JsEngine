@@ -49,20 +49,20 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
         constructor.SetHostedProperty("for", SymbolFor);
         constructor.SetHostedProperty("keyFor", SymbolKeyFor);
 
-        constructor.SetProperty("hasInstance", TypedAstSymbol.For("Symbol.hasInstance"));
-        constructor.SetProperty("iterator", TypedAstSymbol.For("Symbol.iterator"));
-        constructor.SetProperty("asyncIterator", TypedAstSymbol.For("Symbol.asyncIterator"));
-        constructor.SetProperty("toPrimitive", TypedAstSymbol.For("Symbol.toPrimitive"));
-        constructor.SetProperty("toStringTag", TypedAstSymbol.For("Symbol.toStringTag"));
-        constructor.SetProperty("unscopables", TypedAstSymbol.For("Symbol.unscopables"));
-        constructor.SetProperty("match", TypedAstSymbol.For("Symbol.match"));
-        constructor.SetProperty("matchAll", TypedAstSymbol.For("Symbol.matchAll"));
-        constructor.SetProperty("replace", TypedAstSymbol.For("Symbol.replace"));
-        constructor.SetProperty("replaceAll", TypedAstSymbol.For("Symbol.replaceAll"));
-        constructor.SetProperty("search", TypedAstSymbol.For("Symbol.search"));
-        constructor.SetProperty("split", TypedAstSymbol.For("Symbol.split"));
-        constructor.SetProperty("species", TypedAstSymbol.For("Symbol.species"));
-        constructor.SetProperty("isConcatSpreadable", TypedAstSymbol.For("Symbol.isConcatSpreadable"));
+        constructor.SetProperty("hasInstance", Symbols.HasInstance);
+        constructor.SetProperty("iterator", Symbols.Iterator);
+        constructor.SetProperty("asyncIterator", Symbols.AsyncIterator);
+        constructor.SetProperty("toPrimitive", Symbols.ToPrimitive);
+        constructor.SetProperty("toStringTag", Symbols.ToStringTag);
+        constructor.SetProperty("unscopables", Symbols.Unscopables);
+        constructor.SetProperty("match", Symbols.Match);
+        constructor.SetProperty("matchAll", Symbols.MatchAll);
+        constructor.SetProperty("replace", Symbols.Replace);
+        constructor.SetProperty("replaceAll", Symbols.ReplaceAll);
+        constructor.SetProperty("search", Symbols.Search);
+        constructor.SetProperty("split", Symbols.Split);
+        constructor.SetProperty("species", Symbols.Species);
+        constructor.SetProperty("isConcatSpreadable", Symbols.IsConcatSpreadable);
     }
 
     private object? SymbolFor(IReadOnlyList<object?> args)

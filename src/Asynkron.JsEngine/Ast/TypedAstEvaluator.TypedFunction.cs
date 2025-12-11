@@ -25,6 +25,13 @@ public static partial class TypedAstEvaluator
         private readonly bool _isStrict;
         private readonly bool _wasAsyncFunction;
         private readonly bool _hasFunctionNameEnvironment;
+        private readonly bool _hasParameterExpressions;
+        private readonly ImmutableArray<Symbol> _parameterNames;
+        private readonly ImmutableArray<Symbol> _lexicalTemplate;
+        private readonly ImmutableArray<Symbol> _catchParameterTemplate;
+        private readonly ImmutableArray<Symbol> _simpleCatchParameterTemplate;
+        private readonly ImmutableArray<Symbol> _bodyLexicalTemplate;
+        private readonly ImmutableArray<Symbol> _blockedVarTemplate;
         private static readonly System.Collections.Concurrent.ConcurrentBag<HashSet<Symbol>> SymbolSetPool = new();
         private bool _isConstructorEnabled;
         private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
@@ -63,6 +70,25 @@ public static partial class TypedAstEvaluator
             _isConstructorEnabled = isConstructorFunction;
             _bodyLexicalNames = CollectLexicalNames(function.Body).ToArray();
             _hasHoistableDeclarations = HasHoistableDeclarations(function.Body);
+            _hasParameterExpressions = HasParameterExpressions(_function);
+            var parameterNames = new List<Symbol>();
+            CollectParameterNamesFromFunction(_function, parameterNames);
+            _parameterNames = parameterNames.ToImmutableArray();
+            _lexicalTemplate = _bodyLexicalNames.ToImmutableArray();
+            var catchParams = CollectCatchParameterNames(_function.Body);
+            _catchParameterTemplate = catchParams.ToImmutableArray();
+            var simpleCatchParams = CollectSimpleCatchParameterNames(_function.Body);
+            _simpleCatchParameterTemplate = simpleCatchParams.ToImmutableArray();
+            var bodyLexicalSet = new HashSet<Symbol>(_bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
+            bodyLexicalSet.ExceptWith(simpleCatchParams);
+            _bodyLexicalTemplate = bodyLexicalSet.ToImmutableArray();
+            var blockedTemplate = new HashSet<Symbol>(bodyLexicalSet, ReferenceEqualityComparer<Symbol>.Instance);
+            blockedTemplate.UnionWith(_parameterNames);
+            if (!_isStrict && !IsArrowFunction)
+            {
+                blockedTemplate.Add(Symbol.Arguments);
+            }
+            _blockedVarTemplate = blockedTemplate.ToImmutableArray();
             if (IsArrowFunction)
             {
                 try
@@ -419,24 +445,15 @@ public static partial class TypedAstEvaluator
             }
 
             var description = _function.Name is { } name ? $"function {name.Name}" : "anonymous function";
-            var hasParameterExpressions = HasParameterExpressions(_function);
-            var parameterNames = new List<Symbol>();
-            CollectParameterNamesFromFunction(_function, parameterNames);
-            var lexicalNames = RentSymbolSet();
-            lexicalNames.UnionWith(_bodyLexicalNames);
-            var catchParameterNames = CollectCatchParameterNamesPooled(_function.Body);
-            var simpleCatchParameterNames = CollectSimpleCatchParameterNamesPooled(_function.Body);
+            var hasParameterExpressions = _hasParameterExpressions;
+            var lexicalNames = RentSymbolSet(_lexicalTemplate);
+            var catchParameterNames = RentSymbolSet(_catchParameterTemplate);
+            var simpleCatchParameterNames = RentSymbolSet(_simpleCatchParameterTemplate);
             var bodyLexicalNames = lexicalNames.Count == 0
                 ? lexicalNames
-                : RentSymbolSet(lexicalNames);
+                : RentSymbolSet(_bodyLexicalTemplate);
             bodyLexicalNames.ExceptWith(simpleCatchParameterNames);
-            var blockedFunctionVarNames = bodyLexicalNames.Count == 0
-                ? RentSymbolSet()
-                : RentSymbolSet(bodyLexicalNames);
-            foreach (var parameterName in parameterNames)
-            {
-                blockedFunctionVarNames.Add(parameterName);
-            }
+            var blockedFunctionVarNames = RentSymbolSet(_blockedVarTemplate);
 
             var functionMode = _isStrict
                 ? ScopeMode.Strict
@@ -445,10 +462,7 @@ public static partial class TypedAstEvaluator
                     : ScopeMode.Sloppy;
             using var functionScopeFrame = context.PushScope(ScopeKind.Function, functionMode);
 
-            if (!_isStrict && !IsArrowFunction)
-            {
-                blockedFunctionVarNames.Add(Symbol.Arguments);
-            }
+            // blockedFunctionVarNames already seeded with parameters/body lexicals (+ arguments for non-strict non-arrow).
 
             context.BlockedFunctionVarNames = blockedFunctionVarNames;
 

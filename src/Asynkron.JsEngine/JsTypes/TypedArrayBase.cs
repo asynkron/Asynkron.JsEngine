@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Globalization;
 using Microsoft.Extensions.Logging;
 using Asynkron.JsEngine.Ast;

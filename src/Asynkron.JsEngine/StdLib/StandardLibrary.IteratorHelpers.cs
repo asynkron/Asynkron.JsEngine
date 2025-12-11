@@ -1,4 +1,3 @@
-using System.Text;
 using System.Globalization;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Ast;

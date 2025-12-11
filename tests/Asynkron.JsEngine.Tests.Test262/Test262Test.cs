@@ -1,5 +1,3 @@
-using System;
-using System.Net.Http;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Test262Harness;

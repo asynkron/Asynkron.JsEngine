@@ -1,9 +1,7 @@
-using System.Collections.Generic;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib.Intl;
-using Asynkron.JsEngine;
 
 namespace Asynkron.JsEngine.StdLib;
 

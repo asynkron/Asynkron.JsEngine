@@ -1,10 +1,5 @@
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Threading.Tasks;
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.Tracing;
-using Xunit;
 
 namespace Asynkron.JsEngine.Tests;
 

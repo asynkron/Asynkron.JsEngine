@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Asynkron.JsEngine.JsTypes;
 using Microsoft.Extensions.Logging;
 

@@ -1,10 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
-using System.Threading.Tasks;
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Tracing;
-using Xunit;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;

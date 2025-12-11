@@ -1,4 +1,3 @@
-using System.Threading;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 

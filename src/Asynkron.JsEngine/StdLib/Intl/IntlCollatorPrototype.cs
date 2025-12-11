@@ -1,5 +1,3 @@
-using System;
-using System;
 using System.Globalization;
 using System.Text;
 using Asynkron.JsEngine.JsTypes;

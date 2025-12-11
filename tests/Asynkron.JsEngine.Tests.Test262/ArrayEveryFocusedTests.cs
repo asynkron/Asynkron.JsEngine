@@ -1,5 +1,3 @@
-using NUnit.Framework;
-
 namespace Asynkron.JsEngine.Tests.Test262;
 
 /// <summary>

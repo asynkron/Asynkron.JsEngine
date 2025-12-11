@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using System.Globalization;
 using System.Text.RegularExpressions;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;

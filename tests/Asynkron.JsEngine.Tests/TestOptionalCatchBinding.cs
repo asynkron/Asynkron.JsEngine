@@ -1,5 +1,3 @@
-using Asynkron.JsEngine.Ast;
-
 namespace Asynkron.JsEngine.Tests;
 
 public class TestOptionalCatchBinding

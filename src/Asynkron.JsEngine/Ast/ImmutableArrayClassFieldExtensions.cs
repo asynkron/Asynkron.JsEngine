@@ -1,5 +1,4 @@
 using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine;
 
 namespace Asynkron.JsEngine.Ast;
 

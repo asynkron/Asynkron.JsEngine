@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using Microsoft.Extensions.Logging;
 
 // Minimal stand-in for Microsoft.Extensions.Logging.Testing.FakeLogger so we can
 // assert on captured log messages without pulling an extra package.

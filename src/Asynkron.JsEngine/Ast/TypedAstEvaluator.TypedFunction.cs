@@ -3,7 +3,6 @@ using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
-using Asynkron.JsEngine;
 using System.Runtime.CompilerServices;
 
 namespace Asynkron.JsEngine.Ast;

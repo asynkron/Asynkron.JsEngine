@@ -22,9 +22,6 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
     protected override void ConfigureConstructor(HostFunction constructor)
     {
         _constructor = constructor;
-        constructor.IsConstructor = false;
-        constructor.DisallowConstruct = true;
-        constructor.ConstructErrorMessage = "Symbol is not a constructor";
         Realm.SymbolPrototype ??= Prototype as JsObject;
 
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>

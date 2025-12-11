@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -6,7 +8,17 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    private static PropertyDescriptor ToPropertyDescriptor(object? candidate, RealmState realm)
+    public static HostFunction CreateObjectConstructor(RealmState realm)
+    {
+        return ObjectConstructor.CreateConstructor(realm);
+    }
+
+    internal static RealmState RequireRealm(RealmState? realm)
+    {
+        return realm ?? throw new InvalidOperationException("Realm is required for Object built-ins.");
+    }
+
+    internal static PropertyDescriptor ToPropertyDescriptor(object? candidate, RealmState realm)
     {
         if (candidate is not JsObject descriptorObject)
         {
@@ -69,14 +81,14 @@ public static partial class StandardLibrary
         return descriptor;
     }
 
-    private static JsObject? FromPropertyDescriptor(PropertyDescriptor? descriptor, RealmState realm)
+    internal static JsObject? FromPropertyDescriptor(PropertyDescriptor? descriptor, RealmState realm)
     {
         if (descriptor is null)
         {
             return null;
         }
 
-        var result = new JsObject(realm.ObjectPrototype);
+        var result = new JsObject(realm.ObjectPrototype) { RealmState = realm };
 
         if (descriptor.IsAccessorDescriptor)
         {
@@ -96,7 +108,7 @@ public static partial class StandardLibrary
         return result;
     }
 
-    private static bool TryDefinePropertyOnTarget(
+    internal static bool TryDefinePropertyOnTarget(
         IJsObjectLike target,
         string propertyKey,
         PropertyDescriptor descriptor,
@@ -155,7 +167,7 @@ public static partial class StandardLibrary
         }
     }
 
-    private static void PreventExtensionsOnTarget(IJsObjectLike target)
+    internal static void PreventExtensionsOnTarget(IJsObjectLike target)
     {
         if (target is IExtensibilityControl extensibilityControl)
         {
@@ -166,7 +178,7 @@ public static partial class StandardLibrary
         target.Seal();
     }
 
-    private static bool IsTargetExtensible(IJsObjectLike target)
+    internal static bool IsTargetExtensible(IJsObjectLike target)
     {
         if (target is IExtensibilityControl extensibilityControl)
         {
@@ -176,557 +188,111 @@ public static partial class StandardLibrary
         return !target.IsSealed;
     }
 
-    public static HostFunction CreateObjectConstructor(RealmState realm)
+    internal static object? ObjectDefineProperties(object? _, IReadOnlyList<object?> args, RealmState? realm)
     {
-        HostFunction objectConstructor = null!;
-        objectConstructor = new HostFunction(args => ObjectConstructor(args, objectConstructor));
-
-        // Capture Object.prototype so Object.prototype methods can be attached
-        // and used with call/apply patterns.
-        if (objectConstructor.TryGetProperty("prototype", out var objectProto) &&
-            objectProto is JsObject objectProtoObj)
+        var realmState = RequireRealm(realm);
+        if (args.Count < 2)
         {
-            realm.ObjectPrototype ??= objectProtoObj;
-
-            realm.FunctionPrototype?.SetPrototype(objectProtoObj);
-
-            realm.BooleanPrototype?.SetPrototype(objectProtoObj);
-
-            realm.NumberPrototype?.SetPrototype(objectProtoObj);
-
-            realm.StringPrototype?.SetPrototype(objectProtoObj);
-
-            objectProtoObj.DefineProperty("constructor",
-                new PropertyDescriptor
-                {
-                    Value = objectConstructor, Writable = true, Enumerable = false, Configurable = true
-                });
-
-            if (realm.ErrorPrototype is not null && realm.ErrorPrototype.Prototype is null)
-            {
-                realm.ErrorPrototype.SetPrototype(objectProtoObj);
-            }
-
-            // Object.prototype.toString - must be non-enumerable per ES spec
-            objectProtoObj.DefineProperty("toString",
-                new PropertyDescriptor
-                {
-                    Value = new HostFunction(ObjectPrototypeToString),
-                    Writable = true,
-                    Enumerable = false,
-                    Configurable = true
-                });
-
-            // Object.prototype.valueOf - must be non-enumerable per ES spec
-            objectProtoObj.DefineProperty("valueOf",
-                new PropertyDescriptor
-                {
-                    Value = new HostFunction(ObjectPrototypeValueOf),
-                    Writable = true,
-                    Enumerable = false,
-                    Configurable = true
-                });
-
-            var hasOwn = new HostFunction(ObjectPrototypeHasOwnProperty);
-
-            // Object.prototype.hasOwnProperty - must be non-enumerable per ES spec
-            objectProtoObj.DefineProperty("hasOwnProperty",
-                new PropertyDescriptor
-                {
-                    Value = hasOwn,
-                    Writable = true,
-                    Enumerable = false,
-                    Configurable = true
-                });
-
-            // Object.prototype.propertyIsEnumerable - must be non-enumerable per ES spec
-            objectProtoObj.DefineProperty("propertyIsEnumerable",
-                new PropertyDescriptor
-                {
-                    Value = new HostFunction(ObjectPrototypePropertyIsEnumerable),
-                    Writable = true,
-                    Enumerable = false,
-                    Configurable = true
-                });
-
-            // Object.prototype.isPrototypeOf - must be non-enumerable per ES spec
-            objectProtoObj.DefineProperty("isPrototypeOf",
-                new PropertyDescriptor
-                {
-                    Value = new HostFunction(ObjectPrototypeIsPrototypeOf),
-                    Writable = true,
-                    Enumerable = false,
-                    Configurable = true
-                });
-
-            // __lookupGetter__ and __lookupSetter__ - must be non-enumerable per ES spec
-            objectProtoObj.DefineProperty("__lookupGetter__",
-                new PropertyDescriptor
-                {
-                    Value = new HostFunction(ObjectPrototypeLookupGetter),
-                    Writable = true,
-                    Enumerable = false,
-                    Configurable = true
-                });
-            objectProtoObj.DefineProperty("__lookupSetter__",
-                new PropertyDescriptor
-                {
-                    Value = new HostFunction(ObjectPrototypeLookupSetter),
-                    Writable = true,
-                    Enumerable = false,
-                    Configurable = true
-                });
-
-            var protoGetter = new HostFunction(ObjectPrototypeGetProto, realm, isConstructor: false);
-            protoGetter.TryDefineProperty("name", new PropertyDescriptor
-            {
-                Value = "get __proto__",
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
-            var protoSetter = new HostFunction(ObjectPrototypeSetProto, realm, isConstructor: false);
-            protoSetter.TryDefineProperty("name", new PropertyDescriptor
-            {
-                Value = "set __proto__",
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
-            objectProtoObj.DefineProperty("__proto__", new PropertyDescriptor
-            {
-                Get = protoGetter,
-                Set = protoSetter,
-                Enumerable = false,
-                Configurable = true
-            });
-
-            // Also expose Object.hasOwnProperty so patterns like
-            // Object.hasOwnProperty.call(obj, key) behave as expected.
-            objectConstructor.SetProperty("hasOwnProperty", hasOwn);
+            throw ThrowTypeError("Object.defineProperties requires both target and descriptors", realm: realmState);
         }
 
-        objectConstructor.SetHostedProperty("defineProperties", ObjectDefineProperties);
-
-        objectConstructor.SetHostedProperty("setPrototypeOf", ObjectSetPrototypeOf);
-
-        objectConstructor.SetHostedProperty("preventExtensions", ObjectPreventExtensions);
-
-        objectConstructor.SetHostedProperty("isExtensible", ObjectIsExtensible);
-
-        objectConstructor.SetHostedProperty("getOwnPropertySymbols", ObjectGetOwnPropertySymbols);
-
-        objectConstructor.SetHostedProperty("keys", ObjectKeys);
-
-        objectConstructor.SetHostedProperty("values", ObjectValues);
-
-        objectConstructor.SetHostedProperty("entries", ObjectEntries);
-
-        objectConstructor.SetHostedProperty("assign", ObjectAssign);
-
-        objectConstructor.SetHostedProperty("fromEntries", ObjectFromEntries);
-
-        objectConstructor.SetHostedProperty("hasOwn", ObjectHasOwn);
-
-        objectConstructor.SetHostedProperty("freeze", ObjectFreeze);
-
-        objectConstructor.SetHostedProperty("seal", ObjectSeal);
-
-        objectConstructor.SetHostedProperty("isFrozen", ObjectIsFrozen);
-
-        objectConstructor.SetHostedProperty("isSealed", ObjectIsSealed);
-
-        objectConstructor.SetHostedProperty("is", ObjectIs);
-
-        objectConstructor.SetHostedProperty("create", ObjectCreate);
-
-        objectConstructor.SetHostedProperty("getOwnPropertyNames", ObjectGetOwnPropertyNames);
-
-        objectConstructor.SetHostedProperty("getOwnPropertyDescriptor", ObjectGetOwnPropertyDescriptor);
-        objectConstructor.SetHostedProperty("getOwnPropertyDescriptors", ObjectGetOwnPropertyDescriptors);
-
-        objectConstructor.SetHostedProperty("getPrototypeOf", ObjectGetPrototypeOf);
-
-        objectConstructor.SetHostedProperty("defineProperty", ObjectDefineProperty);
-
-        objectConstructor.SetInvokeWithContext((args, _, _, newTarget) =>
-            ObjectConstructor(args, newTarget as IJsCallable ?? objectConstructor));
-
-        return objectConstructor;
-
-        object? ObjectConstructor(IReadOnlyList<object?> args, IJsCallable newTarget)
+        if (!TryGetObject(args[0]!, realmState, out var target))
         {
-            if (args.Count == 0 || args[0] == null || args[0] == Symbol.Undefined)
-            {
-                return CreateBlank(newTarget);
-            }
-
-            if (args[0] is JsObject jsObj)
-            {
-                return jsObj;
-            }
-
-            var value = args[0];
-            return value switch
-            {
-                JsBigInt bigInt => CreateBigIntWrapper(bigInt, realm: realm),
-                bool b => CreateBooleanWrapper(b, realm: realm),
-                string s => CreateStringWrapper(s, realm: realm),
-                TypedAstSymbol sym => CreateSymbolWrapper(sym, realm: realm),
-                double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte =>
-                    CreateNumberWrapper(JsOps.ToNumber(value), realm: realm),
-                _ => CreateBlank(newTarget)
-            };
-
-            JsObject CreateBlank(IJsCallable target)
-            {
-                var obj = new JsObject();
-                var proto = ResolveConstructPrototype(target, objectConstructor, realm) ??
-                            realm.ObjectPrototype;
-                if (proto is not null)
-                {
-                    obj.SetPrototype(proto);
-                }
-
-                return obj;
-            }
+            throw ThrowTypeError("Object.defineProperties called on non-object", realm: realmState);
         }
 
-        object? ObjectPrototypeToString(object? thisValue, IReadOnlyList<object?> _)
+        if (args[1] is not JsObject props)
         {
-            if (thisValue is JsObject obj)
-            {
-                var tagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
-                if (obj.TryGetProperty(tagKey, out var tagValue) && !ReferenceEquals(tagValue, Symbol.Undefined))
-                {
-                    var tagString = JsOps.ToJsString(tagValue);
-                    return $"[object {tagString}]";
-                }
-            }
-            else if (thisValue is IJsPropertyAccessor accessor)
-            {
-                var tagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
-                if (accessor.TryGetProperty(tagKey, out var tagValue) && !ReferenceEquals(tagValue, Symbol.Undefined))
-                {
-                    var tagString = JsOps.ToJsString(tagValue);
-                    return $"[object {tagString}]";
-                }
-            }
-
-            var tag = thisValue switch
-            {
-                null => "Null",
-                JsObject => "Object",
-                JsArray => "Array",
-                string => "String",
-                double => "Number",
-                bool => "Boolean",
-                IJsCallable => "Function",
-                _ when ReferenceEquals(thisValue, Symbol.Undefined) => "Undefined",
-                _ => "Object"
-            };
-
-            return $"[object {tag}]";
+            throw ThrowTypeError("Property description must be an object", realm: realmState);
         }
 
-        object? ObjectPrototypeValueOf(object? thisValue, IReadOnlyList<object?> _)
+        foreach (var key in props.GetOwnPropertyNames())
         {
-            // Per ECMA-262 §20.1.3.7, Object.prototype.valueOf returns ToObject(this value)
-            // For objects, it just returns the object itself
-            return thisValue;
+            if (!props.TryGetProperty(key, out var descriptorValue))
+            {
+                continue;
+            }
+
+            var descriptor = ToPropertyDescriptor(descriptorValue, realmState);
+            TryDefinePropertyOnTarget(target, key, descriptor, realmState, true);
         }
 
-        object? ObjectPrototypeHasOwnProperty(object? thisValue, IReadOnlyList<object?> args)
+        return target;
+    }
+
+    internal static object? ObjectSetPrototypeOf(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count < 2)
         {
-            if (args.Count == 0)
-            {
-                return false;
-            }
-
-            var propertyName = JsOps.ToPropertyName(args[0]);
-            if (propertyName is null)
-            {
-                return false;
-            }
-
-            switch (thisValue)
-            {
-                case JsObject obj:
-                    return obj.GetOwnPropertyDescriptor(propertyName) is not null;
-                case JsArray array:
-                    return array.GetOwnPropertyDescriptor(propertyName) is not null;
-                case IJsObjectLike accessor:
-                    return accessor.GetOwnPropertyDescriptor(propertyName) is not null;
-                default:
-                    return false;
-            }
+            return args.GetArgument(0);
         }
 
-        object? ObjectPrototypePropertyIsEnumerable(object? thisValue, IReadOnlyList<object?> args)
+        var target = args[0];
+        var protoValue = args[1];
+
+        switch (target)
         {
-            if (args.Count == 0)
-            {
-                return false;
-            }
-
-            var propertyName = JsOps.ToPropertyName(args[0]);
-            if (propertyName is null)
-            {
-                return false;
-            }
-
-            if (thisValue is not IJsObjectLike accessor)
-            {
-                return false;
-            }
-
-            var desc = accessor.GetOwnPropertyDescriptor(propertyName);
-            return desc?.Enumerable == true;
+            case ModuleNamespace when protoValue is null:
+                return target;
+            case ModuleNamespace:
+                throw ThrowTypeError("Cannot set prototype on module namespace", realm: realmState);
+            case JsArray array:
+                array.SetPrototype(protoValue);
+                break;
+            case JsObject obj:
+                obj.SetPrototype(protoValue);
+                break;
+            case IJsObjectLike objectLike:
+                objectLike.SetPrototype(protoValue);
+                break;
         }
 
-        object? ObjectPrototypeLookupGetter(object? thisValue, IReadOnlyList<object?> args)
+        return target;
+    }
+
+    internal static object? ObjectPreventExtensions(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0 || !TryGetObject(args[0]!, realmState, out var target))
         {
-            if (!TryGetObject(thisValue, realm, out var obj))
-            {
-                throw ThrowTypeError("__lookupGetter__ called on null or undefined", realm: realm);
-            }
-
-            var propertyName = JsOps.ToPropertyName(args.GetArgument(0));
-            if (propertyName is null)
-            {
-                return Symbol.Undefined;
-            }
-
-            var cursor = obj;
-            while (cursor is not null)
-            {
-                var desc = cursor.GetOwnPropertyDescriptor(propertyName);
-                if (desc is not null)
-                {
-                    if (!desc.IsAccessorDescriptor)
-                    {
-                        return Symbol.Undefined;
-                    }
-
-                    return desc.Get is null ? Symbol.Undefined : desc.Get;
-                }
-
-                cursor = cursor.Prototype;
-            }
-
-            return Symbol.Undefined;
+            throw ThrowTypeError("Object.preventExtensions requires an object", realm: realmState);
         }
 
-        object? ObjectPrototypeLookupSetter(object? thisValue, IReadOnlyList<object?> args)
+        PreventExtensionsOnTarget(target);
+        return target;
+    }
+
+    internal static object? ObjectIsExtensible(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0 || !TryGetObject(args[0]!, realmState, out var target))
         {
-            if (!TryGetObject(thisValue, realm, out var obj))
-            {
-                throw ThrowTypeError("__lookupSetter__ called on null or undefined", realm: realm);
-            }
-
-            var propertyName = JsOps.ToPropertyName(args.GetArgument(0));
-            if (propertyName is null)
-            {
-                return Symbol.Undefined;
-            }
-
-            var cursor = obj;
-            while (cursor is not null)
-            {
-                var desc = cursor.GetOwnPropertyDescriptor(propertyName);
-                if (desc is not null)
-                {
-                    if (!desc.IsAccessorDescriptor)
-                    {
-                        return Symbol.Undefined;
-                    }
-
-                    return desc.Set is null ? Symbol.Undefined : desc.Set;
-                }
-
-                cursor = cursor.Prototype;
-            }
-
-            return Symbol.Undefined;
-        }
-
-        object? ObjectPrototypeIsPrototypeOf(object? thisValue, IReadOnlyList<object?> args)
-        {
-            if (thisValue is null || ReferenceEquals(thisValue, Symbol.Undefined))
-            {
-                var error = realm.TypeErrorConstructor is IJsCallable ctor
-                    ? ctor.Invoke(["Object.prototype.isPrototypeOf called on null or undefined"], null)
-                    : new InvalidOperationException(
-                        "Object.prototype.isPrototypeOf called on null or undefined");
-                throw new ThrowSignal(error);
-            }
-
-            if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
-            {
-                return false;
-            }
-
-            if (args[0] is not IJsObjectLike objectLike)
-            {
-                return false;
-            }
-
-            var cursor = objectLike as object;
-            while (TryGetPrototype(cursor, out var proto))
-            {
-                if (ReferenceEquals(proto, thisValue))
-                {
-                    return true;
-                }
-
-                cursor = proto;
-            }
-
             return false;
-
-            static bool TryGetPrototype(object? candidate, out IJsObjectLike? prototype)
-            {
-                prototype = null;
-
-                if (candidate is IJsObjectLike objLike && objLike.Prototype is { } protoObj)
-                {
-                    prototype = protoObj;
-                    return true;
-                }
-
-                if (candidate is IPrototypeAccessorProvider { PrototypeAccessor: { } protoAccessor })
-                {
-                    prototype = protoAccessor as IJsObjectLike;
-                    if (prototype is not null)
-                    {
-                        return true;
-                    }
-                }
-
-                if (candidate is JsObject jsObj && jsObj.TryGetProperty("__proto__", out var protoProp) &&
-                    protoProp is IJsObjectLike protoFromProp)
-                {
-                    prototype = protoFromProp;
-                    return true;
-                }
-
-                return false;
-            }
         }
 
-        object? ObjectDefineProperties(object? _, IReadOnlyList<object?> args)
+        return IsTargetExtensible(target);
+    }
+
+    internal static object? ObjectGetOwnPropertySymbols(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0)
         {
-            if (args.Count < 2)
-            {
-                throw ThrowTypeError("Object.defineProperties requires both target and descriptors", realm: realm);
-            }
-
-            if (!TryGetObject(args[0]!, realm, out var target))
-            {
-                throw ThrowTypeError("Object.defineProperties called on non-object", realm: realm);
-            }
-
-            if (args[1] is not JsObject props)
-            {
-                throw ThrowTypeError("Property description must be an object", realm: realm);
-            }
-
-            foreach (var key in props.GetOwnPropertyNames())
-            {
-                if (!props.TryGetProperty(key, out var descriptorValue))
-                {
-                    continue;
-                }
-
-                var descriptor = ToPropertyDescriptor(descriptorValue, realm);
-                TryDefinePropertyOnTarget(target, key, descriptor, realm, true);
-            }
-
-            return target;
+            return new JsArray(realmState);
         }
 
-        object? ObjectSetPrototypeOf(object? _, IReadOnlyList<object?> args)
+        if (!TryGetObject(args[0]!, realmState, out var obj))
         {
-            if (args.Count < 2)
-            {
-                return args.GetArgument(0);
-            }
-
-            var target = args[0];
-            var protoValue = args[1];
-
-            // Per ES spec, the prototype can be null or any object (including functions)
-            // SetPrototype accepts object? and handles the casting internally
-            switch (target)
-            {
-                case ModuleNamespace when protoValue is null:
-                    return target;
-                case ModuleNamespace:
-                    throw ThrowTypeError("Cannot set prototype on module namespace", realm: realm);
-                case JsArray array:
-                    array.SetPrototype(protoValue);
-                    break;
-                case JsObject obj:
-                    obj.SetPrototype(protoValue);
-                    break;
-                case IJsObjectLike objectLike:
-                    objectLike.SetPrototype(protoValue);
-                    break;
-            }
-
-            return target;
+            return new JsArray(realmState);
         }
 
-        object? ObjectPreventExtensions(IReadOnlyList<object?> args)
+        var symbols = new JsArray(realmState);
+        if (obj is ModuleNamespace moduleNamespace)
         {
-            if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var target))
+            foreach (var key in moduleNamespace.OwnKeys())
             {
-                throw ThrowTypeError("Object.preventExtensions requires an object", realm: realm);
-            }
-
-            PreventExtensionsOnTarget(target);
-            return target;
-        }
-
-        object? ObjectIsExtensible(IReadOnlyList<object?> args)
-        {
-            if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var target))
-            {
-                return false;
-            }
-
-            return IsTargetExtensible(target);
-        }
-
-        object? ObjectGetOwnPropertySymbols(IReadOnlyList<object?> args)
-        {
-            if (args.Count == 0)
-            {
-                return new JsArray(realm);
-            }
-
-            if (!TryGetObject(args[0]!, realm, out var obj))
-            {
-                return new JsArray(realm);
-            }
-
-            var symbols = new JsArray(realm);
-            if (obj is ModuleNamespace moduleNamespace)
-            {
-                foreach (var key in moduleNamespace.OwnKeys())
-                {
-                    if (key is TypedAstSymbol symbol)
-                    {
-                        symbols.Push(symbol);
-                    }
-                }
-
-                return symbols;
-            }
-
-            foreach (var key in obj.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
-            {
-                if (TypedAstSymbol.TryGetByInternalKey(key, out var symbol))
+                if (key is TypedAstSymbol symbol)
                 {
                     symbols.Push(symbol);
                 }
@@ -735,480 +301,459 @@ public static partial class StandardLibrary
             return symbols;
         }
 
-        object? ObjectKeys(IReadOnlyList<object?> args)
+        foreach (var key in obj.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
         {
-            if (args.Count == 0)
+            if (TypedAstSymbol.TryGetByInternalKey(key, out var symbol))
             {
-                return new JsArray(realm);
+                symbols.Push(symbol);
             }
-
-            var obj = args[0] as IJsPropertyAccessor;
-            if (obj is null && TryGetObject(args[0]!, realm, out var coerced))
-            {
-                obj = coerced;
-            }
-
-            if (obj is null)
-            {
-                return new JsArray(realm);
-            }
-
-            var keys = new JsArray(realm);
-            foreach (var key in obj.GetEnumerablePropertyNames())
-            {
-                var desc = obj.GetOwnPropertyDescriptor(key);
-                if (desc is { Enumerable: true })
-                {
-                    keys.Push(key);
-                }
-            }
-
-            return keys;
         }
 
-        object? ObjectValues(IReadOnlyList<object?> args)
+        return symbols;
+    }
+
+    internal static object? ObjectKeys(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0)
         {
-            if (args.Count == 0)
-            {
-                return new JsArray(realm);
-            }
-
-            var obj = args[0] as IJsPropertyAccessor;
-            if (obj is null && TryGetObject(args[0]!, realm, out var coerced))
-            {
-                obj = coerced;
-            }
-
-            if (obj is null)
-            {
-                return new JsArray(realm);
-            }
-
-            var values = new JsArray(realm);
-            foreach (var key in obj.GetEnumerablePropertyNames())
-            {
-                if (obj.TryGetProperty(key, out var value))
-                {
-                    values.Push(value);
-                }
-            }
-
-            return values;
+            return new JsArray(realmState);
         }
 
-        object? ObjectEntries(IReadOnlyList<object?> args)
+        var obj = args[0] as IJsPropertyAccessor;
+        if (obj is null && TryGetObject(args[0]!, realmState, out var coerced))
         {
-            if (args.Count == 0)
-            {
-                return new JsArray(realm);
-            }
-
-            var obj = args[0] as IJsPropertyAccessor;
-            if (obj is null && TryGetObject(args[0]!, realm, out var coerced))
-            {
-                obj = coerced;
-            }
-
-            if (obj is null)
-            {
-                return new JsArray(realm);
-            }
-
-            var entries = new JsArray(realm);
-            foreach (var key in obj.GetEnumerablePropertyNames())
-            {
-                if (!obj.TryGetProperty(key, out var value))
-                {
-                    continue;
-                }
-
-                var entry = new JsArray([key, value], realm);
-                entries.Push(entry);
-            }
-
-            return entries;
+            obj = coerced;
         }
 
-        object? ObjectAssign(IReadOnlyList<object?> args)
+        if (obj is null)
         {
-            if (args.Count == 0 || args[0] is not IJsPropertyAccessor targetAccessor)
+            return new JsArray(realmState);
+        }
+
+        var keys = new JsArray(realmState);
+        foreach (var key in obj.GetEnumerablePropertyNames())
+        {
+            var desc = obj.GetOwnPropertyDescriptor(key);
+            if (desc is { Enumerable: true })
             {
-                return args.GetArgument(0);
+                keys.Push(key);
+            }
+        }
+
+        return keys;
+    }
+
+    internal static object? ObjectValues(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0)
+        {
+            return new JsArray(realmState);
+        }
+
+        var obj = args[0] as IJsPropertyAccessor;
+        if (obj is null && TryGetObject(args[0]!, realmState, out var coerced))
+        {
+            obj = coerced;
+        }
+
+        if (obj is null)
+        {
+            return new JsArray(realmState);
+        }
+
+        var values = new JsArray(realmState);
+        foreach (var key in obj.GetEnumerablePropertyNames())
+        {
+            if (obj.TryGetProperty(key, out var value))
+            {
+                values.Push(value);
+            }
+        }
+
+        return values;
+    }
+
+    internal static object? ObjectEntries(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0)
+        {
+            return new JsArray(realmState);
+        }
+
+        var obj = args[0] as IJsPropertyAccessor;
+        if (obj is null && TryGetObject(args[0]!, realmState, out var coerced))
+        {
+            obj = coerced;
+        }
+
+        if (obj is null)
+        {
+            return new JsArray(realmState);
+        }
+
+        var entries = new JsArray(realmState);
+        foreach (var key in obj.GetEnumerablePropertyNames())
+        {
+            if (!obj.TryGetProperty(key, out var value))
+            {
+                continue;
             }
 
-            for (var i = 1; i < args.Count; i++)
-            {
-                if (args[i] is not JsObject source)
-                {
-                    continue;
-                }
+            var entry = new JsArray([key, value], realmState);
+            entries.Push(entry);
+        }
 
-                foreach (var key in source.GetOwnPropertyNames())
-                {
-                    if (source.TryGetProperty(key, out var value))
-                    {
-                        targetAccessor.SetProperty(key, value);
-                    }
-                }
+        return entries;
+    }
+
+    internal static object? ObjectAssign(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0 || args[0] is not IJsPropertyAccessor targetAccessor)
+        {
+            return args.GetArgument(0);
+        }
+
+        for (var i = 1; i < args.Count; i++)
+        {
+            if (args[i] is not JsObject source)
+            {
+                continue;
             }
 
+            foreach (var key in source.GetOwnPropertyNames())
+            {
+                if (source.TryGetProperty(key, out var value))
+                {
+                    targetAccessor.SetProperty(key, value);
+                }
+            }
+        }
+
+        return args[0];
+    }
+
+    internal static object? ObjectFromEntries(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0 || args[0] is not JsArray entries)
+        {
+            return new JsObject(realmState.ObjectPrototype) { RealmState = realmState };
+        }
+
+        var result = new JsObject(realmState.ObjectPrototype) { RealmState = realmState };
+        foreach (var entry in entries.Items)
+        {
+            if (entry is not JsArray { Items.Count: >= 2 } entryArray)
+            {
+                continue;
+            }
+
+            var key = entryArray.GetElement(0)?.ToString() ?? "";
+            var value = entryArray.GetElement(1);
+            result[key] = value;
+        }
+
+        return result;
+    }
+
+    internal static object? ObjectHasOwn(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count < 2)
+        {
+            return false;
+        }
+
+        var propName = JsOps.ToPropertyName(args[1]);
+        if (propName is null)
+        {
+            return false;
+        }
+
+        return args[0] switch
+        {
+            JsObject obj => obj.GetOwnPropertyDescriptor(propName) is not null,
+            JsArray array => array.GetOwnPropertyDescriptor(propName) is not null,
+            IJsObjectLike accessor => accessor.GetOwnPropertyDescriptor(propName) is not null,
+            _ => false
+        };
+    }
+
+    internal static object? ObjectFreeze(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0)
+        {
+            return null;
+        }
+
+        if (args[0] is ModuleNamespace)
+        {
+            throw ThrowTypeError("Cannot freeze module namespace", realm: realmState);
+        }
+
+        if (args[0] is TypedArrayBase typedArray && typedArray.Buffer.Resizable)
+        {
+            throw ThrowTypeError("Cannot freeze a typed array backed by a resizable ArrayBuffer", realm: realmState);
+        }
+
+        if (args[0] is not JsObject obj)
+        {
             return args[0];
         }
 
-        object? ObjectFromEntries(IReadOnlyList<object?> args)
+        obj.Freeze();
+        return obj;
+    }
+
+    internal static object? ObjectSeal(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0 || args[0] is not JsObject obj)
         {
-            if (args.Count == 0 || args[0] is not JsArray entries)
-            {
-                return new JsObject();
-            }
-
-            var result = new JsObject();
-            foreach (var entry in entries.Items)
-            {
-                if (entry is not JsArray { Items.Count: >= 2 } entryArray)
-                {
-                    continue;
-                }
-
-                var key = entryArray.GetElement(0)?.ToString() ?? "";
-                var value = entryArray.GetElement(1);
-                result[key] = value;
-            }
-
-            return result;
+            return args.Count > 0 ? args[0] : null;
         }
 
-        object? ObjectHasOwn(IReadOnlyList<object?> args)
+        obj.Seal();
+        return obj;
+    }
+
+    internal static object? ObjectIsFrozen(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0)
         {
-            if (args.Count < 2)
-            {
-                return false;
-            }
-
-            var propName = JsOps.ToPropertyName(args[1]);
-            if (propName is null)
-            {
-                return false;
-            }
-
-            return args[0] switch
-            {
-                JsObject obj => obj.GetOwnPropertyDescriptor(propName) is not null,
-                JsArray array => array.GetOwnPropertyDescriptor(propName) is not null,
-                IJsObjectLike accessor => accessor.GetOwnPropertyDescriptor(propName) is not null,
-                _ => false
-            };
+            return true;
         }
 
-        object? ObjectFreeze(IReadOnlyList<object?> args)
+        if (args[0] is ModuleNamespace)
         {
-            if (args.Count == 0)
-            {
-                return args.Count > 0 ? args[0] : null;
-            }
-
-            if (args[0] is ModuleNamespace)
-            {
-                throw ThrowTypeError("Cannot freeze module namespace", realm: realm);
-            }
-
-            if (args[0] is TypedArrayBase typedArray && typedArray.Buffer.Resizable)
-            {
-                throw ThrowTypeError("Cannot freeze a typed array backed by a resizable ArrayBuffer", realm: realm);
-            }
-
-            if (args[0] is not JsObject obj)
-            {
-                return args[0];
-            }
-
-            obj.Freeze();
-            return obj;
+            return false;
         }
 
-        object? ObjectSeal(IReadOnlyList<object?> args)
+        if (args[0] is not JsObject obj)
         {
-            if (args.Count == 0 || args[0] is not JsObject obj)
-            {
-                return args.Count > 0 ? args[0] : null;
-            }
-
-            obj.Seal();
-            return obj;
+            return true;
         }
 
-        object? ObjectIsFrozen(IReadOnlyList<object?> args)
+        return obj.IsFrozen;
+    }
+
+    internal static object? ObjectIsSealed(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0 || args[0] is not JsObject obj)
         {
-            if (args.Count == 0)
+            return true;
+        }
+
+        return obj.IsSealed;
+    }
+
+    internal static object? ObjectIs(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        _ = realm;
+        var left = args.GetArgument(0);
+        var right = args.GetArgument(1);
+
+        if (left is double ld && right is double rd)
+        {
+            if (double.IsNaN(ld) && double.IsNaN(rd))
             {
                 return true;
             }
 
-            if (args[0] is ModuleNamespace)
+            if (ld == 0.0 && rd == 0.0)
             {
-                return false;
+                return BitConverter.DoubleToInt64Bits(ld) == BitConverter.DoubleToInt64Bits(rd);
             }
 
-            if (args[0] is not JsObject obj)
+            return ld.Equals(rd);
+        }
+
+        if (left is float lf && right is float rf)
+        {
+            if (float.IsNaN(lf) && float.IsNaN(rf))
             {
                 return true;
             }
 
-            return obj.IsFrozen;
+            if (lf == 0f && rf == 0f)
+            {
+                return BitConverter.SingleToInt32Bits(lf) == BitConverter.SingleToInt32Bits(rf);
+            }
+
+            return lf.Equals(rf);
         }
 
-        object? ObjectIsSealed(IReadOnlyList<object?> args)
+        if (left is JsBigInt lbi && right is JsBigInt rbi)
         {
-            if (args.Count == 0 || args[0] is not JsObject obj)
-            {
-                return true;
-            }
-
-            return obj.IsSealed;
+            return lbi == rbi;
         }
 
-        // ECMA-262 §7.2.9 (SameValue) exposed as Object.is.
-        object? ObjectIs(IReadOnlyList<object?> args)
+        return JsOps.StrictEquals(left, right);
+    }
+
+    internal static object? ObjectCreate(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        var obj = new JsObject { RealmState = realmState };
+        if (args.Count > 0 && args[0] != null)
         {
-            var left = args.GetArgument(0);
-            var right = args.GetArgument(1);
-
-            if (left is double ld && right is double rd)
-            {
-                if (double.IsNaN(ld) && double.IsNaN(rd))
-                {
-                    return true;
-                }
-
-                if (ld == 0.0 && rd == 0.0)
-                {
-                    return BitConverter.DoubleToInt64Bits(ld) == BitConverter.DoubleToInt64Bits(rd);
-                }
-
-                return ld.Equals(rd);
-            }
-
-            if (left is float lf && right is float rf)
-            {
-                if (float.IsNaN(lf) && float.IsNaN(rf))
-                {
-                    return true;
-                }
-
-                if (lf == 0f && rf == 0f)
-                {
-                    return BitConverter.SingleToInt32Bits(lf) == BitConverter.SingleToInt32Bits(rf);
-                }
-
-                return lf.Equals(rf);
-            }
-
-            if (left is JsBigInt lbi && right is JsBigInt rbi)
-            {
-                return lbi == rbi;
-            }
-
-            return JsOps.StrictEquals(left, right);
+            obj.SetPrototype(args[0]);
         }
 
-        object? ObjectCreate(IReadOnlyList<object?> args)
+        if (args.Count <= 1 || args[1] is not JsObject propsObj)
         {
-            var obj = new JsObject();
-            if (args.Count > 0 && args[0] != null)
-            {
-                obj.SetPrototype(args[0]);
-            }
-
-            if (args.Count <= 1 || args[1] is not JsObject propsObj)
-            {
-                return obj;
-            }
-
-            foreach (var propName in propsObj.GetOwnPropertyNames())
-            {
-                if (!propsObj.TryGetProperty(propName, out var descriptorValue))
-                {
-                    continue;
-                }
-
-                var descriptor = ToPropertyDescriptor(descriptorValue, realm);
-                TryDefinePropertyOnTarget(obj, propName, descriptor, realm, true);
-            }
-
             return obj;
         }
 
-        object? ObjectGetOwnPropertyNames(IReadOnlyList<object?> args)
+        foreach (var propName in propsObj.GetOwnPropertyNames())
         {
-            if (args.Count == 0)
+            if (!propsObj.TryGetProperty(propName, out var descriptorValue))
             {
-                return new JsArray(realm);
+                continue;
             }
 
-            var obj = args[0] as IJsPropertyAccessor;
-            if (obj is null && TryGetObject(args[0]!, realm, out var coerced))
-            {
-                obj = coerced;
-            }
-
-            if (obj is null)
-            {
-                return new JsArray(realm);
-            }
-
-            var names = new JsArray(obj.GetOwnPropertyNames(), realm);
-
-            return names;
+            var descriptor = ToPropertyDescriptor(descriptorValue, realmState);
+            TryDefinePropertyOnTarget(obj, propName, descriptor, realmState, true);
         }
 
-        object? ObjectGetOwnPropertyDescriptors(IReadOnlyList<object?> args)
+        return obj;
+    }
+
+    internal static object? ObjectGetOwnPropertyNames(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0)
         {
-            if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var obj))
-            {
-                throw ThrowTypeError("Object.getOwnPropertyDescriptors requires an object", realm: realm);
-            }
-
-            var descriptors = new JsObject(realm.ObjectPrototype);
-
-            foreach (var key in obj.GetOwnPropertyNames())
-            {
-                var descriptor = obj.GetOwnPropertyDescriptor(key);
-                if (descriptor is null)
-                {
-                    continue;
-                }
-
-                descriptors.SetProperty(key, FromPropertyDescriptor(descriptor, realm) ?? new JsObject());
-            }
-
-            return descriptors;
+            return new JsArray(realmState);
         }
 
-        object? ObjectGetOwnPropertyDescriptor(IReadOnlyList<object?> args)
+        var obj = args[0] as IJsPropertyAccessor;
+        if (obj is null && TryGetObject(args[0]!, realmState, out var coerced))
         {
-            if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var obj))
-            {
-                return Symbol.Undefined;
-            }
-
-            var propName = JsOps.GetRequiredPropertyName(args[1]);
-
-            var desc = obj.GetOwnPropertyDescriptor(propName);
-            if (desc is null)
-            {
-                return Symbol.Undefined;
-            }
-
-            var descriptorForResult = desc;
-            if (string.Equals(propName, "name", StringComparison.Ordinal) && args[0] is IJsCallable)
-            {
-                descriptorForResult = desc.Clone();
-                descriptorForResult.Configurable = true;
-            }
-
-            var result = FromPropertyDescriptor(descriptorForResult, realm);
-            return result ?? (object)Symbol.Undefined;
+            obj = coerced;
         }
 
-        object? ObjectGetPrototypeOf(IReadOnlyList<object?> args)
+        if (obj is null)
         {
-            if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var obj))
-            {
-                throw ThrowTypeError("Object.getPrototypeOf called on null or undefined", realm: realm);
-            }
-
-            if (obj is ModuleNamespace)
-            {
-                return null;
-            }
-
-            if (obj is JsProxy proxy)
-            {
-                return proxy.GetPrototypeWithTrap();
-            }
-
-            object? proto = obj.Prototype;
-            if (proto is null && obj is IPrototypeAccessorProvider provider)
-            {
-                proto = provider.PrototypeAccessor;
-            }
-
-            if (proto is not IJsPropertyAccessor &&
-                obj is HostFunction { Realm: JsObject fnRealm } &&
-                fnRealm.TryGetProperty("Function", out var fnVal) &&
-                fnVal is IJsPropertyAccessor fnAccessor &&
-                fnAccessor.TryGetProperty("prototype", out var fnProtoObj) &&
-                fnProtoObj is JsObject fnProto)
-            {
-                proto = fnProto;
-            }
-
-            return proto;
+            return new JsArray(realmState);
         }
 
-        object? ObjectPrototypeGetProto(object? thisValue, IReadOnlyList<object?> args)
+        var names = new JsArray(obj.GetOwnPropertyNames(), realmState);
+        return names;
+    }
+
+    internal static object? ObjectGetOwnPropertyDescriptors(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0 || !TryGetObject(args[0]!, realmState, out var obj))
         {
-            _ = args;
-            if (!TryGetObject(thisValue, realm, out var obj))
-            {
-                throw ThrowTypeError("Object.prototype.__proto__ called on null or undefined", realm: realm);
-            }
-
-            if (obj is JsProxy proxy)
-            {
-                return proxy.GetPrototypeWithTrap();
-            }
-
-            object? proto = obj.Prototype;
-            if (proto is null && obj is IPrototypeAccessorProvider provider)
-            {
-                proto = provider.PrototypeAccessor;
-            }
-
-            return proto;
+            throw ThrowTypeError("Object.getOwnPropertyDescriptors requires an object", realm: realmState);
         }
 
-        object? ObjectPrototypeSetProto(object? thisValue, IReadOnlyList<object?> args)
+        var descriptors = new JsObject(realmState.ObjectPrototype) { RealmState = realmState };
+
+        foreach (var key in obj.GetOwnPropertyNames())
         {
-            var newProto = args.GetArgument(0);
-            if (!TryGetObject(thisValue, realm, out var obj))
+            var descriptor = obj.GetOwnPropertyDescriptor(key);
+            if (descriptor is null)
             {
-                throw ThrowTypeError("Object.prototype.__proto__ called on null or undefined", realm: realm);
+                continue;
             }
 
-            if (newProto is not IJsPropertyAccessor && newProto is not null)
-            {
-                return Symbol.Undefined;
-            }
+            descriptors.SetProperty(key, FromPropertyDescriptor(descriptor, realmState) ?? new JsObject());
+        }
 
-            // Per ES spec, if the object is not extensible, the [[SetPrototypeOf]] internal method
-            // should return false (and we silently ignore in sloppy mode)
-            if (!IsTargetExtensible(obj))
-            {
-                return Symbol.Undefined;
-            }
+        return descriptors;
+    }
 
-            obj.SetPrototype(newProto);
+    internal static object? ObjectGetOwnPropertyDescriptor(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count < 2 || !TryGetObject(args[0]!, realmState, out var obj))
+        {
             return Symbol.Undefined;
         }
 
-        object? ObjectDefineProperty(IReadOnlyList<object?> args)
+        var propName = JsOps.GetRequiredPropertyName(args[1]);
+
+        var desc = obj.GetOwnPropertyDescriptor(propName);
+        if (desc is null)
         {
-            if (args.Count < 3)
-            {
-                throw ThrowTypeError("Object.defineProperty requires a property descriptor", realm: realm);
-            }
-
-            if (!TryGetObject(args[0]!, realm, out var obj))
-            {
-                throw ThrowTypeError("Object.defineProperty called on non-object", realm: realm);
-            }
-
-            var propName = JsOps.ToPropertyName(args[1]) ?? string.Empty;
-            var descriptor = ToPropertyDescriptor(args[2], realm);
-
-            TryDefinePropertyOnTarget(obj, propName, descriptor, realm, true);
-            return obj;
+            return Symbol.Undefined;
         }
+
+        var descriptorForResult = desc;
+        if (string.Equals(propName, "name", StringComparison.Ordinal) && args[0] is IJsCallable)
+        {
+            descriptorForResult = desc.Clone();
+            descriptorForResult.Configurable = true;
+        }
+
+        var result = FromPropertyDescriptor(descriptorForResult, realmState);
+        return result ?? (object)Symbol.Undefined;
+    }
+
+    internal static object? ObjectGetPrototypeOf(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0 || !TryGetObject(args[0]!, realmState, out var obj))
+        {
+            throw ThrowTypeError("Object.getPrototypeOf called on null or undefined", realm: realmState);
+        }
+
+        if (obj is ModuleNamespace)
+        {
+            return null;
+        }
+
+        if (obj is JsProxy proxy)
+        {
+            return proxy.GetPrototypeWithTrap();
+        }
+
+        object? proto = obj.Prototype;
+        if (proto is null && obj is IPrototypeAccessorProvider provider)
+        {
+            proto = provider.PrototypeAccessor;
+        }
+
+        if (proto is not IJsPropertyAccessor &&
+            obj is HostFunction { Realm: JsObject fnRealm } &&
+            fnRealm.TryGetProperty("Function", out var fnVal) &&
+            fnVal is IJsPropertyAccessor fnAccessor &&
+            fnAccessor.TryGetProperty("prototype", out var fnProtoObj) &&
+            fnProtoObj is JsObject fnProto)
+        {
+            proto = fnProto;
+        }
+
+        return proto;
+    }
+
+    internal static object? ObjectDefineProperty(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count < 3)
+        {
+            throw ThrowTypeError("Object.defineProperty requires a property descriptor", realm: realmState);
+        }
+
+        if (!TryGetObject(args[0]!, realmState, out var obj))
+        {
+            throw ThrowTypeError("Object.defineProperty called on non-object", realm: realmState);
+        }
+
+        var propName = JsOps.ToPropertyName(args[1]) ?? string.Empty;
+        var descriptor = ToPropertyDescriptor(args[2], realmState);
+
+        TryDefinePropertyOnTarget(obj, propName, descriptor, realmState, true);
+        return obj;
     }
 }

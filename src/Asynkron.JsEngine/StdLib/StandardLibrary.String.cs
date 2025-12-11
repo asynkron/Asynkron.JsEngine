@@ -9,17 +9,11 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    /// <summary>
-    ///     Creates a string wrapper object with string methods attached.
-    ///     This allows string primitives to have methods like toLowerCase(), substring(), etc.
-    /// </summary>
-    public static JsObject CreateStringWrapper(string str, EvaluationContext? context = null, RealmState? realm = null)
+    internal static JsObject InitializeStringWrapper(string str, JsObject wrapper, RealmState? realm = null)
     {
-        var stringObj = new JsObject();
-        stringObj["__value__"] = str;
+        wrapper.SetProperty("__value__", str);
 
-        // Define non-enumerable length like native String objects.
-        stringObj.DefineProperty("length",
+        wrapper.DefineProperty("length",
             new PropertyDescriptor
             {
                 Value = (double)str.Length,
@@ -31,10 +25,30 @@ public static partial class StandardLibrary
                 HasEnumerable = true,
                 HasConfigurable = true
             });
+        wrapper.SetVirtualPropertyProvider(new StringVirtualPropertyProvider(str));
+        wrapper.RealmState ??= realm;
+        return wrapper;
+    }
 
-        // Expose indexed characters as enumerable, non-writable virtual properties to
-        // avoid allocating per-character descriptors for large strings.
-        stringObj.SetVirtualPropertyProvider(new StringVirtualPropertyProvider(str));
+    internal static string RequireStringReceiver(object? receiver, RealmState? realm = null)
+    {
+        return receiver switch
+        {
+            string s => s,
+            JsObject obj when obj.TryGetProperty("__value__", out var inner) && inner is string s => s,
+            IJsPropertyAccessor accessor when accessor.TryGetProperty("__value__", out var inner)
+                                              && inner is string s => s,
+            _ => throw ThrowTypeError("String.prototype valueOf called on non-string object", realm: realm)
+        };
+    }
+
+    /// <summary>
+    ///     Creates a string wrapper object with string methods attached.
+    ///     This allows string primitives to have methods like toLowerCase(), substring(), etc.
+    /// </summary>
+    public static JsObject CreateStringWrapper(string str, EvaluationContext? context = null, RealmState? realm = null)
+    {
+        var stringObj = InitializeStringWrapper(str, new JsObject(), realm);
 
         var realmState = realm ?? context?.RealmState;
         var prototype = realmState?.StringPrototype;
@@ -60,7 +74,7 @@ public static partial class StandardLibrary
     /// <summary>
     ///     Attaches string instance methods to a target object (typically String.prototype).
     /// </summary>
-    private static void AddStringMethods(JsObject stringObj, RealmState? realm, bool forceAttach = false)
+    internal static void AddStringMethods(JsObject stringObj, RealmState? realm, bool forceAttach = false)
     {
         var matchKey = $"@@symbol:{TypedAstSymbol.For("Symbol.match").GetHashCode()}";
         var matchAllKey = $"@@symbol:{TypedAstSymbol.For("Symbol.matchAll").GetHashCode()}";
@@ -1151,280 +1165,234 @@ public static partial class StandardLibrary
         return array;
     }
 
+    internal static object? StringFromCodePoint(IReadOnlyList<object?> args)
+    {
+        if (args.Count == 0)
+        {
+            return "";
+        }
+
+        var result = new StringBuilder();
+        foreach (var arg in args)
+        {
+            var num = JsOps.ToNumber(arg);
+            if (double.IsNaN(num) || double.IsInfinity(num))
+            {
+                continue;
+            }
+
+            var codePoint = (int)num;
+            if (codePoint is < 0 or > 0x10FFFF)
+            {
+                throw new Exception("RangeError: Invalid code point " + codePoint);
+            }
+
+            if (codePoint <= 0xFFFF)
+            {
+                result.Append((char)codePoint);
+            }
+            else
+            {
+                codePoint -= 0x10000;
+                result.Append((char)(0xD800 + (codePoint >> 10)));
+                result.Append((char)(0xDC00 + (codePoint & 0x3FF)));
+            }
+        }
+
+        return result.ToString();
+    }
+
+    internal static object? StringFromCharCode(IReadOnlyList<object?> args)
+    {
+        if (args.Count == 0)
+        {
+            return "";
+        }
+
+        var result = new StringBuilder();
+        foreach (var arg in args)
+        {
+            var num = JsOps.ToNumber(arg);
+            if (double.IsNaN(num) || double.IsInfinity(num))
+            {
+                continue;
+            }
+
+            var charCode = (int)num & 0xFFFF;
+            result.Append((char)charCode);
+        }
+
+        return result.ToString();
+    }
+
+    internal static object? StringRaw(IReadOnlyList<object?> args)
+    {
+        if (args.Count == 0)
+        {
+            return "";
+        }
+
+        if (args[0] is not JsObject template)
+        {
+            return "";
+        }
+
+        if (!template.TryGetProperty("raw", out var rawValue) || rawValue is not JsArray rawStrings)
+        {
+            return "";
+        }
+
+        var result = new StringBuilder();
+        var rawCount = rawStrings.Items.Count;
+
+        for (var i = 0; i < rawCount; i++)
+        {
+            var rawPart = rawStrings.GetElement(i)?.ToString() ?? "";
+            result.Append(rawPart);
+
+            if (i >= args.Count - 1)
+            {
+                break;
+            }
+
+            var substitution = args[i + 1]?.ToString() ?? "";
+            result.Append(substitution);
+        }
+
+        return result.ToString();
+    }
+
+    internal static object? StringEscape(IReadOnlyList<object?> args)
+    {
+        if (args.Count == 0)
+        {
+            return "";
+        }
+
+        var value = args[0]?.ToString() ?? "";
+        var result = new StringBuilder();
+
+        foreach (var ch in value)
+        {
+            switch (ch)
+            {
+                case ' ':
+                    result.Append("%20");
+                    break;
+                case '!':
+                    result.Append("%21");
+                    break;
+                case '"':
+                    result.Append("%22");
+                    break;
+                case '#':
+                    result.Append("%23");
+                    break;
+                case '$':
+                    result.Append("%24");
+                    break;
+                case '%':
+                    result.Append("%25");
+                    break;
+                case '&':
+                    result.Append("%26");
+                    break;
+                case '\'':
+                    result.Append("%27");
+                    break;
+                case '(':
+                    result.Append("%28");
+                    break;
+                case ')':
+                    result.Append("%29");
+                    break;
+                case '*':
+                    result.Append("%2A");
+                    break;
+                case '+':
+                    result.Append("%2B");
+                    break;
+                case ',':
+                    result.Append("%2C");
+                    break;
+                case '/':
+                    result.Append("%2F");
+                    break;
+                case ':':
+                    result.Append("%3A");
+                    break;
+                case ';':
+                    result.Append("%3B");
+                    break;
+                case '<':
+                    result.Append("%3C");
+                    break;
+                case '=':
+                    result.Append("%3D");
+                    break;
+                case '>':
+                    result.Append("%3E");
+                    break;
+                case '?':
+                    result.Append("%3F");
+                    break;
+                case '@':
+                    result.Append("%40");
+                    break;
+                case '[':
+                    result.Append("%5B");
+                    break;
+                case '\\':
+                    result.Append("%5C");
+                    break;
+                case ']':
+                    result.Append("%5D");
+                    break;
+                case '^':
+                    result.Append("%5E");
+                    break;
+                case '_':
+                    result.Append("%5F");
+                    break;
+                case '`':
+                    result.Append("%60");
+                    break;
+                case '{':
+                    result.Append("%7B");
+                    break;
+                case '|':
+                    result.Append("%7C");
+                    break;
+                case '}':
+                    result.Append("%7D");
+                    break;
+                case '~':
+                    result.Append("%7E");
+                    break;
+                default:
+                    if (ch <= 0x7F)
+                    {
+                        result.Append(ch);
+                    }
+                    else
+                    {
+                        result.Append("%u");
+                        result.Append(((int)ch).ToString("X4"));
+                    }
+
+                    break;
+            }
+        }
+
+        return result.ToString();
+    }
+
     /// <summary>
     ///     Creates the String constructor with static methods.
     /// </summary>
     public static HostFunction CreateStringConstructor(RealmState realm)
     {
-        HostFunction stringConstructor = null!;
-        stringConstructor = new HostFunction((_, args) => StringConstructorImpl(args, null));
-        stringConstructor.SetInvokeWithContext((args, _, _, newTarget) =>
-            StringConstructorImpl(args, newTarget as IJsCallable));
-
-        // Remember String.prototype so that string wrapper objects can see
-        // methods attached from user code (e.g. String.prototype.toJSONString),
-        // and provide a minimal shared implementation of core helpers such as
-        // String.prototype.slice for use with call/apply patterns.
-        if (stringConstructor.TryGetProperty("prototype", out var stringProto) &&
-            stringProto is JsObject stringProtoObj)
-        {
-            realm.StringPrototype ??= stringProtoObj;
-            if (realm.ObjectPrototype is not null && stringProtoObj.Prototype is null)
-            {
-                stringProtoObj.SetPrototype(realm.ObjectPrototype);
-            }
-
-            // Per ES spec, String.prototype is a String object whose [[StringData]] is the empty string.
-            // Therefore String.prototype.length must be 0.
-            stringProtoObj.DefineProperty("length",
-                new PropertyDescriptor
-                {
-                    Value = 0d,
-                    Writable = false,
-                    Enumerable = false,
-                    Configurable = false,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
-                });
-
-            EnsureStringPrototypeMethods(stringProtoObj, realm);
-
-            DefineBuiltinFunction(stringProtoObj, "toString", new HostFunction(StringPrototypeToString), 0);
-            DefineBuiltinFunction(stringProtoObj, "valueOf", new HostFunction(StringPrototypeValueOf), 0);
-            DefineBuiltinFunction(stringProtoObj, "parseJSON",
-                new HostFunction((thisValue, args, realmState) =>
-                {
-                    realmState ??= realm;
-                    var context = realmState?.CreateContext();
-                    var source = JsOps.ToJsString(thisValue, context);
-                    var reviver = args.Count > 0 ? args[0] : null;
-                    return ParseJsonWithReviver(source, realmState!, context, reviver);
-                }, realm), 1, false, false);
-        }
-
-        // String.fromCodePoint(...codePoints)
-        stringConstructor.SetHostedProperty("fromCodePoint", StringFromCodePoint);
-
-        // String.fromCharCode(...charCodes) - for compatibility
-        stringConstructor.SetHostedProperty("fromCharCode", StringFromCharCode);
-
-        // String.raw(template, ...substitutions)
-        // This is a special method used with tagged templates
-        stringConstructor.SetHostedProperty("raw", StringRaw);
-
-        // String.escape(string) - deprecated but used in some old code
-        // Escapes special characters for use in URIs or HTML
-        stringConstructor.SetHostedProperty("escape", StringEscape);
-
-        return stringConstructor;
-
-        object? StringConstructorImpl(IReadOnlyList<object?> args, IJsCallable? newTarget)
-        {
-            var context = realm?.CreateContext();
-            string str;
-
-            if (args.Count == 0)
-            {
-                // Per ES spec, String() with no arguments returns empty string
-                str = "";
-            }
-            else
-            {
-                var value = args[0];
-                str = value is TypedAstSymbol typedSymbol ? typedSymbol.ToString() : JsOps.ToJsString(value, context);
-            }
-
-            if (newTarget is null)
-            {
-                return str;
-            }
-
-            var wrapper = new JsObject();
-            wrapper.SetProperty("__value__", str);
-            wrapper.DefineProperty("length",
-                new PropertyDescriptor
-                {
-                    Value = (double)str.Length,
-                    Writable = false,
-                    Enumerable = false,
-                    Configurable = false,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
-                });
-            wrapper.SetVirtualPropertyProvider(new StringVirtualPropertyProvider(str));
-
-            var proto = realm is null
-                ? realm?.StringPrototype
-                : ResolveConstructPrototype(newTarget, stringConstructor, realm) ??
-                  realm.StringPrototype;
-            if (proto is not null)
-            {
-                wrapper.SetPrototype(proto);
-            }
-
-            return wrapper;
-        }
-
-        object? StringPrototypeToString(object? thisValue, IReadOnlyList<object?> _)
-        {
-            return RequireStringReceiver(thisValue);
-        }
-
-        object? StringPrototypeValueOf(object? thisValue, IReadOnlyList<object?> _)
-        {
-            return RequireStringReceiver(thisValue);
-        }
-
-        string RequireStringReceiver(object? receiver)
-        {
-            return receiver switch
-            {
-                string s => s,
-                JsObject obj when obj.TryGetProperty("__value__", out var inner) && inner is string s => s,
-                IJsPropertyAccessor accessor when accessor.TryGetProperty("__value__", out var inner)
-                                                  && inner is string s => s,
-                _ => throw ThrowTypeError("String.prototype valueOf called on non-string object", realm: realm)
-            };
-        }
-
-        object? StringFromCodePoint(IReadOnlyList<object?> args)
-        {
-            if (args.Count == 0)
-            {
-                return "";
-            }
-
-            var result = new StringBuilder();
-            foreach (var arg in args)
-            {
-                var num = JsOps.ToNumber(arg);
-                if (double.IsNaN(num) || double.IsInfinity(num))
-                {
-                    continue;
-                }
-
-                var codePoint = (int)num;
-                if (codePoint is < 0 or > 0x10FFFF)
-                {
-                    throw new Exception("RangeError: Invalid code point " + codePoint);
-                }
-
-                if (codePoint <= 0xFFFF)
-                {
-                    result.Append((char)codePoint);
-                }
-                else
-                {
-                    codePoint -= 0x10000;
-                    result.Append((char)(0xD800 + (codePoint >> 10)));
-                    result.Append((char)(0xDC00 + (codePoint & 0x3FF)));
-                }
-            }
-
-            return result.ToString();
-        }
-
-        object? StringFromCharCode(IReadOnlyList<object?> args)
-        {
-            if (args.Count == 0)
-            {
-                return "";
-            }
-
-            var result = new StringBuilder();
-            foreach (var arg in args)
-            {
-                var num = JsOps.ToNumber(arg);
-                if (double.IsNaN(num) || double.IsInfinity(num))
-                {
-                    continue;
-                }
-
-                var charCode = (int)num & 0xFFFF;
-                result.Append((char)charCode);
-            }
-
-            return result.ToString();
-        }
-
-        object? StringRaw(IReadOnlyList<object?> args)
-        {
-            if (args.Count == 0)
-            {
-                return "";
-            }
-
-            if (args[0] is not JsObject template)
-            {
-                return "";
-            }
-
-            if (!template.TryGetProperty("raw", out var rawValue) || rawValue is not JsArray rawStrings)
-            {
-                return "";
-            }
-
-            var result = new StringBuilder();
-            var rawCount = rawStrings.Items.Count;
-
-            for (var i = 0; i < rawCount; i++)
-            {
-                var rawPart = rawStrings.GetElement(i)?.ToString() ?? "";
-                result.Append(rawPart);
-
-                if (i >= args.Count - 1)
-                {
-                    continue;
-                }
-
-                var substitution = args[i + 1];
-                if (substitution != null)
-                {
-                    result.Append(substitution);
-                }
-            }
-
-            return result.ToString();
-        }
-
-        object? StringEscape(IReadOnlyList<object?> args)
-        {
-            if (args.Count == 0)
-            {
-                return "";
-            }
-
-            var str = args[0]?.ToString() ?? "";
-
-            var result = new StringBuilder();
-            foreach (var ch in str)
-            {
-                if (ch is >= 'A' and <= 'Z' ||
-                    ch is >= 'a' and <= 'z' ||
-                    ch is >= '0' and <= '9' ||
-                    ch == '@' || ch == '*' || ch == '_' ||
-                    ch == '+' || ch == '-' || ch == '.' || ch == '/')
-                {
-                    result.Append(ch);
-                }
-                else if (ch < 256)
-                {
-                    result.Append('%');
-                    result.Append(((int)ch).ToString("X2", CultureInfo.InvariantCulture));
-                }
-                else
-                {
-                    result.Append("%u");
-                    result.Append(((int)ch).ToString("X4", CultureInfo.InvariantCulture));
-                }
-            }
-
-            return result.ToString();
-        }
+        return StringConstructor.CreateConstructor(realm);
     }
 
     private sealed class StringVirtualPropertyProvider(string value) : IVirtualPropertyProvider

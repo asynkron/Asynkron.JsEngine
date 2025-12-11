@@ -10,49 +10,7 @@ public static partial class StandardLibrary
 {
     public static JsObject CreateJsonObject(RealmState realm)
     {
-        var json = new JsObject();
-        var tagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
-        json.DefineProperty(tagKey,
-            new PropertyDescriptor
-            {
-                Value = "JSON",
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
-
-        // JSON.parse()
-        json["parse"] = new HostFunction((_, args, realmState) =>
-        {
-            realmState ??= realm;
-            var context = realmState?.CreateContext();
-
-            if (args.Count == 0)
-            {
-                throw ThrowSyntaxError("Unexpected end of JSON input", context, realmState);
-            }
-
-            var jsonStr = JsOps.ToJsString(args[0], context);
-            var reviver = args.Count > 1 ? args[1] : null;
-            return ParseJsonWithReviver(jsonStr, realmState!, context, reviver);
-        }, realm);
-
-        // JSON.stringify()
-        json["stringify"] = new HostFunction(args =>
-        {
-            if (args.Count == 0)
-            {
-                return "undefined";
-            }
-
-            var value = args[0];
-
-            // Handle replacer function and space arguments if needed
-            // For now, implement basic stringify
-            return StringifyValue(value);
-        });
-
-        return json;
+        return (JsObject)JsonPrototype.CreatePrototype(realm);
     }
 
     internal static object? ParseJsonWithReviver(string jsonStr, RealmState realm, EvaluationContext? context,
@@ -84,7 +42,7 @@ public static partial class StandardLibrary
         switch (element.ValueKind)
         {
             case JsonValueKind.Object:
-                var obj = new JsObject();
+                var obj = new JsObject(realm.ObjectPrototype);
                 foreach (var prop in element.EnumerateObject())
                 {
                     obj[prop.Name] = ParseJsonValue(prop.Value, realm);
@@ -98,6 +56,7 @@ public static partial class StandardLibrary
                 {
                     arr.Push(ParseJsonValue(item, realm));
                 }
+
                 return arr;
 
             case JsonValueKind.String:
@@ -170,7 +129,7 @@ public static partial class StandardLibrary
         return replacement;
     }
 
-    private static string StringifyValue(object? value, int depth = 0)
+    internal static string StringifyValue(object? value, int depth = 0)
     {
         if (depth > 100)
         {
@@ -210,7 +169,7 @@ public static partial class StandardLibrary
                 foreach (var kvp in obj)
                 {
                     // Skip functions and internal properties
-                    if (kvp.Value is IJsCallable || kvp.Key.StartsWith("_"))
+                    if (kvp.Value is IJsCallable || kvp.Key.StartsWith("_", StringComparison.Ordinal))
                     {
                         continue;
                     }

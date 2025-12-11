@@ -7,28 +7,7 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    public static JsObject CreateReflectObject(RealmState realm)
-    {
-        var reflect = new JsObject();
-
-        reflect.SetHostedProperty("apply", ReflectApply, realm);
-        reflect.SetHostedProperty("construct", ReflectConstruct, realm);
-        reflect.SetHostedProperty("defineProperty", ReflectDefineProperty, realm);
-        reflect.SetHostedProperty("deleteProperty", ReflectDeleteProperty, realm);
-        reflect.SetHostedProperty("get", ReflectGet, realm);
-        reflect.SetHostedProperty("getOwnPropertyDescriptor", ReflectGetOwnPropertyDescriptor, realm);
-        reflect.SetHostedProperty("getPrototypeOf", ReflectGetPrototypeOf, realm);
-        reflect.SetHostedProperty("has", ReflectHas, realm);
-        reflect.SetHostedProperty("isExtensible", ReflectIsExtensible, realm);
-        reflect.SetHostedProperty("ownKeys", ReflectOwnKeys, realm);
-        reflect.SetHostedProperty("preventExtensions", ReflectPreventExtensions, realm);
-        reflect.SetHostedProperty("set", ReflectSet, realm);
-        reflect.SetHostedProperty("setPrototypeOf", ReflectSetPrototypeOf, realm);
-
-        return reflect;
-    }
-
-    private static object? ReflectApply(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    internal static object? ReflectApply(object? _, IReadOnlyList<object?> args, RealmState? realm)
     {
         if (args.Count < 2 || args[0] is not IJsCallable callable)
         {
@@ -43,7 +22,7 @@ public static partial class StandardLibrary
         return callable.Invoke(argList, thisArg);
     }
 
-    private static object? ReflectConstruct(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    internal static object? ReflectConstruct(object? _, IReadOnlyList<object?> args, RealmState? realm)
     {
         if (realm is null)
         {
@@ -146,14 +125,14 @@ public static partial class StandardLibrary
         return constructed is JsObject obj ? obj : instance;
     }
 
-    private static object? ReflectDefineProperty(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    internal static object? ReflectDefineProperty(object? _, IReadOnlyList<object?> args, RealmState? realm)
     {
         if (realm is null)
         {
             throw new InvalidOperationException("Realm is required for Reflect.defineProperty.");
         }
 
-        if (args.Count < 3 || !TryGetObject(args[0]!, realm, out var target))
+        if (args.Count < 3 || !TryGetObject(args[0], realm, out var target))
         {
             throw new Exception("Reflect.defineProperty: target must be an object.");
         }
@@ -164,14 +143,14 @@ public static partial class StandardLibrary
         return TryDefinePropertyOnTarget(target, propertyKey, descriptor, realm, false);
     }
 
-    private static object? ReflectDeleteProperty(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    internal static object? ReflectDeleteProperty(object? _, IReadOnlyList<object?> args, RealmState? realm)
     {
         if (realm is null)
         {
             throw new InvalidOperationException("Realm is required for Reflect.deleteProperty.");
         }
 
-        if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
+        if (args.Count < 2 || !TryGetObject(args[0], realm, out var target))
         {
             throw new Exception("Reflect.deleteProperty: target must be an object.");
         }
@@ -195,14 +174,14 @@ public static partial class StandardLibrary
         return target is JsObject jsObj && jsObj.Remove(propertyKey);
     }
 
-    private static object? ReflectGet(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    internal static object? ReflectGet(object? _, IReadOnlyList<object?> args, RealmState? realm)
     {
         if (realm is null)
         {
             throw new InvalidOperationException("Realm is required for Reflect.get.");
         }
 
-        if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
+        if (args.Count < 2 || !TryGetObject(args[0], realm, out var target))
         {
             throw new Exception("Reflect.get: target must be an object.");
         }
@@ -212,14 +191,14 @@ public static partial class StandardLibrary
         return target.TryGetProperty(propertyKey, receiver, out var value) ? value : null;
     }
 
-    private static object? ReflectGetOwnPropertyDescriptor(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    internal static object? ReflectGetOwnPropertyDescriptor(object? _, IReadOnlyList<object?> args, RealmState? realm)
     {
         if (realm is null)
         {
             throw new InvalidOperationException("Realm is required for Reflect.getOwnPropertyDescriptor.");
         }
 
-        if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
+        if (args.Count < 2 || !TryGetObject(args[0], realm, out var target))
         {
             throw new Exception("Reflect.getOwnPropertyDescriptor: target must be an object.");
         }
@@ -230,14 +209,14 @@ public static partial class StandardLibrary
         return result ?? (object)Symbol.Undefined;
     }
 
-    private static object? ReflectGetPrototypeOf(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    internal static object? ReflectGetPrototypeOf(object? _, IReadOnlyList<object?> args, RealmState? realm)
     {
         if (realm is null)
         {
             throw new InvalidOperationException("Realm is required for Reflect.getPrototypeOf.");
         }
 
-        if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var target))
+        if (args.Count == 0 || !TryGetObject(args[0], realm, out var target))
         {
             throw new Exception("Reflect.getPrototypeOf: target must be an object.");
         }
@@ -250,14 +229,14 @@ public static partial class StandardLibrary
         return target.Prototype;
     }
 
-    private static object? ReflectHas(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    internal static object? ReflectHas(object? _, IReadOnlyList<object?> args, RealmState? realm)
     {
         if (realm is null)
         {
             throw new InvalidOperationException("Realm is required for Reflect.has.");
         }
 
-        if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
+        if (args.Count < 2 || !TryGetObject(args[0], realm, out var target))
         {
             throw new Exception("Reflect.has: target must be an object.");
         }
@@ -272,14 +251,14 @@ public static partial class StandardLibrary
         return target.TryGetProperty(propertyKey, out _);
     }
 
-    private static object? ReflectIsExtensible(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    internal static object? ReflectIsExtensible(object? _, IReadOnlyList<object?> args, RealmState? realm)
     {
         if (realm is null)
         {
             throw new InvalidOperationException("Realm is required for Reflect.isExtensible.");
         }
 
-        if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var target))
+        if (args.Count == 0 || !TryGetObject(args[0], realm, out var target))
         {
             throw new Exception("Reflect.isExtensible: target must be an object.");
         }
@@ -287,14 +266,14 @@ public static partial class StandardLibrary
         return IsTargetExtensible(target);
     }
 
-    private static object? ReflectOwnKeys(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    internal static object? ReflectOwnKeys(object? _, IReadOnlyList<object?> args, RealmState? realm)
     {
         if (realm is null)
         {
             throw new InvalidOperationException("Realm is required for Reflect.ownKeys.");
         }
 
-        if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var target))
+        if (args.Count == 0 || !TryGetObject(args[0], realm, out var target))
         {
             throw new Exception("Reflect.ownKeys: target must be an object.");
         }
@@ -330,14 +309,14 @@ public static partial class StandardLibrary
         return new JsArray(keys, realm);
     }
 
-    private static object? ReflectPreventExtensions(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    internal static object? ReflectPreventExtensions(object? _, IReadOnlyList<object?> args, RealmState? realm)
     {
         if (realm is null)
         {
             throw new InvalidOperationException("Realm is required for Reflect.preventExtensions.");
         }
 
-        if (args.Count == 0 || !TryGetObject(args[0]!, realm, out var target))
+        if (args.Count == 0 || !TryGetObject(args[0], realm, out var target))
         {
             throw new Exception("Reflect.preventExtensions: target must be an object.");
         }
@@ -346,14 +325,14 @@ public static partial class StandardLibrary
         return true;
     }
 
-    private static object? ReflectSet(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    internal static object? ReflectSet(object? _, IReadOnlyList<object?> args, RealmState? realm)
     {
         if (realm is null)
         {
             throw new InvalidOperationException("Realm is required for Reflect.set.");
         }
 
-        if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
+        if (args.Count < 2 || !TryGetObject(args[0], realm, out var target))
         {
             throw new Exception("Reflect.set: target must be an object.");
         }
@@ -384,14 +363,14 @@ public static partial class StandardLibrary
         return true;
     }
 
-    private static object? ReflectSetPrototypeOf(object? _, IReadOnlyList<object?> args, RealmState? realm)
+    internal static object? ReflectSetPrototypeOf(object? _, IReadOnlyList<object?> args, RealmState? realm)
     {
         if (realm is null)
         {
             throw new InvalidOperationException("Realm is required for Reflect.setPrototypeOf.");
         }
 
-        if (args.Count < 2 || !TryGetObject(args[0]!, realm, out var target))
+        if (args.Count < 2 || !TryGetObject(args[0], realm, out var target))
         {
             throw new Exception("Reflect.setPrototypeOf: target must be an object.");
         }

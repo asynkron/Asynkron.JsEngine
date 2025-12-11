@@ -43,7 +43,9 @@
 - ArrayBuffer constructor/prototype now live under `StdLib/ArrayBuffer`; the constructor uses generator wiring, species handling is preserved, and helpers cover internal slot storage and `ArrayBuffer.isView`.
 - SharedArrayBuffer constructor/prototype now live under `StdLib/SharedArrayBuffer`; generator wiring handles species, `byteLength`/`slice` are on the prototype for derived buffers, and instances stash their internal buffer slots for subclassed constructions.
 - DataView constructor/prototype now live under `StdLib/DataView`; constructor resolves new-target prototypes, wraps subclass instances with internal slots, and prototype hosts buffer/byteLength/byteOffset plus all get*/set* numeric accessors.
+- JSON object now lives under `StdLib/Json` with generator wiring; `parse` uses the existing reviver-aware logic and `stringify` retains the current simplified implementation.
+- Console, Reflect, and BigInt now use generator-backed wiring under their own `StdLib/<Type>` folders; the console global is created through the generated prototype, Reflect wraps the existing helpers, and BigInt carries `asIntN`/`asUintN` plus prototype methods via the generator surface.
 
 ## Next Iteration Plan
-1. Continue migrating built-ins onto the generator model (constructor/prototype classes with attributes). Promise, RegExp, Date, Math, ArrayBuffer, SharedArrayBuffer, and DataView are done; pick the next constructor-driven type (e.g., Console) and swap `CreateXConstructor` to the generated constructor once the surface is ported.
+1. Keep migrating remaining non-generator built-ins onto the generator constructor/prototype model; the Function constructor/prototype is the next major holdout.
 2. After each migration, run a focused Test262 slice around the affected built-in to catch regressions before moving on.

@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Numerics;
-using System.Text;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -164,16 +163,6 @@ public static partial class StandardLibrary
             {
                 Value = function, Writable = writable, Enumerable = enumerable, Configurable = configurable
             });
-    }
-
-    private static JsBigInt ThisBigIntValue(object? receiver, RealmState? realm = null)
-    {
-        return receiver switch
-        {
-            JsBigInt bi => bi,
-            JsObject obj when obj.TryGetValue("__value__", out var inner) && inner is JsBigInt wrapped => wrapped,
-            _ => throw ThrowTypeError("BigInt.prototype method called on incompatible receiver", realm: realm)
-        };
     }
 
     internal static object CreateSyntaxError(string message, EvaluationContext? context = null,
@@ -404,31 +393,6 @@ public static partial class StandardLibrary
         }
 
         return true;
-    }
-
-    private static string BigIntToString(BigInteger value, int radix)
-    {
-        if (radix == 10)
-        {
-            return value.ToString(CultureInfo.InvariantCulture);
-        }
-
-        const string digits = "0123456789abcdefghijklmnopqrstuvwxyz";
-        var builder = new StringBuilder();
-        var isNegative = value.Sign < 0;
-        var remainder = BigInteger.Abs(value);
-        if (remainder.IsZero)
-        {
-            return "0";
-        }
-
-        while (!remainder.IsZero)
-        {
-            remainder = BigInteger.DivRem(remainder, radix, out var rem);
-            builder.Insert(0, digits[(int)rem]);
-        }
-
-        return isNegative ? "-" + builder : builder.ToString();
     }
 
     /// <summary>

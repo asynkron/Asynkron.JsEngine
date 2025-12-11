@@ -103,7 +103,7 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("global", GlobalObject);
 
         // Register standard library objects
-        SetGlobal("console", StandardLibrary.CreateConsoleObject());
+        SetGlobal("console", StandardLibrary.CreateConsoleObject(RealmState));
         SetGlobal("Math", StandardLibrary.CreateMathObject(RealmState));
         SetGlobal("Object", StandardLibrary.CreateObjectConstructor(RealmState));
 

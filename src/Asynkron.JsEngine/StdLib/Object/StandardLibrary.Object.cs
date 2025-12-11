@@ -196,7 +196,7 @@ public static partial class StandardLibrary
             throw ThrowTypeError("Object.defineProperties requires both target and descriptors", realm: realmState);
         }
 
-        if (!TryGetObject(args[0]!, realmState, out var target))
+        if (!TryGetObject(args[0], realmState, out var target))
         {
             throw ThrowTypeError("Object.defineProperties called on non-object", realm: realmState);
         }
@@ -254,7 +254,7 @@ public static partial class StandardLibrary
     internal static object? ObjectPreventExtensions(object? _, IReadOnlyList<object?> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
-        if (args.Count == 0 || !TryGetObject(args[0]!, realmState, out var target))
+        if (args.Count == 0 || !TryGetObject(args[0], realmState, out var target))
         {
             throw ThrowTypeError("Object.preventExtensions requires an object", realm: realmState);
         }
@@ -266,7 +266,7 @@ public static partial class StandardLibrary
     internal static object? ObjectIsExtensible(object? _, IReadOnlyList<object?> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
-        if (args.Count == 0 || !TryGetObject(args[0]!, realmState, out var target))
+        if (args.Count == 0 || !TryGetObject(args[0], realmState, out var target))
         {
             return false;
         }
@@ -282,7 +282,7 @@ public static partial class StandardLibrary
             return new JsArray(realmState);
         }
 
-        if (!TryGetObject(args[0]!, realmState, out var obj))
+        if (!TryGetObject(args[0], realmState, out var obj))
         {
             return new JsArray(realmState);
         }
@@ -321,7 +321,7 @@ public static partial class StandardLibrary
         }
 
         var obj = args[0] as IJsPropertyAccessor;
-        if (obj is null && TryGetObject(args[0]!, realmState, out var coerced))
+        if (obj is null && TryGetObject(args[0], realmState, out var coerced))
         {
             obj = coerced;
         }
@@ -353,7 +353,7 @@ public static partial class StandardLibrary
         }
 
         var obj = args[0] as IJsPropertyAccessor;
-        if (obj is null && TryGetObject(args[0]!, realmState, out var coerced))
+        if (obj is null && TryGetObject(args[0], realmState, out var coerced))
         {
             obj = coerced;
         }
@@ -384,7 +384,7 @@ public static partial class StandardLibrary
         }
 
         var obj = args[0] as IJsPropertyAccessor;
-        if (obj is null && TryGetObject(args[0]!, realmState, out var coerced))
+        if (obj is null && TryGetObject(args[0], realmState, out var coerced))
         {
             obj = coerced;
         }
@@ -635,7 +635,7 @@ public static partial class StandardLibrary
         }
 
         var obj = args[0] as IJsPropertyAccessor;
-        if (obj is null && TryGetObject(args[0]!, realmState, out var coerced))
+        if (obj is null && TryGetObject(args[0], realmState, out var coerced))
         {
             obj = coerced;
         }
@@ -652,7 +652,7 @@ public static partial class StandardLibrary
     internal static object? ObjectGetOwnPropertyDescriptors(object? _, IReadOnlyList<object?> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
-        if (args.Count == 0 || !TryGetObject(args[0]!, realmState, out var obj))
+        if (args.Count == 0 || !TryGetObject(args[0], realmState, out var obj))
         {
             throw ThrowTypeError("Object.getOwnPropertyDescriptors requires an object", realm: realmState);
         }
@@ -676,7 +676,7 @@ public static partial class StandardLibrary
     internal static object? ObjectGetOwnPropertyDescriptor(object? _, IReadOnlyList<object?> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
-        if (args.Count < 2 || !TryGetObject(args[0]!, realmState, out var obj))
+        if (args.Count < 2 || !TryGetObject(args[0], realmState, out var obj))
         {
             return Symbol.Undefined;
         }
@@ -703,7 +703,7 @@ public static partial class StandardLibrary
     internal static object? ObjectGetPrototypeOf(object? _, IReadOnlyList<object?> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
-        if (args.Count == 0 || !TryGetObject(args[0]!, realmState, out var obj))
+        if (args.Count == 0 || !TryGetObject(args[0], realmState, out var obj))
         {
             throw ThrowTypeError("Object.getPrototypeOf called on null or undefined", realm: realmState);
         }
@@ -745,7 +745,7 @@ public static partial class StandardLibrary
             throw ThrowTypeError("Object.defineProperty requires a property descriptor", realm: realmState);
         }
 
-        if (!TryGetObject(args[0]!, realmState, out var obj))
+        if (!TryGetObject(args[0], realmState, out var obj))
         {
             throw ThrowTypeError("Object.defineProperty called on non-object", realm: realmState);
         }

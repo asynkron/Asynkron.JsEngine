@@ -38,8 +38,8 @@ public class EvaluationOverheadBenchmarks
 
         // Loop - actual computational work
         _loopSource = """
-            let sum = 0;
-            for (let i = 0; i < 10000; i++) {
+            var sum = 0;
+            for (var i = 0; i < 10000; i++) {
                 sum += i;
             }
             sum;

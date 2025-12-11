@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 using System.Numerics;
 using System.Text;
@@ -26,6 +27,14 @@ internal enum BraceKind
 
 public sealed class Lexer(string source, bool allowHtmlComments = true)
 {
+    private readonly record struct DigitRun(int Start, int Length, bool HasSeparator)
+    {
+        public ReadOnlySpan<char> Slice(string source)
+        {
+            return source.AsSpan(Start, Length);
+        }
+    }
+
     private static readonly Dictionary<string, TokenType> Keywords = new(StringComparer.Ordinal)
     {
         ["let"] = TokenType.Let,
@@ -88,6 +97,8 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
     private readonly Stack<BraceKind> _braceKindStack = new();
 
     private bool IsAtEnd => _current >= _source.Length;
+
+    private string SliceText(int start, int length) => new(_source.AsSpan(start, length));
 
     public IReadOnlyList<Token> Tokenize()
     {
@@ -492,16 +503,13 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
 
     private void ReadIdentifier(char firstChar)
     {
-        var builder = new StringBuilder();
-        var containsEscape = false;
+        StringBuilder? builder = null;
+        var containsEscape = firstChar == '\\';
+
         if (firstChar == '\\')
         {
-            containsEscape = true;
+            builder = new StringBuilder();
             builder.Append(ReadIdentifierEscape(true));
-        }
-        else
-        {
-            builder.Append(firstChar);
         }
 
         while (true)
@@ -509,6 +517,12 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             if (Peek() == '\\')
             {
                 containsEscape = true;
+                if (builder is null)
+                {
+                    builder = new StringBuilder(_current - _start + 16);
+                    builder.Append(_source.AsSpan(_start, _current - _start));
+                }
+
                 builder.Append(ReadIdentifierEscape());
                 continue;
             }
@@ -519,10 +533,19 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                 break;
             }
 
-            builder.Append(Advance());
+            if (builder is not null)
+            {
+                builder.Append(Advance());
+            }
+            else
+            {
+                Advance();
+            }
         }
 
-        var text = builder.ToString();
+        var text = builder is null
+            ? SliceText(_start, _current - _start)
+            : builder.ToString();
         if (!containsEscape && Keywords.TryGetValue(text, out var keyword))
         {
             _tokens.Add(new Token(keyword, text, null, _startLine, _startColumn, _start, _current));
@@ -573,7 +596,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             throw new ParseException("Invalid identifier escape sequence.");
         }
 
-        var hex = _source.Substring(_current, 4);
+        var hex = SliceText(_current, 4);
         if (!int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var value))
         {
             throw new ParseException("Invalid identifier escape sequence.");
@@ -587,11 +610,14 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
     private void ReadPrivateIdentifier()
     {
         // '#' has already been consumed
-        var builder = new StringBuilder();
-        builder.Append('#');
+        StringBuilder? builder = null;
+        var containsEscape = false;
 
         if (Peek() == '\\')
         {
+            containsEscape = true;
+            builder = new StringBuilder();
+            builder.Append('#');
             builder.Append(ReadIdentifierEscape());
         }
         else
@@ -602,13 +628,20 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                 throw new ParseException($"Expected identifier after '#' on line {_line} column {_column}.");
             }
 
-            builder.Append(Advance());
+            Advance();
         }
 
         while (true)
         {
             if (Peek() == '\\')
             {
+                containsEscape = true;
+                if (builder is null)
+                {
+                    builder = new StringBuilder(_current - _start + 16);
+                    builder.Append(_source.AsSpan(_start, _current - _start));
+                }
+
                 builder.Append(ReadIdentifierEscape());
                 continue;
             }
@@ -619,10 +652,19 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                 break;
             }
 
-            builder.Append(Advance());
+            if (builder is not null)
+            {
+                builder.Append(Advance());
+            }
+            else
+            {
+                Advance();
+            }
         }
 
-        var text = builder.ToString();
+        var text = builder is null
+            ? SliceText(_start, _current - _start)
+            : builder.ToString();
         _tokens.Add(new Token(TokenType.PrivateIdentifier, text, null, _startLine, _startColumn, _start, _current));
     }
 
@@ -634,10 +676,9 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             var next = Peek();
             if (next is 'x' or 'X')
             {
-                // Hexadecimal literal
-                var prefixStart = _start; // Remember where '0' started
                 Advance(); // consume 'x' or 'X'
                 var hexDigits = ReadDigitsWithSeparators(IsHexDigit, "hexadecimal");
+                var hexSpan = hexDigits.Slice(_source);
 
                 // Check for BigInt suffix 'n'
                 if (Peek() == 'n')
@@ -647,16 +688,13 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                     if (isEndOrNonAlphaNum)
                     {
                         Advance(); // consume 'n'
-                        var bigIntValue = BigInteger.Parse("0" + hexDigits, NumberStyles.HexNumber,
-                            CultureInfo.InvariantCulture);
-                        var value = new JsBigInt(bigIntValue);
+                        var value = new JsBigInt(ParseIntegerLiteral(hexSpan, 16, hexDigits.HasSeparator));
                         AddToken(TokenType.BigInt, value);
                         return;
                     }
                 }
 
-                var hexBigInt = BigInteger.Parse("0" + hexDigits, NumberStyles.HexNumber,
-                    CultureInfo.InvariantCulture);
+                var hexBigInt = ParseIntegerLiteral(hexSpan, 16, hexDigits.HasSeparator);
                 var hexValue = (double)hexBigInt;
                 AddToken(TokenType.Number, hexValue);
                 return;
@@ -664,10 +702,9 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
 
             if (next is 'o' or 'O')
             {
-                // Octal literal
-                var prefixStart = _start; // Remember where '0' started
                 Advance(); // consume 'o' or 'O'
                 var octalDigits = ReadDigitsWithSeparators(IsOctalDigit, "octal");
+                var octalSpan = octalDigits.Slice(_source);
 
                 // Check for BigInt suffix 'n'
                 if (Peek() == 'n')
@@ -677,25 +714,13 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                     if (isEndOrNonAlphaNum)
                     {
                         Advance(); // consume 'n'
-                        // Convert octal string to BigInteger by parsing each digit
-                        var bigIntValue = BigInteger.Zero;
-                        foreach (var c in octalDigits)
-                        {
-                            bigIntValue = bigIntValue * 8 + (c - '0');
-                        }
-
-                        var value = new JsBigInt(bigIntValue);
+                        var value = new JsBigInt(ParseIntegerLiteral(octalSpan, 8, octalDigits.HasSeparator));
                         AddToken(TokenType.BigInt, value);
                         return;
                     }
                 }
 
-                var octalBigInt = BigInteger.Zero;
-                foreach (var c in octalDigits)
-                {
-                    octalBigInt = octalBigInt * 8 + (c - '0');
-                }
-
+                var octalBigInt = ParseIntegerLiteral(octalSpan, 8, octalDigits.HasSeparator);
                 var octalValue = (double)octalBigInt;
                 AddToken(TokenType.Number, octalValue);
                 return;
@@ -703,10 +728,9 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
 
             if (next is 'b' or 'B')
             {
-                // Binary literal
-                var prefixStart = _start; // Remember where '0' started
                 Advance(); // consume 'b' or 'B'
                 var binaryDigits = ReadDigitsWithSeparators(IsBinaryDigit, "binary");
+                var binarySpan = binaryDigits.Slice(_source);
 
                 // Check for BigInt suffix 'n'
                 if (Peek() == 'n')
@@ -716,25 +740,13 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                     if (isEndOrNonAlphaNum)
                     {
                         Advance(); // consume 'n'
-                        // Convert binary string to BigInteger by parsing each digit
-                        var bigIntValue = BigInteger.Zero;
-                        foreach (var c in binaryDigits)
-                        {
-                            bigIntValue = bigIntValue * 2 + (c - '0');
-                        }
-
-                        var value = new JsBigInt(bigIntValue);
+                        var value = new JsBigInt(ParseIntegerLiteral(binarySpan, 2, binaryDigits.HasSeparator));
                         AddToken(TokenType.BigInt, value);
                         return;
                     }
                 }
 
-                var binaryBigInt = BigInteger.Zero;
-                foreach (var c in binaryDigits)
-                {
-                    binaryBigInt = binaryBigInt * 2 + (c - '0');
-                }
-
+                var binaryBigInt = ParseIntegerLiteral(binarySpan, 2, binaryDigits.HasSeparator);
                 var binaryValue = (double)binaryBigInt;
                 AddToken(TokenType.Number, binaryValue);
                 return;
@@ -747,6 +759,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             var idx = _current;
             var hasOctalDigits = false;
             var isPureOctal = true;
+            var hasSeparators = false;
             while (idx < _source.Length)
             {
                 var ch = _source[idx];
@@ -760,6 +773,10 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                 {
                     isPureOctal = false;
                     break;
+                }
+                if (ch == '_')
+                {
+                    hasSeparators = true;
                 }
 
                 idx++;
@@ -784,12 +801,8 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                     Advance();
                 }
 
-                var octalDigits = _source[_start.._current];
-                var octalBigInt = BigInteger.Zero;
-                foreach (var c in octalDigits)
-                {
-                    octalBigInt = octalBigInt * 8 + (c - '0');
-                }
+                var octalSpan = _source.AsSpan(_start, _current - _start);
+                var octalBigInt = ParseIntegerLiteral(octalSpan, 8, hasSeparators);
 
                 var octalValue = (double)octalBigInt;
                 AddToken(TokenType.Number, octalValue);
@@ -798,7 +811,8 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
         }
 
         // Regular decimal number
-        ReadDigitsWithSeparators(IsDigit, "decimal", true);
+        var leadingDigits = ReadDigitsWithSeparators(IsDigit, "decimal", true);
+        var hasSeparator = leadingDigits.HasSeparator;
 
         // Check for decimal point (makes it a regular number, not BigInt)
         var hasDecimal = false;
@@ -808,7 +822,8 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             Advance();
             if (IsDigit(Peek()))
             {
-                ReadDigitsWithSeparators(IsDigit, "fractional");
+                var fractionalDigits = ReadDigitsWithSeparators(IsDigit, "fractional");
+                hasSeparator |= fractionalDigits.HasSeparator;
             }
         }
 
@@ -833,7 +848,8 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                     throw new ParseException($"Expected digit after exponent on line {_line} column {_column}.");
                 }
 
-                ReadDigitsWithSeparators(IsDigit, "exponent");
+                var exponentDigits = ReadDigitsWithSeparators(IsDigit, "exponent");
+                hasSeparator |= exponentDigits.HasSeparator;
 
                 hasDecimal = true; // exponential notation makes it a regular number, not BigInt
             }
@@ -853,23 +869,24 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             if (isEndOrNonAlphaNum)
             {
                 Advance(); // consume 'n'
-                var text = _source[_start..(_current - 1)].Replace("_", string.Empty); // exclude the 'n'
-                var value = new JsBigInt(text);
+                var digitsSpan = _source.AsSpan(_start, _current - _start - 1);
+                var value = new JsBigInt(ParseIntegerLiteral(digitsSpan, 10, hasSeparator));
                 AddToken(TokenType.BigInt, value);
                 return;
             }
         }
 
         // Regular number
-        var text2 = _source[_start.._current].Replace("_", string.Empty);
-        var value2 = double.Parse(text2, CultureInfo.InvariantCulture);
+        var literalSpan = _source.AsSpan(_start, _current - _start);
+        var value2 = ParseDoubleLiteral(literalSpan, hasSeparator);
         AddToken(TokenType.Number, value2);
     }
 
     private void ReadLeadingDotNumber()
     {
         // We have already consumed the '.' and confirmed the next char is a digit.
-        ReadDigitsWithSeparators(IsDigit, "fractional");
+        var fractionalDigits = ReadDigitsWithSeparators(IsDigit, "fractional");
+        var hasSeparator = fractionalDigits.HasSeparator;
 
         // Optional exponent
         if (Peek() is 'e' or 'E')
@@ -888,7 +905,8 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                     throw new ParseException($"Expected digit after exponent on line {_line} column {_column}.");
                 }
 
-                ReadDigitsWithSeparators(IsDigit, "exponent");
+                var exponentDigits = ReadDigitsWithSeparators(IsDigit, "exponent");
+                hasSeparator |= exponentDigits.HasSeparator;
             }
             else
             {
@@ -896,8 +914,8 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             }
         }
 
-        var text = _source[_start.._current].Replace("_", string.Empty);
-        var value = double.Parse(text, CultureInfo.InvariantCulture);
+        var text = _source.AsSpan(_start, _current - _start);
+        var value = ParseDoubleLiteral(text, hasSeparator);
         AddToken(TokenType.Number, value);
     }
 
@@ -1205,18 +1223,20 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
         return c is >= '0' and <= '9';
     }
 
-    private string ReadDigitsWithSeparators(Func<char, bool> isDigit, string context, bool hasLeadingDigit = false)
+    private DigitRun ReadDigitsWithSeparators(Func<char, bool> isDigit, string context, bool hasLeadingDigit = false)
     {
-        var builder = new StringBuilder();
+        // If a leading digit was already consumed by the caller (e.g., initial decimal digit),
+        // begin the span at _start so that digit is included in the returned slice.
+        var start = hasLeadingDigit ? _start : _current;
         var sawDigit = hasLeadingDigit;
         var lastUnderscore = false;
+        var hasSeparator = false;
 
         while (!IsAtEnd)
         {
             var c = Peek();
             if (isDigit(c))
             {
-                builder.Append(c);
                 sawDigit = true;
                 lastUnderscore = false;
                 Advance();
@@ -1231,6 +1251,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                         $"Invalid numeric separator in {context} literal at line {_line} column {_column}.");
                 }
 
+                hasSeparator = true;
                 lastUnderscore = true;
                 Advance();
                 continue;
@@ -1250,7 +1271,94 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                 $"Numeric separator may not be trailing in {context} literal at line {_line} column {_column}.");
         }
 
-        return builder.ToString();
+        return new DigitRun(start, _current - start, hasSeparator);
+    }
+
+    private double ParseDoubleLiteral(ReadOnlySpan<char> literalSpan, bool hasSeparator)
+    {
+        if (!hasSeparator)
+        {
+            return double.Parse(literalSpan, CultureInfo.InvariantCulture);
+        }
+
+        Span<char> stackBuffer = stackalloc char[Math.Min(literalSpan.Length, 256)];
+        var cleaned = StripNumericSeparators(literalSpan, stackBuffer, out var heapBuffer);
+        return double.Parse(cleaned, CultureInfo.InvariantCulture);
+    }
+
+    private static ReadOnlySpan<char> StripNumericSeparators(
+        ReadOnlySpan<char> source,
+        Span<char> stackBuffer,
+        out char[]? heapBuffer)
+    {
+        heapBuffer = null;
+        if (source.Length <= stackBuffer.Length)
+        {
+            var write = 0;
+            foreach (var ch in source)
+            {
+                if (ch == '_')
+                {
+                    continue;
+                }
+
+                stackBuffer[write++] = ch;
+            }
+
+            return stackBuffer[..write];
+        }
+
+        var heap = new char[source.Length];
+        var writeHeap = 0;
+        foreach (var ch in source)
+        {
+            if (ch == '_')
+            {
+                continue;
+            }
+
+            heap[writeHeap++] = ch;
+        }
+
+        heapBuffer = heap;
+        return heap.AsSpan(0, writeHeap);
+    }
+
+    private static BigInteger ParseIntegerLiteral(ReadOnlySpan<char> digits, int numberBase, bool hasSeparators)
+    {
+        if (!hasSeparators && numberBase == 10)
+        {
+            return BigInteger.Parse(digits, CultureInfo.InvariantCulture);
+        }
+
+        return ParseIntegerDigits(digits, numberBase);
+    }
+
+    private static BigInteger ParseIntegerDigits(ReadOnlySpan<char> digits, int numberBase)
+    {
+        var value = BigInteger.Zero;
+        foreach (var c in digits)
+        {
+            if (c == '_')
+            {
+                continue;
+            }
+
+            var digitValue = numberBase switch
+            {
+                2 when c is '0' or '1' => c - '0',
+                8 when c is >= '0' and <= '7' => c - '0',
+                10 when c is >= '0' and <= '9' => c - '0',
+                16 when c is >= '0' and <= '9' => c - '0',
+                16 when c is >= 'a' and <= 'f' => 10 + c - 'a',
+                16 when c is >= 'A' and <= 'F' => 10 + c - 'A',
+                _ => throw new ParseException($"Invalid digit '{c}' in base-{numberBase} literal.")
+            };
+
+            value = value * numberBase + digitValue;
+        }
+
+        return value;
     }
 
     private static bool IsIdentifierStart(char c)
@@ -1909,8 +2017,8 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                         // Hexadecimal escape sequence \xHH
                         if (i + 3 < rawString.Length)
                         {
-                            var hex = rawString.Substring(i + 2, 2);
-                            if (int.TryParse(hex, NumberStyles.HexNumber, null, out var value))
+                            var hexSpan = rawString.AsSpan(i + 2, 2);
+                            if (int.TryParse(hexSpan, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var value))
                             {
                                 result.Append((char)value);
                                 i += 4;
@@ -1941,7 +2049,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                             var closingBrace = rawString.IndexOf('}', i + 3);
                             if (closingBrace > i + 3)
                             {
-                                var hexDigits = rawString.Substring(i + 3, closingBrace - (i + 3));
+                                var hexDigits = rawString.AsSpan(i + 3, closingBrace - (i + 3));
                                 if (int.TryParse(hexDigits, NumberStyles.HexNumber, CultureInfo.InvariantCulture,
                                         out var codePoint) &&
                                     codePoint is >= 0 and <= 0x10FFFF)
@@ -1963,8 +2071,8 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                         // Unicode escape sequence \uHHHH
                         if (i + 5 < rawString.Length)
                         {
-                            var hex = rawString.Substring(i + 2, 4);
-                            if (int.TryParse(hex, NumberStyles.HexNumber, null, out var value))
+                            var hexSpan = rawString.AsSpan(i + 2, 4);
+                            if (int.TryParse(hexSpan, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var value))
                             {
                                 result.Append((char)value);
                                 i += 6;

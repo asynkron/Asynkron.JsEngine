@@ -28,7 +28,7 @@ These commands install the latest .NET 10 SDK (which includes the runtime) into 
 
 ## Parser and evaluator
 
-- Treat the parser and evaluator as locked. Only touch them to fix a demonstrated bug; all other behavioural changes should flow through built-in functions and types (and their generators), not the parser/evaluator paths.
+- Treat the parser and evaluator as locked. Only touch them to fix a demonstrated bug; all other behavioural changes must flow through built-in functions and types (and their generators), not the parser/evaluator paths.
 
 ## Continue working
 

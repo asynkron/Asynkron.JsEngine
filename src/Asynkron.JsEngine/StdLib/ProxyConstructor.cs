@@ -20,10 +20,33 @@ public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState
     protected override void ConfigureConstructor(HostFunction constructor)
     {
         constructor.DefineProperty("prototype",
-            new PropertyDescriptor { Value = Symbol.Undefined, Writable = false, Enumerable = false, Configurable = false });
+            new PropertyDescriptor
+            {
+                Value = Symbol.Undefined,
+                Writable = false,
+                Enumerable = false,
+                Configurable = false,
+                HasValue = true,
+                HasWritable = true,
+                HasEnumerable = true,
+                HasConfigurable = true
+            });
 
         DefineBuiltinFunction(constructor.PropertiesObject, "revocable",
             new HostFunction(Revocable, Realm, isConstructor: false), 2);
+
+        // Marker to make class heritage resolution reject Proxy as a base.
+        constructor.DefineProperty("__proxyHasNoPrototype__", new PropertyDescriptor
+        {
+            Value = true,
+            Writable = false,
+            Enumerable = false,
+            Configurable = false,
+            HasValue = true,
+            HasWritable = true,
+            HasEnumerable = true,
+            HasConfigurable = true
+        });
     }
 
     private IJsObjectLike RequireObject(object? candidate, string message)

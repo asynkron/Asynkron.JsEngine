@@ -35,7 +35,8 @@
 - `yield*` now treats a delegated iterator's `throw` result with `done: true` as a normal completion, propagating the returned `value` and finalizing delegation instead of yielding again (fixes the `star-rhs-iter-thrw-res-*` throw/done cases).
 - GlobalDeclarationInstantiation now resolves restricted globals against the root global object (so `let undefined` is rejected even in strict wrappers), deletable direct-eval bindings no longer block later global lexical declarations, and function hoists on non-extensible globals throw a proper TypeError instead of null-refing in DefineFunctionScoped.
 - Top-level await dependencies start async imports without stalling siblings, await async parents before executing dependents, and `ModuleCode_topLevelAwait` is green in both strict and sloppy runs.
+- Number now uses the generator-backed constructor/prototype wiring; realm.NumberPrototype comes from the typed constructor and CreateNumberConstructor is just a thin wrapper.
 
 ## Next Iteration Plan
-1. When resuming broader work, run a narrow Language filter outside `ArgumentsObject`/`Array_fromAsync` to find the next hot cluster (avoid full 43k sweep).
-2. Triage any new failures/hangs with targeted filters; add realm logging only if symptoms remain opaque.
+1. Continue migrating built-ins onto the generator model (constructor/prototype classes with attributes). Pick a single type at a time and swap `CreateXConstructor` to the generated constructor once the surface is ported.
+2. After each migration, run a focused test262 slice around the affected built-in (e.g., Number cluster for numeric changes) to catch regressions before moving on.

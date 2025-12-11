@@ -21,6 +21,11 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
             return constructing;
         }
 
+        if (args.Count == 0)
+        {
+            return 0d;
+        }
+
         return JsOps.ToNumber(args.GetArgument(0));
     }
 
@@ -33,7 +38,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
         {
             if (newTarget is null)
             {
-                return JsOps.ToNumber(args.GetArgument(0));
+                return args.Count == 0 ? 0d : JsOps.ToNumber(args.GetArgument(0));
             }
 
             var target = _constructor ?? constructor;
@@ -60,7 +65,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
 
     private void InitializeNumberWrapper(JsObject wrapper, IReadOnlyList<object?> args)
     {
-        var result = JsOps.ToNumber(args.GetArgument(0));
+        var result = args.Count == 0 ? 0d : JsOps.ToNumber(args.GetArgument(0));
         wrapper.SetProperty("__value__", result);
     }
 

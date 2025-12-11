@@ -100,8 +100,8 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("global", GlobalObject);
 
         // Register standard library objects
-        SetGlobal("console", StandardLibrary.CreateConsoleObject(RealmState));
-        SetGlobal("Math", StandardLibrary.CreateMathObject(RealmState));
+        SetGlobal("console", ConsolePrototype.CreatePrototype(RealmState));
+        SetGlobal("Math", MathPrototype.CreatePrototype(RealmState));
         SetGlobal("Object", StandardLibrary.CreateObjectConstructor(RealmState));
 
         // Per ECMAScript spec, the global object's [[Prototype]] is Object.prototype.
@@ -166,7 +166,7 @@ public sealed class JsEngine : IAsyncDisposable
 
         // Register Date constructor
         SetGlobal("Date", StandardLibrary.CreateDateConstructor(RealmState));
-        SetGlobal("JSON", StandardLibrary.CreateJsonObject(RealmState));
+        SetGlobal("JSON", JsonPrototype.CreatePrototype(RealmState));
 
         // Register RegExp constructor
         SetGlobal("RegExp", StandardLibrary.CreateRegExpConstructor(RealmState));
@@ -190,19 +190,19 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("Symbol", StandardLibrary.CreateSymbolConstructor(RealmState));
 
         // Register Map constructor
-        SetGlobal("Map", StandardLibrary.CreateMapConstructor(RealmState));
+        SetGlobal("Map", MapConstructor.CreateConstructor(RealmState));
 
         // Register Set constructor
-        SetGlobal("Set", StandardLibrary.CreateSetConstructor(RealmState));
+        SetGlobal("Set", SetConstructor.CreateConstructor(RealmState));
 
         // Register WeakMap constructor
-        SetGlobal("WeakMap", StandardLibrary.CreateWeakMapConstructor(RealmState));
+        SetGlobal("WeakMap", WeakMapConstructor.CreateConstructor(RealmState));
 
         // Minimal Proxy constructor (used by Array.isArray proxy tests)
         SetGlobal("Proxy", StandardLibrary.CreateProxyConstructor(RealmState));
 
         // Register WeakSet constructor
-        SetGlobal("WeakSet", StandardLibrary.CreateWeakSetConstructor(RealmState));
+        SetGlobal("WeakSet", WeakSetConstructor.CreateConstructor(RealmState));
 
         SetGlobal("WeakRef", StandardLibrary.CreateWeakRefConstructor(RealmState));
 
@@ -221,7 +221,7 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("localStorage", StandardLibrary.CreateLocalStorageObject());
 
         // Reflect object
-        SetGlobal("Reflect", StandardLibrary.CreateReflectObject(RealmState));
+        SetGlobal("Reflect", ReflectPrototype.CreatePrototype(RealmState));
 
         // Register ArrayBuffer and TypedArray constructors
         SetGlobal("ArrayBuffer", StandardLibrary.CreateArrayBufferConstructor(RealmState));

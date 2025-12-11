@@ -30,28 +30,6 @@ public static partial class StandardLibrary
         return CreateErrorFallback("TypeError", message, realm);
     }
 
-    //TODO: why is this not used?
-    // ECMAScript Type(x) == "bigint" when x is JsBigInt.
-    private static string TypeOf(object? value)
-    {
-        return value switch
-        {
-            null => "object",
-            Symbol sym when ReferenceEquals(sym, Symbol.Undefined) => "undefined",
-            TypedAstSymbol => "symbol",
-            JsBigInt => "bigint",
-            _ => value switch
-            {
-                bool => "boolean",
-                double or float or decimal or int or uint or long or ulong or short or ushort or byte
-                    or sbyte => "number",
-                string => "string",
-                IJsCallable => "function",
-                _ => "object"
-            }
-        };
-    }
-
     internal static object CreateRangeError(string message, EvaluationContext? context = null, RealmState? realm = null)
     {
         realm ??= context?.RealmState;

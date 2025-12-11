@@ -6,11 +6,6 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    public static JsObject CreateConsoleObject(RealmState realm)
-    {
-        return (JsObject)ConsolePrototype.CreatePrototype(realm);
-    }
-
     internal static string FormatConsoleArgs(IReadOnlyList<object?> args)
     {
         var parts = new List<string>();

@@ -8,11 +8,6 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    public static JsObject CreateJsonObject(RealmState realm)
-    {
-        return (JsObject)JsonPrototype.CreatePrototype(realm);
-    }
-
     internal static object? ParseJsonWithReviver(string jsonStr, RealmState realm, EvaluationContext? context,
         object? reviverCandidate)
     {

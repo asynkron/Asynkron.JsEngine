@@ -65,6 +65,7 @@ public sealed class JsEngine : IAsyncDisposable
     private readonly TypedCpsTransformer _typedCpsTransformer = new();
     private Task? _eventLoopTask;
     private int? _eventLoopThreadId;
+    private readonly object _microtaskLock = new();
     private Channel<Func<Task>>? _eventQueue;
 
     // Synchronous microtask queue for top-level await support
@@ -1816,15 +1817,22 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     internal void QueueMicrotask(Action task)
     {
-        _microtaskQueue.Enqueue(task);
+        lock (_microtaskLock)
+        {
+            _microtaskQueue.Enqueue(task);
+        }
     }
 
     internal List<Action> DetachMicrotasks()
     {
-        var preserved = new List<Action>(_microtaskQueue.Count);
-        while (_microtaskQueue.Count > 0)
+        List<Action> preserved;
+        lock (_microtaskLock)
         {
-            preserved.Add(_microtaskQueue.Dequeue());
+            preserved = new List<Action>(_microtaskQueue.Count);
+            while (_microtaskQueue.Count > 0)
+            {
+                preserved.Add(_microtaskQueue.Dequeue());
+            }
         }
 
         return preserved;
@@ -1837,26 +1845,29 @@ public sealed class JsEngine : IAsyncDisposable
             return;
         }
 
-        if (_microtaskQueue.Count == 0)
+        lock (_microtaskLock)
         {
+            if (_microtaskQueue.Count == 0)
+            {
+                foreach (var task in tasks)
+                {
+                    _microtaskQueue.Enqueue(task);
+                }
+
+                return;
+            }
+
+            var existing = new Queue<Action>(_microtaskQueue);
+            _microtaskQueue.Clear();
             foreach (var task in tasks)
             {
                 _microtaskQueue.Enqueue(task);
             }
 
-            return;
-        }
-
-        var existing = new Queue<Action>(_microtaskQueue);
-        _microtaskQueue.Clear();
-        foreach (var task in tasks)
-        {
-            _microtaskQueue.Enqueue(task);
-        }
-
-        while (existing.Count > 0)
-        {
-            _microtaskQueue.Enqueue(existing.Dequeue());
+            while (existing.Count > 0)
+            {
+                _microtaskQueue.Enqueue(existing.Dequeue());
+            }
         }
     }
 
@@ -1866,35 +1877,43 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     internal void DrainMicrotasks(int skipExisting = 0)
     {
-        // Prevent re-entrancy
-        if (_isDrainingMicrotasks)
-        {
-            return;
-        }
-
         if (skipExisting < 0)
         {
             skipExisting = 0;
         }
 
-        _isDrainingMicrotasks = true;
-        try
+        lock (_microtaskLock)
         {
-            if (skipExisting > _microtaskQueue.Count)
+            if (_isDrainingMicrotasks)
             {
-                skipExisting = _microtaskQueue.Count;
+                return;
             }
 
+            _isDrainingMicrotasks = true;
+        }
+
+        try
+        {
             List<Action>? deferred = null;
-            while (_microtaskQueue.Count > 0)
+            while (true)
             {
-                var task = _microtaskQueue.Dequeue();
-                if (skipExisting > 0)
+                Action? task;
+                lock (_microtaskLock)
                 {
-                    deferred ??= new List<Action>();
-                    deferred.Add(task);
-                    skipExisting--;
-                    continue;
+                    if (skipExisting > 0 && _microtaskQueue.Count > 0)
+                    {
+                        deferred ??= new List<Action>();
+                        deferred.Add(_microtaskQueue.Dequeue());
+                        skipExisting--;
+                        continue;
+                    }
+
+                    if (_microtaskQueue.Count == 0)
+                    {
+                        break;
+                    }
+
+                    task = _microtaskQueue.Dequeue();
                 }
 
                 try
@@ -1918,7 +1937,10 @@ public sealed class JsEngine : IAsyncDisposable
         }
         finally
         {
-            _isDrainingMicrotasks = false;
+            lock (_microtaskLock)
+            {
+                _isDrainingMicrotasks = false;
+            }
         }
     }
 
@@ -3352,6 +3374,36 @@ public sealed class JsEngine : IAsyncDisposable
         return dependencies;
     }
 
+    private async Task DrainAsyncDependencies(List<Task<object?>> pendingAsyncDependencies)
+    {
+        while (pendingAsyncDependencies.Count > 0)
+        {
+            DrainMicrotasks();
+
+            for (var i = pendingAsyncDependencies.Count - 1; i >= 0; i--)
+            {
+                var asyncDependency = pendingAsyncDependencies[i];
+                if (!asyncDependency.IsCompleted)
+                {
+                    continue;
+                }
+
+                pendingAsyncDependencies.RemoveAt(i);
+                await asyncDependency.ConfigureAwait(false);
+            }
+
+            if (pendingAsyncDependencies.Count == 0)
+            {
+                break;
+            }
+
+            await Task.Yield();
+        }
+
+        DrainMicrotasks();
+        pendingAsyncDependencies.Clear();
+    }
+
     private async Task<object?> EvaluateModuleBodyWithAsyncDependencies(
         ModuleEntry entry,
         bool drainAwaitMicrotasks = true)
@@ -3359,10 +3411,33 @@ public sealed class JsEngine : IAsyncDisposable
         entry.Evaluating = true;
         try
         {
-            foreach (var dependency in GetModuleDependencies(entry))
+            var pendingAsyncDependencies = new List<Task<object?>>();
+            var dependencies = GetModuleDependencies(entry);
+            for (var i = 0; i < dependencies.Count; i++)
             {
+                var dependency = dependencies[i];
                 EnsureModuleInstantiated(dependency);
-                await EnsureModuleEvaluatedAsync(dependency, waitForAsync: true).ConfigureAwait(false);
+                var isAsyncDependency = dependency.IsAsync || dependency.HasAsyncDependency;
+                var evaluation = EnsureModuleEvaluatedAsync(dependency, waitForAsync: !isAsyncDependency);
+                if (isAsyncDependency)
+                {
+                    pendingAsyncDependencies.Add(evaluation);
+                    var nextIsAsync = i + 1 < dependencies.Count &&
+                                      (dependencies[i + 1].IsAsync || dependencies[i + 1].HasAsyncDependency);
+                    if (nextIsAsync)
+                    {
+                        await DrainAsyncDependencies(pendingAsyncDependencies).ConfigureAwait(false);
+                    }
+
+                    continue;
+                }
+
+                await evaluation.ConfigureAwait(false);
+            }
+
+            if (pendingAsyncDependencies.Count > 0)
+            {
+                await DrainAsyncDependencies(pendingAsyncDependencies).ConfigureAwait(false);
             }
 
             var previousModulePath = _currentModulePath;
@@ -3397,32 +3472,77 @@ public sealed class JsEngine : IAsyncDisposable
         entry.Evaluating = true;
         try
         {
-            foreach (var dependency in GetModuleDependencies(entry))
+            var pendingAsyncDependencies = new List<Task<object?>>();
+            var dependencies = GetModuleDependencies(entry);
+            for (var i = 0; i < dependencies.Count; i++)
             {
+                var dependency = dependencies[i];
                 EnsureModuleInstantiated(dependency);
-                await EnsureModuleEvaluatedAsync(dependency, waitForAsync: true).ConfigureAwait(false);
+                var evaluation = EnsureModuleEvaluatedAsync(dependency, waitForAsync: true);
+                var isAsyncDependency = dependency.IsAsync || dependency.HasAsyncDependency;
+                if (isAsyncDependency)
+                {
+                    pendingAsyncDependencies.Add(evaluation);
+                    var nextIsAsync = i + 1 < dependencies.Count &&
+                                      (dependencies[i + 1].IsAsync || dependencies[i + 1].HasAsyncDependency);
+                    if (nextIsAsync)
+                    {
+                        await DrainAsyncDependencies(pendingAsyncDependencies).ConfigureAwait(false);
+                    }
+
+                    continue;
+                }
+
+                await evaluation.ConfigureAwait(false);
             }
 
-            var result = await Task
-                .Run(() =>
+            if (pendingAsyncDependencies.Count > 0)
+            {
+                await DrainAsyncDependencies(pendingAsyncDependencies).ConfigureAwait(false);
+            }
+
+            object? result;
+            if (drainAwaitMicrotasks)
+            {
+                var previousModulePath = _currentModulePath;
+                _currentModulePath = entry.Path;
+                try
                 {
-                    var previousModulePath = _currentModulePath;
-                    _currentModulePath = entry.Path;
-                    try
+                    result = ExecuteModuleBody(
+                        entry.Program,
+                        entry.Environment,
+                        entry.Exports,
+                        entry.Path,
+                        drainAwaitMicrotasks);
+                }
+                finally
+                {
+                    _currentModulePath = previousModulePath;
+                }
+            }
+            else
+            {
+                result = await Task
+                    .Run(() =>
                     {
-                        return ExecuteModuleBody(
-                            entry.Program,
-                            entry.Environment,
-                            entry.Exports,
-                            entry.Path,
-                            drainAwaitMicrotasks);
-                    }
-                    finally
-                    {
-                        _currentModulePath = previousModulePath;
-                    }
-                })
-                .ConfigureAwait(false);
+                        var previousModulePath = _currentModulePath;
+                        _currentModulePath = entry.Path;
+                        try
+                        {
+                            return ExecuteModuleBody(
+                                entry.Program,
+                                entry.Environment,
+                                entry.Exports,
+                                entry.Path,
+                                drainAwaitMicrotasks);
+                        }
+                        finally
+                        {
+                            _currentModulePath = previousModulePath;
+                        }
+                    })
+                    .ConfigureAwait(false);
+            }
             entry.LastValue = result;
             entry.Evaluated = true;
             return result;
@@ -3449,6 +3569,11 @@ public sealed class JsEngine : IAsyncDisposable
         return ExecuteModuleBody(typedProgram, moduleEnv, exports, modulePath);
     }
 
+    private void WaitForAsyncModule(ModuleEntry moduleEntry)
+    {
+        EnsureModuleEvaluatedAsync(moduleEntry, waitForAsync: true).GetAwaiter().GetResult();
+    }
+
     /// <summary>
     ///     Processes an import statement and brings imported values into the module environment.
     /// </summary>
@@ -3468,18 +3593,23 @@ public sealed class JsEngine : IAsyncDisposable
 
         var engine = moduleEnv.RealmState?.Engine;
         var isAsyncImport = moduleEntry.IsAsync || moduleEntry.HasAsyncDependency;
+        var requiresModuleCompletion =
+            importStatement.DefaultBinding is not null ||
+            !importStatement.NamedImports.IsEmpty ||
+            importStatement.NamespaceBinding is not null;
 
         List<Action>? preservedMicrotasks = null;
 
         try
         {
-            var shouldWaitForAsync =
+            var shouldPreserveMicrotasks =
+                requiresModuleCompletion &&
                 !importStatement.IsDeferred &&
                 isAsyncImport &&
                 !string.Equals(moduleEntry.Path, referrerPath, StringComparison.Ordinal) &&
                 engine is not null;
 
-            if (shouldWaitForAsync)
+            if (shouldPreserveMicrotasks)
             {
                 preservedMicrotasks = engine.DetachMicrotasks();
             }
@@ -3489,7 +3619,14 @@ public sealed class JsEngine : IAsyncDisposable
                 if (isAsyncImport &&
                     !string.Equals(moduleEntry.Path, referrerPath, StringComparison.Ordinal))
                 {
-                    EnsureModuleEvaluatedAsync(moduleEntry).GetAwaiter().GetResult();
+                    if (requiresModuleCompletion)
+                    {
+                        WaitForAsyncModule(moduleEntry);
+                    }
+                    else
+                    {
+                        EnsureModuleEvaluatedAsync(moduleEntry, waitForAsync: false);
+                    }
                 }
                 else
                 {

@@ -30,7 +30,7 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
             return ConstructBuffer(args, effectiveNewTarget);
         });
 
-        var speciesKey = $"@@symbol:{TypedAstSymbol.For("Symbol.species").GetHashCode()}";
+        var speciesKey = TypedAstSymbol.PropertyKey("Symbol.species");
         constructor.DefineProperty(speciesKey,
             new PropertyDescriptor
             {

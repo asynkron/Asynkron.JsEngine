@@ -15,7 +15,7 @@ public static partial class StandardLibrary
         {
             var proto = new JsObject(realm.ObjectPrototype);
 
-            var tagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
+            var tagKey = TypedAstSymbol.PropertyKey("Symbol.toStringTag");
             proto.DefineProperty(tagKey,
                 new PropertyDescriptor
                 {
@@ -31,7 +31,7 @@ public static partial class StandardLibrary
                     TypedArrayReduce(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduceRight", true),
                 realm);
             var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
-            var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
+            var iteratorKey = TypedAstSymbol.PropertyKey(iteratorSymbol);
 
             var valuesIterator = new HostFunction((thisValue, _) =>
             {
@@ -152,7 +152,7 @@ public static partial class StandardLibrary
         constructor.SetProperty("BYTES_PER_ELEMENT", (double)bytesPerElement);
         prototype.SetPrototype(realm.ObjectPrototype);
         prototype.SetProperty("constructor", constructor);
-        var toStringTagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
+        var toStringTagKey = TypedAstSymbol.PropertyKey("Symbol.toStringTag");
         prototype.DefineProperty(toStringTagKey,
             new PropertyDescriptor
             {
@@ -369,20 +369,21 @@ public static partial class StandardLibrary
             IJsCallable? mapFn = null;
             object? mapThis = Symbol.Undefined;
 
-            if (args.Count == 0)
+            switch (args.Count)
             {
-                return CreateTarget(0);
-            }
-
-            if (args.Count > 1 && !ReferenceEquals(args[1], Symbol.Undefined))
-            {
-                if (args[1] is not IJsCallable callableMap)
+                case 0:
+                    return CreateTarget(0);
+                case > 1 when !ReferenceEquals(args[1], Symbol.Undefined):
                 {
-                    throw new ThrowSignal(WrapTypeError("mapfn is not callable", callingEnv));
-                }
+                    if (args[1] is not IJsCallable callableMap)
+                    {
+                        throw new ThrowSignal(WrapTypeError("mapfn is not callable", callingEnv));
+                    }
 
-                mapFn = callableMap;
-                mapThis = args.GetArgument(2);
+                    mapFn = callableMap;
+                    mapThis = args.GetArgument(2);
+                    break;
+                }
             }
 
             var source = args[0];
@@ -417,7 +418,7 @@ public static partial class StandardLibrary
             }
 
             var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
-            var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
+            var iteratorKey = TypedAstSymbol.PropertyKey(iteratorSymbol);
             if (source is IJsPropertyAccessor accessor &&
                 accessor.TryGetProperty(iteratorKey, out var methodVal) &&
                 !ReferenceEquals(methodVal, Symbol.Undefined))

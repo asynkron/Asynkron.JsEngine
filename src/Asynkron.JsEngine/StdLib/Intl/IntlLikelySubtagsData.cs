@@ -14,7 +14,7 @@ internal static class IntlLikelySubtagsData
     private static IReadOnlyDictionary<string, string> Load()
     {
         var assembly = typeof(IntlLikelySubtagsData).Assembly;
-        var resourceName = "Asynkron.JsEngine.StdLib.Intl.IntlLikelySubtags.json";
+        const string resourceName = "Asynkron.JsEngine.StdLib.Intl.IntlLikelySubtags.json";
         using var stream = assembly.GetManifestResourceStream(resourceName)
                         ?? throw new InvalidOperationException(
                             "Could not load embedded Intl likely-subtags data.");

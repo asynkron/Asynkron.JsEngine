@@ -14,6 +14,7 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
 {
     private static readonly ConcurrentDictionary<string, TypedAstSymbol> GlobalRegistry = new(StringComparer.Ordinal);
     private static readonly ConcurrentDictionary<int, TypedAstSymbol> IdRegistry = new();
+    private static readonly ConcurrentDictionary<int, string> PropertyKeyCache = new();
     private static int NextId;
 
     private static readonly HostFunction SymbolToStringFunction = new((thisValue, _) =>
@@ -56,14 +57,14 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
             return true;
         }
 
-        var toPrimitiveKey = $"@@symbol:{For("Symbol.toPrimitive").GetHashCode()}";
+        var toPrimitiveKey = PropertyKey("Symbol.toPrimitive");
         if (string.Equals(name, toPrimitiveKey, StringComparison.Ordinal))
         {
             value = new HostFunction((thisValue, _) => Unbox(thisValue), isConstructor: false);
             return true;
         }
 
-        var toStringTagKey = $"@@symbol:{For("Symbol.toStringTag").GetHashCode()}";
+        var toStringTagKey = PropertyKey("Symbol.toStringTag");
         if (string.Equals(name, toStringTagKey, StringComparison.Ordinal))
         {
             value = "Symbol";
@@ -122,6 +123,20 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
     public static string? KeyFor(TypedAstSymbol symbol)
     {
         return symbol._key;
+    }
+
+    /// <summary>
+    ///     Returns a stable property key string for a symbol (e.g. "@@symbol:1234"), cached per process.
+    /// </summary>
+    public static string PropertyKey(TypedAstSymbol symbol)
+    {
+        var hash = symbol.GetHashCode();
+        return PropertyKeyCache.GetOrAdd(hash, h => $"@@symbol:{h}");
+    }
+
+    public static string PropertyKey(string wellKnownName)
+    {
+        return PropertyKey(For(wellKnownName));
     }
 
     public override string ToString()

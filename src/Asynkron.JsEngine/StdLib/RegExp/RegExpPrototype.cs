@@ -193,7 +193,7 @@ public sealed partial class RegExpPrototype : JsPrototype
 
         Realm.RegExpPrototype ??= Prototype as JsObject;
 
-        var splitKey = $"@@symbol:{TypedAstSymbol.For("Symbol.split").GetHashCode()}";
+        var splitKey = TypedAstSymbol.PropertyKey("Symbol.split");
         if (Prototype is JsObject obj)
         {
             obj.SetHostedProperty(splitKey, Split);
@@ -256,7 +256,7 @@ public sealed partial class RegExpPrototype : JsPrototype
             throw ThrowTypeError("RegExp method called on incompatible receiver", realm: Realm);
         }
 
-        var matchKey = $"@@symbol:{TypedAstSymbol.For("Symbol.match").GetHashCode()}";
+        var matchKey = TypedAstSymbol.PropertyKey("Symbol.match");
         var receiver = thisValue ?? resolved.JsObject;
         JsOps.TryGetPropertyValue(receiver, matchKey, out _);
 

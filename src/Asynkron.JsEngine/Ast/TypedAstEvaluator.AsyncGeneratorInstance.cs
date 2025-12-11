@@ -49,7 +49,7 @@ public static partial class TypedAstEvaluator
 
             // asyncIterator[Symbol.asyncIterator] returns itself.
             var asyncSymbol = TypedAstSymbol.For("Symbol.asyncIterator");
-            var asyncKey = $"@@symbol:{asyncSymbol.GetHashCode()}";
+            var asyncKey = TypedAstSymbol.PropertyKey(asyncSymbol);
             asyncIterator.SetProperty(asyncKey, new HostFunction((thisValue, _) => thisValue));
 
             return asyncIterator;

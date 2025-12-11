@@ -14,7 +14,7 @@ public static partial class TypedAstEvaluator
             out object? result)
         {
             var symbol = TypedAstSymbol.For(symbolName);
-            var hashedName = $"@@symbol:{symbol.GetHashCode()}";
+            var hashedName = TypedAstSymbol.PropertyKey(symbol);
             var realm = context.RealmState;
             realm?.Logger?.LogInformation("TryInvokeSymbolMethod name={Name} thisType={Type}", symbolName,
                 thisArg?.GetType().Name ?? "null");

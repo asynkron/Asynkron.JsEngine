@@ -1441,7 +1441,7 @@ public sealed class JsEnvironment
     {
         touchedUnscopables = false;
         var unscopablesSymbol = TypedAstSymbol.For("Symbol.unscopables");
-        var key = $"@@symbol:{unscopablesSymbol.GetHashCode()}";
+        var key = TypedAstSymbol.PropertyKey(unscopablesSymbol);
         if (target.TryGetProperty(key, out var unscopables))
         {
             touchedUnscopables = true;

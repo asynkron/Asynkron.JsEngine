@@ -102,7 +102,7 @@ public sealed partial class MapPrototype
 
         Realm.MapPrototype ??= Prototype as JsObject;
 
-        var iteratorKey = $"@@symbol:{TypedAstSymbol.For("Symbol.iterator").GetHashCode()}";
+        var iteratorKey = TypedAstSymbol.PropertyKey("Symbol.iterator");
         if (Prototype.TryGetProperty("entries", out var entries))
         {
             Prototype.DefineProperty(iteratorKey,
@@ -163,7 +163,7 @@ public sealed partial class MapPrototype
         });
 
         var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
-        var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
+        var iteratorKey = TypedAstSymbol.PropertyKey(iteratorSymbol);
         iterator.SetHostedProperty(iteratorKey, (_, _) => iterator);
         return iterator;
     }

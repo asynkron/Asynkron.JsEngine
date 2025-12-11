@@ -39,7 +39,7 @@ public static partial class StandardLibrary
         {
             if (args[2] is not IJsCallable ctor)
             {
-                var message = "newTarget is not a constructor";
+                const string message = "newTarget is not a constructor";
                 var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
                     ? typeErrorCtor.Invoke([message], null)
                     : new InvalidOperationException(message);
@@ -155,22 +155,13 @@ public static partial class StandardLibrary
         }
 
         var propertyKey = JsOps.ToPropertyName(args[1]) ?? string.Empty;
-        if (target is ModuleNamespace moduleNamespace)
+        return target switch
         {
-            return moduleNamespace.Delete(propertyKey);
-        }
-
-        if (target is JsArray jsArray)
-        {
-            if (JsOps.TryResolveArrayIndex(propertyKey, out var index))
-            {
-                return jsArray.DeleteElement(index);
-            }
-
-            return jsArray.DeleteProperty(propertyKey);
-        }
-
-        return target is JsObject jsObj && jsObj.Remove(propertyKey);
+            ModuleNamespace moduleNamespace => moduleNamespace.Delete(propertyKey),
+            JsArray jsArray when JsOps.TryResolveArrayIndex(propertyKey, out var index) => jsArray.DeleteElement(index),
+            JsArray jsArray => jsArray.DeleteProperty(propertyKey),
+            _ => target is JsObject jsObj && jsObj.Remove(propertyKey)
+        };
     }
 
     internal static object? ReflectGet(object? _, IReadOnlyList<object?> args, RealmState? realm)
@@ -339,27 +330,25 @@ public static partial class StandardLibrary
         var propertyKey = JsOps.ToPropertyName(args[1]) ?? string.Empty;
         var value = args.GetArgument(2);
         var receiver = args.Count > 3 ? args[3] : target;
-        if (target is ModuleNamespace moduleNamespace)
+        switch (target)
         {
-            try
-            {
-                moduleNamespace.SetProperty(propertyKey, value, receiver);
-            }
-            catch (ThrowSignal)
-            {
+            case ModuleNamespace moduleNamespace:
+                try
+                {
+                    moduleNamespace.SetProperty(propertyKey, value, receiver);
+                }
+                catch (ThrowSignal)
+                {
+                    return false;
+                }
+
                 return false;
-            }
-
-            return false;
+            case JsArray jsArray when string.Equals(propertyKey, "length", StringComparison.Ordinal):
+                return jsArray.SetLength(value, null, false);
+            default:
+                target.SetProperty(propertyKey, value, receiver);
+                return true;
         }
-
-        if (target is JsArray jsArray && string.Equals(propertyKey, "length", StringComparison.Ordinal))
-        {
-            return jsArray.SetLength(value, null, false);
-        }
-
-        target.SetProperty(propertyKey, value, receiver);
-        return true;
     }
 
     internal static object? ReflectSetPrototypeOf(object? _, IReadOnlyList<object?> args, RealmState? realm)

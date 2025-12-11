@@ -247,7 +247,7 @@ internal static class JsOps
         var attempted = false;
 
         var toPrimitiveKey = TypedAstSymbol.For("Symbol.toPrimitive");
-        var symbolPropertyName = $"@@symbol:{toPrimitiveKey.GetHashCode()}";
+        var symbolPropertyName = TypedAstSymbol.PropertyKey(toPrimitiveKey);
         if (TryGetPropertyValue(accessor, symbolPropertyName, out var toPrimitive, context))
         {
             if (context?.IsThrow == true)
@@ -365,7 +365,7 @@ internal static class JsOps
         }
 
         var toPrimitiveKey = TypedAstSymbol.For("Symbol.toPrimitive");
-        var symbolPropertyName = $"@@symbol:{toPrimitiveKey.GetHashCode()}";
+        var symbolPropertyName = TypedAstSymbol.PropertyKey(toPrimitiveKey);
         object? toPrimitive = null;
 
         if (TryGetPropertyValue(accessor, symbolPropertyName, out var ownOrInheritedToPrimitive, context))
@@ -926,7 +926,7 @@ internal static class JsOps
                 case Symbol symbol:
                     return symbol.Name;
                 case TypedAstSymbol jsSymbol:
-                    return $"@@symbol:{jsSymbol.GetHashCode()}";
+                    return TypedAstSymbol.PropertyKey(jsSymbol);
                 case bool b:
                     return b ? "true" : "false";
                 case int i:

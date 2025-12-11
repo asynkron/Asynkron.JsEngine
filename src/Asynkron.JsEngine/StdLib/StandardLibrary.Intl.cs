@@ -11,7 +11,7 @@ public static partial class StandardLibrary
     {
         var intl = new JsObject(realm.ObjectPrototype);
 
-        var toStringTagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
+        var toStringTagKey = TypedAstSymbol.PropertyKey("Symbol.toStringTag");
         intl.DefineProperty(toStringTagKey,
             new PropertyDescriptor
             {

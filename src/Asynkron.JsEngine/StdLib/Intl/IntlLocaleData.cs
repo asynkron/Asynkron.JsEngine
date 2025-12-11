@@ -22,7 +22,7 @@ internal static class IntlLocaleData
     private static LocaleData Load()
     {
         var assembly = typeof(IntlLocaleData).Assembly;
-        var resourceName = "Asynkron.JsEngine.StdLib.Intl.IntlLocaleData.json";
+        const string resourceName = "Asynkron.JsEngine.StdLib.Intl.IntlLocaleData.json";
         using var stream = assembly.GetManifestResourceStream(resourceName)
                             ?? throw new InvalidOperationException(
                                 "Could not load embedded Intl locale data.");

@@ -57,7 +57,7 @@ internal static class IntlWeekData
     private static WeekDataPayload Load()
     {
         var assembly = typeof(IntlWeekData).Assembly;
-        var resourceName = "Asynkron.JsEngine.StdLib.Intl.IntlWeekData.json";
+        const string resourceName = "Asynkron.JsEngine.StdLib.Intl.IntlWeekData.json";
         using var stream = assembly.GetManifestResourceStream(resourceName)
                         ?? throw new InvalidOperationException("Could not load embedded Intl week data.");
         var payload = JsonSerializer.Deserialize<WeekDataPayload>(stream)

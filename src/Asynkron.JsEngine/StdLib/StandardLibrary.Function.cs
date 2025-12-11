@@ -113,32 +113,21 @@ public static partial class StandardLibrary
             throw new ThrowSignal(evalContext.FlowValue);
         }
 
-        switch (primitive)
+        return primitive switch
         {
-            case null:
-                return "null";
-            case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
-                return "undefined";
-            case Symbol:
-            case TypedAstSymbol:
-                throw ThrowTypeError("Cannot convert a Symbol value to a string", evalContext, realmState);
-            case bool flag:
-                return flag ? "true" : "false";
-            case string s:
-                return s;
-            case JsBigInt bigInt:
-                return bigInt.Value.ToString(CultureInfo.InvariantCulture);
-            case double d when double.IsNaN(d):
-                return "NaN";
-            case double d when double.IsPositiveInfinity(d):
-                return "Infinity";
-            case double d when double.IsNegativeInfinity(d):
-                return "-Infinity";
-            case double d:
-                return d.ToString(CultureInfo.InvariantCulture);
-        }
-
-        return Convert.ToString(primitive, CultureInfo.InvariantCulture) ?? string.Empty;
+            null => "null",
+            Symbol sym when ReferenceEquals(sym, Symbol.Undefined) => "undefined",
+            Symbol or TypedAstSymbol => throw ThrowTypeError("Cannot convert a Symbol value to a string", evalContext,
+                realmState),
+            bool flag => flag ? "true" : "false",
+            string s => s,
+            JsBigInt bigInt => bigInt.Value.ToString(CultureInfo.InvariantCulture),
+            double.NaN => "NaN",
+            double d when double.IsPositiveInfinity(d) => "Infinity",
+            double d when double.IsNegativeInfinity(d) => "-Infinity",
+            double d => d.ToString(CultureInfo.InvariantCulture),
+            _ => Convert.ToString(primitive, CultureInfo.InvariantCulture) ?? string.Empty
+        };
     }
 
     private static bool ContainsHtmlCloseCommentWithoutLineTerminator(string text)

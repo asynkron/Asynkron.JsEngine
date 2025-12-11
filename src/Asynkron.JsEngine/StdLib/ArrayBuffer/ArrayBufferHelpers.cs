@@ -55,7 +55,7 @@ public static partial class StandardLibrary
             throw ThrowTypeError("Constructor is not an object", realm: realm);
         }
 
-        var speciesKey = $"@@symbol:{TypedAstSymbol.For("Symbol.species").GetHashCode()}";
+        var speciesKey = TypedAstSymbol.PropertyKey("Symbol.species");
         if (ctorAccessor.TryGetProperty(speciesKey, out var speciesVal))
         {
             if (speciesVal is null || ReferenceEquals(speciesVal, Symbol.Undefined))

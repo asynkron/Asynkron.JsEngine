@@ -20,7 +20,7 @@ public static partial class StandardLibrary
     {
         var iterator = new JsObject(realm?.ObjectPrototype);
         var iteratorSymbol = TypedAstSymbol.For("Symbol.iterator");
-        var iteratorKey = $"@@symbol:{iteratorSymbol.GetHashCode()}";
+        var iteratorKey = TypedAstSymbol.PropertyKey(iteratorSymbol);
 
         uint index = 0;
         var exhausted = false;

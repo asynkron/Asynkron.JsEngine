@@ -111,7 +111,7 @@ public sealed partial class FunctionPrototype : JsPrototype
 
     private void AttachHasInstance()
     {
-        var hasInstanceKey = $"@@symbol:{TypedAstSymbol.For("Symbol.hasInstance").GetHashCode()}";
+        var hasInstanceKey = TypedAstSymbol.PropertyKey("Symbol.hasInstance");
         var hasInstance = new HostFunction((thisValue, args) =>
         {
             if (thisValue is not IJsPropertyAccessor accessor)

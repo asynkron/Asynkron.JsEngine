@@ -25,6 +25,7 @@ public static partial class TypedAstEvaluator
         private readonly bool _isStrict;
         private readonly bool _wasAsyncFunction;
         private readonly bool _hasFunctionNameEnvironment;
+        private static readonly System.Collections.Concurrent.ConcurrentBag<HashSet<Symbol>> SymbolSetPool = new();
         private bool _isConstructorEnabled;
         private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
         private IJsCallable? _caller;
@@ -421,18 +422,17 @@ public static partial class TypedAstEvaluator
             var hasParameterExpressions = HasParameterExpressions(_function);
             var parameterNames = new List<Symbol>();
             CollectParameterNamesFromFunction(_function, parameterNames);
-            var lexicalNames = _bodyLexicalNames.Length == 0
-                ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
-                : new HashSet<Symbol>(_bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
-            var catchParameterNames = CollectCatchParameterNames(_function.Body);
-            var simpleCatchParameterNames = CollectSimpleCatchParameterNames(_function.Body);
+            var lexicalNames = RentSymbolSet();
+            lexicalNames.UnionWith(_bodyLexicalNames);
+            var catchParameterNames = CollectCatchParameterNamesPooled(_function.Body);
+            var simpleCatchParameterNames = CollectSimpleCatchParameterNamesPooled(_function.Body);
             var bodyLexicalNames = lexicalNames.Count == 0
                 ? lexicalNames
-                : new HashSet<Symbol>(lexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
+                : RentSymbolSet(lexicalNames);
             bodyLexicalNames.ExceptWith(simpleCatchParameterNames);
             var blockedFunctionVarNames = bodyLexicalNames.Count == 0
-                ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
-                : new HashSet<Symbol>(bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
+                ? RentSymbolSet()
+                : RentSymbolSet(bodyLexicalNames);
             foreach (var parameterName in parameterNames)
             {
                 blockedFunctionVarNames.Add(parameterName);
@@ -950,6 +950,15 @@ public static partial class TypedAstEvaluator
             }
             finally
             {
+                ReturnSymbolSet(lexicalNames);
+                ReturnSymbolSet(catchParameterNames);
+                ReturnSymbolSet(simpleCatchParameterNames);
+                if (!ReferenceEquals(bodyLexicalNames, lexicalNames))
+                {
+                    ReturnSymbolSet(bodyLexicalNames);
+                }
+                ReturnSymbolSet(blockedFunctionVarNames);
+
                 if (!_isStrict && !IsArrowFunction)
                 {
                     _caller = callerRestore;
@@ -964,6 +973,54 @@ public static partial class TypedAstEvaluator
             }
         }
     }
+
+        private static HashSet<Symbol> RentSymbolSet()
+        {
+            if (SymbolSetPool.TryTake(out var set))
+            {
+                set.Clear();
+                return set;
+            }
+
+            return new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+        }
+
+        private static HashSet<Symbol> RentSymbolSet(IEnumerable<Symbol> seed)
+        {
+            var set = RentSymbolSet();
+            set.UnionWith(seed);
+            return set;
+        }
+
+        private static void ReturnSymbolSet(HashSet<Symbol> set)
+        {
+            set.Clear();
+            SymbolSetPool.Add(set);
+        }
+
+        private static HashSet<Symbol> CollectCatchParameterNamesPooled(BlockStatement body)
+        {
+            var set = RentSymbolSet();
+            var names = CollectCatchParameterNames(body);
+            if (names.Count > 0)
+            {
+                set.UnionWith(names);
+            }
+
+            return set;
+        }
+
+        private static HashSet<Symbol> CollectSimpleCatchParameterNamesPooled(BlockStatement body)
+        {
+            var set = RentSymbolSet();
+            var names = CollectSimpleCatchParameterNames(body);
+            if (names.Count > 0)
+            {
+                set.UnionWith(names);
+            }
+
+            return set;
+        }
 
         public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
         {

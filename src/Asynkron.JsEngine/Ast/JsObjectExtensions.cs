@@ -103,10 +103,10 @@ public static partial class TypedAstEvaluator
                 savedSignal?.GetType().Name ?? "null",
                 savedSignal switch
                 {
-                    ThrowFlowSignal throwSignal => throwSignal.Value?.GetType().Name ?? "null",
-                    ReturnSignal returnSignal => returnSignal.Value?.GetType().Name ?? "null",
-                    BreakSignal => "Break",
-                    ContinueSignal => "Continue",
+                    ThrowFlowCompletionSignal throwSignal => throwSignal.Value?.GetType().Name ?? "null",
+                    ReturnCompletionSignal returnSignal => returnSignal.Value?.GetType().Name ?? "null",
+                    BreakCompletionSignal => "Break",
+                    ContinueCompletionSignal => "Continue",
                     _ => "null"
                 });
 

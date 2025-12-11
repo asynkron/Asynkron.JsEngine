@@ -69,13 +69,13 @@ public static partial class TypedAstEvaluator
                 pending = GetGeneratorPendingCompletion(environment);
                 switch (savedSignal)
                 {
-                    case ThrowFlowSignal throwSignal:
+                    case ThrowFlowCompletionSignal throwSignal:
                         pending.HasValue = true;
                         pending.IsThrow = true;
                         pending.IsReturn = false;
                         pending.Value = throwSignal.Value;
                         break;
-                    case ReturnSignal returnSignal:
+                    case ReturnCompletionSignal returnSignal:
                         pending.HasValue = true;
                         pending.IsThrow = false;
                         pending.IsReturn = true;

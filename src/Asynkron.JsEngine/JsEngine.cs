@@ -167,20 +167,8 @@ public sealed class JsEngine : IAsyncDisposable
         var typedArrayCtor = StandardLibrary.EnsureTypedArrayIntrinsic(RealmState);
         SetGlobal("TypedArray", typedArrayCtor);
 
-        // Register Date constructor as a callable object with static methods
-        var dateConstructor = StandardLibrary.CreateDateConstructor(RealmState);
-        var dateObj = StandardLibrary.CreateDateObject();
-
-        // Add static methods to constructor
-        if (dateConstructor is HostFunction)
-        {
-            foreach (var prop in dateObj)
-            {
-                dateConstructor.SetProperty(prop.Key, prop.Value);
-            }
-        }
-
-        SetGlobal("Date", dateConstructor);
+        // Register Date constructor
+        SetGlobal("Date", StandardLibrary.CreateDateConstructor(RealmState));
         SetGlobal("JSON", StandardLibrary.CreateJsonObject(RealmState));
 
         // Register RegExp constructor
@@ -399,11 +387,11 @@ public sealed class JsEngine : IAsyncDisposable
         var controlFlowState = context.CurrentSignal switch
         {
             null => "None",
-            ReturnSignal => "Return",
-            BreakSignal => "Break",
-            ContinueSignal => "Continue",
-            ThrowFlowSignal => "Throw",
-            YieldSignal => "Yield",
+            ReturnCompletionSignal => "Return",
+            BreakCompletionSignal => "Break",
+            ContinueCompletionSignal => "Continue",
+            ThrowFlowCompletionSignal => "Throw",
+            YieldCompletionSignal => "Yield",
             _ => "Unknown"
         };
 

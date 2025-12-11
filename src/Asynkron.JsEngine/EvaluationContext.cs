@@ -71,7 +71,7 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     The current control flow signal, if any.
     /// </summary>
-    public ISignal? CurrentSignal { get; private set; }
+    public ICompletionSignal? CurrentSignal { get; private set; }
 
     /// <summary>
     ///     The yield slot index that produced the most recent suspension.
@@ -121,9 +121,9 @@ public sealed class EvaluationContext(
     /// </summary>
     public object? FlowValue => CurrentSignal switch
     {
-        ReturnSignal rs => rs.Value,
-        ThrowFlowSignal ts => ts.Value,
-        YieldSignal ys => ys.Value,
+        ReturnCompletionSignal rs => rs.Value,
+        ThrowFlowCompletionSignal ts => ts.Value,
+        YieldCompletionSignal ys => ys.Value,
         _ => null
     };
 
@@ -135,12 +135,12 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     Returns true if the current signal is Return.
     /// </summary>
-    public bool IsReturn => CurrentSignal is ReturnSignal;
+    public bool IsReturn => CurrentSignal is ReturnCompletionSignal;
 
     /// <summary>
     ///     Returns true if the current signal is Throw.
     /// </summary>
-    public bool IsThrow => CurrentSignal is ThrowFlowSignal;
+    public bool IsThrow => CurrentSignal is ThrowFlowCompletionSignal;
 
     /// <summary>
     ///     Controls whether await expressions should synchronously drain the microtask queue
@@ -152,17 +152,17 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     Returns true if the current signal is Yield.
     /// </summary>
-    public bool IsYield => CurrentSignal is YieldSignal;
+    public bool IsYield => CurrentSignal is YieldCompletionSignal;
 
     /// <summary>
     ///     Returns true if the current signal is Break.
     /// </summary>
-    public bool IsBreak => CurrentSignal is BreakSignal;
+    public bool IsBreak => CurrentSignal is BreakCompletionSignal;
 
     /// <summary>
     ///     Returns true if the current signal is Continue.
     /// </summary>
-    public bool IsContinue => CurrentSignal is ContinueSignal;
+    public bool IsContinue => CurrentSignal is ContinueCompletionSignal;
 
     public ScopeFrame CurrentScope => _scopeStack.Count > 0 ? _scopeStack.Peek() : ScopeFrame.Default;
 
@@ -284,7 +284,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public void SetReturn(object? value)
     {
-        CurrentSignal = new ReturnSignal(value);
+        CurrentSignal = new ReturnCompletionSignal(value);
     }
 
     /// <summary>
@@ -292,7 +292,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public void SetBreak(Symbol? label = null)
     {
-        CurrentSignal = new BreakSignal(label);
+        CurrentSignal = new BreakCompletionSignal(label);
     }
 
     /// <summary>
@@ -300,7 +300,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public void SetContinue(Symbol? label = null)
     {
-        CurrentSignal = new ContinueSignal(label);
+        CurrentSignal = new ContinueCompletionSignal(label);
     }
 
     /// <summary>
@@ -308,7 +308,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public void SetThrow(object? value)
     {
-        CurrentSignal = new ThrowFlowSignal(value);
+        CurrentSignal = new ThrowFlowCompletionSignal(value);
     }
 
     /// <summary>
@@ -317,7 +317,7 @@ public sealed class EvaluationContext(
     public void SetYield(object? value, int yieldIndex)
     {
         LastYieldIndex = yieldIndex;
-        CurrentSignal = new YieldSignal(value);
+        CurrentSignal = new YieldCompletionSignal(value);
     }
 
     /// <summary>
@@ -327,7 +327,7 @@ public sealed class EvaluationContext(
     public void SetYieldWithIteratorResult(object? value, int yieldIndex, JsTypes.IJsObjectLike? iteratorResultObject)
     {
         LastYieldIndex = yieldIndex;
-        CurrentSignal = new YieldSignal(value, iteratorResultObject);
+        CurrentSignal = new YieldCompletionSignal(value, iteratorResultObject);
     }
 
     /// <summary>
@@ -335,7 +335,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public void ClearContinue()
     {
-        if (CurrentSignal is ContinueSignal)
+        if (CurrentSignal is ContinueCompletionSignal)
         {
             CurrentSignal = null;
         }
@@ -347,7 +347,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public bool TryClearContinue(Symbol? label)
     {
-        if (CurrentSignal is not ContinueSignal continueSignal)
+        if (CurrentSignal is not ContinueCompletionSignal continueSignal)
         {
             return false;
         }
@@ -369,7 +369,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public bool TryClearBreak(Symbol? label)
     {
-        if (CurrentSignal is not BreakSignal breakSignal)
+        if (CurrentSignal is not BreakCompletionSignal breakSignal)
         {
             return false;
         }
@@ -390,7 +390,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public void ClearReturn()
     {
-        if (CurrentSignal is ReturnSignal)
+        if (CurrentSignal is ReturnCompletionSignal)
         {
             CurrentSignal = null;
         }

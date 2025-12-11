@@ -24,22 +24,22 @@ public static partial class TypedAstEvaluator
                 $" at {source} (snippet: '{snippet}') Source: '{source.Source}' Start: {source.StartPosition} End: {source.EndPosition}";
         }
 
-        private void RestoreSignal(ISignal? signal)
+        private void RestoreSignal(ICompletionSignal? signal)
         {
             switch (signal)
             {
                 case null:
                     return;
-                case ReturnSignal returnSignal:
+                case ReturnCompletionSignal returnSignal:
                     context.SetReturn(returnSignal.Value);
                     break;
-                case BreakSignal breakSignal:
+                case BreakCompletionSignal breakSignal:
                     context.SetBreak(breakSignal.Label);
                     break;
-                case ContinueSignal continueSignal:
+                case ContinueCompletionSignal continueSignal:
                     context.SetContinue(continueSignal.Label);
                     break;
-                case ThrowFlowSignal throwSignal:
+                case ThrowFlowCompletionSignal throwSignal:
                     context.SetThrow(throwSignal.Value);
                     break;
             }

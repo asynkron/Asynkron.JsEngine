@@ -515,7 +515,7 @@ public static partial class TypedAstEvaluator
                             {
                                 var yieldedSignalValue = context.FlowValue;
                                 // Check if the yield signal includes an original iterator result object (from yield*)
-                                var iteratorResultObject = (context.CurrentSignal as YieldSignal)?.IteratorResultObject;
+                                var iteratorResultObject = (context.CurrentSignal as YieldCompletionSignal)?.IteratorResultObject;
                                 RecordYield(context);
                                 context.Clear();
                                 _state = GeneratorState.Suspended;
@@ -550,7 +550,7 @@ public static partial class TypedAstEvaluator
                                 {
                                     yieldedValue = context.FlowValue;
                                     // Check if the yield signal includes an original iterator result object (from yield* in operand)
-                                    var nestedIteratorResult = (context.CurrentSignal as YieldSignal)?.IteratorResultObject;
+                                    var nestedIteratorResult = (context.CurrentSignal as YieldCompletionSignal)?.IteratorResultObject;
                                     context.Clear();
                                     yieldedDuringOperand = true;
                                     _programCounter = _currentInstructionIndex;
@@ -1472,7 +1472,7 @@ public static partial class TypedAstEvaluator
                 {
                     var yielded = context.FlowValue;
                     // Check if the yield signal includes an original iterator result object (from yield*)
-                    var iteratorResultObject = (context.CurrentSignal as YieldSignal)?.IteratorResultObject;
+                    var iteratorResultObject = (context.CurrentSignal as YieldCompletionSignal)?.IteratorResultObject;
                     RecordYield(context);
                     context.Clear();
                     _state = GeneratorState.Suspended;

@@ -1377,7 +1377,7 @@ public static partial class StandardLibrary
                     else
                     {
                         result.Append("%u");
-                        result.Append(((int)ch).ToString("X4"));
+                        result.Append(((int)ch).ToString("X4", CultureInfo.InvariantCulture));
                     }
 
                     break;

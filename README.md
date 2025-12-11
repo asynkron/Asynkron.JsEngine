@@ -41,15 +41,15 @@ All documentation is organized in the `docs/` folder. This is the main entry poi
 Asynkron.JsEngine implements ECMAScript 262 with full language coverage.
 
 ### Current Status
-- ECMAScript 262 language: 100% compliance; the full language test suite passes.
-- Built-ins / standard library: roughly 50% implemented; coverage work is ongoing (see `docs/FEATURE_STATUS_SUMMARY.md`).
+- ECMAScript 262 language: 100% compliant; the full language Test262 suite passes.
+- Built-ins / standard library: ~50% compliant and expanding; see `docs/FEATURE_STATUS_SUMMARY.md` for coverage details.
 
 ### Capabilities
 - Variables, functions, classes, objects, arrays
 - Async/await, Promises, generators
 - ES modules (import/export) including dynamic imports
 - Template literals, destructuring, spread/rest, operators, and control flow
-- Partial standard library coverage (Object, Array/TypedArray/ArrayBuffer, Promise, Math, Date, JSON, RegExp, Symbol, Map/Set/WeakMap/WeakSet, BigInt, async iteration); remaining built-ins are in progress.
+- Core standard library implemented so far: Object, Array/TypedArray/ArrayBuffer, Promise, Math, Date, JSON, RegExp, Symbol, Map/Set/WeakMap/WeakSet, BigInt, async iteration (additional built-ins are being added).
 
 See **[Complete Feature List](docs/FEATURES.md)** for detailed documentation with examples.
 

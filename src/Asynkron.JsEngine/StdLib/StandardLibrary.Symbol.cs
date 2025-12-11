@@ -8,91 +8,7 @@ public static partial class StandardLibrary
 {
     public static HostFunction CreateSymbolConstructor(RealmState realm)
     {
-        HostFunction symbolConstructor = null!;
-        symbolConstructor = new HostFunction(SymbolConstructor);
-
-        // Symbol cannot be called with 'new' - check for newTarget
-        symbolConstructor.SetInvokeWithContext((args, _, _, newTarget) =>
-        {
-            // If newTarget is not undefined (i.e., called with 'new'), throw TypeError
-            if (newTarget is not null)
-            {
-                throw ThrowTypeError("Symbol is not a constructor", realm: realm);
-            }
-
-            return SymbolConstructorCore(args);
-        });
-
-        symbolConstructor.SetHostedProperty("for", SymbolFor);
-
-        symbolConstructor.SetHostedProperty("keyFor", SymbolKeyFor);
-
-        // Well-known symbols
-        symbolConstructor.SetProperty("hasInstance", TypedAstSymbol.For("Symbol.hasInstance"));
-        symbolConstructor.SetProperty("iterator", TypedAstSymbol.For("Symbol.iterator"));
-        symbolConstructor.SetProperty("asyncIterator", TypedAstSymbol.For("Symbol.asyncIterator"));
-        symbolConstructor.SetProperty("toPrimitive", TypedAstSymbol.For("Symbol.toPrimitive"));
-        symbolConstructor.SetProperty("toStringTag", TypedAstSymbol.For("Symbol.toStringTag"));
-        symbolConstructor.SetProperty("unscopables", TypedAstSymbol.For("Symbol.unscopables"));
-        symbolConstructor.SetProperty("match", TypedAstSymbol.For("Symbol.match"));
-        symbolConstructor.SetProperty("matchAll", TypedAstSymbol.For("Symbol.matchAll"));
-        symbolConstructor.SetProperty("replace", TypedAstSymbol.For("Symbol.replace"));
-        symbolConstructor.SetProperty("replaceAll", TypedAstSymbol.For("Symbol.replaceAll"));
-        symbolConstructor.SetProperty("search", TypedAstSymbol.For("Symbol.search"));
-        symbolConstructor.SetProperty("split", TypedAstSymbol.For("Symbol.split"));
-        symbolConstructor.SetProperty("species", TypedAstSymbol.For("Symbol.species"));
-        symbolConstructor.SetProperty("isConcatSpreadable", TypedAstSymbol.For("Symbol.isConcatSpreadable"));
-
-        if (symbolConstructor.TryGetProperty("prototype", out var protoValue) && protoValue is JsObject prototype)
-        {
-            prototype.SetPrototype(realm.ObjectPrototype);
-            realm.SymbolPrototype = prototype;
-        }
-        else
-        {
-            var symbolProto = new JsObject();
-            symbolProto.SetPrototype(realm.ObjectPrototype);
-            realm.SymbolPrototype = symbolProto;
-            symbolConstructor.SetProperty("prototype", symbolProto);
-        }
-
-        return symbolConstructor;
-
-        object? SymbolConstructor(IReadOnlyList<object?> args)
-        {
-            // Called without 'new' - this is the normal case
-            return SymbolConstructorCore(args);
-        }
-
-        object? SymbolConstructorCore(IReadOnlyList<object?> args)
-        {
-            var description = args.Count > 0 && args[0] != null && !ReferenceEquals(args[0], Symbol.Undefined)
-                ? args[0]!.ToString()
-                : null;
-            return TypedAstSymbol.Create(description);
-        }
-
-        object? SymbolFor(IReadOnlyList<object?> args)
-        {
-            if (args.Count == 0)
-            {
-                return Symbol.Undefined;
-            }
-
-            var key = args[0]?.ToString() ?? "";
-            return TypedAstSymbol.For(key);
-        }
-
-        object? SymbolKeyFor(IReadOnlyList<object?> args)
-        {
-            if (args.Count == 0 || args[0] is not TypedAstSymbol sym)
-            {
-                return Symbol.Undefined;
-            }
-
-            var key = TypedAstSymbol.KeyFor(sym);
-            return key ?? (object)Symbol.Undefined;
-        }
+        return SymbolConstructor.CreateConstructor(realm);
     }
 
     public static JsObject CreateSymbolWrapper(TypedAstSymbol symbol, EvaluationContext? context = null,
@@ -100,42 +16,40 @@ public static partial class StandardLibrary
     {
         var wrapper = new JsObject { ["__value__"] = symbol };
 
-        var proto = context?.RealmState?.SymbolPrototype ?? realm?.SymbolPrototype
-                    ?? context?.RealmState?.ObjectPrototype ?? realm?.ObjectPrototype;
+        var proto = context?.RealmState?.SymbolPrototype ?? realm?.SymbolPrototype;
         if (proto is not null)
         {
             wrapper.SetPrototype(proto);
         }
-
-        var valueOf = new HostFunction((thisValue, _) => UnboxSymbol(thisValue, context, realm), isConstructor: false);
-
-        var toString =
-            new HostFunction((thisValue, _) => UnboxSymbol(thisValue, context, realm).ToString(),
+        else
+        {
+            var valueOf = new HostFunction((thisValue, _) => RequireSymbolReceiver(thisValue, realm), realm,
                 isConstructor: false);
+            var toString = new HostFunction((thisValue, _) => RequireSymbolReceiver(thisValue, realm).ToString(),
+                realm, isConstructor: false);
 
-        wrapper.SetHostedProperty("valueOf", valueOf);
-        wrapper.SetHostedProperty("toString", toString);
+            wrapper.SetHostedProperty("valueOf", valueOf);
+            wrapper.SetHostedProperty("toString", toString);
 
-        var toPrimitiveKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toPrimitive").GetHashCode()}";
-        wrapper.SetProperty(toPrimitiveKey,
-            new HostFunction((thisValue, _) => UnboxSymbol(thisValue, context, realm), isConstructor: false));
+            var toPrimitiveKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toPrimitive").GetHashCode()}";
+            wrapper.SetProperty(toPrimitiveKey,
+                new HostFunction((thisValue, _) => RequireSymbolReceiver(thisValue, realm), realm,
+                    isConstructor: false));
 
-        var toStringTagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
-        wrapper.SetProperty(toStringTagKey, "Symbol");
+            var toStringTagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
+            wrapper.SetProperty(toStringTagKey, "Symbol");
+        }
 
         return wrapper;
+    }
 
-        static TypedAstSymbol UnboxSymbol(object? receiver, EvaluationContext? ctx, RealmState? realmState)
+    internal static TypedAstSymbol RequireSymbolReceiver(object? receiver, RealmState? realm = null)
+    {
+        return receiver switch
         {
-            switch (receiver)
-            {
-                case TypedAstSymbol s:
-                    return s;
-                case JsObject obj when obj.TryGetProperty("__value__", out var inner) && inner is TypedAstSymbol sym:
-                    return sym;
-                default:
-                    throw ThrowTypeError("Symbol.prototype valueOf called on incompatible receiver", ctx, realmState);
-            }
-        }
+            TypedAstSymbol sym => sym,
+            JsObject obj when obj.TryGetProperty("__value__", out var inner) && inner is TypedAstSymbol sym => sym,
+            _ => throw ThrowTypeError("Symbol.prototype valueOf called on incompatible receiver", realm: realm)
+        };
     }
 }

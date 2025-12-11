@@ -17,6 +17,7 @@ public static partial class StandardLibrary
         if (prototype is not null)
         {
             numberObj.SetPrototype(prototype);
+            return numberObj;
         }
 
         AddNumberMethods(numberObj, num, context?.RealmState ?? realm);
@@ -38,19 +39,11 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
-    ///     Adds number methods to a number wrapper object.
+    ///     Fallback attachment of number instance methods when no prototype is available.
     /// </summary>
     private static void AddNumberMethods(JsObject numberObj, double num, RealmState? realm = null)
     {
-        numberObj.SetHostedProperty("toString", ToString);
-        numberObj.SetHostedProperty("toFixed", ToFixed);
-        numberObj.SetHostedProperty("toExponential", ToExponential);
-        numberObj.SetHostedProperty("toPrecision", ToPrecision);
-        numberObj.SetHostedProperty("valueOf", ValueOf);
-        numberObj.SetHostedProperty("toLocaleString", ToLocaleString);
-        return;
-
-        object? ToString(IReadOnlyList<object?> args)
+        numberObj.SetHostedProperty("toString", args =>
         {
             var radixArg = args.GetArgument(0);
             var radixNumber = ReferenceEquals(radixArg, Symbol.Undefined) ? 10d : JsOps.ToNumber(radixArg);
@@ -66,9 +59,9 @@ public static partial class StandardLibrary
             }
 
             return NumberToString(num, radix);
-        }
+        });
 
-        object? ToFixed(IReadOnlyList<object?> args)
+        numberObj.SetHostedProperty("toFixed", args =>
         {
             var fractionDigits = args.Count > 0 && args[0] is double d ? (int)d : 0;
             if (fractionDigits is < 0 or > 100)
@@ -87,9 +80,9 @@ public static partial class StandardLibrary
             }
 
             return num.ToString("F" + fractionDigits, CultureInfo.InvariantCulture);
-        }
+        });
 
-        object? ToExponential(IReadOnlyList<object?> args)
+        numberObj.SetHostedProperty("toExponential", args =>
         {
             if (double.IsNaN(num))
             {
@@ -117,29 +110,10 @@ public static partial class StandardLibrary
                 result = num.ToString("e" + fractionDigits, CultureInfo.InvariantCulture);
             }
 
-            // JavaScript spec: remove leading zeros from exponent
-            return FormatExponentialForJsOld(result);
-        }
+            return FormatExponentialForJs(result);
+        });
 
-        static string FormatExponentialForJsOld(string netExponential)
-        {
-            var eIndex = netExponential.IndexOf('e');
-            if (eIndex < 0) return netExponential;
-            var mantissa = netExponential.Substring(0, eIndex + 1);
-            var exponent = netExponential.Substring(eIndex + 1);
-            var sign = "";
-            if (exponent.Length > 0 && (exponent[0] == '+' || exponent[0] == '-'))
-            {
-                sign = exponent.Substring(0, 1);
-                exponent = exponent.Substring(1);
-            }
-
-            exponent = exponent.TrimStart('0');
-            if (exponent.Length == 0) exponent = "0";
-            return mantissa + sign + exponent;
-        }
-
-        object? ToPrecision(IReadOnlyList<object?> args)
+        numberObj.SetHostedProperty("toPrecision", args =>
         {
             if (args.Count == 0)
             {
@@ -168,14 +142,11 @@ public static partial class StandardLibrary
             }
 
             return num.ToString("G" + precision, CultureInfo.InvariantCulture);
-        }
+        });
 
-        object? ValueOf(IReadOnlyList<object?> _)
-        {
-            return num;
-        }
+        numberObj.SetHostedProperty("valueOf", _ => num);
 
-        object? ToLocaleString(IReadOnlyList<object?> args)
+        numberObj.SetHostedProperty("toLocaleString", args =>
         {
             var localesArg = args.GetArgument(0);
             var optionsArg = args.GetArgument(1);
@@ -199,10 +170,28 @@ public static partial class StandardLibrary
             }
 
             return num.ToString(CultureInfo.InvariantCulture);
-        }
+        });
     }
 
-    private static string NumberToString(double num, int radix)
+    private static string FormatExponentialForJs(string netExponential)
+    {
+        var eIndex = netExponential.IndexOf('e');
+        if (eIndex < 0) return netExponential;
+        var mantissa = netExponential[..(eIndex + 1)];
+        var exponent = netExponential[(eIndex + 1)..];
+        var sign = "";
+        if (exponent.Length > 0 && (exponent[0] == '+' || exponent[0] == '-'))
+        {
+            sign = exponent[..1];
+            exponent = exponent[1..];
+        }
+
+        exponent = exponent.TrimStart('0');
+        if (exponent.Length == 0) exponent = "0";
+        return mantissa + sign + exponent;
+    }
+
+    internal static string NumberToString(double num, int radix)
     {
         if (double.IsNaN(num))
         {
@@ -923,5 +912,5 @@ public static partial class StandardLibrary
     }
 
     [GeneratedRegex(@"^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?")]
-    private static partial Regex FloatRegex();
+    internal static partial Regex FloatRegex();
 }

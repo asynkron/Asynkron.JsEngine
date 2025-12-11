@@ -440,7 +440,7 @@ public static partial class StandardLibrary
         return value.ToJsString(null, realm);
     }
 
-    private static bool TryFormatWithIntlNumberFormat(
+    internal static bool TryFormatWithIntlNumberFormat(
         object numericValue,
         object? localesArg,
         object? optionsArg,

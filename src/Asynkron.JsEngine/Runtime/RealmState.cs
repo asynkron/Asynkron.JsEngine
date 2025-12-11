@@ -52,6 +52,8 @@ public sealed class RealmState
     public HostFunction? ArrayBufferConstructor { get; set; }
     public JsObject? SharedArrayBufferPrototype { get; set; }
     public HostFunction? SharedArrayBufferConstructor { get; set; }
+    public JsObject? DataViewPrototype { get; set; }
+    public HostFunction? DataViewConstructor { get; set; }
     public HostFunction? RegExpConstructor { get; set; }
     public RegExpStatics RegExpStatics { get; } = new();
     public JsObject? GeneratorFunctionPrototype { get; set; }

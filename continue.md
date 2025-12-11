@@ -39,7 +39,9 @@
 - Promise is now generator-backed: CreatePromiseConstructor routes through the generated constructor/prototype, RealmState tracks PromisePrototype, and instance methods live on Promise.prototype instead of being attached per-instance.
 - RegExp constructor/prototype now use the generator-backed wiring and live under `StdLib/RegExp`; legacy static accessors and `Symbol.split` are preserved.
 - Date constructor/prototype now live under `StdLib/Date` with generator wiring; static `now`/`UTC`/`parse` attach directly to the constructor and prototype methods were ported as host methods.
+- Math has been moved under `StdLib/Math` with a generator-backed prototype that owns all constants and methods; the global `Math` object is built via the generated surface.
+- ArrayBuffer constructor/prototype now live under `StdLib/ArrayBuffer`; the constructor uses generator wiring, species handling is preserved, and helpers cover internal slot storage and `ArrayBuffer.isView`.
 
 ## Next Iteration Plan
-1. Continue migrating built-ins onto the generator model (constructor/prototype classes with attributes). Promise, RegExp, and Date are done; pick the next constructor-driven type (e.g., Math/Console/ArrayBuffer family) and swap `CreateXConstructor` to the generated constructor once the surface is ported.
-2. After each migration, run a focused test262 slice around the affected built-in (e.g., Number cluster for numeric changes) to catch regressions before moving on.
+1. Continue migrating built-ins onto the generator model (constructor/prototype classes with attributes). Promise, RegExp, Date, Math, and ArrayBuffer are done; pick the next constructor-driven type (e.g., SharedArrayBuffer/DataView or Console) and swap `CreateXConstructor` to the generated constructor once the surface is ported.
+2. After each migration, run a focused Test262 slice around the affected built-in to catch regressions before moving on.

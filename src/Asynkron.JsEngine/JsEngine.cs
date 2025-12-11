@@ -205,19 +205,19 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("Symbol", StandardLibrary.CreateSymbolConstructor(RealmState));
 
         // Register Map constructor
-        SetGlobal("Map", StandardLibrary.CreateMapConstructor());
+        SetGlobal("Map", StandardLibrary.CreateMapConstructor(RealmState));
 
         // Register Set constructor
-        SetGlobal("Set", StandardLibrary.CreateSetConstructor());
+        SetGlobal("Set", StandardLibrary.CreateSetConstructor(RealmState));
 
         // Register WeakMap constructor
-        SetGlobal("WeakMap", StandardLibrary.CreateWeakMapConstructor());
+        SetGlobal("WeakMap", StandardLibrary.CreateWeakMapConstructor(RealmState));
 
         // Minimal Proxy constructor (used by Array.isArray proxy tests)
         SetGlobal("Proxy", StandardLibrary.CreateProxyConstructor(RealmState));
 
         // Register WeakSet constructor
-        SetGlobal("WeakSet", StandardLibrary.CreateWeakSetConstructor());
+        SetGlobal("WeakSet", StandardLibrary.CreateWeakSetConstructor(RealmState));
 
         SetGlobal("WeakRef", StandardLibrary.CreateWeakRefConstructor(RealmState));
 

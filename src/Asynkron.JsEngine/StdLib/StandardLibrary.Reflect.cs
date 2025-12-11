@@ -523,8 +523,12 @@ public static partial class StandardLibrary
             "Boolean" => realmState.BooleanPrototype,
             "Date" => realmState.DatePrototype,
             "Function" => realmState.FunctionPrototype,
+            "Map" => realmState.MapPrototype,
             "Number" => realmState.NumberPrototype,
+            "Set" => realmState.SetPrototype,
             "Object" => realmState.ObjectPrototype,
+            "WeakMap" => realmState.WeakMapPrototype,
+            "WeakSet" => realmState.WeakSetPrototype,
             "String" => realmState.StringPrototype,
             _ => null
         };

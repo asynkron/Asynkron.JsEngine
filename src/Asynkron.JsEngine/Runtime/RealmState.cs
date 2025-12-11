@@ -37,7 +37,15 @@ public sealed class RealmState
     public JsObject? StringPrototype { get; set; }
     public JsObject? BigIntPrototype { get; set; }
     public JsObject? SymbolPrototype { get; set; }
+    public JsObject? MapPrototype { get; set; }
+    public JsObject? SetPrototype { get; set; }
+    public JsObject? WeakMapPrototype { get; set; }
+    public JsObject? WeakSetPrototype { get; set; }
     public HostFunction? ArrayConstructor { get; set; }
+    public HostFunction? MapConstructor { get; set; }
+    public HostFunction? SetConstructor { get; set; }
+    public HostFunction? WeakMapConstructor { get; set; }
+    public HostFunction? WeakSetConstructor { get; set; }
     public JsObject? TypedArrayPrototype { get; set; }
     public HostFunction? TypedArrayConstructor { get; set; }
     public JsObject? ArrayBufferPrototype { get; set; }

@@ -15,7 +15,7 @@ public static partial class StandardLibrary
         {
             var proto = new JsObject(realm.ObjectPrototype);
 
-            var tagKey = TypedAstSymbol.PropertyKey(Symbols.ToStringTag, realm);
+            var tagKey = SymbolKeys.GetToStringTag(realm);
             proto.DefineProperty(tagKey,
                 new PropertyDescriptor
                 {
@@ -30,7 +30,7 @@ public static partial class StandardLibrary
                 (thisValue, reduceArgs, realmState) =>
                     TypedArrayReduce(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduceRight", true),
                 realm);
-            var iteratorKey = TypedAstSymbol.PropertyKey(Symbols.Iterator, realm);
+            var iteratorKey = SymbolKeys.GetIterator(realm);
 
             var valuesIterator = new HostFunction((thisValue, _) =>
             {
@@ -151,7 +151,7 @@ public static partial class StandardLibrary
         constructor.SetProperty("BYTES_PER_ELEMENT", (double)bytesPerElement);
         prototype.SetPrototype(realm.ObjectPrototype);
         prototype.SetProperty("constructor", constructor);
-        var toStringTagKey = TypedAstSymbol.PropertyKey(Symbols.ToStringTag, realm);
+        var toStringTagKey = SymbolKeys.GetToStringTag(realm);
         prototype.DefineProperty(toStringTagKey,
             new PropertyDescriptor
             {
@@ -416,7 +416,7 @@ public static partial class StandardLibrary
                 }
             }
 
-            var iteratorKey = TypedAstSymbol.PropertyKey(Symbols.Iterator);
+            var iteratorKey = SymbolKeys.Iterator;
             if (source is IJsPropertyAccessor accessor &&
                 accessor.TryGetProperty(iteratorKey, out var methodVal) &&
                 !ReferenceEquals(methodVal, Symbol.Undefined))

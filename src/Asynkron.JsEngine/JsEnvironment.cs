@@ -1440,7 +1440,7 @@ public sealed class JsEnvironment
     private static bool IsBlockedByUnscopables(IJsObjectLike target, string name, out bool touchedUnscopables)
     {
         touchedUnscopables = false;
-        var key = TypedAstSymbol.PropertyKey(Symbols.Unscopables);
+        var key = SymbolKeys.Unscopables;
         if (target.TryGetProperty(key, out var unscopables))
         {
             touchedUnscopables = true;

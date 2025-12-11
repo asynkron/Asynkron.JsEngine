@@ -29,11 +29,11 @@ public sealed partial class SymbolPrototype
 
     protected override void ConfigurePrototype()
     {
-        var toPrimitiveKey = TypedAstSymbol.PropertyKey(Symbols.ToPrimitive, Realm);
+        var toPrimitiveKey = SymbolKeys.GetToPrimitive(Realm);
         Prototype.SetProperty(toPrimitiveKey,
             new HostFunction((thisValue, _) => RequireSymbolReceiver(thisValue, Realm), Realm, isConstructor: false));
 
-        var toStringTagKey = TypedAstSymbol.PropertyKey(Symbols.ToStringTag, Realm);
+        var toStringTagKey = SymbolKeys.GetToStringTag(Realm);
         Prototype.SetProperty(toStringTagKey, "Symbol");
     }
 }

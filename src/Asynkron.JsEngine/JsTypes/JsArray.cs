@@ -761,7 +761,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
 
         // Set up Symbol.iterator
-        var iteratorKey = TypedAstSymbol.PropertyKey(Symbols.Iterator);
+        var iteratorKey = SymbolKeys.Iterator;
 
         // Create iterator function that returns an iterator object
         var iteratorFunction = new HostFunction((_, _) =>

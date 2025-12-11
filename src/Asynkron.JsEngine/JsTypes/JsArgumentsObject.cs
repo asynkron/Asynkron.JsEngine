@@ -63,7 +63,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         _backing.DefineProperty("__arguments__",
             new PropertyDescriptor { Value = true, Writable = false, Enumerable = false, Configurable = false });
 
-        var tagKey = TypedAstSymbol.PropertyKey(Symbols.ToStringTag, realm);
+        var tagKey = SymbolKeys.GetToStringTag(realm);
         _backing.DefineProperty(tagKey,
             new PropertyDescriptor { Value = "Arguments", Writable = false, Enumerable = false, Configurable = true });
 
@@ -92,7 +92,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             _backing.DefineProperty("callee", _calleeDescriptor);
         }
 
-        var iteratorKey = TypedAstSymbol.PropertyKey(Symbols.Iterator, realm);
+        var iteratorKey = SymbolKeys.GetIterator(realm);
         if (TryGetArrayIterator(realm, iteratorKey, out var iteratorValue))
         {
             _backing.DefineProperty(iteratorKey,

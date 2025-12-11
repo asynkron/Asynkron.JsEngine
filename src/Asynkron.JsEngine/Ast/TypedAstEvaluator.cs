@@ -30,8 +30,7 @@ public static partial class TypedAstEvaluator
 {
     private const string GeneratorBrandPropertyName = "__generator_brand__";
 
-    private static readonly string IteratorSymbolPropertyName =
-        TypedAstSymbol.PropertyKey(Symbols.Iterator);
+    private static readonly string IteratorSymbolPropertyName = SymbolKeys.Iterator;
 
     private static readonly object GeneratorBrandMarker = new();
     private static readonly object EmptyCompletion = new();
@@ -82,7 +81,7 @@ public static partial class TypedAstEvaluator
         }
 
         var logger = context.RealmState?.Logger;
-        var iteratorKey = TypedAstSymbol.PropertyKey(Symbols.Iterator);
+        var iteratorKey = SymbolKeys.Iterator;
         logger?.LogInformation("TryGetIteratorFromProtocols start targetType={Type} iteratorKey={Key}",
             iterable?.GetType().Name ?? "null",
             iteratorKey);

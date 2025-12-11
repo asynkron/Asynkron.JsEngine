@@ -48,7 +48,7 @@ public static partial class TypedAstEvaluator
                 prototype);
 
             // asyncIterator[Symbol.asyncIterator] returns itself.
-            var asyncKey = TypedAstSymbol.PropertyKey(Symbols.AsyncIterator);
+            var asyncKey = SymbolKeys.AsyncIterator;
             asyncIterator.SetProperty(asyncKey, new HostFunction((thisValue, _) => thisValue));
 
             return asyncIterator;

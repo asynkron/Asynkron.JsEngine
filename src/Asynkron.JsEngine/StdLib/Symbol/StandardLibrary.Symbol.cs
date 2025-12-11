@@ -31,12 +31,12 @@ public static partial class StandardLibrary
             wrapper.SetHostedProperty("valueOf", valueOf);
             wrapper.SetHostedProperty("toString", toString);
 
-            var toPrimitiveKey = TypedAstSymbol.PropertyKey(Symbols.ToPrimitive);
+            var toPrimitiveKey = SymbolKeys.ToPrimitive;
             wrapper.SetProperty(toPrimitiveKey,
                 new HostFunction((thisValue, _) => RequireSymbolReceiver(thisValue, realm), realm,
                     isConstructor: false));
 
-            var toStringTagKey = TypedAstSymbol.PropertyKey(Symbols.ToStringTag);
+            var toStringTagKey = SymbolKeys.ToStringTag;
             wrapper.SetProperty(toStringTagKey, "Symbol");
         }
 

@@ -111,7 +111,7 @@ public sealed partial class FunctionPrototype : JsPrototype
 
     private void AttachHasInstance()
     {
-        var hasInstanceKey = TypedAstSymbol.PropertyKey(Symbols.HasInstance, Realm);
+        var hasInstanceKey = SymbolKeys.GetHasInstance(Realm);
         var hasInstance = new HostFunction((thisValue, args) =>
         {
             if (thisValue is not IJsPropertyAccessor accessor)

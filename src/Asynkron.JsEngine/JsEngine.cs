@@ -197,7 +197,7 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("AggregateError", StandardLibrary.CreateErrorConstructor(RealmState, "AggregateError"));
 
         // Register Promise constructor
-        var promiseConstructor = StandardLibrary.CreatePromiseConstructor(this);
+        var promiseConstructor = StandardLibrary.CreatePromiseConstructor(RealmState);
         SetGlobal("Promise", promiseConstructor);
         RealmState.PromiseConstructor = promiseConstructor as IJsCallable;
 
@@ -1405,11 +1405,16 @@ public sealed class JsEngine : IAsyncDisposable
 
     private IJsPropertyAccessor? ResolvePromisePrototypeInternal()
     {
-        if (RealmState?.PromiseConstructor is IJsPropertyAccessor realmPromiseCtor &&
-            realmPromiseCtor.TryGetProperty("prototype", out var realmPrototype) &&
-            realmPrototype is IJsPropertyAccessor realmPromisePrototype)
+        if (RealmState?.PromisePrototype is IJsPropertyAccessor realmPromisePrototype)
         {
             return realmPromisePrototype;
+        }
+
+        if (RealmState?.PromiseConstructor is IJsPropertyAccessor realmPromiseCtor &&
+            realmPromiseCtor.TryGetProperty("prototype", out var realmPrototype) &&
+            realmPrototype is IJsPropertyAccessor promisePrototypeAccessorFromCtor)
+        {
+            return promisePrototypeAccessorFromCtor;
         }
 
         if (GlobalObject.TryGetProperty("Promise", out var promiseCtor) &&
@@ -1425,14 +1430,10 @@ public sealed class JsEngine : IAsyncDisposable
 
     internal JsPromise CreateRealmPromise()
     {
-        var promise = new JsPromise(this);
         var prototype = ResolvePromisePrototypeInternal();
-        if (prototype is not null)
-        {
-            promise.JsObject.SetPrototype(prototype);
-        }
-
-        StandardLibrary.AddPromiseInstanceMethods(promise.JsObject, promise, this);
+        var promise = prototype is null
+            ? StandardLibrary.CreatePromise(RealmState)
+            : StandardLibrary.CreatePromise(RealmState, prototype as IJsObjectLike);
         return promise;
     }
 

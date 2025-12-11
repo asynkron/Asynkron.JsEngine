@@ -107,8 +107,12 @@ public static partial class TypedAstEvaluator
                 return null;
             });
 
-            var promiseObj = promiseCtor.Invoke([executor], null);
-            return promiseObj;
+            if (promiseCtor is HostFunction hostCtor)
+            {
+                return hostCtor.InvokeWithContext([executor], null, null, hostCtor);
+            }
+
+            return promiseCtor.Invoke([executor], null);
         }
 
         private static JsObject CreateAsyncIteratorResult(object? value, bool done)

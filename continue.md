@@ -36,7 +36,8 @@
 - GlobalDeclarationInstantiation now resolves restricted globals against the root global object (so `let undefined` is rejected even in strict wrappers), deletable direct-eval bindings no longer block later global lexical declarations, and function hoists on non-extensible globals throw a proper TypeError instead of null-refing in DefineFunctionScoped.
 - Top-level await dependencies start async imports without stalling siblings, await async parents before executing dependents, and `ModuleCode_topLevelAwait` is green in both strict and sloppy runs.
 - Number now uses the generator-backed constructor/prototype wiring; realm.NumberPrototype comes from the typed constructor and CreateNumberConstructor is just a thin wrapper.
+- Promise is now generator-backed: CreatePromiseConstructor routes through the generated constructor/prototype, RealmState tracks PromisePrototype, and instance methods live on Promise.prototype instead of being attached per-instance.
 
 ## Next Iteration Plan
-1. Continue migrating built-ins onto the generator model (constructor/prototype classes with attributes). Pick a single type at a time and swap `CreateXConstructor` to the generated constructor once the surface is ported.
+1. Continue migrating built-ins onto the generator model (constructor/prototype classes with attributes). Promise is done; pick the next constructor-driven type (e.g., RegExp/Function/ArrayBuffer family) and swap `CreateXConstructor` to the generated constructor once the surface is ported.
 2. After each migration, run a focused test262 slice around the affected built-in (e.g., Number cluster for numeric changes) to catch regressions before moving on.

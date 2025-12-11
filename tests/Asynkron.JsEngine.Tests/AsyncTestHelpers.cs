@@ -21,7 +21,7 @@ internal static class AsyncTestHelpers
             }
 
             var value = args.Count > 1 ? args[1] : null;
-            var promiseConstructor = StandardLibrary.CreatePromiseConstructor(engine);
+            var promiseConstructor = StandardLibrary.CreatePromiseConstructor(engine.RealmState);
             if (promiseConstructor is not IJsCallable promiseCtor)
             {
                 return null;
@@ -54,8 +54,12 @@ internal static class AsyncTestHelpers
                 return null;
             });
 
-            var promiseObj = promiseCtor.Invoke(new object?[] { executor }, null);
-            return promiseObj;
+            if (promiseCtor is HostFunction hostCtor)
+            {
+                return hostCtor.InvokeWithContext(new object?[] { executor }, null, null, hostCtor);
+            }
+
+            return promiseCtor.Invoke(new object?[] { executor }, null);
         });
     }
 }

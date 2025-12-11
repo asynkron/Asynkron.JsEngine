@@ -454,38 +454,49 @@ public static partial class TypedAstEvaluator
 
     private static void HoistLexicalBindingTargetForGlobalTdz(BindingTarget target, JsEnvironment environment, bool isConst)
     {
-        switch (target)
+        while (true)
         {
-            case IdentifierBinding id:
-                if (!environment.HasBinding(id.Name))
-                {
-                    environment.Define(id.Name, JsEnvironment.Uninitialized, isLexical: true,
-                        blocksFunctionScopeOverride: true, isConst: isConst);
-                }
-                break;
-            case ArrayBinding arrayBinding:
-                foreach (var element in arrayBinding.Elements)
-                {
-                    if (element.Target is { } elementTarget)
+            switch (target)
+            {
+                case IdentifierBinding id:
+                    if (!environment.HasBinding(id.Name))
                     {
-                        HoistLexicalBindingTargetForGlobalTdz(elementTarget, environment, isConst);
+                        environment.Define(id.Name, JsEnvironment.Uninitialized, isLexical: true, blocksFunctionScopeOverride: true, isConst: isConst);
                     }
-                }
-                if (arrayBinding.RestElement is { } restTarget)
-                {
-                    HoistLexicalBindingTargetForGlobalTdz(restTarget, environment, isConst);
-                }
-                break;
-            case ObjectBinding objectBinding:
-                foreach (var prop in objectBinding.Properties)
-                {
-                    HoistLexicalBindingTargetForGlobalTdz(prop.Target, environment, isConst);
-                }
-                if (objectBinding.RestElement is { } restObjTarget)
-                {
-                    HoistLexicalBindingTargetForGlobalTdz(restObjTarget, environment, isConst);
-                }
-                break;
+
+                    break;
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        if (element.Target is { } elementTarget)
+                        {
+                            HoistLexicalBindingTargetForGlobalTdz(elementTarget, environment, isConst);
+                        }
+                    }
+
+                    if (arrayBinding.RestElement is { } restTarget)
+                    {
+                        target = restTarget;
+                        continue;
+                    }
+
+                    break;
+                case ObjectBinding objectBinding:
+                    foreach (var prop in objectBinding.Properties)
+                    {
+                        HoistLexicalBindingTargetForGlobalTdz(prop.Target, environment, isConst);
+                    }
+
+                    if (objectBinding.RestElement is { } restObjTarget)
+                    {
+                        target = restObjTarget;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            break;
         }
     }
 }

@@ -1626,27 +1626,23 @@ internal static class JsOps
 
     public static bool IsConstructor(object? value)
     {
-        if (value is JsProxy proxy)
+        while (true)
         {
-            return IsConstructor(proxy.Target);
-        }
+            switch (value)
+            {
+                case JsProxy proxy:
+                    value = proxy.Target;
+                    continue;
+                case HostFunction host:
+                    return host is { IsConstructor: true, DisallowConstruct: false };
+                case ICallableMetadata { IsArrowFunction: true }:
+                case ICallableMetadata { DisallowConstruct: true }:
+                    return false;
+            }
 
-        if (value is HostFunction host)
-        {
-            return host is { IsConstructor: true, DisallowConstruct: false };
+            return value is IJsCallable;
+            break;
         }
-
-        if (value is ICallableMetadata { IsArrowFunction: true })
-        {
-            return false;
-        }
-
-        if (value is ICallableMetadata { DisallowConstruct: true })
-        {
-            return false;
-        }
-
-        return value is IJsCallable;
     }
 
     private static bool TryGetArrayLikeValue(object? target, object? propertyKey, out object? value,
@@ -1784,7 +1780,7 @@ internal static class JsOps
                     return true;
                 }
 
-                IJsPropertyAccessor? current = jsArray.PrototypeAccessor ?? jsArray.Prototype;
+                var current = jsArray.PrototypeAccessor ?? jsArray.Prototype;
                 while (current is not null)
                 {
                     var inheritedDescriptor = current.GetOwnPropertyDescriptor(propertyName);

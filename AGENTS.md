@@ -26,6 +26,10 @@ These commands install the latest .NET 10 SDK (which includes the runtime) into 
 - Do **not** introduce non-standard language extensions (e.g., accepting syntactically invalid constructs or changing specified semantics) unless there is an explicit, documented requirement and matching tests.
 - Both strict mode and non-strict (sloppy) mode must remain supported; changes should preserve their existing semantics and the spec-defined differences between them.
 
+## Parser and evaluator
+
+- Treat the parser and evaluator as locked: only change them to fix a proven bug. Prefer adjustments in built-in functions and types instead of touching the parser/evaluator paths.
+
 ## Continue working
 
 Read the continue.md file fully, alanyze it and understad the next steps described there.

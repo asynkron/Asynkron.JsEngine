@@ -38,28 +38,20 @@ All documentation is organized in the `docs/` folder. This is the main entry poi
 
 ## Quick Overview
 
-Asynkron.JsEngine implements a substantial subset of JavaScript features:
+Asynkron.JsEngine targets ECMAScript 262 compliance.
 
-### ✅ Implemented Features (99% Coverage!)
+### Current Status
+- ECMAScript 262 language: 100% compliance; the full language test suite passes.
+- Built-ins / standard library: roughly 50% implemented; remaining coverage work is ongoing (see `docs/FEATURE_STATUS_SUMMARY.md`).
 
-- ✅ Variables, functions, classes, objects, arrays
-- ✅ Async/await, Promises, generators
-- ✅ ES6 modules (import/export) including dynamic imports
-- ✅ Template literals, destructuring, spread/rest
-- ✅ All operators and control flow
-- ✅ Comprehensive standard library (Math, Date, JSON, RegExp, etc.)
-- ✅ Symbol, Map, Set, WeakMap, WeakSet collections
-- ✅ BigInt for arbitrary precision integers
-- ✅ Typed Arrays and ArrayBuffer for binary data
-- ✅ Async iteration (for await...of)
+### Capabilities
+- Variables, functions, classes, objects, arrays
+- Async/await, Promises, generators
+- ES modules (import/export) including dynamic imports
+- Template literals, destructuring, spread/rest, operators, and control flow
+- Core standard library coverage (Math, Date, JSON, RegExp, Symbol, Map/Set/WeakMap/WeakSet, BigInt, TypedArray/ArrayBuffer, async iteration)
 
 See **[Complete Feature List](docs/FEATURES.md)** for detailed documentation with examples.
-
-### 🚧 Not Implemented (2 Specialized Features)
-
-Only 2 highly specialized features remain: Proxy/Reflect. See **[Large Features Not Implemented](docs/LARGE_FEATURES_NOT_IMPLEMENTED.md)** for analysis.
-
-Note: BigInt, Typed Arrays, WeakMap/WeakSet, async iteration, and dynamic imports are now implemented!
 
 ---
 

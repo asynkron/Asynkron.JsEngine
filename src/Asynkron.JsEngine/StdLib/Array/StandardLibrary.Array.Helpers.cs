@@ -406,13 +406,13 @@ public static partial class StandardLibrary
         return accessor.TryGetProperty(propertyKey, out var value) ? value : Symbol.Undefined;
     }
 
-    internal static object InvokeDefaultObjectToString(object? target, RealmState? realm)
+    internal static object? InvokeDefaultObjectToString(object? target, RealmState? realm)
     {
         if (realm?.ObjectPrototype is IJsPropertyAccessor objectPrototype &&
             objectPrototype.TryGetProperty("toString", out var toStringValue) &&
             toStringValue is IJsCallable callable)
         {
-            return callable.Invoke(Array.Empty<object?>(), target);
+            return callable.Invoke([], target);
         }
 
         return "[object Object]";

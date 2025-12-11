@@ -253,7 +253,7 @@ public static partial class StandardLibrary
         }
     }
 
-    private static object CreateSyntaxError(string message, RealmState? realm)
+    private static object? CreateSyntaxError(string message, RealmState? realm)
     {
         if (realm?.SyntaxErrorConstructor is not { } ctor)
         {

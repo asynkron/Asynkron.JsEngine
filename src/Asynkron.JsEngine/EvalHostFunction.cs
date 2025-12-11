@@ -1050,8 +1050,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 default:
                     return false;
             }
-
-            break;
         }
     }
 

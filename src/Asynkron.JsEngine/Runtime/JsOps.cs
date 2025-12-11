@@ -1641,7 +1641,6 @@ internal static class JsOps
             }
 
             return value is IJsCallable;
-            break;
         }
     }
 

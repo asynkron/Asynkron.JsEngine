@@ -1098,8 +1098,6 @@ public sealed class JsEngine : IAsyncDisposable
                 default:
                     return false;
             }
-
-            break;
         }
     }
 
@@ -1242,8 +1240,6 @@ public sealed class JsEngine : IAsyncDisposable
                 default:
                     return false;
             }
-
-            break;
         }
     }
 
@@ -1379,8 +1375,6 @@ public sealed class JsEngine : IAsyncDisposable
                 default:
                     return false;
             }
-
-            break;
         }
     }
 

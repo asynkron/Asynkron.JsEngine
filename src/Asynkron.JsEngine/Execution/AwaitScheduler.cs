@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using System.Threading;
 
 namespace Asynkron.JsEngine.Execution;
 
@@ -70,20 +71,25 @@ internal static class AwaitScheduler
                 break;
             }
 
-            var tcs = new TaskCompletionSource<(bool Success, object? Value)>(
-                TaskCreationOptions.RunContinuationsAsynchronously);
+            var completed = false;
+            var fulfilled = false;
+            object? completionValue = null;
 
             var onFulfilled = new HostFunction(args =>
             {
                 var value = args.GetArgument(0);
-                tcs.TrySetResult((true, value));
+                fulfilled = true;
+                completionValue = value;
+                completed = true;
                 return null;
             });
 
             var onRejected = new HostFunction(args =>
             {
                 var value = args.GetArgument(0);
-                tcs.TrySetResult((false, value));
+                fulfilled = false;
+                completionValue = value;
+                completed = true;
                 return null;
             });
 
@@ -105,27 +111,27 @@ internal static class AwaitScheduler
                 return false;
             }
 
-            (bool Success, object? Value) awaited;
             try
             {
-                if (drainMicrotasks)
+                if (!completed && drainMicrotasks)
                 {
-                    var iterations = 0;
-                    while (!tcs.Task.IsCompleted)
+                    if (engine is not null && !engine.IsEventLoopDrained())
                     {
+                        engine.StartEventLoop();
+                    }
+
+                    var iterations = 0;
+                    while (!completed)
+                    {
+                        context.ThrowIfCancellationRequested();
                         engine?.DrainMicrotasks();
 
-                        if (tcs.Task.IsCompleted)
+                        if (completed)
                         {
                             break;
                         }
 
-                        if (engine is not null)
-                        {
-                            engine.StartEventLoop();
-                            engine.DrainEventLoopAsync(CancellationToken.None).GetAwaiter().GetResult();
-                            engine.DrainMicrotasks();
-                        }
+                        Thread.Yield();
 
                         if (++iterations > 10_000)
                         {
@@ -134,7 +140,6 @@ internal static class AwaitScheduler
                         }
                     }
                 }
-                awaited = tcs.Task.GetAwaiter().GetResult();
             }
             catch (InvalidOperationException)
             {
@@ -154,14 +159,20 @@ internal static class AwaitScheduler
                 return false;
             }
 
-            if (!awaited.Success)
+            if (!completed && !drainMicrotasks)
             {
-                context.SetThrow(awaited.Value);
+                throw new NotSupportedException(
+                    "Promise cannot be awaited synchronously without draining microtasks.");
+            }
+
+            if (!fulfilled)
+            {
+                context.SetThrow(completionValue);
                 resolvedValue = Symbol.Undefined;
                 return false;
             }
 
-            resolvedValue = awaited.Value;
+            resolvedValue = completionValue;
         }
 
         return true;

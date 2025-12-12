@@ -695,21 +695,21 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     ///     Synchronously evaluates a pre-parsed program without using the event loop.
     /// </summary>
-    private object? EvaluateSyncInternal(
-        ParsedProgram program,
-        CancellationToken cancellationToken = default,
-        string? sourcePath = null,
-        bool forceModule = false)
-    {
+	    private object? EvaluateSyncInternal(
+	        ParsedProgram program,
+	        CancellationToken cancellationToken = default,
+	        string? sourcePath = null,
+	        bool forceModule = false)
+	    {
         var combinedToken = CreateEvaluationCancellationToken(cancellationToken, out var timeoutCts);
         try
         {
             var isModule = forceModule || HasModuleStatements(program.Typed);
             EnsureImportMetaAllowed(program.Typed, isModule);
-            if (isModule)
-            {
-                string? moduleKey = null;
-                ModuleEntry entry;
+	            if (isModule)
+	            {
+	                string? moduleKey = null;
+	                ModuleEntry entry;
                 if (!string.IsNullOrEmpty(sourcePath))
                 {
                     moduleKey = NormalizeModulePath(sourcePath!, null, _moduleLoader is not null);
@@ -732,21 +732,20 @@ public sealed class JsEngine : IAsyncDisposable
                         string.Empty);
                     entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
                         new HashSet<string>(StringComparer.Ordinal));
-                }
+	                }
 
-                EnsureModuleInstantiated(entry);
-                if (entry.IsAsync || entry.HasAsyncDependency)
-                {
-                    EnsureModuleEvaluatedAsync(entry).GetAwaiter().GetResult();
-                }
-                else
-                {
-                    EnsureModuleEvaluated(entry);
-                }
-                return entry.LastValue;
-            }
+	                EnsureModuleInstantiated(entry);
+	                if (entry.IsAsync || entry.HasAsyncDependency)
+	                {
+	                    throw new NotSupportedException(
+	                        "EvaluateSync does not support async modules (top-level await / async dependencies). Use Evaluate/EvaluateModule instead.");
+	                }
 
-            return ExecuteProgram(program, GlobalEnvironment, combinedToken);
+	                EnsureModuleEvaluated(entry);
+	                return entry.LastValue;
+	            }
+
+	            return ExecuteProgram(program, GlobalEnvironment, combinedToken);
         }
         finally
         {
@@ -875,21 +874,21 @@ public sealed class JsEngine : IAsyncDisposable
         }
     }
 
-    private object? EvaluateInline(
-        ParsedProgram program,
-        CancellationToken cancellationToken,
-        string? sourcePath = null,
-        bool forceModule = false)
-    {
+	    private object? EvaluateInline(
+	        ParsedProgram program,
+	        CancellationToken cancellationToken,
+	        string? sourcePath = null,
+	        bool forceModule = false)
+	    {
         var combinedToken = CreateEvaluationCancellationToken(cancellationToken, out var timeoutCts);
         try
         {
             var isModule = forceModule || HasModuleStatements(program.Typed);
             EnsureImportMetaAllowed(program.Typed, isModule);
-            if (isModule)
-            {
-                string? moduleKey = null;
-                ModuleEntry entry;
+	            if (isModule)
+	            {
+	                string? moduleKey = null;
+	                ModuleEntry entry;
                 if (!string.IsNullOrEmpty(sourcePath))
                 {
                     moduleKey = NormalizeModulePath(sourcePath!, null);
@@ -912,20 +911,25 @@ public sealed class JsEngine : IAsyncDisposable
                         string.Empty);
                     entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
                         new HashSet<string>(StringComparer.Ordinal));
-                }
+	                }
 
-                EnsureModuleInstantiated(entry);
-                if (entry.IsAsync || entry.HasAsyncDependency)
-                {
-                    EnsureModuleEvaluatedAsync(entry).GetAwaiter().GetResult();
-                }
-                else
-                {
-                    EnsureModuleEvaluated(entry);
-                }
-                DrainMicrotasks();
-                return entry.LastValue;
-            }
+	                EnsureModuleInstantiated(entry);
+	                if (entry.IsAsync || entry.HasAsyncDependency)
+	                {
+	                    if (!entry.Evaluated)
+	                    {
+	                        throw new NotSupportedException(
+	                            "Inline evaluation of async modules is not supported without blocking. Use Evaluate/EvaluateModule from outside the engine event loop.");
+	                    }
+	                }
+	                else
+	                {
+	                    EnsureModuleEvaluated(entry);
+	                }
+
+	                DrainMicrotasks();
+	                return entry.LastValue;
+	            }
 
             var scriptResult = ExecuteProgram(program, GlobalEnvironment, combinedToken);
             DrainMicrotasks();
@@ -1581,10 +1585,37 @@ public sealed class JsEngine : IAsyncDisposable
         entry.Instantiating = false;
     }
 
-    private void EnsureModuleEvaluated(ModuleEntry entry)
-    {
-        EnsureModuleEvaluatedAsync(entry).GetAwaiter().GetResult();
-    }
+	    private void EnsureModuleEvaluated(ModuleEntry entry)
+	    {
+	        if (entry.Evaluated)
+	        {
+	            return;
+	        }
+
+	        EnsureModuleInstantiated(entry);
+
+	        if (entry.IsAsync || entry.HasAsyncDependency)
+	        {
+	            throw new NotSupportedException(
+	                "Synchronous module evaluation is not supported for async modules. Use EnsureModuleEvaluatedAsync/Evaluate instead.");
+	        }
+
+	        if (entry.Evaluating)
+	        {
+	            return;
+	        }
+
+	        entry.Evaluating = true;
+	        try
+	        {
+	            entry.LastValue = ExecuteModuleBody(entry.Program, entry.Environment, entry.Exports, entry.Path);
+	            entry.Evaluated = true;
+	        }
+	        finally
+	        {
+	            entry.Evaluating = false;
+	        }
+	    }
 
     private Task<object?> EnsureModuleEvaluatedAsync(ModuleEntry entry, bool waitForAsync = true)
     {
@@ -3546,10 +3577,16 @@ public sealed class JsEngine : IAsyncDisposable
         return ExecuteModuleBody(typedProgram, moduleEnv, exports, modulePath);
     }
 
-    private void WaitForAsyncModule(ModuleEntry moduleEntry)
-    {
-        EnsureModuleEvaluatedAsync(moduleEntry, waitForAsync: true).GetAwaiter().GetResult();
-    }
+	    private void WaitForAsyncModule(ModuleEntry moduleEntry)
+	    {
+	        if (moduleEntry.Evaluated)
+	        {
+	            return;
+	        }
+
+	        throw new NotSupportedException(
+	            "Synchronous waiting for async module evaluation is not supported.");
+	    }
 
     /// <summary>
     ///     Processes an import statement and brings imported values into the module environment.

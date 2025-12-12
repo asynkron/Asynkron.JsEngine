@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Test262Harness;
@@ -7,6 +8,9 @@ namespace Asynkron.JsEngine.Tests.Test262;
 [Test262ActivityTrace]
 public abstract partial class Test262Test
 {
+    private static readonly ConcurrentDictionary<string, ParsedProgram> HarnessProgramCache =
+        new(StringComparer.Ordinal);
+
     private const string CompareArrayPatchScript = @"// Patched compareArray harness to align with modern Test262 semantics
 function compareArray(a, b) {
   compareArray.__callCount = (compareArray.__callCount || 0) + 1;
@@ -123,6 +127,29 @@ try {
 ";
 
 
+    private static ParsedProgram GetHarnessProgram(string source)
+    {
+        return HarnessProgramCache.GetOrAdd(source, static s =>
+        {
+            var parserEngine = new JsEngine();
+            return parserEngine.ParseForExecution(s);
+        });
+    }
+
+    private static void ExecuteHarnessProgram(JsEngine engine, string source)
+    {
+        var program = GetHarnessProgram(source);
+        engine.ExecuteProgram(program, engine.GlobalEnvironment);
+        engine.DrainMicrotasks();
+    }
+
+    private static object? EvalScriptSync(JsEngine engine, string source)
+    {
+        var result = engine.EvaluateSync(source);
+        engine.DrainMicrotasks();
+        return result;
+    }
+
     private static JsEngine BuildTestExecutor(Test262File file)
     {
         var engine = new JsEngine
@@ -142,8 +169,8 @@ try {
         }
 
         // Execute test harness files
-        ExecuteSource(engine, State.Sources["assert.js"]).Wait();
-        ExecuteSource(engine, State.Sources["sta.js"]).Wait();
+        ExecuteHarnessProgram(engine, State.Sources["assert.js"]);
+        ExecuteHarnessProgram(engine, State.Sources["sta.js"]);
 
         // Add print function
         engine.SetGlobalFunction("print", args =>
@@ -160,13 +187,13 @@ try {
         // Create $262 object for Test262 compatibility
         var obj262 = new JsObject
         {
-            // evalScript function
-            ["evalScript"] = new HostFunction(args => args.Count switch
-            {
-                > 1 => throw new Exception("only script parsing supported"),
-                > 0 when args[0] is string script => ExecuteSource(engine, script).GetAwaiter().GetResult(),
-                _ => null
-            }),
+                // evalScript function
+                ["evalScript"] = new HostFunction(args => args.Count switch
+                {
+                    > 1 => throw new Exception("only script parsing supported"),
+                    > 0 when args[0] is string script => EvalScriptSync(engine, script),
+                    _ => null
+                }),
 
             // createRealm function - not fully implemented but needed for compatibility
             ["createRealm"] = new HostFunction(_ =>
@@ -231,7 +258,8 @@ try {
         engine.SetGlobalValue("$262", obj262);
 
         // Helper used by some modern reduce tests
-        ExecuteSource(engine, "function ReduceCollecting(list){ return function(acc, v){ list.push(v); return acc; }; }").Wait();
+        ExecuteHarnessProgram(engine,
+            "function ReduceCollecting(list){ return function(acc, v){ list.push(v); return acc; }; }");
 
         var moduleSourceCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         engine.SetModuleLoader((specifier, referrer) =>
@@ -298,14 +326,14 @@ try {
         var includes = file.Includes.ToArray();
         foreach (var include in includes)
         {
-            ExecuteSource(engine, State.Sources[include]).Wait();
+            ExecuteHarnessProgram(engine, State.Sources[include]);
         }
 
-        ExecuteSource(engine, CompareArrayPatchScript).Wait();
+        ExecuteHarnessProgram(engine, CompareArrayPatchScript);
 
         if (file.Flags.Contains("async"))
         {
-            ExecuteSource(engine, State.Sources["doneprintHandle.js"]).Wait();
+            ExecuteHarnessProgram(engine, State.Sources["doneprintHandle.js"]);
         }
 
         return engine;

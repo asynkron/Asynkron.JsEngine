@@ -3697,6 +3697,8 @@ public sealed class JsEngine : IAsyncDisposable
         private object? _lastValue;
         private int _statementIndex;
         private bool _started;
+        private bool _breakSignaled;
+        private bool _continueSignaled;
 
         internal AsyncModuleBodyRunner(JsEngine engine, ModuleEntry entry)
         {
@@ -4347,6 +4349,19 @@ public sealed class JsEngine : IAsyncDisposable
                     return false;
                 }
 
+                // Check for break signal
+                if (_breakSignaled)
+                {
+                    _breakSignaled = false;
+                    break;
+                }
+
+                // Check for continue signal - just skip to re-evaluate condition
+                if (_continueSignaled)
+                {
+                    _continueSignaled = false;
+                }
+
                 // Re-evaluate condition
                 try
                 {
@@ -4417,12 +4432,31 @@ public sealed class JsEngine : IAsyncDisposable
                             return null;
                         }
 
-                        // Loop back - evaluate condition again
-                        // This will set up its own continuation if it needs to await
-                        if (!TryEvaluateWhileStatementWithAwait(whileStatement, env, isStrict))
+                        // Check for break signal - exit the loop
+                        if (_breakSignaled)
                         {
-                            // Suspended awaiting next condition, its callback will handle completion
-                            return null;
+                            _breakSignaled = false;
+                            // Fall through to exit loop
+                        }
+                        // Check for continue signal - continue to next iteration
+                        else if (_continueSignaled)
+                        {
+                            _continueSignaled = false;
+                            // Loop back - evaluate condition again
+                            if (!TryEvaluateWhileStatementWithAwait(whileStatement, env, isStrict))
+                            {
+                                return null;
+                            }
+                        }
+                        else
+                        {
+                            // Loop back - evaluate condition again
+                            // This will set up its own continuation if it needs to await
+                            if (!TryEvaluateWhileStatementWithAwait(whileStatement, env, isStrict))
+                            {
+                                // Suspended awaiting next condition, its callback will handle completion
+                                return null;
+                            }
                         }
                         // Loop completed synchronously, fall through to increment/Run
                     }
@@ -4473,6 +4507,20 @@ public sealed class JsEngine : IAsyncDisposable
             // Handle specific statement types that can contain await
             switch (statement)
             {
+                case BreakStatement:
+                    // Signal break to the enclosing loop
+                    _breakSignaled = true;
+                    return true;
+
+                case ContinueStatement:
+                    // Signal continue to the enclosing loop
+                    _continueSignaled = true;
+                    return true;
+
+                case BlockStatement blockStatement:
+                    // Execute block statements one by one, checking for break/continue
+                    return TryEvaluateBlockStatementWithBreakSupport(blockStatement, env, isStrict);
+
                 case ExpressionStatement { Expression: AwaitExpression awaitExpression }:
                     return TryAwaitExpressionWithContinuation(awaitExpression.Expression, _ => { }, env);
 
@@ -4482,10 +4530,6 @@ public sealed class JsEngine : IAsyncDisposable
 
                 case IfStatement ifStatement when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(ifStatement):
                     return TryEvaluateIfStatementWithAwait(ifStatement, env, isStrict);
-
-                case BlockStatement blockStatement
-                    when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(blockStatement):
-                    return TryEvaluateBlockStatementWithAwait(blockStatement, env, isStrict);
 
                 case WhileStatement whileStatement
                     when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(whileStatement):
@@ -4525,6 +4569,27 @@ public sealed class JsEngine : IAsyncDisposable
 
                     return true;
             }
+        }
+
+        private bool TryEvaluateBlockStatementWithBreakSupport(BlockStatement blockStatement, JsEnvironment env, bool isStrict)
+        {
+            var blockEnv = new JsEnvironment(env, false, isStrict);
+
+            foreach (var stmt in blockStatement.Statements)
+            {
+                if (!ExecuteStatementWithAwait(stmt, blockEnv, isStrict))
+                {
+                    return false;
+                }
+
+                // Propagate break/continue signals up
+                if (_breakSignaled || _continueSignaled)
+                {
+                    return true;
+                }
+            }
+
+            return true;
         }
 
         private bool TryAwaitExpressionWithContinuation(

@@ -50,6 +50,7 @@
 - Call/New argument list evaluation avoids `ImmutableArray` builders when there are no spread arguments, reducing allocations on hot call paths.
 - `JsObject` prototype-chain property lookups avoid allocating cycle-detection sets for shallow, acyclic chains and only fall back to a tracked slow path when needed.
 - Primitive property access avoids allocating transient wrapper objects when realm prototypes are available; lookups go directly through the corresponding prototype chain with the primitive receiver preserved.
+- Test262 reuses a pre-initialized base realm (stdlib only) and deep-clones it per test by default; disable with `JSENGINE_TEST262_BASE_REALM=0|false|off`. This significantly reduces per-test engine setup cost while preserving isolation.
 
 ## Next Iteration Plan
 1. Keep migrating remaining non-generator built-ins onto the generator constructor/prototype model; next up are the lingering helper-only surfaces (escape/unescape/localStorage) to see what can be expressed via generators.

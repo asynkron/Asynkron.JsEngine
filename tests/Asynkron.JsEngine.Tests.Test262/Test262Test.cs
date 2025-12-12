@@ -152,10 +152,9 @@ try {
 
     private static JsEngine BuildTestExecutor(Test262File file)
     {
-        var engine = new JsEngine
-        {
-            ExecutionTimeout = null
-        };
+        var engine = BaseRealmSnapshot.UseSnapshot
+            ? BaseRealmSnapshot.Instance.Value.CreateEngine()
+            : new JsEngine { ExecutionTimeout = null };
 
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("JSENGINE_TRACE_REALM")))
         {

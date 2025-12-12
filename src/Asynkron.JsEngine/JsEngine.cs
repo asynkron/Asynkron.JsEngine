@@ -82,6 +82,16 @@ public sealed class JsEngine : IAsyncDisposable
     ///     Initializes a new instance of JsEngine with standard library objects.
     /// </summary>
     public JsEngine(IJsEngineOptions? options = null)
+        : this(options, skipStdLibInitialization: false)
+    {
+    }
+
+    /// <summary>
+    ///     Internal constructor that can skip standard library initialization.
+    ///     Used by tests to restore a pre-initialized realm snapshot without
+    ///     re-running expensive built-in wiring.
+    /// </summary>
+    internal JsEngine(IJsEngineOptions? options, bool skipStdLibInitialization)
     {
         Options = options ?? JsEngineOptions.Default;
         _asyncIteratorTracingEnabled = false;
@@ -99,6 +109,11 @@ public sealed class JsEngine : IAsyncDisposable
         // expect to exist (Node-style `global`, standard `globalThis`).
         SetGlobal("globalThis", GlobalObject);
         SetGlobal("global", GlobalObject);
+
+        if (skipStdLibInitialization)
+        {
+            return;
+        }
 
         // Register standard library objects
         SetGlobal("console", ConsolePrototype.CreatePrototype(RealmState));

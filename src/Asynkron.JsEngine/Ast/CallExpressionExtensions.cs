@@ -45,50 +45,88 @@ public static partial class TypedAstEvaluator
             var isDefaultDerivedConstructorSuperCall = expression.Callee is SuperExpression &&
                                                         environment.IsDefaultDerivedConstructor;
 
-            var arguments = ImmutableArray.CreateBuilder<object?>(expression.Arguments.Length);
+            var hasSpread = false;
             foreach (var argument in expression.Arguments)
             {
                 if (argument.IsSpread)
                 {
-                    var spreadValue = EvaluateExpression(argument.Expression, environment, context);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        context.CallDepth--;
-                        return Symbol.Undefined;
-                    }
-
-                    // For default derived constructor super calls, bypass the iterator protocol
-                    // and directly iterate array items per ES spec 15.7.14.
-                    if (isDefaultDerivedConstructorSuperCall && spreadValue is JsArray jsArray)
-                    {
-                        foreach (var item in jsArray.Items)
-                        {
-                            arguments.Add(item);
-                        }
-                    }
-                    else
-                    {
-                        foreach (var item in EnumerateSpread(spreadValue, context))
-                        {
-                            arguments.Add(item);
-                        }
-                    }
-
-                    if (context.ShouldStopEvaluation)
-                    {
-                        context.CallDepth--;
-                        return Symbol.Undefined;
-                    }
-
-                    continue;
+                    hasSpread = true;
+                    break;
                 }
+            }
 
-                arguments.Add(EvaluateExpression(argument.Expression, environment, context));
-                if (context.ShouldStopEvaluation)
+            IReadOnlyList<object?> frozenArguments;
+            if (!hasSpread)
+            {
+                if (expression.Arguments.Length == 0)
                 {
-                    context.CallDepth--;
-                    return Symbol.Undefined;
+                    frozenArguments = Array.Empty<object?>();
                 }
+                else
+                {
+                    var argsArray = new object?[expression.Arguments.Length];
+                    for (var i = 0; i < expression.Arguments.Length; i++)
+                    {
+                        argsArray[i] = EvaluateExpression(expression.Arguments[i].Expression, environment, context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            context.CallDepth--;
+                            return Symbol.Undefined;
+                        }
+                    }
+
+                    frozenArguments = argsArray;
+                }
+            }
+            else
+            {
+                var argsBuilder = ImmutableArray.CreateBuilder<object?>(expression.Arguments.Length);
+                foreach (var argument in expression.Arguments)
+                {
+                    if (argument.IsSpread)
+                    {
+                        var spreadValue = EvaluateExpression(argument.Expression, environment, context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            context.CallDepth--;
+                            return Symbol.Undefined;
+                        }
+
+                        // For default derived constructor super calls, bypass the iterator protocol
+                        // and directly iterate array items per ES spec 15.7.14.
+                        if (isDefaultDerivedConstructorSuperCall && spreadValue is JsArray jsArray)
+                        {
+                            foreach (var item in jsArray.Items)
+                            {
+                                argsBuilder.Add(item);
+                            }
+                        }
+                        else
+                        {
+                            foreach (var item in EnumerateSpread(spreadValue, context))
+                            {
+                                argsBuilder.Add(item);
+                            }
+                        }
+
+                        if (context.ShouldStopEvaluation)
+                        {
+                            context.CallDepth--;
+                            return Symbol.Undefined;
+                        }
+
+                        continue;
+                    }
+
+                    argsBuilder.Add(EvaluateExpression(argument.Expression, environment, context));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        context.CallDepth--;
+                        return Symbol.Undefined;
+                    }
+                }
+
+                frozenArguments = FreezeArguments(argsBuilder);
             }
 
             if (callee is not IJsCallable callable)
@@ -194,8 +232,6 @@ public static partial class TypedAstEvaluator
                 debugFunction.CurrentJsEnvironment = environment;
                 debugFunction.CurrentContext = context;
             }
-
-            var frozenArguments = FreezeArguments(arguments);
 
             object? callResult = Symbol.Undefined;
             object? newTargetForCall = null;

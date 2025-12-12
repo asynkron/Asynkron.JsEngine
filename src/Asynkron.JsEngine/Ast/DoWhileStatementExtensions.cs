@@ -10,12 +10,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             Symbol? loopLabel)
         {
-            var isStrict = IsStrictBlock(statement.Body);
-            if (!LoopNormalizer.TryNormalize(statement, isStrict, out var plan, out _))
-            {
-                throw new NotSupportedException("Failed to normalize do/while loop.");
-            }
-
+            var plan = ((IAstCacheable<LoopPlan>)statement).GetOrCreateCache();
             return EvaluateLoopPlan(plan, environment, context, loopLabel);
         }
     }

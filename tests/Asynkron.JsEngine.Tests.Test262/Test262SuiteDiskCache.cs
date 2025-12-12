@@ -93,6 +93,11 @@ internal static class Test262SuiteDiskCache
         // Unreachable: all paths return above.
     }
 
+    /// <summary>
+    /// Gets the extracted suite directory path.
+    /// </summary>
+    internal static string GetCacheDirectory() => GetExtractedSuiteDirectory();
+
     private static string GetExtractedSuiteDirectory()
     {
         var overridePath = Environment.GetEnvironmentVariable(CacheDirEnvVar);

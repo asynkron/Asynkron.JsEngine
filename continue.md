@@ -41,6 +41,7 @@
 - Date constructor/prototype now live under `StdLib/Date` with generator wiring; static `now`/`UTC`/`parse` attach directly to the constructor and prototype methods were ported as host methods.
 - Math has been moved under `StdLib/Math` with a generator-backed prototype that owns all constants and methods; the global `Math` object is built via the generated surface.
 - ArrayBuffer constructor/prototype now live under `StdLib/ArrayBuffer`; the constructor uses generator wiring, species handling is preserved, and helpers cover internal slot storage and `ArrayBuffer.isView`.
+- ArrayBuffer now implements `transfer`/`transferToFixedLength`, enforces shared/detached checks on byteLength/maxByteLength/resizable/detached getters, uses `ToIndex` for constructor/resize lengths (including `maxByteLength` option validation), and tracks shared buffers explicitly for SharedArrayBuffer interactions.
 - SharedArrayBuffer constructor/prototype now live under `StdLib/SharedArrayBuffer`; generator wiring handles species, `byteLength`/`slice` are on the prototype for derived buffers, and instances stash their internal buffer slots for subclassed constructions.
 - DataView constructor/prototype now live under `StdLib/DataView`; constructor resolves new-target prototypes, wraps subclass instances with internal slots, and prototype hosts buffer/byteLength/byteOffset plus all get*/set* numeric accessors.
 - JSON object now lives under `StdLib/Json` with generator wiring; `parse` uses the existing reviver-aware logic and `stringify` retains the current simplified implementation.
@@ -57,8 +58,14 @@
 - Test262 module loader no longer falls back to per-test GitHub downloads (and removes blocking `GetAwaiter().GetResult()`); it resolves relative specifiers correctly and reads fixture modules (no YAML header) directly from the suite file system. Module sources are shared across tests via an immutable cache.
 - Microtask queue is now lock-free: since `JsEngine` executes JS single-threaded, microtasks are enqueued/drained without `lock`, removing profiler-visible contention while preserving ordering and reentrancy guards.
 - Timers no longer use `Task.Run`: `setTimeout`/`setInterval` are driven by `Task.Delay` loops and schedule callbacks through the event queue; timer bookkeeping is thread-safe and clears decrement the active-timer count immediately.
+- SharedArrayBuffer constructor now honors `maxByteLength` options (ToIndex coercion, RangeError when initial length exceeds max) and sets growable slots; prototype `maxByteLength`/`resizable` accessors enforce shared/detached checks and return the tracked maximum. The SharedArrayBuffer `maxByteLength` Test262 group is passing.
 
 ## Next Iteration Plan
-1. Make top-level `await` module evaluation fully non-blocking by reusing the async-step “pending promise + resume” model (no sync waiting in the evaluator).
-2. Reduce threadpool churn from the per-engine event loop (`Task.Run` + threadpool continuations), ideally by moving to a single-thread scheduler per engine.
-3. If profiling still points outside the engine: remove sync-over-async in the Test262 runner (currently uses `.GetAwaiter().GetResult()` in the generated execution path).
+1. Sweep the remaining SharedArrayBuffer resizable semantics (e.g., slice/species, property descriptor shapes, non-shared guardrails) across the Test262 built-ins to catch any gaps beyond `maxByteLength`.
+2. Run the broader ArrayBuffer/SharedArrayBuffer resizable/transfer/resize Test262 batches to confirm no regressions and log any failing cases to tackle next.
+3. Pick the next standard library cluster from `builtintests-todo.md` and start bringing it up to spec (record the chosen cluster and progress here).
+
+## Future Work
+- Consider forking Test262Harness to support async NUnit/xUnit test generation
+- Profile the engine to identify remaining performance bottlenecks
+- Continue improving ECMAScript conformance based on Test262 results

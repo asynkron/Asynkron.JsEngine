@@ -44,14 +44,32 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
 
     private object ConstructBuffer(IReadOnlyList<object?> args, IJsCallable newTarget)
     {
-        var byteLength = args.GetArgument(0) switch
-        {
-            double d => (int)d,
-            int i => i,
-            _ => 0
-        };
+        var byteLength = args.Count > 0 && !ReferenceEquals(args[0], Symbol.Undefined)
+            ? ToIndex(args[0], Realm)
+            : 0;
 
-        var buffer = new JsArrayBuffer(byteLength, null, Realm);
+        int? maxByteLength = null;
+        if (args.Count > 1 && !ReferenceEquals(args[1], Symbol.Undefined))
+        {
+            if (args[1] is not JsObject opts)
+            {
+                throw ThrowTypeError("SharedArrayBuffer options must be an object", realm: Realm);
+            }
+
+            if (opts.TryGetProperty("maxByteLength", out var maxVal) &&
+                !ReferenceEquals(maxVal, Symbol.Undefined))
+            {
+                var maxIndex = ToIndex(maxVal, Realm);
+                if (byteLength > maxIndex)
+                {
+                    throw ThrowRangeError("Invalid SharedArrayBuffer length", realm: Realm);
+                }
+
+                maxByteLength = maxIndex;
+            }
+        }
+
+        var buffer = new JsArrayBuffer(byteLength, maxByteLength, Realm, isShared: true);
         buffer.SetPrototype(Prototype);
 
         if (ReferenceEquals(newTarget, _constructor ?? newTarget))

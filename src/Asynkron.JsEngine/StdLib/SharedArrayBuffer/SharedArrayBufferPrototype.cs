@@ -12,13 +12,31 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
     public object ByteLength(object? thisValue)
     {
         var buffer = RequireArrayBuffer(thisValue, Realm);
+        EnsureShared(buffer);
         return (double)buffer.ByteLength;
+    }
+
+    [JsHostGetter("maxByteLength")]
+    public object MaxByteLength(object? thisValue)
+    {
+        var buffer = RequireArrayBuffer(thisValue, Realm);
+        EnsureShared(buffer);
+        return (double)buffer.MaxByteLength;
+    }
+
+    [JsHostGetter("resizable")]
+    public object Resizable(object? thisValue)
+    {
+        var buffer = RequireArrayBuffer(thisValue, Realm);
+        EnsureShared(buffer);
+        return buffer.Resizable;
     }
 
     [JsHostMethod("slice", Length = 2d)]
     public object? Slice(object? thisValue, IReadOnlyList<object?> args)
     {
         var buffer = RequireArrayBuffer(thisValue, Realm);
+        EnsureShared(buffer);
         var len = buffer.ByteLength;
 
         var begin = args.Count > 0 ? JsOps.ToNumber(args[0]) : 0d;
@@ -37,7 +55,7 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
         }
         else
         {
-            var created = new JsArrayBuffer(newLen, null, Realm);
+            var created = new JsArrayBuffer(newLen, null, Realm, isShared: true);
             created.SetPrototype(Realm.SharedArrayBufferPrototype);
             newBuffer = created;
         }
@@ -59,5 +77,56 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
         }
 
         Realm.SharedArrayBufferPrototype ??= Prototype as JsObject;
+
+        if (Prototype is JsObject proto)
+        {
+            DefineAccessor(proto, "byteLength", ByteLength, enumerable: false);
+            DefineAccessor(proto, "maxByteLength", MaxByteLength, enumerable: false);
+            DefineAccessor(proto, "resizable", Resizable, enumerable: false);
+        }
+    }
+
+    private void EnsureShared(JsArrayBuffer buffer)
+    {
+        if (!buffer.IsShared)
+        {
+            throw ThrowTypeError("SharedArrayBuffer method called on non-shared buffer", realm: Realm);
+        }
+
+        if (buffer.IsDetached)
+        {
+            throw ThrowTypeError("SharedArrayBuffer is detached", realm: Realm);
+        }
+    }
+
+    private void DefineAccessor(JsObject target, string name, Func<object?, object> getter, bool enumerable)
+    {
+        var getterFn = new HostFunction((thisVal, _) => getter(thisVal), Realm)
+        {
+            IsConstructor = false
+        };
+
+        getterFn.DefineProperty("name", new PropertyDescriptor
+        {
+            Value = $"get {name}",
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+
+        getterFn.DefineProperty("length", new PropertyDescriptor
+        {
+            Value = 0d,
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+
+        target.DefineProperty(name, new PropertyDescriptor
+        {
+            Get = getterFn,
+            Enumerable = enumerable,
+            Configurable = true
+        });
     }
 }

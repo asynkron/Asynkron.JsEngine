@@ -270,6 +270,26 @@ try {
 
         string? TryReadRawModuleSource(string candidate)
         {
+            // First, try disk cache if available (most reliable for fixture files)
+            var diskCacheDir = State.DiskCacheDirectory;
+            if (!string.IsNullOrEmpty(diskCacheDir))
+            {
+                var diskPaths = new[]
+                {
+                    Path.Combine(diskCacheDir, "test", candidate.Replace('/', Path.DirectorySeparatorChar)),
+                    Path.Combine(diskCacheDir, candidate.Replace('/', Path.DirectorySeparatorChar))
+                };
+
+                foreach (var diskPath in diskPaths)
+                {
+                    if (File.Exists(diskPath))
+                    {
+                        return File.ReadAllText(diskPath);
+                    }
+                }
+            }
+
+            // Fall back to Zio file system reflection approach
             try
             {
                 var options = State.Test262Stream.Options;
@@ -469,8 +489,14 @@ try {
                 }
                 catch (Exception ex)
                 {
-                    if (ex is ArgumentException arg &&
-                        arg.Message.Contains("YAML section start", StringComparison.OrdinalIgnoreCase))
+                    // Try raw source for YAML parsing errors or any file not found in test registry
+                    // This handles _FIXTURE.js files that don't have YAML headers
+                    var isYamlError = ex is ArgumentException arg &&
+                        arg.Message.Contains("YAML section start", StringComparison.OrdinalIgnoreCase);
+                    var isNotFound = ex.Message.Contains("not found", StringComparison.OrdinalIgnoreCase) ||
+                        ex.Message.Contains("does not exist", StringComparison.OrdinalIgnoreCase);
+
+                    if (isYamlError || isNotFound || candidate.Contains("_FIXTURE", StringComparison.OrdinalIgnoreCase))
                     {
                         if (TryReadRawModuleSource(candidate) is { } rawSource)
                         {

@@ -17,4 +17,11 @@ public static partial class State
     /// Pre-loaded test harness scripts for execution.
     /// </summary>
     public static readonly Dictionary<string, string> Sources = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Gets the disk cache directory if available, null otherwise.
+    /// </summary>
+    public static string? DiskCacheDirectory => Test262SuiteDiskCache.Enabled
+        ? Test262SuiteDiskCache.GetCacheDirectory()
+        : null;
 }

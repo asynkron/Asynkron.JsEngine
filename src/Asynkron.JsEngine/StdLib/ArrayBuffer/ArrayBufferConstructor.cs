@@ -44,23 +44,28 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
 
     private object ConstructBuffer(IReadOnlyList<object?> args, IJsCallable newTarget)
     {
-        var byteLength = args.GetArgument(0) switch
-        {
-            double d => (int)d,
-            int i => i,
-            _ => 0
-        };
+        var byteLength = args.Count > 0 && !ReferenceEquals(args[0], Symbol.Undefined)
+            ? ToIndex(args[0], Realm)
+            : 0;
 
         int? maxByteLength = null;
-        if (args.Count > 1 && args[1] is JsObject opts)
+        if (args.Count > 1 && !ReferenceEquals(args[1], Symbol.Undefined))
         {
-            if (opts.TryGetProperty("maxByteLength", out var maxVal))
+            if (args[1] is not JsObject opts)
             {
-                var numeric = JsOps.ToNumber(maxVal);
-                if (!double.IsNaN(numeric))
+                throw ThrowTypeError("ArrayBuffer options must be an object", realm: Realm);
+            }
+
+            if (opts.TryGetProperty("maxByteLength", out var maxVal) &&
+                !ReferenceEquals(maxVal, Symbol.Undefined))
+            {
+                var maxIndex = ToIndex(maxVal, Realm);
+                if (byteLength > maxIndex)
                 {
-                    maxByteLength = (int)numeric;
+                    throw ThrowRangeError("Invalid ArrayBuffer length", realm: Realm);
                 }
+
+                maxByteLength = maxIndex;
             }
         }
 

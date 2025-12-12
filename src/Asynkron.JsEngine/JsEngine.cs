@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Threading.Channels;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
@@ -555,7 +556,11 @@ public sealed class JsEngine : IAsyncDisposable
             _drainCompletionSource = null;
         }
 
-        _eventQueue = Channel.CreateUnbounded<Func<Task>>();
+        _eventQueue = Channel.CreateUnbounded<Func<Task>>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false
+        });
         _eventLoopTask = Task.Run(() => ProcessEventQueue(_eventQueue));
     }
 
@@ -2195,6 +2200,10 @@ public sealed class JsEngine : IAsyncDisposable
         // Add promise instance methods (then, catch, finally)
         StandardLibrary.AddPromiseInstanceMethods(promiseObj, promise, this);
 
+        // IMPORTANT: Capture the referrer path NOW, before scheduling the task.
+        // CallingJsEnvironment and _currentModulePath may change by the time the task runs.
+        var capturedReferrerPath = callee?.CallingJsEnvironment is JsEnvironment env ? env.ModulePath : _currentModulePath;
+
         // Schedule loading the module asynchronously using ScheduleTask
         // to properly track pending tasks for the event loop
         ScheduleTask(async () =>
@@ -2243,9 +2252,8 @@ public sealed class JsEngine : IAsyncDisposable
 
                 try
                 {
-                    // Load the module synchronously (it's cached if already loaded)
-                    var referrerPath = callee?.CallingJsEnvironment is JsEnvironment env ? env.ModulePath : _currentModulePath;
-                    var moduleEntry = LoadModule(specifierString, referrerPath, phase);
+                    // Load the module using the captured referrer path
+                    var moduleEntry = LoadModule(specifierString, capturedReferrerPath, phase);
                     if (moduleEntry.IsAsync || moduleEntry.HasAsyncDependency)
                     {
                         var evaluation = EnsureModuleEvaluatedAsync(moduleEntry, waitForAsync: false);
@@ -3747,7 +3755,71 @@ public sealed class JsEngine : IAsyncDisposable
                             continue;
                         case VariableDeclaration variableDeclaration
                             when ContainsDirectAwaitInitializer(variableDeclaration):
-                            if (!TryEvaluateLexicalDeclarationWithAwait(variableDeclaration, env))
+                            if (!TryEvaluateDeclarationWithAwait(variableDeclaration, env))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case IfStatement ifStatement
+                            when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(ifStatement):
+                            if (!TryEvaluateIfStatementWithAwait(ifStatement, env, isStrict))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case BlockStatement blockStatement
+                            when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(blockStatement):
+                            if (!TryEvaluateBlockStatementWithAwait(blockStatement, env, isStrict))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case WhileStatement whileStatement
+                            when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(whileStatement):
+                            if (!TryEvaluateWhileStatementWithAwait(whileStatement, env, isStrict))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case ForEachStatement { Kind: ForEachKind.AwaitOf } forAwaitStatement:
+                            // for await...of always contains await semantically
+                            if (!TryEvaluateForAwaitOfStatement(forAwaitStatement, env, isStrict))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case ForEachStatement forEachStatement
+                            when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(forEachStatement):
+                            // for...of or for...in with await in iterable or body
+                            if (!TryEvaluateForEachStatementWithAwait(forEachStatement, env, isStrict))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case TryStatement tryStatement
+                            when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(tryStatement):
+                            if (!TryEvaluateTryStatementWithAwait(tryStatement, env, isStrict))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case ForStatement forStatement
+                            when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(forStatement):
+                            if (!TryEvaluateForStatementWithAwait(forStatement, env, isStrict))
                             {
                                 return;
                             }
@@ -3829,7 +3901,7 @@ public sealed class JsEngine : IAsyncDisposable
             if (statement.Declaration is VariableDeclaration variableDeclaration &&
                 ContainsDirectAwaitInitializer(variableDeclaration))
             {
-                return TryEvaluateLexicalDeclarationWithAwait(variableDeclaration, env);
+                return TryEvaluateDeclarationWithAwait(variableDeclaration, env);
             }
 
             if (Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(statement))
@@ -3855,13 +3927,10 @@ public sealed class JsEngine : IAsyncDisposable
             return false;
         }
 
-        private bool TryEvaluateLexicalDeclarationWithAwait(VariableDeclaration declaration, JsEnvironment env)
+        private bool TryEvaluateDeclarationWithAwait(VariableDeclaration declaration, JsEnvironment env)
         {
-            if (declaration.Kind is not (VariableKind.Let or VariableKind.Const))
-            {
-                throw new NotSupportedException(
-                    "Async module execution only supports await in let/const declarations.");
-            }
+            var isLexical = declaration.Kind is VariableKind.Let or VariableKind.Const;
+            var isConst = declaration.Kind == VariableKind.Const;
 
             foreach (var declarator in declaration.Declarators)
             {
@@ -3873,9 +3942,13 @@ public sealed class JsEngine : IAsyncDisposable
 
                 if (declarator.Initializer is null)
                 {
-                    env.Define(identifier.Name, Symbol.Undefined, isConst: declaration.Kind == VariableKind.Const,
-                        isLexical: true,
-                        blocksFunctionScopeOverride: false);
+                    if (isLexical)
+                    {
+                        env.Define(identifier.Name, Symbol.Undefined, isConst: isConst,
+                            isLexical: true,
+                            blocksFunctionScopeOverride: false);
+                    }
+                    // For var, it's already hoisted with undefined value
                     continue;
                 }
 
@@ -3887,8 +3960,16 @@ public sealed class JsEngine : IAsyncDisposable
 
                 return TryAwaitExpression(awaitExpression.Expression, resolved =>
                 {
-                    env.Define(identifier.Name, resolved, isConst: declaration.Kind == VariableKind.Const, isLexical: true,
-                        blocksFunctionScopeOverride: false);
+                    if (isLexical)
+                    {
+                        env.Define(identifier.Name, resolved, isConst: isConst, isLexical: true,
+                            blocksFunctionScopeOverride: false);
+                    }
+                    else
+                    {
+                        // For var declarations, assign to the already-hoisted binding
+                        env.Assign(identifier.Name, resolved);
+                    }
                 }, env);
             }
 
@@ -4001,6 +4082,413 @@ public sealed class JsEngine : IAsyncDisposable
             var promise = _engine.CreateRealmPromise();
             promise.Resolve(value);
             return promise.JsObject;
+        }
+
+        private bool TryEvaluateIfStatementWithAwait(IfStatement ifStatement, JsEnvironment env, bool isStrict)
+        {
+            // Handle await in the condition
+            if (ifStatement.Condition is AwaitExpression awaitExpr)
+            {
+                return TryAwaitExpressionWithContinuation(awaitExpr.Expression, resolved =>
+                {
+                    // Evaluate the if branch based on the resolved condition
+                    var condition = JsOps.ToBoolean(resolved);
+                    if (condition)
+                    {
+                        ExecuteStatementWithAwait(ifStatement.Then, env, isStrict);
+                    }
+                    else if (ifStatement.Else is not null)
+                    {
+                        ExecuteStatementWithAwait(ifStatement.Else, env, isStrict);
+                    }
+                }, env);
+            }
+
+            // Await might be in the branches but not in the condition
+            // First evaluate the condition synchronously
+            object? conditionValue;
+            try
+            {
+                conditionValue = _engine.ExecuteTypedExpression(ifStatement.Condition, env, isStrict);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+
+            var conditionBool = JsOps.ToBoolean(conditionValue);
+            var branchToExecute = conditionBool ? ifStatement.Then : ifStatement.Else;
+
+            if (branchToExecute is null)
+            {
+                return true;
+            }
+
+            return ExecuteStatementWithAwait(branchToExecute, env, isStrict);
+        }
+
+        private bool TryEvaluateBlockStatementWithAwait(BlockStatement blockStatement, JsEnvironment env, bool isStrict)
+        {
+            foreach (var statement in blockStatement.Statements)
+            {
+                if (!ExecuteStatementWithAwait(statement, env, isStrict))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private bool TryEvaluateWhileStatementWithAwait(WhileStatement whileStatement, JsEnvironment env, bool isStrict)
+        {
+            // Handle await in the condition
+            if (whileStatement.Condition is AwaitExpression awaitExpr)
+            {
+                return TryAwaitExpressionForWhileCondition(awaitExpr.Expression, whileStatement, env, isStrict);
+            }
+
+            // Condition doesn't have await, but body might
+            object? conditionValue;
+            try
+            {
+                conditionValue = _engine.ExecuteTypedExpression(whileStatement.Condition, env, isStrict);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+
+            while (JsOps.ToBoolean(conditionValue))
+            {
+                if (!ExecuteStatementWithAwait(whileStatement.Body, env, isStrict))
+                {
+                    return false;
+                }
+
+                // Re-evaluate condition
+                try
+                {
+                    conditionValue = _engine.ExecuteTypedExpression(whileStatement.Condition, env, isStrict);
+                }
+                catch (ThrowSignal signal)
+                {
+                    Fail(signal);
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private bool TryAwaitExpressionForWhileCondition(
+            ExpressionNode awaitedExpression,
+            WhileStatement whileStatement,
+            JsEnvironment env,
+            bool isStrict)
+        {
+            object? awaitedValue;
+            try
+            {
+                awaitedValue = _engine.ExecuteTypedExpression(awaitedExpression, env, isStrict);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+
+            if (_completion.Task.IsCompleted)
+            {
+                return false;
+            }
+
+            var promiseObject = WrapAwaitedValue(awaitedValue);
+            if (promiseObject is null)
+            {
+                throw new NotSupportedException("Await expression did not produce a promise-like value.");
+            }
+
+            if (!promiseObject.TryGetProperty("then", out var thenValue) ||
+                thenValue is not IJsCallable thenCallable)
+            {
+                throw new NotSupportedException("Await expression produced a non-awaitable value.");
+            }
+
+            var onFulfilledFn = new HostFunction(args =>
+            {
+                if (_completion.Task.IsCompleted)
+                {
+                    return null;
+                }
+
+                try
+                {
+                    var resolved = args.GetArgument(0);
+                    var condition = JsOps.ToBoolean(resolved);
+
+                    if (condition)
+                    {
+                        // Execute the body
+                        if (!ExecuteStatementWithAwait(whileStatement.Body, env, isStrict))
+                        {
+                            // Suspended in body, continuation will resume
+                            return null;
+                        }
+
+                        // Loop back - evaluate condition again
+                        // This will set up its own continuation if it needs to await
+                        if (!TryEvaluateWhileStatementWithAwait(whileStatement, env, isStrict))
+                        {
+                            // Suspended awaiting next condition, its callback will handle completion
+                            return null;
+                        }
+                        // Loop completed synchronously, fall through to increment/Run
+                    }
+
+                    // Condition was false or loop completed synchronously
+                    _statementIndex++;
+                    Run();
+                }
+                catch (ThrowSignal signal)
+                {
+                    Fail(signal);
+                }
+                catch (Exception ex)
+                {
+                    Fail(ex);
+                }
+
+                return null;
+            });
+
+            var onRejectedFn = new HostFunction(args =>
+            {
+                if (_completion.Task.IsCompleted)
+                {
+                    return null;
+                }
+
+                var reason = args.GetArgument(0);
+                Fail(new ThrowSignal(reason));
+                return null;
+            });
+
+            try
+            {
+                thenCallable.Invoke([onFulfilledFn, onRejectedFn], promiseObject);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+
+            return false;
+        }
+
+        private bool ExecuteStatementWithAwait(StatementNode statement, JsEnvironment env, bool isStrict)
+        {
+            // Handle specific statement types that can contain await
+            switch (statement)
+            {
+                case ExpressionStatement { Expression: AwaitExpression awaitExpression }:
+                    return TryAwaitExpressionWithContinuation(awaitExpression.Expression, _ => { }, env);
+
+                case IfStatement ifStatement when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(ifStatement):
+                    return TryEvaluateIfStatementWithAwait(ifStatement, env, isStrict);
+
+                case BlockStatement blockStatement
+                    when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(blockStatement):
+                    return TryEvaluateBlockStatementWithAwait(blockStatement, env, isStrict);
+
+                case WhileStatement whileStatement
+                    when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(whileStatement):
+                    return TryEvaluateWhileStatementWithAwait(whileStatement, env, isStrict);
+
+                case ForEachStatement { Kind: ForEachKind.AwaitOf } forAwaitStatement:
+                    return TryEvaluateForAwaitOfStatement(forAwaitStatement, env, isStrict);
+
+                case ForEachStatement forEachStatement
+                    when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(forEachStatement):
+                    return TryEvaluateForEachStatementWithAwait(forEachStatement, env, isStrict);
+
+                case TryStatement tryStatement
+                    when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(tryStatement):
+                    return TryEvaluateTryStatementWithAwait(tryStatement, env, isStrict);
+
+                case ForStatement forStatement
+                    when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(forStatement):
+                    return TryEvaluateForStatementWithAwait(forStatement, env, isStrict);
+
+                default:
+                    if (Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(statement))
+                    {
+                        throw new NotSupportedException(
+                            $"Async module execution does not support nested '{statement.GetType().Name}' containing await.");
+                    }
+
+                    try
+                    {
+                        _lastValue = _engine.ExecuteTypedStatement(statement, env, isStrict, false);
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        Fail(signal);
+                        return false;
+                    }
+
+                    return true;
+            }
+        }
+
+        private bool TryAwaitExpressionWithContinuation(
+            ExpressionNode awaitedExpression,
+            Action<object?> onFulfilled,
+            JsEnvironment environment)
+        {
+            object? awaitedValue;
+            try
+            {
+                awaitedValue = _engine.ExecuteTypedExpression(awaitedExpression, environment, _entry.Program.IsStrict);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+
+            if (_completion.Task.IsCompleted)
+            {
+                return false;
+            }
+
+            var promiseObject = WrapAwaitedValue(awaitedValue);
+            if (promiseObject is null)
+            {
+                throw new NotSupportedException("Await expression did not produce a promise-like value.");
+            }
+
+            if (!promiseObject.TryGetProperty("then", out var thenValue) ||
+                thenValue is not IJsCallable thenCallable)
+            {
+                throw new NotSupportedException("Await expression produced a non-awaitable value.");
+            }
+
+            var onFulfilledFn = new HostFunction(args =>
+            {
+                if (_completion.Task.IsCompleted)
+                {
+                    return null;
+                }
+
+                try
+                {
+                    var resolved = args.GetArgument(0);
+                    onFulfilled(resolved);
+                    // After the continuation completes, continue with the next statement
+                    _statementIndex++;
+                    Run();
+                }
+                catch (ThrowSignal signal)
+                {
+                    Fail(signal);
+                }
+                catch (Exception ex)
+                {
+                    Fail(ex);
+                }
+
+                return null;
+            });
+
+            var onRejectedFn = new HostFunction(args =>
+            {
+                if (_completion.Task.IsCompleted)
+                {
+                    return null;
+                }
+
+                var reason = args.GetArgument(0);
+                Fail(new ThrowSignal(reason));
+                return null;
+            });
+
+            try
+            {
+                thenCallable.Invoke([onFulfilledFn, onRejectedFn], promiseObject);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+
+            return false;
+        }
+
+        private bool TryEvaluateForAwaitOfStatement(ForEachStatement statement, JsEnvironment env, bool isStrict)
+        {
+            // For await...of is inherently async - use the engine's existing evaluation
+            // which handles the async iteration protocol
+            try
+            {
+                _engine.ExecuteTypedStatement(statement, env, isStrict, false);
+                return true;
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+        }
+
+        private bool TryEvaluateForEachStatementWithAwait(ForEachStatement statement, JsEnvironment env, bool isStrict)
+        {
+            // for...of or for...in with await somewhere in iterable expression or body
+            // The iterable might contain await, or the body might
+            try
+            {
+                _engine.ExecuteTypedStatement(statement, env, isStrict, false);
+                return true;
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+        }
+
+        private bool TryEvaluateTryStatementWithAwait(TryStatement statement, JsEnvironment env, bool isStrict)
+        {
+            // Try/catch/finally with await - delegate to regular evaluation
+            try
+            {
+                _lastValue = _engine.ExecuteTypedStatement(statement, env, isStrict, false);
+                return true;
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+        }
+
+        private bool TryEvaluateForStatementWithAwait(ForStatement statement, JsEnvironment env, bool isStrict)
+        {
+            // Regular for loop with await in init/condition/increment/body
+            try
+            {
+                _engine.ExecuteTypedStatement(statement, env, isStrict, false);
+                return true;
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
         }
     }
 

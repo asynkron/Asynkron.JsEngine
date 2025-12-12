@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    private sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor, IJsObjectLike,
+    public sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor, IJsObjectLike,
         ICallableMetadata, ICallerInfo, IFunctionNameTarget, IPrivateBrandHolder, IPropertyDefinitionHost,
         IExtensibilityControl, IPrototypeAccessorProvider
     {

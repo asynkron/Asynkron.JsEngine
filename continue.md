@@ -63,10 +63,11 @@
 - ArrayBuffer/SharedArrayBuffer.prototype.slice now follows SpeciesConstructor rules: `undefined` end defaults to length, species must be constructors, shared targets are rejected for ArrayBuffer, returned buffers must be shared for SharedArrayBuffer, returning the receiver throws, and too-small species results raise TypeError. The slice Test262 clusters pass in strict and sloppy modes.
 - ArrayBuffer.prototype.resize now performs the detach check after ToIndex coercion (single check) and the resize cluster is green. ArrayBuffer.prototype.transfer/transferToFixedLength clusters are also green.
 - ArrayBuffer.isView now recognizes DataView subclasses (via internal slots) and carries the correct name/length attributes. ArrayBuffer [@@species] getter also exposes the proper name/length metadata; the isView and Symbol.species Test262 clusters are green.
+- ArrayBuffer constructor now enforces `maxByteLength` option checks before touching `newTarget.prototype`, treats non-object options as empty, rejects calls without `new`, and defers allocation-limit RangeErrors until after prototype resolution (including oversized lengths). SharedArrayBuffer mirrors the new option/limit handling, and global ArrayBuffer is exposed as a non-enumerable/writable/configurable binding.
 
 ## Next Iteration Plan
-1. Tackle the remaining ArrayBuffer constructor/allocation-limit cluster (length validation, huge lengths) and SharedArrayBuffer parallels if any surface.
-2. Pick the next standard library cluster from `builtintests-todo.md` (e.g., Array proto/from/of or TypedArray iterator/value clusters) and start bringing it up to spec, recording progress here.
+1. Start on the next Array built-in cluster (constructor realm/prototype wiring and Array.from/of surface).
+2. Pick another standard library cluster from `builtintests-todo.md` once the Array items shrink (e.g., Array prototype method parity or typed array iterators).
 3. Keep scanning for remaining built-in gaps surfaced by the Test262 harness and queue them here before diving in.
 
 ## Future Work

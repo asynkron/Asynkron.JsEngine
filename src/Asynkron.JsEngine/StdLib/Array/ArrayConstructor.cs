@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -29,7 +30,8 @@ public sealed partial class ArrayConstructor : JsConstructor
             var newTargetCallable = newTarget as IJsCallable ?? targetCtor;
             var proto = StandardLibrary.ResolveConstructPrototype(newTargetCallable, targetCtor, Realm) ??
                         Prototype;
-            var array = new JsArray(Realm);
+            var instanceRealm = ResolveInstanceRealm(proto, newTargetCallable);
+            var array = new JsArray(instanceRealm);
             if (proto is not null)
             {
                 array.SetPrototype(proto);
@@ -64,6 +66,21 @@ public sealed partial class ArrayConstructor : JsConstructor
         }
 
         return instance;
+    }
+
+    private RealmState ResolveInstanceRealm(object? proto, IJsCallable newTarget)
+    {
+        if (proto is JsObject { RealmState: { } protoRealm })
+        {
+            return protoRealm;
+        }
+
+        return newTarget switch
+        {
+            HostFunction { RealmState: { } hostRealm } => hostRealm,
+            TypedAstEvaluator.TypedFunction { RealmState: { } tfRealm } => tfRealm,
+            _ => Realm
+        };
     }
 
     private void InitializeArrayLength(JsArray array, IReadOnlyList<object?> args)

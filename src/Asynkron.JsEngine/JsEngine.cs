@@ -6,6 +6,7 @@ using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine;
 
@@ -1758,19 +1759,20 @@ public sealed class JsEngine : IAsyncDisposable
                 }
                 catch (OutOfMemoryException)
                 {
-                    Console.Error.WriteLine("[ProcessEventQueue] OOM Exception");
+                    RealmState.Logger?.LogError("[ProcessEventQueue] OOM Exception");
                 }
                 catch (StackOverflowException)
                 {
-                    Console.Error.WriteLine("[ProcessEventQueue] Stack overflow occurred in event queue task.");
+                    RealmState.Logger?.LogError("[ProcessEventQueue] Stack overflow occurred in event queue task.");
                 }
                 catch (Exception ex)
                 {
                     // Log the exception but don't let it kill the event loop
                     // Individual task failures should not stop the event queue processing
-                    Console.Error.WriteLine(
-                        $"[ProcessEventQueue] Unhandled exception in event queue task: {ex.GetType().Name}: {ex.Message}");
-                    Console.Error.WriteLine($"[ProcessEventQueue] Stack trace: {ex.StackTrace}");
+                    RealmState.Logger?.LogError(ex,
+                        "[ProcessEventQueue] Unhandled exception in event queue task: {ErrorType}: {ErrorMessage}",
+                        ex.GetType().Name,
+                        ex.Message);
                 }
                 finally
                 {
@@ -1899,7 +1901,10 @@ public sealed class JsEngine : IAsyncDisposable
                 catch (Exception ex)
                 {
                     // Log but don't propagate - microtask exceptions shouldn't kill the drain
-                    Console.Error.WriteLine($"[DrainMicrotasks] Exception: {ex.GetType().Name}: {ex.Message}");
+                    RealmState.Logger?.LogError(ex,
+                        "[DrainMicrotasks] Exception: {ErrorType}: {ErrorMessage}",
+                        ex.GetType().Name,
+                        ex.Message);
                 }
             }
 

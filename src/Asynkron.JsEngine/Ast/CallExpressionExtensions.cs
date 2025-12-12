@@ -143,8 +143,13 @@ public static partial class TypedAstEvaluator
                 var symbolName = callee is Symbol sym ? sym.Name : null;
                 var symbolSuffix = symbolName is null ? string.Empty : $" (symbol '{symbolName}')";
                 var calleeDescription = DescribeCallee(expression.Callee);
-                Console.Error.WriteLine(
-                    $"[EvaluateCall] Non-callable callee={calleeDescription}, type={typeName}, thisValueType={thisValue?.GetType().Name ?? "null"}{symbolSuffix}{sourceInfo}");
+                context.RealmState.Logger?.LogInformation(
+                    "[EvaluateCall] Non-callable callee={Callee} type={Type} thisValueType={ThisType}{SymbolSuffix}{SourceInfo}",
+                    calleeDescription,
+                    typeName,
+                    thisValue?.GetType().Name ?? "null",
+                    symbolSuffix,
+                    sourceInfo);
                 var error = StandardLibrary.CreateTypeError(
                     $"Attempted to call a non-callable value '{calleeDescription}' of type '{typeName}'{symbolSuffix}.",
                     context,

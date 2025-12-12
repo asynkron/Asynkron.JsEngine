@@ -18,6 +18,7 @@ public static partial class TypedAstEvaluator
         private readonly GeneratorPlan? _plan;
         private readonly bool _hasFunctionNameEnvironment;
         private readonly bool _isStrict;
+        private readonly bool _allowIdentifierCache;
         private readonly ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes;
         private readonly RealmState _realmState;
         private readonly YieldResumeContext _resumeContext = new();
@@ -70,6 +71,7 @@ public static partial class TypedAstEvaluator
             _privateNameScope = privateNameScope;
             _capturedPrivateNameScopes = capturedPrivateNameScopes;
             _isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
+            _allowIdentifierCache = AllowsIdentifierCaching(function);
 
             if (!GeneratorIrBuilder.TryBuild(function, out var plan, out var failureReason))
             {
@@ -1366,6 +1368,7 @@ public static partial class TypedAstEvaluator
                 _context.Clear();
             }
 
+            _context.AllowIdentifierCache = _allowIdentifierCache;
             ApplyPrivateNameScopes();
             _context.BlockedFunctionVarNames = _blockedFunctionVarNames ??
                                                new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);

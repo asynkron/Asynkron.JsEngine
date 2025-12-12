@@ -18,6 +18,7 @@ public sealed class JsEnvironment
 
     private readonly Dictionary<Symbol, Binding> _values = new();
     private readonly IJsObjectLike? _withObject;
+    private Dictionary<Symbol, ResolvedIdentifierBinding>? _identifierBindingCache;
     private Dictionary<Symbol, List<Action<object?>>>? _bindingObservers;
     private HashSet<Symbol>? _bodyLexicalNames;
     private HashSet<Symbol>? _simpleCatchParameters;
@@ -671,8 +672,17 @@ public sealed class JsEnvironment
     {
         var strictContext = context.CurrentScope.IsStrict;
 
+        if (TryGetCachedDeclarativeBinding(name, context, out var cached))
+        {
+            return new AssignmentReference(
+                () => AssignmentReferenceResolver.ReadIdentifierValue(
+                    () => cached.Read(name, context), context),
+                newValue => cached.Write(name, newValue, strictContext, context));
+        }
+
         if (TryLocateBinding(name, out var bindingEnvironment, out var binding))
         {
+            CacheDeclarativeBinding(name, new ResolvedIdentifierBinding(bindingEnvironment, binding), context);
             return new AssignmentReference(
                 () => AssignmentReferenceResolver.ReadIdentifierValue(
                     () => ReadResolvedBindingValue(bindingEnvironment, binding, name), context),
@@ -702,6 +712,11 @@ public sealed class JsEnvironment
     /// </summary>
     internal object? GetIdentifierValue(Symbol name, EvaluationContext context)
     {
+        if (TryGetCachedDeclarativeBinding(name, context, out var cached))
+        {
+            return cached.Read(name, context);
+        }
+
         if (TryResolveWithBinding(name, context, out var withBinding))
         {
             return GetWithBindingValue(withBinding);
@@ -709,7 +724,9 @@ public sealed class JsEnvironment
 
         if (TryLocateBinding(name, out var bindingEnvironment, out var binding))
         {
-            return ReadResolvedBindingValue(bindingEnvironment, binding, name);
+            var value = ReadResolvedBindingValue(bindingEnvironment, binding, name);
+            CacheDeclarativeBinding(name, new ResolvedIdentifierBinding(bindingEnvironment, binding), context);
+            return value;
         }
 
         if (TryResolveGlobalObjectBinding(name, context, out var globalBinding))
@@ -718,6 +735,62 @@ public sealed class JsEnvironment
         }
 
         return ReadUnresolvable(name);
+    }
+
+    private bool TryGetCachedDeclarativeBinding(
+        Symbol name,
+        EvaluationContext context,
+        out ResolvedIdentifierBinding binding)
+    {
+        if (!context.AllowIdentifierCache || _identifierBindingCache is null)
+        {
+            binding = default;
+            return false;
+        }
+
+        return _identifierBindingCache.TryGetValue(name, out binding);
+    }
+
+    private void CacheDeclarativeBinding(
+        Symbol name,
+        ResolvedIdentifierBinding binding,
+        EvaluationContext context)
+    {
+        if (!context.AllowIdentifierCache)
+        {
+            return;
+        }
+
+        _identifierBindingCache ??=
+            new Dictionary<Symbol, ResolvedIdentifierBinding>(ReferenceEqualityComparer<Symbol>.Instance);
+        _identifierBindingCache[name] = binding;
+    }
+
+    internal readonly struct ResolvedIdentifierBinding
+    {
+        private readonly JsEnvironment _environment;
+        private readonly Binding _binding;
+
+        internal ResolvedIdentifierBinding(JsEnvironment environment, object binding)
+        {
+            if (binding is not Binding typedBinding)
+            {
+                throw new ArgumentException("Invalid binding handle.", nameof(binding));
+            }
+
+            _environment = environment;
+            _binding = typedBinding;
+        }
+
+        internal object? Read(Symbol name, EvaluationContext context)
+        {
+            return ReadResolvedBindingValue(_environment, _binding, name);
+        }
+
+        internal void Write(Symbol name, object? value, bool isStrictContext, EvaluationContext context)
+        {
+            _environment.WriteResolvedBindingValue(_environment, _binding, name, value, isStrictContext);
+        }
     }
 
     private static object? ReadResolvedBindingValue(JsEnvironment bindingEnvironment, Binding binding, Symbol name)

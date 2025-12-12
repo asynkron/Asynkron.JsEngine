@@ -39,6 +39,13 @@ public sealed class EvaluationContext(
     private int _classFieldInitializerDepth;
 
     /// <summary>
+    ///     Enables per-context identifier binding caches when the current scope
+    ///     is known to be free of dynamic scope features (direct eval / with).
+    ///     Disabled by default for safety; set by the caller.
+    /// </summary>
+    internal bool AllowIdentifierCache { get; set; }
+
+    /// <summary>
     ///     Realm-specific state (prototypes/constructors) for the current execution.
     /// </summary>
     public RealmState RealmState { get; } = realmState ?? throw new ArgumentNullException(nameof(realmState));

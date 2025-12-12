@@ -28,6 +28,7 @@ public static partial class TypedAstEvaluator
             cancellationToken,
             executionKind,
             false);
+        context.AllowIdentifierCache = AllowsIdentifierCaching(program);
         context.DrainAwaitMicrotasks = drainAwaitMicrotasks;
         if (inheritedPrivateNameScopes is { IsDefault: false, Length: > 0 } scopes)
         {

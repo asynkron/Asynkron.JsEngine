@@ -46,7 +46,9 @@
 - JSON object now lives under `StdLib/Json` with generator wiring; `parse` uses the existing reviver-aware logic and `stringify` retains the current simplified implementation.
 - Console, Reflect, and BigInt now use generator-backed wiring under their own `StdLib/<Type>` folders; the console global is created through the generated prototype, Reflect wraps the existing helpers, and BigInt carries `asIntN`/`asUintN` plus prototype methods via the generator surface.
 - Function.prototype is now generator-backed using a callable prototype object; the Function constructor reuses the generated prototype and keeps the existing parsing/execution semantics for `new Function` while inheriting the generator-wired `call`/`toString`/`valueOf` surface.
+- Identifier lookups/assignments now use per-scope declarative binding caches (enabled only when a scope is free of direct `eval` and `with`), reducing environment-chain scans on hot paths.
 
 ## Next Iteration Plan
 1. Keep migrating remaining non-generator built-ins onto the generator constructor/prototype model; next up are the lingering helper-only surfaces (escape/unescape/localStorage) to see what can be expressed via generators.
 2. After each migration, run a focused Test262 slice around the affected built-in to catch regressions before moving on.
+3. Explore adding low-risk property access inline caches for prototype traversals on `JsObject` once identifier caching impact is measured across full Test262.

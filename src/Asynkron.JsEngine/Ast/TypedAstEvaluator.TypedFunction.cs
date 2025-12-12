@@ -26,6 +26,7 @@ public static partial class TypedAstEvaluator
         private readonly bool _wasAsyncFunction;
         private readonly bool _hasFunctionNameEnvironment;
         private readonly bool _hasParameterExpressions;
+        private readonly bool _allowIdentifierCache;
         private readonly ImmutableArray<Symbol> _parameterNames;
         private readonly ImmutableArray<Symbol> _lexicalTemplate;
         private readonly ImmutableArray<Symbol> _catchParameterTemplate;
@@ -71,6 +72,7 @@ public static partial class TypedAstEvaluator
             _bodyLexicalNames = CollectLexicalNames(function.Body).ToArray();
             _hasHoistableDeclarations = HasHoistableDeclarations(function.Body);
             _hasParameterExpressions = HasParameterExpressions(_function);
+            _allowIdentifierCache = AllowsIdentifierCaching(_function);
             var parameterNames = new List<Symbol>();
             CollectParameterNamesFromFunction(_function, parameterNames);
             _parameterNames = parameterNames.ToImmutableArray();
@@ -405,6 +407,7 @@ public static partial class TypedAstEvaluator
             object? newTarget = null)
         {
             var context = _realmState.CreateContext(pushScope: false);
+            context.AllowIdentifierCache = _allowIdentifierCache;
             var callerRestore = _caller;
             using var callerFrame = context.PushCaller(this, out var previousCaller);
             _realmState.Logger?.LogInformation(

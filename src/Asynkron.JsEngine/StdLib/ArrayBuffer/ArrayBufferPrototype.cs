@@ -16,28 +16,66 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
         EnsureNotShared(buffer);
         EnsureNotDetached(buffer, "ArrayBuffer.prototype.slice");
 
-        var len = buffer.ByteLength;
+        var length = (long)buffer.ByteLength;
 
-        var begin = args.Count > 0 ? JsOps.ToNumber(args[0]) : 0d;
-        var end = args.Count > 1 ? JsOps.ToNumber(args[1]) : len;
+        var startIndex = args.Count > 0 && !ReferenceEquals(args[0], Symbol.Undefined)
+            ? ToIntegerOrInfinity(args[0], Realm.CreateContext())
+            : 0d;
+        var endIndex = args.Count > 1 && !ReferenceEquals(args[1], Symbol.Undefined)
+            ? ToIntegerOrInfinity(args[1], Realm.CreateContext())
+            : length;
 
-        var first = begin < 0 ? Math.Max(len + (int)begin, 0) : Math.Min((int)begin, len);
-        var final = end < 0 ? Math.Max(len + (int)end, 0) : Math.Min((int)end, len);
-        var newLen = Math.Max(final - first, 0);
+        var first = ClampRelativeIndex(startIndex, length);
+        var final = double.IsPositiveInfinity(endIndex) ? length : ClampRelativeIndex(endIndex, length);
+        var newLen = (int)Math.Max(final - first, 0);
 
         var speciesConstructor = ArrayBufferSpeciesCreate(thisValue, Realm, Realm.ArrayBufferConstructor!);
 
-        object? newBuffer;
-        if (JsOps.IsConstructor(speciesConstructor) && speciesConstructor is IJsCallable speciesCtor)
+        object newBuffer;
+        JsArrayBuffer targetBuffer;
+        if (ReferenceEquals(speciesConstructor, Realm.ArrayBufferConstructor))
         {
-            newBuffer = Construct(speciesCtor, [(double)newLen], speciesCtor, Realm);
+            targetBuffer = new JsArrayBuffer(newLen, null, Realm);
+            newBuffer = targetBuffer;
         }
         else
         {
-            newBuffer = new JsArrayBuffer(newLen, null, Realm);
+            newBuffer = Construct(speciesConstructor, [(double)newLen], speciesConstructor, Realm)!;
+            if (newBuffer is not IJsPropertyAccessor)
+            {
+                throw ThrowTypeError("ArrayBuffer species constructor did not return an object", realm: Realm);
+            }
+
+            targetBuffer = RequireArrayBuffer(newBuffer, Realm);
+            if (!ReferenceEquals(targetBuffer, newBuffer))
+            {
+                if (newBuffer is JsObject obj)
+                {
+                    StoreInternalArrayBuffer(obj, targetBuffer);
+                }
+                else
+                {
+                    throw ThrowTypeError("ArrayBuffer species constructor returned incompatible result",
+                        realm: Realm);
+                }
+            }
         }
 
-        var targetBuffer = RequireArrayBuffer(newBuffer, Realm);
+        if (targetBuffer.IsShared)
+        {
+            throw ThrowTypeError("ArrayBuffer species constructor returned a SharedArrayBuffer", realm: Realm);
+        }
+
+        if (ReferenceEquals(newBuffer, thisValue))
+        {
+            throw ThrowTypeError("ArrayBuffer species constructor returned this value", realm: Realm);
+        }
+
+        if (targetBuffer.ByteLength < newLen)
+        {
+            throw ThrowTypeError("ArrayBuffer species constructor returned too small buffer", realm: Realm);
+        }
+
         if (newLen > 0)
         {
             Array.Copy(buffer.Buffer, first, targetBuffer.Buffer, 0, newLen);
@@ -51,6 +89,8 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
     {
         var buffer = RequireArrayBuffer(thisValue, Realm);
         EnsureNotShared(buffer);
+
+        var newLength = ToIndex(args.GetArgument(0), Realm);
         EnsureNotDetached(buffer, "ArrayBuffer.prototype.resize");
 
         if (!buffer.Resizable)
@@ -58,7 +98,6 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
             throw ThrowTypeError("ArrayBuffer is not resizable", realm: Realm);
         }
 
-        var newLength = ToIndex(args.GetArgument(0), Realm);
         buffer.Resize(newLength);
         return Symbol.Undefined;
     }

@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -32,35 +33,113 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
         return buffer.Resizable;
     }
 
+    [JsHostGetter("growable")]
+    public object Growable(object? thisValue)
+    {
+        var buffer = RequireArrayBuffer(thisValue, Realm);
+        EnsureShared(buffer);
+        return buffer.Resizable;
+    }
+
+    [JsHostMethod("grow", Length = 1d)]
+    public object? Grow(object? thisValue, IReadOnlyList<object?> args)
+    {
+        var buffer = RequireArrayBuffer(thisValue, Realm);
+        EnsureShared(buffer);
+
+        if (!buffer.Resizable)
+        {
+            throw ThrowTypeError("SharedArrayBuffer is not growable", realm: Realm);
+        }
+
+        var newLength = ToIndex(args.GetArgument(0), Realm);
+        if (newLength < buffer.ByteLength)
+        {
+            throw ThrowRangeError("Invalid SharedArrayBuffer length", realm: Realm);
+        }
+
+        if (newLength > buffer.MaxByteLength)
+        {
+            throw ThrowRangeError("Invalid SharedArrayBuffer length", realm: Realm);
+        }
+
+        if (newLength == buffer.ByteLength)
+        {
+            return Symbol.Undefined;
+        }
+
+        buffer.Resize((int)newLength);
+        return Symbol.Undefined;
+    }
+
     [JsHostMethod("slice", Length = 2d)]
     public object? Slice(object? thisValue, IReadOnlyList<object?> args)
     {
         var buffer = RequireArrayBuffer(thisValue, Realm);
         EnsureShared(buffer);
-        var len = buffer.ByteLength;
+        var length = (long)buffer.ByteLength;
 
-        var begin = args.Count > 0 ? JsOps.ToNumber(args[0]) : 0d;
-        var end = args.Count > 1 ? JsOps.ToNumber(args[1]) : len;
+        var startIndex = args.Count > 0 && !ReferenceEquals(args[0], Symbol.Undefined)
+            ? ToIntegerOrInfinity(args[0], Realm.CreateContext())
+            : 0d;
+        var endIndex = args.Count > 1 && !ReferenceEquals(args[1], Symbol.Undefined)
+            ? ToIntegerOrInfinity(args[1], Realm.CreateContext())
+            : length;
 
-        var first = begin < 0 ? Math.Max(len + (int)begin, 0) : Math.Min((int)begin, len);
-        var final = end < 0 ? Math.Max(len + (int)end, 0) : Math.Min((int)end, len);
-        var newLen = Math.Max(final - first, 0);
+        var first = ClampRelativeIndex(startIndex, length);
+        var final = double.IsPositiveInfinity(endIndex) ? length : ClampRelativeIndex(endIndex, length);
+        var newLen = (int)Math.Max(final - first, 0);
 
         var speciesConstructor = ArrayBufferSpeciesCreate(thisValue, Realm, Realm.SharedArrayBufferConstructor!);
 
-        object? newBuffer;
-        if (JsOps.IsConstructor(speciesConstructor) && speciesConstructor is IJsCallable speciesCtor)
-        {
-            newBuffer = Construct(speciesCtor, [(double)newLen], speciesCtor, Realm);
-        }
-        else
+        object newBuffer;
+        JsArrayBuffer targetBuffer;
+        if (ReferenceEquals(speciesConstructor, Realm.SharedArrayBufferConstructor))
         {
             var created = new JsArrayBuffer(newLen, null, Realm, isShared: true);
             created.SetPrototype(Realm.SharedArrayBufferPrototype);
             newBuffer = created;
+            targetBuffer = created;
+        }
+        else
+        {
+            newBuffer = Construct(speciesConstructor, [(double)newLen], speciesConstructor, Realm)!;
+            if (newBuffer is not IJsPropertyAccessor)
+            {
+                throw ThrowTypeError("SharedArrayBuffer species constructor did not return an object", realm: Realm);
+            }
+
+            targetBuffer = RequireArrayBuffer(newBuffer, Realm);
+            if (!ReferenceEquals(targetBuffer, newBuffer))
+            {
+                if (newBuffer is JsObject obj)
+                {
+                    StoreInternalArrayBuffer(obj, targetBuffer);
+                }
+                else
+                {
+                    throw ThrowTypeError("SharedArrayBuffer species constructor returned incompatible result",
+                        realm: Realm);
+                }
+            }
         }
 
-        var targetBuffer = RequireArrayBuffer(newBuffer, Realm);
+        if (!targetBuffer.IsShared)
+        {
+            throw ThrowTypeError("SharedArrayBuffer species constructor did not return a SharedArrayBuffer",
+                realm: Realm);
+        }
+
+        if (ReferenceEquals(newBuffer, thisValue))
+        {
+            throw ThrowTypeError("SharedArrayBuffer species constructor returned this value", realm: Realm);
+        }
+
+        if (targetBuffer.ByteLength < newLen)
+        {
+            throw ThrowTypeError("SharedArrayBuffer species constructor returned too small buffer", realm: Realm);
+        }
+
         if (newLen > 0)
         {
             Array.Copy(buffer.Buffer, first, targetBuffer.Buffer, 0, newLen);
@@ -83,6 +162,7 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
             DefineAccessor(proto, "byteLength", ByteLength, enumerable: false);
             DefineAccessor(proto, "maxByteLength", MaxByteLength, enumerable: false);
             DefineAccessor(proto, "resizable", Resizable, enumerable: false);
+            DefineAccessor(proto, "growable", Growable, enumerable: false);
         }
     }
 

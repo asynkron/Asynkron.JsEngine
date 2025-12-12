@@ -27,6 +27,11 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
 
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
+            if (newTarget is null)
+            {
+                throw ThrowTypeError("SharedArrayBuffer constructor requires 'new'", realm: Realm);
+            }
+
             var target = _constructor ?? constructor;
             var effectiveNewTarget = newTarget as IJsCallable ?? target;
             return ConstructBuffer(args, effectiveNewTarget);
@@ -44,37 +49,28 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
 
     private object ConstructBuffer(IReadOnlyList<object?> args, IJsCallable newTarget)
     {
-        var byteLength = args.Count > 0 && !ReferenceEquals(args[0], Symbol.Undefined)
-            ? ToIndex(args[0], Realm)
-            : 0;
-
-        int? maxByteLength = null;
-        if (args.Count > 1 && !ReferenceEquals(args[1], Symbol.Undefined))
+        if (newTarget is null)
         {
-            if (args[1] is not JsObject opts)
-            {
-                throw ThrowTypeError("SharedArrayBuffer options must be an object", realm: Realm);
-            }
-
-            if (opts.TryGetProperty("maxByteLength", out var maxVal) &&
-                !ReferenceEquals(maxVal, Symbol.Undefined))
-            {
-                var maxIndex = ToIndex(maxVal, Realm);
-                if (byteLength > maxIndex)
-                {
-                    throw ThrowRangeError("Invalid SharedArrayBuffer length", realm: Realm);
-                }
-
-                maxByteLength = maxIndex;
-            }
+            throw ThrowTypeError("SharedArrayBuffer constructor requires 'new'", realm: Realm);
         }
 
-        var buffer = new JsArrayBuffer(byteLength, maxByteLength, Realm, isShared: true);
-        buffer.SetPrototype(Prototype);
+        var byteLength = args.Count > 0 && !ReferenceEquals(args[0], Symbol.Undefined)
+            ? ToIndexAsLong(args[0], Realm)
+            : 0L;
+
+        var requestedMax = GetRequestedMaxByteLength(args.Count > 1 ? args[1] : null);
+        if (requestedMax is { } maxValue && byteLength > maxValue)
+        {
+            throw ThrowRangeError("Invalid SharedArrayBuffer length", realm: Realm);
+        }
 
         if (ReferenceEquals(newTarget, _constructor ?? newTarget))
         {
-            return buffer;
+            var allocLength = RequireAllocatableLength(byteLength);
+            int? allocMax = requestedMax is { } maxIndex ? RequireAllocatableLength(maxIndex) : null;
+            var directBuffer = new JsArrayBuffer(allocLength, allocMax, Realm, isShared: true);
+            directBuffer.SetPrototype(Prototype);
+            return directBuffer;
         }
 
         var instance = PrepareThisObject(null, assignPrototype: false);
@@ -84,8 +80,52 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
             instance.SetPrototype(proto);
         }
 
+        var derivedLength = RequireAllocatableLength(byteLength);
+        int? derivedMax = requestedMax is { } maxValue2 ? RequireAllocatableLength(maxValue2) : null;
+        var buffer = new JsArrayBuffer(derivedLength, derivedMax, Realm, isShared: true);
         StoreInternalArrayBuffer(instance, buffer);
         return instance;
+    }
+
+    private int RequireAllocatableLength(long length)
+    {
+        if (length > int.MaxValue)
+        {
+            throw ThrowRangeError("Invalid SharedArrayBuffer length", realm: Realm);
+        }
+
+        return (int)length;
+    }
+
+    private long? GetRequestedMaxByteLength(object? options)
+    {
+        if (options is null || ReferenceEquals(options, Symbol.Undefined))
+        {
+            return null;
+        }
+
+        if (options is not IJsPropertyAccessor accessor)
+        {
+            return null;
+        }
+
+        var context = Realm.CreateContext();
+        if (!JsOps.TryGetPropertyValue(accessor, "maxByteLength", out var maxVal, context))
+        {
+            return null;
+        }
+
+        if (context.IsThrow)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        if (ReferenceEquals(maxVal, Symbol.Undefined))
+        {
+            return null;
+        }
+
+        return ToIndexAsLong(maxVal, Realm);
     }
 
     private HostFunction ConstructFallback =>

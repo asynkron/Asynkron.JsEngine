@@ -129,30 +129,6 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvi
             return true;
         }
 
-        switch (name)
-        {
-            case "byteLength":
-                value = (double)ByteLength;
-                return true;
-            case "slice":
-                value = _sliceFunction;
-                return true;
-            case "resize":
-                if (Resizable)
-                {
-                    value = _resizeFunction;
-                    return true;
-                }
-
-                break;
-            case "maxByteLength":
-                value = (double)MaxByteLength;
-                return true;
-            case "resizable":
-                value = Resizable;
-                return true;
-        }
-
         value = null;
         return false;
     }

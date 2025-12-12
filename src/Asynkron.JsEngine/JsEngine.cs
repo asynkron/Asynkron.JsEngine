@@ -66,7 +66,7 @@ public sealed class JsEngine : IAsyncDisposable
     private readonly TypedCpsTransformer _typedCpsTransformer = new();
     private Task? _eventLoopTask;
     private int? _eventLoopThreadId;
-    private Channel<Func<Task>>? _eventQueue;
+    private Channel<Action>? _eventQueue;
 
     // Synchronous microtask queue for top-level await support.
     // JsEngine is single-threaded by design, so microtask bookkeeping does not use locks.
@@ -556,7 +556,7 @@ public sealed class JsEngine : IAsyncDisposable
             _drainCompletionSource = null;
         }
 
-        _eventQueue = Channel.CreateUnbounded<Func<Task>>(new UnboundedChannelOptions
+        _eventQueue = Channel.CreateUnbounded<Action>(new UnboundedChannelOptions
         {
             SingleReader = true,
             SingleWriter = false
@@ -1695,11 +1695,7 @@ public sealed class JsEngine : IAsyncDisposable
             }
 
             var tick = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            ScheduleTask(() =>
-            {
-                tick.TrySetResult();
-                return Task.CompletedTask;
-            });
+            ScheduleTask(() => tick.TrySetResult());
 
             await tick.Task.ConfigureAwait(false);
         }
@@ -1746,7 +1742,13 @@ public sealed class JsEngine : IAsyncDisposable
             jsObject.RealmState = RealmState;
         }
 
-        GlobalObject.SetProperty(name, value);
+        GlobalObject.DefineProperty(name, new PropertyDescriptor
+        {
+            Value = value,
+            Writable = !isGlobalConstant,
+            Enumerable = false,
+            Configurable = !isGlobalConstant
+        });
     }
 
     /// <summary>
@@ -1799,15 +1801,15 @@ public sealed class JsEngine : IAsyncDisposable
     ///     Schedules a task to be executed on the event queue.
     ///     This allows promises and other async operations to schedule work.
     /// </summary>
-    /// <param name="task">The task to schedule</param>
-    public void ScheduleTask(Func<Task> task)
+    /// <param name="task">The synchronous task to schedule</param>
+    public void ScheduleTask(Action task)
     {
         StartEventLoop();
         var queue = _eventQueue ?? throw new InvalidOperationException("Event loop is not running.");
         var capturedActivity = Activity.Current;
 
         Interlocked.Increment(ref _pendingTaskCount);
-        queue.Writer.TryWrite(async () =>
+        queue.Writer.TryWrite(() =>
         {
             var previousActivity = Activity.Current;
             var activityChanged = !ReferenceEquals(previousActivity, capturedActivity);
@@ -1818,7 +1820,7 @@ public sealed class JsEngine : IAsyncDisposable
 
             try
             {
-                await task().ConfigureAwait(false);
+                task();
             }
             finally
             {
@@ -1832,20 +1834,20 @@ public sealed class JsEngine : IAsyncDisposable
 
     /// <summary>
     ///     Processes all events in the event queue until it's empty.
-    ///     Each event is executed and any new events scheduled during execution
+    ///     Each event is executed synchronously and any new events scheduled during execution
     ///     will also be processed.
     ///     Exceptions from individual tasks are caught and logged to prevent the event loop from stopping.
     /// </summary>
-    private async Task ProcessEventQueue(Channel<Func<Task>> queue)
+    private async Task ProcessEventQueue(Channel<Action> queue)
     {
         _eventLoopThreadId = Environment.CurrentManagedThreadId;
         try
         {
-            await foreach (var x in queue.Reader.ReadAllAsync().ConfigureAwait(false))
+            await foreach (var task in queue.Reader.ReadAllAsync().ConfigureAwait(false))
             {
                 try
                 {
-                    await x().ConfigureAwait(false);
+                    task();
                 }
                 catch (OutOfMemoryException)
                 {
@@ -2033,8 +2035,6 @@ public sealed class JsEngine : IAsyncDisposable
                         TrySignalDrainComplete();
                     }
                 }
-
-                return Task.CompletedTask;
             });
             return (double)timerId;
         }
@@ -2062,8 +2062,6 @@ public sealed class JsEngine : IAsyncDisposable
                     {
                         callback.Invoke([], null);
                     }
-
-                    return Task.CompletedTask;
                 });
             }
         }
@@ -2125,8 +2123,6 @@ public sealed class JsEngine : IAsyncDisposable
                         {
                             callback.Invoke([], null);
                         }
-
-                        return Task.CompletedTask;
                     });
                 }
             }
@@ -2204,145 +2200,182 @@ public sealed class JsEngine : IAsyncDisposable
         // CallingJsEnvironment and _currentModulePath may change by the time the task runs.
         var capturedReferrerPath = callee?.CallingJsEnvironment is JsEnvironment env ? env.ModulePath : _currentModulePath;
 
-        // Schedule loading the module asynchronously using ScheduleTask
-        // to properly track pending tasks for the event loop
-        ScheduleTask(async () =>
+        // Run async module loading on threadpool, then schedule sync completion to event loop
+        _ = RunDynamicImportAsync(args, context, phase, capturedReferrerPath, promise);
+
+        return promiseObj;
+
+        IJsPropertyAccessor? ResolvePromisePrototype() => ResolvePromisePrototypeInternal();
+    }
+
+    /// <summary>
+    ///     Runs the async portion of dynamic import on the threadpool,
+    ///     then schedules sync completion callbacks to the event loop.
+    /// </summary>
+    private async Task RunDynamicImportAsync(
+        IReadOnlyList<object?> args,
+        EvaluationContext? context,
+        ImportPhase phase,
+        string? capturedReferrerPath,
+        JsPromise promise)
+    {
+        try
         {
-            try
+            if (args.Count == 0)
             {
-                if (args.Count == 0)
+                ScheduleTask(() =>
                 {
                     var typeError = StandardLibrary.CreateTypeError(
                         "import() requires a module specifier",
                         context,
                         RealmState);
                     promise.Reject(typeError);
-                    return;
-                }
+                });
+                return;
+            }
 
-                object? specifierStringObj;
-                try
-                {
-                    var specifier = args.GetArgument(0);
-                    specifierStringObj = JsOps.ToJsString(specifier, context);
-                }
-                catch (ThrowSignal signal)
-                {
-                    promise.Reject(signal.ThrownValue);
-                    return;
-                }
+            object? specifierStringObj;
+            try
+            {
+                var specifier = args.GetArgument(0);
+                specifierStringObj = JsOps.ToJsString(specifier, context);
+            }
+            catch (ThrowSignal signal)
+            {
+                ScheduleTask(() => promise.Reject(signal.ThrownValue));
+                return;
+            }
 
-                if (context?.IsThrow == true)
-                {
-                    promise.Reject(context.FlowValue);
-                    return;
-                }
+            if (context?.IsThrow == true)
+            {
+                var flowValue = context.FlowValue;
+                ScheduleTask(() => promise.Reject(flowValue));
+                return;
+            }
 
-                var specifierString = specifierStringObj?.ToString() ?? string.Empty;
-                if (phase == ImportPhase.Source)
+            var specifierString = specifierStringObj?.ToString() ?? string.Empty;
+            if (phase == ImportPhase.Source)
+            {
+                ScheduleTask(() =>
                 {
-                    // Source phase imports are not supported by this host; reject with SyntaxError.
                     var syntaxError = StandardLibrary.CreateSyntaxError(
                         "Source phase imports are not supported",
                         context,
                         RealmState);
                     promise.Reject(syntaxError);
-                    return;
-                }
+                });
+                return;
+            }
 
-                try
+            try
+            {
+                // Load the module using the captured referrer path
+                var moduleEntry = LoadModule(specifierString, capturedReferrerPath, phase);
+                if (moduleEntry.IsAsync || moduleEntry.HasAsyncDependency)
                 {
-                    // Load the module using the captured referrer path
-                    var moduleEntry = LoadModule(specifierString, capturedReferrerPath, phase);
-                    if (moduleEntry.IsAsync || moduleEntry.HasAsyncDependency)
+                    var evaluation = EnsureModuleEvaluatedAsync(moduleEntry, waitForAsync: false);
+                    if (evaluation.IsCompletedSuccessfully)
                     {
-                        var evaluation = EnsureModuleEvaluatedAsync(moduleEntry, waitForAsync: false);
-                        if (evaluation.IsCompletedSuccessfully)
+                        ScheduleTask(() =>
                         {
-                            var namespaceObject = GetModuleNamespace(moduleEntry, phase);
-                            promise.Resolve(namespaceObject);
-                            return;
-                        }
-
-                        evaluation.ContinueWith(
-                            completed =>
+                            try
                             {
-                                ScheduleTask(() =>
-                                {
-                                    if (completed.IsFaulted)
-                                    {
-                                        var root = completed.Exception?.GetBaseException();
-                                        if (root is ThrowSignal signal)
-                                        {
-                                            promise.Reject(signal.ThrownValue);
-                                            return Task.CompletedTask;
-                                        }
-
-                                        var error = StandardLibrary.CreateTypeError(
-                                            root?.Message ?? "Dynamic import failed",
-                                            context,
-                                            RealmState);
-                                        promise.Reject(error);
-                                        return Task.CompletedTask;
-                                    }
-
-                                    if (completed.IsCanceled)
-                                    {
-                                        promise.Reject(StandardLibrary.CreateTypeError(
-                                            "Dynamic import canceled",
-                                            context,
-                                            RealmState));
-                                        return Task.CompletedTask;
-                                    }
-
-                                    try
-                                    {
-                                        var namespaceObject = GetModuleNamespace(moduleEntry, phase);
-                                        promise.Resolve(namespaceObject);
-                                    }
-                                    catch (ThrowSignal signal)
-                                    {
-                                        promise.Reject(signal.ThrownValue);
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
-                                        promise.Reject(error);
-                                    }
-
-                                    return Task.CompletedTask;
-                                });
-
-                                return Task.CompletedTask;
-                            },
-                            CancellationToken.None,
-                            TaskContinuationOptions.ExecuteSynchronously,
-                            TaskScheduler.Default);
-
+                                var namespaceObject = GetModuleNamespace(moduleEntry, phase);
+                                promise.Resolve(namespaceObject);
+                            }
+                            catch (ThrowSignal signal)
+                            {
+                                promise.Reject(signal.ThrownValue);
+                            }
+                            catch (Exception ex)
+                            {
+                                var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
+                                promise.Reject(error);
+                            }
+                        });
                         return;
                     }
 
-                    EnsureModuleEvaluated(moduleEntry);
-                    promise.Resolve(GetModuleNamespace(moduleEntry, phase));
+                    // Wait for the async evaluation to complete
+                    try
+                    {
+                        await evaluation.ConfigureAwait(false);
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        ScheduleTask(() => promise.Reject(signal.ThrownValue));
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        ScheduleTask(() =>
+                        {
+                            var error = StandardLibrary.CreateTypeError(
+                                ex.Message,
+                                context,
+                                RealmState);
+                            promise.Reject(error);
+                        });
+                        return;
+                    }
+
+                    // Schedule sync completion to event loop
+                    ScheduleTask(() =>
+                    {
+                        try
+                        {
+                            var namespaceObject = GetModuleNamespace(moduleEntry, phase);
+                            promise.Resolve(namespaceObject);
+                        }
+                        catch (ThrowSignal signal)
+                        {
+                            promise.Reject(signal.ThrownValue);
+                        }
+                        catch (Exception ex)
+                        {
+                            var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
+                            promise.Reject(error);
+                        }
+                    });
+                    return;
                 }
-                catch (Exception ex)
+
+                // Sync module - schedule completion on event loop
+                ScheduleTask(() =>
                 {
-                    var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
-                    promise.Reject(error);
-                }
+                    try
+                    {
+                        EnsureModuleEvaluated(moduleEntry);
+                        promise.Resolve(GetModuleNamespace(moduleEntry, phase));
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        promise.Reject(signal.ThrownValue);
+                    }
+                    catch (Exception ex)
+                    {
+                        var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
+                        promise.Reject(error);
+                    }
+                });
             }
             catch (Exception ex)
             {
+                ScheduleTask(() =>
+                {
+                    var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
+                    promise.Reject(error);
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            ScheduleTask(() =>
+            {
                 var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
                 promise.Reject(error);
-            }
-
-            await Task.CompletedTask.ConfigureAwait(false);
-        });
-
-        return promiseObj;
-
-        IJsPropertyAccessor? ResolvePromisePrototype() => ResolvePromisePrototypeInternal();
+            });
+        }
     }
 
     /// <summary>
@@ -3753,6 +3786,16 @@ public sealed class JsEngine : IAsyncDisposable
 
                             _statementIndex++;
                             continue;
+                        case ExpressionStatement exprStatement
+                            when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(exprStatement):
+                            // Expression statement with await nested somewhere (e.g., void await x, f(await x))
+                            if (!TryEvaluateExpressionStatementWithAwait(exprStatement, env, isStrict))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
                         case VariableDeclaration variableDeclaration
                             when ContainsDirectAwaitInitializer(variableDeclaration):
                             if (!TryEvaluateDeclarationWithAwait(variableDeclaration, env))
@@ -4141,6 +4184,141 @@ public sealed class JsEngine : IAsyncDisposable
             return true;
         }
 
+        private bool TryEvaluateExpressionStatementWithAwait(ExpressionStatement exprStatement, JsEnvironment env, bool isStrict)
+        {
+            // Expression statement with await nested somewhere (e.g., void await x, f(await x))
+            // We need to evaluate expressions with await using CPS-style transformation.
+            return TryEvaluateExpressionWithAwait(exprStatement.Expression, env, isStrict, _ => { });
+        }
+
+        private bool TryEvaluateExpressionWithAwait(ExpressionNode expression, JsEnvironment env, bool isStrict, Action<object?> continuation)
+        {
+            switch (expression)
+            {
+                case AwaitExpression awaitExpression:
+                    return TryAwaitExpressionWithContinuation(awaitExpression.Expression, continuation, env);
+
+                case UnaryExpression unaryExpr when Ast.ShapeAnalyzer.AstShapeAnalyzer.ContainsAwait(unaryExpr.Operand):
+                    // e.g., void await x, !await x
+                    return TryEvaluateExpressionWithAwait(unaryExpr.Operand, env, isStrict, resolved =>
+                    {
+                        var result = EvaluateUnaryOnValue(unaryExpr.Operator, resolved);
+                        continuation(result);
+                    });
+
+                case CallExpression callExpr when Ast.ShapeAnalyzer.AstShapeAnalyzer.ContainsAwait(callExpr):
+                    return TryEvaluateCallExpressionWithAwait(callExpr, env, isStrict, continuation);
+
+                default:
+                    // No await found in this expression, or expression types we don't need to handle specially
+                    // Just evaluate synchronously
+                    try
+                    {
+                        var result = _engine.ExecuteTypedExpression(expression, env, isStrict);
+                        continuation(result);
+                        return true;
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        Fail(signal);
+                        return false;
+                    }
+            }
+        }
+
+        private static object? EvaluateUnaryOnValue(string op, object? operand)
+        {
+            return op switch
+            {
+                "!" => !JsOps.ToBoolean(operand),
+                "+" => JsOps.ToNumber(operand, null),
+                "-" => operand switch
+                {
+                    double d => -d,
+                    long l => -l,
+                    _ => -JsOps.ToNumber(operand, null)
+                },
+                "~" => ~(int)JsOps.ToNumber(operand, null),
+                "void" => Symbol.Undefined,
+                "typeof" => JsOps.GetTypeofString(operand),
+                _ => throw new NotSupportedException($"Unary operator '{op}' is not supported in async module context.")
+            };
+        }
+
+        private bool TryEvaluateCallExpressionWithAwait(CallExpression callExpr, JsEnvironment env, bool isStrict, Action<object?> continuation)
+        {
+            // Evaluate arguments left to right, handling any await expressions
+            var evaluatedArgs = new List<object?>();
+            var argList = callExpr.Arguments.ToList();
+            return TryEvaluateArgumentsWithAwait(argList, 0, evaluatedArgs, env, isStrict, () =>
+            {
+                // All arguments evaluated, now evaluate callee and call
+                object? calleeValue;
+                object? thisValue = null;
+
+                try
+                {
+                    if (callExpr.Callee is MemberExpression memberAccess)
+                    {
+                        thisValue = _engine.ExecuteTypedExpression(memberAccess.Target, env, isStrict);
+                        var propertyKey = memberAccess.Property is IdentifierExpression id
+                            ? (object)id.Name
+                            : _engine.ExecuteTypedExpression(memberAccess.Property, env, isStrict);
+                        calleeValue = JsOps.TryGetPropertyValue(thisValue, propertyKey, out var val, null)
+                            ? val
+                            : Symbol.Undefined;
+                    }
+                    else
+                    {
+                        calleeValue = _engine.ExecuteTypedExpression(callExpr.Callee, env, isStrict);
+                    }
+
+                    if (calleeValue is not IJsCallable callable)
+                    {
+                        throw new ThrowSignal($"TypeError: {calleeValue} is not a function");
+                    }
+
+                    var result = callable.Invoke(evaluatedArgs, thisValue);
+                    continuation(result);
+                }
+                catch (ThrowSignal signal)
+                {
+                    Fail(signal);
+                }
+            });
+        }
+
+        private bool TryEvaluateArgumentsWithAwait(List<CallArgument> args, int index, List<object?> evaluated, JsEnvironment env, bool isStrict, Action onComplete)
+        {
+            if (index >= args.Count)
+            {
+                onComplete();
+                return true;
+            }
+
+            var arg = args[index];
+            if (Ast.ShapeAnalyzer.AstShapeAnalyzer.ContainsAwait(arg.Expression))
+            {
+                return TryEvaluateExpressionWithAwait(arg.Expression, env, isStrict, resolved =>
+                {
+                    evaluated.Add(resolved);
+                    TryEvaluateArgumentsWithAwait(args, index + 1, evaluated, env, isStrict, onComplete);
+                });
+            }
+
+            try
+            {
+                var value = _engine.ExecuteTypedExpression(arg.Expression, env, isStrict);
+                evaluated.Add(value);
+                return TryEvaluateArgumentsWithAwait(args, index + 1, evaluated, env, isStrict, onComplete);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+        }
+
         private bool TryEvaluateWhileStatementWithAwait(WhileStatement whileStatement, JsEnvironment env, bool isStrict)
         {
             // Handle await in the condition
@@ -4296,6 +4474,10 @@ public sealed class JsEngine : IAsyncDisposable
             {
                 case ExpressionStatement { Expression: AwaitExpression awaitExpression }:
                     return TryAwaitExpressionWithContinuation(awaitExpression.Expression, _ => { }, env);
+
+                case ExpressionStatement exprStatement
+                    when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(exprStatement):
+                    return TryEvaluateExpressionStatementWithAwait(exprStatement, env, isStrict);
 
                 case IfStatement ifStatement when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(ifStatement):
                     return TryEvaluateIfStatementWithAwait(ifStatement, env, isStrict);

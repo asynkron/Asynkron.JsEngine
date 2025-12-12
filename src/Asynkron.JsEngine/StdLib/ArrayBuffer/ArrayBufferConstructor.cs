@@ -25,55 +25,63 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
 
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
+            if (newTarget is null)
+            {
+                throw ThrowTypeError("ArrayBuffer constructor requires 'new'", realm: Realm);
+            }
+
             var target = _constructor ?? constructor;
             var effectiveNewTarget = newTarget as IJsCallable ?? target;
             return ConstructBuffer(args, effectiveNewTarget);
         });
 
         var speciesKey = SymbolKeys.GetSpecies(Realm);
-        constructor.DefineProperty(speciesKey,
-            new PropertyDescriptor
-            {
-                Get = new HostFunction((thisVal, _) => thisVal),
-                Enumerable = false,
-                Configurable = true
-            });
+        var speciesGetter = new HostFunction((thisVal, _) => thisVal, Realm)
+        {
+            IsConstructor = false
+        };
+        AttachBuiltinMetadata(speciesGetter, "get [Symbol.species]", 0d);
 
-        constructor.SetHostedProperty("isView", ArrayBufferIsView, Realm);
+        constructor.DefineProperty(speciesKey, new PropertyDescriptor
+        {
+            Get = speciesGetter,
+            Enumerable = false,
+            Configurable = true
+        });
+
+        var isView = new HostFunction(ArrayBufferIsView, Realm) { IsConstructor = false };
+        AttachBuiltinMetadata(isView, "isView", 1d);
+        constructor.DefineProperty("isView", new PropertyDescriptor
+        {
+            Value = isView,
+            Writable = true,
+            Enumerable = false,
+            Configurable = true
+        });
     }
 
     private object ConstructBuffer(IReadOnlyList<object?> args, IJsCallable newTarget)
     {
-        var byteLength = args.Count > 0 && !ReferenceEquals(args[0], Symbol.Undefined)
-            ? ToIndex(args[0], Realm)
-            : 0;
-
-        int? maxByteLength = null;
-        if (args.Count > 1 && !ReferenceEquals(args[1], Symbol.Undefined))
+        if (newTarget is null)
         {
-            if (args[1] is not JsObject opts)
-            {
-                throw ThrowTypeError("ArrayBuffer options must be an object", realm: Realm);
-            }
-
-            if (opts.TryGetProperty("maxByteLength", out var maxVal) &&
-                !ReferenceEquals(maxVal, Symbol.Undefined))
-            {
-                var maxIndex = ToIndex(maxVal, Realm);
-                if (byteLength > maxIndex)
-                {
-                    throw ThrowRangeError("Invalid ArrayBuffer length", realm: Realm);
-                }
-
-                maxByteLength = maxIndex;
-            }
+            throw ThrowTypeError("ArrayBuffer constructor requires 'new'", realm: Realm);
         }
 
-        var buffer = new JsArrayBuffer(byteLength, maxByteLength, Realm);
+        var byteLength = args.Count > 0 && !ReferenceEquals(args[0], Symbol.Undefined)
+            ? ToIndexAsLong(args[0], Realm)
+            : 0L;
+
+        var requestedMax = GetRequestedMaxByteLength(args.Count > 1 ? args[1] : null);
+        if (requestedMax is { } maxValue && byteLength > maxValue)
+        {
+            throw ThrowRangeError("Invalid ArrayBuffer length", realm: Realm);
+        }
 
         if (ReferenceEquals(newTarget, _constructor ?? newTarget))
         {
-            return buffer;
+            var allocLength = RequireAllocatableLength(byteLength);
+            int? allocMax = requestedMax is { } maxIndex ? RequireAllocatableLength(maxIndex) : null;
+            return new JsArrayBuffer(allocLength, allocMax, Realm);
         }
 
         var instance = PrepareThisObject(null, assignPrototype: false);
@@ -83,8 +91,52 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
             instance.SetPrototype(proto);
         }
 
+        var derivedLength = RequireAllocatableLength(byteLength);
+        int? derivedMax = requestedMax is { } maxValue2 ? RequireAllocatableLength(maxValue2) : null;
+        var buffer = new JsArrayBuffer(derivedLength, derivedMax, Realm);
         StoreInternalArrayBuffer(instance, buffer);
         return instance;
+    }
+
+    private int RequireAllocatableLength(long length)
+    {
+        if (length > int.MaxValue)
+        {
+            throw ThrowRangeError("Invalid ArrayBuffer length", realm: Realm);
+        }
+
+        return (int)length;
+    }
+
+    private long? GetRequestedMaxByteLength(object? options)
+    {
+        if (options is null || ReferenceEquals(options, Symbol.Undefined))
+        {
+            return null;
+        }
+
+        if (options is not IJsPropertyAccessor accessor)
+        {
+            return null;
+        }
+
+        var context = Realm.CreateContext();
+        if (!JsOps.TryGetPropertyValue(accessor, "maxByteLength", out var maxVal, context))
+        {
+            return null;
+        }
+
+        if (context.IsThrow)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        if (ReferenceEquals(maxVal, Symbol.Undefined))
+        {
+            return null;
+        }
+
+        return ToIndexAsLong(maxVal, Realm);
     }
 
     private HostFunction ConstructFallback =>

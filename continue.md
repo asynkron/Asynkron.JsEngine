@@ -59,11 +59,15 @@
 - Microtask queue is now lock-free: since `JsEngine` executes JS single-threaded, microtasks are enqueued/drained without `lock`, removing profiler-visible contention while preserving ordering and reentrancy guards.
 - Timers no longer use `Task.Run`: `setTimeout`/`setInterval` are driven by `Task.Delay` loops and schedule callbacks through the event queue; timer bookkeeping is thread-safe and clears decrement the active-timer count immediately.
 - SharedArrayBuffer constructor now honors `maxByteLength` options (ToIndex coercion, RangeError when initial length exceeds max) and sets growable slots; prototype `maxByteLength`/`resizable` accessors enforce shared/detached checks and return the tracked maximum. The SharedArrayBuffer `maxByteLength` Test262 group is passing.
+- SharedArrayBuffer now exposes spec-aligned `growable` accessor (with metadata/name/TypeError guards) and `grow` method that ToIndex-coerces lengths, throws when non-growable/shrinking/beyond max, and reuses buffer resize; the SharedArrayBuffer `growable` and `grow` Test262 groups are green.
+- ArrayBuffer/SharedArrayBuffer.prototype.slice now follows SpeciesConstructor rules: `undefined` end defaults to length, species must be constructors, shared targets are rejected for ArrayBuffer, returned buffers must be shared for SharedArrayBuffer, returning the receiver throws, and too-small species results raise TypeError. The slice Test262 clusters pass in strict and sloppy modes.
+- ArrayBuffer.prototype.resize now performs the detach check after ToIndex coercion (single check) and the resize cluster is green. ArrayBuffer.prototype.transfer/transferToFixedLength clusters are also green.
+- ArrayBuffer.isView now recognizes DataView subclasses (via internal slots) and carries the correct name/length attributes. ArrayBuffer [@@species] getter also exposes the proper name/length metadata; the isView and Symbol.species Test262 clusters are green.
 
 ## Next Iteration Plan
-1. Sweep the remaining SharedArrayBuffer resizable semantics (e.g., slice/species, property descriptor shapes, non-shared guardrails) across the Test262 built-ins to catch any gaps beyond `maxByteLength`.
-2. Run the broader ArrayBuffer/SharedArrayBuffer resizable/transfer/resize Test262 batches to confirm no regressions and log any failing cases to tackle next.
-3. Pick the next standard library cluster from `builtintests-todo.md` and start bringing it up to spec (record the chosen cluster and progress here).
+1. Tackle the remaining ArrayBuffer constructor/allocation-limit cluster (length validation, huge lengths) and SharedArrayBuffer parallels if any surface.
+2. Pick the next standard library cluster from `builtintests-todo.md` (e.g., Array proto/from/of or TypedArray iterator/value clusters) and start bringing it up to spec, recording progress here.
+3. Keep scanning for remaining built-in gaps surfaced by the Test262 harness and queue them here before diving in.
 
 ## Future Work
 - Consider forking Test262Harness to support async NUnit/xUnit test generation

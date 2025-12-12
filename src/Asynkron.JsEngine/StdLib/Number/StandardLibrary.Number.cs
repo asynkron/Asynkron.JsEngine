@@ -279,6 +279,49 @@ public static partial class StandardLibrary
         return (int)index;
     }
 
+    internal static long ToIndexAsLong(object? value, RealmState? realm = null)
+    {
+        const double MaxLength = 9007199254740991d; // 2^53 - 1
+        var context = realm?.CreateContext();
+
+        var numeric = JsOps.ToNumeric(value, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        if (numeric is JsBigInt or Symbol or TypedAstSymbol)
+        {
+            throw ThrowTypeError("Index must be a non-negative integer", context, realm);
+        }
+
+        var numberValue = numeric is double d ? d : JsOps.ToNumber(numeric, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        var integerIndex = double.IsNaN(numberValue) || Math.Abs(numberValue) < double.Epsilon
+            ? 0d
+            : double.IsInfinity(numberValue)
+                ? numberValue > 0 ? double.PositiveInfinity : double.NegativeInfinity
+                : Math.Truncate(numberValue);
+
+        if (double.IsPositiveInfinity(integerIndex) || integerIndex < 0)
+        {
+            throw ThrowRangeError("Index must be a non-negative integer", context, realm);
+        }
+
+        var index = integerIndex > MaxLength ? MaxLength : integerIndex;
+        var sameValueZero = integerIndex == index || (integerIndex == 0 && index == 0);
+        if (!sameValueZero)
+        {
+            throw ThrowRangeError("Index must be a non-negative integer", context, realm);
+        }
+
+        return (long)index;
+    }
+
     /// <summary>
     ///     Creates the Number constructor with static methods.
     /// </summary>

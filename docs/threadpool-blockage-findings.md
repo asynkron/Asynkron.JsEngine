@@ -2,6 +2,22 @@
 
 This note captures the remaining *engine-level* sources of threadpool blockage discovered while profiling Test262 runs after the big per-test setup wins (base realm snapshot + suite-on-disk cache + AST caching).
 
+## Status (what changed since the first write-up)
+
+### Fixed
+
+- Engine sync-over-async wait sites (`.GetAwaiter().GetResult()`) are removed:
+  - Sync entry points fail fast on async modules instead of blocking.
+  - Promise await logic no longer blocks on a TCS task; it pumps microtasks/event loop without `.GetResult()`.
+- Timers no longer use `Task.Run`:
+  - `setTimeout`/`setInterval` are driven by `Task.Delay` loops and schedule callbacks via the engine event queue.
+  - Timer bookkeeping is thread-safe and drain completion is signaled when timers are removed.
+
+### Still likely contributors (engine)
+
+- The event loop is still started via `Task.Run`, so continuations execute on the shared threadpool.
+- Top-level await / non-generator `await` still relies on a synchronous “pump” (`Thread.Yield` + microtask drain) rather than a continuation-based suspension model.
+
 ## What the profiler was showing
 
 - A large share of wall time attributed to “threadpool blockage/starvation”.
@@ -11,28 +27,16 @@ This note captures the remaining *engine-level* sources of threadpool blockage d
 
 ## Root causes found in the current engine
 
-### 1) Synchronous blocking waits still exist in the runtime
+### 1) Threadpool scheduling churn (event loop)
 
-These are effectively the same class of issue as `Task.Wait()`/`Task.Result`: a thread is blocked while waiting for async completion.
+`src/Asynkron.JsEngine/JsEngine.cs` starts the event loop with:
+- `Task.Run(() => ProcessEventQueue(...))`
 
-**Call sites**
-- `src/Asynkron.JsEngine/JsEngine.cs`
-  - `EvaluateSyncInternal`: blocks async module evaluation via `EnsureModuleEvaluatedAsync(...).GetAwaiter().GetResult()`
-  - `EvaluateInline`: same pattern for async modules
-  - `EnsureModuleEvaluated`: wraps async method with `.GetResult()`
-  - `WaitForAsyncModule`: blocks via `.GetResult()` (used by import evaluation in some cases)
-- `src/Asynkron.JsEngine/Execution/AwaitScheduler.cs`
-  - `DrainEventLoopAsync(...).GetAwaiter().GetResult()`
-  - `tcs.Task.GetAwaiter().GetResult()`
+This means every engine instance that needs an event loop schedules work onto the shared threadpool. Under a large test suite this can show up as scheduler contention (especially when the host/test runner is also threadpool-heavy).
 
-**Why it hurts**
-- Blocking the caller thread is expensive by itself.
-- If the caller is a threadpool worker, this can amplify into threadpool starvation (especially under parallel test runners).
-- Some of these waits are inside loops that repeatedly drain microtasks and/or event loop work, making the stall both long-lived and CPU-heavy.
+### 2) `await` expressions outside async-generator stepping still “pump” synchronously
 
-### 2) `await` expressions outside async-generator stepping still block
-
-In normal evaluation (non-generator), `await` ultimately routes into the blocking scheduler.
+In normal evaluation (non-generator), `await` ultimately routes into a synchronous “pump” loop.
 
 **Where this happens**
 - `src/Asynkron.JsEngine/Ast/AwaitExpressionExtensions.cs` calls `AwaitScheduler.TryAwaitPromiseSync(...)` when not running under a generator instance.
@@ -43,27 +47,10 @@ In normal evaluation (non-generator), `await` ultimately routes into the blockin
 
 **Important detail**
 `AwaitScheduler.TryAwaitPromiseSync` currently implements awaiting by:
-- building a `TaskCompletionSource`
-- calling `.then(onFulfilled, onRejected)`
-- spinning by draining microtasks / event loop until the TCS is completed
-- finally blocking on `tcs.Task.GetAwaiter().GetResult()`
+- attaching `.then(onFulfilled, onRejected)`
+- draining microtasks and (optionally) the event loop while yielding (`Thread.Yield`)
 
-That last part is the hard thread-blocking point.
-
-### 3) The event loop is started on the threadpool
-
-`src/Asynkron.JsEngine/JsEngine.cs` starts the event loop with:
-- `Task.Run(() => ProcessEventQueue(...))`
-
-This means every engine instance that needs an event loop consumes threadpool resources. Under a large test suite this becomes visible as scheduling churn and contention.
-
-### 4) Timers explicitly use `Task.Run` (threadpool) for delayed waits
-
-`src/Asynkron.JsEngine/JsEngine.cs`
-- `setTimeout` (non-zero delay) uses `Task.Run(async () => await Task.Delay(...))`
-- `setInterval` uses `Task.Run(async () => while (...) await Task.Delay(...))`
-
-These are expected to use threadpool threads. If tests schedule timers frequently, this contributes to threadpool pressure.
+This avoids thread-blocking waits but can still occupy a caller thread for a long time. When the caller is a threadpool worker, it can still contribute to perceived “threadpool starvation”.
 
 ## What we already have that can be reused for a non-blocking design
 
@@ -90,17 +77,7 @@ However, module evaluation today executes many statements via `ExecuteTypedState
 
 ## Recommended next steps (to remove engine threadpool blockage)
 
-### 1) Stop blocking in sync APIs (fail fast instead)
-
-`EvaluateSync` is already documented as not supporting async/event-loop dependent features.
-
-So for async modules / async dependencies:
-- replace `.GetAwaiter().GetResult()` in `EvaluateSyncInternal` and `EvaluateInline` with a clear `NotSupportedException`
-- similarly, stop providing sync wrappers (`EnsureModuleEvaluated`, `WaitForAsyncModule`) for async modules
-
-This removes the highest-risk thread blocking without changing async-capable entry points (`Evaluate(...)`).
-
-### 2) Make top-level-await module evaluation non-blocking
+### 1) Make top-level-await module evaluation fully non-blocking
 
 Current async module evaluation still hits blocking waits via `await` expression handling.
 
@@ -115,27 +92,25 @@ Candidate designs:
   - Avoid per-statement evaluation for module bodies when possible so the typed CPS transformer can apply.
   - Still requires preserving module import/export semantics (imports/exports are not normal statements).
 
-### 3) Remove `AwaitScheduler.TryAwaitPromiseSync` from supported runtime paths
+### 2) Remove `AwaitScheduler.TryAwaitPromiseSync` from supported runtime paths
 
 Either:
 - replace it with a continuation-based scheduler integrated with the engine’s event queue, or
 - ensure supported paths never call it (i.e., always run async code through CPS or a step runner).
 
-As long as this blocking helper stays reachable, threadpool starvation can still reappear.
+As long as this synchronous pump stays reachable, long-running `await` chains can keep a worker thread busy.
 
-### 4) Reduce threadpool churn for the event loop and timers
+### 3) Reduce threadpool churn for the event loop
 
-Once blocking waits are removed, threadpool pressure will be dominated by:
+Once synchronous waits are removed, threadpool pressure is dominated by:
 - per-engine event loop tasks (`Task.Run`)
-- per-timer tasks (`Task.Run` + `Task.Delay`)
 
 Possible direction (needs design + isolation validation):
-- run the event loop on a dedicated long-running thread per engine (not the shared threadpool)
-- consolidate timers into a single scheduler per engine instead of spawning many `Task.Run` loops
+- run the event loop on a dedicated single-thread scheduler per engine (not the shared threadpool)
+- (optional) install a custom single-thread `SynchronizationContext` so `await` continuations stay on that engine thread
 
 ## Notes / constraints to keep in mind
 
 - Engine should remain ECMAScript-aligned (strict vs sloppy must remain correct).
 - No thread-blocking (`Task.Wait`, `Task.Result`, `.GetAwaiter().GetResult()`, `Thread.Sleep`) in engine runtime.
 - Unsupported runtime features/AST shapes should fail fast with clear `NotSupportedException` (no silent fallback).
-

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Threading.Channels;
@@ -16,7 +17,7 @@ namespace Asynkron.JsEngine;
 public sealed class JsEngine : IAsyncDisposable
 {
     internal static readonly object UninitializedExportMarker = new();
-    private int _activeTimerCount; // Track active timer tasks (delayed work on ThreadPool)
+    private int _activeTimerCount; // Track registered timers (timeouts/intervals)
     private readonly Channel<string> _asyncIteratorTraceChannel = Channel.CreateUnbounded<string>();
     private readonly bool _asyncIteratorTracingEnabled;
 
@@ -58,7 +59,7 @@ public sealed class JsEngine : IAsyncDisposable
 
     // Module registry: maps module paths to their exported values
     private readonly Dictionary<string, ModuleEntry> _moduleRegistry = new();
-    private readonly Dictionary<int, CancellationTokenSource> _timers = new();
+    private readonly ConcurrentDictionary<int, CancellationTokenSource> _timers = new();
     private readonly TypedConstantExpressionTransformer _typedConstantTransformer = new();
     private readonly TypedCpsTransformer _typedCpsTransformer = new();
     private Task? _eventLoopTask;
@@ -73,7 +74,7 @@ public sealed class JsEngine : IAsyncDisposable
     // Module loader function: allows custom module loading logic
     private Func<string, string?, string>? _moduleLoader;
     private string? _currentModulePath;
-    private int _nextTimerId = 1;
+    private int _nextTimerId;
     private int _pendingTaskCount; // Track pending tasks in the event queue
     private TaskCompletionSource? _drainCompletionSource; // Signals when event loop has drained
     private readonly object _drainLock = new(); // Protects _drainCompletionSource
@@ -1963,57 +1964,78 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         var delay = args[1] is double d ? (int)d : 0;
-        var timerId = _nextTimerId++;
+        var timerId = Interlocked.Increment(ref _nextTimerId);
 
         var cts = new CancellationTokenSource();
         _timers[timerId] = cts;
+        Interlocked.Increment(ref _activeTimerCount);
 
-        // For zero delay, schedule directly to event queue without ThreadPool overhead
+        // For zero delay, schedule directly to event queue.
         if (delay <= 0)
         {
             ScheduleTask(() =>
             {
-                if (!cts.Token.IsCancellationRequested)
+                try
                 {
-                    callback.Invoke([], null);
+                    if (!cts.Token.IsCancellationRequested)
+                    {
+                        callback.Invoke([], null);
+                    }
                 }
-                _timers.Remove(timerId);
+                finally
+                {
+                    if (_timers.TryRemove(timerId, out _))
+                    {
+                        Interlocked.Decrement(ref _activeTimerCount);
+                        TrySignalDrainComplete();
+                    }
+                }
+
                 return Task.CompletedTask;
             });
             return (double)timerId;
         }
 
-        // For non-zero delay, use ThreadPool to wait then schedule
-        Interlocked.Increment(ref _activeTimerCount);
+        _ = RunTimeoutAsync(timerId, delay, callback, cts);
 
-        _ = Task.Run(async () =>
+        return (double)timerId;
+    }
+
+    private async Task RunTimeoutAsync(
+        int timerId,
+        int delay,
+        IJsCallable callback,
+        CancellationTokenSource cts)
+    {
+        try
         {
-            try
-            {
-                await Task.Delay(delay, cts.Token).ConfigureAwait(false);
+            await Task.Delay(delay, cts.Token).ConfigureAwait(false);
 
-                if (!cts.Token.IsCancellationRequested)
+            if (!cts.Token.IsCancellationRequested)
+            {
+                ScheduleTask(() =>
                 {
-                    ScheduleTask(() =>
+                    if (!cts.Token.IsCancellationRequested)
                     {
                         callback.Invoke([], null);
-                        return Task.CompletedTask;
-                    });
-                }
+                    }
+
+                    return Task.CompletedTask;
+                });
             }
-            catch (TaskCanceledException)
+        }
+        catch (TaskCanceledException)
+        {
+            // Timer was cancelled
+        }
+        finally
+        {
+            if (_timers.TryRemove(timerId, out _))
             {
-                // Timer was cancelled
-            }
-            finally
-            {
-                _timers.Remove(timerId);
                 Interlocked.Decrement(ref _activeTimerCount);
                 TrySignalDrainComplete();
             }
-        }, cts.Token);
-
-        return (double)timerId;
+        }
     }
 
     /// <summary>
@@ -2027,7 +2049,7 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         var interval = args[1] is double d ? (int)d : 0;
-        var timerId = _nextTimerId++;
+        var timerId = Interlocked.Increment(ref _nextTimerId);
 
         var cts = new CancellationTokenSource();
         _timers[timerId] = cts;
@@ -2035,37 +2057,49 @@ public sealed class JsEngine : IAsyncDisposable
         // Increment active timer count before starting the timer
         Interlocked.Increment(ref _activeTimerCount);
 
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                while (!cts.Token.IsCancellationRequested)
-                {
-                    await Task.Delay(interval, cts.Token).ConfigureAwait(false);
+        _ = RunIntervalAsync(timerId, interval, callback, cts);
 
-                    if (!cts.Token.IsCancellationRequested)
+        return (double)timerId;
+    }
+
+    private async Task RunIntervalAsync(
+        int timerId,
+        int interval,
+        IJsCallable callback,
+        CancellationTokenSource cts)
+    {
+        try
+        {
+            while (!cts.Token.IsCancellationRequested)
+            {
+                await Task.Delay(interval, cts.Token).ConfigureAwait(false);
+
+                if (!cts.Token.IsCancellationRequested)
+                {
+                    ScheduleTask(() =>
                     {
-                        ScheduleTask(() =>
+                        if (!cts.Token.IsCancellationRequested)
                         {
                             callback.Invoke([], null);
-                            return Task.CompletedTask;
-                        });
-                    }
+                        }
+
+                        return Task.CompletedTask;
+                    });
                 }
             }
-            catch (TaskCanceledException)
+        }
+        catch (TaskCanceledException)
+        {
+            // Timer was cancelled
+        }
+        finally
+        {
+            if (_timers.TryRemove(timerId, out _))
             {
-                // Timer was cancelled
-            }
-            finally
-            {
-                _timers.Remove(timerId);
                 Interlocked.Decrement(ref _activeTimerCount);
                 TrySignalDrainComplete();
             }
-        }, cts.Token);
-
-        return (double)timerId;
+        }
     }
 
     /// <summary>
@@ -2079,10 +2113,11 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         var id = (int)timerId;
-        if (_timers.TryGetValue(id, out var cts))
+        if (_timers.TryRemove(id, out var cts))
         {
             cts.Cancel();
-            _timers.Remove(id);
+            Interlocked.Decrement(ref _activeTimerCount);
+            TrySignalDrainComplete();
         }
 
         return null;

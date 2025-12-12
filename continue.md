@@ -56,8 +56,9 @@
 - Per-iteration environment cloning in `for (let/const ...)` loops now reads bindings directly via `GetIdentifierValue`, avoiding transient `IdentifierExpression` allocations; switch statements cache a `SwitchInstantiationPlan` for strictness and lexical/function/class hoists to avoid rescanning case bodies each execution.
 - Test262 module loader no longer falls back to per-test GitHub downloads (and removes blocking `GetAwaiter().GetResult()`); it resolves relative specifiers correctly and reads fixture modules (no YAML header) directly from the suite file system. Module sources are shared across tests via an immutable cache.
 - Microtask queue is now lock-free: since `JsEngine` executes JS single-threaded, microtasks are enqueued/drained without `lock`, removing profiler-visible contention while preserving ordering and reentrancy guards.
+- Timers no longer use `Task.Run`: `setTimeout`/`setInterval` are driven by `Task.Delay` loops and schedule callbacks through the event queue; timer bookkeeping is thread-safe and clears decrement the active-timer count immediately.
 
 ## Next Iteration Plan
-1. Remove remaining engine thread-blocking waits (documented in `docs/threadpool-blockage-findings.md`) so async modules/await never call `.GetAwaiter().GetResult()`.
-2. Make top-level `await` module evaluation fully non-blocking by reusing the async-step “pending promise + resume” model (no sync waiting in the evaluator).
-3. Reduce threadpool churn from the per-engine event loop and timers once blocking waits are gone.
+1. Make top-level `await` module evaluation fully non-blocking by reusing the async-step “pending promise + resume” model (no sync waiting in the evaluator).
+2. Reduce threadpool churn from the per-engine event loop (`Task.Run` + threadpool continuations), ideally by moving to a single-thread scheduler per engine.
+3. If profiling still points outside the engine: remove sync-over-async in the Test262 runner (currently uses `.GetAwaiter().GetResult()` in the generated execution path).

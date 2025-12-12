@@ -11,6 +11,13 @@ namespace Asynkron.JsEngine.Execution;
 /// </summary>
 internal static class AwaitScheduler
 {
+    private sealed class PromiseAwaitState
+    {
+        public int Completed;
+        public int Fulfilled;
+        public object? Value;
+    }
+
     public static bool IsPromiseLike(object? candidate)
     {
         return candidate is JsObject jsObject &&
@@ -71,25 +78,23 @@ internal static class AwaitScheduler
                 break;
             }
 
-            var completed = false;
-            var fulfilled = false;
-            object? completionValue = null;
+            var awaitState = new PromiseAwaitState();
 
             var onFulfilled = new HostFunction(args =>
             {
                 var value = args.GetArgument(0);
-                fulfilled = true;
-                completionValue = value;
-                completed = true;
+                awaitState.Value = value;
+                awaitState.Fulfilled = 1;
+                Interlocked.Exchange(ref awaitState.Completed, 1);
                 return null;
             });
 
             var onRejected = new HostFunction(args =>
             {
                 var value = args.GetArgument(0);
-                fulfilled = false;
-                completionValue = value;
-                completed = true;
+                awaitState.Value = value;
+                awaitState.Fulfilled = 0;
+                Interlocked.Exchange(ref awaitState.Completed, 1);
                 return null;
             });
 
@@ -113,25 +118,47 @@ internal static class AwaitScheduler
 
             try
             {
-                if (!completed && drainMicrotasks)
+                if (Volatile.Read(ref awaitState.Completed) == 0 && drainMicrotasks)
                 {
-                    if (engine is not null && !engine.IsEventLoopDrained())
-                    {
-                        engine.StartEventLoop();
-                    }
-
                     var iterations = 0;
-                    while (!completed)
+                    while (Volatile.Read(ref awaitState.Completed) == 0)
                     {
                         context.ThrowIfCancellationRequested();
                         engine?.DrainMicrotasks();
 
-                        if (completed)
+                        if (Volatile.Read(ref awaitState.Completed) != 0)
                         {
                             break;
                         }
 
-                        Thread.Yield();
+                        if (engine is not null && !engine.IsEventLoopDrained())
+                        {
+                            engine.StartEventLoop();
+                            var drainTask = engine.DrainEventLoopAsync(CancellationToken.None);
+                            while (!drainTask.IsCompleted)
+                            {
+                                context.ThrowIfCancellationRequested();
+                                Thread.Yield();
+                            }
+
+                            if (drainTask.IsFaulted)
+                            {
+                                throw drainTask.Exception?.GetBaseException() ??
+                                      new InvalidOperationException("Event loop drain failed.");
+                            }
+
+                            if (drainTask.IsCanceled)
+                            {
+                                throw new OperationCanceledException(
+                                    "Event loop drain was canceled while awaiting a promise.");
+                            }
+
+                            engine.DrainMicrotasks();
+                        }
+                        else
+                        {
+                            Thread.Yield();
+                        }
 
                         if (++iterations > 10_000)
                         {
@@ -159,20 +186,20 @@ internal static class AwaitScheduler
                 return false;
             }
 
-            if (!completed && !drainMicrotasks)
+            if (Volatile.Read(ref awaitState.Completed) == 0 && !drainMicrotasks)
             {
                 throw new NotSupportedException(
                     "Promise cannot be awaited synchronously without draining microtasks.");
             }
 
-            if (!fulfilled)
+            if (awaitState.Fulfilled == 0)
             {
-                context.SetThrow(completionValue);
+                context.SetThrow(awaitState.Value);
                 resolvedValue = Symbol.Undefined;
                 return false;
             }
 
-            resolvedValue = completionValue;
+            resolvedValue = awaitState.Value;
         }
 
         return true;

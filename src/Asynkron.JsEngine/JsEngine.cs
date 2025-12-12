@@ -2250,6 +2250,9 @@ public sealed class JsEngine : IAsyncDisposable
             if (context?.IsThrow == true)
             {
                 var flowValue = context.FlowValue;
+                // Clear the throw signal since we're handling it by rejecting the promise
+                // This prevents the throw from propagating to EvaluateProgram
+                context.Clear();
                 ScheduleTask(() => promise.Reject(flowValue));
                 return;
             }

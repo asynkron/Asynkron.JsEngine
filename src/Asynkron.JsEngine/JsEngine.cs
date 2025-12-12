@@ -324,8 +324,9 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("import", importFunction);
 
         // Provide a stable global object helper used by Test262 harness utilities.
+        // Note: NOT marked as constant so Test262 harness can redeclare it if needed.
         SetGlobal("fnGlobalObject",
-            new HostFunction(_ => GlobalObject) { Realm = GlobalObject, RealmState = RealmState }, true);
+            new HostFunction(_ => GlobalObject) { Realm = GlobalObject, RealmState = RealmState });
 
         // Register debug function as a debug-aware host function
         GlobalEnvironment.Define(Symbol.DebugIdentifier, new DebugAwareHostFunction(CaptureDebugMessage));

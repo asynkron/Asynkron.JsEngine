@@ -13,8 +13,7 @@ public static partial class TypedAstEvaluator
         EvaluationContext context,
         bool allowPrivate)
     {
-        if (context.Options.EnableFastPropertyAccess &&
-            (!allowPrivate || !propertyName.IsPrivateName()))
+        if (!allowPrivate || !propertyName.IsPrivateName())
         {
             return new AssignmentReference(
                 () =>

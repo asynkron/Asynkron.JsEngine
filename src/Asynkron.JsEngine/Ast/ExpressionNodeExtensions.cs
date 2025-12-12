@@ -374,8 +374,7 @@ public static partial class TypedAstEvaluator
                     };
                 }
 
-                if (context.Options.EnableFastPropertyAccess &&
-                    (member.IsComputed || !propertyName.IsPrivateName()))
+                if (member.IsComputed || !propertyName.IsPrivateName())
                 {
                     if (JsOps.TryGetPropertyValue(target, propertyName, out var directValue, context))
                     {

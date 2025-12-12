@@ -50,4 +50,3 @@
 ## Next Iteration Plan
 1. Keep migrating remaining non-generator built-ins onto the generator constructor/prototype model; next up are the lingering helper-only surfaces (escape/unescape/localStorage) to see what can be expressed via generators.
 2. After each migration, run a focused Test262 slice around the affected built-in to catch regressions before moving on.
-3. Validate the fast identifier/property paths on broader evaluator/operation benchmarks and narrow Test262 filters, then decide whether to keep them opt-in or flip defaults.

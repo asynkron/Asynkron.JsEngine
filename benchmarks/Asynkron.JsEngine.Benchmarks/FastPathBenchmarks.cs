@@ -3,14 +3,13 @@ using BenchmarkDotNet.Attributes;
 namespace Asynkron.JsEngine.Benchmarks;
 
 /// <summary>
-/// Side-by-side benchmarks for the fast identifier/property access options.
+/// Micro-benchmarks for identifier and property access hot paths.
 /// </summary>
 [MemoryDiagnoser]
 [RankColumn]
 public class FastPathBenchmarks
 {
-    private JsEngine _baseline = null!;
-    private JsEngine _fast = null!;
+    private JsEngine _engine = null!;
 
     private string _propertyAccess = null!;
     private string _identifierAccess = null!;
@@ -18,15 +17,8 @@ public class FastPathBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        _baseline = new JsEngine();
-        _fast = new JsEngine(new JsEngineOptions
-        {
-            EnableFastIdentifierAccess = true,
-            EnableFastPropertyAccess = true
-        });
-
-        _baseline.ExecutionTimeout = TimeSpan.FromMinutes(5);
-        _fast.ExecutionTimeout = TimeSpan.FromMinutes(5);
+        _engine = new JsEngine();
+        _engine.ExecutionTimeout = TimeSpan.FromMinutes(5);
 
         _propertyAccess = """
             var obj = { a: { b: { c: { d: { e: 1 } } } }, x: 10, y: 20, z: 30 };
@@ -51,38 +43,21 @@ public class FastPathBenchmarks
     [GlobalCleanup]
     public async Task Cleanup()
     {
-        if (_baseline is not null)
+        if (_engine is not null)
         {
-            await _baseline.DisposeAsync();
-        }
-
-        if (_fast is not null)
-        {
-            await _fast.DisposeAsync();
+            await _engine.DisposeAsync();
         }
     }
 
-    [Benchmark(Baseline = true)]
-    public async Task<object?> PropertyAccessBaseline()
+    [Benchmark]
+    public async Task<object?> PropertyAccess()
     {
-        return await _baseline.Evaluate(_propertyAccess);
+        return await _engine.Evaluate(_propertyAccess);
     }
 
     [Benchmark]
-    public async Task<object?> PropertyAccessFast()
+    public async Task<object?> IdentifierAccess()
     {
-        return await _fast.Evaluate(_propertyAccess);
-    }
-
-    [Benchmark]
-    public async Task<object?> IdentifierAccessBaseline()
-    {
-        return await _baseline.Evaluate(_identifierAccess);
-    }
-
-    [Benchmark]
-    public async Task<object?> IdentifierAccessFast()
-    {
-        return await _fast.Evaluate(_identifierAccess);
+        return await _engine.Evaluate(_identifierAccess);
     }
 }

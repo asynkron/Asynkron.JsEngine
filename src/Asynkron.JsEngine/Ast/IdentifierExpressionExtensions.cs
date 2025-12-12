@@ -11,13 +11,7 @@ public static partial class TypedAstEvaluator
         {
             try
             {
-                if (context.Options.EnableFastIdentifierAccess)
-                {
-                    return environment.GetIdentifierValue(identifier.Name, context);
-                }
-
-                var reference = AssignmentReferenceResolver.Resolve(identifier, environment, context, EvaluateExpression);
-                return reference.GetValue();
+                return environment.GetIdentifierValue(identifier.Name, context);
             }
             catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                            StringComparison.Ordinal))

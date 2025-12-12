@@ -34,7 +34,7 @@ if (args.Length == 0)
           lexer      - Lexer (tokenization) benchmarks
           parser     - Parser (AST generation) benchmarks
           evaluator  - Evaluator (execution) benchmarks
-          fastpaths  - Baseline vs fast option comparison
+          fastpaths  - Property/identifier access micro-benchmarks
           pipeline   - Full pipeline phase comparison
           operations - Specific operation micro-benchmarks
           overhead   - Evaluation overhead analysis (event loop, engine init, etc.)
@@ -101,7 +101,7 @@ switch (benchmarkType)
         break;
 
     case "fastpaths":
-        Console.WriteLine("Running fast path option benchmarks...\n");
+        Console.WriteLine("Running property/identifier access benchmarks...\n");
         BenchmarkRunner.Run<FastPathBenchmarks>(config);
         break;
 

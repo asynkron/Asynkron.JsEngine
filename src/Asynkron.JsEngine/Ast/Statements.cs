@@ -261,7 +261,67 @@ public sealed record CatchClause(SourceReference? Source, BindingTarget? Binding
 public sealed record SwitchStatement(
     SourceReference? Source,
     ExpressionNode Discriminant,
-    ImmutableArray<SwitchCase> Cases) : StatementNode(Source);
+    ImmutableArray<SwitchCase> Cases) : StatementNode(Source), IAstCacheable<SwitchInstantiationPlan>
+{
+    private SwitchInstantiationPlan? _cachedInstantiationPlan;
+
+    SwitchInstantiationPlan IAstCacheable<SwitchInstantiationPlan>.GetOrCreateCache()
+    {
+        return AstCache.GetOrCreate(ref _cachedInstantiationPlan, () =>
+        {
+            var lexicalBindings = ImmutableArray.CreateBuilder<SwitchLexicalBinding>();
+            var functionBindings = ImmutableArray.CreateBuilder<SwitchFunctionBinding>();
+            var classBindings = ImmutableArray.CreateBuilder<Symbol>();
+
+            var isStrict = false;
+
+            foreach (var switchCase in Cases)
+            {
+                if (switchCase.Body.IsStrict)
+                {
+                    isStrict = true;
+                }
+
+                foreach (var stmt in switchCase.Body.Statements)
+                {
+                    if (stmt is VariableDeclaration
+                        {
+                            Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
+                        } varDecl)
+                    {
+                        var isConst = varDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
+                        foreach (var declarator in varDecl.Declarators)
+                        {
+                            lexicalBindings.Add(new SwitchLexicalBinding(declarator.Target, isConst));
+                        }
+
+                        continue;
+                    }
+
+                    if (stmt is FunctionDeclaration funcDecl)
+                    {
+                        var isAsyncOrGenerator = funcDecl.Function.IsAsync || funcDecl.Function.WasAsync ||
+                                                 funcDecl.Function.IsGenerator;
+                        functionBindings.Add(new SwitchFunctionBinding(funcDecl.Name, funcDecl.Function,
+                            InitializeNow: !isAsyncOrGenerator));
+                        continue;
+                    }
+
+                    if (stmt is ClassDeclaration classDecl)
+                    {
+                        classBindings.Add(classDecl.Name);
+                    }
+                }
+            }
+
+            return new SwitchInstantiationPlan(
+                isStrict,
+                lexicalBindings.ToImmutable(),
+                functionBindings.ToImmutable(),
+                classBindings.ToImmutable());
+        });
+    }
+}
 
 /// <summary>
 ///     Represents a single case clause inside a switch statement.

@@ -52,6 +52,7 @@
 - Primitive property access avoids allocating transient wrapper objects when realm prototypes are available; lookups go directly through the corresponding prototype chain with the primitive receiver preserved.
 - Test262 reuses a pre-initialized base realm (stdlib only) and deep-clones it per test by default; disable with `JSENGINE_TEST262_BASE_REALM=0|false|off`. This significantly reduces per-test engine setup cost while preserving isolation.
 - Loop and for-each AST nodes now carry lazy, thread-safe plan caches (`LoopPlan` / `IteratorDriverPlan`) via `IAstCacheableNode` + `IAstCacheable<T>` and a shared `AstCache` helper, removing per-call normalization overhead in the typed evaluator.
+- Per-iteration environment cloning in `for (let/const ...)` loops now reads bindings directly via `GetIdentifierValue`, avoiding transient `IdentifierExpression` allocations; switch statements cache a `SwitchInstantiationPlan` for strictness and lexical/function/class hoists to avoid rescanning case bodies each execution.
 
 ## Next Iteration Plan
 1. Keep migrating remaining non-generator built-ins onto the generator constructor/prototype model; next up are the lingering helper-only surfaces (escape/unescape/localStorage) to see what can be expressed via generators.

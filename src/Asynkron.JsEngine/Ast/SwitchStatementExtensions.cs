@@ -14,21 +14,22 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
+            var instantiationPlan = ((IAstCacheable<SwitchInstantiationPlan>)statement).GetOrCreateCache();
+
             // Create a lexical environment for the entire switch block
             // This environment is shared by all case clause bodies
-            var switchEnv = new JsEnvironment(environment, false, IsStrictBlock(statement));
+            var switchEnv = new JsEnvironment(environment, false, instantiationPlan.IsStrict);
 
             // Push a scope context for the switch block
             // Switch blocks use Sloppy mode (not SloppyAnnexB) to prevent function hoisting
-            var isStrict = IsStrictBlock(statement);
-            var scopeMode = isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
+            var scopeMode = instantiationPlan.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
             using var scopeHandle = context.PushScope(
                 ScopeKind.Block,
                 scopeMode,
                 skipAnnexBInstantiation: false);
 
             // Hoist lexical declarations from all case bodies
-            InstantiateSwitchLexicalDeclarations(statement, switchEnv, context);
+            InstantiateSwitchLexicalDeclarations(statement, instantiationPlan, switchEnv, context);
 
             // V = undefined (spec step 1)
             object? completionValue = Symbol.Undefined;
@@ -100,67 +101,44 @@ public static partial class TypedAstEvaluator
             return completionValue;
         }
 
-        private void InstantiateSwitchLexicalDeclarations(JsEnvironment switchEnv, EvaluationContext context)
+        private void InstantiateSwitchLexicalDeclarations(SwitchInstantiationPlan plan, JsEnvironment switchEnv, EvaluationContext context)
         {
-            // Collect all lexical declarations from all case clause bodies
-            foreach (var switchCase in statement.Cases)
+            foreach (var binding in plan.LexicalBindings)
             {
-                foreach (var stmt in switchCase.Body.Statements)
+                binding.Target.CreateUninitializedLexicalBindings(switchEnv, isConst: binding.IsConst);
+            }
+
+            foreach (var funcBinding in plan.FunctionBindings)
+            {
+                if (!funcBinding.InitializeNow)
                 {
-                    if (stmt is VariableDeclaration
-                        {
-                            Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
-                        } varDecl)
-                    {
-                        var isConst = varDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
-                        foreach (var declarator in varDecl.Declarators)
-                        {
-                            declarator.Target.CreateUninitializedLexicalBindings(switchEnv, isConst: isConst);
-                        }
-                    }
-                    else if (stmt is FunctionDeclaration funcDecl)
-                    {
-                        // Function declarations in switch case blocks create lexical bindings
-                        // For async/generator functions, create uninitialized binding (they'll be initialized when evaluated)
-                        // For regular functions, create and initialize the binding immediately
-                        var isAsyncOrGenerator = funcDecl.Function.IsAsync || funcDecl.Function.WasAsync ||
-                                                 funcDecl.Function.IsGenerator;
-                        if (isAsyncOrGenerator)
-                        {
-                            // Async and generator functions are always lexically scoped, never Annex B
-                            switchEnv.Define(
-                                funcDecl.Name,
-                                JsEnvironment.Uninitialized,
-                                isConst: true,
-                                isLexical: true,
-                                blocksFunctionScopeOverride: true);
-                        }
-                        else
-                        {
-                            // Regular functions get initialized during instantiation
-                            // Pass skipInternalNameBinding: true so the function doesn't create an internal
-                            // const binding for its name (the binding is handled by switchEnv.Define below).
-                            var functionValue = CreateFunctionValue(funcDecl.Function, switchEnv, context,
-                                skipInternalNameBinding: true);
-                            switchEnv.Define(
-                                funcDecl.Name,
-                                functionValue,
-                                isConst: true,
-                                isLexical: true,
-                                blocksFunctionScopeOverride: true);
-                        }
-                    }
-                    else if (stmt is ClassDeclaration classDecl)
-                    {
-                        // Class declarations create lexical bindings
-                        switchEnv.Define(
-                            classDecl.Name,
-                            Symbol.Undefined,
-                            isConst: true,
-                            isLexical: true,
-                            blocksFunctionScopeOverride: false);
-                    }
+                    switchEnv.Define(
+                        funcBinding.Name,
+                        JsEnvironment.Uninitialized,
+                        isConst: true,
+                        isLexical: true,
+                        blocksFunctionScopeOverride: true);
+                    continue;
                 }
+
+                var functionValue = CreateFunctionValue(funcBinding.Function, switchEnv, context,
+                    skipInternalNameBinding: true);
+                switchEnv.Define(
+                    funcBinding.Name,
+                    functionValue,
+                    isConst: true,
+                    isLexical: true,
+                    blocksFunctionScopeOverride: true);
+            }
+
+            foreach (var className in plan.ClassBindings)
+            {
+                switchEnv.Define(
+                    className,
+                    Symbol.Undefined,
+                    isConst: true,
+                    isLexical: true,
+                    blocksFunctionScopeOverride: false);
             }
         }
 
@@ -213,17 +191,6 @@ public static partial class TypedAstEvaluator
             return result;
         }
 
-        private bool IsStrictBlock(SwitchStatement stmt)
-        {
-            // Check if any case body is strict
-            foreach (var switchCase in stmt.Cases)
-            {
-                if (switchCase.Body.IsStrict)
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
+        // Strictness is precomputed in the instantiation plan.
     }
 }

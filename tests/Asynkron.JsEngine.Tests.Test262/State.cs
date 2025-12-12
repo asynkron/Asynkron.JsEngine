@@ -5,6 +5,14 @@ namespace Asynkron.JsEngine.Tests.Test262;
 /// </summary>
 public static partial class State
 {
+    static State()
+    {
+        if (Test262SuiteDiskCache.Enabled)
+        {
+            Test262StreamLoader = Test262SuiteDiskCache.LoadAsync;
+        }
+    }
+
     /// <summary>
     /// Pre-loaded test harness scripts for execution.
     /// </summary>

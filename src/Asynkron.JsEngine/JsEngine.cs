@@ -63,10 +63,10 @@ public sealed class JsEngine : IAsyncDisposable
     private readonly TypedCpsTransformer _typedCpsTransformer = new();
     private Task? _eventLoopTask;
     private int? _eventLoopThreadId;
-    private readonly object _microtaskLock = new();
     private Channel<Func<Task>>? _eventQueue;
 
-    // Synchronous microtask queue for top-level await support
+    // Synchronous microtask queue for top-level await support.
+    // JsEngine is single-threaded by design, so microtask bookkeeping does not use locks.
     private readonly Queue<Action> _microtaskQueue = new();
     private bool _isDrainingMicrotasks;
 
@@ -1810,22 +1810,15 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     internal void QueueMicrotask(Action task)
     {
-        lock (_microtaskLock)
-        {
-            _microtaskQueue.Enqueue(task);
-        }
+        _microtaskQueue.Enqueue(task);
     }
 
     internal List<Action> DetachMicrotasks()
     {
-        List<Action> preserved;
-        lock (_microtaskLock)
+        var preserved = new List<Action>(_microtaskQueue.Count);
+        while (_microtaskQueue.Count > 0)
         {
-            preserved = new List<Action>(_microtaskQueue.Count);
-            while (_microtaskQueue.Count > 0)
-            {
-                preserved.Add(_microtaskQueue.Dequeue());
-            }
+            preserved.Add(_microtaskQueue.Dequeue());
         }
 
         return preserved;
@@ -1838,29 +1831,26 @@ public sealed class JsEngine : IAsyncDisposable
             return;
         }
 
-        lock (_microtaskLock)
+        if (_microtaskQueue.Count == 0)
         {
-            if (_microtaskQueue.Count == 0)
-            {
-                foreach (var task in tasks)
-                {
-                    _microtaskQueue.Enqueue(task);
-                }
-
-                return;
-            }
-
-            var existing = new Queue<Action>(_microtaskQueue);
-            _microtaskQueue.Clear();
             foreach (var task in tasks)
             {
                 _microtaskQueue.Enqueue(task);
             }
 
-            while (existing.Count > 0)
-            {
-                _microtaskQueue.Enqueue(existing.Dequeue());
-            }
+            return;
+        }
+
+        var existing = new Queue<Action>(_microtaskQueue);
+        _microtaskQueue.Clear();
+        foreach (var task in tasks)
+        {
+            _microtaskQueue.Enqueue(task);
+        }
+
+        while (existing.Count > 0)
+        {
+            _microtaskQueue.Enqueue(existing.Dequeue());
         }
     }
 
@@ -1875,15 +1865,12 @@ public sealed class JsEngine : IAsyncDisposable
             skipExisting = 0;
         }
 
-        lock (_microtaskLock)
+        if (_isDrainingMicrotasks)
         {
-            if (_isDrainingMicrotasks)
-            {
-                return;
-            }
-
-            _isDrainingMicrotasks = true;
+            return;
         }
+
+        _isDrainingMicrotasks = true;
 
         try
         {
@@ -1891,23 +1878,20 @@ public sealed class JsEngine : IAsyncDisposable
             while (true)
             {
                 Action? task;
-                lock (_microtaskLock)
+                if (skipExisting > 0 && _microtaskQueue.Count > 0)
                 {
-                    if (skipExisting > 0 && _microtaskQueue.Count > 0)
-                    {
-                        deferred ??= new List<Action>();
-                        deferred.Add(_microtaskQueue.Dequeue());
-                        skipExisting--;
-                        continue;
-                    }
-
-                    if (_microtaskQueue.Count == 0)
-                    {
-                        break;
-                    }
-
-                    task = _microtaskQueue.Dequeue();
+                    deferred ??= new List<Action>();
+                    deferred.Add(_microtaskQueue.Dequeue());
+                    skipExisting--;
+                    continue;
                 }
+
+                if (_microtaskQueue.Count == 0)
+                {
+                    break;
+                }
+
+                task = _microtaskQueue.Dequeue();
 
                 try
                 {
@@ -1933,10 +1917,7 @@ public sealed class JsEngine : IAsyncDisposable
         }
         finally
         {
-            lock (_microtaskLock)
-            {
-                _isDrainingMicrotasks = false;
-            }
+            _isDrainingMicrotasks = false;
         }
     }
 

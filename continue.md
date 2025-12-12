@@ -54,6 +54,7 @@
 - Loop and for-each AST nodes now carry lazy, thread-safe plan caches (`LoopPlan` / `IteratorDriverPlan`) via `IAstCacheableNode` + `IAstCacheable<T>` and a shared `AstCache` helper, removing per-call normalization overhead in the typed evaluator.
 - Per-iteration environment cloning in `for (let/const ...)` loops now reads bindings directly via `GetIdentifierValue`, avoiding transient `IdentifierExpression` allocations; switch statements cache a `SwitchInstantiationPlan` for strictness and lexical/function/class hoists to avoid rescanning case bodies each execution.
 - Test262 module loader no longer falls back to per-test GitHub downloads (and removes blocking `GetAwaiter().GetResult()`); it resolves relative specifiers correctly and reads fixture modules (no YAML header) directly from the suite file system. Module sources are shared across tests via an immutable cache.
+- Microtask queue is now lock-free: since `JsEngine` executes JS single-threaded, microtasks are enqueued/drained without `lock`, removing profiler-visible contention while preserving ordering and reentrancy guards.
 
 ## Next Iteration Plan
 1. Keep migrating remaining non-generator built-ins onto the generator constructor/prototype model; next up are the lingering helper-only surfaces (escape/unescape/localStorage) to see what can be expressed via generators.

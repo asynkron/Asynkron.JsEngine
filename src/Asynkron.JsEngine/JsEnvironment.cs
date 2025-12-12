@@ -696,6 +696,30 @@ public sealed class JsEnvironment
             newValue => AssignUnresolvable(name, newValue, strictContext, context));
     }
 
+    /// <summary>
+    ///     Direct identifier resolution for read accesses without allocating AssignmentReference delegates.
+    ///     Mirrors the semantics of <see cref="ResolveIdentifierAssignmentReference" /> for GetValue.
+    /// </summary>
+    internal object? GetIdentifierValue(Symbol name, EvaluationContext context)
+    {
+        if (TryResolveWithBinding(name, context, out var withBinding))
+        {
+            return GetWithBindingValue(withBinding);
+        }
+
+        if (TryLocateBinding(name, out var bindingEnvironment, out var binding))
+        {
+            return ReadResolvedBindingValue(bindingEnvironment, binding, name);
+        }
+
+        if (TryResolveGlobalObjectBinding(name, context, out var globalBinding))
+        {
+            return GetWithBindingValue(globalBinding);
+        }
+
+        return ReadUnresolvable(name);
+    }
+
     private static object? ReadResolvedBindingValue(JsEnvironment bindingEnvironment, Binding binding, Symbol name)
     {
         if (ReferenceEquals(binding.Value, Uninitialized))

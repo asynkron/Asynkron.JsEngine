@@ -25,6 +25,19 @@ public interface IJsEngineOptions
     ///     (such as the Function constructor). Defaults to true.
     /// </summary>
     bool AllowImportMeta { get; }
+
+    /// <summary>
+    ///     Enables a faster identifier read path that avoids per-access delegate allocations.
+    ///     When enabled, identifier resolution is performed directly without creating
+    ///     <see cref="Asynkron.JsEngine.Ast.AssignmentReference" /> instances.
+    /// </summary>
+    bool EnableFastIdentifierAccess { get; }
+
+    /// <summary>
+    ///     Enables faster property access paths for non-private properties to avoid allocating
+    ///     <see cref="Asynkron.JsEngine.Ast.TypedAstEvaluator.PropertyHandle" /> objects in hot member reads/writes.
+    /// </summary>
+    bool EnableFastPropertyAccess { get; }
 }
 
 /// <summary>
@@ -40,4 +53,8 @@ public sealed class JsEngineOptions : IJsEngineOptions
     public bool EnableAnnexBFunctionExtensions { get; init; } = true;
     public TimeZoneInfo TimeZone { get; init; } = TimeZoneInfo.Utc;
     public bool AllowImportMeta { get; init; } = true;
+
+    public bool EnableFastIdentifierAccess { get; init; } = true;
+
+    public bool EnableFastPropertyAccess { get; init; } = true;
 }

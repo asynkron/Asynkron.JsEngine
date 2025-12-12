@@ -13,6 +13,33 @@ public static partial class TypedAstEvaluator
         EvaluationContext context,
         bool allowPrivate)
     {
+        if (context.Options.EnableFastPropertyAccess &&
+            (!allowPrivate || !propertyName.IsPrivateName()))
+        {
+            return new AssignmentReference(
+                () =>
+                {
+                    if (IsNullish(target))
+                    {
+                        var errorMessage = propertyName.Length > 0
+                            ? $"Cannot read property '{propertyName}' of null or undefined"
+                            : "Cannot read properties of null or undefined";
+                        var error = StandardLibrary.CreateTypeError(
+                            errorMessage,
+                            context,
+                            context.RealmState);
+                        context.SetThrow(error);
+                        return Symbol.Undefined;
+                    }
+
+                    return JsOps.TryGetPropertyValue(target, propertyName, out var directValue, context)
+                        ? directValue
+                        : Symbol.Undefined;
+                },
+                value => AssignPropertyValueWithNullCheck(target, propertyName, value, context,
+                    context.CurrentScope.IsStrict));
+        }
+
         var handle = PropertyHandle.Resolve(
             target,
             propertyName,

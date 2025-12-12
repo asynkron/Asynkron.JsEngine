@@ -9,9 +9,14 @@ public static partial class TypedAstEvaluator
         private object? EvaluateIdentifier(JsEnvironment environment,
             EvaluationContext context)
         {
-            var reference = AssignmentReferenceResolver.Resolve(identifier, environment, context, EvaluateExpression);
             try
             {
+                if (context.Options.EnableFastIdentifierAccess)
+                {
+                    return environment.GetIdentifierValue(identifier.Name, context);
+                }
+
+                var reference = AssignmentReferenceResolver.Resolve(identifier, environment, context, EvaluateExpression);
                 return reference.GetValue();
             }
             catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",

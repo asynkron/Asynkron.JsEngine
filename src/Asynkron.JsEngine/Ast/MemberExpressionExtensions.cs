@@ -84,6 +84,17 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
+            if (context.Options.EnableFastPropertyAccess &&
+                (expression.IsComputed || !propertyName.IsPrivateName()))
+            {
+                if (JsOps.TryGetPropertyValue(target, propertyName, out var directValue, context))
+                {
+                    return context.ShouldStopEvaluation ? Symbol.Undefined : directValue;
+                }
+
+                return Symbol.Undefined;
+            }
+
             var handle = PropertyHandle.Resolve(
                 target,
                 propertyName,

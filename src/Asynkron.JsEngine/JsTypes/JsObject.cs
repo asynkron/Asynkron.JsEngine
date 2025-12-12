@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
@@ -1090,9 +1091,136 @@ namespace Asynkron.JsEngine.JsTypes;
             return false;
         }
 
-        // Slow path: need cycle detection for prototype chain traversal
-        return TryGetProperty(name, receiver, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), context,
-            out value);
+        var effectiveReceiver = receiver ?? this;
+
+        // Allocation-free prototype walk for common acyclic, shallow chains.
+        const int fastPrototypeDepthLimit = 8;
+        var visitedFast = ArrayPool<IJsPropertyAccessor?>.Shared.Rent(fastPrototypeDepthLimit);
+        var visitedCount = 0;
+        try
+        {
+            var prototype = ResolvePrototypeAccessor();
+            while (prototype is not null && visitedCount < fastPrototypeDepthLimit)
+            {
+                visitedFast[visitedCount++] = prototype;
+
+                if (prototype is JsObject jsProto)
+                {
+                    if (jsProto.TryGetOwnProperty(name, effectiveReceiver, context, out value))
+                    {
+                        return true;
+                    }
+                }
+                else if (prototype.TryGetProperty(name, effectiveReceiver, out value))
+                {
+                    return true;
+                }
+
+                prototype = GetNextPrototypeAccessor(prototype);
+            }
+
+            if (prototype is null)
+            {
+                value = null;
+                return false;
+            }
+
+            // Slow path: continue traversal with cycle detection, without re-walking
+            // already visited prototypes (to preserve spec side-effect ordering).
+            var visited = new HashSet<object>(ReferenceEqualityComparer<object>.Instance);
+            visited.Add(this);
+            for (var i = 0; i < visitedCount; i++)
+            {
+                if (visitedFast[i] is not null)
+                {
+                    visited.Add(visitedFast[i]!);
+                }
+            }
+
+            return TryGetPropertyFromPrototypeChain(prototype, name, effectiveReceiver, visited, context, out value);
+        }
+        finally
+        {
+            Array.Clear(visitedFast, 0, visitedCount);
+            ArrayPool<IJsPropertyAccessor?>.Shared.Return(visitedFast);
+        }
+    }
+
+    private IJsPropertyAccessor? ResolvePrototypeAccessor()
+    {
+        var prototype = _prototypeAccessor;
+        if (prototype is null && TryGetValue(PrototypeKey, out var protoCandidate) &&
+            protoCandidate is IJsPropertyAccessor accessor)
+        {
+            prototype = accessor;
+        }
+
+        prototype ??= Prototype;
+        return prototype;
+    }
+
+    private static IJsPropertyAccessor? GetNextPrototypeAccessor(IJsPropertyAccessor prototype)
+    {
+        if (prototype is IPrototypeAccessorProvider provider && provider.PrototypeAccessor is { } nextAccessor)
+        {
+            return nextAccessor;
+        }
+
+        if (prototype is IJsObjectLike objLike && objLike.Prototype is { } objProto)
+        {
+            return objProto;
+        }
+
+        if (prototype is JsObject jsObj && jsObj.Prototype is { } jsObjProto)
+        {
+            return jsObjProto;
+        }
+
+        return null;
+    }
+
+    private static bool TryGetPropertyFromPrototypeChain(
+        IJsPropertyAccessor? prototype,
+        string name,
+        object? receiver,
+        HashSet<object> visited,
+        EvaluationContext? context,
+        out object? value)
+    {
+        while (prototype is not null)
+        {
+            if (prototype is JsObject jsProto)
+            {
+                if (!visited.Add(jsProto))
+                {
+                    value = null;
+                    return false;
+                }
+
+                if (jsProto.TryGetOwnProperty(name, receiver, context, out value))
+                {
+                    return true;
+                }
+            }
+            else
+            {
+                if (!visited.Add(prototype))
+                {
+                    value = null;
+                    return false;
+                }
+
+                if (prototype.TryGetProperty(name, receiver, out value))
+                {
+                    return true;
+                }
+            }
+
+            prototype = GetNextPrototypeAccessor(prototype);
+        }
+
+        value = null;
+        return false;
     }
 
     internal bool HasPrivateField(string name)

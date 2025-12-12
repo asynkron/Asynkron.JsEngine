@@ -50,6 +50,7 @@ public sealed class JsEngine : IAsyncDisposable
         internal bool Evaluated { get; set; }
         internal bool Evaluating { get; set; }
         internal Task<object?>? EvaluationTask { get; set; }
+        internal AsyncModuleBodyRunner? AsyncBodyRunner { get; set; }
         internal ModuleNamespace? Namespace { get; set; }
         internal ModuleNamespace? DeferredNamespace { get; set; }
         internal JsObject? ImportMeta { get; set; }
@@ -1653,8 +1654,8 @@ public sealed class JsEngine : IAsyncDisposable
         {
             entry.Evaluating = true;
             entry.EvaluationTask = entry.IsAsync
-                ? EvaluateModuleBodyWithTopLevelAwait(entry, waitForAsync)
-                : EvaluateModuleBodyWithAsyncDependencies(entry, waitForAsync);
+                ? EvaluateModuleBodyWithTopLevelAwait(entry)
+                : EvaluateModuleBodyWithAsyncDependencies(entry);
         }
 
         if (!waitForAsync)
@@ -1662,7 +1663,44 @@ public sealed class JsEngine : IAsyncDisposable
             return entry.EvaluationTask;
         }
 
-        return entry.EvaluationTask;
+        if (_eventLoopThreadId == Environment.CurrentManagedThreadId)
+        {
+            // Never attempt to pump the event queue from within the event loop thread.
+            // Callers running on the event loop must observe completion asynchronously.
+            return entry.EvaluationTask;
+        }
+
+        return AwaitModuleEvaluationAsync(entry, entry.EvaluationTask);
+    }
+
+    private async Task<object?> AwaitModuleEvaluationAsync(ModuleEntry entry, Task<object?> evaluationTask)
+    {
+        if (evaluationTask.IsCompleted)
+        {
+            return await evaluationTask.ConfigureAwait(false);
+        }
+
+        while (!evaluationTask.IsCompleted)
+        {
+            if (_eventQueue is null)
+            {
+                DrainMicrotasks();
+                await Task.Yield();
+                continue;
+            }
+
+            var tick = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            ScheduleTask(() =>
+            {
+                tick.TrySetResult();
+                return Task.CompletedTask;
+            });
+
+            await tick.Task.ConfigureAwait(false);
+        }
+
+        DrainMicrotasks();
+        return await evaluationTask.ConfigureAwait(false);
     }
 
     /// <summary>
@@ -2210,14 +2248,74 @@ public sealed class JsEngine : IAsyncDisposable
                     var moduleEntry = LoadModule(specifierString, referrerPath, phase);
                     if (moduleEntry.IsAsync || moduleEntry.HasAsyncDependency)
                     {
-                        await EnsureModuleEvaluatedAsync(moduleEntry).ConfigureAwait(false);
+                        var evaluation = EnsureModuleEvaluatedAsync(moduleEntry, waitForAsync: false);
+                        if (evaluation.IsCompletedSuccessfully)
+                        {
+                            var namespaceObject = GetModuleNamespace(moduleEntry, phase);
+                            promise.Resolve(namespaceObject);
+                            return;
+                        }
+
+                        evaluation.ContinueWith(
+                            completed =>
+                            {
+                                ScheduleTask(() =>
+                                {
+                                    if (completed.IsFaulted)
+                                    {
+                                        var root = completed.Exception?.GetBaseException();
+                                        if (root is ThrowSignal signal)
+                                        {
+                                            promise.Reject(signal.ThrownValue);
+                                            return Task.CompletedTask;
+                                        }
+
+                                        var error = StandardLibrary.CreateTypeError(
+                                            root?.Message ?? "Dynamic import failed",
+                                            context,
+                                            RealmState);
+                                        promise.Reject(error);
+                                        return Task.CompletedTask;
+                                    }
+
+                                    if (completed.IsCanceled)
+                                    {
+                                        promise.Reject(StandardLibrary.CreateTypeError(
+                                            "Dynamic import canceled",
+                                            context,
+                                            RealmState));
+                                        return Task.CompletedTask;
+                                    }
+
+                                    try
+                                    {
+                                        var namespaceObject = GetModuleNamespace(moduleEntry, phase);
+                                        promise.Resolve(namespaceObject);
+                                    }
+                                    catch (ThrowSignal signal)
+                                    {
+                                        promise.Reject(signal.ThrownValue);
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
+                                        promise.Reject(error);
+                                    }
+
+                                    return Task.CompletedTask;
+                                });
+
+                                return Task.CompletedTask;
+                            },
+                            CancellationToken.None,
+                            TaskContinuationOptions.ExecuteSynchronously,
+                            TaskScheduler.Default);
+
+                        return;
                     }
-                    else
-                    {
-                        EnsureModuleEvaluated(moduleEntry);
-                    }
-                    var namespaceObject = GetModuleNamespace(moduleEntry, phase);
-                    promise.Resolve(namespaceObject);
+
+                    EnsureModuleEvaluated(moduleEntry);
+                    promise.Resolve(GetModuleNamespace(moduleEntry, phase));
                 }
                 catch (Exception ex)
                 {
@@ -3447,9 +3545,7 @@ public sealed class JsEngine : IAsyncDisposable
         pendingAsyncDependencies.Clear();
     }
 
-    private async Task<object?> EvaluateModuleBodyWithAsyncDependencies(
-        ModuleEntry entry,
-        bool drainAwaitMicrotasks = true)
+    private async Task<object?> EvaluateModuleBodyWithAsyncDependencies(ModuleEntry entry)
     {
         entry.Evaluating = true;
         try
@@ -3491,8 +3587,7 @@ public sealed class JsEngine : IAsyncDisposable
                     entry.Program,
                     entry.Environment,
                     entry.Exports,
-                    entry.Path,
-                    drainAwaitMicrotasks);
+                    entry.Path);
                 entry.LastValue = result;
                 entry.Evaluated = true;
                 return result;
@@ -3508,11 +3603,8 @@ public sealed class JsEngine : IAsyncDisposable
         }
     }
 
-    private async Task<object?> EvaluateModuleBodyWithTopLevelAwait(
-        ModuleEntry entry,
-        bool drainAwaitMicrotasks = true)
+    private async Task<object?> EvaluateModuleBodyWithTopLevelAwait(ModuleEntry entry)
     {
-        entry.Evaluating = true;
         try
         {
             var pendingAsyncDependencies = new List<Task<object?>>();
@@ -3544,55 +3636,371 @@ public sealed class JsEngine : IAsyncDisposable
                 await DrainAsyncDependencies(pendingAsyncDependencies).ConfigureAwait(false);
             }
 
-            object? result;
-            if (drainAwaitMicrotasks)
-            {
-                var previousModulePath = _currentModulePath;
-                _currentModulePath = entry.Path;
-                try
-                {
-                    result = ExecuteModuleBody(
-                        entry.Program,
-                        entry.Environment,
-                        entry.Exports,
-                        entry.Path,
-                        drainAwaitMicrotasks);
-                }
-                finally
-                {
-                    _currentModulePath = previousModulePath;
-                }
-            }
-            else
-            {
-                result = await Task
-                    .Run(() =>
-                    {
-                        var previousModulePath = _currentModulePath;
-                        _currentModulePath = entry.Path;
-                        try
-                        {
-                            return ExecuteModuleBody(
-                                entry.Program,
-                                entry.Environment,
-                                entry.Exports,
-                                entry.Path,
-                                drainAwaitMicrotasks);
-                        }
-                        finally
-                        {
-                            _currentModulePath = previousModulePath;
-                        }
-                    })
-                    .ConfigureAwait(false);
-            }
-            entry.LastValue = result;
-            entry.Evaluated = true;
-            return result;
+            entry.AsyncBodyRunner ??= new AsyncModuleBodyRunner(this, entry);
+            return await entry.AsyncBodyRunner.RunAsync().ConfigureAwait(false);
         }
         finally
         {
-            entry.Evaluating = false;
+            entry.AsyncBodyRunner = null;
+        }
+    }
+
+    private sealed class AsyncModuleBodyRunner
+    {
+        private readonly JsEngine _engine;
+        private readonly ModuleEntry _entry;
+        private readonly TaskCompletionSource<object?> _completion =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        private object? _lastValue;
+        private int _statementIndex;
+        private bool _started;
+
+        internal AsyncModuleBodyRunner(JsEngine engine, ModuleEntry entry)
+        {
+            _engine = engine ?? throw new ArgumentNullException(nameof(engine));
+            _entry = entry ?? throw new ArgumentNullException(nameof(entry));
+        }
+
+        internal Task<object?> RunAsync()
+        {
+            if (!_started)
+            {
+                _started = true;
+                _entry.Evaluating = true;
+                _engine.EvaluateRequestedModules(_entry.Program, _entry.Path);
+                Run();
+            }
+
+            return _completion.Task;
+        }
+
+        private void Run()
+        {
+            if (_completion.Task.IsCompleted)
+            {
+                return;
+            }
+
+            var previousModulePath = _engine._currentModulePath;
+            _engine._currentModulePath = _entry.Path;
+
+            try
+            {
+                var program = _entry.Program;
+                var env = _entry.Environment;
+                var exports = _entry.Exports;
+                var isStrict = program.IsStrict;
+
+                while (_statementIndex < program.Body.Length)
+                {
+                    var statement = program.Body[_statementIndex];
+
+                    switch (statement)
+                    {
+                        case ImportStatement importStatement:
+                            _engine.EvaluateImport(importStatement, env, _entry.Path);
+                            _statementIndex++;
+                            continue;
+                        case ExportDefaultStatement exportDefault:
+                            if (!TryEvaluateExportDefault(exportDefault, env, exports, isStrict))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case ExportNamedStatement exportNamed:
+                            _engine.EvaluateExportNamed(exportNamed, env, exports, _entry.Path);
+                            _statementIndex++;
+                            continue;
+                        case ExportDeclarationStatement exportDeclaration:
+                            if (!TryEvaluateExportDeclaration(exportDeclaration, env, exports, isStrict))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case ExportAllStatement exportAll:
+                            _engine.EvaluateExportAll(exportAll, exports, _entry.Path);
+                            _statementIndex++;
+                            continue;
+                        case ExportNamespaceAsStatement exportNamespace:
+                            var namespaceEntry = _engine.LoadModule(exportNamespace.ModulePath, _entry.Path, ImportPhase.Module);
+                            var namespaceObj = _engine.GetModuleNamespace(namespaceEntry);
+                            exports[exportNamespace.Exported.Name] = namespaceObj;
+                            env.Define(exportNamespace.Exported, namespaceObj, isConst: true, isLexical: true,
+                                blocksFunctionScopeOverride: false);
+                            _statementIndex++;
+                            continue;
+                        case FunctionDeclaration:
+                            _statementIndex++;
+                            continue;
+                        case ExpressionStatement { Expression: AwaitExpression awaitExpression }:
+                            if (!TryAwaitExpression(awaitExpression.Expression, _ => { }, env))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case VariableDeclaration variableDeclaration
+                            when ContainsDirectAwaitInitializer(variableDeclaration):
+                            if (!TryEvaluateLexicalDeclarationWithAwait(variableDeclaration, env))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        default:
+                            if (Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(statement))
+                            {
+                                throw new NotSupportedException(
+                                    $"Async module execution does not support '{statement.GetType().Name}' containing await.");
+                            }
+
+                            _lastValue = _engine.ExecuteTypedStatement(statement, env, isStrict, false);
+                            _statementIndex++;
+                            continue;
+                    }
+                }
+
+                _entry.LastValue = _lastValue;
+                _entry.Evaluated = true;
+                _entry.Evaluating = false;
+                _completion.TrySetResult(_lastValue);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+            }
+            catch (Exception ex)
+            {
+                Fail(ex);
+            }
+            finally
+            {
+                _engine._currentModulePath = previousModulePath;
+            }
+        }
+
+        private void Fail(Exception exception)
+        {
+            _entry.Evaluating = false;
+            _completion.TrySetException(exception);
+        }
+
+        private bool TryEvaluateExportDefault(ExportDefaultStatement statement, JsEnvironment env, JsObject exports,
+            bool isStrict)
+        {
+            var defaultBindingName = Symbol.Intern("*default*");
+
+            if (statement.Value is ExportDefaultExpression { Expression: AwaitExpression awaitExpression })
+            {
+                exports["default"] = new LiveExportBinding(() => env.Get(defaultBindingName));
+                return TryAwaitExpression(awaitExpression.Expression, resolved => env.Assign(defaultBindingName, resolved),
+                    env);
+            }
+
+            if (Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(statement))
+            {
+                throw new NotSupportedException(
+                    "Async module execution only supports direct await in export default expressions.");
+            }
+
+            var value = _engine.EvaluateExportDefault(statement, env, isStrict);
+            exports["default"] = value;
+            return true;
+        }
+
+        private bool TryEvaluateExportDeclaration(
+            ExportDeclarationStatement statement,
+            JsEnvironment env,
+            JsObject exports,
+            bool isStrict)
+        {
+            foreach (var symbol in GetDeclaredSymbols(statement.Declaration))
+            {
+                exports[symbol.Name] = new LiveExportBinding(() => env.Get(symbol));
+            }
+
+            if (statement.Declaration is VariableDeclaration variableDeclaration &&
+                ContainsDirectAwaitInitializer(variableDeclaration))
+            {
+                return TryEvaluateLexicalDeclarationWithAwait(variableDeclaration, env);
+            }
+
+            if (Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(statement))
+            {
+                throw new NotSupportedException(
+                    "Async module execution only supports direct await in exported lexical initializers.");
+            }
+
+            _engine.ExecuteTypedStatement(statement.Declaration, env, isStrict, false);
+            return true;
+        }
+
+        private static bool ContainsDirectAwaitInitializer(VariableDeclaration declaration)
+        {
+            foreach (var declarator in declaration.Declarators)
+            {
+                if (declarator.Initializer is AwaitExpression)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool TryEvaluateLexicalDeclarationWithAwait(VariableDeclaration declaration, JsEnvironment env)
+        {
+            if (declaration.Kind is not (VariableKind.Let or VariableKind.Const))
+            {
+                throw new NotSupportedException(
+                    "Async module execution only supports await in let/const declarations.");
+            }
+
+            foreach (var declarator in declaration.Declarators)
+            {
+                if (declarator.Target is not IdentifierBinding identifier)
+                {
+                    throw new NotSupportedException(
+                        "Async module execution only supports await initializers for identifier bindings.");
+                }
+
+                if (declarator.Initializer is null)
+                {
+                    env.Define(identifier.Name, Symbol.Undefined, isConst: declaration.Kind == VariableKind.Const,
+                        isLexical: true,
+                        blocksFunctionScopeOverride: false);
+                    continue;
+                }
+
+                if (declarator.Initializer is not AwaitExpression awaitExpression)
+                {
+                    throw new NotSupportedException(
+                        "Async module execution only supports direct await initializers.");
+                }
+
+                return TryAwaitExpression(awaitExpression.Expression, resolved =>
+                {
+                    env.Define(identifier.Name, resolved, isConst: declaration.Kind == VariableKind.Const, isLexical: true,
+                        blocksFunctionScopeOverride: false);
+                }, env);
+            }
+
+            return true;
+        }
+
+        private bool TryAwaitExpression(ExpressionNode awaitedExpression, Action<object?> onFulfilled,
+            JsEnvironment environment)
+        {
+            object? awaitedValue;
+            try
+            {
+                awaitedValue = _engine.ExecuteTypedExpression(awaitedExpression, environment, _entry.Program.IsStrict);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+
+            if (_completion.Task.IsCompleted)
+            {
+                return false;
+            }
+
+            var promiseObject = WrapAwaitedValue(awaitedValue);
+            if (promiseObject is null)
+            {
+                throw new NotSupportedException("Await expression did not produce a promise-like value.");
+            }
+
+            if (!promiseObject.TryGetProperty("then", out var thenValue) ||
+                thenValue is not IJsCallable thenCallable)
+            {
+                throw new NotSupportedException("Await expression produced a non-awaitable value.");
+            }
+
+            var onFulfilledFn = new HostFunction(args =>
+            {
+                if (_completion.Task.IsCompleted)
+                {
+                    return null;
+                }
+
+                try
+                {
+                    var resolved = args.GetArgument(0);
+                    onFulfilled(resolved);
+                    _statementIndex++;
+                    Run();
+                }
+                catch (ThrowSignal signal)
+                {
+                    Fail(signal);
+                }
+                catch (Exception ex)
+                {
+                    Fail(ex);
+                }
+
+                return null;
+            });
+
+            var onRejectedFn = new HostFunction(args =>
+            {
+                if (_completion.Task.IsCompleted)
+                {
+                    return null;
+                }
+
+                var reason = args.GetArgument(0);
+                Fail(new ThrowSignal(reason));
+                return null;
+            });
+
+            try
+            {
+                thenCallable.Invoke([onFulfilledFn, onRejectedFn], promiseObject);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+
+            return false;
+        }
+
+        private JsObject? WrapAwaitedValue(object? value)
+        {
+            var promiseCtor = _engine.RealmState.PromiseConstructor;
+            if (promiseCtor is IJsPropertyAccessor accessor &&
+                accessor.TryGetProperty("resolve", out var resolveValue) &&
+                resolveValue is IJsCallable resolveCallable)
+            {
+                try
+                {
+                    if (resolveCallable.Invoke([value], promiseCtor as object) is JsObject resolvedPromise)
+                    {
+                        return resolvedPromise;
+                    }
+                }
+                catch (ThrowSignal signal)
+                {
+                    Fail(signal);
+                    return null;
+                }
+            }
+
+            var promise = _engine.CreateRealmPromise();
+            promise.Resolve(value);
+            return promise.JsObject;
         }
     }
 

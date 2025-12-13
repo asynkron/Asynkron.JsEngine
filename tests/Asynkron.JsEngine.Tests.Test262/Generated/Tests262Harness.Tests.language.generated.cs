@@ -3,7 +3,7 @@
 //   Generated using the Test262Harness v1.0.3.0
 //   Suite Git SHA: a073f479f80b336256b7fc4e04700c827293e2fe
 //   Suite Directory: 
-//   Template SHA: B228D6BF94F61A0C58C7F0026A3661E6BF9A4F5BA47041E34AA8E80892E5614C
+//   Template SHA: 6E85BDF6AA09A3C7E7C42FB4B53B6CCF25DDBC52D9C89947E16048995D68DE79
 //   Command line: /Users/rogerjohansson/.nuget/packages/test262harness.console/1.0.3/tools/net8.0/any/Test262Harness.Console.dll generate
 //   Settings file: /Users/rogerjohansson/git/asynkron/JsEngine2/tests/Asynkron.JsEngine.Tests.Test262/Test262Harness.settings.json
 // </auto-generated>
@@ -6598,8 +6598,8 @@ public class LanguageTests : Test262Test
     [TestCase("language/expressions/class/params-dflt-meth-static-args-unmapped.js", true, Category = "default-parameters")]
     [TestCase("language/expressions/class/params-dflt-meth-static-ref-arguments.js", false, Category = "default-parameters")]
     [TestCase("language/expressions/class/params-dflt-meth-static-ref-arguments.js", true, Category = "default-parameters")]
-    [TestCase("language/expressions/class/poisoned-underscore-proto.js", false, Category = "class,__proto__", IgnoreReason = "Feature __proto__ excluded")]
-    [TestCase("language/expressions/class/poisoned-underscore-proto.js", true, Category = "class,__proto__", IgnoreReason = "Feature __proto__ excluded")]
+    [TestCase("language/expressions/class/poisoned-underscore-proto.js", false, Category = "class,__proto__")]
+    [TestCase("language/expressions/class/poisoned-underscore-proto.js", true, Category = "class,__proto__")]
     [TestCase("language/expressions/class/private-getter-brand-check-multiple-evaluations-of-class-eval-indirect.js", false, Category = "class,class-methods-private,noStrict")]
     [TestCase("language/expressions/class/private-getter-brand-check-multiple-evaluations-of-class-eval.js", false, Category = "class,class-methods-private,noStrict")]
     [TestCase("language/expressions/class/private-getter-brand-check-multiple-evaluations-of-class-factory.js", false, Category = "class,class-methods-private")]
@@ -20015,8 +20015,8 @@ public class LanguageTests : Test262Test
     [TestCase("language/expressions/object/__proto__-fn-name.js", true)]
     [TestCase("language/expressions/object/__proto__-permitted-dup-shorthand.js", false)]
     [TestCase("language/expressions/object/__proto__-permitted-dup-shorthand.js", true)]
-    [TestCase("language/expressions/object/__proto__-permitted-dup.js", false, Category = "generators,async-functions,async-iteration,__proto__", IgnoreReason = "Feature __proto__ excluded")]
-    [TestCase("language/expressions/object/__proto__-permitted-dup.js", true, Category = "generators,async-functions,async-iteration,__proto__", IgnoreReason = "Feature __proto__ excluded")]
+    [TestCase("language/expressions/object/__proto__-permitted-dup.js", false, Category = "generators,async-functions,async-iteration,__proto__")]
+    [TestCase("language/expressions/object/__proto__-permitted-dup.js", true, Category = "generators,async-functions,async-iteration,__proto__")]
     [TestCase("language/expressions/object/__proto__-poisoned-object-prototype.js", false)]
     [TestCase("language/expressions/object/__proto__-poisoned-object-prototype.js", true)]
     [TestCase("language/expressions/object/__proto__-value-non-object.js", false, Category = "Symbol")]
@@ -25140,7 +25140,7 @@ public class LanguageTests : Test262Test
     [TestCase("language/literals/numeric/binary.js", false)]
     [TestCase("language/literals/numeric/binary.js", true)]
     [TestCase("language/literals/numeric/legacy-octal-integer-strict.js", true, Category = "onlyStrict")]
-    [TestCase("language/literals/numeric/legacy-octal-integer.js", false, Category = "noStrict")]
+    [TestCase("language/literals/numeric/legacy-octal-integer.js", false, Category = "noStrict", IgnoreReason = "File language/literals/numeric/legacy-octal-integer.js excluded (glob pattern)")]
     [TestCase("language/literals/numeric/legacy-octal-integery-000-strict.js", true, Category = "onlyStrict")]
     [TestCase("language/literals/numeric/legacy-octal-integery-005-strict.js", true, Category = "onlyStrict")]
     [TestCase("language/literals/numeric/legacy-octal-integery-01-strict.js", true, Category = "onlyStrict")]
@@ -25930,17 +25930,17 @@ public class LanguageTests : Test262Test
     [TestCase("language/literals/string/legacy-non-octal-escape-sequence-5-strict-explicit-pragma.js", false, Category = "noStrict")]
     [TestCase("language/literals/string/legacy-non-octal-escape-sequence-6-strict-explicit-pragma.js", false, Category = "noStrict")]
     [TestCase("language/literals/string/legacy-non-octal-escape-sequence-7-strict-explicit-pragma.js", false, Category = "noStrict")]
-    [TestCase("language/literals/string/legacy-non-octal-escape-sequence-8-non-strict.js", false, Category = "noStrict")]
+    [TestCase("language/literals/string/legacy-non-octal-escape-sequence-8-non-strict.js", false, Category = "noStrict", IgnoreReason = "File language/literals/string/legacy-non-octal-escape-sequence-8-non-strict.js excluded (glob pattern)")]
     [TestCase("language/literals/string/legacy-non-octal-escape-sequence-8-strict-explicit-pragma.js", false, Category = "noStrict")]
     [TestCase("language/literals/string/legacy-non-octal-escape-sequence-8-strict.js", true, Category = "onlyStrict")]
-    [TestCase("language/literals/string/legacy-non-octal-escape-sequence-9-non-strict.js", false, Category = "noStrict")]
+    [TestCase("language/literals/string/legacy-non-octal-escape-sequence-9-non-strict.js", false, Category = "noStrict", IgnoreReason = "File language/literals/string/legacy-non-octal-escape-sequence-9-non-strict.js excluded (glob pattern)")]
     [TestCase("language/literals/string/legacy-non-octal-escape-sequence-9-strict-explicit-pragma.js", false, Category = "noStrict")]
     [TestCase("language/literals/string/legacy-non-octal-escape-sequence-9-strict.js", true, Category = "onlyStrict")]
     [TestCase("language/literals/string/legacy-non-octal-escape-sequence-strict.js", true, Category = "onlyStrict")]
     [TestCase("language/literals/string/legacy-octal-escape-sequence-prologue-strict.js", false)]
     [TestCase("language/literals/string/legacy-octal-escape-sequence-prologue-strict.js", true)]
     [TestCase("language/literals/string/legacy-octal-escape-sequence-strict.js", true, Category = "onlyStrict")]
-    [TestCase("language/literals/string/legacy-octal-escape-sequence.js", false, Category = "noStrict")]
+    [TestCase("language/literals/string/legacy-octal-escape-sequence.js", false, Category = "noStrict", IgnoreReason = "File language/literals/string/legacy-octal-escape-sequence.js excluded (glob pattern)")]
     [TestCase("language/literals/string/line-continuation-double.js", false)]
     [TestCase("language/literals/string/line-continuation-double.js", true)]
     [TestCase("language/literals/string/line-continuation-single.js", false)]

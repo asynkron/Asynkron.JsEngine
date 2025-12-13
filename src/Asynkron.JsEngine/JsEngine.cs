@@ -228,17 +228,6 @@ public sealed class JsEngine : IAsyncDisposable
 
         SetGlobal("WeakRef", StandardLibrary.CreateWeakRefConstructor(RealmState));
 
-        // Annex B escape/unescape
-        var escapeFn = StandardLibrary.CreateEscapeFunction(RealmState);
-        SetGlobal("escape", escapeFn);
-        GlobalObject.DefineProperty("escape",
-            new PropertyDescriptor { Value = escapeFn, Writable = true, Enumerable = false, Configurable = true });
-
-        var unescapeFn = StandardLibrary.CreateUnescapeFunction(RealmState);
-        SetGlobal("unescape", unescapeFn);
-        GlobalObject.DefineProperty("unescape",
-            new PropertyDescriptor { Value = unescapeFn, Writable = true, Enumerable = false, Configurable = true });
-
         // Minimal browser-like storage object used by debug/babel-standalone.
         SetGlobal("localStorage", StandardLibrary.CreateLocalStorageObject());
 

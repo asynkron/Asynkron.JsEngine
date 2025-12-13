@@ -300,13 +300,11 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
         // 18.2.1.1 EvalDeclarationInstantiation: non-strict direct eval must
         // reject var declarations that collide with caller lexicals (including parameters).
-        var allowAnnexBFunctions = !isStrictEval && _engine.Options.EnableAnnexBFunctionExtensions;
         var varDeclaredNames = new HashSet<Symbol>();
-        CollectVarDeclaredNames(program.Typed.Body, varDeclaredNames, allowAnnexBFunctions, isStrictEval, false);
+        CollectVarDeclaredNames(program.Typed.Body, varDeclaredNames, isStrictEval, false);
         var lexicallyDeclaredNames = CollectLexicallyDeclaredNames(program.Typed.Body);
         var lexicalDeclarations = CollectLexicalDeclarations(program.Typed.Body);
-        var varFunctionDeclarations = CollectVarFunctionDeclarations(program.Typed.Body, allowAnnexBFunctions,
-            isStrictEval, false);
+        var varFunctionDeclarations = CollectVarFunctionDeclarations(program.Typed.Body, isStrictEval, false);
         if (!isStrictEval)
         {
             foreach (var name in varDeclaredNames)
@@ -468,20 +466,18 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
     private static void CollectVarDeclaredNames(
         ImmutableArray<StatementNode> statements,
         HashSet<Symbol> names,
-        bool allowAnnexB,
         bool isStrict,
         bool inBlockScope)
     {
         foreach (var statement in statements)
         {
-            CollectVarDeclaredNamesFromStatement(statement, names, allowAnnexB, isStrict, inBlockScope);
+            CollectVarDeclaredNamesFromStatement(statement, names, isStrict, inBlockScope);
         }
     }
 
     private static void CollectVarDeclaredNamesFromStatement(
         StatementNode statement,
         HashSet<Symbol> names,
-        bool allowAnnexB,
         bool isStrict,
         bool inBlockScope)
     {
@@ -497,15 +493,16 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     break;
                 case FunctionDeclaration { Function.Name: not null } funcDecl:
-                    if (!inBlockScope ||
-                        allowAnnexB && !isStrict && !funcDecl.Function.IsAsync && !funcDecl.Function.IsGenerator)
+                    // Only top-level function declarations are var-scoped
+                    // Block-scoped function declarations are lexically scoped
+                    if (!inBlockScope)
                     {
                         names.Add(funcDecl.Function.Name);
                     }
 
                     break;
                 case BlockStatement block:
-                    CollectVarDeclaredNames(block.Statements, names, allowAnnexB, isStrict, true);
+                    CollectVarDeclaredNames(block.Statements, names, isStrict, true);
                     break;
                 case ForStatement { Initializer: VariableDeclaration { Kind: VariableKind.Var } initDecl } forStatement:
                 {
@@ -529,15 +526,15 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case SwitchStatement switchStatement:
                     foreach (var switchCase in switchStatement.Cases)
                     {
-                        CollectVarDeclaredNames(switchCase.Body.Statements, names, allowAnnexB, isStrict, true);
+                        CollectVarDeclaredNames(switchCase.Body.Statements, names, isStrict, true);
                     }
 
                     break;
                 case TryStatement tryStatement:
-                    CollectVarDeclaredNames(tryStatement.TryBlock.Statements, names, allowAnnexB, isStrict, true);
+                    CollectVarDeclaredNames(tryStatement.TryBlock.Statements, names, isStrict, true);
                     if (tryStatement.Catch is { Body: not null } catchClause)
                     {
-                        CollectVarDeclaredNames(catchClause.Body.Statements, names, allowAnnexB, isStrict, true);
+                        CollectVarDeclaredNames(catchClause.Body.Statements, names, isStrict, true);
                     }
 
                     if (tryStatement.Finally is { } finallyBlock)
@@ -613,14 +610,13 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
     private static List<FunctionDeclaration> CollectVarFunctionDeclarations(
         ImmutableArray<StatementNode> statements,
-        bool allowAnnexB,
         bool isStrict,
         bool inBlockScope)
     {
         var functions = new List<FunctionDeclaration>();
         foreach (var statement in statements)
         {
-            CollectVarFunctionsFromStatement(statement, functions, allowAnnexB, isStrict, inBlockScope);
+            CollectVarFunctionsFromStatement(statement, functions, isStrict, inBlockScope);
         }
 
         return functions;
@@ -735,7 +731,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
     private static void CollectVarFunctionsFromStatement(
         StatementNode statement,
         List<FunctionDeclaration> functions,
-        bool allowAnnexB,
         bool isStrict,
         bool inBlockScope)
     {
@@ -744,9 +739,9 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             switch (statement)
             {
                 case FunctionDeclaration functionDeclaration:
-                    if (!inBlockScope ||
-                        allowAnnexB && !isStrict && !functionDeclaration.Function.IsAsync &&
-                        !functionDeclaration.Function.IsGenerator)
+                    // Only top-level function declarations are var-scoped
+                    // Block-scoped function declarations are lexically scoped
+                    if (!inBlockScope)
                     {
                         functions.Add(functionDeclaration);
                     }
@@ -755,12 +750,12 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case BlockStatement block:
                     foreach (var inner in block.Statements)
                     {
-                        CollectVarFunctionsFromStatement(inner, functions, allowAnnexB, isStrict, true);
+                        CollectVarFunctionsFromStatement(inner, functions, isStrict, true);
                     }
 
                     break;
                 case IfStatement ifStatement:
-                    CollectVarFunctionsFromStatement(ifStatement.Then, functions, allowAnnexB, isStrict, true);
+                    CollectVarFunctionsFromStatement(ifStatement.Then, functions, isStrict, true);
                     if (ifStatement.Else is { } elseBranch)
                     {
                         statement = elseBranch;
@@ -780,7 +775,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case ForStatement forStatement:
                     if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initDecl)
                     {
-                        CollectVarFunctionsFromStatement(initDecl, functions, allowAnnexB, isStrict, true);
+                        CollectVarFunctionsFromStatement(initDecl, functions, isStrict, true);
                     }
 
                     if (forStatement.Body is not null)
@@ -796,15 +791,15 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case SwitchStatement switchStatement:
                     foreach (var switchCase in switchStatement.Cases)
                     {
-                        CollectVarFunctionsFromStatement(switchCase.Body, functions, allowAnnexB, isStrict, true);
+                        CollectVarFunctionsFromStatement(switchCase.Body, functions, isStrict, true);
                     }
 
                     break;
                 case TryStatement tryStatement:
-                    CollectVarFunctionsFromStatement(tryStatement.TryBlock, functions, allowAnnexB, isStrict, true);
+                    CollectVarFunctionsFromStatement(tryStatement.TryBlock, functions, isStrict, true);
                     if (tryStatement.Catch is { Body: not null } catchClause)
                     {
-                        CollectVarFunctionsFromStatement(catchClause.Body, functions, allowAnnexB, isStrict, true);
+                        CollectVarFunctionsFromStatement(catchClause.Body, functions, isStrict, true);
                     }
 
                     if (tryStatement.Finally is { } finallyBlock)

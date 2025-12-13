@@ -21,12 +21,8 @@ public static partial class TypedAstEvaluator
             var switchEnv = new JsEnvironment(environment, false, instantiationPlan.IsStrict);
 
             // Push a scope context for the switch block
-            // Switch blocks use Sloppy mode (not SloppyAnnexB) to prevent function hoisting
             var scopeMode = instantiationPlan.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
-            using var scopeHandle = context.PushScope(
-                ScopeKind.Block,
-                scopeMode,
-                skipAnnexBInstantiation: false);
+            using var scopeHandle = context.PushScope(ScopeKind.Block, scopeMode);
 
             // Hoist lexical declarations from all case bodies
             InstantiateSwitchLexicalDeclarations(statement, instantiationPlan, switchEnv, context);

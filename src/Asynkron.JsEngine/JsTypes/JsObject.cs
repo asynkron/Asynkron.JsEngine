@@ -323,7 +323,7 @@ namespace Asynkron.JsEngine.JsTypes;
         // Update all existing descriptors to be non-configurable
         foreach (var key in Keys.ToArray())
         {
-            if (key == PrototypeKey || key.StartsWith(GetterPrefix) || key.StartsWith(SetterPrefix))
+            if (key.StartsWith(GetterPrefix) || key.StartsWith(SetterPrefix))
             {
                 continue;
             }
@@ -1081,7 +1081,7 @@ namespace Asynkron.JsEngine.JsTypes;
         // Update all existing descriptors to be non-writable and non-configurable
         foreach (var key in Keys.ToArray())
         {
-            if (key == PrototypeKey || key.StartsWith(GetterPrefix) || key.StartsWith(SetterPrefix))
+            if (key.StartsWith(GetterPrefix) || key.StartsWith(SetterPrefix))
             {
                 continue;
             }
@@ -1579,8 +1579,10 @@ namespace Asynkron.JsEngine.JsTypes;
 
     private static bool IsInternalKey(string name)
     {
-        return name == PrototypeKey ||
-               name.StartsWith(GetterPrefix, StringComparison.Ordinal) ||
+        // Note: __proto__ (PrototypeKey) is NOT internal - it can be a user-defined own property
+        // when defined via shorthand { __proto__ } syntax. The prototype is stored in
+        // _prototypeAccessor and Prototype fields, not as a property.
+        return name.StartsWith(GetterPrefix, StringComparison.Ordinal) ||
                name.StartsWith(SetterPrefix, StringComparison.Ordinal);
     }
 

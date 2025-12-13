@@ -397,6 +397,100 @@ public class JsEvaluatorTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ProtoShorthandCreatesOwnProperty()
+    {
+        // Per ES spec, shorthand { __proto__ } creates an own property, not sets prototype
+        await using var engine = new JsEngine();
+
+        // First, test directly with JsObject - this proves the JsObject API works correctly
+        var testObj = new JsTypes.JsObject();
+        testObj.SetPrototype(engine.RealmState.ObjectPrototype);
+        testObj.DefineProperty("__proto__", new JsTypes.PropertyDescriptor
+        {
+            Value = 2d,
+            Writable = true,
+            Enumerable = true,
+            Configurable = true
+        });
+
+        // Check if descriptor is stored
+        var desc = testObj.GetOwnPropertyDescriptor("__proto__");
+        Assert.NotNull(desc);
+        Assert.Equal(2d, desc.Value);
+
+        // Check if it's in own property names (this now works after our fix)
+        var names = testObj.GetOwnPropertyNames().ToList();
+        Assert.Contains("__proto__", names);
+
+        // Note: JavaScript { __proto__ } shorthand has a separate issue with descriptor values
+        // being incorrectly set. This is tracked separately.
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ProtoShorthandInJavaScriptCreatesOwnProperty()
+    {
+        // Per ES spec, shorthand { __proto__ } creates an own property, not sets prototype
+        await using var engine = new JsEngine();
+
+        // Test shorthand syntax - { __proto__ } should create own property
+        var result = await engine.Evaluate("""
+            var __proto__ = 2;
+            var obj = { __proto__ };
+            Object.getOwnPropertyNames(obj).includes('__proto__');
+        """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ProtoShorthandPropertyAccessReturnsOwnValue()
+    {
+        // Per ES spec, when __proto__ is an own data property created by shorthand,
+        // property access should return the own value, not invoke the inherited accessor
+        await using var engine = new JsEngine();
+
+        // Test the full flow in JavaScript - should return 2, not [object Object]
+        var result = await engine.Evaluate("""
+            var __proto__ = 2;
+            var obj = { __proto__ };
+            obj.__proto__;
+        """);
+        Assert.Equal(2d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task GlobalVarProtoReturnsCorrectValue()
+    {
+        // When var __proto__ = 2 is declared in global scope, reading __proto__
+        // should return 2, not the global object's prototype
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            var __proto__ = 2;
+            __proto__;
+        """);
+        Assert.Equal(2d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ProtoColonSyntaxSetsPrototype()
+    {
+        // Per ES spec, colon syntax { __proto__: value } sets prototype (when value is object/null)
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            var base = { x: 42 };
+            var obj = { __proto__: base };
+            [Object.getPrototypeOf(obj) === base, obj.x];
+        """);
+
+        var arr = Assert.IsType<JsArray>(result);
+        arr.TryGetProperty("0", out var first);
+        arr.TryGetProperty("1", out var second);
+        Assert.Equal(true, first);
+        Assert.Equal(42d, second);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ClassMethodsRemainVisibleWhenPrivateFieldsArePresent()
     {
         await using var engine = new JsEngine();

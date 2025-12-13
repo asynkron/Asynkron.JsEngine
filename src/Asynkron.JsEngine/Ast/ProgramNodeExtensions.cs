@@ -24,10 +24,8 @@ public static partial class TypedAstEvaluator
         var context = realmState.CreateContext(
             ScopeKind.Program,
             program.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy,
-            false,
             cancellationToken,
-            executionKind,
-            false);
+            executionKind);
         context.AllowIdentifierCache = AllowsIdentifierCaching(program);
         context.DrainAwaitMicrotasks = drainAwaitMicrotasks;
         if (inheritedPrivateNameScopes is { IsDefault: false, Length: > 0 } scopes)
@@ -61,17 +59,9 @@ public static partial class TypedAstEvaluator
                     executionEnvironment.GetFunctionScope());
             }
 
-            var programMode = executionKind == ExecutionKind.Eval
-                ? program.IsStrict
-                    ? ScopeMode.Strict
-                    : context.Options.EnableAnnexBFunctionExtensions
-                        ? ScopeMode.SloppyAnnexB
-                        : ScopeMode.Sloppy
-                : executionEnvironment.IsStrict
-                    ? ScopeMode.Strict
-                    : context.Options.EnableAnnexBFunctionExtensions
-                        ? ScopeMode.SloppyAnnexB
-                        : ScopeMode.Sloppy;
+            var programMode = program.IsStrict || executionEnvironment.IsStrict
+                ? ScopeMode.Strict
+                : ScopeMode.Sloppy;
             using var programScope = context.PushScope(ScopeKind.Program, programMode);
 
             var programBlock = new BlockStatement(program.Source, program.Body, program.IsStrict);
@@ -79,12 +69,6 @@ public static partial class TypedAstEvaluator
             var topLevelLexicalNames = CollectTopLevelLexicalNames(program.Body);
             var catchParameterNames = CollectCatchParameterNames(programBlock);
             var simpleCatchParameterNames = CollectSimpleCatchParameterNames(programBlock);
-            // For blocking function var names (Annex B), we need ALL lexical names including nested
-            var blockedFunctionVarNames = lexicalNames.Count == 0
-                ? lexicalNames
-                : new HashSet<Symbol>(lexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
-            blockedFunctionVarNames.ExceptWith(simpleCatchParameterNames);
-            context.BlockedFunctionVarNames = blockedFunctionVarNames;
             // For bodyLexicalNames used in global/var conflict checks, we only use TOP-LEVEL names.
             // Per ES spec GlobalDeclarationInstantiation, var declarations only conflict with
             // top-level lexical declarations, not with block-scoped let/const in nested blocks.
@@ -149,8 +133,7 @@ public static partial class TypedAstEvaluator
                 // Check ALL var names for conflicts with existing lexical declarations BEFORE
                 // creating any bindings. This ensures that a script like 'var x; var existingLet;'
                 // doesn't create 'x' when it should throw SyntaxError for 'existingLet'.
-                var allowAnnexBVarFuncs = context.Options.EnableAnnexBFunctionExtensions && !program.IsStrict;
-                var allVarNames = CollectAllVarNames(program.Body, allowAnnexBVarFuncs, program.IsStrict);
+                var allVarNames = CollectAllVarNames(program.Body, program.IsStrict);
                 foreach (var varName in allVarNames)
                 {
                     if (globalScopeToCheck.HasGlobalLexicalDeclaration(varName))
@@ -335,31 +318,28 @@ public static partial class TypedAstEvaluator
     /// </summary>
     private static HashSet<Symbol> CollectAllVarNames(
         ImmutableArray<StatementNode> statements,
-        bool allowAnnexB,
         bool isStrict)
     {
         var names = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
-        CollectVarNamesFromStatements(statements, names, allowAnnexB, isStrict, inBlockScope: false);
+        CollectVarNamesFromStatements(statements, names, isStrict, inBlockScope: false);
         return names;
     }
 
     private static void CollectVarNamesFromStatements(
         ImmutableArray<StatementNode> statements,
         HashSet<Symbol> names,
-        bool allowAnnexB,
         bool isStrict,
         bool inBlockScope)
     {
         foreach (var statement in statements)
         {
-            CollectVarNamesFromStatement(statement, names, allowAnnexB, isStrict, inBlockScope);
+            CollectVarNamesFromStatement(statement, names, isStrict, inBlockScope);
         }
     }
 
     private static void CollectVarNamesFromStatement(
         StatementNode statement,
         HashSet<Symbol> names,
-        bool allowAnnexB,
         bool isStrict,
         bool inBlockScope)
     {
@@ -375,19 +355,19 @@ public static partial class TypedAstEvaluator
 
                     break;
                 case FunctionDeclaration functionDeclaration:
-                    if (!inBlockScope ||
-                        allowAnnexB && !isStrict && !functionDeclaration.Function.IsAsync &&
-                        !functionDeclaration.Function.IsGenerator)
+                    // Function declarations at top-level are always hoisted as var names
+                    // Block-scoped function declarations are lexically scoped (no AnnexB hoisting)
+                    if (!inBlockScope)
                     {
                         names.Add(functionDeclaration.Name);
                     }
 
                     break;
                 case BlockStatement block:
-                    CollectVarNamesFromStatements(block.Statements, names, allowAnnexB, isStrict, true);
+                    CollectVarNamesFromStatements(block.Statements, names, isStrict, true);
                     break;
                 case IfStatement ifStatement:
-                    CollectVarNamesFromStatement(ifStatement.Then, names, allowAnnexB, isStrict, inBlockScope: true);
+                    CollectVarNamesFromStatement(ifStatement.Then, names, isStrict, inBlockScope: true);
                     if (ifStatement.Else is not null)
                     {
                         statement = ifStatement.Else;
@@ -420,24 +400,22 @@ public static partial class TypedAstEvaluator
                     statement = forEachStatement.Body;
                     continue;
                 case TryStatement tryStatement:
-                    CollectVarNamesFromStatements(tryStatement.TryBlock.Statements, names, allowAnnexB, isStrict, true);
+                    CollectVarNamesFromStatements(tryStatement.TryBlock.Statements, names, isStrict, true);
                     if (tryStatement.Catch is not null)
                     {
-                        CollectVarNamesFromStatements(tryStatement.Catch.Body.Statements, names, allowAnnexB,
-                            isStrict, true);
+                        CollectVarNamesFromStatements(tryStatement.Catch.Body.Statements, names, isStrict, true);
                     }
 
                     if (tryStatement.Finally is not null)
                     {
-                        CollectVarNamesFromStatements(tryStatement.Finally.Statements, names, allowAnnexB, isStrict,
-                            true);
+                        CollectVarNamesFromStatements(tryStatement.Finally.Statements, names, isStrict, true);
                     }
 
                     break;
                 case SwitchStatement switchStatement:
                     foreach (var switchCase in switchStatement.Cases)
                     {
-                        CollectVarNamesFromStatements(switchCase.Body.Statements, names, allowAnnexB, isStrict, true);
+                        CollectVarNamesFromStatements(switchCase.Body.Statements, names, isStrict, true);
                     }
 
                     break;

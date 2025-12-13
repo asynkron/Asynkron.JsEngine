@@ -8,30 +8,16 @@ public static partial class TypedAstEvaluator
     {
         private object? EvaluateBlock(
             JsEnvironment environment,
-            EvaluationContext context,
-            bool skipAnnexBFunctionInstantiation = false)
+            EvaluationContext context)
         {
             var scope = new JsEnvironment(environment, false, block.IsStrict);
             var result = EmptyCompletion;
 
-            var currentMode = context.CurrentScope.Mode;
-            var allowAnnexB = currentMode == ScopeMode.SloppyAnnexB &&
-                              !scope.IsStrict &&
-                              !block.IsStrict;
-            var mode = scope.IsStrict
-                ? ScopeMode.Strict
-                : allowAnnexB
-                    ? ScopeMode.SloppyAnnexB
-                    : ScopeMode.Sloppy;
-            using var scopeHandle = context.PushScope(
-                ScopeKind.Block,
-                mode,
-                skipAnnexBFunctionInstantiation);
+            var mode = scope.IsStrict || block.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
+            using var scopeHandle = context.PushScope(ScopeKind.Block, mode);
             using var blockActivity = Activity.Current?.StartEvaluatorActivity("Scope:Block", context, block.Source);
             blockActivity?.SetTag("js.block.strict", block.IsStrict);
             blockActivity?.SetTag("js.block.statementCount", block.Statements.Length);
-
-            var currentFrame = context.CurrentScope;
 
             // Per ES spec, lexical declarations (let/const/class) must be hoisted to create
             // bindings in the TDZ (Temporal Dead Zone) BEFORE function hoisting.
@@ -52,14 +38,8 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            if (currentFrame.SkipAnnexBInstantiation || !currentFrame.AllowAnnexB)
-            {
-                InstantiateLexicalBlockFunctions(block, scope, context);
-            }
-            if (currentFrame is { AllowAnnexB: true, SkipAnnexBInstantiation: false })
-            {
-                InstantiateAnnexBBlockFunctions(block, scope, context);
-            }
+            // Block-scoped function declarations (strict mode behavior - no AnnexB hoisting)
+            InstantiateLexicalBlockFunctions(block, scope, context);
 
             foreach (var statement in block.Statements)
             {
@@ -87,150 +67,6 @@ public static partial class TypedAstEvaluator
             }
 
             return result;
-        }
-
-        private void InstantiateAnnexBBlockFunctions(
-            JsEnvironment blockEnvironment,
-            EvaluationContext context)
-        {
-            var frame = context.CurrentScope;
-            if (!frame.AllowAnnexB || frame.SkipAnnexBInstantiation)
-            {
-                return;
-            }
-
-            var functionScope = blockEnvironment.GetFunctionScope();
-            var lexicalNames = CollectLexicalNames(block);
-            var blockFunctionNames = CollectFunctionNames(block);
-            var simpleCatchParameterNames = CollectSimpleCatchParameterNames(block);
-
-            foreach (var statement in block.Statements)
-            {
-                if (statement is not FunctionDeclaration functionDeclaration)
-                {
-                    continue;
-                }
-
-                // Per Annex B.3.3, only regular (non-async, non-generator) function declarations
-                // are eligible for Annex B hoisting. Async functions, generators, and async generators
-                // are always block-scoped and never hoisted via Annex B.
-                if (functionDeclaration.Function.IsAsync || functionDeclaration.Function.IsGenerator)
-                {
-                    // Create a lexical binding for async/generator functions (they're block-scoped only)
-                    // Pass skipInternalNameBinding: true so the function doesn't create an internal
-                    // const binding for its name (the binding is handled by blockEnvironment.Define below).
-                    var asyncGenFunctionValue = CreateFunctionValue(functionDeclaration.Function, blockEnvironment, context,
-                        skipInternalNameBinding: true);
-                    blockEnvironment.Define(
-                        functionDeclaration.Name,
-                        asyncGenFunctionValue,
-                        isConst: true,
-                        isLexical: true,
-                        blocksFunctionScopeOverride: true);
-                    continue;
-                }
-
-                var hasNonCatchLexical = (lexicalNames.Contains(functionDeclaration.Name) ||
-                                          blockFunctionNames.Contains(functionDeclaration.Name)) &&
-                                         !simpleCatchParameterNames.Contains(functionDeclaration.Name);
-                var shouldCreateVarBinding = !hasNonCatchLexical &&
-                                             !functionScope.HasBodyLexicalName(functionDeclaration.Name);
-                var blockedByParameters = context.BlockedFunctionVarNames is { } blocked &&
-                                          blocked.Contains(functionDeclaration.Name);
-                // B.3.3.1 checks for conflicting *lexical* declarations only; existing
-                // var hoists in the function scope must not block Annex B var creation.
-                var hasLexicalBeforeFunctionScope =
-                    blockEnvironment.HasLexicalBindingBeforeFunctionScope(functionDeclaration.Name);
-                var hasBlockingLexicalBeforeFunctionScope = hasLexicalBeforeFunctionScope &&
-                                                            !simpleCatchParameterNames.Contains(
-                                                                functionDeclaration.Name) &&
-                                                            !IsSimpleCatchParameterBinding(blockEnvironment,
-                                                                functionDeclaration.Name);
-                var bindingExists =
-                    hasLexicalBeforeFunctionScope ||
-                    functionScope.HasBodyLexicalName(functionDeclaration.Name) ||
-                    (functionScope.IsGlobalFunctionScope &&
-                     functionScope.HasOwnLexicalBinding(functionDeclaration.Name));
-
-                // Pass skipInternalNameBinding: true so the function doesn't create an internal
-                // const binding for its name (the binding is handled by blockEnvironment.Define below).
-                var functionValue = CreateFunctionValue(functionDeclaration.Function, blockEnvironment, context,
-                    skipInternalNameBinding: true);
-
-                blockEnvironment.Define(functionDeclaration.Name, functionValue, isLexical: true,
-                    blocksFunctionScopeOverride: true);
-
-                var skipVarUpdateForExistingGlobal = false;
-                if (bindingExists && functionScope.IsGlobalFunctionScope)
-                {
-                    try
-                    {
-                        if (functionScope.TryGet(functionDeclaration.Name, out var existingValue) &&
-                            !ReferenceEquals(existingValue, Symbol.Undefined))
-                        {
-                            skipVarUpdateForExistingGlobal = true;
-                        }
-                    }
-                    catch (Exception)
-                    {
-                        // Ignore lookup failures (e.g., uninitialized); allow update in that case.
-                    }
-                }
-
-                if (!shouldCreateVarBinding || blockedByParameters || skipVarUpdateForExistingGlobal ||
-                    hasBlockingLexicalBeforeFunctionScope)
-                {
-                    continue;
-                }
-
-                var hasFunctionBinding = functionScope.HasFunctionScopedBinding(functionDeclaration.Name);
-                if (bindingExists && !hasFunctionBinding)
-                {
-                    continue;
-                }
-
-                // Remember the specific declaration so runtime copying (B.3.3.4)
-                // only applies to functions that actually produced a var/global binding.
-                context.AnnexBApplicableFunctions.Add(functionDeclaration);
-
-                // Track which block-level functions received Annex B var bindings so
-                // the runtime copy (B.3.3.4) only applies to applicable declarations.
-                blockEnvironment.MarkAnnexBApplicableFunction(functionDeclaration.Name);
-
-                // Annex B.3.3.3 (function/global code): create/update the var/global
-                // binding with the function object when allowed. For global code,
-                // CreateGlobalVarBinding is invoked with configurable:true.
-                bool? globalFunctionConfigurable = functionScope.IsGlobalFunctionScope ? true : null;
-                bool? globalVarConfigurable = functionScope.IsGlobalFunctionScope ? true : null;
-                functionScope.DefineFunctionScoped(
-                    functionDeclaration.Name,
-                    functionValue,
-                    true,
-                    true,
-                    globalFunctionConfigurable,
-                    context,
-                    blocksFunctionScopeOverride: true,
-                    globalVarConfigurable: globalVarConfigurable,
-                    allowExistingGlobalFunctionRedeclaration: true,
-                    isAnnexBFunction: true,
-                    canDelete: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false });
-
-                // B.3.3.4: When the declaration is evaluated, copy the block-scoped
-                // function object into the var/global binding so callers see the
-                // function value (while preserving existing property attributes).
-                functionScope.DefineFunctionScoped(
-                    functionDeclaration.Name,
-                    functionValue,
-                    true,
-                    true,
-                    globalFunctionConfigurable,
-                    context,
-                    blocksFunctionScopeOverride: true,
-                    globalVarConfigurable: null,
-                    allowExistingGlobalFunctionRedeclaration: true,
-                    isAnnexBFunction: true,
-                    canDelete: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false });
-            }
         }
 
         private void InstantiateLexicalBlockFunctions(

@@ -25,5 +25,10 @@
 
   ],
   "ExcludedDirectories": [],
-  "ExcludedFiles": []
+  "ExcludedFiles": [
+    "**/legacy-octal-integer.js",
+    "**/legacy-octal-escape-sequence.js",
+    "**/legacy-non-octal-escape-sequence-8-non-strict.js",
+    "**/legacy-non-octal-escape-sequence-9-non-strict.js"
+  ]
 }

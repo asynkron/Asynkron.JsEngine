@@ -89,7 +89,6 @@ public sealed class RealmState
     public EvaluationContext CreateContext(
         ScopeKind kind = ScopeKind.Function,
         ScopeMode mode = ScopeMode.Strict,
-        bool skipAnnexBInstantiation = false,
         CancellationToken cancellationToken = default,
         ExecutionKind executionKind = ExecutionKind.Script,
         bool pushScope = true)
@@ -97,7 +96,7 @@ public sealed class RealmState
         var context = new EvaluationContext(this, cancellationToken, executionKind);
         if (pushScope)
         {
-            context.PushScope(kind, mode, skipAnnexBInstantiation);
+            context.PushScope(kind, mode);
         }
 
         return context;
@@ -105,7 +104,6 @@ public sealed class RealmState
 
     public EvaluationContext CreateStrictContext(
         ScopeKind kind = ScopeKind.Function,
-        bool skipAnnexBInstantiation = false,
         CancellationToken cancellationToken = default,
         ExecutionKind executionKind = ExecutionKind.Script,
         bool pushScope = true)
@@ -113,7 +111,6 @@ public sealed class RealmState
         return CreateContext(
             kind,
             ScopeMode.Strict,
-            skipAnnexBInstantiation,
             cancellationToken,
             executionKind,
             pushScope);

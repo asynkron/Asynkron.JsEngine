@@ -13,7 +13,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             Symbol? className)
         {
-            using var classScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict, true);
+            using var classScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict);
             var (evaluationEnvironment, classScopeEnvironment) = CreateClassScopeIfNeeded(
                 environment,
                 className,
@@ -252,7 +252,7 @@ public static partial class TypedAstEvaluator
             return;
         }
 
-        using var staticFieldScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict, true);
+        using var staticFieldScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict);
         Func<IDisposable?>? privateScopeFactory = privateNameScope is not null
             ? () => context.EnterPrivateNameScope(privateNameScope)
             : null;

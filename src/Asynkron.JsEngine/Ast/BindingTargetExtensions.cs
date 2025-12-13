@@ -24,7 +24,6 @@ public static partial class TypedAstEvaluator
                 case VariableKind.AwaitUsing:
                     DefineBindingTarget(target, value, loopEnvironment, context,
                         declarationKind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing);
-                    CollectSymbolsFromBinding(target, context.BlockedFunctionVarNames);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();

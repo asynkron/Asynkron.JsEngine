@@ -32,7 +32,6 @@ public static partial class TypedAstEvaluator
         private readonly ImmutableArray<Symbol> _catchParameterTemplate;
         private readonly ImmutableArray<Symbol> _simpleCatchParameterTemplate;
         private readonly ImmutableArray<Symbol> _bodyLexicalTemplate;
-        private readonly ImmutableArray<Symbol> _blockedVarTemplate;
         private static readonly System.Collections.Concurrent.ConcurrentBag<HashSet<Symbol>> SymbolSetPool = new();
         private bool _isConstructorEnabled;
         private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
@@ -84,13 +83,6 @@ public static partial class TypedAstEvaluator
             var bodyLexicalSet = new HashSet<Symbol>(_bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
             bodyLexicalSet.ExceptWith(simpleCatchParams);
             _bodyLexicalTemplate = bodyLexicalSet.ToImmutableArray();
-            var blockedTemplate = new HashSet<Symbol>(bodyLexicalSet, ReferenceEqualityComparer<Symbol>.Instance);
-            blockedTemplate.UnionWith(_parameterNames);
-            if (!_isStrict && !IsArrowFunction)
-            {
-                blockedTemplate.Add(Symbol.Arguments);
-            }
-            _blockedVarTemplate = blockedTemplate.ToImmutableArray();
             if (IsArrowFunction)
             {
                 try
@@ -456,18 +448,9 @@ public static partial class TypedAstEvaluator
                 ? lexicalNames
                 : RentSymbolSet(_bodyLexicalTemplate);
             bodyLexicalNames.ExceptWith(simpleCatchParameterNames);
-            var blockedFunctionVarNames = RentSymbolSet(_blockedVarTemplate);
 
-            var functionMode = _isStrict
-                ? ScopeMode.Strict
-                : _realmState.Options.EnableAnnexBFunctionExtensions
-                    ? ScopeMode.SloppyAnnexB
-                    : ScopeMode.Sloppy;
+            var functionMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
             using var functionScopeFrame = context.PushScope(ScopeKind.Function, functionMode);
-
-            // blockedFunctionVarNames already seeded with parameters/body lexicals (+ arguments for non-strict non-arrow).
-
-            context.BlockedFunctionVarNames = blockedFunctionVarNames;
 
             // When parameter expressions are present, keep the parameter environment outside
             // the var environment so defaults cannot observe body var bindings (spec step 27).
@@ -823,8 +806,7 @@ public static partial class TypedAstEvaluator
                     var result = EvaluateBlock(
                         _function.Body,
                         executionEnvironment,
-                        context,
-                        true);
+                        context);
 
                 if (context.IsThrow)
                 {
@@ -974,7 +956,6 @@ public static partial class TypedAstEvaluator
                 {
                     ReturnSymbolSet(bodyLexicalNames);
                 }
-                ReturnSymbolSet(blockedFunctionVarNames);
 
                 if (!_isStrict && !IsArrowFunction)
                 {
@@ -1227,7 +1208,7 @@ public static partial class TypedAstEvaluator
             }
 
             using var _ = PrivateNameScope is not null ? context.EnterPrivateNameScope(PrivateNameScope) : null;
-            using var instanceFieldScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict, true);
+            using var instanceFieldScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict);
 
             foreach (var field in _instanceFields)
             {

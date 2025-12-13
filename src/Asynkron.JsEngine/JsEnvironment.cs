@@ -23,8 +23,6 @@ public sealed class JsEnvironment
     private Dictionary<Symbol, List<Action<object?>>>? _bindingObservers;
     private HashSet<Symbol>? _bodyLexicalNames;
     private HashSet<Symbol>? _simpleCatchParameters;
-    private HashSet<Symbol>? _annexBFunctionNames;
-    private HashSet<Symbol>? _annexBApplicableFunctions;
 
     internal RealmState? RealmState { get; private set; }
     private JsEnvironment? _varEnvironmentOverride;
@@ -187,7 +185,6 @@ public sealed class JsEnvironment
         bool blocksFunctionScopeOverride = false,
         bool? globalVarConfigurable = null,
         bool allowExistingGlobalFunctionRedeclaration = false,
-        bool isAnnexBFunction = false,
         bool canDelete = false)
     {
         // `var` declarations are hoisted to the nearest function/global scope, so we skip block environments here.
@@ -195,7 +192,6 @@ public sealed class JsEnvironment
             name.Name, isFunctionDeclaration, hasInitializer, canDelete);
         var scope = GetFunctionScope();
         var isGlobalScope = scope.IsGlobalFunctionScope;
-        var wasTrackedAnnexBFunction = scope._annexBFunctionNames?.Contains(name) == true;
         JsObject? globalThis = null;
         PropertyDescriptor? existingDescriptor = null;
         object? existingGlobalValue = null;
@@ -211,8 +207,10 @@ public sealed class JsEnvironment
                 {
                     globalThis.TryGetProperty(name.Name, out existingGlobalValue);
                 }
-                else if (globalThis.TryGetProperty(name.Name, out var looseValue))
+                else if (globalThis.TryGetValue(name.Name, out var looseValue))
                 {
+                    // Use TryGetValue instead of TryGetProperty to avoid invoking
+                    // inherited accessors like Object.prototype.__proto__
                     existingGlobalValue = looseValue;
                     hasLooseGlobalValue = true;
                 }
@@ -272,7 +270,7 @@ public sealed class JsEnvironment
         // may be tracked separately in bodyLexicalNames across script evaluations.
         // We need to check both the current scope AND enclosing scopes because
         // strict scripts create wrapper environments around the global scope.
-        if (isGlobalScope && !isAnnexBFunction && HasGlobalLexicalName(scope, name))
+        if (isGlobalScope && HasGlobalLexicalName(scope, name))
         {
             throw StandardLibrary.ThrowSyntaxError(
                 $"Identifier '{name.Name}' has already been declared",
@@ -283,7 +281,7 @@ public sealed class JsEnvironment
         if (scope._values.TryGetValue(name, out var existing))
         {
             // Also check existing lexical bindings in the local scope
-            if (isGlobalScope && existing.IsLexical && !isAnnexBFunction)
+            if (isGlobalScope && existing.IsLexical)
             {
                 throw StandardLibrary.ThrowSyntaxError(
                     $"Identifier '{name.Name}' has already been declared",
@@ -293,7 +291,6 @@ public sealed class JsEnvironment
 
             if (existing.IsConst || existing.IsGlobalConstant)
             {
-                TrackAnnexBBinding();
                 return;
             }
 
@@ -327,7 +324,6 @@ public sealed class JsEnvironment
                 }
             }
 
-            TrackAnnexBBinding();
             return;
         }
 
@@ -345,7 +341,6 @@ public sealed class JsEnvironment
         }
 
         scope._values[name] = new Binding(initialValue, false, false, false, blocksFunctionScopeOverride, allowDelete);
-        TrackAnnexBBinding();
         if (isGlobalScope && globalThis is not null && shouldWriteGlobal)
         {
             if (isFunctionDeclaration)
@@ -423,30 +418,6 @@ public sealed class JsEnvironment
                     globalThis.SetProperty(name.Name, initialValue);
                 }
             }
-        }
-
-        void TrackAnnexBBinding()
-        {
-            if (!isGlobalScope)
-            {
-                return;
-            }
-
-            if (isAnnexBFunction)
-            {
-                if (context is { ExecutionKind: ExecutionKind.Eval })
-                {
-                    scope._annexBFunctionNames?.Remove(name);
-                    return;
-                }
-
-                scope._annexBFunctionNames ??=
-                    new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
-                scope._annexBFunctionNames.Add(name);
-                return;
-            }
-
-            scope._annexBFunctionNames?.Remove(name);
         }
     }
 
@@ -1037,12 +1008,7 @@ public sealed class JsEnvironment
             return false;
         }
 
-        if (descriptor is not null && !descriptor.Configurable)
-        {
-            return true;
-        }
-
-        return scope._annexBFunctionNames is not null && scope._annexBFunctionNames.Contains(name);
+        return descriptor is not null && !descriptor.Configurable;
     }
 
     internal PropertyDescriptor? GetGlobalOwnPropertyDescriptor(Symbol name, out JsObject? globalObject)
@@ -1066,18 +1032,6 @@ public sealed class JsEnvironment
         }
 
         return false;
-    }
-
-    internal void MarkAnnexBApplicableFunction(Symbol name)
-    {
-        _annexBApplicableFunctions ??=
-            new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
-        _annexBApplicableFunctions.Add(name);
-    }
-
-    internal bool IsAnnexBApplicableFunction(Symbol name)
-    {
-        return _annexBApplicableFunctions is not null && _annexBApplicableFunctions.Contains(name);
     }
 
     internal void SetBodyLexicalNames(HashSet<Symbol> names)

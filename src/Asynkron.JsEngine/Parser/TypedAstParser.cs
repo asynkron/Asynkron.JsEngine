@@ -2595,53 +2595,11 @@ public sealed class TypedAstParser(
             return new ClassExpression(definition.Source ?? CreateSourceReference(classToken), null, definition);
         }
 
+        // Legacy octal literals are now rejected at lexer level (always, not just strict mode)
+        // This method is kept as a no-op for backwards compatibility with callers
         private void EnsureNumericLiteralAllowed(Token token)
         {
-            if (!InStrictContext)
-            {
-                return;
-            }
-
-            if (IsLegacyOctalLiteral(token.Lexeme))
-            {
-                throw new ParseException("Legacy octal literals are not allowed in strict mode.", token, _source);
-            }
-        }
-
-        private static bool IsLegacyOctalLiteral(string lexeme)
-        {
-            if (string.IsNullOrEmpty(lexeme) || lexeme[0] != '0' || lexeme.Length == 1)
-            {
-                return false;
-            }
-
-            var second = lexeme[1];
-            if (second is '.' or 'x' or 'X' or 'o' or 'O' or 'b' or 'B')
-            {
-                return false;
-            }
-
-            if (lexeme.Length == 2 && second == 'n')
-            {
-                return false;
-            }
-
-            if (lexeme.Contains('.') || lexeme.Contains('e') || lexeme.Contains('E'))
-            {
-                return false;
-            }
-
-            var end = lexeme.EndsWith("n", StringComparison.Ordinal) ? lexeme.Length - 1 : lexeme.Length;
-            for (var i = 1; i < end; i++)
-            {
-                var ch = lexeme[i];
-                if (!char.IsDigit(ch) && ch != '_')
-                {
-                    return false;
-                }
-            }
-
-            return true;
+            // No-op: legacy octals are rejected by the lexer
         }
 
         private ExpressionNode ParseCallSuffix(ExpressionNode expression)
@@ -3003,9 +2961,16 @@ public sealed class TypedAstParser(
             {
                 if (part is TemplateStringPart templateString)
                 {
-                    if (InStrictContext && templateString.Cooked.HasLegacyOctal)
+                    // Legacy octal escape sequences are AnnexB features and always rejected in non-tagged templates
+                    if (templateString.Cooked.HasLegacyOctal)
                     {
-                        throw new ParseException("Legacy octal escape sequences are not allowed in strict mode.",
+                        throw new ParseException("Legacy octal escape sequences are not allowed. Use \\x or \\u escapes instead.",
+                            templateToken, _source);
+                    }
+
+                    if (templateString.Cooked.HasLegacyNonOctalEscape)
+                    {
+                        throw new ParseException("\\8 and \\9 escape sequences are not allowed.",
                             templateToken, _source);
                     }
 
@@ -4412,15 +4377,16 @@ public sealed class TypedAstParser(
         {
             if (token.Literal is DecodedString decoded)
             {
-                if (decoded.HasLegacyOctal && InStrictContext)
+                // Legacy octal escape sequences are AnnexB features and always rejected
+                if (decoded.HasLegacyOctal)
                 {
-                    throw new ParseException("Legacy octal escape sequences are not allowed in strict mode.", token,
+                    throw new ParseException("Legacy octal escape sequences are not allowed. Use \\x or \\u escapes instead.", token,
                         _source);
                 }
 
-                if (decoded.HasLegacyNonOctalEscape && InStrictContext)
+                if (decoded.HasLegacyNonOctalEscape)
                 {
-                    throw new ParseException("\\8 and \\9 escape sequences are not allowed in strict mode.", token,
+                    throw new ParseException("\\8 and \\9 escape sequences are not allowed.", token,
                         _source);
                 }
 

@@ -769,6 +769,11 @@ public static partial class TypedAstEvaluator
 
       internal static bool ContainsInnerFunctionExpression(BlockStatement block)
     {
+        if (block.TryGetContainsInnerFunction(out var cached))
+        {
+            return cached;
+        }
+
         var work = new Stack<StatementNode>();
         work.Push(block);
 
@@ -785,40 +790,61 @@ public static partial class TypedAstEvaluator
                     break;
                 case ExpressionStatement expressionStatement:
                     if (ContainsInnerFunctionExpression(expressionStatement.Expression))
+                    {
+                        block.CacheContainsInnerFunction(true);
                         return true;
+                    }
                     break;
                 case ReturnStatement returnStatement:
                     if (returnStatement.Expression is not null &&
                         ContainsInnerFunctionExpression(returnStatement.Expression))
+                    {
+                        block.CacheContainsInnerFunction(true);
                         return true;
+                    }
                     break;
                 case ThrowStatement throwStatement:
                     if (ContainsInnerFunctionExpression(throwStatement.Expression))
+                    {
+                        block.CacheContainsInnerFunction(true);
                         return true;
+                    }
                     break;
                 case VariableDeclaration declaration:
                     foreach (var declarator in declaration.Declarators)
                     {
                         if (declarator.Initializer is not null &&
                             ContainsInnerFunctionExpression(declarator.Initializer))
+                        {
+                            block.CacheContainsInnerFunction(true);
                             return true;
+                        }
                     }
                     break;
                 case IfStatement ifStatement:
                     if (ContainsInnerFunctionExpression(ifStatement.Condition))
+                    {
+                        block.CacheContainsInnerFunction(true);
                         return true;
+                    }
                     work.Push(ifStatement.Then);
                     if (ifStatement.Else is not null)
                         work.Push(ifStatement.Else);
                     break;
                 case WhileStatement whileStatement:
                     if (ContainsInnerFunctionExpression(whileStatement.Condition))
+                    {
+                        block.CacheContainsInnerFunction(true);
                         return true;
+                    }
                     work.Push(whileStatement.Body);
                     break;
                 case DoWhileStatement doWhileStatement:
                     if (ContainsInnerFunctionExpression(doWhileStatement.Condition))
+                    {
+                        block.CacheContainsInnerFunction(true);
                         return true;
+                    }
                     work.Push(doWhileStatement.Body);
                     break;
                 case ForStatement forStatement:
@@ -826,15 +852,24 @@ public static partial class TypedAstEvaluator
                         work.Push(forStatement.Initializer);
                     if (forStatement.Condition is not null &&
                         ContainsInnerFunctionExpression(forStatement.Condition))
+                    {
+                        block.CacheContainsInnerFunction(true);
                         return true;
+                    }
                     if (forStatement.Increment is not null &&
                         ContainsInnerFunctionExpression(forStatement.Increment))
+                    {
+                        block.CacheContainsInnerFunction(true);
                         return true;
+                    }
                     work.Push(forStatement.Body);
                     break;
                 case ForEachStatement forEachStatement:
                     if (ContainsInnerFunctionExpression(forEachStatement.Iterable))
+                    {
+                        block.CacheContainsInnerFunction(true);
                         return true;
+                    }
                     work.Push(forEachStatement.Body);
                     break;
                 case LabeledStatement labeledStatement:
@@ -849,16 +884,23 @@ public static partial class TypedAstEvaluator
                     break;
                 case SwitchStatement switchStatement:
                     if (ContainsInnerFunctionExpression(switchStatement.Discriminant))
+                    {
+                        block.CacheContainsInnerFunction(true);
                         return true;
+                    }
                     foreach (var switchCase in switchStatement.Cases)
                     {
                         if (switchCase.Test is not null && ContainsInnerFunctionExpression(switchCase.Test))
+                        {
+                            block.CacheContainsInnerFunction(true);
                             return true;
+                        }
                         work.Push(switchCase.Body);
                     }
                     break;
                 // FunctionDeclaration creates a closure - the function itself captures the environment
                 case FunctionDeclaration:
+                    block.CacheContainsInnerFunction(true);
                     return true;
                 case ClassDeclaration:
                 case EmptyStatement:
@@ -874,6 +916,7 @@ public static partial class TypedAstEvaluator
             }
         }
 
+        block.CacheContainsInnerFunction(false);
         return false;
     }
 

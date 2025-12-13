@@ -84,31 +84,53 @@ dotnet-trace report <trace-file>.nettrace topN -n 30
 ### Known Allocation Hotspots
 
 **Fibonacci Benchmark Results (as of Dec 2024):**
+
+*Before optimizations:*
 | Engine | Time | Allocated | Gen0 Collections |
 |--------|------|-----------|------------------|
 | Jint | 56ms | 50.11 MB | 8,000 |
 | Asynkron | 172ms | 322.37 MB | 53,000 |
 
-**Primary Allocation Sources:**
+*After optimizations:*
+| Engine | Time | Allocated | Gen0 Collections |
+|--------|------|-----------|------------------|
+| Jint | ~55ms | 50.11 MB | 8,000 |
+| Asynkron | ~150ms | **173.25 MB** | **28,000** |
 
-1. **JsEnvironment per function call** - `InvokeSimpleFast` in `TypedAstEvaluator.TypedFunction.cs:1579` creates a new `JsEnvironment` for every function invocation:
-   ```csharp
-   var functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source, description);
-   ```
-   For Fibonacci(25) this means ~242,000 JsEnvironment allocations.
+**Improvement: 46% reduction in allocations** (322 MB → 173 MB)
 
-2. **Dictionary<Symbol, Binding>** - Each JsEnvironment contains a dictionary for variable bindings.
+### Implemented Optimizations
 
-3. **String allocations** - Description strings interpolated per call.
+1. **JsEnvironment pooling** (`TypedAstEvaluator.TypedFunction.cs`)
+   - Added `ContainsInnerFunctionExpression` to `ScopeDynamicnessAnalyzer.cs` to detect functions that create closures
+   - Added `_canPoolInvocationEnvironment` flag - true when function is simple AND has no inner functions
+   - Modified `InvokeSimpleFast` to use `RentEnvironment`/`ReturnEnvironment` when safe
+   - Note: Cannot pool environments for functions with inner closures (they capture the environment reference)
 
-4. **EvaluationContext** - Created/rented per call.
+2. **SymbolHybridDictionary** (`Collections/SymbolHybridDictionary.cs`)
+   - Array-based storage for small binding counts (< 8 bindings)
+   - Uses reference equality for fast Symbol lookups
+   - Switches to full Dictionary only when > 8 bindings
+   - `JsEnvironment._values` now uses this instead of `Dictionary<Symbol, Binding>`
 
-### Optimization Opportunities
+3. **Cached function description string** (`TypedAstEvaluator.TypedFunction.cs`)
+   - `_functionDescription` field cached in constructor
+   - Eliminates string allocation (`$"function {name.Name}"`) per function call
 
-- Pool JsEnvironment instances for simple functions
-- Use array-backed storage for small binding counts (< 8 bindings)
-- Cache function description strings
-- Consider stack-based environments for tail-recursive calls
+### Already Optimized Areas
+
+- **Argument array pooling** - Small argument arrays (1-4 elements) pooled via `JsValueCache.RentArgumentArray`
+- **Number boxing cache** - Integers 0-10239 cached in `JsValueCache.CachedIntegers`
+- **Identifier binding cache** - `ResolvedIdentifierBinding` (struct) cached per environment
+- **EvaluationContext pooling** - Pooled via `RentContext`/`ReturnContext`
+- **ToPrimitive fast path** - Primitives return immediately without object checks
+
+### Remaining Gap Analysis
+
+The remaining gap (173 MB vs Jint's 50 MB ≈ 3.5x) likely comes from:
+- Architectural differences in environment/scope management
+- AST node caching strategies
+- Per-invocation Binding struct creation (even though structs, they go into collections)
 
 ## Other Guidelines
 

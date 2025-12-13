@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Threading;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Parser;
 
@@ -11,10 +12,30 @@ public sealed record BlockStatement(SourceReference? Source, ImmutableArray<Stat
     : StatementNode(Source), IAstCacheable<HoistPlan>
 {
     private HoistPlan? _cachedHoistPlan;
+    private int _containsInnerFunctionCache = -1; // -1 unknown, 0 false, 1 true
 
     HoistPlan IAstCacheable<HoistPlan>.GetOrCreateCache()
     {
         return AstCache.GetOrCreate(ref _cachedHoistPlan, () => HoistPlan.Build(this));
+    }
+
+    internal bool TryGetContainsInnerFunction(out bool contains)
+    {
+        var value = Volatile.Read(ref _containsInnerFunctionCache);
+        if (value == -1)
+        {
+            contains = default;
+            return false;
+        }
+
+        contains = value == 1;
+        return true;
+    }
+
+    internal void CacheContainsInnerFunction(bool contains)
+    {
+        var value = contains ? 1 : 0;
+        _ = Interlocked.CompareExchange(ref _containsInnerFunctionCache, value, -1);
     }
 }
 

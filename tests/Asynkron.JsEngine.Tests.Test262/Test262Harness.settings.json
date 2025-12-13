@@ -19,7 +19,9 @@
     "annexB-octal-escape",
     "annexB-block-function",
     "annexB-function-declarations-in-if-statement-clauses",
-    "legacy-regexp"
+    "legacy-regexp",
+    "__getter__",
+    "__setter__"
   ],
   "ExcludedFlags": [
 

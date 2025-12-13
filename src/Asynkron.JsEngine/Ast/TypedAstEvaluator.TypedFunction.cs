@@ -10,7 +10,7 @@ namespace Asynkron.JsEngine.Ast;
 public static partial class TypedAstEvaluator
 {
     public sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor, IJsObjectLike,
-        ICallableMetadata, ICallerInfo, IFunctionNameTarget, IPrivateBrandHolder, IPropertyDefinitionHost,
+        ICallableMetadata, IFunctionNameTarget, IPrivateBrandHolder, IPropertyDefinitionHost,
         IExtensibilityControl, IPrototypeAccessorProvider
     {
         private readonly Symbol[] _bodyLexicalNames;
@@ -35,7 +35,6 @@ public static partial class TypedAstEvaluator
         private static readonly System.Collections.Concurrent.ConcurrentBag<HashSet<Symbol>> SymbolSetPool = new();
         private bool _isConstructorEnabled;
         private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
-        private IJsCallable? _caller;
         private JsObject? _prototypeObject;
         private IJsObjectLike? _homeObject;
         private ImmutableArray<ClassField> _instanceFields = ImmutableArray<ClassField>.Empty;
@@ -400,17 +399,11 @@ public static partial class TypedAstEvaluator
         {
             var context = _realmState.CreateContext(pushScope: false);
             context.AllowIdentifierCache = _allowIdentifierCache;
-            var callerRestore = _caller;
-            using var callerFrame = context.PushCaller(this, out var previousCaller);
             _realmState.Logger?.LogInformation(
                 "InvokeWithContext enter func={Function} isAsync={IsAsync} wasAsync={WasAsync}",
                 _function.Name?.Name ?? "<anonymous>",
                 IsAsyncFunction,
                 _wasAsyncFunction);
-            if (!_isStrict && !IsArrowFunction)
-            {
-                _caller = previousCaller;
-            }
             if (_realmState.Logger is { } entryLogger && _isClassConstructor)
             {
                 entryLogger.LogInformation(
@@ -956,11 +949,6 @@ public static partial class TypedAstEvaluator
                 {
                     ReturnSymbolSet(bodyLexicalNames);
                 }
-
-                if (!_isStrict && !IsArrowFunction)
-                {
-                    _caller = callerRestore;
-                }
             }
         }
         finally
@@ -1081,14 +1069,6 @@ public static partial class TypedAstEvaluator
         {
             _prototypeObject = prototype;
         }
-
-        IJsCallable? ICallerInfo.Caller
-        {
-            get => _caller;
-            set => _caller = value;
-        }
-
-        bool ICallerInfo.IsStrictFunction => _isStrict;
 
         public void SetIsClassConstructor(bool isDerived)
         {

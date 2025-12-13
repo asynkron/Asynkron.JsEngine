@@ -1681,7 +1681,7 @@ public sealed class JsEngine : IAsyncDisposable
         return AwaitModuleEvaluationAsync(entry, entry.EvaluationTask);
     }
 
-    private async Task<object?> AwaitModuleEvaluationAsync(ModuleEntry entry, Task<object?> evaluationTask, int callerEpoch = -1)
+    private async Task<object?> AwaitModuleEvaluationAsync(ModuleEntry entry, Task<object?> evaluationTask, int callerEpoch = int.MaxValue)
     {
         if (evaluationTask.IsCompleted)
         {
@@ -1691,7 +1691,8 @@ public sealed class JsEngine : IAsyncDisposable
         // When waiting for an async module dependency, we must not drain microtasks
         // that were queued by the calling module's synchronous code. Only drain
         // microtasks from earlier epochs (before the caller started).
-        var maxDrainEpoch = callerEpoch >= 0 ? callerEpoch - 1 : -1;
+        // If callerEpoch is 0, maxDrainEpoch becomes -1, which drains nothing.
+        var maxDrainEpoch = callerEpoch < int.MaxValue ? callerEpoch - 1 : int.MaxValue;
 
         while (!evaluationTask.IsCompleted)
         {
@@ -1957,8 +1958,8 @@ public sealed class JsEngine : IAsyncDisposable
     ///     If maxEpoch is specified, only microtasks queued in epochs &lt;= maxEpoch are executed.
     ///     Microtasks from later epochs are preserved for future draining.
     /// </summary>
-    /// <param name="maxEpoch">Maximum epoch to drain. Use -1 to drain all epochs (default).</param>
-    internal void DrainMicrotasks(int maxEpoch = -1, [System.Runtime.CompilerServices.CallerMemberName] string? caller = null)
+    /// <param name="maxEpoch">Maximum epoch to drain. Use int.MaxValue to drain all epochs (default).</param>
+    internal void DrainMicrotasks(int maxEpoch = int.MaxValue, [System.Runtime.CompilerServices.CallerMemberName] string? caller = null)
     {
         if (_isDrainingMicrotasks)
         {
@@ -1966,7 +1967,6 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         _isDrainingMicrotasks = true;
-        var drainedCount = 0;
 
         try
         {
@@ -1980,16 +1980,13 @@ public sealed class JsEngine : IAsyncDisposable
 
                 var (task, taskEpoch) = _microtaskQueue.Dequeue();
 
-                // If maxEpoch is set and this task is from a later epoch, defer it
-                if (maxEpoch >= 0 && taskEpoch > maxEpoch)
+                // If this task is from a later epoch than allowed, defer it
+                if (taskEpoch > maxEpoch)
                 {
                     deferred ??= new List<(Action, int)>();
                     deferred.Add((task, taskEpoch));
                     continue;
                 }
-
-                drainedCount++;
-                Console.WriteLine($"[DrainMicrotasks] Executing microtask from epoch {taskEpoch} (maxEpoch={maxEpoch}, caller={caller})");
 
                 try
                 {
@@ -2007,9 +2004,6 @@ public sealed class JsEngine : IAsyncDisposable
 
             if (deferred is { Count: > 0 })
             {
-                RealmState.Logger?.LogInformation(
-                    "[DrainMicrotasks] Deferred {Count} microtasks to later epochs (maxEpoch={MaxEpoch})",
-                    deferred.Count, maxEpoch);
                 foreach (var deferredTask in deferred)
                 {
                     _microtaskQueue.Enqueue(deferredTask);
@@ -2019,12 +2013,6 @@ public sealed class JsEngine : IAsyncDisposable
         finally
         {
             _isDrainingMicrotasks = false;
-            if (drainedCount > 0)
-            {
-                RealmState.Logger?.LogInformation(
-                    "[DrainMicrotasks] Drained {Count} microtasks (caller={Caller})",
-                    drainedCount, caller);
-            }
         }
     }
 
@@ -3589,11 +3577,12 @@ public sealed class JsEngine : IAsyncDisposable
         return dependencies;
     }
 
-    private async Task DrainAsyncDependencies(List<Task<object?>> pendingAsyncDependencies)
+    private async Task DrainAsyncDependencies(List<Task<object?>> pendingAsyncDependencies, int maxEpoch = -1)
     {
         while (pendingAsyncDependencies.Count > 0)
         {
-            DrainMicrotasks();
+            // Only drain microtasks from earlier epochs to preserve proper timing
+            DrainMicrotasks(maxEpoch);
 
             for (var i = pendingAsyncDependencies.Count - 1; i >= 0; i--)
             {
@@ -3615,7 +3604,7 @@ public sealed class JsEngine : IAsyncDisposable
             await Task.Yield();
         }
 
-        DrainMicrotasks();
+        DrainMicrotasks(maxEpoch);
         pendingAsyncDependencies.Clear();
     }
 
@@ -3624,6 +3613,10 @@ public sealed class JsEngine : IAsyncDisposable
         entry.Evaluating = true;
         try
         {
+            // Capture the epoch before dependency loading - only drain earlier epochs while waiting
+            var moduleEpoch = _microtaskEpoch;
+            var maxDrainEpoch = moduleEpoch - 1;
+
             var pendingAsyncDependencies = new List<Task<object?>>();
             var dependencies = GetModuleDependencies(entry);
             for (var i = 0; i < dependencies.Count; i++)
@@ -3639,7 +3632,7 @@ public sealed class JsEngine : IAsyncDisposable
                                       (dependencies[i + 1].IsAsync || dependencies[i + 1].HasAsyncDependency);
                     if (nextIsAsync)
                     {
-                        await DrainAsyncDependencies(pendingAsyncDependencies).ConfigureAwait(false);
+                        await DrainAsyncDependencies(pendingAsyncDependencies, maxDrainEpoch).ConfigureAwait(false);
                     }
 
                     continue;
@@ -3650,30 +3643,49 @@ public sealed class JsEngine : IAsyncDisposable
 
             if (pendingAsyncDependencies.Count > 0)
             {
-                await DrainAsyncDependencies(pendingAsyncDependencies).ConfigureAwait(false);
+                await DrainAsyncDependencies(pendingAsyncDependencies, maxDrainEpoch).ConfigureAwait(false);
             }
 
-            var previousModulePath = _currentModulePath;
-            _currentModulePath = entry.Path;
-            try
+            // Schedule the module body execution as an event loop task.
+            // This ensures microtasks queued during the body only run AFTER the body completes,
+            // which is the correct ES semantics for synchronous module bodies.
+            var bodyCompletion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            ScheduleTask(() =>
             {
-                var result = ExecuteModuleBody(
-                    entry.Program,
-                    entry.Environment,
-                    entry.Exports,
-                    entry.Path);
-                entry.LastValue = result;
-                entry.Evaluated = true;
-                return result;
-            }
-            finally
-            {
-                _currentModulePath = previousModulePath;
-            }
+                var previousModulePath = _currentModulePath;
+                _currentModulePath = entry.Path;
+                try
+                {
+                    var result = ExecuteModuleBody(
+                        entry.Program,
+                        entry.Environment,
+                        entry.Exports,
+                        entry.Path);
+                    entry.LastValue = result;
+                    entry.Evaluated = true;
+                    bodyCompletion.TrySetResult(result);
+                }
+                catch (ThrowSignal signal)
+                {
+                    bodyCompletion.TrySetException(signal);
+                }
+                catch (Exception ex)
+                {
+                    bodyCompletion.TrySetException(ex);
+                }
+                finally
+                {
+                    _currentModulePath = previousModulePath;
+                    entry.Evaluating = false;
+                }
+            });
+
+            return await bodyCompletion.Task.ConfigureAwait(false);
         }
-        finally
+        catch
         {
             entry.Evaluating = false;
+            throw;
         }
     }
 
@@ -3681,6 +3693,10 @@ public sealed class JsEngine : IAsyncDisposable
     {
         try
         {
+            // Capture the epoch before dependency loading - only drain earlier epochs while waiting
+            var moduleEpoch = _microtaskEpoch;
+            var maxDrainEpoch = moduleEpoch - 1;
+
             var pendingAsyncDependencies = new List<Task<object?>>();
             var dependencies = GetModuleDependencies(entry);
             for (var i = 0; i < dependencies.Count; i++)
@@ -3696,7 +3712,7 @@ public sealed class JsEngine : IAsyncDisposable
                                       (dependencies[i + 1].IsAsync || dependencies[i + 1].HasAsyncDependency);
                     if (nextIsAsync)
                     {
-                        await DrainAsyncDependencies(pendingAsyncDependencies).ConfigureAwait(false);
+                        await DrainAsyncDependencies(pendingAsyncDependencies, maxDrainEpoch).ConfigureAwait(false);
                     }
 
                     continue;
@@ -3707,7 +3723,7 @@ public sealed class JsEngine : IAsyncDisposable
 
             if (pendingAsyncDependencies.Count > 0)
             {
-                await DrainAsyncDependencies(pendingAsyncDependencies).ConfigureAwait(false);
+                await DrainAsyncDependencies(pendingAsyncDependencies, maxDrainEpoch).ConfigureAwait(false);
             }
 
             entry.AsyncBodyRunner ??= new AsyncModuleBodyRunner(this, entry);
@@ -3745,7 +3761,10 @@ public sealed class JsEngine : IAsyncDisposable
                 _started = true;
                 _entry.Evaluating = true;
                 _engine.EvaluateRequestedModules(_entry.Program, _entry.Path);
-                Run();
+                // Schedule the initial Run() on the event loop to ensure microtasks
+                // queued during the synchronous portion of the body only run AFTER
+                // that synchronous portion completes (before the first await).
+                _engine.ScheduleTask(Run);
             }
 
             return _completion.Task;

@@ -1638,11 +1638,12 @@ public sealed class JsEnvironment
             return true;
         }
 
-        var visited = new HashSet<IJsPropertyAccessor>(ReferenceEqualityComparer<IJsPropertyAccessor>.Instance);
+        const int maxDepth = 100;
+        var depth = 0;
         IJsPropertyAccessor? prototypeAccessor =
             (target as IPrototypeAccessorProvider)?.PrototypeAccessor ?? target.Prototype;
 
-        while (prototypeAccessor is not null && visited.Add(prototypeAccessor))
+        while (prototypeAccessor is not null && depth++ < maxDepth)
         {
             if (prototypeAccessor is JsObject protoObj)
             {

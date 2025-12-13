@@ -874,55 +874,33 @@ namespace Asynkron.JsEngine.JsTypes;
     }
 
     /// <summary>
-    /// Gets the next JsObject in the prototype chain, or null if there is none or it's not a JsObject.
+    /// Walks the prototype chain to check if a property exists.
+    /// Uses a simple depth limit instead of HashSet allocation since prototype
+    /// cycles should never exist in a correctly functioning engine.
     /// </summary>
-    private static JsObject? GetNextPrototype(JsObject current)
+    private static bool HasPropertyCore(JsObject? current, string name)
     {
-        return current._prototypeAccessor as JsObject;
-    }
+        const int maxDepth = 100; // Prototype chains are typically < 10 deep
+        var depth = 0;
 
-    /// <summary>
-    /// Uses Floyd's cycle detection algorithm (tortoise and hare) to detect cycles
-    /// in the prototype chain without allocating a HashSet.
-    /// </summary>
-    private static bool HasPropertyCore(JsObject current, string name)
-    {
-        // Initialize tortoise and hare at the start
-        var tortoise = current;
-        var hare = current;
-
-        while (tortoise is not null)
+        while (current is not null && depth++ < maxDepth)
         {
-            // Check if the property exists on the current (tortoise) object
-            if (tortoise.GetOwnPropertyDescriptor(name) is not null)
+            if (current.GetOwnPropertyDescriptor(name) is not null)
             {
                 return true;
             }
 
-            // Handle non-JsObject prototypes (fall back to interface call)
-            var prototype = tortoise._prototypeAccessor;
-            if (prototype is not null && prototype is not JsObject)
+            var prototype = current._prototypeAccessor;
+            switch (prototype)
             {
-                return prototype.TryGetProperty(name, out _);
-            }
-
-            // Move tortoise one step
-            tortoise = GetNextPrototype(tortoise);
-
-            // Move hare two steps (if possible)
-            if (hare is not null)
-            {
-                hare = GetNextPrototype(hare);
-                if (hare is not null)
-                {
-                    hare = GetNextPrototype(hare);
-                }
-            }
-
-            // If tortoise and hare meet, we have a cycle - stop to prevent infinite loop
-            if (tortoise is not null && ReferenceEquals(tortoise, hare))
-            {
-                return false;
+                case null:
+                    return false;
+                case JsObject jsProto:
+                    current = jsProto;
+                    continue;
+                default:
+                    // Non-JsObject prototype - delegate to interface
+                    return prototype.TryGetProperty(name, out _);
             }
         }
 
@@ -951,11 +929,11 @@ namespace Asynkron.JsEngine.JsTypes;
 
     public IJsCallable? GetGetter(string name)
     {
+        const int maxDepth = 100;
         var current = this;
-        var visited = ReferenceEqualityComparer.Instance;
-        var seen = new HashSet<JsObject>(visited);
+        var depth = 0;
 
-        while (current is not null && seen.Add(current))
+        while (current is not null && depth++ < maxDepth)
         {
             if (current.TryGetValue(GetterPrefix + name, out var getter) &&
                 getter is IJsCallable callable)
@@ -971,11 +949,11 @@ namespace Asynkron.JsEngine.JsTypes;
 
     public IJsCallable? GetSetter(string name)
     {
+        const int maxDepth = 100;
         var current = this;
-        var visited = ReferenceEqualityComparer.Instance;
-        var seen = new HashSet<JsObject>(visited);
+        var depth = 0;
 
-        while (current is not null && seen.Add(current))
+        while (current is not null && depth++ < maxDepth)
         {
             if (current.TryGetValue(SetterPrefix + name, out var setter) &&
                 setter is IJsCallable callable)
@@ -997,9 +975,10 @@ namespace Asynkron.JsEngine.JsTypes;
     /// </summary>
     private static IJsCallable? FindSetterInPrototypeChain(IJsPropertyAccessor? current, string name)
     {
-        var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        const int maxDepth = 100;
+        var depth = 0;
 
-        while (current is not null && seen.Add(current))
+        while (current is not null && depth++ < maxDepth)
         {
             // Check if this level has an own accessor property with a setter
             var descriptor = current.GetOwnPropertyDescriptor(name);

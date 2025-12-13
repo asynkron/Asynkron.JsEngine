@@ -1794,6 +1794,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     /// <param name="source">The JavaScript source code to execute</param>
     /// <returns>A task that completes when all scheduled events have been processed</returns>
+    [Obsolete("Use Evaluate instead")]
     public async Task<object?> Run(string source)
     {
         // Evaluate the code (uses lazy event loop internally)

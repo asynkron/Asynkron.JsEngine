@@ -454,7 +454,7 @@ public class AdditionalArrayMethodsTests
     public async Task Array_FromAsync_ConsumesAsyncIterables()
     {
         await using var engine = new JsEngine();
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                                      async function* source() {
                                                        yield Promise.resolve(3);
@@ -477,7 +477,7 @@ public class AdditionalArrayMethodsTests
     public async Task Array_FromAsync_AwaitsArrayLikeValues()
     {
         await using var engine = new JsEngine();
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                                      const source = {
                                                        0: Promise.resolve("a"),
@@ -501,7 +501,7 @@ public class AdditionalArrayMethodsTests
     public async Task Array_FromAsync_RejectsWhenArrayLikeLengthIsTooLarge()
     {
         await using var engine = new JsEngine();
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                                      Array.fromAsync.call({}, { length: 4294967296 })
                                                        .then(
@@ -517,7 +517,7 @@ public class AdditionalArrayMethodsTests
     public async Task Array_FromAsync_ClosesIteratorWhenCustomConstructorFailsToDefineElement()
     {
         await using var engine = new JsEngine();
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                                      globalThis.__asyncCtorStatus = "pending";
                                                      globalThis.__asyncCtorClosed = 0;

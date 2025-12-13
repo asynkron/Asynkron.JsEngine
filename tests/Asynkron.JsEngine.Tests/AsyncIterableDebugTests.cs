@@ -23,7 +23,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let result = "";
 
@@ -82,7 +82,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let result = "";
                                      let arr = ["h", "e", "l", "l", "o"];
@@ -142,7 +142,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         // Test that strings have an iterator in the first place
         await using var engine = new JsEngine();
 
-        var result = await engine.Run("""
+        var result = await engine.Evaluate("""
 
                                                   let str = "hello";
                                                   let hasIterator = typeof str[Symbol.iterator] === "function";
@@ -160,7 +160,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         // Test manual iteration over a string
         await using var engine = new JsEngine();
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let str = "hello";
                                      let result = "";
@@ -220,7 +220,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let str = "hello";
                                      let result = "";
@@ -272,7 +272,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let count = 0;
                                      let arr = [1, 2, 3, 4, 5];
@@ -316,7 +316,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let sum = 0;
                                      let arr = [1, 2, 3, 4, 5];
@@ -358,7 +358,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let sum = 0;
 
@@ -404,7 +404,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let count = 0;
                                      let arr = ["a", "b", "c"];
@@ -441,7 +441,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let count = 0;
                                      let arr = [1, 2, 3, 4, 5];

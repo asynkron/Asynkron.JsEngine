@@ -18,7 +18,7 @@ public class AsyncIterableDebugTest(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             log('=== TEST START ===');
 
             let globalIterable = {
@@ -109,7 +109,7 @@ public class AsyncIterableDebugTest(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             log('=== TEST WITH LOCAL COPY ===');
 
             let globalIterable = {

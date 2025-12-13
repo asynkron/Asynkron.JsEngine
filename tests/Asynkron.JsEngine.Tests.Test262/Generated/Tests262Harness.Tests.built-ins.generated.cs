@@ -3,9 +3,9 @@
 //   Generated using the Test262Harness v1.0.3.0
 //   Suite Git SHA: a073f479f80b336256b7fc4e04700c827293e2fe
 //   Suite Directory: 
-//   Template SHA: 43DC8E86CEB9E1C05EBD8D7BE777B29C51633BBF06CA066DD6C994F794C3BF86
+//   Template SHA: B228D6BF94F61A0C58C7F0026A3661E6BF9A4F5BA47041E34AA8E80892E5614C
 //   Command line: /Users/rogerjohansson/.nuget/packages/test262harness.console/1.0.3/tools/net8.0/any/Test262Harness.Console.dll generate
-//   Settings file: /Users/rogerjohansson/git/asynkron/Asynkron.JsEngine/tests/Asynkron.JsEngine.Tests.Test262/Test262Harness.settings.json
+//   Settings file: /Users/rogerjohansson/git/asynkron/JsEngine2/tests/Asynkron.JsEngine.Tests.Test262/Test262Harness.settings.json
 // </auto-generated>
 //----------------------
 
@@ -23374,167 +23374,34 @@ public class BuiltInsTests : Test262Test
         RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/Object/prototype/__defineGetter__/define-abrupt.js", false, Category = "Proxy,__getter__")]
-    [TestCase("built-ins/Object/prototype/__defineGetter__/define-abrupt.js", true, Category = "Proxy,__getter__")]
-    [TestCase("built-ins/Object/prototype/__defineGetter__/define-existing.js", false, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__defineGetter__/define-existing.js", true, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__defineGetter__/define-new.js", false, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__defineGetter__/define-new.js", true, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__defineGetter__/define-non-configurable.js", false, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__defineGetter__/define-non-configurable.js", true, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__defineGetter__/define-non-extensible.js", false, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__defineGetter__/define-non-extensible.js", true, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__defineGetter__/getter-non-callable.js", false, Category = "Symbol,__getter__")]
-    [TestCase("built-ins/Object/prototype/__defineGetter__/getter-non-callable.js", true, Category = "Symbol,__getter__")]
-    [TestCase("built-ins/Object/prototype/__defineGetter__/key-invalid.js", false, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__defineGetter__/key-invalid.js", true, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__defineGetter__/length.js", false, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__defineGetter__/length.js", true, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__defineGetter__/name.js", false, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__defineGetter__/name.js", true, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__defineGetter__/prop-desc.js", false, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__defineGetter__/prop-desc.js", true, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__defineGetter__/this-non-obj.js", false, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__defineGetter__/this-non-obj.js", true, Category = "__getter__")]
-    public void Object_prototype___defineGetter__(string test, bool strict)
+    [Test]
+    [Ignore("Feature __getter__ excluded")]
+    public void Object_prototype___defineGetter__()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/Object/prototype/__defineSetter__/define-abrupt.js", false, Category = "Proxy,__setter__")]
-    [TestCase("built-ins/Object/prototype/__defineSetter__/define-abrupt.js", true, Category = "Proxy,__setter__")]
-    [TestCase("built-ins/Object/prototype/__defineSetter__/define-existing.js", false, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__defineSetter__/define-existing.js", true, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__defineSetter__/define-new.js", false, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__defineSetter__/define-new.js", true, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__defineSetter__/define-non-configurable.js", false, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__defineSetter__/define-non-configurable.js", true, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__defineSetter__/define-non-extensible.js", false, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__defineSetter__/define-non-extensible.js", true, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__defineSetter__/key-invalid.js", false, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__defineSetter__/key-invalid.js", true, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__defineSetter__/length.js", false, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__defineSetter__/length.js", true, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__defineSetter__/name.js", false, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__defineSetter__/name.js", true, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__defineSetter__/prop-desc.js", false, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__defineSetter__/prop-desc.js", true, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__defineSetter__/setter-non-callable.js", false, Category = "Symbol,__setter__")]
-    [TestCase("built-ins/Object/prototype/__defineSetter__/setter-non-callable.js", true, Category = "Symbol,__setter__")]
-    [TestCase("built-ins/Object/prototype/__defineSetter__/this-non-obj.js", false, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__defineSetter__/this-non-obj.js", true, Category = "__setter__")]
-    public void Object_prototype___defineSetter__(string test, bool strict)
+    [Test]
+    [Ignore("Feature __setter__ excluded")]
+    public void Object_prototype___defineSetter__()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/key-invalid.js", false, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/key-invalid.js", true, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/length.js", false, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/length.js", true, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/lookup-not-found.js", false, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/lookup-not-found.js", true, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/lookup-own-acsr-w-getter.js", false, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/lookup-own-acsr-w-getter.js", true, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/lookup-own-acsr-wo-getter.js", false, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/lookup-own-acsr-wo-getter.js", true, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/lookup-own-data.js", false, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/lookup-own-data.js", true, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/lookup-own-get-err.js", false, Category = "Proxy,__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/lookup-own-get-err.js", true, Category = "Proxy,__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/lookup-own-proto-err.js", false, Category = "Proxy,__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/lookup-own-proto-err.js", true, Category = "Proxy,__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/lookup-proto-acsr-w-getter.js", false, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/lookup-proto-acsr-w-getter.js", true, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/lookup-proto-acsr-wo-getter.js", false, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/lookup-proto-acsr-wo-getter.js", true, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/lookup-proto-data.js", false, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/lookup-proto-data.js", true, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/lookup-proto-get-err.js", false, Category = "Proxy,__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/lookup-proto-get-err.js", true, Category = "Proxy,__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/lookup-proto-proto-err.js", false, Category = "Proxy,__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/lookup-proto-proto-err.js", true, Category = "Proxy,__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/name.js", false, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/name.js", true, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/prop-desc.js", false, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/prop-desc.js", true, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/this-non-obj.js", false, Category = "__getter__")]
-    [TestCase("built-ins/Object/prototype/__lookupGetter__/this-non-obj.js", true, Category = "__getter__")]
-    public void Object_prototype___lookupGetter__(string test, bool strict)
+    [Test]
+    [Ignore("Feature __getter__ excluded")]
+    public void Object_prototype___lookupGetter__()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/key-invalid.js", false, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/key-invalid.js", true, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/length.js", false, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/length.js", true, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/lookup-not-found.js", false, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/lookup-not-found.js", true, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/lookup-own-acsr-w-setter.js", false, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/lookup-own-acsr-w-setter.js", true, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/lookup-own-acsr-wo-setter.js", false, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/lookup-own-acsr-wo-setter.js", true, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/lookup-own-data.js", false, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/lookup-own-data.js", true, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/lookup-own-get-err.js", false, Category = "Proxy,__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/lookup-own-get-err.js", true, Category = "Proxy,__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/lookup-own-proto-err.js", false, Category = "Proxy,__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/lookup-own-proto-err.js", true, Category = "Proxy,__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/lookup-proto-acsr-w-setter.js", false, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/lookup-proto-acsr-w-setter.js", true, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/lookup-proto-acsr-wo-setter.js", false, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/lookup-proto-acsr-wo-setter.js", true, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/lookup-proto-data.js", false, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/lookup-proto-data.js", true, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/lookup-proto-get-err.js", false, Category = "Proxy,__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/lookup-proto-get-err.js", true, Category = "Proxy,__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/lookup-proto-proto-err.js", false, Category = "Proxy,__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/lookup-proto-proto-err.js", true, Category = "Proxy,__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/name.js", false, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/name.js", true, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/prop-desc.js", false, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/prop-desc.js", true, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/this-non-obj.js", false, Category = "__setter__")]
-    [TestCase("built-ins/Object/prototype/__lookupSetter__/this-non-obj.js", true, Category = "__setter__")]
-    public void Object_prototype___lookupSetter__(string test, bool strict)
+    [Test]
+    [Ignore("Feature __setter__ excluded")]
+    public void Object_prototype___lookupSetter__()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/Object/prototype/__proto__/get-abrupt.js", false, Category = "Proxy,__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/get-abrupt.js", true, Category = "Proxy,__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/get-fn-name.js", false, Category = "__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/get-fn-name.js", true, Category = "__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/get-ordinary-obj.js", false, Category = "__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/get-ordinary-obj.js", true, Category = "__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/get-to-obj-abrupt.js", false, Category = "__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/get-to-obj-abrupt.js", true, Category = "__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/prop-desc.js", false, Category = "__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/prop-desc.js", true, Category = "__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/set-abrupt.js", false, Category = "Proxy,__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/set-abrupt.js", true, Category = "Proxy,__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/set-cycle-shadowed.js", false, Category = "__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/set-cycle-shadowed.js", true, Category = "__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/set-cycle.js", false, Category = "__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/set-cycle.js", true, Category = "__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/set-fn-name.js", false, Category = "__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/set-fn-name.js", true, Category = "__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/set-immutable.js", false, Category = "__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/set-immutable.js", true, Category = "__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/set-invalid-value.js", false, Category = "Symbol,__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/set-invalid-value.js", true, Category = "Symbol,__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/set-non-extensible.js", false, Category = "__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/set-non-extensible.js", true, Category = "__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/set-non-obj-coercible.js", false, Category = "__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/set-non-obj-coercible.js", true, Category = "__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/set-non-object.js", false, Category = "Symbol,__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/set-non-object.js", true, Category = "Symbol,__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/set-ordinary-obj.js", false, Category = "__proto__")]
-    [TestCase("built-ins/Object/prototype/__proto__/set-ordinary-obj.js", true, Category = "__proto__")]
-    public void Object_prototype___proto__(string test, bool strict)
+    [Test]
+    [Ignore("Feature __proto__ excluded")]
+    public void Object_prototype___proto__()
     {
-        RunTestCode(test, strict);
     }
 
     [TestCase("built-ins/Object/prototype/constructor/S15.2.4.1_A1_T1.js", false)]
@@ -26309,8 +26176,8 @@ public class BuiltInsTests : Test262Test
     [TestCase("built-ins/Proxy/set/boolean-trap-result-is-false-string-return-false.js", true, Category = "Proxy,Reflect,Reflect.set")]
     [TestCase("built-ins/Proxy/set/boolean-trap-result-is-false-undefined-return-false.js", false, Category = "Proxy,Reflect,Reflect.set")]
     [TestCase("built-ins/Proxy/set/boolean-trap-result-is-false-undefined-return-false.js", true, Category = "Proxy,Reflect,Reflect.set")]
-    [TestCase("built-ins/Proxy/set/call-parameters-prototype-dunder-proto.js", false, Category = "Proxy,__proto__")]
-    [TestCase("built-ins/Proxy/set/call-parameters-prototype-dunder-proto.js", true, Category = "Proxy,__proto__")]
+    [TestCase("built-ins/Proxy/set/call-parameters-prototype-dunder-proto.js", false, Category = "Proxy,__proto__", IgnoreReason = "Feature __proto__ excluded")]
+    [TestCase("built-ins/Proxy/set/call-parameters-prototype-dunder-proto.js", true, Category = "Proxy,__proto__", IgnoreReason = "Feature __proto__ excluded")]
     [TestCase("built-ins/Proxy/set/call-parameters-prototype-index.js", false, Category = "Proxy")]
     [TestCase("built-ins/Proxy/set/call-parameters-prototype-index.js", true, Category = "Proxy")]
     [TestCase("built-ins/Proxy/set/call-parameters-prototype.js", false, Category = "Proxy")]

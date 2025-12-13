@@ -13,7 +13,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let result = "";
                                      let promises = [
@@ -42,7 +42,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
     {
         await using var engine = new JsEngine();
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let result = "";
                                      let arr = ["a", "b", "c"];
@@ -73,7 +73,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let sum = 0;
 
@@ -111,7 +111,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
     {
         await using var engine = new JsEngine();
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let result = "";
 
@@ -141,7 +141,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let count = 0;
                                      let arr = [1, 2, 3, 4, 5];
@@ -184,7 +184,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let sum = 0;
                                      let arr = [1, 2, 3, 4, 5];
@@ -239,7 +239,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
     {
         await using var engine = new JsEngine();
 
-        var result = await engine.Run("""
+        var result = await engine.Evaluate("""
 
                                                   typeof Symbol.asyncIterator;
 
@@ -258,7 +258,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let result = "";
 
@@ -293,7 +293,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let log = [];
 
@@ -327,7 +327,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let result = "";
 
@@ -370,7 +370,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
         // This test shows that Symbol.asyncIterator works when it returns synchronous values
         await using var engine = new JsEngine();
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let result = "";
 
@@ -425,7 +425,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let asyncIterable = {
                                          [Symbol.asyncIterator]() {
@@ -494,7 +494,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let syncIterable = {
                                          [Symbol.iterator]() {
@@ -550,7 +550,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let result = "";
                                      let promises = [
@@ -608,7 +608,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
         // Test for-await-of with __debug() to inspect state during iteration
         await using var engine = new JsEngine();
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let result = "";
                                      let arr = ["x", "y", "z"];

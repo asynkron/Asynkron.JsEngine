@@ -563,7 +563,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let result = "";
                                      import("dynamic.js").then(function(module) {
@@ -600,7 +600,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      async function calculate() {
                                          let calc = await import("calculator.js");
@@ -639,7 +639,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let value = 0;
                                      import("counter.js").then(function(module) {
@@ -675,7 +675,7 @@ public class ModuleTests
             throw new FileNotFoundException($"Module not found: {modulePath}");
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let first = 0;
                                      let second = 0;
@@ -705,7 +705,7 @@ public class ModuleTests
 
         engine.SetModuleLoader(modulePath => { throw new FileNotFoundException($"Module not found: {modulePath}"); });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let errorCaught = false;
                                      import("nonexistent.js")["catch"](function(error) {

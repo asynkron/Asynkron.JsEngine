@@ -18,7 +18,7 @@ public class IteratorIncrementTest(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let arr = ["a", "b", "c"];
                                      let iterator = arr[Symbol.iterator]();

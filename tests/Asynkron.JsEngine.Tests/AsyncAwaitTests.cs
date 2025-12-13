@@ -93,7 +93,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      async function test() {
                                          return 42;
@@ -125,7 +125,7 @@ public class AsyncAwaitTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
             async function test() {
                 let p = new Promise(function(resolve) {
                     setTimeout(function() { resolve(42); }, 10);
@@ -156,7 +156,7 @@ public class AsyncAwaitTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
             function delay(value) {
                 return new Promise(function(resolve) {
                     setTimeout(function() { resolve(value); }, 10);
@@ -190,7 +190,7 @@ public class AsyncAwaitTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
             function delay(value) {
                 return new Promise(function(resolve) {
                     setTimeout(function() { resolve(value); }, 10);
@@ -222,7 +222,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      async function test() {
                                          throw "error";
@@ -256,7 +256,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      async function test() {
                                          try {
@@ -294,7 +294,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      async function getNumber() {
                                          return 10;
@@ -338,7 +338,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let test = async function() {
                                          return 42;
@@ -442,7 +442,7 @@ public class AsyncAwaitTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
             function delay(value) {
                 return new Promise(function(resolve) {
                     setTimeout(function() { resolve(value); }, 10);
@@ -476,7 +476,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      async function test() {
                                          return null;
@@ -506,7 +506,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      async function test() {
                                          // No return statement
@@ -540,7 +540,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      async function test() {
                                          let p = new Promise(function(resolve) {
@@ -580,7 +580,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      async function test() {
                                          let p1 = new Promise(function(resolve) {
@@ -628,7 +628,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      function delayedValue(value, delay) {
                                          return new Promise(function(resolve) {
@@ -673,7 +673,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      function delayedValue(value, delay) {
                                          return new Promise(function(resolve) {
@@ -720,7 +720,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      function delay(value, ms) {
                                          return new Promise(function(resolve) {
@@ -769,7 +769,7 @@ public class AsyncAwaitTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
             function bar() {
                 return new Promise(function(resolve) {
                     setTimeout(function() { resolve(10); }, 10);

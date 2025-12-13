@@ -3,9 +3,9 @@
 //   Generated using the Test262Harness v1.0.3.0
 //   Suite Git SHA: a073f479f80b336256b7fc4e04700c827293e2fe
 //   Suite Directory: 
-//   Template SHA: 43DC8E86CEB9E1C05EBD8D7BE777B29C51633BBF06CA066DD6C994F794C3BF86
+//   Template SHA: B228D6BF94F61A0C58C7F0026A3661E6BF9A4F5BA47041E34AA8E80892E5614C
 //   Command line: /Users/rogerjohansson/.nuget/packages/test262harness.console/1.0.3/tools/net8.0/any/Test262Harness.Console.dll generate
-//   Settings file: /Users/rogerjohansson/git/asynkron/Asynkron.JsEngine/tests/Asynkron.JsEngine.Tests.Test262/Test262Harness.settings.json
+//   Settings file: /Users/rogerjohansson/git/asynkron/JsEngine2/tests/Asynkron.JsEngine.Tests.Test262/Test262Harness.settings.json
 // </auto-generated>
 //----------------------
 
@@ -6598,8 +6598,8 @@ public class LanguageTests : Test262Test
     [TestCase("language/expressions/class/params-dflt-meth-static-args-unmapped.js", true, Category = "default-parameters")]
     [TestCase("language/expressions/class/params-dflt-meth-static-ref-arguments.js", false, Category = "default-parameters")]
     [TestCase("language/expressions/class/params-dflt-meth-static-ref-arguments.js", true, Category = "default-parameters")]
-    [TestCase("language/expressions/class/poisoned-underscore-proto.js", false, Category = "class,__proto__")]
-    [TestCase("language/expressions/class/poisoned-underscore-proto.js", true, Category = "class,__proto__")]
+    [TestCase("language/expressions/class/poisoned-underscore-proto.js", false, Category = "class,__proto__", IgnoreReason = "Feature __proto__ excluded")]
+    [TestCase("language/expressions/class/poisoned-underscore-proto.js", true, Category = "class,__proto__", IgnoreReason = "Feature __proto__ excluded")]
     [TestCase("language/expressions/class/private-getter-brand-check-multiple-evaluations-of-class-eval-indirect.js", false, Category = "class,class-methods-private,noStrict")]
     [TestCase("language/expressions/class/private-getter-brand-check-multiple-evaluations-of-class-eval.js", false, Category = "class,class-methods-private,noStrict")]
     [TestCase("language/expressions/class/private-getter-brand-check-multiple-evaluations-of-class-factory.js", false, Category = "class,class-methods-private")]
@@ -20015,8 +20015,8 @@ public class LanguageTests : Test262Test
     [TestCase("language/expressions/object/__proto__-fn-name.js", true)]
     [TestCase("language/expressions/object/__proto__-permitted-dup-shorthand.js", false)]
     [TestCase("language/expressions/object/__proto__-permitted-dup-shorthand.js", true)]
-    [TestCase("language/expressions/object/__proto__-permitted-dup.js", false, Category = "generators,async-functions,async-iteration,__proto__")]
-    [TestCase("language/expressions/object/__proto__-permitted-dup.js", true, Category = "generators,async-functions,async-iteration,__proto__")]
+    [TestCase("language/expressions/object/__proto__-permitted-dup.js", false, Category = "generators,async-functions,async-iteration,__proto__", IgnoreReason = "Feature __proto__ excluded")]
+    [TestCase("language/expressions/object/__proto__-permitted-dup.js", true, Category = "generators,async-functions,async-iteration,__proto__", IgnoreReason = "Feature __proto__ excluded")]
     [TestCase("language/expressions/object/__proto__-poisoned-object-prototype.js", false)]
     [TestCase("language/expressions/object/__proto__-poisoned-object-prototype.js", true)]
     [TestCase("language/expressions/object/__proto__-value-non-object.js", false, Category = "Symbol")]

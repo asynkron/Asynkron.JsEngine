@@ -14,7 +14,7 @@ public class TimerTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      setTimeout(callback, 10);
 
@@ -28,7 +28,7 @@ public class TimerTests
     {
         await using var engine = new JsEngine();
 
-        var result = await engine.Run("""
+        var result = await engine.Evaluate("""
 
                                                   let timerId = setTimeout(function() {}, 100);
                                                   timerId;
@@ -51,7 +51,7 @@ public class TimerTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let timerId = setTimeout(callback, 10);
                                      clearTimeout(timerId);
@@ -78,7 +78,7 @@ public class TimerTests
 
         engine.SetGlobalFunction("getCount", _ => count);
 
-        var result = await engine.Run("""
+        var result = await engine.Evaluate("""
 
                                                   let timerId = setInterval(callback, 20);
                                                   setTimeout(function() {
@@ -104,7 +104,7 @@ public class TimerTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let timerId = setInterval(callback, 10);
                                      clearInterval(timerId);
@@ -135,7 +135,7 @@ public class TimerTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      addToOrder("start");
                                      setTimeout(function() {
@@ -164,7 +164,7 @@ public class TimerTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let message = "Hello from closure";
                                      setTimeout(function() {

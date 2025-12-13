@@ -9,7 +9,7 @@ public class AsyncLoopTests
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let result = "";
 
@@ -38,7 +38,7 @@ public class AsyncLoopTests
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let result = "";
                                      let i = 0;

@@ -14,7 +14,15 @@
     "promise-try",
     "RegExp.escape",
     "uint8array-base64",
-    "import-attributes"
+    "import-attributes",
+    "annexB-legacy-octal",
+    "annexB-octal-escape",
+    "annexB-block-function",
+    "annexB-function-declarations-in-if-statement-clauses",
+    "__proto__",
+    "__getter__",
+    "__setter__",
+    "legacy-regexp"
   ],
   "ExcludedFlags": [
 

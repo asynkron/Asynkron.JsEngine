@@ -20,7 +20,7 @@ public class ManualTransformTest(ITestOutputHelper output)
         });
 
         // This is what the transformation SHOULD create
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let result = "";
                                      let arr = ["x"];

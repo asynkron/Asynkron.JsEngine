@@ -162,7 +162,7 @@ public class GetPropertyNameTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
             var obj = {
                 get: async function get() {
                     return 42;
@@ -185,7 +185,7 @@ public class GetPropertyNameTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
             var obj = {
                 set: async function set(val) {
                     return val * 2;

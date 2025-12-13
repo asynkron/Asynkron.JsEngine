@@ -10,6 +10,10 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment,
             EvaluationContext context)
         {
+            if (context.AllowIdentifierCache)
+            {
+                context.AllowIdentifierCache = AllowsIdentifierCaching(block);
+            }
             var hoistPlan = ((IAstCacheable<HoistPlan>)block).GetOrCreateCache();
 
             // Fast path: if the block has no lexical/function decls, execute directly in the incoming environment

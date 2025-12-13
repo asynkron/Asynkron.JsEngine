@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 
@@ -11,6 +12,11 @@ public static partial class TypedAstEvaluator
             Symbol? loopLabel)
         {
             object? lastValue = Symbol.Undefined;
+
+            if (context.AllowIdentifierCache && plan.LoopPlanHasDynamicScope())
+            {
+                context.AllowIdentifierCache = false;
+            }
 
             if (!plan.LeadingStatements.IsDefaultOrEmpty)
             {
@@ -248,6 +254,39 @@ public static partial class TypedAstEvaluator
             }
 
             return true;
+        }
+
+        private bool LoopPlanHasDynamicScope()
+        {
+            if (!AllowsIdentifierCaching(plan.Body))
+            {
+                return true;
+            }
+
+            if (StatementsContainDynamicScope(plan.LeadingStatements) ||
+                StatementsContainDynamicScope(plan.ConditionPrologue) ||
+                StatementsContainDynamicScope(plan.PostIteration))
+            {
+                return true;
+            }
+
+            if (plan.Condition is not null && ContainsDirectEval(plan.Condition))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool StatementsContainDynamicScope(ImmutableArray<StatementNode> statements)
+        {
+            if (statements.IsDefaultOrEmpty)
+            {
+                return false;
+            }
+
+            var synthetic = new BlockStatement(null, statements, false);
+            return ContainsWithOrDirectEval(synthetic);
         }
     }
 }

@@ -17,7 +17,7 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        return !ContainsWithOrDirectEval(function.Body);
+        return AllowsIdentifierCaching(function.Body);
     }
 
     /// <summary>
@@ -27,6 +27,14 @@ public static partial class TypedAstEvaluator
     internal static bool AllowsIdentifierCaching(ProgramNode program)
     {
         var block = new BlockStatement(program.Source, program.Body, program.IsStrict);
+        return AllowsIdentifierCaching(block);
+    }
+
+    /// <summary>
+    /// Determines whether a block is free of dynamic scope features (with/direct eval).
+    /// </summary>
+    internal static bool AllowsIdentifierCaching(BlockStatement block)
+    {
         return !ContainsWithOrDirectEval(block);
     }
 
@@ -50,6 +58,11 @@ public static partial class TypedAstEvaluator
 
     private static bool ContainsWithOrDirectEval(BlockStatement block)
     {
+        if (block.TryGetContainsDynamicScope(out var cached))
+        {
+            return cached;
+        }
+
         var work = new Stack<StatementNode>();
         work.Push(block);
 
@@ -59,6 +72,7 @@ public static partial class TypedAstEvaluator
             switch (statement)
             {
                 case WithStatement:
+                    block.CacheContainsDynamicScope(true);
                     return true;
                 case BlockStatement innerBlock:
                     foreach (var inner in innerBlock.Statements)
@@ -70,6 +84,7 @@ public static partial class TypedAstEvaluator
                 case ExpressionStatement expressionStatement:
                     if (ContainsDirectEval(expressionStatement.Expression))
                     {
+                        block.CacheContainsDynamicScope(true);
                         return true;
                     }
 
@@ -78,6 +93,7 @@ public static partial class TypedAstEvaluator
                     if (returnStatement.Expression is not null &&
                         ContainsDirectEval(returnStatement.Expression))
                     {
+                        block.CacheContainsDynamicScope(true);
                         return true;
                     }
 
@@ -85,6 +101,7 @@ public static partial class TypedAstEvaluator
                 case ThrowStatement throwStatement:
                     if (ContainsDirectEval(throwStatement.Expression))
                     {
+                        block.CacheContainsDynamicScope(true);
                         return true;
                     }
 
@@ -94,12 +111,14 @@ public static partial class TypedAstEvaluator
                     {
                         if (ContainsDirectEval(declarator.Target))
                         {
+                            block.CacheContainsDynamicScope(true);
                             return true;
                         }
 
                         if (declarator.Initializer is not null &&
                             ContainsDirectEval(declarator.Initializer))
                         {
+                            block.CacheContainsDynamicScope(true);
                             return true;
                         }
                     }
@@ -108,6 +127,7 @@ public static partial class TypedAstEvaluator
                 case IfStatement ifStatement:
                     if (ContainsDirectEval(ifStatement.Condition))
                     {
+                        block.CacheContainsDynamicScope(true);
                         return true;
                     }
 
@@ -121,6 +141,7 @@ public static partial class TypedAstEvaluator
                 case WhileStatement whileStatement:
                     if (ContainsDirectEval(whileStatement.Condition))
                     {
+                        block.CacheContainsDynamicScope(true);
                         return true;
                     }
 
@@ -129,6 +150,7 @@ public static partial class TypedAstEvaluator
                 case DoWhileStatement doWhileStatement:
                     if (ContainsDirectEval(doWhileStatement.Condition))
                     {
+                        block.CacheContainsDynamicScope(true);
                         return true;
                     }
 
@@ -143,12 +165,14 @@ public static partial class TypedAstEvaluator
                     if (forStatement.Condition is not null &&
                         ContainsDirectEval(forStatement.Condition))
                     {
+                        block.CacheContainsDynamicScope(true);
                         return true;
                     }
 
                     if (forStatement.Increment is not null &&
                         ContainsDirectEval(forStatement.Increment))
                     {
+                        block.CacheContainsDynamicScope(true);
                         return true;
                     }
 
@@ -158,6 +182,7 @@ public static partial class TypedAstEvaluator
                     if (ContainsDirectEval(forEachStatement.Target) ||
                         ContainsDirectEval(forEachStatement.Iterable))
                     {
+                        block.CacheContainsDynamicScope(true);
                         return true;
                     }
 
@@ -172,6 +197,7 @@ public static partial class TypedAstEvaluator
                     {
                         if (catchClause.Binding is not null && ContainsDirectEval(catchClause.Binding))
                         {
+                            block.CacheContainsDynamicScope(true);
                             return true;
                         }
 
@@ -187,6 +213,7 @@ public static partial class TypedAstEvaluator
                 case SwitchStatement switchStatement:
                     if (ContainsDirectEval(switchStatement.Discriminant))
                     {
+                        block.CacheContainsDynamicScope(true);
                         return true;
                     }
 
@@ -194,6 +221,7 @@ public static partial class TypedAstEvaluator
                     {
                         if (switchCase.Test is not null && ContainsDirectEval(switchCase.Test))
                         {
+                            block.CacheContainsDynamicScope(true);
                             return true;
                         }
 
@@ -205,6 +233,7 @@ public static partial class TypedAstEvaluator
                     if (classDeclaration.Definition.Extends is not null &&
                         ContainsDirectEval(classDeclaration.Definition.Extends))
                     {
+                        block.CacheContainsDynamicScope(true);
                         return true;
                     }
 
@@ -213,6 +242,7 @@ public static partial class TypedAstEvaluator
                         if (member.ComputedName is not null &&
                             ContainsDirectEval(member.ComputedName))
                         {
+                            block.CacheContainsDynamicScope(true);
                             return true;
                         }
                     }
@@ -222,12 +252,14 @@ public static partial class TypedAstEvaluator
                         if (field.ComputedName is not null &&
                             ContainsDirectEval(field.ComputedName))
                         {
+                            block.CacheContainsDynamicScope(true);
                             return true;
                         }
 
                         if (field.Initializer is not null &&
                             ContainsDirectEval(field.Initializer))
                         {
+                            block.CacheContainsDynamicScope(true);
                             return true;
                         }
                     }
@@ -236,6 +268,7 @@ public static partial class TypedAstEvaluator
                     {
                         if (ContainsWithOrDirectEval(staticBlock.Body))
                         {
+                            block.CacheContainsDynamicScope(true);
                             return true;
                         }
                     }
@@ -247,6 +280,7 @@ public static partial class TypedAstEvaluator
                         case ExportDefaultExpression exportExpression:
                             if (ContainsDirectEval(exportExpression.Expression))
                             {
+                                block.CacheContainsDynamicScope(true);
                                 return true;
                             }
 
@@ -274,6 +308,7 @@ public static partial class TypedAstEvaluator
             }
         }
 
+        block.CacheContainsDynamicScope(false);
         return false;
     }
 

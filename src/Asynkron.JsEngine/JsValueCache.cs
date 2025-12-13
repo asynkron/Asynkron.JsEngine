@@ -4,6 +4,51 @@ using System.Runtime.CompilerServices;
 namespace Asynkron.JsEngine;
 
 /// <summary>
+/// A fast, lock-free object pool using a fixed-size array.
+/// Uses Interlocked operations for thread-safety with minimal contention.
+/// </summary>
+internal sealed class ObjectPool<T> where T : class
+{
+    private readonly T?[] _items;
+    private readonly Func<T> _factory;
+
+    public ObjectPool(int size, Func<T> factory)
+    {
+        _items = new T?[size];
+        _factory = factory;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public T Rent()
+    {
+        var items = _items;
+        for (var i = 0; i < items.Length; i++)
+        {
+            var item = items[i];
+            if (item is not null && Interlocked.CompareExchange(ref items[i], null, item) == item)
+            {
+                return item;
+            }
+        }
+        return _factory();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Return(T item)
+    {
+        var items = _items;
+        for (var i = 0; i < items.Length; i++)
+        {
+            if (items[i] is null && Interlocked.CompareExchange(ref items[i], item, null) is null)
+            {
+                return;
+            }
+        }
+        // Pool full, item will be GC'd
+    }
+}
+
+/// <summary>
 /// Provides caching for common JavaScript values and pooling for argument arrays.
 /// This reduces allocations in hot paths like function calls.
 /// </summary>
@@ -50,12 +95,13 @@ public static class JsValueCache
     public static readonly object BoxedPositiveInfinity;
     public static readonly object BoxedNegativeInfinity;
 
-    // Argument array pools (separate pools for different sizes like Jint)
-    private const int PoolSize = 16;
-    private static readonly ConcurrentBag<object?[]> Pool1 = new();
-    private static readonly ConcurrentBag<object?[]> Pool2 = new();
-    private static readonly ConcurrentBag<object?[]> Pool3 = new();
-    private static readonly ConcurrentBag<object?[]> Pool4 = new();
+    // Argument array pools - 15 cached arrays per size (matches Jint's approach)
+    // Most function calls have 0-3 arguments, so we optimize heavily for these cases
+    private const int PoolSize = 15;
+    private static readonly ObjectPool<object?[]> Pool1 = new(PoolSize, static () => new object?[1]);
+    private static readonly ObjectPool<object?[]> Pool2 = new(PoolSize, static () => new object?[2]);
+    private static readonly ObjectPool<object?[]> Pool3 = new(PoolSize, static () => new object?[3]);
+    private static readonly ObjectPool<object?[]> Pool4 = new(PoolSize, static () => new object?[4]);
 
     static JsValueCache()
     {
@@ -199,51 +245,58 @@ public static class JsValueCache
 
     /// <summary>
     /// Rents an argument array of the specified size from the pool.
+    /// Uses lock-free pooling for sizes 1-4 with 15 cached arrays per size.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static object?[] RentArgumentArray(int size)
     {
-        var pool = size switch
+        return size switch
         {
-            1 => Pool1,
-            2 => Pool2,
-            3 => Pool3,
-            4 => Pool4,
-            _ => null
+            0 => [],
+            1 => Pool1.Rent(),
+            2 => Pool2.Rent(),
+            3 => Pool3.Rent(),
+            4 => Pool4.Rent(),
+            _ => new object?[size]
         };
-
-        if (pool is not null && pool.TryTake(out var array))
-        {
-            return array;
-        }
-
-        return new object?[size];
     }
 
     /// <summary>
     /// Returns an argument array to the pool. Arrays larger than 4 are not pooled.
+    /// Clears array contents before returning to allow GC of referenced objects.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ReturnArgumentArray(object?[] array)
     {
-        var pool = array.Length switch
-        {
-            1 => Pool1,
-            2 => Pool2,
-            3 => Pool3,
-            4 => Pool4,
-            _ => null
-        };
-
-        if (pool is null) return;
+        var length = array.Length;
+        if (length == 0 || length > 4) return;
 
         // Clear references to allow GC of contained objects
-        Array.Clear(array);
-
-        // Don't let pool grow unbounded
-        if (pool.Count < PoolSize)
+        // Use explicit assignments for small arrays to avoid Array.Clear overhead
+        switch (length)
         {
-            pool.Add(array);
+            case 1:
+                array[0] = null;
+                Pool1.Return(array);
+                break;
+            case 2:
+                array[0] = null;
+                array[1] = null;
+                Pool2.Return(array);
+                break;
+            case 3:
+                array[0] = null;
+                array[1] = null;
+                array[2] = null;
+                Pool3.Return(array);
+                break;
+            case 4:
+                array[0] = null;
+                array[1] = null;
+                array[2] = null;
+                array[3] = null;
+                Pool4.Return(array);
+                break;
         }
     }
 

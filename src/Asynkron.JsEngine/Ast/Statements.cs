@@ -13,6 +13,7 @@ public sealed record BlockStatement(SourceReference? Source, ImmutableArray<Stat
 {
     private HoistPlan? _cachedHoistPlan;
     private int _containsInnerFunctionCache = -1; // -1 unknown, 0 false, 1 true
+    private int _containsDynamicScopeCache = -1; // -1 unknown, 0 false, 1 true
 
     HoistPlan IAstCacheable<HoistPlan>.GetOrCreateCache()
     {
@@ -36,6 +37,25 @@ public sealed record BlockStatement(SourceReference? Source, ImmutableArray<Stat
     {
         var value = contains ? 1 : 0;
         _ = Interlocked.CompareExchange(ref _containsInnerFunctionCache, value, -1);
+    }
+
+    internal bool TryGetContainsDynamicScope(out bool contains)
+    {
+        var value = Volatile.Read(ref _containsDynamicScopeCache);
+        if (value == -1)
+        {
+            contains = default;
+            return false;
+        }
+
+        contains = value == 1;
+        return true;
+    }
+
+    internal void CacheContainsDynamicScope(bool contains)
+    {
+        var value = contains ? 1 : 0;
+        _ = Interlocked.CompareExchange(ref _containsDynamicScopeCache, value, -1);
     }
 }
 

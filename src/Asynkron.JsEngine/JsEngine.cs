@@ -3646,41 +3646,34 @@ public sealed class JsEngine : IAsyncDisposable
                 await DrainAsyncDependencies(pendingAsyncDependencies, maxDrainEpoch).ConfigureAwait(false);
             }
 
-            // Schedule the module body execution as an event loop task.
-            // This ensures microtasks queued during the body only run AFTER the body completes,
-            // which is the correct ES semantics for synchronous module bodies.
-            var bodyCompletion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-            ScheduleTask(() =>
-            {
-                var previousModulePath = _currentModulePath;
-                _currentModulePath = entry.Path;
-                try
-                {
-                    var result = ExecuteModuleBody(
-                        entry.Program,
-                        entry.Environment,
-                        entry.Exports,
-                        entry.Path);
-                    entry.LastValue = result;
-                    entry.Evaluated = true;
-                    bodyCompletion.TrySetResult(result);
-                }
-                catch (ThrowSignal signal)
-                {
-                    bodyCompletion.TrySetException(signal);
-                }
-                catch (Exception ex)
-                {
-                    bodyCompletion.TrySetException(ex);
-                }
-                finally
-                {
-                    _currentModulePath = previousModulePath;
-                    entry.Evaluating = false;
-                }
-            });
+            // Advance the epoch before executing the body. Any microtasks queued during body
+            // execution will be in this new epoch and won't be drained until we explicitly
+            // drain them after the body completes.
+            AdvanceMicrotaskEpoch();
+            var bodyEpoch = _microtaskEpoch;
 
-            return await bodyCompletion.Task.ConfigureAwait(false);
+            var previousModulePath = _currentModulePath;
+            _currentModulePath = entry.Path;
+            try
+            {
+                var result = ExecuteModuleBody(
+                    entry.Program,
+                    entry.Environment,
+                    entry.Exports,
+                    entry.Path);
+                entry.LastValue = result;
+                entry.Evaluated = true;
+
+                // Now drain microtasks that were queued during the body execution
+                DrainMicrotasks(bodyEpoch);
+
+                return result;
+            }
+            finally
+            {
+                _currentModulePath = previousModulePath;
+                entry.Evaluating = false;
+            }
         }
         catch
         {
@@ -3761,10 +3754,10 @@ public sealed class JsEngine : IAsyncDisposable
                 _started = true;
                 _entry.Evaluating = true;
                 _engine.EvaluateRequestedModules(_entry.Program, _entry.Path);
-                // Schedule the initial Run() on the event loop to ensure microtasks
-                // queued during the synchronous portion of the body only run AFTER
-                // that synchronous portion completes (before the first await).
-                _engine.ScheduleTask(Run);
+                // Execute Run() directly. The microtask epoch mechanism handles ensuring
+                // that microtasks queued during the synchronous portion are only drained
+                // after that portion completes.
+                Run();
             }
 
             return _completion.Task;

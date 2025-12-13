@@ -16,7 +16,8 @@ public static partial class TypedAstEvaluator
         private object? EvaluateCall(JsEnvironment environment, EvaluationContext context)
         {
             // Fast-path for plain Map/Set method calls - bypasses prototype lookup and host function machinery
-            if (TryFastPathMapSetCall(expression, environment, context, out var fastResult))
+            // DISABLED: Fast path disabled for debugging test failures
+            if (false && TryFastPathMapSetCall(expression, environment, context, out var fastResult))
             {
                 return fastResult;
             }

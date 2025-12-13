@@ -420,7 +420,8 @@ public static partial class TypedAstEvaluator
             // Fast-path for simple functions (no async, no defaults, no lexical declarations)
             // Skip if this is a constructor call (newTarget set), class constructor, or has super access
             // Also skip arrow functions with uninitialized this (need to look up this at call time)
-            var canUseFastPath = _isSimpleFunction &&
+            // DISABLED: Fast path disabled for debugging test failures
+            var canUseFastPath = false && _isSimpleFunction &&
                 !_isClassConstructor &&
                 (newTarget is null || ReferenceEquals(newTarget, Symbol.Undefined)) &&
                 _capturedPrivateNameScopes.IsDefaultOrEmpty &&

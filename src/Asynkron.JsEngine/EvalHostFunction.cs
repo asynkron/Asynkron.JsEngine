@@ -94,12 +94,15 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
 
         // Scripts evaluated via eval may not contain module syntax (export/import).
-        if (program.Typed.Body.Any(statement => statement is ModuleStatement))
+        foreach (var statement in program.Typed.Body)
         {
-            throw StandardLibrary.ThrowSyntaxError(
-                "Cannot use module declarations within eval code.",
-                CallingContext,
-                environment.RealmState);
+            if (statement is ModuleStatement)
+            {
+                throw StandardLibrary.ThrowSyntaxError(
+                    "Cannot use module declarations within eval code.",
+                    CallingContext,
+                    environment.RealmState);
+            }
         }
 
         if (JsEngine.ProgramContainsImportMeta(program.Typed))
@@ -1061,7 +1064,14 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case ReturnStatement:
                     return true;
                 case BlockStatement block:
-                    return block.Statements.Any(IsIllegalReturn);
+                    foreach (var stmt in block.Statements)
+                    {
+                        if (IsIllegalReturn(stmt))
+                        {
+                            return true;
+                        }
+                    }
+                    return false;
                 case IfStatement ifStatement:
                     return IsIllegalReturn(ifStatement.Then) || (ifStatement.Else is not null && IsIllegalReturn(ifStatement.Else));
                 case WhileStatement whileStatement:
@@ -1080,7 +1090,14 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     statement = withStatement.Body;
                     continue;
                 case SwitchStatement switchStatement:
-                    return switchStatement.Cases.Any(c => IsIllegalReturn(c.Body));
+                    foreach (var c in switchStatement.Cases)
+                    {
+                        if (IsIllegalReturn(c.Body))
+                        {
+                            return true;
+                        }
+                    }
+                    return false;
                 case TryStatement tryStatement:
                     return IsIllegalReturn(tryStatement.TryBlock) || (tryStatement.Catch is { Body: not null } catchClause && IsIllegalReturn(catchClause.Body)) || (tryStatement.Finally is not null && IsIllegalReturn(tryStatement.Finally));
                 // Function/class declarations create their own return-valid scope.

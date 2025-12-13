@@ -22,7 +22,14 @@ public sealed class TypedCpsTransformer
     /// </summary>
     public static bool NeedsTransformation(ProgramNode program)
     {
-        return Enumerable.Any(program.Body, StatementNeedsTransformation);
+        foreach (var statement in program.Body)
+        {
+            if (StatementNeedsTransformation(statement))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static bool StatementNeedsTransformation(StatementNode statement)
@@ -55,7 +62,14 @@ public sealed class TypedCpsTransformer
                 case ReturnStatement { Expression: { } expression }:
                     return ExpressionNeedsTransformation(expression);
                 case BlockStatement block:
-                    return Enumerable.Any(block.Statements, StatementNeedsTransformation);
+                    foreach (var stmt in block.Statements)
+                    {
+                        if (StatementNeedsTransformation(stmt))
+                        {
+                            return true;
+                        }
+                    }
+                    return false;
 
                 case IfStatement ifStatement:
                     return ExpressionNeedsTransformation(ifStatement.Condition) ||
@@ -172,8 +186,18 @@ public sealed class TypedCpsTransformer
                            ExpressionNeedsTransformation(conditionalExpression.Consequent) ||
                            ExpressionNeedsTransformation(conditionalExpression.Alternate);
                 case CallExpression callExpression:
-                    return ExpressionNeedsTransformation(callExpression.Callee) || Enumerable.Any(
-                        callExpression.Arguments, argument => ExpressionNeedsTransformation(argument.Expression));
+                    if (ExpressionNeedsTransformation(callExpression.Callee))
+                    {
+                        return true;
+                    }
+                    foreach (var argument in callExpression.Arguments)
+                    {
+                        if (ExpressionNeedsTransformation(argument.Expression))
+                        {
+                            return true;
+                        }
+                    }
+                    return false;
 
                 case NewExpression newExpression:
                     if (ExpressionNeedsTransformation(newExpression.Constructor))
@@ -181,9 +205,12 @@ public sealed class TypedCpsTransformer
                         return true;
                     }
 
-                    if (Enumerable.Any(newExpression.Arguments, argument => ExpressionNeedsTransformation(argument.Expression)))
+                    foreach (var argument in newExpression.Arguments)
                     {
-                        return true;
+                        if (ExpressionNeedsTransformation(argument.Expression))
+                        {
+                            return true;
+                        }
                     }
 
                     break;
@@ -247,7 +274,14 @@ public sealed class TypedCpsTransformer
                         return true;
                     }
 
-                    return Enumerable.Any(taggedTemplateExpression.Expressions, ExpressionNeedsTransformation);
+                    foreach (var expr in taggedTemplateExpression.Expressions)
+                    {
+                        if (ExpressionNeedsTransformation(expr))
+                        {
+                            return true;
+                        }
+                    }
+                    return false;
             }
 
             return false;

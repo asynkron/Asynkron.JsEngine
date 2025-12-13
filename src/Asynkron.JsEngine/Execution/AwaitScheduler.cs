@@ -124,7 +124,9 @@ internal static class AwaitScheduler
                     while (Volatile.Read(ref awaitState.Completed) == 0)
                     {
                         context.ThrowIfCancellationRequested();
-                        engine?.DrainMicrotasks();
+                        // Force drain microtasks at explicit await points, even during module body execution.
+                        // This is correct because await is a synchronization point where microtasks should run.
+                        engine?.DrainMicrotasks(force: true);
 
                         if (Volatile.Read(ref awaitState.Completed) != 0)
                         {
@@ -153,7 +155,7 @@ internal static class AwaitScheduler
                                     "Event loop drain was canceled while awaiting a promise.");
                             }
 
-                            engine.DrainMicrotasks();
+                            engine.DrainMicrotasks(force: true);
                         }
                         else
                         {

@@ -74,6 +74,7 @@ public sealed class JsEngine : IAsyncDisposable
     private readonly Queue<(Action task, int epoch)> _microtaskQueue = new();
     private bool _isDrainingMicrotasks;
     private int _microtaskEpoch; // Incremented when a new execution phase begins
+    private int _moduleBodyExecutionDepth; // Depth counter to suppress microtask draining during module body execution
 
     // Module loader function: allows custom module loading logic
     private Func<string, string?, string>? _moduleLoader;
@@ -1912,6 +1913,11 @@ public sealed class JsEngine : IAsyncDisposable
         _microtaskEpoch++;
     }
 
+    /// <summary>
+    ///     Gets the current microtask epoch for tracking purposes.
+    /// </summary>
+    internal int MicrotaskEpoch => _microtaskEpoch;
+
     internal List<(Action task, int epoch)> DetachMicrotasks()
     {
         var preserved = new List<(Action, int)>(_microtaskQueue.Count);
@@ -1959,9 +1965,17 @@ public sealed class JsEngine : IAsyncDisposable
     ///     Microtasks from later epochs are preserved for future draining.
     /// </summary>
     /// <param name="maxEpoch">Maximum epoch to drain. Use int.MaxValue to drain all epochs (default).</param>
-    internal void DrainMicrotasks(int maxEpoch = int.MaxValue, [System.Runtime.CompilerServices.CallerMemberName] string? caller = null)
+    internal void DrainMicrotasks(int maxEpoch = int.MaxValue, bool force = false, [System.Runtime.CompilerServices.CallerMemberName] string? caller = null)
     {
         if (_isDrainingMicrotasks)
+        {
+            return;
+        }
+
+        // Don't drain microtasks during module body execution unless explicitly forced.
+        // This ensures Promise.resolve().then() callbacks only run after the synchronous
+        // module body completes, matching ES specification semantics.
+        if (_moduleBodyExecutionDepth > 0 && !force)
         {
             return;
         }
@@ -3453,6 +3467,10 @@ public sealed class JsEngine : IAsyncDisposable
         var previousModulePath = _currentModulePath;
         _currentModulePath = modulePath;
         object? lastValue = null;
+
+        // Increment module body execution depth to suppress microtask draining during body execution.
+        // This ensures Promise.resolve().then() callbacks only run after the module body completes.
+        _moduleBodyExecutionDepth++;
         try
         {
             EvaluateRequestedModules(typedProgram, modulePath);
@@ -3504,6 +3522,7 @@ public sealed class JsEngine : IAsyncDisposable
         finally
         {
             _currentModulePath = previousModulePath;
+            _moduleBodyExecutionDepth--;
         }
     }
 
@@ -3754,14 +3773,18 @@ public sealed class JsEngine : IAsyncDisposable
                 _started = true;
                 _entry.Evaluating = true;
                 _engine.EvaluateRequestedModules(_entry.Program, _entry.Path);
-                // Execute Run() directly. The microtask epoch mechanism handles ensuring
-                // that microtasks queued during the synchronous portion are only drained
-                // after that portion completes.
+                // Advance the epoch before running. Microtasks queued during the synchronous
+                // portion of the body will be in this epoch and only drained after the
+                // synchronous portion completes.
+                _engine.AdvanceMicrotaskEpoch();
+                _runEpoch = _engine.MicrotaskEpoch;
                 Run();
             }
 
             return _completion.Task;
         }
+
+        private int _runEpoch;
 
         private void Run()
         {
@@ -3772,6 +3795,9 @@ public sealed class JsEngine : IAsyncDisposable
 
             var previousModulePath = _engine._currentModulePath;
             _engine._currentModulePath = _entry.Path;
+
+            // Increment module body execution depth to suppress microtask draining during execution
+            _engine._moduleBodyExecutionDepth++;
 
             try
             {
@@ -3932,6 +3958,8 @@ public sealed class JsEngine : IAsyncDisposable
                 _entry.LastValue = _lastValue;
                 _entry.Evaluated = true;
                 _entry.Evaluating = false;
+                // Drain microtasks that were queued during this run
+                _engine.DrainMicrotasks(_runEpoch);
                 _completion.TrySetResult(_lastValue);
             }
             catch (ThrowSignal signal)
@@ -3945,6 +3973,7 @@ public sealed class JsEngine : IAsyncDisposable
             finally
             {
                 _engine._currentModulePath = previousModulePath;
+                _engine._moduleBodyExecutionDepth--;
             }
         }
 

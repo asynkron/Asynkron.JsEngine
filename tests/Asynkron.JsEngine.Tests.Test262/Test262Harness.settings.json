@@ -21,7 +21,8 @@
     "annexB-function-declarations-in-if-statement-clauses",
     "legacy-regexp",
     "__getter__",
-    "__setter__"
+    "__setter__",
+    "caller"
   ],
   "ExcludedFlags": [
 

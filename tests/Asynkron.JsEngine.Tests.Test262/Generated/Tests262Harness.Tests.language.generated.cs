@@ -3,7 +3,7 @@
 //   Generated using the Test262Harness v1.0.3.0
 //   Suite Git SHA: a073f479f80b336256b7fc4e04700c827293e2fe
 //   Suite Directory: 
-//   Template SHA: 16D26728A5087F0058E71893FBC8DCD734EC81B14CEE0A0E7973D35FD0EB9772
+//   Template SHA: E8653E90462F50A561E693F59264E26F07A7B339EB123735EE1D6CA0464FFCCE
 //   Command line: /Users/rogerjohansson/.nuget/packages/test262harness.console/1.0.3/tools/net8.0/any/Test262Harness.Console.dll generate
 //   Settings file: /Users/rogerjohansson/git/asynkron/JsEngine2/tests/Asynkron.JsEngine.Tests.Test262/Test262Harness.settings.json
 // </auto-generated>
@@ -34,8 +34,8 @@ public class LanguageTests : Test262Test
     [TestCase("language/arguments-object/10.6-12-1.js", false, Category = "noStrict")]
     [TestCase("language/arguments-object/10.6-12-2.js", false, Category = "noStrict")]
     [TestCase("language/arguments-object/10.6-13-a-1.js", false, Category = "noStrict")]
-    [TestCase("language/arguments-object/10.6-13-a-2.js", false, Category = "caller,noStrict")]
-    [TestCase("language/arguments-object/10.6-13-a-3.js", false, Category = "caller,noStrict")]
+    [TestCase("language/arguments-object/10.6-13-a-2.js", false, Category = "caller,noStrict", IgnoreReason = "Feature caller excluded")]
+    [TestCase("language/arguments-object/10.6-13-a-3.js", false, Category = "caller,noStrict", IgnoreReason = "Feature caller excluded")]
     [TestCase("language/arguments-object/10.6-13-c-1-s.js", true, Category = "onlyStrict")]
     [TestCase("language/arguments-object/10.6-13-c-2-s.js", false)]
     [TestCase("language/arguments-object/10.6-13-c-2-s.js", true)]

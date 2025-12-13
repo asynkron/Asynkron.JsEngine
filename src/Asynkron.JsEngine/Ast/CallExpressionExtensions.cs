@@ -16,8 +16,7 @@ public static partial class TypedAstEvaluator
         private object? EvaluateCall(JsEnvironment environment, EvaluationContext context)
         {
             // Fast-path for plain Map/Set method calls - bypasses prototype lookup and host function machinery
-            // DISABLED: Fast path disabled for debugging test failures
-            if (false && TryFastPathMapSetCall(expression, environment, context, out var fastResult))
+            if (TryFastPathMapSetCall(expression, environment, context, out var fastResult))
             {
                 return fastResult;
             }
@@ -536,8 +535,10 @@ public static partial class TypedAstEvaluator
             if (callExpr.Callee is not MemberExpression { IsComputed: false, IsOptional: false } member)
                 return false;
 
-            // Skip if target is a super expression - needs special handling
-            if (member.Target is SuperExpression)
+            // IMPORTANT: Only use fast path for simple identifier targets (e.g., `myMap.set(...)`)
+            // If we evaluate a complex target expression (like `getMap().set(...)`) and it's NOT
+            // a Map/Set, the normal path would evaluate it again, causing double execution!
+            if (member.Target is not IdentifierExpression)
                 return false;
 
             // Get the method name
@@ -551,7 +552,7 @@ public static partial class TypedAstEvaluator
             if (methodName is null)
                 return false;
 
-            // Evaluate the target (map or set instance)
+            // Evaluate the target (map or set instance) - safe because it's just an identifier lookup
             var target = EvaluateExpression(member.Target, environment, context);
             if (context.ShouldStopEvaluation)
             {

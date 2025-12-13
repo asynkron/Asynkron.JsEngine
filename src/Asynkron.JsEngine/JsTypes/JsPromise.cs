@@ -73,30 +73,8 @@ public sealed class JsPromise
     private void ResolveThenable(IJsPropertyAccessor thenable, IJsCallable thenMethod)
     {
         // Create resolve and reject callbacks for the thenable
-        var resolveCallback = new HostFunction((_, args) =>
-        {
-            if (_state != PromiseState.Pending)
-            {
-                return null;
-            }
-
-            var result = args.GetArgument(0);
-            // Recursively resolve in case the result is also a thenable
-            Resolve(result);
-            return null;
-        });
-
-        var rejectCallback = new HostFunction((_, args) =>
-        {
-            if (_state != PromiseState.Pending)
-            {
-                return null;
-            }
-
-            var reason = args.GetArgument(0);
-            Reject(reason);
-            return null;
-        });
+        var resolveCallback = new ThenableResolveCallback(this);
+        var rejectCallback = new ThenableRejectCallback(this);
 
         try
         {
@@ -196,11 +174,23 @@ public sealed class JsPromise
             return;
         }
 
-        var handlersToProcess = _handlers.ToList();
+        // Process handlers without allocating if possible
+        var count = _handlers.Count;
+        if (count == 0)
+        {
+            return;
+        }
+
+        // Copy handlers to local array to allow mutation during processing
+        // For small counts, use stack allocation pattern
+        var handlersToProcess = count <= 4
+            ? _handlers.ToArray()  // Small array, minimal overhead
+            : _handlers.ToList().ToArray();  // Larger, use list for efficiency
         _handlers.Clear();
 
-        foreach (var (onFulfilled, onRejected, nextPromise) in handlersToProcess)
+        for (var i = 0; i < handlersToProcess.Length; i++)
         {
+            var (onFulfilled, onRejected, nextPromise) = handlersToProcess[i];
             try
             {
                 if (++_engine.PromiseCallDepth > _engine.MaxCallDepth)
@@ -211,70 +201,11 @@ public sealed class JsPromise
 
                 if (_state == PromiseState.Fulfilled)
                 {
-                    if (onFulfilled != null)
-                    {
-                        var result = onFulfilled.Invoke([_value], null);
-
-                        // If the result is a promise (JsObject with "then" method), chain it
-                        if (result is JsObject resultObj && resultObj.TryGetProperty("then", out var thenMethod) &&
-                            thenMethod is IJsCallable thenCallable)
-                        {
-                            thenCallable.Invoke([
-                                new HostFunction(args =>
-                                {
-                                    nextPromise.Resolve(args.Count > 0 ? args[0] : null);
-                                    return null;
-                                }),
-                                new HostFunction(args =>
-                                {
-                                    nextPromise.Reject(args.Count > 0 ? args[0] : null);
-                                    return null;
-                                })
-                            ], resultObj);
-                        }
-                        else
-                        {
-                            nextPromise.Resolve(result);
-                        }
-                    }
-                    else
-                    {
-                        nextPromise.Resolve(_value);
-                    }
+                    ProcessFulfilledHandler(onFulfilled, nextPromise);
                 }
                 else if (_state == PromiseState.Rejected)
                 {
-                    if (onRejected != null)
-                    {
-                        var result = onRejected.Invoke([_value], null);
-
-                        // If the result is a promise (JsObject with "then" method), chain it
-                        if (result is JsObject resultObj && resultObj.TryGetProperty("then", out var thenMethod) &&
-                            thenMethod is IJsCallable thenCallable)
-                        {
-                            thenCallable.Invoke([
-                                new HostFunction(args =>
-                                {
-                                    nextPromise.Resolve(args.Count > 0 ? args[0] : null);
-                                    return null;
-                                }),
-                                new HostFunction(args =>
-                                {
-                                    nextPromise.Reject(args.Count > 0 ? args[0] : null);
-                                    return null;
-                                })
-                            ], resultObj);
-                        }
-                        else
-                        {
-                            nextPromise.Resolve(result);
-                        }
-                    }
-                    else
-                    {
-                        // No rejection handler, propagate rejection
-                        nextPromise.Reject(_value);
-                    }
+                    ProcessRejectedHandler(onRejected, nextPromise);
                 }
             }
             catch (Exception ex)
@@ -293,10 +224,139 @@ public sealed class JsPromise
         }
     }
 
+    private void ProcessFulfilledHandler(IJsCallable? onFulfilled, JsPromise nextPromise)
+    {
+        if (onFulfilled != null)
+        {
+            var result = onFulfilled.Invoke([_value], null);
+            ResolveWithPossibleThenable(result, nextPromise);
+        }
+        else
+        {
+            nextPromise.Resolve(_value);
+        }
+    }
+
+    private void ProcessRejectedHandler(IJsCallable? onRejected, JsPromise nextPromise)
+    {
+        if (onRejected != null)
+        {
+            var result = onRejected.Invoke([_value], null);
+            ResolveWithPossibleThenable(result, nextPromise);
+        }
+        else
+        {
+            // No rejection handler, propagate rejection
+            nextPromise.Reject(_value);
+        }
+    }
+
+    private static void ResolveWithPossibleThenable(object? result, JsPromise nextPromise)
+    {
+        // If the result is a promise (JsObject with "then" method), chain it
+        if (result is JsObject resultObj &&
+            resultObj.TryGetProperty("then", out var thenMethod) &&
+            thenMethod is IJsCallable thenCallable)
+        {
+            // Use lightweight callback objects instead of closures
+            var resolveCallback = new ChainResolveCallback(nextPromise);
+            var rejectCallback = new ChainRejectCallback(nextPromise);
+            thenCallable.Invoke([resolveCallback, rejectCallback], resultObj);
+        }
+        else
+        {
+            nextPromise.Resolve(result);
+        }
+    }
+
     private enum PromiseState
     {
         Pending,
         Fulfilled,
         Rejected
+    }
+
+    /// <summary>
+    ///     Lightweight callback for thenable resolution - avoids closure allocation.
+    /// </summary>
+    private sealed class ThenableResolveCallback : IJsCallable
+    {
+        private readonly JsPromise _promise;
+
+        public ThenableResolveCallback(JsPromise promise) => _promise = promise;
+
+        public object? Invoke(IReadOnlyList<object?> args, object? thisValue)
+        {
+            if (_promise._state != PromiseState.Pending)
+            {
+                return null;
+            }
+
+            var result = args.Count > 0 ? args[0] : null;
+            _promise.Resolve(result);
+            return null;
+        }
+
+        public bool IsConstructor => false;
+    }
+
+    /// <summary>
+    ///     Lightweight callback for thenable rejection - avoids closure allocation.
+    /// </summary>
+    private sealed class ThenableRejectCallback : IJsCallable
+    {
+        private readonly JsPromise _promise;
+
+        public ThenableRejectCallback(JsPromise promise) => _promise = promise;
+
+        public object? Invoke(IReadOnlyList<object?> args, object? thisValue)
+        {
+            if (_promise._state != PromiseState.Pending)
+            {
+                return null;
+            }
+
+            var reason = args.Count > 0 ? args[0] : null;
+            _promise.Reject(reason);
+            return null;
+        }
+
+        public bool IsConstructor => false;
+    }
+
+    /// <summary>
+    ///     Lightweight callback for promise chain resolution - avoids closure allocation.
+    /// </summary>
+    private sealed class ChainResolveCallback : IJsCallable
+    {
+        private readonly JsPromise _nextPromise;
+
+        public ChainResolveCallback(JsPromise nextPromise) => _nextPromise = nextPromise;
+
+        public object? Invoke(IReadOnlyList<object?> args, object? thisValue)
+        {
+            _nextPromise.Resolve(args.Count > 0 ? args[0] : null);
+            return null;
+        }
+
+        public bool IsConstructor => false;
+    }
+
+    /// <summary>
+    ///     Lightweight callback for promise chain rejection - avoids closure allocation.
+    /// </summary>
+    private sealed class ChainRejectCallback : IJsCallable
+    {
+        private readonly JsPromise _nextPromise;
+
+        public ChainRejectCallback(JsPromise nextPromise) => _nextPromise = nextPromise;
+
+        public object? Invoke(IReadOnlyList<object?> args, object? thisValue)
+        {
+            _nextPromise.Reject(args.Count > 0 ? args[0] : null);
+            return null;
+        }
+
+        public bool IsConstructor => false;
     }
 }

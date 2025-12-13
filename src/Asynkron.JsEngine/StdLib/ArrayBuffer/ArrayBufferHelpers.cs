@@ -37,7 +37,7 @@ public static partial class StandardLibrary
         throw ThrowTypeError("ArrayBuffer method called on incompatible receiver", realm: realm);
     }
 
-    internal static object? ArrayBufferSpeciesCreate(object? thisVal, RealmState realm, HostFunction defaultConstructor)
+    internal static IJsCallable ArrayBufferSpeciesCreate(object? thisVal, RealmState realm, HostFunction defaultConstructor)
     {
         if (thisVal is not IJsPropertyAccessor accessor ||
             !accessor.TryGetProperty("constructor", out var ctorVal))
@@ -45,28 +45,32 @@ public static partial class StandardLibrary
             return defaultConstructor;
         }
 
-        if (ctorVal is null || ReferenceEquals(ctorVal, Symbol.Undefined))
+        if (ReferenceEquals(ctorVal, Symbol.Undefined))
         {
             return defaultConstructor;
         }
 
-        if (ctorVal is not IJsPropertyAccessor ctorAccessor)
+        if (ctorVal is null || ctorVal is not IJsPropertyAccessor ctorAccessor)
         {
             throw ThrowTypeError("Constructor is not an object", realm: realm);
         }
 
         var speciesKey = SymbolKeys.Species;
-        if (ctorAccessor.TryGetProperty(speciesKey, out var speciesVal))
-        {
-            if (speciesVal is null || ReferenceEquals(speciesVal, Symbol.Undefined))
-            {
-                return defaultConstructor;
-            }
+        var speciesVal = ctorAccessor.TryGetProperty(speciesKey, out var candidate)
+            ? candidate
+            : ctorVal;
 
-            return speciesVal;
+        if (speciesVal is null || ReferenceEquals(speciesVal, Symbol.Undefined))
+        {
+            return defaultConstructor;
         }
 
-        return ctorVal;
+        if (speciesVal is not IJsCallable callable || !JsOps.IsConstructor(speciesVal))
+        {
+            throw ThrowTypeError("ArrayBuffer species constructor is not a constructor", realm: realm);
+        }
+
+        return callable;
     }
 
     internal static object? ArrayBufferIsView(object? _, IReadOnlyList<object?> args, RealmState? __)
@@ -76,6 +80,18 @@ public static partial class StandardLibrary
             return false;
         }
 
-        return args[0] is TypedArrayBase or JsDataView;
+        if (args[0] is TypedArrayBase or JsDataView)
+        {
+            return true;
+        }
+
+        if (args[0] is IJsPropertyAccessor accessor &&
+            accessor.TryGetProperty("_internalDataView", out var dv) &&
+            dv is JsDataView)
+        {
+            return true;
+        }
+
+        return false;
     }
 }

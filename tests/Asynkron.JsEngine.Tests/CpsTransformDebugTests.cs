@@ -14,7 +14,7 @@ public class CpsTransformDebugTests(ITestOutputHelper output)
         // Simplest possible test case - single iteration
         await using var engine = new JsEngine();
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let result = "";
                                      let arr = ["x"];
@@ -41,7 +41,7 @@ public class CpsTransformDebugTests(ITestOutputHelper output)
         // Control test - no await in loop body
         await using var engine = new JsEngine();
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let result = "";
                                      let arr = ["x"];
@@ -69,7 +69,7 @@ public class CpsTransformDebugTests(ITestOutputHelper output)
         // Test await before loop - should work
         await using var engine = new JsEngine();
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let result = "";
                                      let arr = ["x"];
@@ -105,7 +105,7 @@ public class CpsTransformDebugTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let result = "";
                                      let arr = ["a", "b"];

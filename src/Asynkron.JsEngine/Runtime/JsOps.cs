@@ -65,6 +65,7 @@ internal static class JsOps
         return Math.Pow(baseValue, exponent);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsOddInteger(double value)
     {
         return double.IsFinite(value) && value % 1 == 0 && Math.Abs(value % 2) == 1;
@@ -1520,6 +1521,13 @@ internal static class JsOps
         switch (target)
         {
             case bool b:
+                if (context?.RealmState?.BooleanPrototype is { } booleanProto &&
+                    booleanProto.TryGetProperty(propertyName, receiver: target, context, out value))
+                {
+                    return true;
+                }
+
+                // Fallback when no realm prototype is available.
                 var booleanWrapper = StandardLibrary.CreateBooleanWrapper(b, context, context?.RealmState);
                 if (booleanWrapper.TryGetProperty(propertyName, receiver: target, context, out value))
                 {
@@ -1528,6 +1536,13 @@ internal static class JsOps
 
                 break;
             case double num:
+                if (context?.RealmState?.NumberPrototype is { } numberProto &&
+                    numberProto.TryGetProperty(propertyName, receiver: target, context, out value))
+                {
+                    return true;
+                }
+
+                // Fallback when no realm prototype is available yet.
                 var numberWrapper = StandardLibrary.CreateNumberWrapper(num, context, context?.RealmState);
                 if (numberWrapper.TryGetProperty(propertyName, receiver: target, context, out value))
                 {
@@ -1536,6 +1551,13 @@ internal static class JsOps
 
                 break;
             case JsBigInt bigInt:
+                if (context?.RealmState?.BigIntPrototype is { } bigIntProto &&
+                    bigIntProto.TryGetProperty(propertyName, receiver: target, context, out value))
+                {
+                    return true;
+                }
+
+                // Fallback when no realm prototype is available.
                 var bigIntWrapper = StandardLibrary.CreateBigIntWrapper(bigInt, context, context?.RealmState);
                 if (bigIntWrapper.TryGetProperty(propertyName, receiver: target, context, out value))
                 {
@@ -1557,6 +1579,13 @@ internal static class JsOps
                     return true;
                 }
 
+                if (context?.RealmState?.StringPrototype is { } stringProto &&
+                    stringProto.TryGetProperty(propertyName, receiver: target, context, out value))
+                {
+                    return true;
+                }
+
+                // Fallback when no realm prototype is available yet.
                 var stringWrapper = StandardLibrary.CreateStringWrapper(str, context, context?.RealmState);
                 if (stringWrapper.TryGetProperty(propertyName, receiver: target, context, out value))
                 {

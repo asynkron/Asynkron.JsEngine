@@ -805,7 +805,28 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return false;
         }
 
-        if (!uint.TryParse(propertyName, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed))
+        // Fast path for common single-digit indices (0-9)
+        if (propertyName.Length == 1)
+        {
+            var c = propertyName[0];
+            if (c is >= '0' and <= '9')
+            {
+                index = (uint)(c - '0');
+                return true;
+            }
+            return false;
+        }
+
+        // Fast path: reject strings starting with '0' followed by other chars (invalid canonical form like "01")
+        // Also reject strings starting with non-digit
+        var firstChar = propertyName[0];
+        if (firstChar == '0' || firstChar is < '1' or > '9')
+        {
+            return false;
+        }
+
+        // Use span-based parsing to avoid allocations
+        if (!uint.TryParse(propertyName.AsSpan(), NumberStyles.None, CultureInfo.InvariantCulture, out var parsed))
         {
             return false;
         }
@@ -816,7 +837,25 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return false;
         }
 
-        if (!string.Equals(parsed.ToString(CultureInfo.InvariantCulture), propertyName, StringComparison.Ordinal))
+        // Validate canonical form without ToString allocation:
+        // The canonical string representation of a uint has a specific length based on its value.
+        // If the parsed value's expected digit count matches the input length, it's canonical.
+        // This works because we already rejected leading zeros above.
+        var expectedLength = parsed switch
+        {
+            < 10 => 1,
+            < 100 => 2,
+            < 1000 => 3,
+            < 10000 => 4,
+            < 100000 => 5,
+            < 1000000 => 6,
+            < 10000000 => 7,
+            < 100000000 => 8,
+            < 1000000000 => 9,
+            _ => 10
+        };
+
+        if (propertyName.Length != expectedLength)
         {
             return false;
         }

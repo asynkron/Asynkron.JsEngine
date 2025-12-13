@@ -14,13 +14,23 @@
     "promise-try",
     "RegExp.escape",
     "uint8array-base64",
-    "import-attributes"
+    "import-attributes",
+    "annexB-legacy-octal",
+    "annexB-octal-escape",
+    "annexB-block-function",
+    "annexB-function-declarations-in-if-statement-clauses",
+    "legacy-regexp",
+    "__getter__",
+    "__setter__"
   ],
   "ExcludedFlags": [
 
   ],
   "ExcludedDirectories": [],
   "ExcludedFiles": [
-
+    "**/legacy-octal-integer.js",
+    "**/legacy-octal-escape-sequence.js",
+    "**/legacy-non-octal-escape-sequence-8-non-strict.js",
+    "**/legacy-non-octal-escape-sequence-9-non-strict.js"
   ]
 }

@@ -38,6 +38,8 @@ if (args.Length == 0)
           pipeline   - Full pipeline phase comparison
           operations - Specific operation micro-benchmarks
           overhead   - Evaluation overhead analysis (event loop, engine init, etc.)
+          jint       - Comparison benchmarks vs Jint engine (execution)
+          jint-parser - Comparison benchmarks vs Jint/Esprima (parsing)
 
         Category filters (use with 'operations'):
           --filter *Arithmetic*   - Arithmetic operations only
@@ -120,6 +122,16 @@ switch (benchmarkType)
     case "overhead":
         Console.WriteLine("Running Evaluation overhead benchmarks...\n");
         BenchmarkRunner.Run<EvaluationOverheadBenchmarks>(config);
+        break;
+
+    case "jint":
+        Console.WriteLine("Running Jint comparison benchmarks (execution)...\n");
+        BenchmarkRunner.Run<JintComparisonBenchmarks>(config);
+        break;
+
+    case "jint-parser":
+        Console.WriteLine("Running Jint/Esprima parser comparison benchmarks...\n");
+        BenchmarkRunner.Run<JintParserComparisonBenchmarks>(config);
         break;
 
     default:

@@ -22,7 +22,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             log('Creating global iterator object');
             let globalIter = {
                 next: function() {
@@ -53,7 +53,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             log('Creating global iterator object');
             let globalIter = {
                 next: function() {
@@ -89,7 +89,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             log('Creating global iterator object');
             let globalIter = {
                 next: function() {
@@ -128,7 +128,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             log('Creating global iterator object with closure');
             let globalIter = {
                 next: function() {
@@ -172,7 +172,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             log('Creating global iterator with closure variable');
             let globalIter = (function() {
                 let index = 0;
@@ -223,7 +223,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             log('Creating global iterable');
             let globalIterable = {
                 [Symbol.iterator]() {
@@ -295,7 +295,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine1.Run(@"
+        await engine1.Evaluate(@"
             async function test() {
                 let localIter = {
                     next: () => {
@@ -333,7 +333,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine2.Run(@"
+        await engine2.Evaluate(@"
             let globalIter = {
                 next: () => {
                     log('GLOBAL: next() called');
@@ -386,7 +386,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             let globalIter = {
                 next: function() {
                     log('USER: next() called from global iterator!');
@@ -437,7 +437,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             log('Creating global iterable with Symbol.iterator');
             let globalIterable = {
                 [Symbol.iterator]() {
@@ -490,7 +490,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             log('Creating global iterable');
             let globalIterable = {
                 [Symbol.iterator]() {
@@ -546,7 +546,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             log('Creating global iterator with state');
             let globalIter = (function() {
                 let index = 0;
@@ -610,7 +610,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             log('=== Method 1: Direct object with next ===');
             let iter1 = {
                 next: function() {
@@ -690,7 +690,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             let globalIter = {
                 next: function() {
                     log('next() called');
@@ -759,7 +759,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             log('Creating global iterable that will cause error');
             let globalIterable = {
                 [Symbol.iterator]() {
@@ -844,7 +844,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             log('=== Test 1: Regular function in global object ===');
             let obj1 = {
                 method: function() {

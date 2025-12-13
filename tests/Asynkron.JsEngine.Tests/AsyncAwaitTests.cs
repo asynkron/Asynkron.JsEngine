@@ -93,7 +93,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      async function test() {
                                          return 42;
@@ -110,16 +110,11 @@ public class AsyncAwaitTests
         Assert.Equal("42", result);
     }
 
-    // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.
-    // The feature is implemented correctly and the test passes when run individually.
     [Fact(Timeout = 2000)]
     public async Task AsyncFunction_WithAwait_ReturnsValue()
     {
-        // Arrange
         await using var engine = new JsEngine();
         var result = "";
-
-        AsyncTestHelpers.RegisterDelayHelper(engine);
 
         engine.SetGlobalFunction("captureResult", args =>
         {
@@ -127,36 +122,30 @@ public class AsyncAwaitTests
             {
                 result = args[0]?.ToString() ?? "";
             }
-
             return null;
         });
 
-        // Act
-        await engine.Run("""
+        await engine.Evaluate("""
+            async function test() {
+                let p = new Promise(function(resolve) {
+                    setTimeout(function() { resolve(42); }, 10);
+                });
+                let value = await p;
+                return value;
+            }
+            test().then(function(value) {
+                captureResult(value);
+            });
+            """);
 
-                                     async function test() {
-                                         let value = await __delay(1, 42);
-                                         return value;
-                                     }
-
-                                     test().then(function(value) {
-                                         captureResult(value);
-                                     });
-
-                         """);
-
-        // Assert
         Assert.Equal("42", result);
     }
 
     [Fact(Timeout = 2000)]
     public async Task AsyncFunction_WithMultipleAwaits()
     {
-        // Arrange
         await using var engine = new JsEngine();
         var result = "";
-
-        AsyncTestHelpers.RegisterDelayHelper(engine);
 
         engine.SetGlobalFunction("captureResult", args =>
         {
@@ -164,37 +153,33 @@ public class AsyncAwaitTests
             {
                 result = args[0]?.ToString() ?? "";
             }
-
             return null;
         });
 
-        // Act
-        await engine.Run("""
+        await engine.Evaluate("""
+            function delay(value) {
+                return new Promise(function(resolve) {
+                    setTimeout(function() { resolve(value); }, 10);
+                });
+            }
+            async function test() {
+                let a = await delay(10);
+                let b = await delay(20);
+                return a + b;
+            }
+            test().then(function(value) {
+                captureResult(value);
+            });
+            """);
 
-                                     async function test() {
-                                         let a = await __delay(1, 10);
-                                         let b = await __delay(1, 20);
-                                         return a + b;
-                                     }
-
-                                     test().then(function(value) {
-                                         captureResult(value);
-                                     });
-
-                         """);
-
-        // Assert
         Assert.Equal("30", result);
     }
 
     [Fact(Timeout = 2000)]
     public async Task AsyncFunction_WithAwaitInExpression()
     {
-        // Arrange
         await using var engine = new JsEngine();
         var result = "";
-
-        AsyncTestHelpers.RegisterDelayHelper(engine);
 
         engine.SetGlobalFunction("captureResult", args =>
         {
@@ -202,25 +187,24 @@ public class AsyncAwaitTests
             {
                 result = args[0]?.ToString() ?? "";
             }
-
             return null;
         });
 
-        // Act
-        await engine.Run("""
+        await engine.Evaluate("""
+            function delay(value) {
+                return new Promise(function(resolve) {
+                    setTimeout(function() { resolve(value); }, 10);
+                });
+            }
+            async function test() {
+                let value = (await delay(10)) + (await delay(20));
+                return value;
+            }
+            test().then(function(value) {
+                captureResult(value);
+            });
+            """);
 
-                                     async function test() {
-                                         let value = (await __delay(1, 10)) + (await __delay(1, 20));
-                                         return value;
-                                     }
-
-                                     test().then(function(value) {
-                                         captureResult(value);
-                                     });
-
-                         """);
-
-        // Assert
         Assert.Equal("30", result);
     }
 
@@ -238,7 +222,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      async function test() {
                                          throw "error";
@@ -272,7 +256,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      async function test() {
                                          try {
@@ -310,7 +294,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      async function getNumber() {
                                          return 10;
@@ -354,7 +338,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let test = async function() {
                                          return 42;
@@ -446,11 +430,8 @@ public class AsyncAwaitTests
     [Fact(Timeout = 2000)]
     public async Task AsyncFunction_SequentialAwaits()
     {
-        // Arrange
         await using var engine = new JsEngine();
         var result = "";
-
-        AsyncTestHelpers.RegisterDelayHelper(engine);
 
         engine.SetGlobalFunction("captureResult", args =>
         {
@@ -458,27 +439,26 @@ public class AsyncAwaitTests
             {
                 result = args[0]?.ToString() ?? "";
             }
-
             return null;
         });
 
-        // Act
-        await engine.Run("""
+        await engine.Evaluate("""
+            function delay(value) {
+                return new Promise(function(resolve) {
+                    setTimeout(function() { resolve(value); }, 10);
+                });
+            }
+            async function test() {
+                let a = await delay(5);
+                let b = await delay(a + 3);
+                let c = await delay(b * 2);
+                return c;
+            }
+            test().then(function(value) {
+                captureResult(value);
+            });
+            """);
 
-                                     async function test() {
-                                         let a = await __delay(1, 5);
-                                         let b = await __delay(1, a + 3);
-                                         let c = await __delay(1, b * 2);
-                                         return c;
-                                     }
-
-                                     test().then(function(value) {
-                                         captureResult(value);
-                                     });
-
-                         """);
-
-        // Assert
         Assert.Equal("16", result);
     }
 
@@ -496,7 +476,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      async function test() {
                                          return null;
@@ -526,7 +506,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      async function test() {
                                          // No return statement
@@ -560,7 +540,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      async function test() {
                                          let p = new Promise(function(resolve) {
@@ -600,7 +580,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      async function test() {
                                          let p1 = new Promise(function(resolve) {
@@ -648,7 +628,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      function delayedValue(value, delay) {
                                          return new Promise(function(resolve) {
@@ -693,7 +673,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      function delayedValue(value, delay) {
                                          return new Promise(function(resolve) {
@@ -740,7 +720,7 @@ public class AsyncAwaitTests
         });
 
         // Act
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      function delay(value, ms) {
                                          return new Promise(function(resolve) {
@@ -780,40 +760,36 @@ public class AsyncAwaitTests
         await using var engine = new JsEngine();
         var result = "";
 
-        AsyncTestHelpers.RegisterDelayHelper(engine);
-
         engine.SetGlobalFunction("captureResult", args =>
         {
             if (args.Count > 0)
             {
                 result = args[0]?.ToString() ?? "";
             }
-
             return null;
         });
 
-        // Act
-        await engine.Run("""
+        await engine.Evaluate("""
+            function bar() {
+                return new Promise(function(resolve) {
+                    setTimeout(function() { resolve(10); }, 10);
+                });
+            }
 
-                                     function bar() {
-                                         return __delay(1, 10);
-                                     }
+            async function foo() {
+                let x1 = await bar();
+                __debug();
+                let x2 = await bar();
+                __debug();
+                let x3 = await bar();
+                __debug();
+                return x1 + x2 + x3;
+            }
 
-                                     async function foo() {
-                                         let x1 = await bar();
-                                         __debug();
-                                         let x2 = await bar();
-                                         __debug();
-                                         let x3 = await bar();
-                                         __debug();
-                                         return x1 + x2 + x3;
-                                     }
-
-                                     foo().then(function(value) {
-                                         captureResult(value);
-                                     });
-
-                         """);
+            foo().then(function(value) {
+                captureResult(value);
+            });
+            """);
 
         // Get the debug messages
         var debugMessages = new List<DebugMessage>();

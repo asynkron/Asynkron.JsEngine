@@ -27,16 +27,17 @@ public sealed class EvaluationContext(
     ///     lookups can be mapped to their class-specific brands.
     /// </summary>
     private readonly Stack<PrivateNameScope> _privateNameScopes = new();
-
-    /// <summary>
-    ///     Tracks the current function call stack for Annex B caller metadata.
-    /// </summary>
-    private readonly Stack<ICallerInfo> _callerStack = new();
-
     private readonly Stack<ScopeFrame> _scopeStack = new();
     private readonly Stack<PendingClassFieldInitialization> _pendingClassFieldInitializers = new();
     private readonly Stack<Symbol> _functionNameHints = new();
     private int _classFieldInitializerDepth;
+
+    /// <summary>
+    ///     Enables per-context identifier binding caches when the current scope
+    ///     is known to be free of dynamic scope features (direct eval / with).
+    ///     Disabled by default for safety; set by the caller.
+    /// </summary>
+    internal bool AllowIdentifierCache { get; set; }
 
     /// <summary>
     ///     Realm-specific state (prototypes/constructors) for the current execution.
@@ -44,19 +45,6 @@ public sealed class EvaluationContext(
     public RealmState RealmState { get; } = realmState ?? throw new ArgumentNullException(nameof(realmState));
 
     public IJsEngineOptions Options => RealmState.Options;
-
-    /// <summary>
-    ///     Lexically declared names that should prevent Annex B function var bindings.
-    /// </summary>
-    public HashSet<Symbol> BlockedFunctionVarNames { get; set; } = new(ReferenceEqualityComparer<Symbol>.Instance);
-
-    /// <summary>
-    ///     Tracks Annex B applicable function declarations (reference-equality) so
-    ///     runtime copies (B.3.3.4) only run for the declarations that actually
-    ///     produced a var/global binding.
-    /// </summary>
-    public HashSet<FunctionDeclaration> AnnexBApplicableFunctions { get; } =
-        new(ReferenceEqualityComparer<FunctionDeclaration>.Instance);
 
     /// <summary>
     ///     Indicates whether the current execution originated from script code or eval.
@@ -187,21 +175,11 @@ public sealed class EvaluationContext(
         return null;
     }
 
-    public IDisposable PushScope(
-        ScopeKind kind,
-        ScopeMode mode,
-        bool skipAnnexBInstantiation = false)
+    public IDisposable PushScope(ScopeKind kind, ScopeMode mode)
     {
-        var frame = new ScopeFrame(kind, mode, skipAnnexBInstantiation);
+        var frame = new ScopeFrame(kind, mode);
         _scopeStack.Push(frame);
         return new ScopeHandle(_scopeStack);
-    }
-
-    internal IDisposable PushCaller(ICallerInfo function, out ICallerInfo? previous)
-    {
-        previous = _callerStack.Count > 0 ? _callerStack.Peek() : null;
-        _callerStack.Push(function);
-        return new CallerHandle(_callerStack);
     }
 
     public void MarkThisUninitialized()
@@ -491,26 +469,6 @@ public sealed class EvaluationContext(
         }
     }
 
-    private sealed class CallerHandle(Stack<ICallerInfo> scopes) : IDisposable
-    {
-        private bool _disposed;
-
-        public void Dispose()
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            if (scopes.Count > 0)
-            {
-                scopes.Pop();
-            }
-
-            _disposed = true;
-        }
-    }
-
     internal void PushClassFieldInitializer(PendingClassFieldInitialization initializer)
     {
         _pendingClassFieldInitializers.Push(initializer);
@@ -545,18 +503,13 @@ public enum ScopeKind
 public enum ScopeMode
 {
     Strict,
-    Sloppy,
-    SloppyAnnexB
+    Sloppy
 }
 
-public readonly record struct ScopeFrame(
-    ScopeKind Kind,
-    ScopeMode Mode,
-    bool SkipAnnexBInstantiation)
+public readonly record struct ScopeFrame(ScopeKind Kind, ScopeMode Mode)
 {
     public bool IsStrict => Mode == ScopeMode.Strict;
-    public bool AllowAnnexB => Mode == ScopeMode.SloppyAnnexB;
-    public static ScopeFrame Default { get; } = new(ScopeKind.Program, ScopeMode.Strict, false);
+    public static ScopeFrame Default { get; } = new(ScopeKind.Program, ScopeMode.Strict);
 }
 
 public sealed class PrivateNameScope

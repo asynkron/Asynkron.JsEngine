@@ -21,7 +21,7 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
                                      let result = "";
 
                                      // Object with only sync iterator (Symbol.iterator)
@@ -127,7 +127,7 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             log('Creating global iterable with method shorthand next()');
             let globalIterable = {
                 [Symbol.iterator]() {
@@ -199,7 +199,7 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             log('Creating global iterable');
             let globalIterable = {
                 [Symbol.iterator]() {
@@ -269,7 +269,7 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             log('Creating global iterable with iterator');
             let globalIterable = {
                 [Symbol.iterator]() {

@@ -1,3 +1,6 @@
+using System.Collections.Concurrent;
+using System.IO;
+using System.Reflection;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Test262Harness;
@@ -7,6 +10,12 @@ namespace Asynkron.JsEngine.Tests.Test262;
 [Test262ActivityTrace]
 public abstract partial class Test262Test
 {
+    private static readonly ConcurrentDictionary<string, ParsedProgram> HarnessProgramCache =
+        new(StringComparer.Ordinal);
+
+    private static readonly ConcurrentDictionary<string, string> SharedModuleSourceCache =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private const string CompareArrayPatchScript = @"// Patched compareArray harness to align with modern Test262 semantics
 function compareArray(a, b) {
   compareArray.__callCount = (compareArray.__callCount || 0) + 1;
@@ -123,12 +132,34 @@ try {
 ";
 
 
+    private static ParsedProgram GetHarnessProgram(string source)
+    {
+        return HarnessProgramCache.GetOrAdd(source, static s =>
+        {
+            var parserEngine = new JsEngine();
+            return parserEngine.ParseForExecution(s);
+        });
+    }
+
+    private static void ExecuteHarnessProgram(JsEngine engine, string source)
+    {
+        var program = GetHarnessProgram(source);
+        engine.ExecuteProgram(program, engine.GlobalEnvironment);
+        engine.DrainMicrotasks();
+    }
+
+    private static object? EvalScriptSync(JsEngine engine, string source)
+    {
+        var result = engine.EvaluateSync(source);
+        engine.DrainMicrotasks();
+        return result;
+    }
+
     private static JsEngine BuildTestExecutor(Test262File file)
     {
-        var engine = new JsEngine
-        {
-            ExecutionTimeout = null
-        };
+        var engine = BaseRealmSnapshot.UseSnapshot
+            ? BaseRealmSnapshot.Instance.Value.CreateEngine()
+            : new JsEngine { ExecutionTimeout = null };
 
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("JSENGINE_TRACE_REALM")))
         {
@@ -142,8 +173,8 @@ try {
         }
 
         // Execute test harness files
-        ExecuteSource(engine, State.Sources["assert.js"]).Wait();
-        ExecuteSource(engine, State.Sources["sta.js"]).Wait();
+        ExecuteHarnessProgram(engine, State.Sources["assert.js"]);
+        ExecuteHarnessProgram(engine, State.Sources["sta.js"]);
 
         // Add print function
         engine.SetGlobalFunction("print", args =>
@@ -154,6 +185,7 @@ try {
                 // Convert to string representation
                 return value?.ToString() ?? "";
             }
+
             return "";
         });
 
@@ -164,7 +196,7 @@ try {
             ["evalScript"] = new HostFunction(args => args.Count switch
             {
                 > 1 => throw new Exception("only script parsing supported"),
-                > 0 when args[0] is string script => ExecuteSource(engine, script).GetAwaiter().GetResult(),
+                > 0 when args[0] is string script => EvalScriptSync(engine, script),
                 _ => null
             }),
 
@@ -197,7 +229,7 @@ try {
                         buffer.Detach();
                         break;
                     case IJsPropertyAccessor accessor when accessor.TryGetProperty("buffer", out var inner) &&
-                                                          inner is JsArrayBuffer innerBuffer:
+                                                           inner is JsArrayBuffer innerBuffer:
                         innerBuffer.Detach();
                         break;
                 }
@@ -231,9 +263,126 @@ try {
         engine.SetGlobalValue("$262", obj262);
 
         // Helper used by some modern reduce tests
-        ExecuteSource(engine, "function ReduceCollecting(list){ return function(acc, v){ list.push(v); return acc; }; }").Wait();
+        ExecuteHarnessProgram(engine,
+            "function ReduceCollecting(list){ return function(acc, v){ list.push(v); return acc; }; }");
 
         var moduleSourceCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        string? TryReadRawModuleSource(string candidate)
+        {
+            // First, try disk cache if available (most reliable for fixture files)
+            var diskCacheDir = State.DiskCacheDirectory;
+            if (!string.IsNullOrEmpty(diskCacheDir))
+            {
+                var diskPaths = new[]
+                {
+                    Path.Combine(diskCacheDir, "test", candidate.Replace('/', Path.DirectorySeparatorChar)),
+                    Path.Combine(diskCacheDir, candidate.Replace('/', Path.DirectorySeparatorChar))
+                };
+
+                foreach (var diskPath in diskPaths)
+                {
+                    if (File.Exists(diskPath))
+                    {
+                        return File.ReadAllText(diskPath);
+                    }
+                }
+            }
+
+            // Fall back to Zio file system reflection approach
+            try
+            {
+                var options = State.Test262Stream.Options;
+                var fsProp = options.GetType().GetProperty("FileSystem",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                var fileSystem = fsProp?.GetValue(options);
+                if (fileSystem is null)
+                {
+                    return null;
+                }
+
+                var fsType = fileSystem.GetType();
+                Type? uPathType = null;
+                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    uPathType = asm.GetType("Zio.UPath", throwOnError: false);
+                    if (uPathType is not null)
+                    {
+                        break;
+                    }
+                }
+
+                if (uPathType is null)
+                {
+                    return null;
+                }
+
+                var openFile = fsType.GetMethod("OpenFile",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                    binder: null,
+                    types: [uPathType, typeof(FileMode), typeof(FileAccess), typeof(FileShare)],
+                    modifiers: null);
+
+                if (openFile is null)
+                {
+                    foreach (var method in fsType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                    {
+                        if (!string.Equals(method.Name, "OpenFile", StringComparison.Ordinal))
+                        {
+                            continue;
+                        }
+
+                        var parameters = method.GetParameters();
+                        if (parameters.Length == 4 && parameters[0].ParameterType == uPathType)
+                        {
+                            openFile = method;
+                            break;
+                        }
+                    }
+
+                    if (openFile is null)
+                    {
+                        return null;
+                    }
+                }
+
+                var candidatePaths = new[]
+                {
+                    candidate,
+                    $"test/{candidate}",
+                    candidate.StartsWith("/", StringComparison.Ordinal) ? candidate : $"/{candidate}",
+                    candidate.StartsWith("/", StringComparison.Ordinal) ? $"test{candidate}" : $"/test/{candidate}"
+                };
+
+                foreach (var path in candidatePaths.Distinct(StringComparer.OrdinalIgnoreCase))
+                {
+                    var uPath = Activator.CreateInstance(uPathType, path);
+                    if (uPath is null)
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        using var stream = (Stream)openFile.Invoke(fileSystem,
+                            [uPath, FileMode.Open, FileAccess.Read, FileShare.Read])!;
+                        using var reader = new StreamReader(stream);
+                        return reader.ReadToEnd();
+                    }
+                    catch
+                    {
+                        // Try next path shape.
+                    }
+                }
+
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         engine.SetModuleLoader((specifier, referrer) =>
         {
             var normalized = specifier.Replace('\\', '/');
@@ -242,53 +391,127 @@ try {
                 return cached;
             }
 
+            if (SharedModuleSourceCache.TryGetValue(normalized, out var sharedCached))
+            {
+                moduleSourceCache[normalized] = sharedCached;
+                return sharedCached;
+            }
+
             if (State.Sources.TryGetValue(Path.GetFileName(normalized), out var harnessSource))
             {
                 moduleSourceCache[normalized] = harnessSource;
+                SharedModuleSourceCache.TryAdd(normalized, harnessSource);
                 return harnessSource;
             }
 
             var referrerPath = referrer?.Replace('\\', '/');
-            var candidates = new List<string> { normalized };
-            if (!normalized.Contains('/') && !string.IsNullOrEmpty(referrerPath))
+            var candidates = new List<string>();
+
+            void AddCandidate(string candidate)
             {
-                var lastSlash = referrerPath.LastIndexOf('/');
+                if (candidate.StartsWith("./", StringComparison.Ordinal))
+                {
+                    candidate = candidate[2..];
+                }
+
+                if (candidate.StartsWith("test/", StringComparison.OrdinalIgnoreCase))
+                {
+                    candidate = candidate[5..];
+                }
+
+                candidates.Add(candidate);
+            }
+
+            string NormalizeRelative(string baseDir, string relative)
+            {
+                var combined = $"{baseDir}/{relative}";
+                var parts = combined.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                var stack = new List<string>(parts.Length);
+
+                foreach (var part in parts)
+                {
+                    if (part == ".")
+                    {
+                        continue;
+                    }
+
+                    if (part == "..")
+                    {
+                        if (stack.Count > 0)
+                        {
+                            stack.RemoveAt(stack.Count - 1);
+                        }
+                        continue;
+                    }
+
+                    stack.Add(part);
+                }
+
+                return string.Join('/', stack);
+            }
+
+            AddCandidate(normalized);
+
+            if (!string.IsNullOrEmpty(referrerPath))
+            {
+                var baseDir = referrerPath;
+                var lastSlash = baseDir.LastIndexOf('/');
                 if (lastSlash >= 0)
                 {
-                    candidates.Add($"{referrerPath[..lastSlash]}/{normalized}");
+                    baseDir = baseDir[..lastSlash];
+                }
+
+                if (normalized.StartsWith("./", StringComparison.Ordinal) ||
+                    normalized.StartsWith("../", StringComparison.Ordinal))
+                {
+                    AddCandidate(NormalizeRelative(baseDir, normalized));
+                }
+                else if (!normalized.Contains('/'))
+                {
+                    AddCandidate($"{baseDir}/{normalized}");
                 }
             }
-            candidates.Add($"test/{normalized}");
 
             foreach (var candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
             {
-            try
-            {
-                    var moduleFile = State.Test262Stream.GetTestFile(candidate);
-                    moduleSourceCache[normalized] = moduleFile.Program;
-                    return moduleFile.Program;
-            }
-            catch (Exception ex)
-            {
+                if (SharedModuleSourceCache.TryGetValue(candidate, out var sharedCandidate))
+                {
+                    moduleSourceCache[normalized] = sharedCandidate;
+                    return sharedCandidate;
+                }
+
                 try
                 {
-                        var urlPath = candidate.StartsWith("test/", StringComparison.OrdinalIgnoreCase)
-                            ? candidate
-                            : $"test/{candidate}";
-                    var url = $"https://raw.githubusercontent.com/tc39/test262/{State.GitHubSha}/{urlPath}";
-                    using var httpClient = new HttpClient();
-                    var source = httpClient.GetStringAsync(url).GetAwaiter().GetResult();
-                    moduleSourceCache[normalized] = source;
-                    return source;
+                    var moduleFile = State.Test262Stream.GetTestFile(candidate);
+                    moduleSourceCache[normalized] = moduleFile.Program;
+                    SharedModuleSourceCache[candidate] = moduleFile.Program;
+                    return moduleFile.Program;
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                        if (ReferenceEquals(candidate, candidates.Last()))
+                    // Try raw source for YAML parsing errors or any file not found in test registry
+                    // This handles _FIXTURE.js files that don't have YAML headers
+                    var isYamlError = ex is ArgumentException arg &&
+                        arg.Message.Contains("YAML section start", StringComparison.OrdinalIgnoreCase);
+                    var isNotFound = ex.Message.Contains("not found", StringComparison.OrdinalIgnoreCase) ||
+                        ex.Message.Contains("does not exist", StringComparison.OrdinalIgnoreCase);
+
+                    if (isYamlError || isNotFound || candidate.Contains("_FIXTURE", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (TryReadRawModuleSource(candidate) is { } rawSource)
                         {
-                            throw new FileNotFoundException($"Module not found: {normalized}", ex.GetBaseException() ?? ex);
+                            moduleSourceCache[normalized] = rawSource;
+                            SharedModuleSourceCache[candidate] = rawSource;
+                            return rawSource;
                         }
+                    }
+
+                    if (ReferenceEquals(candidate, candidates.Last()))
+                    {
+                        throw new FileNotFoundException($"Module not found: {normalized}",
+                            ex.GetBaseException() ?? ex);
+                    }
                 }
-            }
             }
 
             throw new FileNotFoundException($"Module not found: {normalized}");
@@ -298,14 +521,14 @@ try {
         var includes = file.Includes.ToArray();
         foreach (var include in includes)
         {
-            ExecuteSource(engine, State.Sources[include]).Wait();
+            ExecuteHarnessProgram(engine, State.Sources[include]);
         }
 
-        ExecuteSource(engine, CompareArrayPatchScript).Wait();
+        ExecuteHarnessProgram(engine, CompareArrayPatchScript);
 
         if (file.Flags.Contains("async"))
         {
-            ExecuteSource(engine, State.Sources["doneprintHandle.js"]).Wait();
+            ExecuteHarnessProgram(engine, State.Sources["doneprintHandle.js"]);
         }
 
         return engine;
@@ -417,7 +640,7 @@ try {
             fnAccessor.TryGetProperty("prototype", out var fnProto) &&
             fnProto is JsObject fnProtoObj)
         {
-            constructor.SetProperty("__proto__", fnProtoObj);
+            constructor.SetPrototype(fnProtoObj);
         }
 
         return constructor;

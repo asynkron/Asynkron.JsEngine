@@ -18,6 +18,7 @@ public static partial class TypedAstEvaluator
         private readonly GeneratorPlan? _plan;
         private readonly bool _hasFunctionNameEnvironment;
         private readonly bool _isStrict;
+        private readonly bool _allowIdentifierCache;
         private readonly ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes;
         private readonly RealmState _realmState;
         private readonly YieldResumeContext _resumeContext = new();
@@ -30,7 +31,6 @@ public static partial class TypedAstEvaluator
         private readonly Stack<TryFrame> _tryStack = new();
         // Track active with-scope slots for restoration after yield/resume
         private readonly Stack<Symbol> _activeWithScopes = new();
-        private HashSet<Symbol>? _blockedFunctionVarNames;
         private bool _asyncStepMode;
         private EvaluationContext? _context;
         private int _currentInstructionIndex;
@@ -70,6 +70,7 @@ public static partial class TypedAstEvaluator
             _privateNameScope = privateNameScope;
             _capturedPrivateNameScopes = capturedPrivateNameScopes;
             _isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
+            _allowIdentifierCache = AllowsIdentifierCaching(function);
 
             if (!GeneratorIrBuilder.TryBuild(function, out var plan, out var failureReason))
             {
@@ -249,8 +250,7 @@ public static partial class TypedAstEvaluator
 
             var generatorContext = _realmState.CreateContext(
                 ScopeKind.Function,
-                DetermineGeneratorScopeMode(),
-                true);
+                DetermineGeneratorScopeMode());
 
             object? boundThis = _thisValue;
             if (!_isStrict)
@@ -306,7 +306,6 @@ public static partial class TypedAstEvaluator
                 parameterEnvironment.Define(functionName, _callable, isConst: true, isLexical: true, blocksFunctionScopeOverride: true);
             }
 
-            generatorContext.BlockedFunctionVarNames = blockedFunctionVarNames;
             HoistVarDeclarations(_function.Body, executionEnvironment, generatorContext,
                 lexicalNames: lexicalNames,
                 catchParameterNames: catchParameterNames,
@@ -325,7 +324,6 @@ public static partial class TypedAstEvaluator
                 generatorContext.ClearReturn();
             }
 
-            _blockedFunctionVarNames = blockedFunctionVarNames;
             return executionEnvironment;
         }
 
@@ -399,8 +397,7 @@ public static partial class TypedAstEvaluator
                 _resumeContext.Clear();
                 var throwContext = _context ??= _realmState.CreateContext(
                     ScopeKind.Function,
-                    DetermineGeneratorScopeMode(),
-                    true);
+                    DetermineGeneratorScopeMode());
                 throw StandardLibrary.ThrowTypeError("Generator is already executing", throwContext, _realmState);
             }
 
@@ -1358,17 +1355,15 @@ public static partial class TypedAstEvaluator
             {
                 _context = _realmState.CreateContext(
                     ScopeKind.Function,
-                    DetermineGeneratorScopeMode(),
-                    true);
+                    DetermineGeneratorScopeMode());
             }
             else
             {
                 _context.Clear();
             }
 
+            _context.AllowIdentifierCache = _allowIdentifierCache;
             ApplyPrivateNameScopes();
-            _context.BlockedFunctionVarNames = _blockedFunctionVarNames ??
-                                               new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
 
             return _context;
         }
@@ -1395,12 +1390,7 @@ public static partial class TypedAstEvaluator
 
         private ScopeMode DetermineGeneratorScopeMode()
         {
-            if (_isStrict)
-            {
-                return ScopeMode.Strict;
-            }
-
-            return _realmState.Options.EnableAnnexBFunctionExtensions ? ScopeMode.SloppyAnnexB : ScopeMode.Sloppy;
+            return _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
         }
 
         private object? ResumeGenerator(ResumeMode mode, object? value)
@@ -1447,15 +1437,13 @@ public static partial class TypedAstEvaluator
 
                 var context = _realmState.CreateContext(
                     ScopeKind.Function,
-                    DetermineGeneratorScopeMode(),
-                    true);
+                    DetermineGeneratorScopeMode());
                 _executionEnvironment.Define(Symbol.YieldTrackerSymbol, new YieldTracker(_consumedYieldIndices));
 
                 var result = EvaluateBlock(
                     _function.Body,
                     _executionEnvironment,
-                    context,
-                    true);
+                    context);
 
                 if (context.IsThrow)
                 {

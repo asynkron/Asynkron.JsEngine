@@ -356,10 +356,8 @@ public class StrictModeTests
         Assert.False(function.Function.Body.IsStrict);
 
         await engine.Evaluate(definition);
-        var fooValue = await engine.Evaluate("foo;");
-        var metadata = Assert.IsAssignableFrom<ICallerInfo>(fooValue);
-        Assert.False(metadata.IsStrictFunction);
 
+        // The function was parsed as non-strict, so calling it with undefined should convert to global
         var result = await engine.Evaluate("foo.call(undefined);");
 
         Assert.True(result is bool b && b);

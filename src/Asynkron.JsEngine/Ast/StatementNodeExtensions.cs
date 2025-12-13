@@ -190,69 +190,12 @@ public static partial class TypedAstEvaluator
                             break;
                         }
 
-                        if (context.BlockedFunctionVarNames is { } blockedHoists &&
-                            blockedHoists.Contains(functionDeclaration.Name))
-                        {
-                            break;
-                        }
-
                         if (context.CurrentScope.IsStrict && lexicalNames.Contains(functionDeclaration.Name))
                         {
                             break;
                         }
 
-                        var hasNonCatchLexical = lexicalNames.Contains(functionDeclaration.Name) &&
-                                                 !simpleCatchParameterNames.Contains(functionDeclaration.Name);
-                        var functionScope = environment.GetFunctionScope();
-
-                        // Per Annex B.3.3, only regular (non-async, non-generator) function declarations
-                        // are eligible for Annex B hoisting. Async functions, generators, and async generators
-                        // are always block-scoped and never hoisted via Annex B.
-                        var isAnnexBBlockFunction =
-                            inBlockScope &&
-                            context.CurrentScope is { IsStrict: false, AllowAnnexB: true } &&
-                            !functionDeclaration.Function.IsAsync &&
-                            !functionDeclaration.Function.WasAsync &&
-                            !functionDeclaration.Function.IsGenerator;
-
-                        if (isAnnexBBlockFunction)
-                        {
-                            lexicalNames.Add(functionDeclaration.Name);
-
-                            if (hasNonCatchLexical ||
-                                functionScope.HasBodyLexicalName(functionDeclaration.Name))
-                            {
-                                break;
-                            }
-
-                            // B.3.3.1 allows Annex B function semantics for this declaration.
-                            // Track the specific node so the runtime copy only runs for
-                            // declarations that actually produced a var/global binding.
-                            context.AnnexBApplicableFunctions.Add(functionDeclaration);
-                            functionScope.MarkAnnexBApplicableFunction(functionDeclaration.Name);
-
-                            var allowConfigurableFunctions =
-                                context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false };
-                            bool? globalFunctionConfigurable =
-                                functionScope.IsGlobalFunctionScope
-                                    ? allowConfigurableFunctions
-                                    : null;
-                            functionScope.DefineFunctionScoped(
-                                functionDeclaration.Name,
-                                Symbol.Undefined,
-                                false,
-                                true,
-                                globalFunctionConfigurable,
-                                context,
-                                blocksFunctionScopeOverride: true,
-                                globalVarConfigurable: null,
-                                allowExistingGlobalFunctionRedeclaration: true,
-                                isAnnexBFunction: true,
-                                canDelete: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false });
-
-                            break;
-                        }
-
+                        // Block-scoped function declarations are lexically scoped (no hoisting to function scope)
                         if (inBlockScope)
                         {
                             break;
@@ -314,7 +257,7 @@ public static partial class TypedAstEvaluator
                         names.Add(classDeclaration.Name);
                         break;
                 case FunctionDeclaration:
-                    // Function declarations are handled separately for hoisting/Annex B;
+                    // Function declarations are handled separately for hoisting;
                     // they are not treated as lexical bindings here.
                     break;
                     case IfStatement ifStatement:

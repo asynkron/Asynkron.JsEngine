@@ -17,7 +17,7 @@ public class MethodShorthandParsingTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             log('=== Comparing method shorthand vs regular function ===');
 
             // Test 1: Regular function syntax
@@ -99,7 +99,7 @@ public class MethodShorthandParsingTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             log('=== Test 1: Method shorthand in simple object ===');
             let simple = {
                 method() {

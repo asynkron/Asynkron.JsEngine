@@ -78,12 +78,28 @@ public static partial class StandardLibrary
             throw new ThrowSignal(error);
         }
 
+        if (target is HostFunction hostCtor &&
+            (ReferenceEquals(hostCtor, realm.ArrayBufferConstructor) ||
+             ReferenceEquals(hostCtor, realm.SharedArrayBufferConstructor)))
+        {
+            var constructContext = realm.CreateContext(pushScope: false);
+            return hostCtor.InvokeWithContext(argList, Symbol.Undefined, constructContext, newTarget);
+        }
+
         var proto = ResolveConstructPrototype(newTarget, target, realm);
 
         if ((realm.ArrayConstructor is not null && ReferenceEquals(target, realm.ArrayConstructor)) ||
             (realm.ArrayConstructor is not null && ReferenceEquals(newTarget, realm.ArrayConstructor)))
         {
-            var arrayInstance = new JsArray(realm);
+            var instanceRealm = proto is JsObject { RealmState: { } protoRealm }
+                ? protoRealm
+                : newTarget switch
+                {
+                    HostFunction { RealmState: { } hostRealm } => hostRealm,
+                    TypedAstEvaluator.TypedFunction { RealmState: { } tfRealm } => tfRealm,
+                    _ => realm
+                };
+            var arrayInstance = new JsArray(instanceRealm);
             if (proto is not null)
             {
                 arrayInstance.SetPrototype(proto);
@@ -121,7 +137,7 @@ public static partial class StandardLibrary
             instance.EndConstruction();
         }
 
-        return constructed is JsObject obj ? obj : instance;
+        return constructed is IJsPropertyAccessor ? constructed : instance;
     }
 
     internal static object? ReflectDefineProperty(object? _, IReadOnlyList<object?> args, RealmState? realm)

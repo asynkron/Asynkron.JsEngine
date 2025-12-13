@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine.Ast;
@@ -121,13 +122,47 @@ public sealed record IfStatement(
 ///     Represents a while loop.
 /// </summary>
 public sealed record WhileStatement(SourceReference? Source, ExpressionNode Condition, StatementNode Body)
-    : StatementNode(Source);
+    : StatementNode(Source), IAstCacheable<LoopPlan>
+{
+    private LoopPlan? _cachedPlan;
+
+    LoopPlan IAstCacheable<LoopPlan>.GetOrCreateCache()
+    {
+        return AstCache.GetOrCreate(ref _cachedPlan, () =>
+        {
+            var isStrict = Body is BlockStatement { IsStrict: true };
+            if (!LoopNormalizer.TryNormalize(this, isStrict, out var plan, out var failureReason))
+            {
+                throw new NotSupportedException(failureReason ?? "Failed to normalize while loop.");
+            }
+
+            return plan;
+        });
+    }
+}
 
 /// <summary>
 ///     Represents a do/while loop.
 /// </summary>
 public sealed record DoWhileStatement(SourceReference? Source, StatementNode Body, ExpressionNode Condition)
-    : StatementNode(Source);
+    : StatementNode(Source), IAstCacheable<LoopPlan>
+{
+    private LoopPlan? _cachedPlan;
+
+    LoopPlan IAstCacheable<LoopPlan>.GetOrCreateCache()
+    {
+        return AstCache.GetOrCreate(ref _cachedPlan, () =>
+        {
+            var isStrict = Body is BlockStatement { IsStrict: true };
+            if (!LoopNormalizer.TryNormalize(this, isStrict, out var plan, out var failureReason))
+            {
+                throw new NotSupportedException(failureReason ?? "Failed to normalize do/while loop.");
+            }
+
+            return plan;
+        });
+    }
+}
 
 /// <summary>
 ///     Represents a with statement.
@@ -143,7 +178,24 @@ public sealed record ForStatement(
     StatementNode? Initializer,
     ExpressionNode? Condition,
     ExpressionNode? Increment,
-    StatementNode Body) : StatementNode(Source);
+    StatementNode Body) : StatementNode(Source), IAstCacheable<LoopPlan>
+{
+    private LoopPlan? _cachedPlan;
+
+    LoopPlan IAstCacheable<LoopPlan>.GetOrCreateCache()
+    {
+        return AstCache.GetOrCreate(ref _cachedPlan, () =>
+        {
+            var isStrict = Body is BlockStatement { IsStrict: true };
+            if (!LoopNormalizer.TryNormalize(this, isStrict, out var plan, out var failureReason))
+            {
+                throw new NotSupportedException(failureReason ?? "Failed to normalize for loop.");
+            }
+
+            return plan;
+        });
+    }
+}
 
 /// <summary>
 ///     Represents for...in / for...of / for await...of loops.
@@ -154,7 +206,23 @@ public sealed record ForEachStatement(
     ExpressionNode Iterable,
     StatementNode Body,
     ForEachKind Kind,
-    VariableKind? DeclarationKind) : StatementNode(Source);
+    VariableKind? DeclarationKind) : StatementNode(Source), IAstCacheable<IteratorDriverPlan>
+{
+    private IteratorDriverPlan? _cachedPlan;
+
+    IteratorDriverPlan IAstCacheable<IteratorDriverPlan>.GetOrCreateCache()
+    {
+        return AstCache.GetOrCreate(ref _cachedPlan, () =>
+        {
+            var isStrict = Body is BlockStatement { IsStrict: true };
+            var planBody = Body is BlockStatement blockBody
+                ? blockBody
+                : new BlockStatement(Source, [Body], isStrict);
+
+            return IteratorDriverFactory.CreatePlan(this, planBody);
+        });
+    }
+}
 
 /// <summary>
 ///     Distinguishes the different for-each loop flavours.
@@ -193,7 +261,67 @@ public sealed record CatchClause(SourceReference? Source, BindingTarget? Binding
 public sealed record SwitchStatement(
     SourceReference? Source,
     ExpressionNode Discriminant,
-    ImmutableArray<SwitchCase> Cases) : StatementNode(Source);
+    ImmutableArray<SwitchCase> Cases) : StatementNode(Source), IAstCacheable<SwitchInstantiationPlan>
+{
+    private SwitchInstantiationPlan? _cachedInstantiationPlan;
+
+    SwitchInstantiationPlan IAstCacheable<SwitchInstantiationPlan>.GetOrCreateCache()
+    {
+        return AstCache.GetOrCreate(ref _cachedInstantiationPlan, () =>
+        {
+            var lexicalBindings = ImmutableArray.CreateBuilder<SwitchLexicalBinding>();
+            var functionBindings = ImmutableArray.CreateBuilder<SwitchFunctionBinding>();
+            var classBindings = ImmutableArray.CreateBuilder<Symbol>();
+
+            var isStrict = false;
+
+            foreach (var switchCase in Cases)
+            {
+                if (switchCase.Body.IsStrict)
+                {
+                    isStrict = true;
+                }
+
+                foreach (var stmt in switchCase.Body.Statements)
+                {
+                    if (stmt is VariableDeclaration
+                        {
+                            Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
+                        } varDecl)
+                    {
+                        var isConst = varDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
+                        foreach (var declarator in varDecl.Declarators)
+                        {
+                            lexicalBindings.Add(new SwitchLexicalBinding(declarator.Target, isConst));
+                        }
+
+                        continue;
+                    }
+
+                    if (stmt is FunctionDeclaration funcDecl)
+                    {
+                        var isAsyncOrGenerator = funcDecl.Function.IsAsync || funcDecl.Function.WasAsync ||
+                                                 funcDecl.Function.IsGenerator;
+                        functionBindings.Add(new SwitchFunctionBinding(funcDecl.Name, funcDecl.Function,
+                            InitializeNow: !isAsyncOrGenerator));
+                        continue;
+                    }
+
+                    if (stmt is ClassDeclaration classDecl)
+                    {
+                        classBindings.Add(classDecl.Name);
+                    }
+                }
+            }
+
+            return new SwitchInstantiationPlan(
+                isStrict,
+                lexicalBindings.ToImmutable(),
+                functionBindings.ToImmutable(),
+                classBindings.ToImmutable());
+        });
+    }
+}
 
 /// <summary>
 ///     Represents a single case clause inside a switch statement.

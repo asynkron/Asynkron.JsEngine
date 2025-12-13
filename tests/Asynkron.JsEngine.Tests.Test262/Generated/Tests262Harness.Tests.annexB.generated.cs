@@ -3,9 +3,9 @@
 //   Generated using the Test262Harness v1.0.3.0
 //   Suite Git SHA: a073f479f80b336256b7fc4e04700c827293e2fe
 //   Suite Directory: 
-//   Template SHA: 43DC8E86CEB9E1C05EBD8D7BE777B29C51633BBF06CA066DD6C994F794C3BF86
+//   Template SHA: A707771EFFBE1E2C8C636EF5B50FE3DE1368DF0389FEF00BE8CB6F41B1470731
 //   Command line: /Users/rogerjohansson/.nuget/packages/test262harness.console/1.0.3/tools/net8.0/any/Test262Harness.Console.dll generate
-//   Settings file: /Users/rogerjohansson/git/asynkron/Asynkron.JsEngine/tests/Asynkron.JsEngine.Tests.Test262/Test262Harness.settings.json
+//   Settings file: /Users/rogerjohansson/git/asynkron/JsEngine2/tests/Asynkron.JsEngine.Tests.Test262/Test262Harness.settings.json
 // </auto-generated>
 //----------------------
 
@@ -173,82 +173,40 @@ public class AnnexBTests : Test262Test
         RunTestCode(test, strict);
     }
 
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/index/prop-desc.js", false, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/index/prop-desc.js", true, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/index/this-cross-realm-constructor.js", false, Category = "legacy-regexp,cross-realm,Reflect")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/index/this-cross-realm-constructor.js", true, Category = "legacy-regexp,cross-realm,Reflect")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/index/this-not-regexp-constructor.js", false, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/index/this-not-regexp-constructor.js", true, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/index/this-subclass-constructor.js", false, Category = "legacy-regexp,class")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/index/this-subclass-constructor.js", true, Category = "legacy-regexp,class")]
-    public void BuiltIns_RegExp_legacyAccessors_index(string test, bool strict)
+    [Test]
+    [Ignore("Feature legacy-regexp excluded")]
+    public void BuiltIns_RegExp_legacyAccessors_index()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/input/prop-desc.js", false, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/input/prop-desc.js", true, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/input/this-cross-realm-constructor.js", false, Category = "legacy-regexp,cross-realm,Reflect,Reflect.set")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/input/this-cross-realm-constructor.js", true, Category = "legacy-regexp,cross-realm,Reflect,Reflect.set")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/input/this-not-regexp-constructor.js", false, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/input/this-not-regexp-constructor.js", true, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/input/this-subclass-constructor.js", false, Category = "legacy-regexp,class")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/input/this-subclass-constructor.js", true, Category = "legacy-regexp,class")]
-    public void BuiltIns_RegExp_legacyAccessors_input(string test, bool strict)
+    [Test]
+    [Ignore("Feature legacy-regexp excluded")]
+    public void BuiltIns_RegExp_legacyAccessors_input()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/lastMatch/prop-desc.js", false, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/lastMatch/prop-desc.js", true, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/lastMatch/this-cross-realm-constructor.js", false, Category = "legacy-regexp,cross-realm,Reflect")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/lastMatch/this-cross-realm-constructor.js", true, Category = "legacy-regexp,cross-realm,Reflect")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/lastMatch/this-not-regexp-constructor.js", false, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/lastMatch/this-not-regexp-constructor.js", true, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/lastMatch/this-subclass-constructor.js", false, Category = "legacy-regexp,class")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/lastMatch/this-subclass-constructor.js", true, Category = "legacy-regexp,class")]
-    public void BuiltIns_RegExp_legacyAccessors_lastMatch(string test, bool strict)
+    [Test]
+    [Ignore("Feature legacy-regexp excluded")]
+    public void BuiltIns_RegExp_legacyAccessors_lastMatch()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/lastParen/prop-desc.js", false, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/lastParen/prop-desc.js", true, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/lastParen/this-cross-realm-constructor.js", false, Category = "legacy-regexp,cross-realm,Reflect")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/lastParen/this-cross-realm-constructor.js", true, Category = "legacy-regexp,cross-realm,Reflect")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/lastParen/this-not-regexp-constructor.js", false, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/lastParen/this-not-regexp-constructor.js", true, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/lastParen/this-subclass-constructor.js", false, Category = "legacy-regexp,class")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/lastParen/this-subclass-constructor.js", true, Category = "legacy-regexp,class")]
-    public void BuiltIns_RegExp_legacyAccessors_lastParen(string test, bool strict)
+    [Test]
+    [Ignore("Feature legacy-regexp excluded")]
+    public void BuiltIns_RegExp_legacyAccessors_lastParen()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/leftContext/prop-desc.js", false, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/leftContext/prop-desc.js", true, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/leftContext/this-cross-realm-constructor.js", false, Category = "legacy-regexp,cross-realm,Reflect")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/leftContext/this-cross-realm-constructor.js", true, Category = "legacy-regexp,cross-realm,Reflect")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/leftContext/this-not-regexp-constructor.js", false, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/leftContext/this-not-regexp-constructor.js", true, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/leftContext/this-subclass-constructor.js", false, Category = "legacy-regexp,class")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/leftContext/this-subclass-constructor.js", true, Category = "legacy-regexp,class")]
-    public void BuiltIns_RegExp_legacyAccessors_leftContext(string test, bool strict)
+    [Test]
+    [Ignore("Feature legacy-regexp excluded")]
+    public void BuiltIns_RegExp_legacyAccessors_leftContext()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/rightContext/prop-desc.js", false, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/rightContext/prop-desc.js", true, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/rightContext/this-cross-realm-constructor.js", false, Category = "legacy-regexp,cross-realm,Reflect")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/rightContext/this-cross-realm-constructor.js", true, Category = "legacy-regexp,cross-realm,Reflect")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/rightContext/this-not-regexp-constructor.js", false, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/rightContext/this-not-regexp-constructor.js", true, Category = "legacy-regexp")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/rightContext/this-subclass-constructor.js", false, Category = "legacy-regexp,class")]
-    [TestCase("annexB/built-ins/RegExp/legacy-accessors/rightContext/this-subclass-constructor.js", true, Category = "legacy-regexp,class")]
-    public void BuiltIns_RegExp_legacyAccessors_rightContext(string test, bool strict)
+    [Test]
+    [Ignore("Feature legacy-regexp excluded")]
+    public void BuiltIns_RegExp_legacyAccessors_rightContext()
     {
-        RunTestCode(test, strict);
     }
 
     [TestCase("annexB/built-ins/RegExp/named-groups/non-unicode-malformed-lookbehind.js", false, Category = "regexp-named-groups,regexp-lookbehind")]
@@ -298,14 +256,14 @@ public class AnnexBTests : Test262Test
     [TestCase("annexB/built-ins/RegExp/prototype/compile/pattern-to-string-err.js", true, Category = "Symbol")]
     [TestCase("annexB/built-ins/RegExp/prototype/compile/pattern-undefined.js", false)]
     [TestCase("annexB/built-ins/RegExp/prototype/compile/pattern-undefined.js", true)]
-    [TestCase("annexB/built-ins/RegExp/prototype/compile/this-cross-realm-instance.js", false, Category = "legacy-regexp,cross-realm")]
-    [TestCase("annexB/built-ins/RegExp/prototype/compile/this-cross-realm-instance.js", true, Category = "legacy-regexp,cross-realm")]
+    [TestCase("annexB/built-ins/RegExp/prototype/compile/this-cross-realm-instance.js", false, Category = "legacy-regexp,cross-realm", IgnoreReason = "Feature legacy-regexp excluded")]
+    [TestCase("annexB/built-ins/RegExp/prototype/compile/this-cross-realm-instance.js", true, Category = "legacy-regexp,cross-realm", IgnoreReason = "Feature legacy-regexp excluded")]
     [TestCase("annexB/built-ins/RegExp/prototype/compile/this-not-object.js", false, Category = "Symbol")]
     [TestCase("annexB/built-ins/RegExp/prototype/compile/this-not-object.js", true, Category = "Symbol")]
     [TestCase("annexB/built-ins/RegExp/prototype/compile/this-obj-not-regexp.js", false)]
     [TestCase("annexB/built-ins/RegExp/prototype/compile/this-obj-not-regexp.js", true)]
-    [TestCase("annexB/built-ins/RegExp/prototype/compile/this-subclass-instance.js", false, Category = "legacy-regexp,class")]
-    [TestCase("annexB/built-ins/RegExp/prototype/compile/this-subclass-instance.js", true, Category = "legacy-regexp,class")]
+    [TestCase("annexB/built-ins/RegExp/prototype/compile/this-subclass-instance.js", false, Category = "legacy-regexp,class", IgnoreReason = "Feature legacy-regexp excluded")]
+    [TestCase("annexB/built-ins/RegExp/prototype/compile/this-subclass-instance.js", true, Category = "legacy-regexp,class", IgnoreReason = "Feature legacy-regexp excluded")]
     public void BuiltIns_RegExp_prototype_compile(string test, bool strict)
     {
         RunTestCode(test, strict);

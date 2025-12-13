@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
@@ -10,18 +11,22 @@ namespace Asynkron.JsEngine.JsTypes;
 /// <summary>
 ///     Simple JavaScript-like object that supports prototype chaining for property lookups.
 /// </summary>
-    public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
+    public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         IPrivateBrandHolder,
         IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider
     {
     private const string PrototypeKey = "__proto__";
     private const string GetterPrefix = "__getter__";
     private const string SetterPrefix = "__setter__";
+
+    // Backing storage for properties - can be swapped out for HybridDictionary later
+    private readonly Dictionary<string, object?> _storage = new(StringComparer.Ordinal);
+
     private readonly Dictionary<string, PropertyDescriptor> _descriptors = new(StringComparer.Ordinal);
     private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
     private readonly Dictionary<string, object?> _privateFields = new(StringComparer.Ordinal);
-    private readonly List<string> _propertyInsertionOrder = [];
-    private readonly HashSet<string> _propertyInsertionSet = new(StringComparer.Ordinal);
+    private readonly LinkedList<string> _propertyInsertionOrder = new();
+    private readonly Dictionary<string, LinkedListNode<string>> _propertyInsertionNodes = new(StringComparer.Ordinal);
     private bool _trackArrayLength;
     private double _trackedArrayLength;
 
@@ -34,7 +39,7 @@ namespace Asynkron.JsEngine.JsTypes;
     public bool IsExtensible { get; private set; } = true;
     internal bool IsConstructing { get; private set; }
 
-    public JsObject(object? prototype = null) : base(StringComparer.Ordinal)
+    public JsObject(object? prototype = null)
     {
         if (prototype is not null)
         {
@@ -72,7 +77,31 @@ namespace Asynkron.JsEngine.JsTypes;
 
     public bool IsSealed { get; private set; }
 
-    IEnumerable<string> IJsObjectLike.Keys => Keys;
+    IEnumerable<string> IJsObjectLike.Keys => _storage.Keys;
+
+    // IDictionary<string, object?> implementation
+    public ICollection<string> Keys => _storage.Keys;
+    public ICollection<object?> Values => _storage.Values;
+    public int Count => _storage.Count;
+    public bool IsReadOnly => false;
+
+    public object? this[string key]
+    {
+        get => _storage[key];
+        set => _storage[key] = value;
+    }
+
+    public void Add(string key, object? value) => _storage.Add(key, value);
+    public bool ContainsKey(string key) => _storage.ContainsKey(key);
+    public bool Remove(string key) => _storage.Remove(key);
+    public bool TryGetValue(string key, out object? value) => _storage.TryGetValue(key, out value);
+    void ICollection<KeyValuePair<string, object?>>.Add(KeyValuePair<string, object?> item) => ((ICollection<KeyValuePair<string, object?>>)_storage).Add(item);
+    public void Clear() => _storage.Clear();
+    bool ICollection<KeyValuePair<string, object?>>.Contains(KeyValuePair<string, object?> item) => ((ICollection<KeyValuePair<string, object?>>)_storage).Contains(item);
+    void ICollection<KeyValuePair<string, object?>>.CopyTo(KeyValuePair<string, object?>[] array, int arrayIndex) => ((ICollection<KeyValuePair<string, object?>>)_storage).CopyTo(array, arrayIndex);
+    bool ICollection<KeyValuePair<string, object?>>.Remove(KeyValuePair<string, object?> item) => ((ICollection<KeyValuePair<string, object?>>)_storage).Remove(item);
+    public IEnumerator<KeyValuePair<string, object?>> GetEnumerator() => _storage.GetEnumerator();
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => _storage.GetEnumerator();
 
     public void SetPrototype(object? candidate)
     {
@@ -134,12 +163,6 @@ namespace Asynkron.JsEngine.JsTypes;
 
     public void SetProperty(string name, object? value, object? receiver)
     {
-        if (string.Equals(name, PrototypeKey, StringComparison.Ordinal))
-        {
-            SetPrototype(value);
-            return;
-        }
-
         if (name.IsPrivateSlotName())
         {
             if (_privateFields.TryGetValue(name, out var existing) && existing is PropertyDescriptor
@@ -300,7 +323,7 @@ namespace Asynkron.JsEngine.JsTypes;
         // Update all existing descriptors to be non-configurable
         foreach (var key in Keys.ToArray())
         {
-            if (key == PrototypeKey || key.StartsWith(GetterPrefix) || key.StartsWith(SetterPrefix))
+            if (key.StartsWith(GetterPrefix) || key.StartsWith(SetterPrefix))
             {
                 continue;
             }
@@ -324,8 +347,7 @@ namespace Asynkron.JsEngine.JsTypes;
         // Private slots need special handling - go through slow path
         if (name.IsPrivateSlotName())
         {
-            return TryGetProperty(name, this, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), null,
-                out value);
+            return TryGetProperty(name, this, 0, null, out value);
         }
 
         // Fast path: check own property first without allocating HashSet
@@ -339,9 +361,8 @@ namespace Asynkron.JsEngine.JsTypes;
             return false;
         }
 
-        // Slow path: need cycle detection for prototype chain traversal
-        return TryGetProperty(name, this, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), null,
-            out value);
+        // Slow path: need depth-limited prototype chain traversal
+        return TryGetProperty(name, this, 0, null, out value);
     }
 
     public bool TryGetProperty(string name, object? receiver, out object? value)
@@ -349,8 +370,7 @@ namespace Asynkron.JsEngine.JsTypes;
         // Private slots need special handling - go through slow path
         if (name.IsPrivateSlotName())
         {
-            return TryGetProperty(name, receiver, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), null,
-                out value);
+            return TryGetProperty(name, receiver, 0, null, out value);
         }
 
         // Fast path: check own property first without allocating HashSet
@@ -364,9 +384,8 @@ namespace Asynkron.JsEngine.JsTypes;
             return false;
         }
 
-        // Slow path: need cycle detection for prototype chain traversal
-        return TryGetProperty(name, receiver, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), null,
-            out value);
+        // Slow path: need depth-limited prototype chain traversal
+        return TryGetProperty(name, receiver, 0, null, out value);
     }
 
     public IEnumerable<string> GetOwnPropertyNames()
@@ -390,7 +409,7 @@ namespace Asynkron.JsEngine.JsTypes;
     internal void SeedIntrinsicConstructorKeys()
     {
         _propertyInsertionOrder.Clear();
-        _propertyInsertionSet.Clear();
+        _propertyInsertionNodes.Clear();
         SeedOwnPropertyInsertion("length");
         SeedOwnPropertyInsertion("name");
         SeedOwnPropertyInsertion("prototype");
@@ -418,6 +437,7 @@ namespace Asynkron.JsEngine.JsTypes;
         _privateBrands.Add(brand);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool HasPrivateBrand(object brand)
     {
         return _privateBrands.Contains(brand);
@@ -704,7 +724,7 @@ namespace Asynkron.JsEngine.JsTypes;
         }
         else
         {
-            base["length"] = _trackedArrayLength;
+            _storage["length"] = _trackedArrayLength;
         }
     }
 
@@ -869,12 +889,20 @@ namespace Asynkron.JsEngine.JsTypes;
             return false;
         }
 
-        return HasPropertyCore(this, name, new HashSet<JsObject>(ReferenceEqualityComparer<JsObject>.Instance));
+        return HasPropertyCore(this, name);
     }
 
-    private static bool HasPropertyCore(JsObject current, string name, HashSet<JsObject> visited)
+    /// <summary>
+    /// Walks the prototype chain to check if a property exists.
+    /// Uses a simple depth limit instead of HashSet allocation since prototype
+    /// cycles should never exist in a correctly functioning engine.
+    /// </summary>
+    private static bool HasPropertyCore(JsObject? current, string name)
     {
-        while (current is not null && visited.Add(current))
+        const int maxDepth = 100; // Prototype chains are typically < 10 deep
+        var depth = 0;
+
+        while (current is not null && depth++ < maxDepth)
         {
             if (current.GetOwnPropertyDescriptor(name) is not null)
             {
@@ -886,10 +914,11 @@ namespace Asynkron.JsEngine.JsTypes;
             {
                 case null:
                     return false;
-                case JsObject jsObject:
-                    current = jsObject;
+                case JsObject jsProto:
+                    current = jsProto;
                     continue;
                 default:
+                    // Non-JsObject prototype - delegate to interface
                     return prototype.TryGetProperty(name, out _);
             }
         }
@@ -907,11 +936,13 @@ namespace Asynkron.JsEngine.JsTypes;
         this[SetterPrefix + name] = setter;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool HasGetter(string name)
     {
         return TryGetValue(GetterPrefix + name, out _);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool HasSetter(string name)
     {
         return TryGetValue(SetterPrefix + name, out _);
@@ -919,11 +950,11 @@ namespace Asynkron.JsEngine.JsTypes;
 
     public IJsCallable? GetGetter(string name)
     {
+        const int maxDepth = 100;
         var current = this;
-        var visited = ReferenceEqualityComparer.Instance;
-        var seen = new HashSet<JsObject>(visited);
+        var depth = 0;
 
-        while (current is not null && seen.Add(current))
+        while (current is not null && depth++ < maxDepth)
         {
             if (current.TryGetValue(GetterPrefix + name, out var getter) &&
                 getter is IJsCallable callable)
@@ -939,11 +970,11 @@ namespace Asynkron.JsEngine.JsTypes;
 
     public IJsCallable? GetSetter(string name)
     {
+        const int maxDepth = 100;
         var current = this;
-        var visited = ReferenceEqualityComparer.Instance;
-        var seen = new HashSet<JsObject>(visited);
+        var depth = 0;
 
-        while (current is not null && seen.Add(current))
+        while (current is not null && depth++ < maxDepth)
         {
             if (current.TryGetValue(SetterPrefix + name, out var setter) &&
                 setter is IJsCallable callable)
@@ -965,9 +996,10 @@ namespace Asynkron.JsEngine.JsTypes;
     /// </summary>
     private static IJsCallable? FindSetterInPrototypeChain(IJsPropertyAccessor? current, string name)
     {
-        var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        const int maxDepth = 100;
+        var depth = 0;
 
-        while (current is not null && seen.Add(current))
+        while (current is not null && depth++ < maxDepth)
         {
             // Check if this level has an own accessor property with a setter
             var descriptor = current.GetOwnPropertyDescriptor(name);
@@ -1049,7 +1081,7 @@ namespace Asynkron.JsEngine.JsTypes;
         // Update all existing descriptors to be non-writable and non-configurable
         foreach (var key in Keys.ToArray())
         {
-            if (key == PrototypeKey || key.StartsWith(GetterPrefix) || key.StartsWith(SetterPrefix))
+            if (key.StartsWith(GetterPrefix) || key.StartsWith(SetterPrefix))
             {
                 continue;
             }
@@ -1075,8 +1107,7 @@ namespace Asynkron.JsEngine.JsTypes;
         // Private slots need special handling - go through slow path
         if (name.IsPrivateSlotName())
         {
-            return TryGetProperty(name, receiver, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), context,
-                out value);
+            return TryGetProperty(name, receiver, 0, context, out value);
         }
 
         // Fast path: check own property first without allocating HashSet
@@ -1090,9 +1121,112 @@ namespace Asynkron.JsEngine.JsTypes;
             return false;
         }
 
-        // Slow path: need cycle detection for prototype chain traversal
-        return TryGetProperty(name, receiver, new HashSet<object>(ReferenceEqualityComparer<object>.Instance), context,
-            out value);
+        var effectiveReceiver = receiver ?? this;
+
+        // Allocation-free prototype walk for common acyclic, shallow chains.
+        const int fastPrototypeDepthLimit = 8;
+        var visitedFast = ArrayPool<IJsPropertyAccessor?>.Shared.Rent(fastPrototypeDepthLimit);
+        var visitedCount = 0;
+        try
+        {
+            var prototype = ResolvePrototypeAccessor();
+            while (prototype is not null && visitedCount < fastPrototypeDepthLimit)
+            {
+                visitedFast[visitedCount++] = prototype;
+
+                if (prototype is JsObject jsProto)
+                {
+                    if (jsProto.TryGetOwnProperty(name, effectiveReceiver, context, out value))
+                    {
+                        return true;
+                    }
+                }
+                else if (prototype.TryGetProperty(name, effectiveReceiver, out value))
+                {
+                    return true;
+                }
+
+                prototype = GetNextPrototypeAccessor(prototype);
+            }
+
+            if (prototype is null)
+            {
+                value = null;
+                return false;
+            }
+
+            // Continue traversal with depth limit (cycles shouldn't exist in prototype chains)
+            return TryGetPropertyFromPrototypeChain(prototype, name, effectiveReceiver, visitedCount + 1, context, out value);
+        }
+        finally
+        {
+            Array.Clear(visitedFast, 0, visitedCount);
+            ArrayPool<IJsPropertyAccessor?>.Shared.Return(visitedFast);
+        }
+    }
+
+    private IJsPropertyAccessor? ResolvePrototypeAccessor()
+    {
+        var prototype = _prototypeAccessor;
+        if (prototype is null && TryGetValue(PrototypeKey, out var protoCandidate) &&
+            protoCandidate is IJsPropertyAccessor accessor)
+        {
+            prototype = accessor;
+        }
+
+        prototype ??= Prototype;
+        return prototype;
+    }
+
+    private static IJsPropertyAccessor? GetNextPrototypeAccessor(IJsPropertyAccessor prototype)
+    {
+        if (prototype is IPrototypeAccessorProvider provider && provider.PrototypeAccessor is { } nextAccessor)
+        {
+            return nextAccessor;
+        }
+
+        if (prototype is IJsObjectLike objLike && objLike.Prototype is { } objProto)
+        {
+            return objProto;
+        }
+
+        if (prototype is JsObject jsObj && jsObj.Prototype is { } jsObjProto)
+        {
+            return jsObjProto;
+        }
+
+        return null;
+    }
+
+    private static bool TryGetPropertyFromPrototypeChain(
+        IJsPropertyAccessor? prototype,
+        string name,
+        object? receiver,
+        int currentDepth,
+        EvaluationContext? context,
+        out object? value)
+    {
+        const int maxDepth = 100;
+
+        while (prototype is not null && currentDepth++ < maxDepth)
+        {
+            if (prototype is JsObject jsProto)
+            {
+                if (jsProto.TryGetOwnProperty(name, receiver, context, out value))
+                {
+                    return true;
+                }
+            }
+            else if (prototype.TryGetProperty(name, receiver, out value))
+            {
+                return true;
+            }
+
+            prototype = GetNextPrototypeAccessor(prototype);
+        }
+
+        value = null;
+        return false;
     }
 
     internal bool HasPrivateField(string name)
@@ -1100,9 +1234,17 @@ namespace Asynkron.JsEngine.JsTypes;
         return _privateFields.ContainsKey(name);
     }
 
-    private bool TryGetProperty(string name, object? receiver, HashSet<object> visited,
+    private bool TryGetProperty(string name, object? receiver, int depth,
         EvaluationContext? context, out object? value)
     {
+        const int maxDepth = 100;
+
+        if (depth >= maxDepth)
+        {
+            value = null;
+            return false;
+        }
+
         if (name.IsPrivateSlotName())
         {
             if (_privateFields.TryGetValue(name, out var slot))
@@ -1152,7 +1294,7 @@ namespace Asynkron.JsEngine.JsTypes;
             }
 
             if (Prototype is not null &&
-                Prototype.TryGetProperty(name, receiver ?? this, visited, context, out value))
+                Prototype.TryGetProperty(name, receiver ?? this, depth + 1, context, out value))
             {
                 return true;
             }
@@ -1166,23 +1308,17 @@ namespace Asynkron.JsEngine.JsTypes;
             return true;
         }
 
-        if (!visited.Add(this))
-        {
-            value = null;
-            return false;
-        }
-
         var prototype = _prototypeAccessor;
         if (prototype is null && TryGetValue(PrototypeKey, out var protoCandidate) &&
             protoCandidate is IJsPropertyAccessor accessor)
         {
             prototype = accessor;
         }
-        while (prototype is not null)
+        while (prototype is not null && depth++ < maxDepth)
         {
             if (prototype is JsObject jsProto)
             {
-                if (jsProto.TryGetProperty(name, receiver ?? this, visited, context, out value))
+                if (jsProto.TryGetProperty(name, receiver ?? this, depth, context, out value))
                 {
                     return true;
                 }
@@ -1327,23 +1463,19 @@ namespace Asynkron.JsEngine.JsTypes;
             return;
         }
 
-        if (_propertyInsertionSet.Add(name))
+        if (!_propertyInsertionNodes.ContainsKey(name))
         {
-            _propertyInsertionOrder.Add(name);
+            var node = _propertyInsertionOrder.AddLast(name);
+            _propertyInsertionNodes[name] = node;
         }
     }
 
     private void RemoveFromInsertionOrder(string name)
     {
-        if (!_propertyInsertionSet.Remove(name))
+        if (_propertyInsertionNodes.TryGetValue(name, out var node))
         {
-            return;
-        }
-
-        var index = _propertyInsertionOrder.IndexOf(name);
-        if (index >= 0)
-        {
-            _propertyInsertionOrder.RemoveAt(index);
+            _propertyInsertionOrder.Remove(node);
+            _propertyInsertionNodes.Remove(name);
         }
     }
 
@@ -1447,8 +1579,10 @@ namespace Asynkron.JsEngine.JsTypes;
 
     private static bool IsInternalKey(string name)
     {
-        return name == PrototypeKey ||
-               name.StartsWith(GetterPrefix, StringComparison.Ordinal) ||
+        // Note: __proto__ (PrototypeKey) is NOT internal - it can be a user-defined own property
+        // when defined via shorthand { __proto__ } syntax. The prototype is stored in
+        // _prototypeAccessor and Prototype fields, not as a property.
+        return name.StartsWith(GetterPrefix, StringComparison.Ordinal) ||
                name.StartsWith(SetterPrefix, StringComparison.Ordinal);
     }
 

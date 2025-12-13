@@ -44,7 +44,9 @@ public static partial class TypedAstEvaluator
                                 obj.SetPrototype(value);
                             }
 
-                            // Per B.3.1, __proto__ in object literals never creates a property.
+                            // Per ES spec, __proto__: value with colon syntax sets the prototype,
+                            // it does not create an own property. Shorthand { __proto__ } DOES
+                            // create an own property (handled by DefineProperty below).
                             break;
                         }
 

@@ -9,12 +9,7 @@ public static partial class TypedAstEvaluator
         private object? EvaluateWhile(JsEnvironment environment, EvaluationContext context,
             Symbol? loopLabel)
         {
-            var isStrict = IsStrictBlock(statement.Body);
-            if (!LoopNormalizer.TryNormalize(statement, isStrict, out var plan, out _))
-            {
-                throw new NotSupportedException("Failed to normalize while loop.");
-            }
-
+            var plan = ((IAstCacheable<LoopPlan>)statement).GetOrCreateCache();
             return EvaluateLoopPlan(plan, environment, context, loopLabel);
         }
     }

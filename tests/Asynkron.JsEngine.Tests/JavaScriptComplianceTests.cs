@@ -213,9 +213,9 @@ public class JavaScriptComplianceTests
         // But length is not affected
         var result2 = await engine.Evaluate("""
 
-                                                        let arr = [1, 2, 3];
-                                                        arr[-1] = 99;
-                                                        arr.length;
+                                                        let arr2 = [1, 2, 3];
+                                                        arr2[-1] = 99;
+                                                        arr2.length;
 
                                             """);
         Assert.Equal(3d, result2);

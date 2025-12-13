@@ -62,10 +62,7 @@ public static partial class TypedAstEvaluator
                 var iteratorTarget = NormalizeIterableTarget(iterable, context);
                 if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
                 {
-                    var plan = IteratorDriverFactory.CreatePlan(statement,
-                        statement.Body is BlockStatement b
-                            ? b
-                            : new BlockStatement(statement.Source, [statement.Body], IsStrictBlock(statement.Body)));
+                    var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
                     var completion = ExecuteIteratorDriver(plan, iterator, null, loopEnvironment, environment, context,
                         loopLabel);
                     return ReferenceEquals(completion, EmptyCompletion) ? Symbol.Undefined : completion;
@@ -146,10 +143,7 @@ public static partial class TypedAstEvaluator
 
             if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
             {
-                var plan = IteratorDriverFactory.CreatePlan(statement,
-                    statement.Body is BlockStatement b
-                        ? b
-                        : new BlockStatement(statement.Source, [statement.Body], IsStrictBlock(statement.Body)));
+                var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
                 var completion =
                     ExecuteIteratorDriver(plan, iterator!, null, loopEnvironment, environment, context, loopLabel);
                 return ReferenceEquals(completion, EmptyCompletion) ? Symbol.Undefined : completion;

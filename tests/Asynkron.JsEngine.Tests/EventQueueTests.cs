@@ -6,7 +6,7 @@ public class EventQueueTests
     public async Task Run_ExecutesCodeAndReturnsResult()
     {
         await using var engine = new JsEngine();
-        var result = await engine.Run("2 + 3;");
+        var result = await engine.Evaluate("2 + 3;");
         Assert.Equal(5d, result);
     }
 
@@ -17,13 +17,9 @@ public class EventQueueTests
         var executed = false;
 
         // Schedule a task before running code
-        engine.ScheduleTask(() =>
-        {
-            executed = true;
-            return Task.CompletedTask;
-        });
+        engine.ScheduleTask(() => executed = true);
 
-        await engine.Run("1 + 1;");
+        await engine.Evaluate("1 + 1;");
 
         Assert.True(executed, "Scheduled task should have been executed");
     }
@@ -36,25 +32,11 @@ public class EventQueueTests
         await using var engine = new JsEngine();
         var executionOrder = new List<int>();
 
-        engine.ScheduleTask(() =>
-        {
-            executionOrder.Add(1);
-            return Task.CompletedTask;
-        });
+        engine.ScheduleTask(() => executionOrder.Add(1));
+        engine.ScheduleTask(() => executionOrder.Add(2));
+        engine.ScheduleTask(() => executionOrder.Add(3));
 
-        engine.ScheduleTask(() =>
-        {
-            executionOrder.Add(2);
-            return Task.CompletedTask;
-        });
-
-        engine.ScheduleTask(() =>
-        {
-            executionOrder.Add(3);
-            return Task.CompletedTask;
-        });
-
-        await engine.Run("let x = 42;");
+        await engine.Evaluate("let x = 42;");
 
         Assert.Equal(new[] { 1, 2, 3 }, executionOrder);
     }
@@ -69,34 +51,12 @@ public class EventQueueTests
         engine.ScheduleTask(() =>
         {
             executionOrder.Add(1);
-            engine.ScheduleTask(() =>
-            {
-                executionOrder.Add(2);
-                return Task.CompletedTask;
-            });
-            return Task.CompletedTask;
+            engine.ScheduleTask(() => executionOrder.Add(2));
         });
 
-        await engine.Run("let x = 1;");
+        await engine.Evaluate("let x = 1;");
 
         Assert.Equal(new[] { 1, 2 }, executionOrder);
-    }
-
-    [Fact(Timeout = 2000)]
-    public async Task Run_HandlesAsyncTasks()
-    {
-        await using var engine = new JsEngine();
-        var executed = false;
-
-        engine.ScheduleTask(async () =>
-        {
-            await Task.Delay(10); // Simulate async work
-            executed = true;
-        });
-
-        await engine.Run("let x = 1;");
-
-        Assert.True(executed, "Async task should have been executed");
     }
 
     [Fact(Timeout = 2000)]
@@ -105,7 +65,7 @@ public class EventQueueTests
         await using var engine = new JsEngine();
 
         // Run with no scheduled tasks - should complete immediately
-        var result = await engine.Run("5 + 5;");
+        var result = await engine.Evaluate("5 + 5;");
 
         Assert.Equal(10d, result);
     }
@@ -117,13 +77,9 @@ public class EventQueueTests
         var count = 0;
 
         for (var i = 0; i < 10; i++)
-            engine.ScheduleTask(() =>
-            {
-                count++;
-                return Task.CompletedTask;
-            });
+            engine.ScheduleTask(() => count++);
 
-        await engine.Run("let x = 1;");
+        await engine.Evaluate("let x = 1;");
 
         Assert.Equal(10, count);
     }
@@ -140,13 +96,9 @@ public class EventQueueTests
             return null;
         });
 
-        engine.ScheduleTask(() =>
-        {
-            capturedValues.Add("from-task");
-            return Task.CompletedTask;
-        });
+        engine.ScheduleTask(() => capturedValues.Add("from-task"));
 
-        await engine.Run("capture(1, 2, 3);");
+        await engine.Evaluate("capture(1, 2, 3);");
 
         Assert.Contains(1d, capturedValues);
         Assert.Contains(2d, capturedValues);

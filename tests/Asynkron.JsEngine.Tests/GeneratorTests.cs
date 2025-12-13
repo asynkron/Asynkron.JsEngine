@@ -3034,7 +3034,7 @@ public class GeneratorTests
         GeneratorIrDiagnostics.Reset();
         await using var engine = new JsEngine();
 
-        await engine.Run("""
+        await engine.Evaluate("""
                                      let result = "";
                                      let arr = ["a", "b", "c"];
 
@@ -3066,7 +3066,7 @@ public class GeneratorTests
         GeneratorIrDiagnostics.Reset();
         await using var engine = new JsEngine();
 
-        await engine.Run("""
+        await engine.Evaluate("""
                                      let result = "";
 
                                      // Custom object with async iterator
@@ -3113,7 +3113,7 @@ public class GeneratorTests
         GeneratorIrDiagnostics.Reset();
         await using var engine = new JsEngine();
 
-        await engine.Run("""
+        await engine.Evaluate("""
                                      let result = "";
                                      // For-await-of can iterate arrays, but won't automatically await promise values.
                                      // This works if we await them manually in the loop body.
@@ -3165,7 +3165,7 @@ public class GeneratorTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let asyncIterable = {
                                          [Symbol.asyncIterator]() {

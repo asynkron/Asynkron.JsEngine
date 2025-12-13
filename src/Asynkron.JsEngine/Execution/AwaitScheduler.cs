@@ -1,5 +1,7 @@
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using System.Threading;
 
 namespace Asynkron.JsEngine.Execution;
 
@@ -10,11 +12,76 @@ namespace Asynkron.JsEngine.Execution;
 /// </summary>
 internal static class AwaitScheduler
 {
+    // Reusable callback delegates to avoid allocations in hot path
+    [ThreadStatic]
+    private static PromiseAwaitState? t_cachedState;
+
+    private sealed class PromiseAwaitState
+    {
+        public int Completed;
+        public int Fulfilled;
+        public object? Value;
+
+        public void Reset()
+        {
+            Completed = 0;
+            Fulfilled = 0;
+            Value = null;
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static PromiseAwaitState RentState()
+    {
+        var state = t_cachedState;
+        if (state != null)
+        {
+            t_cachedState = null;
+            state.Reset();
+            return state;
+        }
+        return new PromiseAwaitState();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void ReturnState(PromiseAwaitState state)
+    {
+        state.Reset();
+        t_cachedState = state;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsPromiseLike(object? candidate)
     {
         return candidate is JsObject jsObject &&
                jsObject.TryGetProperty("then", out var thenValue) &&
                thenValue is IJsCallable;
+    }
+
+    /// <summary>
+    ///     Fast path: Try to get the resolved value from an already-settled promise
+    ///     without any allocations or microtask processing.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool TryGetSettledValueFast(object? candidate, out object? value, out bool isRejected)
+    {
+        // Direct JsPromise check (fastest path)
+        if (candidate is JsPromise directPromise)
+        {
+            return directPromise.TryGetSettled(out value, out isRejected);
+        }
+
+        // JsObject wrapping a JsPromise
+        if (candidate is JsObject jsObj &&
+            jsObj.TryGetProperty(JsPromise.InternalPromiseKey, out var inner) &&
+            inner is JsPromise wrappedPromise)
+        {
+            return wrappedPromise.TryGetSettled(out value, out isRejected);
+        }
+
+        value = null;
+        isRejected = false;
+        return false;
     }
 
     public static bool TryAwaitPromiseSync(
@@ -25,15 +92,21 @@ internal static class AwaitScheduler
     {
         resolvedValue = candidate;
 
-        var engine = context.RealmState?.Engine;
-        if (drainMicrotasks)
+        // Fast path: non-promise values pass through immediately
+        if (candidate is null || candidate is not JsObject)
         {
-            engine?.DrainMicrotasks();
+            // Check for direct JsPromise (without JsObject wrapper)
+            if (candidate is JsPromise directPromise)
+            {
+                return HandleDirectPromise(directPromise, context, out resolvedValue, drainMicrotasks);
+            }
+            return true;
         }
 
-        if (drainMicrotasks &&
-            candidate is JsPromise jsPromise &&
-            jsPromise.TryGetSettled(out var settledValue, out var isRejected))
+        var engine = context.RealmState?.Engine;
+
+        // Fast path: Check if promise is already settled BEFORE draining microtasks
+        if (TryGetSettledValueFast(candidate, out var settledValue, out var isRejected))
         {
             if (isRejected)
             {
@@ -41,26 +114,49 @@ internal static class AwaitScheduler
                 resolvedValue = Symbol.Undefined;
                 return false;
             }
-
             resolvedValue = settledValue;
-            return true;
+            // Continue to check if settled value is itself a promise
+            if (resolvedValue is not JsObject)
+            {
+                return true;
+            }
         }
 
+        // Only drain microtasks if we haven't resolved yet
+        if (drainMicrotasks)
+        {
+            engine?.DrainMicrotasks(force: true);
+        }
+
+        // Re-check after draining - promise might have settled
+        if (TryGetSettledValueFast(resolvedValue, out settledValue, out isRejected))
+        {
+            if (isRejected)
+            {
+                context.SetThrow(settledValue);
+                resolvedValue = Symbol.Undefined;
+                return false;
+            }
+            resolvedValue = settledValue;
+            if (resolvedValue is not JsObject)
+            {
+                return true;
+            }
+        }
+
+        // Slow path: need to attach handlers and wait
         while (resolvedValue is JsObject promiseObj && IsPromiseLike(promiseObj))
         {
-            if (drainMicrotasks &&
-                promiseObj.TryGetProperty("__promise__", out var internalPromise) &&
-                internalPromise is JsPromise promise &&
-                promise.TryGetSettled(out var settled, out var rejected))
+            // Check settled state again (might have changed)
+            if (TryGetSettledValueFast(promiseObj, out var loopSettled, out var rejected))
             {
                 if (rejected)
                 {
-                    context.SetThrow(settled);
+                    context.SetThrow(loopSettled);
                     resolvedValue = Symbol.Undefined;
                     return false;
                 }
-
-                resolvedValue = settled;
+                resolvedValue = loopSettled;
                 continue;
             }
 
@@ -70,22 +166,12 @@ internal static class AwaitScheduler
                 break;
             }
 
-            var tcs = new TaskCompletionSource<(bool Success, object? Value)>(
-                TaskCreationOptions.RunContinuationsAsynchronously);
+            // Rent a reusable state object to minimize allocations
+            var awaitState = RentState();
 
-            var onFulfilled = new HostFunction(args =>
-            {
-                var value = args.GetArgument(0);
-                tcs.TrySetResult((true, value));
-                return null;
-            });
-
-            var onRejected = new HostFunction(args =>
-            {
-                var value = args.GetArgument(0);
-                tcs.TrySetResult((false, value));
-                return null;
-            });
+            // Create lightweight callbacks
+            var onFulfilled = new AwaitFulfilledCallback(awaitState);
+            var onRejected = new AwaitRejectedCallback(awaitState);
 
             try
             {
@@ -93,78 +179,176 @@ internal static class AwaitScheduler
             }
             catch (ThrowSignal signal)
             {
-                // JavaScript throw - extract the actual thrown value
+                ReturnState(awaitState);
                 context.SetThrow(signal.ThrownValue);
                 resolvedValue = Symbol.Undefined;
                 return false;
             }
             catch (Exception ex)
             {
+                ReturnState(awaitState);
                 context.SetThrow(ex.Message);
                 resolvedValue = Symbol.Undefined;
                 return false;
             }
 
-            (bool Success, object? Value) awaited;
+            // Optimized spin-wait with minimal overhead
             try
             {
-                if (drainMicrotasks)
+                if (Volatile.Read(ref awaitState.Completed) == 0 && drainMicrotasks)
                 {
-                    var iterations = 0;
-                    while (!tcs.Task.IsCompleted)
+                    // Single microtask drain often resolves synchronous promises
+                    engine?.DrainMicrotasks(force: true);
+
+                    if (Volatile.Read(ref awaitState.Completed) == 0)
                     {
-                        engine?.DrainMicrotasks();
-
-                        if (tcs.Task.IsCompleted)
-                        {
-                            break;
-                        }
-
-                        if (engine is not null)
-                        {
-                            engine.StartEventLoop();
-                            engine.DrainEventLoopAsync(CancellationToken.None).GetAwaiter().GetResult();
-                            engine.DrainMicrotasks();
-                        }
-
-                        if (++iterations > 10_000)
-                        {
-                            throw new InvalidOperationException(
-                                "Promise did not resolve after draining microtasks and the event loop.");
-                        }
+                        // Need to wait - use optimized loop
+                        WaitForCompletion(awaitState, context, engine);
                     }
                 }
-                awaited = tcs.Task.GetAwaiter().GetResult();
             }
             catch (InvalidOperationException)
             {
-                throw; // Re-throw our own exceptions
+                ReturnState(awaitState);
+                throw;
             }
             catch (ThrowSignal signal)
             {
-                // JavaScript throw during microtask processing
+                ReturnState(awaitState);
                 context.SetThrow(signal.ThrownValue);
                 resolvedValue = Symbol.Undefined;
                 return false;
             }
             catch (Exception ex)
             {
+                ReturnState(awaitState);
                 context.SetThrow(ex.Message);
                 resolvedValue = Symbol.Undefined;
                 return false;
             }
 
-            if (!awaited.Success)
+            if (Volatile.Read(ref awaitState.Completed) == 0 && !drainMicrotasks)
             {
-                context.SetThrow(awaited.Value);
+                ReturnState(awaitState);
+                throw new NotSupportedException(
+                    "Promise cannot be awaited synchronously without draining microtasks.");
+            }
+
+            var fulfilled = awaitState.Fulfilled;
+            var value = awaitState.Value;
+            ReturnState(awaitState);
+
+            if (fulfilled == 0)
+            {
+                context.SetThrow(value);
                 resolvedValue = Symbol.Undefined;
                 return false;
             }
 
-            resolvedValue = awaited.Value;
+            resolvedValue = value;
         }
 
         return true;
+    }
+
+    private static bool HandleDirectPromise(JsPromise promise, EvaluationContext context,
+        out object? resolvedValue, bool drainMicrotasks)
+    {
+        var engine = context.RealmState?.Engine;
+
+        // Fast path: already settled
+        if (promise.TryGetSettled(out var value, out var isRejected))
+        {
+            if (isRejected)
+            {
+                context.SetThrow(value);
+                resolvedValue = Symbol.Undefined;
+                return false;
+            }
+            resolvedValue = value;
+            return true;
+        }
+
+        // Drain and re-check
+        if (drainMicrotasks)
+        {
+            engine?.DrainMicrotasks(force: true);
+
+            if (promise.TryGetSettled(out value, out isRejected))
+            {
+                if (isRejected)
+                {
+                    context.SetThrow(value);
+                    resolvedValue = Symbol.Undefined;
+                    return false;
+                }
+                resolvedValue = value;
+                return true;
+            }
+        }
+
+        // Need to wait via JsObject wrapper
+        resolvedValue = promise.JsObject;
+        return TryAwaitPromiseSync(promise.JsObject, context, out resolvedValue, drainMicrotasks);
+    }
+
+    private static void WaitForCompletion(PromiseAwaitState awaitState, EvaluationContext context, JsEngine? engine)
+    {
+        var iterations = 0;
+        const int maxIterations = 10_000;
+
+        while (Volatile.Read(ref awaitState.Completed) == 0)
+        {
+            context.ThrowIfCancellationRequested();
+
+            // Try draining microtasks first
+            engine?.DrainMicrotasks(force: true);
+
+            if (Volatile.Read(ref awaitState.Completed) != 0)
+            {
+                break;
+            }
+
+            // Check event loop if engine available
+            if (engine is not null && !engine.IsEventLoopDrained())
+            {
+                engine.StartEventLoop();
+                var drainTask = engine.DrainEventLoopAsync(CancellationToken.None);
+
+                // SpinWait for short-running tasks, then yield
+                var spinWait = new SpinWait();
+                while (!drainTask.IsCompleted)
+                {
+                    context.ThrowIfCancellationRequested();
+                    spinWait.SpinOnce();
+                }
+
+                if (drainTask.IsFaulted)
+                {
+                    throw drainTask.Exception?.GetBaseException() ??
+                          new InvalidOperationException("Event loop drain failed.");
+                }
+
+                if (drainTask.IsCanceled)
+                {
+                    throw new OperationCanceledException(
+                        "Event loop drain was canceled while awaiting a promise.");
+                }
+
+                engine.DrainMicrotasks(force: true);
+            }
+            else
+            {
+                // Use SpinWait for better CPU efficiency
+                Thread.SpinWait(10);
+            }
+
+            if (++iterations > maxIterations)
+            {
+                throw new InvalidOperationException(
+                    "Promise did not resolve after draining microtasks and the event loop.");
+            }
+        }
     }
 
     public static bool TryAwaitPromiseOrSchedule(object? candidate, bool asyncStepMode, ref object? pendingPromise,
@@ -190,5 +374,45 @@ internal static class AwaitScheduler
         // the value through.
         resolvedValue = candidate;
         return true;
+    }
+
+    /// <summary>
+    ///     Lightweight callback for fulfilled promises - avoids closure allocation.
+    /// </summary>
+    private sealed class AwaitFulfilledCallback : IJsCallable
+    {
+        private readonly PromiseAwaitState _state;
+
+        public AwaitFulfilledCallback(PromiseAwaitState state) => _state = state;
+
+        public object? Invoke(IReadOnlyList<object?> args, object? thisValue)
+        {
+            _state.Value = args.Count > 0 ? args[0] : null;
+            _state.Fulfilled = 1;
+            Interlocked.Exchange(ref _state.Completed, 1);
+            return null;
+        }
+
+        public bool IsConstructor => false;
+    }
+
+    /// <summary>
+    ///     Lightweight callback for rejected promises - avoids closure allocation.
+    /// </summary>
+    private sealed class AwaitRejectedCallback : IJsCallable
+    {
+        private readonly PromiseAwaitState _state;
+
+        public AwaitRejectedCallback(PromiseAwaitState state) => _state = state;
+
+        public object? Invoke(IReadOnlyList<object?> args, object? thisValue)
+        {
+            _state.Value = args.Count > 0 ? args[0] : null;
+            _state.Fulfilled = 0;
+            Interlocked.Exchange(ref _state.Completed, 1);
+            return null;
+        }
+
+        public bool IsConstructor => false;
     }
 }

@@ -33,9 +33,11 @@ public class EvalFunctionTests
     public async Task Eval_CreatesVariables()
     {
         await using var engine = new JsEngine();
+        // Note: Only 'var' declarations in eval are visible in the enclosing scope.
+        // 'let' and 'const' in eval are block-scoped to the eval and not accessible outside.
         var result = await engine.Evaluate("""
 
-                                                       eval('let y = 42;');
+                                                       eval('var y = 42;');
                                                        y;
 
                                            """);

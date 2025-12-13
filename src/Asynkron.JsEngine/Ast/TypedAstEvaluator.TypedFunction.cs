@@ -9,8 +9,8 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    private sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor, IJsObjectLike,
-        ICallableMetadata, ICallerInfo, IFunctionNameTarget, IPrivateBrandHolder, IPropertyDefinitionHost,
+    public sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor, IJsObjectLike,
+        ICallableMetadata, IFunctionNameTarget, IPrivateBrandHolder, IPropertyDefinitionHost,
         IExtensibilityControl, IPrototypeAccessorProvider
     {
         private readonly Symbol[] _bodyLexicalNames;
@@ -26,16 +26,15 @@ public static partial class TypedAstEvaluator
         private readonly bool _wasAsyncFunction;
         private readonly bool _hasFunctionNameEnvironment;
         private readonly bool _hasParameterExpressions;
+        private readonly bool _allowIdentifierCache;
         private readonly ImmutableArray<Symbol> _parameterNames;
         private readonly ImmutableArray<Symbol> _lexicalTemplate;
         private readonly ImmutableArray<Symbol> _catchParameterTemplate;
         private readonly ImmutableArray<Symbol> _simpleCatchParameterTemplate;
         private readonly ImmutableArray<Symbol> _bodyLexicalTemplate;
-        private readonly ImmutableArray<Symbol> _blockedVarTemplate;
         private static readonly System.Collections.Concurrent.ConcurrentBag<HashSet<Symbol>> SymbolSetPool = new();
         private bool _isConstructorEnabled;
         private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
-        private IJsCallable? _caller;
         private JsObject? _prototypeObject;
         private IJsObjectLike? _homeObject;
         private ImmutableArray<ClassField> _instanceFields = ImmutableArray<ClassField>.Empty;
@@ -71,6 +70,7 @@ public static partial class TypedAstEvaluator
             _bodyLexicalNames = CollectLexicalNames(function.Body).ToArray();
             _hasHoistableDeclarations = HasHoistableDeclarations(function.Body);
             _hasParameterExpressions = HasParameterExpressions(_function);
+            _allowIdentifierCache = AllowsIdentifierCaching(_function);
             var parameterNames = new List<Symbol>();
             CollectParameterNamesFromFunction(_function, parameterNames);
             _parameterNames = parameterNames.ToImmutableArray();
@@ -82,13 +82,6 @@ public static partial class TypedAstEvaluator
             var bodyLexicalSet = new HashSet<Symbol>(_bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
             bodyLexicalSet.ExceptWith(simpleCatchParams);
             _bodyLexicalTemplate = bodyLexicalSet.ToImmutableArray();
-            var blockedTemplate = new HashSet<Symbol>(bodyLexicalSet, ReferenceEqualityComparer<Symbol>.Instance);
-            blockedTemplate.UnionWith(_parameterNames);
-            if (!_isStrict && !IsArrowFunction)
-            {
-                blockedTemplate.Add(Symbol.Arguments);
-            }
-            _blockedVarTemplate = blockedTemplate.ToImmutableArray();
             if (IsArrowFunction)
             {
                 try
@@ -405,17 +398,12 @@ public static partial class TypedAstEvaluator
             object? newTarget = null)
         {
             var context = _realmState.CreateContext(pushScope: false);
-            var callerRestore = _caller;
-            using var callerFrame = context.PushCaller(this, out var previousCaller);
+            context.AllowIdentifierCache = _allowIdentifierCache;
             _realmState.Logger?.LogInformation(
                 "InvokeWithContext enter func={Function} isAsync={IsAsync} wasAsync={WasAsync}",
                 _function.Name?.Name ?? "<anonymous>",
                 IsAsyncFunction,
                 _wasAsyncFunction);
-            if (!_isStrict && !IsArrowFunction)
-            {
-                _caller = previousCaller;
-            }
             if (_realmState.Logger is { } entryLogger && _isClassConstructor)
             {
                 entryLogger.LogInformation(
@@ -453,18 +441,9 @@ public static partial class TypedAstEvaluator
                 ? lexicalNames
                 : RentSymbolSet(_bodyLexicalTemplate);
             bodyLexicalNames.ExceptWith(simpleCatchParameterNames);
-            var blockedFunctionVarNames = RentSymbolSet(_blockedVarTemplate);
 
-            var functionMode = _isStrict
-                ? ScopeMode.Strict
-                : _realmState.Options.EnableAnnexBFunctionExtensions
-                    ? ScopeMode.SloppyAnnexB
-                    : ScopeMode.Sloppy;
+            var functionMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
             using var functionScopeFrame = context.PushScope(ScopeKind.Function, functionMode);
-
-            // blockedFunctionVarNames already seeded with parameters/body lexicals (+ arguments for non-strict non-arrow).
-
-            context.BlockedFunctionVarNames = blockedFunctionVarNames;
 
             // When parameter expressions are present, keep the parameter environment outside
             // the var environment so defaults cannot observe body var bindings (spec step 27).
@@ -820,8 +799,7 @@ public static partial class TypedAstEvaluator
                     var result = EvaluateBlock(
                         _function.Body,
                         executionEnvironment,
-                        context,
-                        true);
+                        context);
 
                 if (context.IsThrow)
                 {
@@ -971,12 +949,6 @@ public static partial class TypedAstEvaluator
                 {
                     ReturnSymbolSet(bodyLexicalNames);
                 }
-                ReturnSymbolSet(blockedFunctionVarNames);
-
-                if (!_isStrict && !IsArrowFunction)
-                {
-                    _caller = callerRestore;
-                }
             }
         }
         finally
@@ -1098,14 +1070,6 @@ public static partial class TypedAstEvaluator
             _prototypeObject = prototype;
         }
 
-        IJsCallable? ICallerInfo.Caller
-        {
-            get => _caller;
-            set => _caller = value;
-        }
-
-        bool ICallerInfo.IsStrictFunction => _isStrict;
-
         public void SetIsClassConstructor(bool isDerived)
         {
             _isClassConstructor = true;
@@ -1224,7 +1188,7 @@ public static partial class TypedAstEvaluator
             }
 
             using var _ = PrivateNameScope is not null ? context.EnterPrivateNameScope(PrivateNameScope) : null;
-            using var instanceFieldScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict, true);
+            using var instanceFieldScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict);
 
             foreach (var field in _instanceFields)
             {

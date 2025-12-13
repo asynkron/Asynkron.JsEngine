@@ -20,7 +20,7 @@ public class ObjectLiteralScopeTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             let globalVar = 'from-global';
 
             let obj = {
@@ -52,7 +52,7 @@ public class ObjectLiteralScopeTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine.Run(@"
+        await engine.Evaluate(@"
             let globalVar = 'from-global';
 
             let obj = {

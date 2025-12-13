@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -123,9 +124,35 @@ public static partial class TypedAstEvaluator
             // Copy the per-iteration bindings from the CURRENT iteration environment to the new environment
             foreach (var bindingName in plan.PerIterationBindings)
             {
-                // Get the current value from the current iteration environment
-                var identifierExpr = new IdentifierExpression(null, bindingName);
-                var currentValue = EvaluateExpression(identifierExpr, currentIterationEnvironment, context);
+                // Get the current value from the current iteration environment.
+                // Use direct identifier resolution to avoid per-iteration IdentifierExpression allocations.
+                object? currentValue;
+                try
+                {
+                    currentValue = currentIterationEnvironment.GetIdentifierValue(bindingName, context);
+                }
+                catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
+                                                           StringComparison.Ordinal))
+                {
+                    object? errorObject = ex.Message;
+
+                    if (currentIterationEnvironment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
+                        ctor is IJsCallable callable)
+                    {
+                        try
+                        {
+                            errorObject = callable.Invoke([ex.Message], Symbol.Undefined);
+                        }
+                        catch (ThrowSignal signal)
+                        {
+                            errorObject = signal.ThrownValue;
+                        }
+                    }
+
+                    context.SetThrow(errorObject);
+                    currentValue = errorObject;
+                }
+
                 var isConstBinding = currentIterationEnvironment.IsConstBinding(bindingName);
 
                 // Define the binding in the new iteration environment

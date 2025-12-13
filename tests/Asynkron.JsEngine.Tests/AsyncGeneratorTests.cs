@@ -8,7 +8,7 @@ public class AsyncGeneratorTests
     {
         await using var engine = new JsEngine();
 
-        await engine.Run("""
+        await engine.Evaluate("""
             let log = [];
 
             async function* numbers() {
@@ -37,7 +37,7 @@ public class AsyncGeneratorTests
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
-        await engine.Run("""
+        await engine.Evaluate("""
             let log = [];
 
             async function* gen() {
@@ -67,7 +67,7 @@ public class AsyncGeneratorTests
     {
         await using var engine = new JsEngine();
 
-        await engine.Run("""
+        await engine.Evaluate("""
             let log = [];
 
             async function* counter(limit) {
@@ -97,7 +97,7 @@ public class AsyncGeneratorTests
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
-        await engine.Run("""
+        await engine.Evaluate("""
             let log = [];
 
             async function* gen() {
@@ -138,7 +138,7 @@ public class AsyncGeneratorTests
     {
         await using var engine = new JsEngine();
 
-        await engine.Run("""
+        await engine.Evaluate("""
             let log = [];
 
             async function* classify(xs) {
@@ -181,7 +181,7 @@ public class AsyncGeneratorTests
     {
         await using var engine = new JsEngine();
 
-        await engine.Run("""
+        await engine.Evaluate("""
             let log = [];
 
             async function* gen() {
@@ -219,7 +219,7 @@ public class AsyncGeneratorTests
     {
         await using var engine = new JsEngine();
 
-        await engine.Run("""
+        await engine.Evaluate("""
             let log = [];
 
             async function* gen() {
@@ -254,7 +254,7 @@ public class AsyncGeneratorTests
     {
         await using var engine = new JsEngine();
 
-        await engine.Run("""
+        await engine.Evaluate("""
             let log = [];
 
             async function* gen() {
@@ -288,7 +288,7 @@ public class AsyncGeneratorTests
     {
         await using var engine = new JsEngine();
 
-        await engine.Run("""
+        await engine.Evaluate("""
             let log = [];
 
             async function* gen() {
@@ -317,7 +317,7 @@ public class AsyncGeneratorTests
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
-        await engine.Run("""
+        await engine.Evaluate("""
             let log = [];
 
             async function* gen() {
@@ -352,7 +352,7 @@ public class AsyncGeneratorTests
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
-        await engine.Run("""
+        await engine.Evaluate("""
             let log = [];
 
             async function* gen() {
@@ -387,7 +387,7 @@ public class AsyncGeneratorTests
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
-        await engine.Run("""
+        await engine.Evaluate("""
             let log = [];
 
             async function* inner() {
@@ -429,7 +429,7 @@ public class AsyncGeneratorTests
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
-        await engine.Run("""
+        await engine.Evaluate("""
             let log = [];
 
             async function* gen() {

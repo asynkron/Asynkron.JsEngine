@@ -41,12 +41,36 @@
 - Date constructor/prototype now live under `StdLib/Date` with generator wiring; static `now`/`UTC`/`parse` attach directly to the constructor and prototype methods were ported as host methods.
 - Math has been moved under `StdLib/Math` with a generator-backed prototype that owns all constants and methods; the global `Math` object is built via the generated surface.
 - ArrayBuffer constructor/prototype now live under `StdLib/ArrayBuffer`; the constructor uses generator wiring, species handling is preserved, and helpers cover internal slot storage and `ArrayBuffer.isView`.
+- ArrayBuffer now implements `transfer`/`transferToFixedLength`, enforces shared/detached checks on byteLength/maxByteLength/resizable/detached getters, uses `ToIndex` for constructor/resize lengths (including `maxByteLength` option validation), and tracks shared buffers explicitly for SharedArrayBuffer interactions.
 - SharedArrayBuffer constructor/prototype now live under `StdLib/SharedArrayBuffer`; generator wiring handles species, `byteLength`/`slice` are on the prototype for derived buffers, and instances stash their internal buffer slots for subclassed constructions.
 - DataView constructor/prototype now live under `StdLib/DataView`; constructor resolves new-target prototypes, wraps subclass instances with internal slots, and prototype hosts buffer/byteLength/byteOffset plus all get*/set* numeric accessors.
 - JSON object now lives under `StdLib/Json` with generator wiring; `parse` uses the existing reviver-aware logic and `stringify` retains the current simplified implementation.
 - Console, Reflect, and BigInt now use generator-backed wiring under their own `StdLib/<Type>` folders; the console global is created through the generated prototype, Reflect wraps the existing helpers, and BigInt carries `asIntN`/`asUintN` plus prototype methods via the generator surface.
 - Function.prototype is now generator-backed using a callable prototype object; the Function constructor reuses the generated prototype and keeps the existing parsing/execution semantics for `new Function` while inheriting the generator-wired `call`/`toString`/`valueOf` surface.
+- Identifier lookups/assignments now use per-scope declarative binding caches (enabled only when a scope is free of direct `eval` and `with`), reducing environment-chain scans on hot paths.
+- Call/New argument list evaluation avoids `ImmutableArray` builders when there are no spread arguments, reducing allocations on hot call paths.
+- `JsObject` prototype-chain property lookups avoid allocating cycle-detection sets for shallow, acyclic chains and only fall back to a tracked slow path when needed.
+- Primitive property access avoids allocating transient wrapper objects when realm prototypes are available; lookups go directly through the corresponding prototype chain with the primitive receiver preserved.
+- Test262 reuses a pre-initialized base realm (stdlib only) and deep-clones it per test by default; disable with `JSENGINE_TEST262_BASE_REALM=0|false|off`. This significantly reduces per-test engine setup cost while preserving isolation.
+- Test262 suite is extracted to disk once and reused across runs (so `GetTestFile` reads from a directory-backed stream on subsequent runs); disable with `JSENGINE_TEST262_DISK_CACHE=0|false|off`, override location with `JSENGINE_TEST262_DISK_CACHE_DIR`.
+- Loop and for-each AST nodes now carry lazy, thread-safe plan caches (`LoopPlan` / `IteratorDriverPlan`) via `IAstCacheableNode` + `IAstCacheable<T>` and a shared `AstCache` helper, removing per-call normalization overhead in the typed evaluator.
+- Per-iteration environment cloning in `for (let/const ...)` loops now reads bindings directly via `GetIdentifierValue`, avoiding transient `IdentifierExpression` allocations; switch statements cache a `SwitchInstantiationPlan` for strictness and lexical/function/class hoists to avoid rescanning case bodies each execution.
+- Test262 module loader no longer falls back to per-test GitHub downloads (and removes blocking `GetAwaiter().GetResult()`); it resolves relative specifiers correctly and reads fixture modules (no YAML header) directly from the suite file system. Module sources are shared across tests via an immutable cache.
+- Microtask queue is now lock-free: since `JsEngine` executes JS single-threaded, microtasks are enqueued/drained without `lock`, removing profiler-visible contention while preserving ordering and reentrancy guards.
+- Timers no longer use `Task.Run`: `setTimeout`/`setInterval` are driven by `Task.Delay` loops and schedule callbacks through the event queue; timer bookkeeping is thread-safe and clears decrement the active-timer count immediately.
+- SharedArrayBuffer constructor now honors `maxByteLength` options (ToIndex coercion, RangeError when initial length exceeds max) and sets growable slots; prototype `maxByteLength`/`resizable` accessors enforce shared/detached checks and return the tracked maximum. The SharedArrayBuffer `maxByteLength` Test262 group is passing.
+- SharedArrayBuffer now exposes spec-aligned `growable` accessor (with metadata/name/TypeError guards) and `grow` method that ToIndex-coerces lengths, throws when non-growable/shrinking/beyond max, and reuses buffer resize; the SharedArrayBuffer `growable` and `grow` Test262 groups are green.
+- ArrayBuffer/SharedArrayBuffer.prototype.slice now follows SpeciesConstructor rules: `undefined` end defaults to length, species must be constructors, shared targets are rejected for ArrayBuffer, returned buffers must be shared for SharedArrayBuffer, returning the receiver throws, and too-small species results raise TypeError. The slice Test262 clusters pass in strict and sloppy modes.
+- ArrayBuffer.prototype.resize now performs the detach check after ToIndex coercion (single check) and the resize cluster is green. ArrayBuffer.prototype.transfer/transferToFixedLength clusters are also green.
+- ArrayBuffer.isView now recognizes DataView subclasses (via internal slots) and carries the correct name/length attributes. ArrayBuffer [@@species] getter also exposes the proper name/length metadata; the isView and Symbol.species Test262 clusters are green.
+- ArrayBuffer constructor now enforces `maxByteLength` option checks before touching `newTarget.prototype`, treats non-object options as empty, rejects calls without `new`, and defers allocation-limit RangeErrors until after prototype resolution (including oversized lengths). SharedArrayBuffer mirrors the new option/limit handling, and global ArrayBuffer is exposed as a non-enumerable/writable/configurable binding.
 
 ## Next Iteration Plan
-1. Keep migrating remaining non-generator built-ins onto the generator constructor/prototype model; next up are the lingering helper-only surfaces (escape/unescape/localStorage) to see what can be expressed via generators.
-2. After each migration, run a focused Test262 slice around the affected built-in to catch regressions before moving on.
+1. Start on the next Array built-in cluster (constructor realm/prototype wiring and Array.from/of surface).
+2. Pick another standard library cluster from `builtintests-todo.md` once the Array items shrink (e.g., Array prototype method parity or typed array iterators).
+3. Keep scanning for remaining built-in gaps surfaced by the Test262 harness and queue them here before diving in.
+
+## Future Work
+- Consider forking Test262Harness to support async NUnit/xUnit test generation
+- Profile the engine to identify remaining performance bottlenecks
+- Continue improving ECMAScript conformance based on Test262 results

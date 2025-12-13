@@ -118,7 +118,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine1.Run(@"
+        await engine1.Evaluate(@"
             async function test() {
                 log('=== LOCAL SCOPE TEST ===');
 
@@ -178,7 +178,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine2.Run(@"
+        await engine2.Evaluate(@"
             log('=== GLOBAL SCOPE TEST ===');
 
             let globalIterable = {
@@ -401,7 +401,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine1.Run(@"
+        await engine1.Evaluate(@"
             async function test() {
                 let localIterable = {
                     [Symbol.iterator]() {
@@ -443,7 +443,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine2.Run(@"
+        await engine2.Evaluate(@"
             let globalIterable = {
                 [Symbol.iterator]() {
                     return {
@@ -492,7 +492,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine1.Run(@"
+        await engine1.Evaluate(@"
             async function test() {
                 log('=== LOCAL SCOPE - Debug Inside Loop ===');
 
@@ -582,7 +582,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine2.Run(@"
+        await engine2.Evaluate(@"
             log('=== GLOBAL SCOPE - Debug Inside Loop ===');
 
             let globalIterable = {
@@ -686,7 +686,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine1.Run(@"
+        await engine1.Evaluate(@"
             async function test() {
                 log('=== LOCAL SCOPE - Manual Iteration ===');
 
@@ -751,7 +751,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
             return null;
         });
 
-        await engine2.Run(@"
+        await engine2.Evaluate(@"
             log('=== GLOBAL SCOPE - Manual Iteration ===');
 
             let globalIterable = {

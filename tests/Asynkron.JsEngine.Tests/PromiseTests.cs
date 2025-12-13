@@ -20,7 +20,7 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let p = new Promise(function(resolve, reject) {
                                          resolve("test value");
@@ -56,7 +56,7 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let p = new Promise(function(resolve, reject) {
                                          reject("error reason");
@@ -88,7 +88,7 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let p = new Promise(function(resolve, reject) {
                                          resolve(10);
@@ -121,7 +121,7 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let p = new Promise(function(resolve, reject) {
                                          resolve(1);
@@ -158,7 +158,7 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let p = Promise.resolve("resolved value");
                                      p.then(function(value) {
@@ -186,7 +186,7 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let p = Promise.reject("rejection reason");
                                      p["catch"](
@@ -211,7 +211,7 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let p = new Promise(function(resolve, reject) {
                                          reject("error");
@@ -240,7 +240,7 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let p1 = Promise.resolve("value");
                                      p1["finally"](function() {
@@ -273,7 +273,7 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let p1 = Promise.resolve(1);
                                      let p2 = Promise.resolve(2);
@@ -308,7 +308,7 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let p1 = Promise.resolve(1);
                                      let p2 = Promise.reject("error");
@@ -341,7 +341,7 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let p1 = Promise.resolve("first");
                                      let p2 = Promise.resolve("second");
@@ -371,7 +371,7 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let p = new Promise(function(resolve, reject) {
                                          setTimeout(function() {
@@ -400,7 +400,7 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      markExecutorRan();
                                      let p = new Promise(function(resolve, reject) {
@@ -428,7 +428,7 @@ public class PromiseTests
             return null;
         });
 
-        await engine.Run("""
+        await engine.Evaluate("""
 
                                      let p = Promise.reject("error");
 

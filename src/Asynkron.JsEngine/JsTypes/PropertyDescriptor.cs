@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
@@ -80,10 +82,29 @@ public sealed class PropertyDescriptor
         }
     }
 
-    public bool IsAccessorDescriptor => HasGet || HasSet;
-    public bool IsDataDescriptor => HasValue || HasWritable;
-    public bool IsGenericDescriptor => !IsAccessorDescriptor && !IsDataDescriptor;
-    public bool IsEmpty => !HasValue && !HasWritable && !HasEnumerable && !HasConfigurable && !HasGet && !HasSet;
+    public bool IsAccessorDescriptor
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => HasGet || HasSet;
+    }
+
+    public bool IsDataDescriptor
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => HasValue || HasWritable;
+    }
+
+    public bool IsGenericDescriptor
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => !IsAccessorDescriptor && !IsDataDescriptor;
+    }
+
+    public bool IsEmpty
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => !HasValue && !HasWritable && !HasEnumerable && !HasConfigurable && !HasGet && !HasSet;
+    }
 
     public PropertyDescriptor Clone()
     {

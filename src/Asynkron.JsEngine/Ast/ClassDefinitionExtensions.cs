@@ -13,7 +13,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             Symbol? className)
         {
-            using var classScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict, true);
+            using var classScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict);
             var (evaluationEnvironment, classScopeEnvironment) = CreateClassScopeIfNeeded(
                 environment,
                 className,
@@ -95,7 +95,8 @@ public static partial class TypedAstEvaluator
                 }
                 else
                 {
-                    constructorAccessor.SetProperty("__proto__", superConstructor);
+                    throw new InvalidOperationException(
+                        "Class constructor must implement IJsObjectLike to set prototype chain.");
                 }
             }
             else if (constructorAccessor is IJsObjectLike { Prototype: null } baseCtor &&
@@ -251,7 +252,7 @@ public static partial class TypedAstEvaluator
             return;
         }
 
-        using var staticFieldScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict, true);
+        using var staticFieldScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict);
         Func<IDisposable?>? privateScopeFactory = privateNameScope is not null
             ? () => context.EnterPrivateNameScope(privateNameScope)
             : null;

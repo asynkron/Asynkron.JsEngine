@@ -49,63 +49,23 @@ public sealed partial class FunctionPrototype : JsPrototype
             DefineConstantProperty(accessor, "length", 0d, configurable: true);
         }
 
-        AttachCallerAccessors();
         AttachArgumentsPoison();
         AttachHasInstance();
     }
 
-    private void AttachCallerAccessors()
-    {
-        var callerGetter = new HostFunction((thisValue, _) =>
-        {
-            if (thisValue is not ICallerInfo callerInfo)
-            {
-                throw ThrowTypeError("Function.prototype.caller called on non-callable", realm: Realm);
-            }
-
-            var isArrowFunction = callerInfo is ICallableMetadata { IsArrowFunction: true };
-            if (callerInfo.IsStrictFunction || isArrowFunction)
-            {
-                throw ThrowTypeError("Access to caller or arguments is not allowed", realm: Realm);
-            }
-
-            if (callerInfo.Caller is ICallerInfo callerMetadata && callerMetadata.IsStrictFunction)
-            {
-                throw ThrowTypeError("Access to caller or arguments is not allowed", realm: Realm);
-            }
-
-            return (object?)callerInfo.Caller ?? Symbol.Undefined;
-        }, Realm, isConstructor: false);
-
-        var callerSetter = new HostFunction((thisValue, _) =>
-        {
-            var isArrowFunction = thisValue is ICallableMetadata { IsArrowFunction: true };
-            if (thisValue is not ICallerInfo callerInfo || callerInfo.IsStrictFunction || isArrowFunction)
-            {
-                throw ThrowTypeError("Access to caller or arguments is not allowed", realm: Realm);
-            }
-
-            // Legacy accessor is effectively non-writable; ignore assignments in sloppy mode.
-            return Symbol.Undefined;
-        }, Realm, isConstructor: false);
-
-        var callerDescriptor = new PropertyDescriptor
-        {
-            Get = callerGetter, Set = callerSetter, Enumerable = false, Configurable = false
-        };
-
-        Prototype.DefineProperty("caller", callerDescriptor);
-    }
-
     private void AttachArgumentsPoison()
     {
+        // ES spec requires "caller" and "arguments" to be "poison pill" accessors
+        // on Function.prototype that throw TypeError when accessed.
+        // See ECMA-262 AddRestrictedFunctionProperties
         var thrower = new HostFunction((_, _) =>
-            throw ThrowTypeError("Access to caller or arguments is not allowed", realm: Realm), Realm,
+            throw ThrowTypeError("'caller' and 'arguments' are restricted function properties and cannot be accessed in this context.", realm: Realm), Realm,
             isConstructor: false);
         var poisonDescriptor = new PropertyDescriptor
         {
-            Get = thrower, Set = thrower, Enumerable = false, Configurable = false
+            Get = thrower, Set = thrower, Enumerable = false, Configurable = true
         };
+        Prototype.DefineProperty("caller", poisonDescriptor);
         Prototype.DefineProperty("arguments", poisonDescriptor);
     }
 

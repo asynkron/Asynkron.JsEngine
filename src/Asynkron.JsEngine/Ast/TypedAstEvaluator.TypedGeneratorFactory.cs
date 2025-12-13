@@ -8,7 +8,7 @@ public static partial class TypedAstEvaluator
 {
     private sealed class TypedGeneratorFactory : IJsCallable, IJsObjectLike, IPropertyDefinitionHost,
         IExtensibilityControl,
-        IFunctionNameTarget, ICallerInfo, ICallableMetadata
+        IFunctionNameTarget, ICallableMetadata
     {
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
@@ -18,7 +18,6 @@ public static partial class TypedAstEvaluator
         private readonly JsObject _properties = new();
         private readonly RealmState _realmState;
         private bool _isConstructorEnabled;
-        private IJsCallable? _caller;
         private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
         private PrivateNameScope? _privateNameScope;
         private IJsObjectLike? _homeObject;
@@ -577,15 +576,5 @@ public static partial class TypedAstEvaluator
 
             return descriptor;
         }
-
-        // ICallerInfo implementation - generator functions are always strict mode
-        IJsCallable? ICallerInfo.Caller
-        {
-            get => _caller;
-            set => _caller = value;
-        }
-
-        // Generator functions are effectively strict mode, so accessing caller/arguments should throw
-        bool ICallerInfo.IsStrictFunction => true;
     }
 }

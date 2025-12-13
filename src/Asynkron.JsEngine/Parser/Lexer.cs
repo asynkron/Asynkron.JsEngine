@@ -381,25 +381,11 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
 
                 break;
             case '%':
-                if (Match('='))
-                {
-                    AddToken(TokenType.PercentEqual);
-                }
-                else
-                {
-                    AddToken(TokenType.Percent);
-                }
+                AddToken(Match('=') ? TokenType.PercentEqual : TokenType.Percent);
 
                 break;
             case '^':
-                if (Match('='))
-                {
-                    AddToken(TokenType.CaretEqual);
-                }
-                else
-                {
-                    AddToken(TokenType.Caret);
-                }
+                AddToken(Match('=') ? TokenType.CaretEqual : TokenType.Caret);
 
                 break;
             case '~':
@@ -753,60 +739,33 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             }
         }
 
-        // Legacy octal literals (non-strict mode)
+        // Legacy octal literals are not supported (AnnexB feature)
+        // Reject literals like 010, 077, etc. Only 0o notation is supported.
         if (_source[_start] == '0' && IsDigit(Peek()))
         {
-            var idx = _current;
-            var hasOctalDigits = false;
-            var isPureOctal = true;
-            var hasSeparators = false;
-            while (idx < _source.Length)
+            var ch = Peek();
+            // Check if this looks like a legacy octal (0 followed by octal digits)
+            if (IsOctalDigit(ch))
             {
-                var ch = _source[idx];
-                if (!IsDigit(ch))
+                var idx = _current;
+                var isPureOctal = true;
+                while (idx < _source.Length && IsDigit(_source[idx]))
                 {
-                    break;
-                }
-
-                hasOctalDigits = true;
-                if (ch is '8' or '9')
-                {
-                    isPureOctal = false;
-                    break;
-                }
-                if (ch == '_')
-                {
-                    hasSeparators = true;
-                }
-
-                idx++;
-            }
-
-            if (hasOctalDigits && isPureOctal)
-            {
-                if (idx < _source.Length)
-                {
-                    var nextChar = _source[idx];
-                    if (nextChar is '.' or 'e' or 'E' or 'n' || IsAlpha(nextChar))
+                    if (_source[idx] is '8' or '9')
                     {
                         isPureOctal = false;
+                        break;
+                    }
+                    idx++;
+                }
+                // If it's a pure octal (no 8 or 9), and not followed by . e E n, throw
+                if (isPureOctal && idx > _current)
+                {
+                    if (idx >= _source.Length || _source[idx] is not ('.' or 'e' or 'E' or 'n'))
+                    {
+                        throw new ParseException($"Legacy octal literals are not allowed. Use 0o prefix for octal literals on line {_line} column {_column}.");
                     }
                 }
-            }
-
-            if (hasOctalDigits && isPureOctal)
-            {
-                while (_current < idx)
-                {
-                    Advance();
-                }
-
-                var octalSpan = _source.AsSpan(_start, _current - _start);
-                var octalBigInt = ParseIntegerLiteral(octalSpan, 8, hasSeparators);
-
-                var octalValue = (double)octalBigInt;
-                AddToken(TokenType.Number, octalValue);
-                return;
             }
         }
 

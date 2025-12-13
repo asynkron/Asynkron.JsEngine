@@ -1,11 +1,14 @@
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Threading.Channels;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine;
 
@@ -15,7 +18,7 @@ namespace Asynkron.JsEngine;
 public sealed class JsEngine : IAsyncDisposable
 {
     internal static readonly object UninitializedExportMarker = new();
-    private int _activeTimerCount; // Track active timer tasks (delayed work on ThreadPool)
+    private int _activeTimerCount; // Track registered timers (timeouts/intervals)
     private readonly Channel<string> _asyncIteratorTraceChannel = Channel.CreateUnbounded<string>();
     private readonly bool _asyncIteratorTracingEnabled;
 
@@ -48,6 +51,7 @@ public sealed class JsEngine : IAsyncDisposable
         internal bool Evaluated { get; set; }
         internal bool Evaluating { get; set; }
         internal Task<object?>? EvaluationTask { get; set; }
+        internal AsyncModuleBodyRunner? AsyncBodyRunner { get; set; }
         internal ModuleNamespace? Namespace { get; set; }
         internal ModuleNamespace? DeferredNamespace { get; set; }
         internal JsObject? ImportMeta { get; set; }
@@ -57,22 +61,25 @@ public sealed class JsEngine : IAsyncDisposable
 
     // Module registry: maps module paths to their exported values
     private readonly Dictionary<string, ModuleEntry> _moduleRegistry = new();
-    private readonly Dictionary<int, CancellationTokenSource> _timers = new();
+    private readonly ConcurrentDictionary<int, CancellationTokenSource> _timers = new();
     private readonly TypedConstantExpressionTransformer _typedConstantTransformer = new();
     private readonly TypedCpsTransformer _typedCpsTransformer = new();
     private Task? _eventLoopTask;
     private int? _eventLoopThreadId;
-    private readonly object _microtaskLock = new();
-    private Channel<Func<Task>>? _eventQueue;
+    private Channel<Action>? _eventQueue;
 
-    // Synchronous microtask queue for top-level await support
-    private readonly Queue<Action> _microtaskQueue = new();
+    // Synchronous microtask queue for top-level await support.
+    // JsEngine is single-threaded by design, so microtask bookkeeping does not use locks.
+    // Microtasks are tagged with the epoch they were queued in to support proper timing semantics.
+    private readonly Queue<(Action task, int epoch)> _microtaskQueue = new();
     private bool _isDrainingMicrotasks;
+    private int _microtaskEpoch; // Incremented when a new execution phase begins
+    private int _moduleBodyExecutionDepth; // Depth counter to suppress microtask draining during module body execution
 
     // Module loader function: allows custom module loading logic
     private Func<string, string?, string>? _moduleLoader;
     private string? _currentModulePath;
-    private int _nextTimerId = 1;
+    private int _nextTimerId;
     private int _pendingTaskCount; // Track pending tasks in the event queue
     private TaskCompletionSource? _drainCompletionSource; // Signals when event loop has drained
     private readonly object _drainLock = new(); // Protects _drainCompletionSource
@@ -81,6 +88,16 @@ public sealed class JsEngine : IAsyncDisposable
     ///     Initializes a new instance of JsEngine with standard library objects.
     /// </summary>
     public JsEngine(IJsEngineOptions? options = null)
+        : this(options, skipStdLibInitialization: false)
+    {
+    }
+
+    /// <summary>
+    ///     Internal constructor that can skip standard library initialization.
+    ///     Used by tests to restore a pre-initialized realm snapshot without
+    ///     re-running expensive built-in wiring.
+    /// </summary>
+    internal JsEngine(IJsEngineOptions? options, bool skipStdLibInitialization)
     {
         Options = options ?? JsEngineOptions.Default;
         _asyncIteratorTracingEnabled = false;
@@ -98,6 +115,11 @@ public sealed class JsEngine : IAsyncDisposable
         // expect to exist (Node-style `global`, standard `globalThis`).
         SetGlobal("globalThis", GlobalObject);
         SetGlobal("global", GlobalObject);
+
+        if (skipStdLibInitialization)
+        {
+            return;
+        }
 
         // Register standard library objects
         SetGlobal("console", ConsolePrototype.CreatePrototype(RealmState));
@@ -206,17 +228,6 @@ public sealed class JsEngine : IAsyncDisposable
 
         SetGlobal("WeakRef", StandardLibrary.CreateWeakRefConstructor(RealmState));
 
-        // Annex B escape/unescape
-        var escapeFn = StandardLibrary.CreateEscapeFunction(RealmState);
-        SetGlobal("escape", escapeFn);
-        GlobalObject.DefineProperty("escape",
-            new PropertyDescriptor { Value = escapeFn, Writable = true, Enumerable = false, Configurable = true });
-
-        var unescapeFn = StandardLibrary.CreateUnescapeFunction(RealmState);
-        SetGlobal("unescape", unescapeFn);
-        GlobalObject.DefineProperty("unescape",
-            new PropertyDescriptor { Value = unescapeFn, Writable = true, Enumerable = false, Configurable = true });
-
         // Minimal browser-like storage object used by debug/babel-standalone.
         SetGlobal("localStorage", StandardLibrary.CreateLocalStorageObject());
 
@@ -305,8 +316,9 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("import", importFunction);
 
         // Provide a stable global object helper used by Test262 harness utilities.
+        // Note: NOT marked as constant so Test262 harness can redeclare it if needed.
         SetGlobal("fnGlobalObject",
-            new HostFunction(_ => GlobalObject) { Realm = GlobalObject, RealmState = RealmState }, true);
+            new HostFunction(_ => GlobalObject) { Realm = GlobalObject, RealmState = RealmState });
 
         // Register debug function as a debug-aware host function
         GlobalEnvironment.Define(Symbol.DebugIdentifier, new DebugAwareHostFunction(CaptureDebugMessage));
@@ -537,7 +549,11 @@ public sealed class JsEngine : IAsyncDisposable
             _drainCompletionSource = null;
         }
 
-        _eventQueue = Channel.CreateUnbounded<Func<Task>>();
+        _eventQueue = Channel.CreateUnbounded<Action>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false
+        });
         _eventLoopTask = Task.Run(() => ProcessEventQueue(_eventQueue));
     }
 
@@ -679,21 +695,21 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     ///     Synchronously evaluates a pre-parsed program without using the event loop.
     /// </summary>
-    private object? EvaluateSyncInternal(
-        ParsedProgram program,
-        CancellationToken cancellationToken = default,
-        string? sourcePath = null,
-        bool forceModule = false)
-    {
+	    private object? EvaluateSyncInternal(
+	        ParsedProgram program,
+	        CancellationToken cancellationToken = default,
+	        string? sourcePath = null,
+	        bool forceModule = false)
+	    {
         var combinedToken = CreateEvaluationCancellationToken(cancellationToken, out var timeoutCts);
         try
         {
             var isModule = forceModule || HasModuleStatements(program.Typed);
             EnsureImportMetaAllowed(program.Typed, isModule);
-            if (isModule)
-            {
-                string? moduleKey = null;
-                ModuleEntry entry;
+	            if (isModule)
+	            {
+	                string? moduleKey = null;
+	                ModuleEntry entry;
                 if (!string.IsNullOrEmpty(sourcePath))
                 {
                     moduleKey = NormalizeModulePath(sourcePath!, null, _moduleLoader is not null);
@@ -716,21 +732,20 @@ public sealed class JsEngine : IAsyncDisposable
                         string.Empty);
                     entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
                         new HashSet<string>(StringComparer.Ordinal));
-                }
+	                }
 
-                EnsureModuleInstantiated(entry);
-                if (entry.IsAsync || entry.HasAsyncDependency)
-                {
-                    EnsureModuleEvaluatedAsync(entry).GetAwaiter().GetResult();
-                }
-                else
-                {
-                    EnsureModuleEvaluated(entry);
-                }
-                return entry.LastValue;
-            }
+	                EnsureModuleInstantiated(entry);
+	                if (entry.IsAsync || entry.HasAsyncDependency)
+	                {
+	                    throw new NotSupportedException(
+	                        "EvaluateSync does not support async modules (top-level await / async dependencies). Use Evaluate/EvaluateModule instead.");
+	                }
 
-            return ExecuteProgram(program, GlobalEnvironment, combinedToken);
+	                EnsureModuleEvaluated(entry);
+	                return entry.LastValue;
+	            }
+
+	            return ExecuteProgram(program, GlobalEnvironment, combinedToken);
         }
         finally
         {
@@ -859,21 +874,21 @@ public sealed class JsEngine : IAsyncDisposable
         }
     }
 
-    private object? EvaluateInline(
-        ParsedProgram program,
-        CancellationToken cancellationToken,
-        string? sourcePath = null,
-        bool forceModule = false)
-    {
+	    private object? EvaluateInline(
+	        ParsedProgram program,
+	        CancellationToken cancellationToken,
+	        string? sourcePath = null,
+	        bool forceModule = false)
+	    {
         var combinedToken = CreateEvaluationCancellationToken(cancellationToken, out var timeoutCts);
         try
         {
             var isModule = forceModule || HasModuleStatements(program.Typed);
             EnsureImportMetaAllowed(program.Typed, isModule);
-            if (isModule)
-            {
-                string? moduleKey = null;
-                ModuleEntry entry;
+	            if (isModule)
+	            {
+	                string? moduleKey = null;
+	                ModuleEntry entry;
                 if (!string.IsNullOrEmpty(sourcePath))
                 {
                     moduleKey = NormalizeModulePath(sourcePath!, null);
@@ -896,20 +911,25 @@ public sealed class JsEngine : IAsyncDisposable
                         string.Empty);
                     entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
                         new HashSet<string>(StringComparer.Ordinal));
-                }
+	                }
 
-                EnsureModuleInstantiated(entry);
-                if (entry.IsAsync || entry.HasAsyncDependency)
-                {
-                    EnsureModuleEvaluatedAsync(entry).GetAwaiter().GetResult();
-                }
-                else
-                {
-                    EnsureModuleEvaluated(entry);
-                }
-                DrainMicrotasks();
-                return entry.LastValue;
-            }
+	                EnsureModuleInstantiated(entry);
+	                if (entry.IsAsync || entry.HasAsyncDependency)
+	                {
+	                    if (!entry.Evaluated)
+	                    {
+	                        throw new NotSupportedException(
+	                            "Inline evaluation of async modules is not supported without blocking. Use Evaluate/EvaluateModule from outside the engine event loop.");
+	                    }
+	                }
+	                else
+	                {
+	                    EnsureModuleEvaluated(entry);
+	                }
+
+	                DrainMicrotasks();
+	                return entry.LastValue;
+	            }
 
             var scriptResult = ExecuteProgram(program, GlobalEnvironment, combinedToken);
             DrainMicrotasks();
@@ -1565,10 +1585,37 @@ public sealed class JsEngine : IAsyncDisposable
         entry.Instantiating = false;
     }
 
-    private void EnsureModuleEvaluated(ModuleEntry entry)
-    {
-        EnsureModuleEvaluatedAsync(entry).GetAwaiter().GetResult();
-    }
+	    private void EnsureModuleEvaluated(ModuleEntry entry)
+	    {
+	        if (entry.Evaluated)
+	        {
+	            return;
+	        }
+
+	        EnsureModuleInstantiated(entry);
+
+	        if (entry.IsAsync || entry.HasAsyncDependency)
+	        {
+	            throw new NotSupportedException(
+	                "Synchronous module evaluation is not supported for async modules. Use EnsureModuleEvaluatedAsync/Evaluate instead.");
+	        }
+
+	        if (entry.Evaluating)
+	        {
+	            return;
+	        }
+
+	        entry.Evaluating = true;
+	        try
+	        {
+	            entry.LastValue = ExecuteModuleBody(entry.Program, entry.Environment, entry.Exports, entry.Path);
+	            entry.Evaluated = true;
+	        }
+	        finally
+	        {
+	            entry.Evaluating = false;
+	        }
+	    }
 
     private Task<object?> EnsureModuleEvaluatedAsync(ModuleEntry entry, bool waitForAsync = true)
     {
@@ -1605,8 +1652,8 @@ public sealed class JsEngine : IAsyncDisposable
         {
             entry.Evaluating = true;
             entry.EvaluationTask = entry.IsAsync
-                ? EvaluateModuleBodyWithTopLevelAwait(entry, waitForAsync)
-                : EvaluateModuleBodyWithAsyncDependencies(entry, waitForAsync);
+                ? EvaluateModuleBodyWithTopLevelAwait(entry)
+                : EvaluateModuleBodyWithAsyncDependencies(entry);
         }
 
         if (!waitForAsync)
@@ -1614,7 +1661,48 @@ public sealed class JsEngine : IAsyncDisposable
             return entry.EvaluationTask;
         }
 
-        return entry.EvaluationTask;
+        if (_eventLoopThreadId == Environment.CurrentManagedThreadId)
+        {
+            // Never attempt to pump the event queue from within the event loop thread.
+            // Callers running on the event loop must observe completion asynchronously.
+            return entry.EvaluationTask;
+        }
+
+        return AwaitModuleEvaluationAsync(entry, entry.EvaluationTask);
+    }
+
+    private async Task<object?> AwaitModuleEvaluationAsync(ModuleEntry entry, Task<object?> evaluationTask, int callerEpoch = int.MaxValue)
+    {
+        if (evaluationTask.IsCompleted)
+        {
+            return await evaluationTask.ConfigureAwait(false);
+        }
+
+        // When waiting for an async module dependency, we must not drain microtasks
+        // that were queued by the calling module's synchronous code. Only drain
+        // microtasks from earlier epochs (before the caller started).
+        // If callerEpoch is 0, maxDrainEpoch becomes -1, which drains nothing.
+        var maxDrainEpoch = callerEpoch < int.MaxValue ? callerEpoch - 1 : int.MaxValue;
+
+        while (!evaluationTask.IsCompleted)
+        {
+            if (_eventQueue is null)
+            {
+                // Only drain microtasks from epochs before the caller's epoch
+                DrainMicrotasks(maxDrainEpoch);
+                await Task.Yield();
+                continue;
+            }
+
+            var tick = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            ScheduleTask(() => tick.TrySetResult());
+
+            await tick.Task.ConfigureAwait(false);
+        }
+
+        // After evaluation completes, still only drain earlier epochs
+        DrainMicrotasks(maxDrainEpoch);
+        return await evaluationTask.ConfigureAwait(false);
     }
 
     /// <summary>
@@ -1655,7 +1743,13 @@ public sealed class JsEngine : IAsyncDisposable
             jsObject.RealmState = RealmState;
         }
 
-        GlobalObject.SetProperty(name, value);
+        GlobalObject.DefineProperty(name, new PropertyDescriptor
+        {
+            Value = value,
+            Writable = !isGlobalConstant,
+            Enumerable = false,
+            Configurable = !isGlobalConstant
+        });
     }
 
     /// <summary>
@@ -1689,6 +1783,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     /// <param name="source">The JavaScript source code to execute</param>
     /// <returns>A task that completes when all scheduled events have been processed</returns>
+    [Obsolete("Use Evaluate instead")]
     public async Task<object?> Run(string source)
     {
         // Evaluate the code (uses lazy event loop internally)
@@ -1708,15 +1803,15 @@ public sealed class JsEngine : IAsyncDisposable
     ///     Schedules a task to be executed on the event queue.
     ///     This allows promises and other async operations to schedule work.
     /// </summary>
-    /// <param name="task">The task to schedule</param>
-    public void ScheduleTask(Func<Task> task)
+    /// <param name="task">The synchronous task to schedule</param>
+    public void ScheduleTask(Action task)
     {
         StartEventLoop();
         var queue = _eventQueue ?? throw new InvalidOperationException("Event loop is not running.");
         var capturedActivity = Activity.Current;
 
         Interlocked.Increment(ref _pendingTaskCount);
-        queue.Writer.TryWrite(async () =>
+        queue.Writer.TryWrite(() =>
         {
             var previousActivity = Activity.Current;
             var activityChanged = !ReferenceEquals(previousActivity, capturedActivity);
@@ -1727,7 +1822,7 @@ public sealed class JsEngine : IAsyncDisposable
 
             try
             {
-                await task().ConfigureAwait(false);
+                task();
             }
             finally
             {
@@ -1741,36 +1836,37 @@ public sealed class JsEngine : IAsyncDisposable
 
     /// <summary>
     ///     Processes all events in the event queue until it's empty.
-    ///     Each event is executed and any new events scheduled during execution
+    ///     Each event is executed synchronously and any new events scheduled during execution
     ///     will also be processed.
     ///     Exceptions from individual tasks are caught and logged to prevent the event loop from stopping.
     /// </summary>
-    private async Task ProcessEventQueue(Channel<Func<Task>> queue)
+    private async Task ProcessEventQueue(Channel<Action> queue)
     {
         _eventLoopThreadId = Environment.CurrentManagedThreadId;
         try
         {
-            await foreach (var x in queue.Reader.ReadAllAsync().ConfigureAwait(false))
+            await foreach (var task in queue.Reader.ReadAllAsync().ConfigureAwait(false))
             {
                 try
                 {
-                    await x().ConfigureAwait(false);
+                    task();
                 }
                 catch (OutOfMemoryException)
                 {
-                    Console.Error.WriteLine("[ProcessEventQueue] OOM Exception");
+                    RealmState.Logger?.LogError("[ProcessEventQueue] OOM Exception");
                 }
                 catch (StackOverflowException)
                 {
-                    Console.Error.WriteLine("[ProcessEventQueue] Stack overflow occurred in event queue task.");
+                    RealmState.Logger?.LogError("[ProcessEventQueue] Stack overflow occurred in event queue task.");
                 }
                 catch (Exception ex)
                 {
                     // Log the exception but don't let it kill the event loop
                     // Individual task failures should not stop the event queue processing
-                    Console.Error.WriteLine(
-                        $"[ProcessEventQueue] Unhandled exception in event queue task: {ex.GetType().Name}: {ex.Message}");
-                    Console.Error.WriteLine($"[ProcessEventQueue] Stack trace: {ex.StackTrace}");
+                    RealmState.Logger?.LogError(ex,
+                        "[ProcessEventQueue] Unhandled exception in event queue task: {ErrorType}: {ErrorMessage}",
+                        ex.GetType().Name,
+                        ex.Message);
                 }
                 finally
                 {
@@ -1790,106 +1886,110 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     ///     Queues a microtask to be executed synchronously.
     ///     This is used for promise reactions during top-level await.
+    ///     Microtasks are tagged with the current epoch for proper timing semantics.
     /// </summary>
     internal void QueueMicrotask(Action task)
     {
-        lock (_microtaskLock)
-        {
-            _microtaskQueue.Enqueue(task);
-        }
+        _microtaskQueue.Enqueue((task, _microtaskEpoch));
     }
 
-    internal List<Action> DetachMicrotasks()
+    /// <summary>
+    ///     Advances the microtask epoch, marking a new execution phase.
+    ///     Microtasks queued before this call will not be drained until
+    ///     the epoch advances past them or a full drain is requested.
+    /// </summary>
+    internal void AdvanceMicrotaskEpoch()
     {
-        List<Action> preserved;
-        lock (_microtaskLock)
+        _microtaskEpoch++;
+    }
+
+    /// <summary>
+    ///     Gets the current microtask epoch for tracking purposes.
+    /// </summary>
+    internal int MicrotaskEpoch => _microtaskEpoch;
+
+    internal List<(Action task, int epoch)> DetachMicrotasks()
+    {
+        var preserved = new List<(Action, int)>(_microtaskQueue.Count);
+        while (_microtaskQueue.Count > 0)
         {
-            preserved = new List<Action>(_microtaskQueue.Count);
-            while (_microtaskQueue.Count > 0)
-            {
-                preserved.Add(_microtaskQueue.Dequeue());
-            }
+            preserved.Add(_microtaskQueue.Dequeue());
         }
 
         return preserved;
     }
 
-    internal void PrependMicrotasks(List<Action>? tasks)
+    internal void PrependMicrotasks(List<(Action task, int epoch)>? tasks)
     {
         if (tasks is null || tasks.Count == 0)
         {
             return;
         }
 
-        lock (_microtaskLock)
+        if (_microtaskQueue.Count == 0)
         {
-            if (_microtaskQueue.Count == 0)
-            {
-                foreach (var task in tasks)
-                {
-                    _microtaskQueue.Enqueue(task);
-                }
-
-                return;
-            }
-
-            var existing = new Queue<Action>(_microtaskQueue);
-            _microtaskQueue.Clear();
             foreach (var task in tasks)
             {
                 _microtaskQueue.Enqueue(task);
             }
 
-            while (existing.Count > 0)
-            {
-                _microtaskQueue.Enqueue(existing.Dequeue());
-            }
+            return;
+        }
+
+        var existing = new Queue<(Action, int)>(_microtaskQueue);
+        _microtaskQueue.Clear();
+        foreach (var task in tasks)
+        {
+            _microtaskQueue.Enqueue(task);
+        }
+
+        while (existing.Count > 0)
+        {
+            _microtaskQueue.Enqueue(existing.Dequeue());
         }
     }
 
     /// <summary>
-    ///     Drains all pending microtasks synchronously.
-    ///     Returns when no more microtasks are pending.
+    ///     Drains pending microtasks synchronously.
+    ///     If maxEpoch is specified, only microtasks queued in epochs &lt;= maxEpoch are executed.
+    ///     Microtasks from later epochs are preserved for future draining.
     /// </summary>
-    internal void DrainMicrotasks(int skipExisting = 0)
+    /// <param name="maxEpoch">Maximum epoch to drain. Use int.MaxValue to drain all epochs (default).</param>
+    internal void DrainMicrotasks(int maxEpoch = int.MaxValue, bool force = false, [System.Runtime.CompilerServices.CallerMemberName] string? caller = null)
     {
-        if (skipExisting < 0)
+        if (_isDrainingMicrotasks)
         {
-            skipExisting = 0;
+            return;
         }
 
-        lock (_microtaskLock)
+        // Don't drain microtasks during module body execution unless explicitly forced.
+        // This ensures Promise.resolve().then() callbacks only run after the synchronous
+        // module body completes, matching ES specification semantics.
+        if (_moduleBodyExecutionDepth > 0 && !force)
         {
-            if (_isDrainingMicrotasks)
-            {
-                return;
-            }
-
-            _isDrainingMicrotasks = true;
+            return;
         }
+
+        _isDrainingMicrotasks = true;
 
         try
         {
-            List<Action>? deferred = null;
+            List<(Action task, int epoch)>? deferred = null;
             while (true)
             {
-                Action? task;
-                lock (_microtaskLock)
+                if (_microtaskQueue.Count == 0)
                 {
-                    if (skipExisting > 0 && _microtaskQueue.Count > 0)
-                    {
-                        deferred ??= new List<Action>();
-                        deferred.Add(_microtaskQueue.Dequeue());
-                        skipExisting--;
-                        continue;
-                    }
+                    break;
+                }
 
-                    if (_microtaskQueue.Count == 0)
-                    {
-                        break;
-                    }
+                var (task, taskEpoch) = _microtaskQueue.Dequeue();
 
-                    task = _microtaskQueue.Dequeue();
+                // If this task is from a later epoch than allowed, defer it
+                if (taskEpoch > maxEpoch)
+                {
+                    deferred ??= new List<(Action, int)>();
+                    deferred.Add((task, taskEpoch));
+                    continue;
                 }
 
                 try
@@ -1899,7 +1999,10 @@ public sealed class JsEngine : IAsyncDisposable
                 catch (Exception ex)
                 {
                     // Log but don't propagate - microtask exceptions shouldn't kill the drain
-                    Console.Error.WriteLine($"[DrainMicrotasks] Exception: {ex.GetType().Name}: {ex.Message}");
+                    RealmState.Logger?.LogError(ex,
+                        "[DrainMicrotasks] Exception: {ErrorType}: {ErrorMessage}",
+                        ex.GetType().Name,
+                        ex.Message);
                 }
             }
 
@@ -1913,10 +2016,7 @@ public sealed class JsEngine : IAsyncDisposable
         }
         finally
         {
-            lock (_microtaskLock)
-            {
-                _isDrainingMicrotasks = false;
-            }
+            _isDrainingMicrotasks = false;
         }
     }
 
@@ -1931,57 +2031,74 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         var delay = args[1] is double d ? (int)d : 0;
-        var timerId = _nextTimerId++;
+        var timerId = Interlocked.Increment(ref _nextTimerId);
 
         var cts = new CancellationTokenSource();
         _timers[timerId] = cts;
+        Interlocked.Increment(ref _activeTimerCount);
 
-        // For zero delay, schedule directly to event queue without ThreadPool overhead
+        // For zero delay, schedule directly to event queue.
         if (delay <= 0)
         {
             ScheduleTask(() =>
             {
-                if (!cts.Token.IsCancellationRequested)
+                try
                 {
-                    callback.Invoke([], null);
+                    if (!cts.Token.IsCancellationRequested)
+                    {
+                        callback.Invoke([], null);
+                    }
                 }
-                _timers.Remove(timerId);
-                return Task.CompletedTask;
+                finally
+                {
+                    if (_timers.TryRemove(timerId, out _))
+                    {
+                        Interlocked.Decrement(ref _activeTimerCount);
+                        TrySignalDrainComplete();
+                    }
+                }
             });
             return (double)timerId;
         }
 
-        // For non-zero delay, use ThreadPool to wait then schedule
-        Interlocked.Increment(ref _activeTimerCount);
+        _ = RunTimeoutAsync(timerId, delay, callback, cts);
 
-        _ = Task.Run(async () =>
+        return (double)timerId;
+    }
+
+    private async Task RunTimeoutAsync(
+        int timerId,
+        int delay,
+        IJsCallable callback,
+        CancellationTokenSource cts)
+    {
+        try
         {
-            try
-            {
-                await Task.Delay(delay, cts.Token).ConfigureAwait(false);
+            await Task.Delay(delay, cts.Token).ConfigureAwait(false);
 
-                if (!cts.Token.IsCancellationRequested)
+            if (!cts.Token.IsCancellationRequested)
+            {
+                ScheduleTask(() =>
                 {
-                    ScheduleTask(() =>
+                    if (!cts.Token.IsCancellationRequested)
                     {
                         callback.Invoke([], null);
-                        return Task.CompletedTask;
-                    });
-                }
+                    }
+                });
             }
-            catch (TaskCanceledException)
+        }
+        catch (TaskCanceledException)
+        {
+            // Timer was cancelled
+        }
+        finally
+        {
+            if (_timers.TryRemove(timerId, out _))
             {
-                // Timer was cancelled
-            }
-            finally
-            {
-                _timers.Remove(timerId);
                 Interlocked.Decrement(ref _activeTimerCount);
                 TrySignalDrainComplete();
             }
-        }, cts.Token);
-
-        return (double)timerId;
+        }
     }
 
     /// <summary>
@@ -1995,7 +2112,7 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         var interval = args[1] is double d ? (int)d : 0;
-        var timerId = _nextTimerId++;
+        var timerId = Interlocked.Increment(ref _nextTimerId);
 
         var cts = new CancellationTokenSource();
         _timers[timerId] = cts;
@@ -2003,37 +2120,47 @@ public sealed class JsEngine : IAsyncDisposable
         // Increment active timer count before starting the timer
         Interlocked.Increment(ref _activeTimerCount);
 
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                while (!cts.Token.IsCancellationRequested)
-                {
-                    await Task.Delay(interval, cts.Token).ConfigureAwait(false);
+        _ = RunIntervalAsync(timerId, interval, callback, cts);
 
-                    if (!cts.Token.IsCancellationRequested)
+        return (double)timerId;
+    }
+
+    private async Task RunIntervalAsync(
+        int timerId,
+        int interval,
+        IJsCallable callback,
+        CancellationTokenSource cts)
+    {
+        try
+        {
+            while (!cts.Token.IsCancellationRequested)
+            {
+                await Task.Delay(interval, cts.Token).ConfigureAwait(false);
+
+                if (!cts.Token.IsCancellationRequested)
+                {
+                    ScheduleTask(() =>
                     {
-                        ScheduleTask(() =>
+                        if (!cts.Token.IsCancellationRequested)
                         {
                             callback.Invoke([], null);
-                            return Task.CompletedTask;
-                        });
-                    }
+                        }
+                    });
                 }
             }
-            catch (TaskCanceledException)
+        }
+        catch (TaskCanceledException)
+        {
+            // Timer was cancelled
+        }
+        finally
+        {
+            if (_timers.TryRemove(timerId, out _))
             {
-                // Timer was cancelled
-            }
-            finally
-            {
-                _timers.Remove(timerId);
                 Interlocked.Decrement(ref _activeTimerCount);
                 TrySignalDrainComplete();
             }
-        }, cts.Token);
-
-        return (double)timerId;
+        }
     }
 
     /// <summary>
@@ -2047,10 +2174,11 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         var id = (int)timerId;
-        if (_timers.TryGetValue(id, out var cts))
+        if (_timers.TryRemove(id, out var cts))
         {
             cts.Cancel();
-            _timers.Remove(id);
+            Interlocked.Decrement(ref _activeTimerCount);
+            TrySignalDrainComplete();
         }
 
         return null;
@@ -2090,86 +2218,189 @@ public sealed class JsEngine : IAsyncDisposable
         // Add promise instance methods (then, catch, finally)
         StandardLibrary.AddPromiseInstanceMethods(promiseObj, promise, this);
 
-        // Schedule loading the module asynchronously using ScheduleTask
-        // to properly track pending tasks for the event loop
-        ScheduleTask(async () =>
+        // IMPORTANT: Capture the referrer path NOW, before scheduling the task.
+        // CallingJsEnvironment and _currentModulePath may change by the time the task runs.
+        var capturedReferrerPath = callee?.CallingJsEnvironment is JsEnvironment env ? env.ModulePath : _currentModulePath;
+
+        // Run async module loading on threadpool, then schedule sync completion to event loop
+        _ = RunDynamicImportAsync(args, context, phase, capturedReferrerPath, promise);
+
+        return promiseObj;
+
+        IJsPropertyAccessor? ResolvePromisePrototype() => ResolvePromisePrototypeInternal();
+    }
+
+    /// <summary>
+    ///     Runs the async portion of dynamic import on the threadpool,
+    ///     then schedules sync completion callbacks to the event loop.
+    /// </summary>
+    private async Task RunDynamicImportAsync(
+        IReadOnlyList<object?> args,
+        EvaluationContext? context,
+        ImportPhase phase,
+        string? capturedReferrerPath,
+        JsPromise promise)
+    {
+        try
         {
-            try
+            if (args.Count == 0)
             {
-                if (args.Count == 0)
+                ScheduleTask(() =>
                 {
                     var typeError = StandardLibrary.CreateTypeError(
                         "import() requires a module specifier",
                         context,
                         RealmState);
                     promise.Reject(typeError);
-                    return;
-                }
+                });
+                return;
+            }
 
-                object? specifierStringObj;
-                try
-                {
-                    var specifier = args.GetArgument(0);
-                    specifierStringObj = JsOps.ToJsString(specifier, context);
-                }
-                catch (ThrowSignal signal)
-                {
-                    promise.Reject(signal.ThrownValue);
-                    return;
-                }
+            object? specifierStringObj;
+            try
+            {
+                var specifier = args.GetArgument(0);
+                specifierStringObj = JsOps.ToJsString(specifier, context);
+            }
+            catch (ThrowSignal signal)
+            {
+                ScheduleTask(() => promise.Reject(signal.ThrownValue));
+                return;
+            }
 
-                if (context?.IsThrow == true)
-                {
-                    promise.Reject(context.FlowValue);
-                    return;
-                }
+            if (context?.IsThrow == true)
+            {
+                var flowValue = context.FlowValue;
+                // Clear the throw signal since we're handling it by rejecting the promise
+                // This prevents the throw from propagating to EvaluateProgram
+                context.Clear();
+                ScheduleTask(() => promise.Reject(flowValue));
+                return;
+            }
 
-                var specifierString = specifierStringObj?.ToString() ?? string.Empty;
-                if (phase == ImportPhase.Source)
+            var specifierString = specifierStringObj?.ToString() ?? string.Empty;
+            if (phase == ImportPhase.Source)
+            {
+                ScheduleTask(() =>
                 {
-                    // Source phase imports are not supported by this host; reject with SyntaxError.
                     var syntaxError = StandardLibrary.CreateSyntaxError(
                         "Source phase imports are not supported",
                         context,
                         RealmState);
                     promise.Reject(syntaxError);
+                });
+                return;
+            }
+
+            try
+            {
+                // Load the module using the captured referrer path
+                var moduleEntry = LoadModule(specifierString, capturedReferrerPath, phase);
+                if (moduleEntry.IsAsync || moduleEntry.HasAsyncDependency)
+                {
+                    var evaluation = EnsureModuleEvaluatedAsync(moduleEntry, waitForAsync: false);
+                    if (evaluation.IsCompletedSuccessfully)
+                    {
+                        ScheduleTask(() =>
+                        {
+                            try
+                            {
+                                var namespaceObject = GetModuleNamespace(moduleEntry, phase);
+                                promise.Resolve(namespaceObject);
+                            }
+                            catch (ThrowSignal signal)
+                            {
+                                promise.Reject(signal.ThrownValue);
+                            }
+                            catch (Exception ex)
+                            {
+                                var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
+                                promise.Reject(error);
+                            }
+                        });
+                        return;
+                    }
+
+                    // Wait for the async evaluation to complete
+                    try
+                    {
+                        await evaluation.ConfigureAwait(false);
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        ScheduleTask(() => promise.Reject(signal.ThrownValue));
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        ScheduleTask(() =>
+                        {
+                            var error = StandardLibrary.CreateTypeError(
+                                ex.Message,
+                                context,
+                                RealmState);
+                            promise.Reject(error);
+                        });
+                        return;
+                    }
+
+                    // Schedule sync completion to event loop
+                    ScheduleTask(() =>
+                    {
+                        try
+                        {
+                            var namespaceObject = GetModuleNamespace(moduleEntry, phase);
+                            promise.Resolve(namespaceObject);
+                        }
+                        catch (ThrowSignal signal)
+                        {
+                            promise.Reject(signal.ThrownValue);
+                        }
+                        catch (Exception ex)
+                        {
+                            var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
+                            promise.Reject(error);
+                        }
+                    });
                     return;
                 }
 
-                try
+                // Sync module - schedule completion on event loop
+                ScheduleTask(() =>
                 {
-                    // Load the module synchronously (it's cached if already loaded)
-                    var referrerPath = callee?.CallingJsEnvironment is JsEnvironment env ? env.ModulePath : _currentModulePath;
-                    var moduleEntry = LoadModule(specifierString, referrerPath, phase);
-                    if (moduleEntry.IsAsync || moduleEntry.HasAsyncDependency)
-                    {
-                        await EnsureModuleEvaluatedAsync(moduleEntry).ConfigureAwait(false);
-                    }
-                    else
+                    try
                     {
                         EnsureModuleEvaluated(moduleEntry);
+                        promise.Resolve(GetModuleNamespace(moduleEntry, phase));
                     }
-                    var namespaceObject = GetModuleNamespace(moduleEntry, phase);
-                    promise.Resolve(namespaceObject);
-                }
-                catch (Exception ex)
-                {
-                    var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
-                    promise.Reject(error);
-                }
+                    catch (ThrowSignal signal)
+                    {
+                        promise.Reject(signal.ThrownValue);
+                    }
+                    catch (Exception ex)
+                    {
+                        var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
+                        promise.Reject(error);
+                    }
+                });
             }
             catch (Exception ex)
             {
+                ScheduleTask(() =>
+                {
+                    var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
+                    promise.Reject(error);
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            ScheduleTask(() =>
+            {
                 var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
                 promise.Reject(error);
-            }
-
-            await Task.CompletedTask.ConfigureAwait(false);
-        });
-
-        return promiseObj;
-
-        IJsPropertyAccessor? ResolvePromisePrototype() => ResolvePromisePrototypeInternal();
+            });
+        }
     }
 
     /// <summary>
@@ -3226,6 +3457,10 @@ public sealed class JsEngine : IAsyncDisposable
         var previousModulePath = _currentModulePath;
         _currentModulePath = modulePath;
         object? lastValue = null;
+
+        // Increment module body execution depth to suppress microtask draining during body execution.
+        // This ensures Promise.resolve().then() callbacks only run after the module body completes.
+        _moduleBodyExecutionDepth++;
         try
         {
             EvaluateRequestedModules(typedProgram, modulePath);
@@ -3277,6 +3512,7 @@ public sealed class JsEngine : IAsyncDisposable
         finally
         {
             _currentModulePath = previousModulePath;
+            _moduleBodyExecutionDepth--;
         }
     }
 
@@ -3350,11 +3586,12 @@ public sealed class JsEngine : IAsyncDisposable
         return dependencies;
     }
 
-    private async Task DrainAsyncDependencies(List<Task<object?>> pendingAsyncDependencies)
+    private async Task DrainAsyncDependencies(List<Task<object?>> pendingAsyncDependencies, int maxEpoch = -1)
     {
         while (pendingAsyncDependencies.Count > 0)
         {
-            DrainMicrotasks();
+            // Only drain microtasks from earlier epochs to preserve proper timing
+            DrainMicrotasks(maxEpoch);
 
             for (var i = pendingAsyncDependencies.Count - 1; i >= 0; i--)
             {
@@ -3376,17 +3613,19 @@ public sealed class JsEngine : IAsyncDisposable
             await Task.Yield();
         }
 
-        DrainMicrotasks();
+        DrainMicrotasks(maxEpoch);
         pendingAsyncDependencies.Clear();
     }
 
-    private async Task<object?> EvaluateModuleBodyWithAsyncDependencies(
-        ModuleEntry entry,
-        bool drainAwaitMicrotasks = true)
+    private async Task<object?> EvaluateModuleBodyWithAsyncDependencies(ModuleEntry entry)
     {
         entry.Evaluating = true;
         try
         {
+            // Capture the epoch before dependency loading - only drain earlier epochs while waiting
+            var moduleEpoch = _microtaskEpoch;
+            var maxDrainEpoch = moduleEpoch - 1;
+
             var pendingAsyncDependencies = new List<Task<object?>>();
             var dependencies = GetModuleDependencies(entry);
             for (var i = 0; i < dependencies.Count; i++)
@@ -3402,7 +3641,7 @@ public sealed class JsEngine : IAsyncDisposable
                                       (dependencies[i + 1].IsAsync || dependencies[i + 1].HasAsyncDependency);
                     if (nextIsAsync)
                     {
-                        await DrainAsyncDependencies(pendingAsyncDependencies).ConfigureAwait(false);
+                        await DrainAsyncDependencies(pendingAsyncDependencies, maxDrainEpoch).ConfigureAwait(false);
                     }
 
                     continue;
@@ -3413,8 +3652,14 @@ public sealed class JsEngine : IAsyncDisposable
 
             if (pendingAsyncDependencies.Count > 0)
             {
-                await DrainAsyncDependencies(pendingAsyncDependencies).ConfigureAwait(false);
+                await DrainAsyncDependencies(pendingAsyncDependencies, maxDrainEpoch).ConfigureAwait(false);
             }
+
+            // Advance the epoch before executing the body. Any microtasks queued during body
+            // execution will be in this new epoch and won't be drained until we explicitly
+            // drain them after the body completes.
+            AdvanceMicrotaskEpoch();
+            var bodyEpoch = _microtaskEpoch;
 
             var previousModulePath = _currentModulePath;
             _currentModulePath = entry.Path;
@@ -3424,30 +3669,36 @@ public sealed class JsEngine : IAsyncDisposable
                     entry.Program,
                     entry.Environment,
                     entry.Exports,
-                    entry.Path,
-                    drainAwaitMicrotasks);
+                    entry.Path);
                 entry.LastValue = result;
                 entry.Evaluated = true;
+
+                // Now drain microtasks that were queued during the body execution
+                DrainMicrotasks(bodyEpoch);
+
                 return result;
             }
             finally
             {
                 _currentModulePath = previousModulePath;
+                entry.Evaluating = false;
             }
         }
-        finally
+        catch
         {
             entry.Evaluating = false;
+            throw;
         }
     }
 
-    private async Task<object?> EvaluateModuleBodyWithTopLevelAwait(
-        ModuleEntry entry,
-        bool drainAwaitMicrotasks = true)
+    private async Task<object?> EvaluateModuleBodyWithTopLevelAwait(ModuleEntry entry)
     {
-        entry.Evaluating = true;
         try
         {
+            // Capture the epoch before dependency loading - only drain earlier epochs while waiting
+            var moduleEpoch = _microtaskEpoch;
+            var maxDrainEpoch = moduleEpoch - 1;
+
             var pendingAsyncDependencies = new List<Task<object?>>();
             var dependencies = GetModuleDependencies(entry);
             for (var i = 0; i < dependencies.Count; i++)
@@ -3463,7 +3714,7 @@ public sealed class JsEngine : IAsyncDisposable
                                       (dependencies[i + 1].IsAsync || dependencies[i + 1].HasAsyncDependency);
                     if (nextIsAsync)
                     {
-                        await DrainAsyncDependencies(pendingAsyncDependencies).ConfigureAwait(false);
+                        await DrainAsyncDependencies(pendingAsyncDependencies, maxDrainEpoch).ConfigureAwait(false);
                     }
 
                     continue;
@@ -3474,58 +3725,1081 @@ public sealed class JsEngine : IAsyncDisposable
 
             if (pendingAsyncDependencies.Count > 0)
             {
-                await DrainAsyncDependencies(pendingAsyncDependencies).ConfigureAwait(false);
+                await DrainAsyncDependencies(pendingAsyncDependencies, maxDrainEpoch).ConfigureAwait(false);
             }
 
-            object? result;
-            if (drainAwaitMicrotasks)
-            {
-                var previousModulePath = _currentModulePath;
-                _currentModulePath = entry.Path;
-                try
-                {
-                    result = ExecuteModuleBody(
-                        entry.Program,
-                        entry.Environment,
-                        entry.Exports,
-                        entry.Path,
-                        drainAwaitMicrotasks);
-                }
-                finally
-                {
-                    _currentModulePath = previousModulePath;
-                }
-            }
-            else
-            {
-                result = await Task
-                    .Run(() =>
-                    {
-                        var previousModulePath = _currentModulePath;
-                        _currentModulePath = entry.Path;
-                        try
-                        {
-                            return ExecuteModuleBody(
-                                entry.Program,
-                                entry.Environment,
-                                entry.Exports,
-                                entry.Path,
-                                drainAwaitMicrotasks);
-                        }
-                        finally
-                        {
-                            _currentModulePath = previousModulePath;
-                        }
-                    })
-                    .ConfigureAwait(false);
-            }
-            entry.LastValue = result;
-            entry.Evaluated = true;
-            return result;
+            entry.AsyncBodyRunner ??= new AsyncModuleBodyRunner(this, entry);
+            return await entry.AsyncBodyRunner.RunAsync().ConfigureAwait(false);
         }
         finally
         {
-            entry.Evaluating = false;
+            entry.AsyncBodyRunner = null;
+        }
+    }
+
+    private sealed class AsyncModuleBodyRunner
+    {
+        private readonly JsEngine _engine;
+        private readonly ModuleEntry _entry;
+        private readonly TaskCompletionSource<object?> _completion =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        private object? _lastValue;
+        private int _statementIndex;
+        private bool _started;
+        private bool _breakSignaled;
+        private bool _continueSignaled;
+
+        internal AsyncModuleBodyRunner(JsEngine engine, ModuleEntry entry)
+        {
+            _engine = engine ?? throw new ArgumentNullException(nameof(engine));
+            _entry = entry ?? throw new ArgumentNullException(nameof(entry));
+        }
+
+        internal Task<object?> RunAsync()
+        {
+            if (!_started)
+            {
+                _started = true;
+                _entry.Evaluating = true;
+                _engine.EvaluateRequestedModules(_entry.Program, _entry.Path);
+                // Advance the epoch before running. Microtasks queued during the synchronous
+                // portion of the body will be in this epoch and only drained after the
+                // synchronous portion completes.
+                _engine.AdvanceMicrotaskEpoch();
+                _runEpoch = _engine.MicrotaskEpoch;
+                Run();
+            }
+
+            return _completion.Task;
+        }
+
+        private int _runEpoch;
+
+        private void Run()
+        {
+            if (_completion.Task.IsCompleted)
+            {
+                return;
+            }
+
+            var previousModulePath = _engine._currentModulePath;
+            _engine._currentModulePath = _entry.Path;
+
+            // Increment module body execution depth to suppress microtask draining during execution
+            _engine._moduleBodyExecutionDepth++;
+
+            try
+            {
+                var program = _entry.Program;
+                var env = _entry.Environment;
+                var exports = _entry.Exports;
+                var isStrict = program.IsStrict;
+
+                while (_statementIndex < program.Body.Length)
+                {
+                    var statement = program.Body[_statementIndex];
+
+                    switch (statement)
+                    {
+                        case ImportStatement importStatement:
+                            _engine.EvaluateImport(importStatement, env, _entry.Path);
+                            _statementIndex++;
+                            continue;
+                        case ExportDefaultStatement exportDefault:
+                            if (!TryEvaluateExportDefault(exportDefault, env, exports, isStrict))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case ExportNamedStatement exportNamed:
+                            _engine.EvaluateExportNamed(exportNamed, env, exports, _entry.Path);
+                            _statementIndex++;
+                            continue;
+                        case ExportDeclarationStatement exportDeclaration:
+                            if (!TryEvaluateExportDeclaration(exportDeclaration, env, exports, isStrict))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case ExportAllStatement exportAll:
+                            _engine.EvaluateExportAll(exportAll, exports, _entry.Path);
+                            _statementIndex++;
+                            continue;
+                        case ExportNamespaceAsStatement exportNamespace:
+                            var namespaceEntry = _engine.LoadModule(exportNamespace.ModulePath, _entry.Path, ImportPhase.Module);
+                            var namespaceObj = _engine.GetModuleNamespace(namespaceEntry);
+                            exports[exportNamespace.Exported.Name] = namespaceObj;
+                            env.Define(exportNamespace.Exported, namespaceObj, isConst: true, isLexical: true,
+                                blocksFunctionScopeOverride: false);
+                            _statementIndex++;
+                            continue;
+                        case FunctionDeclaration:
+                            _statementIndex++;
+                            continue;
+                        case ExpressionStatement { Expression: AwaitExpression awaitExpression }:
+                            if (!TryAwaitExpression(awaitExpression.Expression, _ => { }, env))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case ExpressionStatement exprStatement
+                            when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(exprStatement):
+                            // Expression statement with await nested somewhere (e.g., void await x, f(await x))
+                            if (!TryEvaluateExpressionStatementWithAwait(exprStatement, env, isStrict))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case VariableDeclaration variableDeclaration
+                            when ContainsDirectAwaitInitializer(variableDeclaration):
+                            if (!TryEvaluateDeclarationWithAwait(variableDeclaration, env))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case IfStatement ifStatement
+                            when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(ifStatement):
+                            if (!TryEvaluateIfStatementWithAwait(ifStatement, env, isStrict))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case BlockStatement blockStatement
+                            when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(blockStatement):
+                            if (!TryEvaluateBlockStatementWithAwait(blockStatement, env, isStrict))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case WhileStatement whileStatement
+                            when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(whileStatement):
+                            if (!TryEvaluateWhileStatementWithAwait(whileStatement, env, isStrict))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case ForEachStatement { Kind: ForEachKind.AwaitOf } forAwaitStatement:
+                            // for await...of always contains await semantically
+                            if (!TryEvaluateForAwaitOfStatement(forAwaitStatement, env, isStrict))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case ForEachStatement forEachStatement
+                            when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(forEachStatement):
+                            // for...of or for...in with await in iterable or body
+                            if (!TryEvaluateForEachStatementWithAwait(forEachStatement, env, isStrict))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case TryStatement tryStatement
+                            when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(tryStatement):
+                            if (!TryEvaluateTryStatementWithAwait(tryStatement, env, isStrict))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case ForStatement forStatement
+                            when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(forStatement):
+                            if (!TryEvaluateForStatementWithAwait(forStatement, env, isStrict))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        default:
+                            if (Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(statement))
+                            {
+                                throw new NotSupportedException(
+                                    $"Async module execution does not support '{statement.GetType().Name}' containing await.");
+                            }
+
+                            _lastValue = _engine.ExecuteTypedStatement(statement, env, isStrict, false);
+                            _statementIndex++;
+                            continue;
+                    }
+                }
+
+                _entry.LastValue = _lastValue;
+                _entry.Evaluated = true;
+                _entry.Evaluating = false;
+                // Drain microtasks that were queued during this run
+                _engine.DrainMicrotasks(_runEpoch);
+                _completion.TrySetResult(_lastValue);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+            }
+            catch (Exception ex)
+            {
+                Fail(ex);
+            }
+            finally
+            {
+                _engine._currentModulePath = previousModulePath;
+                _engine._moduleBodyExecutionDepth--;
+            }
+        }
+
+        private void Fail(Exception exception)
+        {
+            _entry.Evaluating = false;
+            _completion.TrySetException(exception);
+        }
+
+        private bool TryEvaluateExportDefault(ExportDefaultStatement statement, JsEnvironment env, JsObject exports,
+            bool isStrict)
+        {
+            var defaultBindingName = Symbol.Intern("*default*");
+
+            if (statement.Value is ExportDefaultExpression { Expression: AwaitExpression awaitExpression })
+            {
+                exports["default"] = new LiveExportBinding(() => env.Get(defaultBindingName));
+                return TryAwaitExpression(awaitExpression.Expression, resolved => env.Assign(defaultBindingName, resolved),
+                    env);
+            }
+
+            if (Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(statement))
+            {
+                throw new NotSupportedException(
+                    "Async module execution only supports direct await in export default expressions.");
+            }
+
+            var value = _engine.EvaluateExportDefault(statement, env, isStrict);
+            exports["default"] = value;
+            return true;
+        }
+
+        private bool TryEvaluateExportDeclaration(
+            ExportDeclarationStatement statement,
+            JsEnvironment env,
+            JsObject exports,
+            bool isStrict)
+        {
+            foreach (var symbol in GetDeclaredSymbols(statement.Declaration))
+            {
+                exports[symbol.Name] = new LiveExportBinding(() => env.Get(symbol));
+            }
+
+            if (statement.Declaration is VariableDeclaration variableDeclaration &&
+                ContainsDirectAwaitInitializer(variableDeclaration))
+            {
+                return TryEvaluateDeclarationWithAwait(variableDeclaration, env);
+            }
+
+            if (Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(statement))
+            {
+                throw new NotSupportedException(
+                    "Async module execution only supports direct await in exported lexical initializers.");
+            }
+
+            _engine.ExecuteTypedStatement(statement.Declaration, env, isStrict, false);
+            return true;
+        }
+
+        private static bool ContainsDirectAwaitInitializer(VariableDeclaration declaration)
+        {
+            foreach (var declarator in declaration.Declarators)
+            {
+                if (declarator.Initializer is AwaitExpression)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool TryEvaluateDeclarationWithAwait(VariableDeclaration declaration, JsEnvironment env)
+        {
+            var isLexical = declaration.Kind is VariableKind.Let or VariableKind.Const;
+            var isConst = declaration.Kind == VariableKind.Const;
+
+            foreach (var declarator in declaration.Declarators)
+            {
+                if (declarator.Target is not IdentifierBinding identifier)
+                {
+                    throw new NotSupportedException(
+                        "Async module execution only supports await initializers for identifier bindings.");
+                }
+
+                if (declarator.Initializer is null)
+                {
+                    if (isLexical)
+                    {
+                        env.Define(identifier.Name, Symbol.Undefined, isConst: isConst,
+                            isLexical: true,
+                            blocksFunctionScopeOverride: false);
+                    }
+                    // For var, it's already hoisted with undefined value
+                    continue;
+                }
+
+                if (declarator.Initializer is not AwaitExpression awaitExpression)
+                {
+                    throw new NotSupportedException(
+                        "Async module execution only supports direct await initializers.");
+                }
+
+                return TryAwaitExpression(awaitExpression.Expression, resolved =>
+                {
+                    if (isLexical)
+                    {
+                        env.Define(identifier.Name, resolved, isConst: isConst, isLexical: true,
+                            blocksFunctionScopeOverride: false);
+                    }
+                    else
+                    {
+                        // For var declarations, assign to the already-hoisted binding
+                        env.Assign(identifier.Name, resolved);
+                    }
+                }, env);
+            }
+
+            return true;
+        }
+
+        private bool TryAwaitExpression(ExpressionNode awaitedExpression, Action<object?> onFulfilled,
+            JsEnvironment environment)
+        {
+            object? awaitedValue;
+            try
+            {
+                awaitedValue = _engine.ExecuteTypedExpression(awaitedExpression, environment, _entry.Program.IsStrict);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+
+            if (_completion.Task.IsCompleted)
+            {
+                return false;
+            }
+
+            var promiseObject = WrapAwaitedValue(awaitedValue);
+            if (promiseObject is null)
+            {
+                throw new NotSupportedException("Await expression did not produce a promise-like value.");
+            }
+
+            if (!promiseObject.TryGetProperty("then", out var thenValue) ||
+                thenValue is not IJsCallable thenCallable)
+            {
+                throw new NotSupportedException("Await expression produced a non-awaitable value.");
+            }
+
+            var onFulfilledFn = new HostFunction(args =>
+            {
+                if (_completion.Task.IsCompleted)
+                {
+                    return null;
+                }
+
+                try
+                {
+                    var resolved = args.GetArgument(0);
+                    onFulfilled(resolved);
+                    _statementIndex++;
+                    Run();
+                }
+                catch (ThrowSignal signal)
+                {
+                    Fail(signal);
+                }
+                catch (Exception ex)
+                {
+                    Fail(ex);
+                }
+
+                return null;
+            });
+
+            var onRejectedFn = new HostFunction(args =>
+            {
+                if (_completion.Task.IsCompleted)
+                {
+                    return null;
+                }
+
+                var reason = args.GetArgument(0);
+                Fail(new ThrowSignal(reason));
+                return null;
+            });
+
+            try
+            {
+                thenCallable.Invoke([onFulfilledFn, onRejectedFn], promiseObject);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+
+            return false;
+        }
+
+        private JsObject? WrapAwaitedValue(object? value)
+        {
+            var promiseCtor = _engine.RealmState.PromiseConstructor;
+            if (promiseCtor is IJsPropertyAccessor accessor &&
+                accessor.TryGetProperty("resolve", out var resolveValue) &&
+                resolveValue is IJsCallable resolveCallable)
+            {
+                try
+                {
+                    if (resolveCallable.Invoke([value], promiseCtor as object) is JsObject resolvedPromise)
+                    {
+                        return resolvedPromise;
+                    }
+                }
+                catch (ThrowSignal signal)
+                {
+                    Fail(signal);
+                    return null;
+                }
+            }
+
+            var promise = _engine.CreateRealmPromise();
+            promise.Resolve(value);
+            return promise.JsObject;
+        }
+
+        private bool TryEvaluateIfStatementWithAwait(IfStatement ifStatement, JsEnvironment env, bool isStrict)
+        {
+            // Handle await in the condition
+            if (ifStatement.Condition is AwaitExpression awaitExpr)
+            {
+                return TryAwaitExpressionWithContinuation(awaitExpr.Expression, resolved =>
+                {
+                    // Evaluate the if branch based on the resolved condition
+                    var condition = JsOps.ToBoolean(resolved);
+                    if (condition)
+                    {
+                        ExecuteStatementWithAwait(ifStatement.Then, env, isStrict);
+                    }
+                    else if (ifStatement.Else is not null)
+                    {
+                        ExecuteStatementWithAwait(ifStatement.Else, env, isStrict);
+                    }
+                }, env);
+            }
+
+            // Await might be in the branches but not in the condition
+            // First evaluate the condition synchronously
+            object? conditionValue;
+            try
+            {
+                conditionValue = _engine.ExecuteTypedExpression(ifStatement.Condition, env, isStrict);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+
+            var conditionBool = JsOps.ToBoolean(conditionValue);
+            var branchToExecute = conditionBool ? ifStatement.Then : ifStatement.Else;
+
+            if (branchToExecute is null)
+            {
+                return true;
+            }
+
+            return ExecuteStatementWithAwait(branchToExecute, env, isStrict);
+        }
+
+        private bool TryEvaluateBlockStatementWithAwait(BlockStatement blockStatement, JsEnvironment env, bool isStrict)
+        {
+            foreach (var statement in blockStatement.Statements)
+            {
+                if (!ExecuteStatementWithAwait(statement, env, isStrict))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private bool TryEvaluateExpressionStatementWithAwait(ExpressionStatement exprStatement, JsEnvironment env, bool isStrict)
+        {
+            // Expression statement with await nested somewhere (e.g., void await x, f(await x))
+            // We need to evaluate expressions with await using CPS-style transformation.
+            return TryEvaluateExpressionWithAwait(exprStatement.Expression, env, isStrict, _ => { });
+        }
+
+        private bool TryEvaluateExpressionWithAwait(ExpressionNode expression, JsEnvironment env, bool isStrict, Action<object?> continuation)
+        {
+            switch (expression)
+            {
+                case AwaitExpression awaitExpression:
+                    return TryAwaitExpressionWithContinuation(awaitExpression.Expression, continuation, env);
+
+                case UnaryExpression unaryExpr when Ast.ShapeAnalyzer.AstShapeAnalyzer.ContainsAwait(unaryExpr.Operand):
+                    // e.g., void await x, !await x
+                    return TryEvaluateExpressionWithAwait(unaryExpr.Operand, env, isStrict, resolved =>
+                    {
+                        var result = EvaluateUnaryOnValue(unaryExpr.Operator, resolved);
+                        continuation(result);
+                    });
+
+                case CallExpression callExpr when Ast.ShapeAnalyzer.AstShapeAnalyzer.ContainsAwait(callExpr):
+                    return TryEvaluateCallExpressionWithAwait(callExpr, env, isStrict, continuation);
+
+                default:
+                    // No await found in this expression, or expression types we don't need to handle specially
+                    // Just evaluate synchronously
+                    try
+                    {
+                        var result = _engine.ExecuteTypedExpression(expression, env, isStrict);
+                        continuation(result);
+                        return true;
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        Fail(signal);
+                        return false;
+                    }
+            }
+        }
+
+        private static object? EvaluateUnaryOnValue(string op, object? operand)
+        {
+            return op switch
+            {
+                "!" => !JsOps.ToBoolean(operand),
+                "+" => JsOps.ToNumber(operand, null),
+                "-" => operand switch
+                {
+                    double d => -d,
+                    long l => -l,
+                    _ => -JsOps.ToNumber(operand, null)
+                },
+                "~" => ~(int)JsOps.ToNumber(operand, null),
+                "void" => Symbol.Undefined,
+                "typeof" => JsOps.GetTypeofString(operand),
+                _ => throw new NotSupportedException($"Unary operator '{op}' is not supported in async module context.")
+            };
+        }
+
+        private bool TryEvaluateCallExpressionWithAwait(CallExpression callExpr, JsEnvironment env, bool isStrict, Action<object?> continuation)
+        {
+            // Evaluate arguments left to right, handling any await expressions
+            var evaluatedArgs = new List<object?>();
+            var argList = callExpr.Arguments.ToList();
+            return TryEvaluateArgumentsWithAwait(argList, 0, evaluatedArgs, env, isStrict, () =>
+            {
+                // All arguments evaluated, now evaluate callee and call
+                object? calleeValue;
+                object? thisValue = null;
+
+                try
+                {
+                    if (callExpr.Callee is MemberExpression memberAccess)
+                    {
+                        thisValue = _engine.ExecuteTypedExpression(memberAccess.Target, env, isStrict);
+                        var propertyKey = memberAccess.Property is IdentifierExpression id
+                            ? (object)id.Name
+                            : _engine.ExecuteTypedExpression(memberAccess.Property, env, isStrict);
+                        calleeValue = JsOps.TryGetPropertyValue(thisValue, propertyKey, out var val, null)
+                            ? val
+                            : Symbol.Undefined;
+                    }
+                    else
+                    {
+                        calleeValue = _engine.ExecuteTypedExpression(callExpr.Callee, env, isStrict);
+                    }
+
+                    if (calleeValue is not IJsCallable callable)
+                    {
+                        throw new ThrowSignal($"TypeError: {calleeValue} is not a function");
+                    }
+
+                    var result = callable.Invoke(evaluatedArgs, thisValue);
+                    continuation(result);
+                }
+                catch (ThrowSignal signal)
+                {
+                    Fail(signal);
+                }
+            });
+        }
+
+        private bool TryEvaluateArgumentsWithAwait(List<CallArgument> args, int index, List<object?> evaluated, JsEnvironment env, bool isStrict, Action onComplete)
+        {
+            if (index >= args.Count)
+            {
+                onComplete();
+                return true;
+            }
+
+            var arg = args[index];
+            if (Ast.ShapeAnalyzer.AstShapeAnalyzer.ContainsAwait(arg.Expression))
+            {
+                return TryEvaluateExpressionWithAwait(arg.Expression, env, isStrict, resolved =>
+                {
+                    evaluated.Add(resolved);
+                    TryEvaluateArgumentsWithAwait(args, index + 1, evaluated, env, isStrict, onComplete);
+                });
+            }
+
+            try
+            {
+                var value = _engine.ExecuteTypedExpression(arg.Expression, env, isStrict);
+                evaluated.Add(value);
+                return TryEvaluateArgumentsWithAwait(args, index + 1, evaluated, env, isStrict, onComplete);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+        }
+
+        private bool TryEvaluateWhileStatementWithAwait(WhileStatement whileStatement, JsEnvironment env, bool isStrict)
+        {
+            // Handle await in the condition
+            if (whileStatement.Condition is AwaitExpression awaitExpr)
+            {
+                return TryAwaitExpressionForWhileCondition(awaitExpr.Expression, whileStatement, env, isStrict);
+            }
+
+            // Condition doesn't have await, but body might
+            object? conditionValue;
+            try
+            {
+                conditionValue = _engine.ExecuteTypedExpression(whileStatement.Condition, env, isStrict);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+
+            while (JsOps.ToBoolean(conditionValue))
+            {
+                if (!ExecuteStatementWithAwait(whileStatement.Body, env, isStrict))
+                {
+                    return false;
+                }
+
+                // Check for break signal
+                if (_breakSignaled)
+                {
+                    _breakSignaled = false;
+                    break;
+                }
+
+                // Check for continue signal - just skip to re-evaluate condition
+                if (_continueSignaled)
+                {
+                    _continueSignaled = false;
+                }
+
+                // Re-evaluate condition
+                try
+                {
+                    conditionValue = _engine.ExecuteTypedExpression(whileStatement.Condition, env, isStrict);
+                }
+                catch (ThrowSignal signal)
+                {
+                    Fail(signal);
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private bool TryAwaitExpressionForWhileCondition(
+            ExpressionNode awaitedExpression,
+            WhileStatement whileStatement,
+            JsEnvironment env,
+            bool isStrict)
+        {
+            object? awaitedValue;
+            try
+            {
+                awaitedValue = _engine.ExecuteTypedExpression(awaitedExpression, env, isStrict);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+
+            if (_completion.Task.IsCompleted)
+            {
+                return false;
+            }
+
+            var promiseObject = WrapAwaitedValue(awaitedValue);
+            if (promiseObject is null)
+            {
+                throw new NotSupportedException("Await expression did not produce a promise-like value.");
+            }
+
+            if (!promiseObject.TryGetProperty("then", out var thenValue) ||
+                thenValue is not IJsCallable thenCallable)
+            {
+                throw new NotSupportedException("Await expression produced a non-awaitable value.");
+            }
+
+            var onFulfilledFn = new HostFunction(args =>
+            {
+                if (_completion.Task.IsCompleted)
+                {
+                    return null;
+                }
+
+                try
+                {
+                    var resolved = args.GetArgument(0);
+                    var condition = JsOps.ToBoolean(resolved);
+
+                    if (condition)
+                    {
+                        // Execute the body
+                        if (!ExecuteStatementWithAwait(whileStatement.Body, env, isStrict))
+                        {
+                            // Suspended in body, continuation will resume
+                            return null;
+                        }
+
+                        // Check for break signal - exit the loop
+                        if (_breakSignaled)
+                        {
+                            _breakSignaled = false;
+                            // Fall through to exit loop
+                        }
+                        // Check for continue signal - continue to next iteration
+                        else if (_continueSignaled)
+                        {
+                            _continueSignaled = false;
+                            // Loop back - evaluate condition again
+                            if (!TryEvaluateWhileStatementWithAwait(whileStatement, env, isStrict))
+                            {
+                                return null;
+                            }
+                        }
+                        else
+                        {
+                            // Loop back - evaluate condition again
+                            // This will set up its own continuation if it needs to await
+                            if (!TryEvaluateWhileStatementWithAwait(whileStatement, env, isStrict))
+                            {
+                                // Suspended awaiting next condition, its callback will handle completion
+                                return null;
+                            }
+                        }
+                        // Loop completed synchronously, fall through to increment/Run
+                    }
+
+                    // Condition was false or loop completed synchronously
+                    _statementIndex++;
+                    Run();
+                }
+                catch (ThrowSignal signal)
+                {
+                    Fail(signal);
+                }
+                catch (Exception ex)
+                {
+                    Fail(ex);
+                }
+
+                return null;
+            });
+
+            var onRejectedFn = new HostFunction(args =>
+            {
+                if (_completion.Task.IsCompleted)
+                {
+                    return null;
+                }
+
+                var reason = args.GetArgument(0);
+                Fail(new ThrowSignal(reason));
+                return null;
+            });
+
+            try
+            {
+                thenCallable.Invoke([onFulfilledFn, onRejectedFn], promiseObject);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+
+            return false;
+        }
+
+        private bool ExecuteStatementWithAwait(StatementNode statement, JsEnvironment env, bool isStrict)
+        {
+            // Handle specific statement types that can contain await
+            switch (statement)
+            {
+                case BreakStatement:
+                    // Signal break to the enclosing loop
+                    _breakSignaled = true;
+                    return true;
+
+                case ContinueStatement:
+                    // Signal continue to the enclosing loop
+                    _continueSignaled = true;
+                    return true;
+
+                case BlockStatement blockStatement:
+                    // Execute block statements one by one, checking for break/continue
+                    return TryEvaluateBlockStatementWithBreakSupport(blockStatement, env, isStrict);
+
+                case ExpressionStatement { Expression: AwaitExpression awaitExpression }:
+                    return TryAwaitExpressionWithContinuation(awaitExpression.Expression, _ => { }, env);
+
+                case ExpressionStatement exprStatement
+                    when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(exprStatement):
+                    return TryEvaluateExpressionStatementWithAwait(exprStatement, env, isStrict);
+
+                case IfStatement ifStatement when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(ifStatement):
+                    return TryEvaluateIfStatementWithAwait(ifStatement, env, isStrict);
+
+                case WhileStatement whileStatement
+                    when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(whileStatement):
+                    return TryEvaluateWhileStatementWithAwait(whileStatement, env, isStrict);
+
+                case ForEachStatement { Kind: ForEachKind.AwaitOf } forAwaitStatement:
+                    return TryEvaluateForAwaitOfStatement(forAwaitStatement, env, isStrict);
+
+                case ForEachStatement forEachStatement
+                    when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(forEachStatement):
+                    return TryEvaluateForEachStatementWithAwait(forEachStatement, env, isStrict);
+
+                case TryStatement tryStatement
+                    when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(tryStatement):
+                    return TryEvaluateTryStatementWithAwait(tryStatement, env, isStrict);
+
+                case ForStatement forStatement
+                    when Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(forStatement):
+                    return TryEvaluateForStatementWithAwait(forStatement, env, isStrict);
+
+                default:
+                    if (Ast.ShapeAnalyzer.AstShapeAnalyzer.StatementContainsAwait(statement))
+                    {
+                        throw new NotSupportedException(
+                            $"Async module execution does not support nested '{statement.GetType().Name}' containing await.");
+                    }
+
+                    try
+                    {
+                        _lastValue = _engine.ExecuteTypedStatement(statement, env, isStrict, false);
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        Fail(signal);
+                        return false;
+                    }
+
+                    return true;
+            }
+        }
+
+        private bool TryEvaluateBlockStatementWithBreakSupport(BlockStatement blockStatement, JsEnvironment env, bool isStrict)
+        {
+            var blockEnv = new JsEnvironment(env, false, isStrict);
+
+            foreach (var stmt in blockStatement.Statements)
+            {
+                if (!ExecuteStatementWithAwait(stmt, blockEnv, isStrict))
+                {
+                    return false;
+                }
+
+                // Propagate break/continue signals up
+                if (_breakSignaled || _continueSignaled)
+                {
+                    return true;
+                }
+            }
+
+            return true;
+        }
+
+        private bool TryAwaitExpressionWithContinuation(
+            ExpressionNode awaitedExpression,
+            Action<object?> onFulfilled,
+            JsEnvironment environment)
+        {
+            object? awaitedValue;
+            try
+            {
+                awaitedValue = _engine.ExecuteTypedExpression(awaitedExpression, environment, _entry.Program.IsStrict);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+
+            if (_completion.Task.IsCompleted)
+            {
+                return false;
+            }
+
+            var promiseObject = WrapAwaitedValue(awaitedValue);
+            if (promiseObject is null)
+            {
+                throw new NotSupportedException("Await expression did not produce a promise-like value.");
+            }
+
+            if (!promiseObject.TryGetProperty("then", out var thenValue) ||
+                thenValue is not IJsCallable thenCallable)
+            {
+                throw new NotSupportedException("Await expression produced a non-awaitable value.");
+            }
+
+            var onFulfilledFn = new HostFunction(args =>
+            {
+                if (_completion.Task.IsCompleted)
+                {
+                    return null;
+                }
+
+                try
+                {
+                    var resolved = args.GetArgument(0);
+                    onFulfilled(resolved);
+                    // After the continuation completes, continue with the next statement
+                    _statementIndex++;
+                    Run();
+                }
+                catch (ThrowSignal signal)
+                {
+                    Fail(signal);
+                }
+                catch (Exception ex)
+                {
+                    Fail(ex);
+                }
+
+                return null;
+            });
+
+            var onRejectedFn = new HostFunction(args =>
+            {
+                if (_completion.Task.IsCompleted)
+                {
+                    return null;
+                }
+
+                var reason = args.GetArgument(0);
+                Fail(new ThrowSignal(reason));
+                return null;
+            });
+
+            try
+            {
+                thenCallable.Invoke([onFulfilledFn, onRejectedFn], promiseObject);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+
+            return false;
+        }
+
+        private bool TryEvaluateForAwaitOfStatement(ForEachStatement statement, JsEnvironment env, bool isStrict)
+        {
+            // For await...of is inherently async - use the engine's existing evaluation
+            // which handles the async iteration protocol
+            try
+            {
+                _engine.ExecuteTypedStatement(statement, env, isStrict, false);
+                return true;
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+        }
+
+        private bool TryEvaluateForEachStatementWithAwait(ForEachStatement statement, JsEnvironment env, bool isStrict)
+        {
+            // for...of or for...in with await somewhere in iterable expression or body
+            // The iterable might contain await, or the body might
+            try
+            {
+                _engine.ExecuteTypedStatement(statement, env, isStrict, false);
+                return true;
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+        }
+
+        private bool TryEvaluateTryStatementWithAwait(TryStatement statement, JsEnvironment env, bool isStrict)
+        {
+            // Try/catch/finally with await - delegate to regular evaluation
+            try
+            {
+                _lastValue = _engine.ExecuteTypedStatement(statement, env, isStrict, false);
+                return true;
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+        }
+
+        private bool TryEvaluateForStatementWithAwait(ForStatement statement, JsEnvironment env, bool isStrict)
+        {
+            // Regular for loop with await in init/condition/increment/body
+            try
+            {
+                _engine.ExecuteTypedStatement(statement, env, isStrict, false);
+                return true;
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
         }
     }
 
@@ -3545,10 +4819,16 @@ public sealed class JsEngine : IAsyncDisposable
         return ExecuteModuleBody(typedProgram, moduleEnv, exports, modulePath);
     }
 
-    private void WaitForAsyncModule(ModuleEntry moduleEntry)
-    {
-        EnsureModuleEvaluatedAsync(moduleEntry, waitForAsync: true).GetAwaiter().GetResult();
-    }
+	    private void WaitForAsyncModule(ModuleEntry moduleEntry)
+	    {
+	        if (moduleEntry.Evaluated)
+	        {
+	            return;
+	        }
+
+	        throw new NotSupportedException(
+	            "Synchronous waiting for async module evaluation is not supported.");
+	    }
 
     /// <summary>
     ///     Processes an import statement and brings imported values into the module environment.
@@ -3574,7 +4854,7 @@ public sealed class JsEngine : IAsyncDisposable
             !importStatement.NamedImports.IsEmpty ||
             importStatement.NamespaceBinding is not null;
 
-        List<Action>? preservedMicrotasks = null;
+        List<(Action task, int epoch)>? preservedMicrotasks = null;
 
         try
         {

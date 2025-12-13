@@ -20,38 +20,73 @@ public static partial class TypedAstEvaluator
             }
 
             // ArgumentListEvaluation must run before the IsConstructor check (ES2024 12.3.3.1.1 step 6-7).
-            var argsBuilder = ImmutableArray.CreateBuilder<object?>(expression.Arguments.Length);
+            var hasSpread = false;
             foreach (var argument in expression.Arguments)
             {
                 if (argument.IsSpread)
                 {
-                    var spreadValue = EvaluateExpression(argument.Expression, environment, context);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return Symbol.Undefined;
-                    }
-
-                    foreach (var item in EnumerateSpread(spreadValue, context))
-                    {
-                        argsBuilder.Add(item);
-                    }
-
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return Symbol.Undefined;
-                    }
-
-                    continue;
-                }
-
-                argsBuilder.Add(EvaluateExpression(argument.Expression, environment, context));
-                if (context.ShouldStopEvaluation)
-                {
-                    return Symbol.Undefined;
+                    hasSpread = true;
+                    break;
                 }
             }
 
-            var args = argsBuilder.ToImmutable();
+            IReadOnlyList<object?> args;
+            if (!hasSpread)
+            {
+                if (expression.Arguments.Length == 0)
+                {
+                    args = Array.Empty<object?>();
+                }
+                else
+                {
+                    var argsArray = new object?[expression.Arguments.Length];
+                    for (var i = 0; i < expression.Arguments.Length; i++)
+                    {
+                        argsArray[i] = EvaluateExpression(expression.Arguments[i].Expression, environment, context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            return Symbol.Undefined;
+                        }
+                    }
+
+                    args = argsArray;
+                }
+            }
+            else
+            {
+                var argsBuilder = ImmutableArray.CreateBuilder<object?>(expression.Arguments.Length);
+                foreach (var argument in expression.Arguments)
+                {
+                    if (argument.IsSpread)
+                    {
+                        var spreadValue = EvaluateExpression(argument.Expression, environment, context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            return Symbol.Undefined;
+                        }
+
+                        foreach (var item in EnumerateSpread(spreadValue, context))
+                        {
+                            argsBuilder.Add(item);
+                        }
+
+                        if (context.ShouldStopEvaluation)
+                        {
+                            return Symbol.Undefined;
+                        }
+
+                        continue;
+                    }
+
+                    argsBuilder.Add(EvaluateExpression(argument.Expression, environment, context));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return Symbol.Undefined;
+                    }
+                }
+
+                args = FreezeArguments(argsBuilder);
+            }
 
             if (constructor is not IJsCallable callable)
             {

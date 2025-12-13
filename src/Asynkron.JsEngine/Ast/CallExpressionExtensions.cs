@@ -67,38 +67,76 @@ public static partial class TypedAstEvaluator
             object?[]? pooledArgsArray = null; // Track if we used a pooled array
             if (!hasSpread)
             {
-                if (expression.Arguments.Length == 0)
+                var argCount = expression.Arguments.Length;
+                switch (argCount)
                 {
-                    frozenArguments = Array.Empty<object?>();
-                }
-                else
-                {
-                    // Use pooled arrays for small argument counts (1-4)
-                    var argCount = expression.Arguments.Length;
-                    var argsArray = argCount <= 4
-                        ? JsValueCache.RentArgumentArray(argCount)
-                        : new object?[argCount];
-
-                    if (argCount <= 4)
+                    case 0:
+                        frozenArguments = Array.Empty<object?>();
+                        break;
+                    case 1:
                     {
-                        pooledArgsArray = argsArray; // Remember to return it
-                    }
-
-                    for (var i = 0; i < argCount; i++)
-                    {
-                        argsArray[i] = EvaluateExpression(expression.Arguments[i].Expression, environment, context);
+                        var v0 = EvaluateExpression(expression.Arguments[0].Expression, environment, context);
                         if (context.ShouldStopEvaluation)
                         {
-                            if (pooledArgsArray is not null)
-                            {
-                                JsValueCache.ReturnArgumentArray(pooledArgsArray);
-                            }
                             context.CallDepth--;
                             return Symbol.Undefined;
                         }
-                    }
 
-                    frozenArguments = argsArray;
+                        var arr = JsValueCache.CreateArgs(v0);
+                        pooledArgsArray = arr;
+                        frozenArguments = arr;
+                        break;
+                    }
+                    case 2:
+                    {
+                        var v0 = EvaluateExpression(expression.Arguments[0].Expression, environment, context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            context.CallDepth--;
+                            return Symbol.Undefined;
+                        }
+
+                        var v1 = EvaluateExpression(expression.Arguments[1].Expression, environment, context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            context.CallDepth--;
+                            return Symbol.Undefined;
+                        }
+
+                        var arr = JsValueCache.CreateArgs(v0, v1);
+                        pooledArgsArray = arr;
+                        frozenArguments = arr;
+                        break;
+                    }
+                    default:
+                    {
+                        // Use pooled arrays for small argument counts (3-4)
+                        var argsArray = argCount <= 4
+                            ? JsValueCache.RentArgumentArray(argCount)
+                            : new object?[argCount];
+
+                        if (argCount <= 4)
+                        {
+                            pooledArgsArray = argsArray; // Remember to return it
+                        }
+
+                        for (var i = 0; i < argCount; i++)
+                        {
+                            argsArray[i] = EvaluateExpression(expression.Arguments[i].Expression, environment, context);
+                            if (context.ShouldStopEvaluation)
+                            {
+                                if (pooledArgsArray is not null)
+                                {
+                                    JsValueCache.ReturnArgumentArray(pooledArgsArray);
+                                }
+                                context.CallDepth--;
+                                return Symbol.Undefined;
+                            }
+                        }
+
+                        frozenArguments = argsArray;
+                        break;
+                    }
                 }
             }
             else

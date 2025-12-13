@@ -561,17 +561,32 @@ public sealed class JsEnvironment
 
     internal bool HasBinding(Symbol name)
     {
-        if (_values.ContainsKey(name))
+        var current = this;
+        var hops = 0;
+        const int maxLookupDepth = 10_000;
+
+        while (current is not null && hops++ < maxLookupDepth)
         {
-            return true;
+            if (current._values.ContainsKey(name))
+            {
+                return true;
+            }
+
+            if (current._withObject is not null && HasVisibleWithBinding(current._withObject, name))
+            {
+                return true;
+            }
+
+            var next = current.Enclosing;
+            if (ReferenceEquals(next, current))
+            {
+                break;
+            }
+
+            current = next;
         }
 
-        if (_withObject is not null && HasVisibleWithBinding(_withObject, name))
-        {
-            return true;
-        }
-
-        return Enclosing?.HasBinding(name) ?? false;
+        return false;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

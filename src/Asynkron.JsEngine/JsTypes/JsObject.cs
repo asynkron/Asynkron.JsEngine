@@ -11,13 +11,17 @@ namespace Asynkron.JsEngine.JsTypes;
 /// <summary>
 ///     Simple JavaScript-like object that supports prototype chaining for property lookups.
 /// </summary>
-    public sealed class JsObject : Dictionary<string, object?>, IJsObjectLike,
+    public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         IPrivateBrandHolder,
         IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider
     {
     private const string PrototypeKey = "__proto__";
     private const string GetterPrefix = "__getter__";
     private const string SetterPrefix = "__setter__";
+
+    // Backing storage for properties - can be swapped out for HybridDictionary later
+    private readonly Dictionary<string, object?> _storage = new(StringComparer.Ordinal);
+
     private readonly Dictionary<string, PropertyDescriptor> _descriptors = new(StringComparer.Ordinal);
     private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
     private readonly Dictionary<string, object?> _privateFields = new(StringComparer.Ordinal);
@@ -35,7 +39,7 @@ namespace Asynkron.JsEngine.JsTypes;
     public bool IsExtensible { get; private set; } = true;
     internal bool IsConstructing { get; private set; }
 
-    public JsObject(object? prototype = null) : base(StringComparer.Ordinal)
+    public JsObject(object? prototype = null)
     {
         if (prototype is not null)
         {
@@ -73,7 +77,31 @@ namespace Asynkron.JsEngine.JsTypes;
 
     public bool IsSealed { get; private set; }
 
-    IEnumerable<string> IJsObjectLike.Keys => Keys;
+    IEnumerable<string> IJsObjectLike.Keys => _storage.Keys;
+
+    // IDictionary<string, object?> implementation
+    public ICollection<string> Keys => _storage.Keys;
+    public ICollection<object?> Values => _storage.Values;
+    public int Count => _storage.Count;
+    public bool IsReadOnly => false;
+
+    public object? this[string key]
+    {
+        get => _storage[key];
+        set => _storage[key] = value;
+    }
+
+    public void Add(string key, object? value) => _storage.Add(key, value);
+    public bool ContainsKey(string key) => _storage.ContainsKey(key);
+    public bool Remove(string key) => _storage.Remove(key);
+    public bool TryGetValue(string key, out object? value) => _storage.TryGetValue(key, out value);
+    void ICollection<KeyValuePair<string, object?>>.Add(KeyValuePair<string, object?> item) => ((ICollection<KeyValuePair<string, object?>>)_storage).Add(item);
+    public void Clear() => _storage.Clear();
+    bool ICollection<KeyValuePair<string, object?>>.Contains(KeyValuePair<string, object?> item) => ((ICollection<KeyValuePair<string, object?>>)_storage).Contains(item);
+    void ICollection<KeyValuePair<string, object?>>.CopyTo(KeyValuePair<string, object?>[] array, int arrayIndex) => ((ICollection<KeyValuePair<string, object?>>)_storage).CopyTo(array, arrayIndex);
+    bool ICollection<KeyValuePair<string, object?>>.Remove(KeyValuePair<string, object?> item) => ((ICollection<KeyValuePair<string, object?>>)_storage).Remove(item);
+    public IEnumerator<KeyValuePair<string, object?>> GetEnumerator() => _storage.GetEnumerator();
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => _storage.GetEnumerator();
 
     public void SetPrototype(object? candidate)
     {
@@ -702,7 +730,7 @@ namespace Asynkron.JsEngine.JsTypes;
         }
         else
         {
-            base["length"] = _trackedArrayLength;
+            _storage["length"] = _trackedArrayLength;
         }
     }
 

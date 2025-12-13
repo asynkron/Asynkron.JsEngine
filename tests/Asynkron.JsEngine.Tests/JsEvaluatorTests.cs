@@ -524,21 +524,21 @@ public class JsEvaluatorTests
         AssertIntercalation(declarationOutcome);
 
         var expressionOutcome = await engine.Evaluate("""
-                                                      let i = 0;
-                                                      var C = class {
-                                                        [i++] = i++;
-                                                        static [i++] = i++;
-                                                        [i++] = i++;
+                                                      let j = 0;
+                                                      var D = class {
+                                                        [j++] = j++;
+                                                        static [j++] = j++;
+                                                        [j++] = j++;
                                                       };
-                                                      let c = new C();
+                                                      let d = new D();
                                                       ({
-                                                        i,
-                                                        c0: c[0],
-                                                        c2: c[2],
-                                                        s1: C[1],
-                                                        cHas1: c.hasOwnProperty('1'),
-                                                        sHas0: C.hasOwnProperty('0'),
-                                                        sHas2: C.hasOwnProperty('2')
+                                                        i: j,
+                                                        c0: d[0],
+                                                        c2: d[2],
+                                                        s1: D[1],
+                                                        cHas1: d.hasOwnProperty('1'),
+                                                        sHas0: D.hasOwnProperty('0'),
+                                                        sHas2: D.hasOwnProperty('2')
                                                       });
                                                       """);
         AssertIntercalation(expressionOutcome);
@@ -1476,8 +1476,8 @@ public class JsEvaluatorTests
 
         var hasNegative = await engine.Evaluate("""
 
-                                                let numbers = [1, 2, 3];
-                                                numbers.some(function(x, i, arr) { return x < 0; });
+                                                let numbers2 = [1, 2, 3];
+                                                numbers2.some(function(x, i, arr) { return x < 0; });
 
                                                 """);
         Assert.False((bool)hasNegative!);
@@ -1500,8 +1500,8 @@ public class JsEvaluatorTests
 
         var allLarge = await engine.Evaluate("""
 
-                                             let numbers = [2, 3, 4];
-                                             numbers.every(function(x, i, arr) { return x > 3; });
+                                             let numbers2 = [2, 3, 4];
+                                             numbers2.every(function(x, i, arr) { return x > 3; });
 
                                              """);
         Assert.False((bool)allLarge!);
@@ -1522,8 +1522,8 @@ public class JsEvaluatorTests
 
         var withDash = await engine.Evaluate("""
 
-                                             let items = ["x", "y", "z"];
-                                             items.join("-");
+                                             let items2 = ["x", "y", "z"];
+                                             items2.join("-");
 
                                              """);
         Assert.Equal("x-y-z", withDash);
@@ -1544,8 +1544,8 @@ public class JsEvaluatorTests
 
         var hasFive = await engine.Evaluate("""
 
-                                            let numbers = [1, 2, 3];
-                                            numbers.includes(5);
+                                            let numbers2 = [1, 2, 3];
+                                            numbers2.includes(5);
 
                                             """);
         Assert.False((bool)hasFive!);
@@ -1566,8 +1566,8 @@ public class JsEvaluatorTests
 
         var notFound = await engine.Evaluate("""
 
-                                             let items = ["a", "b", "c"];
-                                             items.indexOf("d");
+                                             let items2 = ["a", "b", "c"];
+                                             items2.indexOf("d");
 
                                              """);
         Assert.Equal(-1d, notFound);

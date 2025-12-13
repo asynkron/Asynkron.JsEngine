@@ -42,6 +42,7 @@ public sealed class JsPromise
 
     /// <summary>
     ///     Resolves the promise with the given value.
+    ///     If the value is a thenable, the promise adopts the thenable's eventual state.
     /// </summary>
     public void Resolve(object? value)
     {
@@ -50,9 +51,74 @@ public sealed class JsPromise
             return;
         }
 
+        // Check if value is a thenable (has a callable 'then' property)
+        if (value is IJsPropertyAccessor accessor &&
+            accessor.TryGetProperty("then", out var thenValue) &&
+            thenValue is IJsCallable thenMethod)
+        {
+            // Value is a thenable - adopt its state
+            ResolveThenable(accessor, thenMethod);
+            return;
+        }
+
+        // Value is not a thenable - fulfill directly
         _state = PromiseState.Fulfilled;
         _value = value;
         ScheduleProcessing();
+    }
+
+    /// <summary>
+    ///     Resolves the promise by adopting the state of a thenable.
+    /// </summary>
+    private void ResolveThenable(IJsPropertyAccessor thenable, IJsCallable thenMethod)
+    {
+        // Create resolve and reject callbacks for the thenable
+        var resolveCallback = new HostFunction((_, args) =>
+        {
+            if (_state != PromiseState.Pending)
+            {
+                return null;
+            }
+
+            var result = args.GetArgument(0);
+            // Recursively resolve in case the result is also a thenable
+            Resolve(result);
+            return null;
+        });
+
+        var rejectCallback = new HostFunction((_, args) =>
+        {
+            if (_state != PromiseState.Pending)
+            {
+                return null;
+            }
+
+            var reason = args.GetArgument(0);
+            Reject(reason);
+            return null;
+        });
+
+        try
+        {
+            // Call thenable.then(resolve, reject)
+            thenMethod.Invoke([resolveCallback, rejectCallback], thenable);
+        }
+        catch (ThrowSignal signal)
+        {
+            // If then() throws, reject the promise
+            if (_state == PromiseState.Pending)
+            {
+                Reject(signal.ThrownValue);
+            }
+        }
+        catch (Exception)
+        {
+            // If then() throws any other exception, reject with undefined
+            if (_state == PromiseState.Pending)
+            {
+                Reject(null);
+            }
+        }
     }
 
     /// <summary>

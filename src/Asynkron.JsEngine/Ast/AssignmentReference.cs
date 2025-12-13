@@ -4,7 +4,292 @@ using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Ast;
 
-internal readonly record struct AssignmentReference(Func<object?> GetValue, Action<object?> SetValue);
+/// <summary>
+/// Represents a reference to an assignable location (lvalue).
+/// Uses a discriminated union pattern to avoid delegate allocations for common identifier cases.
+/// </summary>
+internal readonly struct AssignmentReference
+{
+    private enum ReferenceKind : byte
+    {
+        DeclarativeBinding,   // Most common - cached identifier binding
+        GlobalBinding,        // Global object property
+        WithBinding,          // With statement binding
+        Unresolvable,         // Undeclared identifier
+        Delegate,             // Fallback for complex cases (member access, etc.)
+    }
+
+    private readonly ReferenceKind _kind;
+
+    // Identifier binding data
+    private readonly JsEnvironment.ResolvedIdentifierBinding _binding;
+    private readonly Symbol _name;
+    private readonly EvaluationContext _context;
+    private readonly bool _isStrict;
+
+    // Global/With binding data
+    private readonly ObjectEnvironmentBinding _globalBinding;
+    private readonly JsEnvironment? _withFallbackEnvironment;
+
+    // Delegate fallback for member access
+    private readonly Func<object?>? _delegateGetter;
+    private readonly Action<object?>? _delegateSetter;
+
+    /// <summary>
+    /// Creates a reference for a cached declarative binding (most common case).
+    /// </summary>
+    internal static AssignmentReference ForDeclarativeBinding(
+        JsEnvironment.ResolvedIdentifierBinding binding,
+        Symbol name,
+        EvaluationContext context,
+        bool isStrict)
+    {
+        return new AssignmentReference(
+            ReferenceKind.DeclarativeBinding,
+            binding,
+            name,
+            context,
+            isStrict,
+            default,
+            null,
+            null,
+            null);
+    }
+
+    /// <summary>
+    /// Creates a reference for a global object binding.
+    /// </summary>
+    internal static AssignmentReference ForGlobalBinding(
+        in ObjectEnvironmentBinding globalBinding,
+        EvaluationContext context)
+    {
+        return new AssignmentReference(
+            ReferenceKind.GlobalBinding,
+            default,
+            default,
+            context,
+            false,
+            globalBinding,
+            null,
+            null,
+            null);
+    }
+
+    /// <summary>
+    /// Creates a reference for a with statement binding.
+    /// </summary>
+    internal static AssignmentReference ForWithBinding(
+        in ObjectEnvironmentBinding withBinding,
+        JsEnvironment fallbackEnvironment,
+        Symbol name,
+        EvaluationContext context,
+        bool isStrict)
+    {
+        return new AssignmentReference(
+            ReferenceKind.WithBinding,
+            default,
+            name,
+            context,
+            isStrict,
+            withBinding,
+            fallbackEnvironment,
+            null,
+            null);
+    }
+
+    /// <summary>
+    /// Creates a reference for an unresolvable identifier.
+    /// </summary>
+    internal static AssignmentReference ForUnresolvable(
+        Symbol name,
+        EvaluationContext context,
+        bool isStrict,
+        JsEnvironment environment)
+    {
+        return new AssignmentReference(
+            ReferenceKind.Unresolvable,
+            default,
+            name,
+            context,
+            isStrict,
+            default,
+            environment,  // Store environment for sloppy mode global creation
+            null,
+            null);
+    }
+
+    /// <summary>
+    /// Creates a reference using delegate fallback (for complex member access).
+    /// </summary>
+    internal static AssignmentReference ForDelegate(
+        Func<object?> getter,
+        Action<object?> setter)
+    {
+        return new AssignmentReference(
+            ReferenceKind.Delegate,
+            default,
+            default,
+            null!,
+            false,
+            default,
+            null,
+            getter,
+            setter);
+    }
+
+    private AssignmentReference(
+        ReferenceKind kind,
+        JsEnvironment.ResolvedIdentifierBinding binding,
+        Symbol name,
+        EvaluationContext context,
+        bool isStrict,
+        in ObjectEnvironmentBinding globalBinding,
+        JsEnvironment? withFallbackEnvironment,
+        Func<object?>? delegateGetter,
+        Action<object?>? delegateSetter)
+    {
+        _kind = kind;
+        _binding = binding;
+        _name = name;
+        _context = context;
+        _isStrict = isStrict;
+        _globalBinding = globalBinding;
+        _withFallbackEnvironment = withFallbackEnvironment;
+        _delegateGetter = delegateGetter;
+        _delegateSetter = delegateSetter;
+    }
+
+    public object? GetValue()
+    {
+        return _kind switch
+        {
+            ReferenceKind.DeclarativeBinding => ReadDeclarativeBinding(),
+            ReferenceKind.GlobalBinding => ReadGlobalBinding(),
+            ReferenceKind.WithBinding => ReadWithBinding(),
+            ReferenceKind.Unresolvable => ReadUnresolvable(),
+            ReferenceKind.Delegate => _delegateGetter!(),
+            _ => throw new InvalidOperationException($"Unknown reference kind: {_kind}")
+        };
+    }
+
+    public void SetValue(object? value)
+    {
+        switch (_kind)
+        {
+            case ReferenceKind.DeclarativeBinding:
+                WriteDeclarativeBinding(value);
+                break;
+            case ReferenceKind.GlobalBinding:
+                WriteGlobalBinding(value);
+                break;
+            case ReferenceKind.WithBinding:
+                WriteWithBinding(value);
+                break;
+            case ReferenceKind.Unresolvable:
+                WriteUnresolvable(value);
+                break;
+            case ReferenceKind.Delegate:
+                _delegateSetter!(value);
+                break;
+            default:
+                throw new InvalidOperationException($"Unknown reference kind: {_kind}");
+        }
+    }
+
+    private object? ReadDeclarativeBinding()
+    {
+        try
+        {
+            return _binding.Read(_name, _context);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
+        {
+            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
+            _context.SetThrow(errorObject);
+            return Symbol.Undefined;
+        }
+    }
+
+    private void WriteDeclarativeBinding(object? value)
+    {
+        // Note: Don't rely on _context for write operations as it may be stale in async contexts.
+        // The binding's environment has access to the RealmState for logging.
+        _binding.Write(_name, value, _isStrict);
+    }
+
+    private object? ReadGlobalBinding()
+    {
+        try
+        {
+            return JsEnvironment.GetWithBindingValue(_globalBinding);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
+        {
+            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
+            _context.SetThrow(errorObject);
+            return Symbol.Undefined;
+        }
+    }
+
+    private void WriteGlobalBinding(object? value)
+    {
+        JsEnvironment.TrySetWithBindingValue(_globalBinding, value, _context.RealmState);
+    }
+
+    private object? ReadWithBinding()
+    {
+        try
+        {
+            return JsEnvironment.GetWithBindingValue(_globalBinding);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
+        {
+            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
+            _context.SetThrow(errorObject);
+            return Symbol.Undefined;
+        }
+    }
+
+    private void WriteWithBinding(object? value)
+    {
+        if (_isStrict && IsStrictRestrictedName(_name))
+        {
+            throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
+                "Assignment to eval or arguments is not allowed in strict mode.", _context,
+                _context.RealmState));
+        }
+
+        if (!JsEnvironment.TrySetWithBindingValue(_globalBinding, value, _context.RealmState))
+        {
+            _withFallbackEnvironment!.Assign(_name, value);
+        }
+    }
+
+    private object? ReadUnresolvable()
+    {
+        try
+        {
+            return JsEnvironment.ReadUnresolvable(_name);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
+        {
+            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
+            _context.SetThrow(errorObject);
+            return Symbol.Undefined;
+        }
+    }
+
+    private void WriteUnresolvable(object? value)
+    {
+        JsEnvironment.AssignUnresolvable(_name, value, _isStrict, _context, _withFallbackEnvironment);
+    }
+
+    private static bool IsStrictRestrictedName(Symbol name)
+    {
+        return string.Equals(name.Name, "eval", StringComparison.Ordinal) ||
+               string.Equals(name.Name, "arguments", StringComparison.Ordinal);
+    }
+}
 
 internal static class AssignmentReferenceResolver
 {
@@ -53,22 +338,12 @@ internal static class AssignmentReferenceResolver
 
         if (environment.TryResolveWithBinding(identifier.Name, context, out var withBinding))
         {
-            return new AssignmentReference(
-                () => ReadIdentifierValue(() => JsEnvironment.GetWithBindingValue(withBinding), context),
-                newValue =>
-                {
-                    if (isStrictTarget)
-                    {
-                        throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
-                            "Assignment to eval or arguments is not allowed in strict mode.", context,
-                            context.RealmState));
-                    }
-
-                    if (!JsEnvironment.TrySetWithBindingValue(withBinding, newValue, context.RealmState))
-                    {
-                        environment.Assign(identifier.Name, newValue);
-                    }
-                });
+            return AssignmentReference.ForWithBinding(
+                withBinding,
+                environment,
+                identifier.Name,
+                context,
+                isStrictTarget);
         }
 
         var reference = environment.ResolveIdentifierAssignmentReference(identifier.Name, context);
@@ -77,7 +352,8 @@ internal static class AssignmentReferenceResolver
             return reference;
         }
 
-        return new AssignmentReference(
+        // Wrap in delegate for strict restricted names (eval/arguments)
+        return AssignmentReference.ForDelegate(
             reference.GetValue,
             _ => throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
                 "Assignment to eval or arguments is not allowed in strict mode.", context,
@@ -91,9 +367,9 @@ internal static class AssignmentReferenceResolver
         Func<ExpressionNode, JsEnvironment, EvaluationContext, object?> evaluateExpression,
         bool deferPropertyKeyConversion)
     {
-        // According to ES spec 13.3.7.1, for super property access, GetThisBinding must be evaluated
-        // BEFORE the property expression to ensure ReferenceError is thrown if this is uninitialized
-        // before any side effects occur
+        // Member access uses delegate fallback for now (complex cases)
+        // This can be optimized later with a dedicated MemberReference struct
+
         if (member.Target is SuperExpression)
         {
             if (!context.IsThisInitialized)
@@ -107,7 +383,7 @@ internal static class AssignmentReferenceResolver
             var superPropertyValue = evaluateExpression(member.Property, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return new AssignmentReference(() => Symbol.Undefined, _ => { });
+                return AssignmentReference.ForDelegate(() => Symbol.Undefined, _ => { });
             }
 
             var binding = TypedAstEvaluator.ExpectSuperBinding(environment, context);
@@ -118,7 +394,7 @@ internal static class AssignmentReferenceResolver
                 return propertyNameCache;
             }
 
-            return new AssignmentReference(
+            return AssignmentReference.ForDelegate(
                 () =>
                 {
                     if (binding.Prototype is null)
@@ -164,13 +440,13 @@ internal static class AssignmentReferenceResolver
         var target = evaluateExpression(member.Target, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return new AssignmentReference(() => Symbol.Undefined, _ => { });
+            return AssignmentReference.ForDelegate(() => Symbol.Undefined, _ => { });
         }
 
         var propertyValue = evaluateExpression(member.Property, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return new AssignmentReference(() => Symbol.Undefined, _ => { });
+            return AssignmentReference.ForDelegate(() => Symbol.Undefined, _ => { });
         }
 
         if (target.IsNullish())
@@ -199,7 +475,7 @@ internal static class AssignmentReferenceResolver
                     allowPrivate: !member.IsComputed);
             }
 
-            return new AssignmentReference(
+            return AssignmentReference.ForDelegate(
                 () =>
                 {
                     var handle = GetHandle();
@@ -215,7 +491,7 @@ internal static class AssignmentReferenceResolver
         if (target is TypedArrayBase typedArray &&
             JsOps.TryResolveArrayIndex(propertyValue, out var typedIndex, context))
         {
-            return new AssignmentReference(
+            return AssignmentReference.ForDelegate(
                 () => typedIndex >= 0 && typedIndex < typedArray.Length
                     ? typedArray.GetElement(typedIndex)
                     : Symbol.Undefined,
@@ -234,7 +510,7 @@ internal static class AssignmentReferenceResolver
             context,
             context.CurrentScope.IsStrict,
             allowPrivate: !member.IsComputed);
-        return new AssignmentReference(
+        return AssignmentReference.ForDelegate(
             () => handle.GetValue(),
             newValue => handle.SetValue(newValue));
     }

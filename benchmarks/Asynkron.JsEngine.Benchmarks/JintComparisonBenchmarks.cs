@@ -1,3 +1,4 @@
+using System.Globalization;
 using BenchmarkDotNet.Attributes;
 using Jint;
 
@@ -137,7 +138,7 @@ public class JintComparisonBenchmarks
         return result switch
         {
             null => "null",
-            double d => d.ToString("N0"),
+            double d => d.ToString("N0", CultureInfo.InvariantCulture),
             _ => result.ToString()?.Substring(0, Math.Min(30, result.ToString()?.Length ?? 0)) ?? "null"
         };
     }
@@ -202,10 +203,10 @@ public class JintComparisonBenchmarks
             fib(25);
             """;
 
-        // For loop intensive
+        // For loop intensive (using var to avoid per-iteration environment allocation)
         _forLoop = """
-            let sum = 0;
-            for (let i = 0; i < 100000; i++) {
+            var sum = 0;
+            for (var i = 0; i < 100000; i++) {
                 sum += i;
             }
             sum;

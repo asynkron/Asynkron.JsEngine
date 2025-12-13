@@ -81,8 +81,23 @@ await EnsureModuleEvaluatedAsync(mainEntry)
 ## Logging
 
 - When adding evaluator logging, use the realm logger directly with null-propagation, e.g. `realm.Logger?.LogInformation(...)`. Do not wrap this in helper methods.
+- **NEVER** create wrapper methods with `params object?[] args` for logging - this allocates an array on every call even if logging is disabled.
 - Never use `Console.WriteLine`/`Console.Error.WriteLine` for runtime logging; route diagnostics through `realm.Logger?.Log...`.
 
 ## Compilation
 
 Never use "--no-build", always ensure you are working with the latest compiled code.
+
+## Performance Optimization Strategy
+
+When optimizing for performance, focus on **general optimizations** that benefit all code paths rather than specific fast paths for particular patterns. The goal is to improve the overall architecture and reduce allocations/overhead across the board, not to special-case specific constructs like `i++` or simple loops.
+
+Avoid creating specialized fast paths that:
+- Add complexity and maintenance burden
+- Only benefit narrow use cases
+- Diverge from the general evaluation model
+
+Instead, prefer optimizations that:
+- Reduce allocations in core primitives (e.g., avoiding delegate allocations in hot paths)
+- Improve data structures used throughout evaluation
+- Benefit all JavaScript code equally

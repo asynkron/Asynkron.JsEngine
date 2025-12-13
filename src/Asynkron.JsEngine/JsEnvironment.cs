@@ -219,8 +219,6 @@ public sealed class JsEnvironment
         bool canDelete = false)
     {
         // `var` declarations are hoisted to the nearest function/global scope, so we skip block environments here.
-        LogRealm("DefineFunctionScoped name={Name} funcDecl={FuncDecl} hasInit={HasInit} allowDelete={AllowDelete}",
-            name.Name, isFunctionDeclaration, hasInitializer, canDelete);
         var scope = GetFunctionScope();
         var isGlobalScope = scope.IsGlobalFunctionScope;
         JsObject? globalThis = null;
@@ -257,7 +255,6 @@ public sealed class JsEnvironment
         {
             if (isRestrictedGlobal)
             {
-                LogRealm("DefineFunctionScoped restricted global function name={Name}", name.Name);
                 throw StandardLibrary.ThrowTypeError("Cannot redeclare non-configurable global function",
                     context, context?.RealmState);
             }
@@ -273,11 +270,6 @@ public sealed class JsEnvironment
 
             if (!canDeclareFunction)
             {
-                var existingConfig = existingDescriptor?.Configurable;
-                var existingWritable = existingDescriptor?.Writable;
-                var existingEnumerable = existingDescriptor?.Enumerable;
-                LogRealm("DefineFunctionScoped cannot declare global function name={Name} existingConfig={Config} writable={Writable} enumerable={Enumerable}",
-                    name.Name, existingConfig, existingWritable, existingEnumerable);
                 throw StandardLibrary.ThrowTypeError("Cannot redeclare non-configurable global function",
                     context, context?.RealmState);
             }
@@ -348,8 +340,6 @@ public sealed class JsEnvironment
             if (hasInitializer)
             {
                 existing.Value = value;
-                LogRealm("DefineFunctionScoped reuse existing binding name={Name} varEnvOverride={VarOverride} isGlobal={IsGlobal} isFunctionDecl={FuncDecl} hasInitializer={HasInit}",
-                    name.Name, _varEnvironmentOverride is not null, isGlobalScope, isFunctionDeclaration, hasInitializer);
                 if (isGlobalScope && globalThis is not null)
                 {
                     globalThis.SetProperty(name.Name, value);
@@ -681,34 +671,22 @@ public sealed class JsEnvironment
 
         if (TryGetCachedDeclarativeBinding(name, context, out var cached))
         {
-            return new AssignmentReference(
-                () => AssignmentReferenceResolver.ReadIdentifierValue(
-                    () => cached.Read(name, context), context),
-                newValue => cached.Write(name, newValue, strictContext, context));
+            return AssignmentReference.ForDeclarativeBinding(cached, name, context, strictContext);
         }
 
         if (TryLocateBinding(name, out var bindingEnvironment, out _))
         {
             var cachedBinding = new ResolvedIdentifierBinding(bindingEnvironment, name);
             CacheDeclarativeBinding(name, cachedBinding, context);
-            return new AssignmentReference(
-                () => AssignmentReferenceResolver.ReadIdentifierValue(
-                    () => cachedBinding.Read(name, context), context),
-                newValue => cachedBinding.Write(name, newValue, strictContext, context));
+            return AssignmentReference.ForDeclarativeBinding(cachedBinding, name, context, strictContext);
         }
 
         if (TryResolveGlobalObjectBinding(name, context, out var globalBinding))
         {
-            return new AssignmentReference(
-                () => AssignmentReferenceResolver.ReadIdentifierValue(
-                    () => GetWithBindingValue(globalBinding), context),
-                newValue => TrySetWithBindingValue(globalBinding, newValue, context.RealmState));
+            return AssignmentReference.ForGlobalBinding(globalBinding, context);
         }
 
-        return new AssignmentReference(
-            () => AssignmentReferenceResolver.ReadIdentifierValue(
-                () => ReadUnresolvable(name), context),
-            newValue => AssignUnresolvable(name, newValue, strictContext, context));
+        return AssignmentReference.ForUnresolvable(name, context, strictContext, this);
     }
 
     /// <summary>
@@ -794,6 +772,15 @@ public sealed class JsEnvironment
         }
 
         internal void Write(Symbol name, object? value, bool isStrictContext, EvaluationContext context)
+        {
+            Write(name, value, isStrictContext);
+        }
+
+        /// <summary>
+        /// Writes the binding value without requiring an EvaluationContext.
+        /// This is safe for async contexts where the original context may be stale.
+        /// </summary>
+        internal void Write(Symbol name, object? value, bool isStrictContext)
         {
             ref var binding = ref CollectionsMarshal.GetValueRefOrNullRef(_environment._values, _name);
             if (Unsafe.IsNullRef(ref binding))
@@ -903,32 +890,37 @@ public sealed class JsEnvironment
         bindingEnvironment.NotifyBindingObservers(name, value);
     }
 
-    private static object ReadUnresolvable(Symbol name)
+    internal static object ReadUnresolvable(Symbol name)
     {
         throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
     }
 
-    private void AssignUnresolvable(Symbol name, object? value, bool isStrictContext, EvaluationContext context)
+    internal static void AssignUnresolvable(Symbol name, object? value, bool isStrictContext, EvaluationContext context, JsEnvironment? environment = null)
     {
-        var realm = RealmState ?? Enclosing?.RealmState;
+        var realm = environment?.RealmState ?? environment?.Enclosing?.RealmState ?? context.RealmState;
         if (isStrictContext)
         {
             context.RealmState?.Logger?.LogInformation(
                 "AssignUnresolvable strict throw name={Name} scopeStrict={ScopeStrict} functionScopeStrict={FnStrict} env={Env}",
                 name.Name,
                 context.CurrentScope.IsStrict,
-                GetFunctionScope().IsStrict,
-                GetHashCode());
+                environment?.GetFunctionScope().IsStrict ?? false,
+                environment?.GetHashCode() ?? 0);
             throw StandardLibrary.ThrowReferenceError($"ReferenceError: {name.Name} is not defined", null, realm);
         }
 
-        var globalScope = this;
+        if (environment is null)
+        {
+            throw StandardLibrary.ThrowReferenceError($"ReferenceError: {name.Name} is not defined", null, realm);
+        }
+
+        var globalScope = environment;
         while (globalScope.Enclosing is not null)
         {
             globalScope = globalScope.Enclosing;
         }
 
-        var globalObject = GetRootGlobalObject();
+        var globalObject = environment.GetRootGlobalObject();
         if (globalObject is null)
         {
             globalScope.Define(name, value, isLexical: false, canDelete: true);
@@ -939,8 +931,6 @@ public sealed class JsEnvironment
         // configurable property on the global object rather than a declarative
         // binding so that `delete` can remove it (ES2024 9.1.1.3.4 SetMutableBinding).
         globalObject.SetProperty(name.Name, value);
-        LogRealm("Assign created global via sloppy assignment name={Name} valueType={ValueType}", name.Name,
-            value?.GetType().Name ?? "null");
         context.RealmState?.Logger?.LogInformation(
             "Sloppy assignment created unresolvable binding name={Name} valueType={ValueType}",
             name.Name,
@@ -1414,8 +1404,6 @@ public sealed class JsEnvironment
 
                 // Non-strict mode: Create the variable in the global scope (this environment)
                 current.Define(name, value);
-                LogRealm("Assign created global via sloppy assignment name={Name} valueType={ValueType}", name.Name,
-                    value?.GetType().Name ?? "null");
                 globalObject?.SetProperty(name.Name, value);
                 return;
             }
@@ -1525,10 +1513,6 @@ public sealed class JsEnvironment
         return null;
     }
 
-    private void LogRealm(string message, params object?[] args)
-    {
-        RealmState?.Logger?.LogInformation(message, args);
-    }
 
     private static bool IsBlockedByUnscopables(IJsObjectLike target, string name, out bool touchedUnscopables)
     {

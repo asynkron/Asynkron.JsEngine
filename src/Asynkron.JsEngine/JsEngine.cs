@@ -937,9 +937,6 @@ public sealed class JsEngine : IAsyncDisposable
                 return result;
             }
 
-            // Step 3: Async work is pending - start event loop lazily and drain it
-            StartEventLoop();
-
             var configured = ExecutionTimeout;
             var enforceTimeout = configured.HasValue && configured.Value > TimeSpan.Zero &&
                                  configured.Value != Timeout.InfiniteTimeSpan;

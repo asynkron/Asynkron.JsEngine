@@ -9,8 +9,9 @@ namespace Asynkron.JsEngine;
 /// </summary>
 public static class JsValueCache
 {
-    // Cache small integers (0-1023) as boxed doubles - matches Jint's approach
-    private const int IntegerCacheSize = 1024;
+    // Cache small integers (0-10239) as boxed doubles - matches Jint's approach
+    // Jint uses 10240 to cover common array indices and iteration counts
+    private const int IntegerCacheSize = 10240;
     private static readonly object?[] CachedIntegers = new object?[IntegerCacheSize];
 
     // Cache common strings
@@ -54,7 +55,7 @@ public static class JsValueCache
 
     static JsValueCache()
     {
-        // Pre-cache integers 0-1023
+        // Pre-cache integers 0-10239
         for (var i = 0; i < IntegerCacheSize; i++)
         {
             CachedIntegers[i] = (double)i;

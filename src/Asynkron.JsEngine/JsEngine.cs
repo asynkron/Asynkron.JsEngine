@@ -670,6 +670,54 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
+    ///     Evaluates JavaScript source code and returns the value of the final identifier
+    ///     AFTER all microtasks have drained.
+    /// </summary>
+    /// <remarks>
+    ///     This is a convenience method that behaves like Jint's Evaluate() for async code.
+    ///     If the script ends with a bare identifier (e.g., "finalResult;"), this method
+    ///     will execute the script, drain all microtasks, and then return the updated value
+    ///     of that identifier.
+    ///
+    ///     Example:
+    ///     <code>
+    ///     let finalResult = 0;
+    ///     Promise.resolve(42).then(x => { finalResult = x; });
+    ///     finalResult;  // Regular Evaluate returns 0, EvaluateAndAwait returns 42
+    ///     </code>
+    ///
+    ///     If the script does not end with an identifier expression, this behaves
+    ///     identically to <see cref="Evaluate"/>.
+    /// </remarks>
+    /// <param name="source">The JavaScript source code to evaluate.</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    /// <returns>The result of the evaluation after microtasks have drained.</returns>
+    public async Task<object?> EvaluateAndAwait(string source, CancellationToken cancellationToken = default)
+    {
+        var program = ParseForExecution(source);
+
+        // Check if the last statement is an expression statement with an identifier
+        Symbol? trailingIdentifier = null;
+        if (program.Typed.Body.Length > 0 &&
+            program.Typed.Body[^1] is ExpressionStatement { Expression: IdentifierExpression identifier })
+        {
+            trailingIdentifier = identifier.Name;
+        }
+
+        // Execute the program normally (this will drain microtasks)
+        var result = await Evaluate(program, cancellationToken).ConfigureAwait(false);
+
+        // If there was a trailing identifier, re-evaluate it after microtasks have drained
+        if (trailingIdentifier is not null)
+        {
+            return await Evaluate(trailingIdentifier.Name, cancellationToken).ConfigureAwait(false);
+        }
+
+        // No trailing identifier, return the original result
+        return result;
+    }
+
+    /// <summary>
     ///     Synchronously evaluates JavaScript source code without using the event loop.
     ///     This is much faster for code that doesn't require async features (setTimeout,
     ///     Promises, async/await, etc.). Use this when you know the code is purely synchronous.

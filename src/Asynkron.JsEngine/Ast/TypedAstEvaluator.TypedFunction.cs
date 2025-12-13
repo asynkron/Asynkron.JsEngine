@@ -27,6 +27,8 @@ public static partial class TypedAstEvaluator
         private readonly bool _hasFunctionNameEnvironment;
         private readonly bool _hasParameterExpressions;
         private readonly bool _allowIdentifierCache;
+        private readonly bool _isSimpleFunction;
+        private readonly bool _usesArguments;
         private readonly ImmutableArray<Symbol> _parameterNames;
         private readonly ImmutableArray<Symbol> _lexicalTemplate;
         private readonly ImmutableArray<Symbol> _catchParameterTemplate;
@@ -71,6 +73,24 @@ public static partial class TypedAstEvaluator
             _hasHoistableDeclarations = HasHoistableDeclarations(function.Body);
             _hasParameterExpressions = HasParameterExpressions(_function);
             _allowIdentifierCache = AllowsIdentifierCaching(_function);
+            _usesArguments = !IsArrowFunction && UsesArgumentsIdentifier(_function);
+
+            // Detect simple functions for fast-path invocation
+            // A simple function has: no async, no defaults, no destructuring, no body lexicals, no hoisting needed
+            // Note: _hasFunctionNameEnvironment being true is fine - it just means the function name binding is
+            // in the outer scope, not that we need extra environment setup during invocation.
+            // IMPORTANT: Must be strict mode - non-strict functions have mapped arguments object that links
+            // argument values to parameter bindings, which the fast-path doesn't support.
+            var hasSimpleParams = HasOnlySimpleIdentifierParameters(function);
+            _isSimpleFunction = _isStrict &&
+                               !function.IsAsync &&
+                               !_wasAsyncFunction &&
+                               !_hasParameterExpressions &&
+                               _bodyLexicalNames.Length == 0 &&
+                               !_hasHoistableDeclarations &&
+                               _allowIdentifierCache &&
+                               hasSimpleParams;
+
             var parameterNames = new List<Symbol>();
             CollectParameterNamesFromFunction(_function, parameterNames);
             _parameterNames = parameterNames.ToImmutableArray();
@@ -397,6 +417,24 @@ public static partial class TypedAstEvaluator
             EvaluationContext? callingContext,
             object? newTarget = null)
         {
+            // Fast-path for simple functions (no async, no defaults, no lexical declarations)
+            // Skip if this is a constructor call (newTarget set), class constructor, or has super access
+            // Also skip arrow functions with uninitialized this (need to look up this at call time)
+            var canUseFastPath = _isSimpleFunction &&
+                !_isClassConstructor &&
+                (newTarget is null || ReferenceEquals(newTarget, Symbol.Undefined)) &&
+                _capturedPrivateNameScopes.IsDefaultOrEmpty &&
+                PrivateNameScope is null &&
+                _homeObject is null && // Methods with homeObject need super context
+                _superConstructor is null &&
+                _superPrototype is null &&
+                _lexicalThisEnvironment is null; // Arrow functions with dynamic this need full path
+
+            if (canUseFastPath)
+            {
+                return InvokeSimpleFast(arguments, thisValue, callingContext);
+            }
+
             var context = _realmState.CreateContext(pushScope: false);
             context.AllowIdentifierCache = _allowIdentifierCache;
             _realmState.Logger?.LogInformation(
@@ -1501,6 +1539,114 @@ public static partial class TypedAstEvaluator
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Checks if a function has only simple identifier parameters (no destructuring, no rest, no defaults).
+        /// </summary>
+        private static bool HasOnlySimpleIdentifierParameters(FunctionExpression function)
+        {
+            foreach (var param in function.Parameters)
+            {
+                // Must have Name set and no Pattern/DefaultValue
+                if (param.Name is null || param.Pattern is not null || param.DefaultValue is not null || param.IsRest)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Fast-path invocation for simple functions. Avoids creating multiple JsEnvironment objects.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private object? InvokeSimpleFast(IReadOnlyList<object?> arguments, object? thisValue, EvaluationContext? callingContext)
+        {
+            // Create a single lightweight environment for parameters
+            var context = _realmState.CreateContext(pushScope: false);
+            context.AllowIdentifierCache = true;
+
+            if (callingContext is not null)
+            {
+                context.CallDepth = callingContext.CallDepth;
+                context.MaxCallDepth = callingContext.MaxCallDepth;
+            }
+
+            var functionMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
+            using var functionScopeFrame = context.PushScope(ScopeKind.Function, functionMode);
+
+            // Create just one environment
+            var description = _function.Name is { } name ? $"function {name.Name}" : "anonymous function";
+            var functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source, description);
+
+            // Bind this - simple path: strict mode uses undefined/passed value, non-strict uses passed value
+            // For the fast path, we don't need the full coercion since simple functions typically don't use `this`
+            var boundThis = !IsArrowFunction
+                ? (thisValue ?? Symbol.Undefined)
+                : _lexicalThis ?? Symbol.Undefined;
+            functionEnvironment.Define(Symbol.This, boundThis);
+
+            // Bind parameters directly - simple identifiers only (not lexical, can be reassigned)
+            for (var i = 0; i < _parameterNames.Length; i++)
+            {
+                var value = i < arguments.Count ? arguments[i] : Symbol.Undefined;
+                functionEnvironment.Define(_parameterNames[i], value, isLexical: false);
+            }
+
+            // Only create arguments object if the function body actually references it
+            if (_usesArguments)
+            {
+                var argumentValues = new object?[arguments.Count];
+                for (var i = 0; i < arguments.Count; i++)
+                {
+                    argumentValues[i] = arguments[i];
+                }
+                var argumentsObject = new JsArgumentsObject(
+                    argumentValues,
+                    new Symbol?[arguments.Count], // No mapped parameters in strict mode
+                    functionEnvironment,
+                    mappedEnabled: false,
+                    _realmState,
+                    this,
+                    isStrict: true);
+                functionEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
+            }
+
+            try
+            {
+                var result = EvaluateBlock(_function.Body, functionEnvironment, context);
+
+                if (context.IsThrow)
+                {
+                    var thrown = context.FlowValue;
+                    context.Clear();
+                    if (callingContext is not null)
+                    {
+                        callingContext.SetThrow(thrown);
+                        return thrown;
+                    }
+                    throw new ThrowSignal(thrown);
+                }
+
+                if (context.IsReturn)
+                {
+                    var value = context.FlowValue;
+                    context.ClearReturn();
+                    return value;
+                }
+
+                return Symbol.Undefined;
+            }
+            catch (ThrowSignal signal)
+            {
+                if (callingContext is not null)
+                {
+                    callingContext.SetThrow(signal.ThrownValue);
+                    return signal.ThrownValue;
+                }
+                throw;
+            }
         }
     }
 }

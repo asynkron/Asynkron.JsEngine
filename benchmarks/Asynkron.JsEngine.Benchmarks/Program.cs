@@ -1,3 +1,4 @@
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.Benchmarks;
 using BenchmarkDotNet.Columns;
 using BenchmarkDotNet.Configs;
@@ -8,6 +9,7 @@ using BenchmarkDotNet.Loggers;
 using BenchmarkDotNet.Order;
 using BenchmarkDotNet.Running;
 using BenchmarkDotNet.Toolchains.InProcess.Emit;
+using Jint;
 
 // Configure benchmark runs
 var config = DefaultConfig.Instance
@@ -129,6 +131,16 @@ switch (benchmarkType)
         BenchmarkRunner.Run<JintComparisonBenchmarks>(config);
         break;
 
+    case "jint-verify":
+        Console.WriteLine("Verifying Jint comparison benchmarks...\n");
+        JintComparisonBenchmarks.VerifyAllBenchmarks().GetAwaiter().GetResult();
+        break;
+
+    case "jint-async-test":
+        Console.WriteLine("Testing async behavior in both engines...\n");
+        TestAsyncBehavior().GetAwaiter().GetResult();
+        break;
+
     case "jint-parser":
         Console.WriteLine("Running Jint/Esprima parser comparison benchmarks...\n");
         BenchmarkRunner.Run<JintParserComparisonBenchmarks>(config);
@@ -138,4 +150,45 @@ switch (benchmarkType)
         // Try to run with BenchmarkSwitcher for custom filters
         BenchmarkSwitcher.FromAssembly(typeof(LexerBenchmarks).Assembly).Run(args, config);
         break;
+}
+
+async Task TestAsyncBehavior()
+{
+    var code = @"
+        let finalResult = 0;
+        async function getValue() {
+            return 42;
+        }
+        async function run() {
+            finalResult = await getValue();
+            return finalResult;
+        }
+        run();
+        finalResult;
+    ";
+
+    Console.WriteLine("Code:");
+    Console.WriteLine(code);
+    Console.WriteLine();
+
+    // Test Jint
+    Console.WriteLine("=== Jint ===");
+    var jintEngine = new Engine();
+    var jintResult = jintEngine.Evaluate(code).ToObject();
+    Console.WriteLine($"Result: {jintResult}");
+
+    // Test Asynkron (sync evaluation)
+    Console.WriteLine("\n=== Asynkron (EvaluateSync) ===");
+    var asynkronEngine = new JsEngine();
+    var asynkronSyncResult = asynkronEngine.EvaluateSync(code);
+    Console.WriteLine($"Result: {asynkronSyncResult}");
+
+    // Test Asynkron (async evaluation)
+    Console.WriteLine("\n=== Asynkron (Evaluate - awaited) ===");
+    var asynkronEngine2 = new JsEngine();
+    var asynkronAsyncResult = await asynkronEngine2.Evaluate(code);
+    Console.WriteLine($"Result: {asynkronAsyncResult}");
+
+    await asynkronEngine.DisposeAsync();
+    await asynkronEngine2.DisposeAsync();
 }

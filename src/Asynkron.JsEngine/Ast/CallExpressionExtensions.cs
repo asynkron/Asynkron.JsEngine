@@ -15,6 +15,12 @@ public static partial class TypedAstEvaluator
     {
         private object? EvaluateCall(JsEnvironment environment, EvaluationContext context)
         {
+            // Fast-path for plain Map/Set method calls - bypasses prototype lookup and host function machinery
+            if (TryFastPathMapSetCall(expression, environment, context, out var fastResult))
+            {
+                return fastResult;
+            }
+
             using var callActivity = Activity.Current?.StartEvaluatorActivity("CallExpression", context, expression.Source);
             callActivity?.SetTag("js.call.arguments", expression.Arguments.Length);
             callActivity?.SetTag("js.call.optional", expression.IsOptional);
@@ -510,6 +516,191 @@ public static partial class TypedAstEvaluator
             }
 
             return callResult;
+        }
+
+        /// <summary>
+        ///     Fast-path for plain Map/Set method calls.
+        ///     Bypasses prototype lookup, host function creation, and argument array allocation.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TryFastPathMapSetCall(
+            CallExpression callExpr,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out object? result)
+        {
+            result = null;
+
+            // Only handle simple member expression calls like map.set(), map.get(), etc.
+            if (callExpr.Callee is not MemberExpression { IsComputed: false, IsOptional: false } member)
+                return false;
+
+            // Skip if target is a super expression - needs special handling
+            if (member.Target is SuperExpression)
+                return false;
+
+            // Get the method name
+            string? methodName = member.Property switch
+            {
+                IdentifierExpression id => id.Name.Name,
+                LiteralExpression { Value: string s } => s,
+                _ => null
+            };
+
+            if (methodName is null)
+                return false;
+
+            // Evaluate the target (map or set instance)
+            var target = EvaluateExpression(member.Target, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                result = Symbol.Undefined;
+                return true;
+            }
+
+            // Fast-path for JsMap
+            if (target is JsMap { IsPlain: true } map)
+            {
+                // Check for spread arguments - fall back to normal path if any
+                var hasSpread = false;
+                foreach (var arg in callExpr.Arguments)
+                {
+                    if (arg.IsSpread)
+                    {
+                        hasSpread = true;
+                        break;
+                    }
+                }
+                if (!hasSpread)
+                {
+                    result = methodName switch
+                    {
+                        "set" when callExpr.Arguments.Length >= 2 =>
+                            FastMapSet(map, callExpr.Arguments, environment, context),
+                        "get" when callExpr.Arguments.Length >= 1 =>
+                            FastMapGet(map, callExpr.Arguments, environment, context),
+                        "has" when callExpr.Arguments.Length >= 1 =>
+                            FastMapHas(map, callExpr.Arguments, environment, context),
+                        "delete" when callExpr.Arguments.Length >= 1 =>
+                            FastMapDelete(map, callExpr.Arguments, environment, context),
+                        "clear" => FastMapClear(map),
+                        _ => null // Fall back to normal path for other methods (size is a property, not a method)
+                    };
+
+                    if (result is not null || methodName is "clear")
+                        return true;
+                }
+            }
+
+            // Fast-path for JsSet
+            if (target is JsSet { IsPlain: true } set)
+            {
+                // Check for spread arguments - fall back to normal path if any
+                var hasSpread = false;
+                foreach (var arg in callExpr.Arguments)
+                {
+                    if (arg.IsSpread)
+                    {
+                        hasSpread = true;
+                        break;
+                    }
+                }
+                if (!hasSpread)
+                {
+                    result = methodName switch
+                    {
+                        "add" when callExpr.Arguments.Length >= 1 =>
+                            FastSetAdd(set, callExpr.Arguments, environment, context),
+                        "has" when callExpr.Arguments.Length >= 1 =>
+                            FastSetHas(set, callExpr.Arguments, environment, context),
+                        "delete" when callExpr.Arguments.Length >= 1 =>
+                            FastSetDelete(set, callExpr.Arguments, environment, context),
+                        "clear" => FastSetClear(set),
+                        _ => null // Fall back to normal path for other methods (size is a property, not a method)
+                    };
+
+                    if (result is not null || methodName is "clear")
+                        return true;
+                }
+            }
+
+            return false;
+        }
+
+        // ---- Map fast-path helpers ----
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static object? FastMapSet(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
+        {
+            var key = EvaluateExpression(args[0].Expression, env, ctx);
+            if (ctx.ShouldStopEvaluation) return Symbol.Undefined;
+            var value = EvaluateExpression(args[1].Expression, env, ctx);
+            if (ctx.ShouldStopEvaluation) return Symbol.Undefined;
+            return map.Set(key, value);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static object? FastMapGet(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
+        {
+            var key = EvaluateExpression(args[0].Expression, env, ctx);
+            if (ctx.ShouldStopEvaluation) return Symbol.Undefined;
+            return map.Get(key);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static object? FastMapHas(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
+        {
+            var key = EvaluateExpression(args[0].Expression, env, ctx);
+            if (ctx.ShouldStopEvaluation) return Symbol.Undefined;
+            return map.Has(key);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static object? FastMapDelete(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
+        {
+            var key = EvaluateExpression(args[0].Expression, env, ctx);
+            if (ctx.ShouldStopEvaluation) return Symbol.Undefined;
+            return map.Delete(key);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static object? FastMapClear(JsMap map)
+        {
+            map.Clear();
+            return Symbol.Undefined;
+        }
+
+        // ---- Set fast-path helpers ----
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static object? FastSetAdd(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
+        {
+            var value = EvaluateExpression(args[0].Expression, env, ctx);
+            if (ctx.ShouldStopEvaluation) return Symbol.Undefined;
+            return set.Add(value);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static object? FastSetHas(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
+        {
+            var value = EvaluateExpression(args[0].Expression, env, ctx);
+            if (ctx.ShouldStopEvaluation) return Symbol.Undefined;
+            return set.Has(value);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static object? FastSetDelete(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
+        {
+            var value = EvaluateExpression(args[0].Expression, env, ctx);
+            if (ctx.ShouldStopEvaluation) return Symbol.Undefined;
+            return set.Delete(value);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static object? FastSetClear(JsSet set)
+        {
+            set.Clear();
+            return Symbol.Undefined;
         }
     }
 }

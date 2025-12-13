@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.Ast;
+
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
@@ -8,13 +10,24 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
 {
     private readonly JsObject _properties = new();
 
-    // Use List to maintain insertion order
-    private readonly List<object?> _values = [];
+    // Use List to maintain insertion order for iteration
+    private readonly List<object?> _insertionOrder = [];
+    // Use HashSet for O(1) lookups
+    private readonly HashSet<object> _set = new(SameValueZeroComparer.Instance);
+    // Track null/undefined separately (can't be HashSet members with our comparer)
+    private bool _hasNull;
+    private bool _hasUndefined;
+
+    /// <summary>
+    ///     Indicates whether this Set is "plain" - i.e., has no custom properties,
+    ///     no modified prototype, and can use fast-path optimizations.
+    /// </summary>
+    internal bool IsPlain { get; private set; } = true;
 
     /// <summary>
     ///     Gets the number of values in the Set.
     /// </summary>
-    public int Size => _values.Count;
+    public int Size => _set.Count + (_hasNull ? 1 : 0) + (_hasUndefined ? 1 : 0);
 
     public bool IsExtensible => _properties.IsExtensible;
 
@@ -42,6 +55,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
 
     public void SetProperty(string name, object? value, object? receiver)
     {
+        IsPlain = false;
         _properties.SetProperty(name, value, receiver ?? this);
     }
 
@@ -61,11 +75,17 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
     {
+        IsPlain = false;
         _properties.DefineProperty(name, descriptor);
     }
 
     public void SetPrototype(object? candidate)
     {
+        // Only mark as non-plain if prototype is being changed after initial setup
+        if (_properties.Prototype is not null)
+        {
+            IsPlain = false;
+        }
         _properties.SetPrototype(candidate);
     }
 
@@ -79,15 +99,16 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         return _properties.DeleteOwnProperty(name);
     }
 
-    internal int ValueCount => _values.Count;
+    internal int ValueCount => _insertionOrder.Count;
 
     internal object? GetValue(int index)
     {
-        return _values[index];
+        return _insertionOrder[index];
     }
 
     public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
     {
+        IsPlain = false;
         return _properties.TryDefineProperty(name, descriptor);
     }
 
@@ -97,12 +118,33 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsSet Add(object? value)
     {
-        // Check if value already exists
-        if (!Has(value))
+        // Handle null
+        if (value is null)
         {
-            _values.Add(value);
+            if (!_hasNull)
+            {
+                _hasNull = true;
+                _insertionOrder.Add(null);
+            }
+            return this;
         }
 
+        // Handle undefined
+        if (ReferenceEquals(value, Symbol.Undefined))
+        {
+            if (!_hasUndefined)
+            {
+                _hasUndefined = true;
+                _insertionOrder.Add(Symbol.Undefined);
+            }
+            return this;
+        }
+
+        // Regular value - use HashSet
+        if (_set.Add(value))
+        {
+            _insertionOrder.Add(value);
+        }
         return this;
     }
 
@@ -111,15 +153,20 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public bool Has(object? value)
     {
-        foreach (var item in _values)
+        // Handle null
+        if (value is null)
         {
-            if (SameValueZero(item, value))
-            {
-                return true;
-            }
+            return _hasNull;
         }
 
-        return false;
+        // Handle undefined
+        if (ReferenceEquals(value, Symbol.Undefined))
+        {
+            return _hasUndefined;
+        }
+
+        // Regular value - use HashSet
+        return _set.Contains(value);
     }
 
     /// <summary>
@@ -128,16 +175,28 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public bool Delete(object? value)
     {
-        for (var i = 0; i < _values.Count; i++)
+        // Handle null
+        if (value is null)
         {
-            if (SameValueZero(_values[i], value))
-            {
-                _values.RemoveAt(i);
-                return true;
-            }
+            if (!_hasNull) return false;
+            _hasNull = false;
+            _insertionOrder.Remove(null);
+            return true;
         }
 
-        return false;
+        // Handle undefined
+        if (ReferenceEquals(value, Symbol.Undefined))
+        {
+            if (!_hasUndefined) return false;
+            _hasUndefined = false;
+            _insertionOrder.Remove(Symbol.Undefined);
+            return true;
+        }
+
+        // Regular value - use HashSet
+        if (!_set.Remove(value)) return false;
+        _insertionOrder.Remove(value);
+        return true;
     }
 
     /// <summary>
@@ -145,7 +204,10 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public void Clear()
     {
-        _values.Clear();
+        _set.Clear();
+        _insertionOrder.Clear();
+        _hasNull = false;
+        _hasUndefined = false;
     }
 
     /// <summary>
@@ -154,7 +216,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public void ForEach(IJsCallable callback, object? thisArg)
     {
-        foreach (var value in _values)
+        foreach (var value in _insertionOrder)
             // In Set.forEach, the value is passed as both the first and second argument
         {
             callback.Invoke([value, value, this], thisArg);
@@ -166,7 +228,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsArray Values()
     {
-        return new JsArray(_values);
+        return new JsArray(_insertionOrder.ToList());
     }
 
     /// <summary>
@@ -176,7 +238,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     public JsArray Entries()
     {
         var entries = new List<object?>();
-        foreach (var value in _values)
+        foreach (var value in _insertionOrder)
         {
             var pair = new JsArray([value, value]);
             entries.Add(pair);
@@ -195,41 +257,52 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     }
 
     /// <summary>
-    ///     Implements the SameValueZero comparison algorithm used by Set.
+    ///     Equality comparer implementing SameValueZero algorithm for Set values.
     ///     Similar to strict equality (===) but treats NaN as equal to NaN.
     /// </summary>
-    private static bool SameValueZero(object? x, object? y)
+    private sealed class SameValueZeroComparer : IEqualityComparer<object>
     {
-        // Handle null/undefined
-        if (x == null && y == null)
+        public static readonly SameValueZeroComparer Instance = new();
+
+        private SameValueZeroComparer() { }
+
+        public new bool Equals(object? x, object? y)
         {
-            return true;
+            // Handle null (shouldn't happen - we handle null/undefined separately)
+            if (x == null && y == null) return true;
+            if (x == null || y == null) return false;
+
+            // Handle NaN (NaN is equal to NaN in SameValueZero)
+            if (x is double dx && double.IsNaN(dx) && y is double dy && double.IsNaN(dy))
+            {
+                return true;
+            }
+
+            // Handle strings - use value equality
+            if (x is string sx && y is string sy)
+            {
+                return sx == sy;
+            }
+
+            // For reference types, use reference equality
+            if (!x.GetType().IsValueType || !y.GetType().IsValueType)
+            {
+                return ReferenceEquals(x, y);
+            }
+
+            // For value types, use Equals
+            return x.Equals(y);
         }
 
-        if (x == null || y == null)
+        public int GetHashCode(object obj)
         {
-            return false;
-        }
+            // Handle NaN - all NaN values should hash the same
+            if (obj is double d && double.IsNaN(d))
+            {
+                return 0; // All NaN values get the same hash
+            }
 
-        // Handle NaN (NaN is equal to NaN in SameValueZero)
-        if (x is double and double.NaN && y is double and double.NaN)
-        {
-            return true;
+            return obj.GetHashCode();
         }
-
-        // Handle strings - use value equality
-        if (x is string sx && y is string sy)
-        {
-            return sx == sy;
-        }
-
-        // For reference types, use reference equality
-        if (!x.GetType().IsValueType || !y.GetType().IsValueType)
-        {
-            return ReferenceEquals(x, y);
-        }
-
-        // For value types, use Equals
-        return x.Equals(y);
     }
 }

@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Collections;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
@@ -19,8 +20,8 @@ namespace Asynkron.JsEngine.JsTypes;
     private const string GetterPrefix = "__getter__";
     private const string SetterPrefix = "__setter__";
 
-    // Backing storage for properties - can be swapped out for HybridDictionary later
-    private readonly Dictionary<string, object?> _storage = new(StringComparer.Ordinal);
+    // Backing storage for properties - uses HybridDictionary for better small object performance
+    private readonly HybridDictionary<object?> _storage = new();
 
     private readonly Dictionary<string, PropertyDescriptor> _descriptors = new(StringComparer.Ordinal);
     private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);

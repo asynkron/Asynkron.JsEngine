@@ -9,14 +9,28 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider
 {
-    // Use List to maintain insertion order
-    private readonly List<KeyValuePair<object?, object?>> _entries = [];
+    // Use List to maintain insertion order for iteration
+    private readonly List<object?> _insertionOrder = [];
+    // Use Dictionary for O(1) lookups
+    private readonly Dictionary<object, object?> _map = new(SameValueZeroComparer.Instance);
+    // Track null/undefined keys separately (can't be dictionary keys)
+    private bool _hasNullKey;
+    private object? _nullValue;
+    private bool _hasUndefinedKey;
+    private object? _undefinedValue;
+
     private readonly JsObject _properties = new();
+
+    /// <summary>
+    ///     Indicates whether this Map is "plain" - i.e., has no custom properties,
+    ///     no modified prototype, and can use fast-path optimizations.
+    /// </summary>
+    internal bool IsPlain { get; private set; } = true;
 
     /// <summary>
     ///     Gets the number of key-value pairs in the Map.
     /// </summary>
-    public int Size => _entries.Count;
+    public int Size => _map.Count + (_hasNullKey ? 1 : 0) + (_hasUndefinedKey ? 1 : 0);
 
     public bool IsExtensible => _properties.IsExtensible;
 
@@ -45,6 +59,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
 
     public void SetProperty(string name, object? value, object? receiver)
     {
+        IsPlain = false;
         _properties.SetProperty(name, value, receiver ?? this);
     }
 
@@ -64,11 +79,17 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
     {
+        IsPlain = false;
         _properties.DefineProperty(name, descriptor);
     }
 
     public void SetPrototype(object? candidate)
     {
+        // Only mark as non-plain if prototype is being changed after initial setup
+        if (_properties.Prototype is not null)
+        {
+            IsPlain = false;
+        }
         _properties.SetPrototype(candidate);
     }
 
@@ -82,15 +103,18 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         return _properties.DeleteOwnProperty(name);
     }
 
-    internal int EntryCount => _entries.Count;
+    internal int EntryCount => _insertionOrder.Count;
 
     internal KeyValuePair<object?, object?> GetEntry(int index)
     {
-        return _entries[index];
+        var key = _insertionOrder[index];
+        var value = Get(key);
+        return new KeyValuePair<object?, object?>(key, value);
     }
 
     public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
     {
+        IsPlain = false;
         return _properties.TryDefineProperty(name, descriptor);
     }
 
@@ -99,20 +123,36 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsMap Set(object? key, object? value)
     {
-        // Find existing entry with the same key
-        for (var i = 0; i < _entries.Count; i++)
+        // Handle null key
+        if (key is null)
         {
-            if (!SameValueZero(_entries[i].Key, key))
+            if (!_hasNullKey)
             {
-                continue;
+                _hasNullKey = true;
+                _insertionOrder.Add(null);
             }
-
-            _entries[i] = new KeyValuePair<object?, object?>(key, value);
+            _nullValue = value;
             return this;
         }
 
-        // Key not found, add new entry
-        _entries.Add(new KeyValuePair<object?, object?>(key, value));
+        // Handle undefined key
+        if (ReferenceEquals(key, Symbol.Undefined))
+        {
+            if (!_hasUndefinedKey)
+            {
+                _hasUndefinedKey = true;
+                _insertionOrder.Add(Symbol.Undefined);
+            }
+            _undefinedValue = value;
+            return this;
+        }
+
+        // Regular key - use dictionary
+        if (!_map.ContainsKey(key))
+        {
+            _insertionOrder.Add(key);
+        }
+        _map[key] = value;
         return this;
     }
 
@@ -121,15 +161,20 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public object? Get(object? key)
     {
-        foreach (var entry in _entries)
+        // Handle null key
+        if (key is null)
         {
-            if (SameValueZero(entry.Key, key))
-            {
-                return entry.Value;
-            }
+            return _hasNullKey ? _nullValue : Symbol.Undefined;
         }
 
-        return Symbol.Undefined;
+        // Handle undefined key
+        if (ReferenceEquals(key, Symbol.Undefined))
+        {
+            return _hasUndefinedKey ? _undefinedValue : Symbol.Undefined;
+        }
+
+        // Regular key - use dictionary
+        return _map.TryGetValue(key, out var value) ? value : Symbol.Undefined;
     }
 
     /// <summary>
@@ -137,15 +182,20 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public bool Has(object? key)
     {
-        foreach (var entry in _entries)
+        // Handle null key
+        if (key is null)
         {
-            if (SameValueZero(entry.Key, key))
-            {
-                return true;
-            }
+            return _hasNullKey;
         }
 
-        return false;
+        // Handle undefined key
+        if (ReferenceEquals(key, Symbol.Undefined))
+        {
+            return _hasUndefinedKey;
+        }
+
+        // Regular key - use dictionary
+        return _map.ContainsKey(key);
     }
 
     /// <summary>
@@ -154,18 +204,30 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public bool Delete(object? key)
     {
-        for (var i = 0; i < _entries.Count; i++)
+        // Handle null key
+        if (key is null)
         {
-            if (!SameValueZero(_entries[i].Key, key))
-            {
-                continue;
-            }
-
-            _entries.RemoveAt(i);
+            if (!_hasNullKey) return false;
+            _hasNullKey = false;
+            _nullValue = null;
+            _insertionOrder.Remove(null);
             return true;
         }
 
-        return false;
+        // Handle undefined key
+        if (ReferenceEquals(key, Symbol.Undefined))
+        {
+            if (!_hasUndefinedKey) return false;
+            _hasUndefinedKey = false;
+            _undefinedValue = null;
+            _insertionOrder.Remove(Symbol.Undefined);
+            return true;
+        }
+
+        // Regular key - use dictionary
+        if (!_map.Remove(key)) return false;
+        _insertionOrder.Remove(key);
+        return true;
     }
 
     /// <summary>
@@ -173,7 +235,12 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public void Clear()
     {
-        _entries.Clear();
+        _map.Clear();
+        _insertionOrder.Clear();
+        _hasNullKey = false;
+        _nullValue = null;
+        _hasUndefinedKey = false;
+        _undefinedValue = null;
     }
 
     /// <summary>
@@ -181,9 +248,10 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public void ForEach(IJsCallable callback, object? thisArg)
     {
-        foreach (var entry in _entries)
+        foreach (var key in _insertionOrder)
         {
-            callback.Invoke([entry.Value, entry.Key, this], thisArg);
+            var value = Get(key);
+            callback.Invoke([value, key, this], thisArg);
         }
     }
 
@@ -192,8 +260,8 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsArray Entries()
     {
-        var entries = _entries
-            .Select(entry => new JsArray([entry.Key, entry.Value]))
+        var entries = _insertionOrder
+            .Select(key => new JsArray([key, Get(key)]))
             .Cast<object?>()
             .ToList();
 
@@ -205,8 +273,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsArray Keys()
     {
-        var keys = _entries.ConvertAll(e => e.Key);
-        return new JsArray(keys);
+        return new JsArray(_insertionOrder.ToList());
     }
 
     /// <summary>
@@ -214,46 +281,57 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsArray Values()
     {
-        var values = _entries.ConvertAll(e => e.Value);
+        var values = _insertionOrder.Select(Get).ToList();
         return new JsArray(values);
     }
 
     /// <summary>
-    ///     Implements the SameValueZero comparison algorithm used by Map.
+    ///     Equality comparer implementing SameValueZero algorithm for Map keys.
     ///     Similar to strict equality (===) but treats NaN as equal to NaN.
     /// </summary>
-    private static bool SameValueZero(object? x, object? y)
+    private sealed class SameValueZeroComparer : IEqualityComparer<object>
     {
-        // Handle null/undefined
-        if (x == null && y == null)
+        public static readonly SameValueZeroComparer Instance = new();
+
+        private SameValueZeroComparer() { }
+
+        public new bool Equals(object? x, object? y)
         {
-            return true;
+            // Handle null (shouldn't happen - we handle null/undefined separately)
+            if (x == null && y == null) return true;
+            if (x == null || y == null) return false;
+
+            // Handle NaN (NaN is equal to NaN in SameValueZero)
+            if (x is double dx && double.IsNaN(dx) && y is double dy && double.IsNaN(dy))
+            {
+                return true;
+            }
+
+            // Handle strings - use value equality
+            if (x is string sx && y is string sy)
+            {
+                return sx == sy;
+            }
+
+            // For reference types, use reference equality
+            if (!x.GetType().IsValueType || !y.GetType().IsValueType)
+            {
+                return ReferenceEquals(x, y);
+            }
+
+            // For value types, use Equals
+            return x.Equals(y);
         }
 
-        if (x == null || y == null)
+        public int GetHashCode(object obj)
         {
-            return false;
-        }
+            // Handle NaN - all NaN values should hash the same
+            if (obj is double d && double.IsNaN(d))
+            {
+                return 0; // All NaN values get the same hash
+            }
 
-        // Handle NaN (NaN is equal to NaN in SameValueZero)
-        if (x is double and double.NaN && y is double and double.NaN)
-        {
-            return true;
+            return obj.GetHashCode();
         }
-
-        // Handle strings - use value equality
-        if (x is string sx && y is string sy)
-        {
-            return sx == sy;
-        }
-
-        // For reference types, use reference equality
-        if (!x.GetType().IsValueType || !y.GetType().IsValueType)
-        {
-            return ReferenceEquals(x, y);
-        }
-
-        // For value types, use Equals
-        return x.Equals(y);
     }
 }

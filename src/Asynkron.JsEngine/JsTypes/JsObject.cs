@@ -415,6 +415,7 @@ namespace Asynkron.JsEngine.JsTypes;
         _privateBrands.Add(brand);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool HasPrivateBrand(object brand)
     {
         return _privateBrands.Contains(brand);
@@ -913,11 +914,13 @@ namespace Asynkron.JsEngine.JsTypes;
         this[SetterPrefix + name] = setter;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool HasGetter(string name)
     {
         return TryGetValue(GetterPrefix + name, out _);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool HasSetter(string name)
     {
         return TryGetValue(SetterPrefix + name, out _);

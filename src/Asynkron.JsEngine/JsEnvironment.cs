@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
@@ -579,11 +580,13 @@ public sealed class JsEnvironment
         return Enclosing?.HasBinding(name) ?? false;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool HasOwnBinding(Symbol name)
     {
         return _values.ContainsKey(name);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool HasOwnLexicalBinding(Symbol name)
     {
         return _values.TryGetValue(name, out var binding) && binding.IsLexical;

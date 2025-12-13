@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
@@ -21,6 +23,7 @@ public sealed class JsPromise
             new PropertyDescriptor { Value = this, Writable = false, Enumerable = false, Configurable = false });
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static bool TryGetInternalPromise(object? candidate, out JsPromise? promise)
     {
         if (candidate is JsObject jsObject &&
@@ -130,6 +133,7 @@ public sealed class JsPromise
         return nextPromise;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryGetSettled(out object? value, out bool isRejected)
     {
         if (_state == PromiseState.Pending)

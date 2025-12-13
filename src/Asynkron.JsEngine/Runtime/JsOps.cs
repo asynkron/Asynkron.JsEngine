@@ -65,6 +65,7 @@ internal static class JsOps
         return Math.Pow(baseValue, exponent);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsOddInteger(double value)
     {
         return double.IsFinite(value) && value % 1 == 0 && Math.Abs(value % 2) == 1;

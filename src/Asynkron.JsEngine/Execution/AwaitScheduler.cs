@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using System.Threading;
@@ -29,6 +30,7 @@ internal static class AwaitScheduler
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static PromiseAwaitState RentState()
     {
         var state = t_cachedState;
@@ -41,12 +43,14 @@ internal static class AwaitScheduler
         return new PromiseAwaitState();
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void ReturnState(PromiseAwaitState state)
     {
         state.Reset();
         t_cachedState = state;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsPromiseLike(object? candidate)
     {
         return candidate is JsObject jsObject &&
@@ -58,6 +62,7 @@ internal static class AwaitScheduler
     ///     Fast path: Try to get the resolved value from an already-settled promise
     ///     without any allocations or microtask processing.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool TryGetSettledValueFast(object? candidate, out object? value, out bool isRejected)
     {
         // Direct JsPromise check (fastest path)

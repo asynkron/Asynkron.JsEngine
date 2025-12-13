@@ -324,6 +324,19 @@ namespace Asynkron.JsEngine.JsTypes;
     internal static HostFunction CreateBoundFunction(IJsCallable target, object? boundThis,
         IReadOnlyList<object?> boundArgs, bool targetIsConstructor, RealmState? realmState)
     {
+        // IMPORTANT: Copy bound args to an owned array to avoid issues with pooled argument arrays.
+        // The caller's argument array may be returned to a pool and cleared after bind() returns,
+        // which would corrupt the bound function's captured arguments.
+        if (boundArgs.Count > 0 && boundArgs is not object[])
+        {
+            var copy = new object?[boundArgs.Count];
+            for (var i = 0; i < boundArgs.Count; i++)
+            {
+                copy[i] = boundArgs[i];
+            }
+            boundArgs = copy;
+        }
+
         static IReadOnlyList<object?> Combine(IReadOnlyList<object?> prefix, IReadOnlyList<object?> suffix)
         {
             if (prefix.Count == 0)

@@ -604,7 +604,8 @@ public static partial class TypedAstEvaluator
                 context);
         }
 
-        return JsOps.ToNumber(leftNumeric, context) + JsOps.ToNumber(rightNumeric, context);
+        var result = JsOps.ToNumber(leftNumeric, context) + JsOps.ToNumber(rightNumeric, context);
+        return JsValueCache.GetNumber(result);
     }
 
     private static object Subtract(object? left, object? right, EvaluationContext context)
@@ -703,7 +704,9 @@ public static partial class TypedAstEvaluator
                 context);
         }
 
-        return numericOp(JsOps.ToNumber(leftNumeric, context), JsOps.ToNumber(rightNumeric, context));
+        var result = numericOp(JsOps.ToNumber(leftNumeric, context), JsOps.ToNumber(rightNumeric, context));
+        // Use cached boxed values for common integer results
+        return result is double d ? JsValueCache.GetNumber(d) : result;
     }
 
     private static bool LooseEquals(object? left, object? right, EvaluationContext context)
@@ -754,7 +757,7 @@ public static partial class TypedAstEvaluator
         }
 
         var int32 = JsNumericConversions.ToInt32(JsOps.ToNumber(numeric, context));
-        return (double)~int32;
+        return JsValueCache.GetNumber(~int32);
     }
 
     private static object UnaryMinus(object? operand, EvaluationContext context)
@@ -770,7 +773,7 @@ public static partial class TypedAstEvaluator
             return -bigInt;
         }
 
-        return -JsOps.ToNumber(numeric, context);
+        return JsValueCache.GetNumber(-JsOps.ToNumber(numeric, context));
     }
 
     private static object LeftShift(object? left, object? right, EvaluationContext context)
@@ -805,7 +808,7 @@ public static partial class TypedAstEvaluator
 
         var leftInt = ToInt32(leftNumeric, context);
         var rightInt = ToInt32(rightNumeric, context) & 0x1F;
-        return (double)(leftInt << rightInt);
+        return JsValueCache.GetNumber(leftInt << rightInt);
     }
 
     private static object RightShift(object? left, object? right, EvaluationContext context)
@@ -840,7 +843,7 @@ public static partial class TypedAstEvaluator
 
         var leftInt = ToInt32(leftNumeric, context);
         var rightInt = ToInt32(rightNumeric, context) & 0x1F;
-        return (double)(leftInt >> rightInt);
+        return JsValueCache.GetNumber(leftInt >> rightInt);
     }
 
     private static object UnsignedRightShift(object? left, object? right, EvaluationContext context)
@@ -864,7 +867,7 @@ public static partial class TypedAstEvaluator
 
         var leftUInt = ToUInt32(leftNumeric, context);
         var rightInt = ToInt32(rightNumeric, context) & 0x1F;
-        return (double)(leftUInt >> rightInt);
+        return JsValueCache.GetNumber(leftUInt >> rightInt);
     }
 
     private static object PerformBigIntOrInt32Operation(
@@ -899,7 +902,7 @@ public static partial class TypedAstEvaluator
 
         var leftInt = JsNumericConversions.ToInt32(JsOps.ToNumber(leftNumeric, context));
         var rightInt = JsNumericConversions.ToInt32(JsOps.ToNumber(rightNumeric, context));
-        return (double)int32Op(leftInt, rightInt);
+        return JsValueCache.GetNumber(int32Op(leftInt, rightInt));
     }
 
     private static int ToInt32(object? value, EvaluationContext context)
@@ -917,8 +920,8 @@ public static partial class TypedAstEvaluator
         return value switch
         {
             JsBigInt bigInt => new JsBigInt(bigInt.Value + BigInteger.One),
-            double d => d + 1,
-            _ => JsOps.ToNumber(value, context) + 1
+            double d => JsValueCache.GetNumber(d + 1),
+            _ => JsValueCache.GetNumber(JsOps.ToNumber(value, context) + 1)
         };
     }
 
@@ -927,8 +930,8 @@ public static partial class TypedAstEvaluator
         return value switch
         {
             JsBigInt bigInt => new JsBigInt(bigInt.Value - BigInteger.One),
-            double d => d - 1,
-            _ => JsOps.ToNumber(value, context) - 1
+            double d => JsValueCache.GetNumber(d - 1),
+            _ => JsValueCache.GetNumber(JsOps.ToNumber(value, context) - 1)
         };
     }
 

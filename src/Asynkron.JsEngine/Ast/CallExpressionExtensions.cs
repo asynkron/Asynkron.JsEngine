@@ -1,5 +1,7 @@
+using System.Buffers;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -56,6 +58,7 @@ public static partial class TypedAstEvaluator
             }
 
             IReadOnlyList<object?> frozenArguments;
+            object?[]? pooledArgsArray = null; // Track if we used a pooled array
             if (!hasSpread)
             {
                 if (expression.Arguments.Length == 0)
@@ -64,12 +67,26 @@ public static partial class TypedAstEvaluator
                 }
                 else
                 {
-                    var argsArray = new object?[expression.Arguments.Length];
-                    for (var i = 0; i < expression.Arguments.Length; i++)
+                    // Use pooled arrays for small argument counts (1-4)
+                    var argCount = expression.Arguments.Length;
+                    var argsArray = argCount <= 4
+                        ? JsValueCache.RentArgumentArray(argCount)
+                        : new object?[argCount];
+
+                    if (argCount <= 4)
+                    {
+                        pooledArgsArray = argsArray; // Remember to return it
+                    }
+
+                    for (var i = 0; i < argCount; i++)
                     {
                         argsArray[i] = EvaluateExpression(expression.Arguments[i].Expression, environment, context);
                         if (context.ShouldStopEvaluation)
                         {
+                            if (pooledArgsArray is not null)
+                            {
+                                JsValueCache.ReturnArgumentArray(pooledArgsArray);
+                            }
                             context.CallDepth--;
                             return Symbol.Undefined;
                         }
@@ -466,6 +483,12 @@ public static partial class TypedAstEvaluator
 
                 envAwareHandle?.CallingJsEnvironment = null;
                 contextAwareHandle?.CallingContext = null;
+
+                // Return pooled argument array
+                if (pooledArgsArray is not null)
+                {
+                    JsValueCache.ReturnArgumentArray(pooledArgsArray);
+                }
             }
 
             switch (isAsyncCallable)

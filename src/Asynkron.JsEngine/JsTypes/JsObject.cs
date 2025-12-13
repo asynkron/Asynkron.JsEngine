@@ -870,28 +870,59 @@ namespace Asynkron.JsEngine.JsTypes;
             return false;
         }
 
-        return HasPropertyCore(this, name, new HashSet<JsObject>(ReferenceEqualityComparer<JsObject>.Instance));
+        return HasPropertyCore(this, name);
     }
 
-    private static bool HasPropertyCore(JsObject current, string name, HashSet<JsObject> visited)
+    /// <summary>
+    /// Gets the next JsObject in the prototype chain, or null if there is none or it's not a JsObject.
+    /// </summary>
+    private static JsObject? GetNextPrototype(JsObject current)
     {
-        while (current is not null && visited.Add(current))
+        return current._prototypeAccessor as JsObject;
+    }
+
+    /// <summary>
+    /// Uses Floyd's cycle detection algorithm (tortoise and hare) to detect cycles
+    /// in the prototype chain without allocating a HashSet.
+    /// </summary>
+    private static bool HasPropertyCore(JsObject current, string name)
+    {
+        // Initialize tortoise and hare at the start
+        var tortoise = current;
+        var hare = current;
+
+        while (tortoise is not null)
         {
-            if (current.GetOwnPropertyDescriptor(name) is not null)
+            // Check if the property exists on the current (tortoise) object
+            if (tortoise.GetOwnPropertyDescriptor(name) is not null)
             {
                 return true;
             }
 
-            var prototype = current._prototypeAccessor;
-            switch (prototype)
+            // Handle non-JsObject prototypes (fall back to interface call)
+            var prototype = tortoise._prototypeAccessor;
+            if (prototype is not null && prototype is not JsObject)
             {
-                case null:
-                    return false;
-                case JsObject jsObject:
-                    current = jsObject;
-                    continue;
-                default:
-                    return prototype.TryGetProperty(name, out _);
+                return prototype.TryGetProperty(name, out _);
+            }
+
+            // Move tortoise one step
+            tortoise = GetNextPrototype(tortoise);
+
+            // Move hare two steps (if possible)
+            if (hare is not null)
+            {
+                hare = GetNextPrototype(hare);
+                if (hare is not null)
+                {
+                    hare = GetNextPrototype(hare);
+                }
+            }
+
+            // If tortoise and hare meet, we have a cycle - stop to prevent infinite loop
+            if (tortoise is not null && ReferenceEquals(tortoise, hare))
+            {
+                return false;
             }
         }
 

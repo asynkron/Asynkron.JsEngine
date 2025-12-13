@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
@@ -6,6 +7,26 @@ using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine;
+
+/// <summary>
+///     Flags collected during a single-pass AST scan for eval validation.
+/// </summary>
+[Flags]
+internal enum EvalValidationFlags
+{
+    None = 0,
+    ContainsNewTarget = 1 << 0,
+    ContainsSuperReference = 1 << 1,
+    ContainsSuperCall = 1 << 2,
+    ContainsArguments = 1 << 3,
+    ContainsIllegalReturn = 1 << 4,
+    ContainsIllegalBreakOrContinue = 1 << 5,
+    // Flags for includeFunctionBodies=true variants
+    ContainsNewTargetInFunctions = 1 << 6,
+    ContainsSuperReferenceInFunctions = 1 << 7,
+    ContainsSuperCallInFunctions = 1 << 8,
+    ContainsArgumentsInFunctions = 1 << 9,
+}
 
 /// <summary>
 ///     A special host function for eval() that has access to the calling environment
@@ -92,10 +113,16 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         var insideClassFieldInitializer = InClassFieldInitializer ||
                                           CallingContext?.InClassFieldInitializer == true ||
                                           (CallingJsEnvironment?.HasBinding(FieldInitializerEvalFlag) ?? false);
-        var containsSuperCallInInitializer = ContainsSuperCall(program.Typed.Body, includeFunctionBodies: true);
-        var containsSuperReferenceInInitializer = ContainsSuperReference(program.Typed.Body, includeFunctionBodies: true);
+
+        // Single-pass AST scan to collect all validation flags at once (performance optimization)
+        var validationFlags = ScanForValidationFlags(program.Typed.Body);
+
+        // Check for super call in initializer (includeFunctionBodies semantics)
+        var containsSuperCallInInitializer = (validationFlags & (EvalValidationFlags.ContainsSuperCall | EvalValidationFlags.ContainsSuperCallInFunctions)) != 0;
+        var containsSuperReferenceInInitializer = (validationFlags & (EvalValidationFlags.ContainsSuperReference | EvalValidationFlags.ContainsSuperReferenceInFunctions)) != 0;
         var containsArgumentsInInitializer = insideClassFieldInitializer &&
-                                             ContainsArguments(program.Typed.Body, includeFunctionBodies: true);
+                                             (validationFlags & (EvalValidationFlags.ContainsArguments | EvalValidationFlags.ContainsArgumentsInFunctions)) != 0;
+
         if (insideClassFieldInitializer && containsSuperCallInInitializer)
         {
             throw StandardLibrary.ThrowSyntaxError(
@@ -120,7 +147,9 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 environment.RealmState);
         }
 
-        if (!isDirectEval && ContainsNewTarget(program.Typed.Body, includeFunctionBodies: true))
+        // Check new.target with includeFunctionBodies=true
+        var containsNewTargetInFunctions = (validationFlags & (EvalValidationFlags.ContainsNewTarget | EvalValidationFlags.ContainsNewTargetInFunctions)) != 0;
+        if (!isDirectEval && containsNewTargetInFunctions)
         {
             throw StandardLibrary.ThrowSyntaxError(
                 "new.target is not allowed in indirect eval code.",
@@ -128,7 +157,9 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 environment.RealmState);
         }
 
-        if (!isDirectEval && ContainsSuperReference(program.Typed.Body))
+        // Check super reference without includeFunctionBodies (top-level only)
+        var containsSuperReferenceTopLevel = (validationFlags & EvalValidationFlags.ContainsSuperReference) != 0;
+        if (!isDirectEval && containsSuperReferenceTopLevel)
         {
             throw StandardLibrary.ThrowSyntaxError(
                 "super references are not allowed in indirect eval code.",
@@ -136,7 +167,9 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 environment.RealmState);
         }
 
-        if (isDirectEval && ContainsNewTarget(program.Typed.Body))
+        // Check new.target without includeFunctionBodies (top-level only)
+        var containsNewTargetTopLevel = (validationFlags & EvalValidationFlags.ContainsNewTarget) != 0;
+        if (isDirectEval && containsNewTargetTopLevel)
         {
             var callerFunctionScope = CallingJsEnvironment?.GetFunctionScope();
             var callerHasNewTarget = callerFunctionScope?.HasOwnBinding(Symbol.NewTarget) == true;
@@ -155,7 +188,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             var hasNewTarget = CallingJsEnvironment?.TryGet(Symbol.NewTarget, out var newTarget) == true &&
                                !ReferenceEquals(newTarget, Symbol.Undefined);
 
-            if (!hasSuperBinding && ContainsSuperReference(program.Typed.Body))
+            if (!hasSuperBinding && containsSuperReferenceTopLevel)
             {
                 throw StandardLibrary.ThrowSyntaxError(
                     "super references are not allowed in direct eval outside methods.",
@@ -163,7 +196,9 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     environment.RealmState);
             }
 
-            if (!hasNewTarget && ContainsSuperCall(program.Typed.Body))
+            // Check super call without includeFunctionBodies (top-level only)
+            var containsSuperCallTopLevel = (validationFlags & EvalValidationFlags.ContainsSuperCall) != 0;
+            if (!hasNewTarget && containsSuperCallTopLevel)
             {
                 throw StandardLibrary.ThrowSyntaxError(
                     "super calls are only allowed in direct eval when evaluating constructors.",
@@ -172,7 +207,11 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             }
         }
 
-        if (ContainsIllegalReturn(program.Typed.Body) || ContainsIllegalBreakOrContinue(program.Typed.Body))
+        // Check for illegal return (from scanner) and illegal break/continue (needs separate check with label tracking)
+        var hasIllegalReturn = (validationFlags & EvalValidationFlags.ContainsIllegalReturn) != 0;
+        var hasIllegalBreakOrContinue = ContainsIllegalBreakOrContinue(program.Typed.Body);
+
+        if (hasIllegalReturn || hasIllegalBreakOrContinue)
         {
             throw StandardLibrary.ThrowSyntaxError(
                 "Illegal control flow statement in eval code.",
@@ -3137,5 +3176,338 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
 
         return false;
+    }
+
+    /// <summary>
+    ///     Performs a single-pass scan of the AST to collect all validation flags at once,
+    ///     instead of making multiple separate passes for each check.
+    /// </summary>
+    private static EvalValidationFlags ScanForValidationFlags(ImmutableArray<StatementNode> statements)
+    {
+        var flags = EvalValidationFlags.None;
+        ScanStatements(statements, ref flags, inFunctionBody: false, inLoop: false, inSwitch: false);
+        return flags;
+    }
+
+    private static void ScanStatements(
+        ImmutableArray<StatementNode> statements,
+        ref EvalValidationFlags flags,
+        bool inFunctionBody,
+        bool inLoop,
+        bool inSwitch)
+    {
+        foreach (var statement in statements)
+        {
+            ScanStatement(statement, ref flags, inFunctionBody, inLoop, inSwitch);
+        }
+    }
+
+    private static void ScanStatement(
+        StatementNode statement,
+        ref EvalValidationFlags flags,
+        bool inFunctionBody,
+        bool inLoop,
+        bool inSwitch)
+    {
+        switch (statement)
+        {
+            case ReturnStatement returnStatement:
+                // Return is illegal at top level (not in function body)
+                if (!inFunctionBody)
+                {
+                    flags |= EvalValidationFlags.ContainsIllegalReturn;
+                }
+                if (returnStatement.Expression is not null)
+                {
+                    ScanExpression(returnStatement.Expression, ref flags, inFunctionBody);
+                }
+                break;
+
+            case BreakStatement:
+            case ContinueStatement:
+                // Break/continue validation is handled separately by ContainsIllegalBreakOrContinue
+                // which properly tracks labels in scope
+                break;
+
+            case ExpressionStatement expressionStatement:
+                ScanExpression(expressionStatement.Expression, ref flags, inFunctionBody);
+                break;
+
+            case BlockStatement block:
+                ScanStatements(block.Statements, ref flags, inFunctionBody, inLoop, inSwitch);
+                break;
+
+            case IfStatement ifStatement:
+                ScanExpression(ifStatement.Condition, ref flags, inFunctionBody);
+                ScanStatement(ifStatement.Then, ref flags, inFunctionBody, inLoop, inSwitch);
+                if (ifStatement.Else is not null)
+                {
+                    ScanStatement(ifStatement.Else, ref flags, inFunctionBody, inLoop, inSwitch);
+                }
+                break;
+
+            case WhileStatement whileStatement:
+                ScanExpression(whileStatement.Condition, ref flags, inFunctionBody);
+                ScanStatement(whileStatement.Body, ref flags, inFunctionBody, inLoop: true, inSwitch);
+                break;
+
+            case DoWhileStatement doWhileStatement:
+                ScanStatement(doWhileStatement.Body, ref flags, inFunctionBody, inLoop: true, inSwitch);
+                ScanExpression(doWhileStatement.Condition, ref flags, inFunctionBody);
+                break;
+
+            case ForStatement forStatement:
+                if (forStatement.Initializer is ExpressionStatement initExpr)
+                {
+                    ScanExpression(initExpr.Expression, ref flags, inFunctionBody);
+                }
+                else if (forStatement.Initializer is VariableDeclaration initVar)
+                {
+                    ScanVariableDeclaration(initVar, ref flags, inFunctionBody);
+                }
+                if (forStatement.Condition is not null)
+                {
+                    ScanExpression(forStatement.Condition, ref flags, inFunctionBody);
+                }
+                if (forStatement.Increment is not null)
+                {
+                    ScanExpression(forStatement.Increment, ref flags, inFunctionBody);
+                }
+                ScanStatement(forStatement.Body, ref flags, inFunctionBody, inLoop: true, inSwitch);
+                break;
+
+            case ForEachStatement forEachStatement:
+                ScanExpression(forEachStatement.Iterable, ref flags, inFunctionBody);
+                ScanStatement(forEachStatement.Body, ref flags, inFunctionBody, inLoop: true, inSwitch);
+                break;
+
+            case SwitchStatement switchStatement:
+                ScanExpression(switchStatement.Discriminant, ref flags, inFunctionBody);
+                foreach (var switchCase in switchStatement.Cases)
+                {
+                    if (switchCase.Test is not null)
+                    {
+                        ScanExpression(switchCase.Test, ref flags, inFunctionBody);
+                    }
+                    ScanStatement(switchCase.Body, ref flags, inFunctionBody, inLoop, inSwitch: true);
+                }
+                break;
+
+            case TryStatement tryStatement:
+                ScanStatement(tryStatement.TryBlock, ref flags, inFunctionBody, inLoop, inSwitch);
+                if (tryStatement.Catch is { Body: not null })
+                {
+                    ScanStatement(tryStatement.Catch.Body, ref flags, inFunctionBody, inLoop, inSwitch);
+                }
+                if (tryStatement.Finally is not null)
+                {
+                    ScanStatement(tryStatement.Finally, ref flags, inFunctionBody, inLoop, inSwitch);
+                }
+                break;
+
+            case ThrowStatement throwStatement:
+                ScanExpression(throwStatement.Expression, ref flags, inFunctionBody);
+                break;
+
+            case WithStatement withStatement:
+                ScanExpression(withStatement.Object, ref flags, inFunctionBody);
+                ScanStatement(withStatement.Body, ref flags, inFunctionBody, inLoop, inSwitch);
+                break;
+
+            case LabeledStatement labeledStatement:
+                ScanStatement(labeledStatement.Statement, ref flags, inFunctionBody, inLoop, inSwitch);
+                break;
+
+            case VariableDeclaration varDecl:
+                ScanVariableDeclaration(varDecl, ref flags, inFunctionBody);
+                break;
+
+            case FunctionDeclaration functionDeclaration:
+                // Scan function body with inFunctionBody=true to mark "InFunctions" flags
+                ScanStatements(functionDeclaration.Function.Body.Statements, ref flags, inFunctionBody: true, inLoop: false, inSwitch: false);
+                break;
+
+            case ClassDeclaration:
+                // Class bodies have their own scope for these checks, skip for now
+                break;
+        }
+    }
+
+    private static void ScanVariableDeclaration(
+        VariableDeclaration varDecl,
+        ref EvalValidationFlags flags,
+        bool inFunctionBody)
+    {
+        foreach (var declarator in varDecl.Declarators)
+        {
+            if (declarator.Initializer is not null)
+            {
+                ScanExpression(declarator.Initializer, ref flags, inFunctionBody);
+            }
+        }
+    }
+
+    private static void ScanExpression(
+        ExpressionNode expression,
+        ref EvalValidationFlags flags,
+        bool inFunctionBody)
+    {
+        switch (expression)
+        {
+            case NewTargetExpression:
+                if (inFunctionBody)
+                    flags |= EvalValidationFlags.ContainsNewTargetInFunctions;
+                else
+                    flags |= EvalValidationFlags.ContainsNewTarget;
+                break;
+
+            case SuperExpression:
+                if (inFunctionBody)
+                    flags |= EvalValidationFlags.ContainsSuperReferenceInFunctions;
+                else
+                    flags |= EvalValidationFlags.ContainsSuperReference;
+                break;
+
+            case IdentifierExpression id when id.Name == Symbol.Arguments:
+                if (inFunctionBody)
+                    flags |= EvalValidationFlags.ContainsArgumentsInFunctions;
+                else
+                    flags |= EvalValidationFlags.ContainsArguments;
+                break;
+
+            case CallExpression call:
+                // Check for super() call
+                if (call.Callee is SuperExpression)
+                {
+                    if (inFunctionBody)
+                        flags |= EvalValidationFlags.ContainsSuperCallInFunctions;
+                    else
+                        flags |= EvalValidationFlags.ContainsSuperCall;
+                }
+                ScanExpression(call.Callee, ref flags, inFunctionBody);
+                foreach (var arg in call.Arguments)
+                {
+                    ScanExpression(arg.Expression, ref flags, inFunctionBody);
+                }
+                break;
+
+            case BinaryExpression binary:
+                ScanExpression(binary.Left, ref flags, inFunctionBody);
+                ScanExpression(binary.Right, ref flags, inFunctionBody);
+                break;
+
+            case UnaryExpression unary:
+                ScanExpression(unary.Operand, ref flags, inFunctionBody);
+                break;
+
+            case ConditionalExpression conditional:
+                ScanExpression(conditional.Test, ref flags, inFunctionBody);
+                ScanExpression(conditional.Consequent, ref flags, inFunctionBody);
+                ScanExpression(conditional.Alternate, ref flags, inFunctionBody);
+                break;
+
+            case NewExpression newExpr:
+                ScanExpression(newExpr.Constructor, ref flags, inFunctionBody);
+                foreach (var arg in newExpr.Arguments)
+                {
+                    ScanExpression(arg.Expression, ref flags, inFunctionBody);
+                }
+                break;
+
+            case MemberExpression member:
+                ScanExpression(member.Target, ref flags, inFunctionBody);
+                ScanExpression(member.Property, ref flags, inFunctionBody);
+                break;
+
+            case AssignmentExpression assignment:
+                ScanExpression(assignment.Value, ref flags, inFunctionBody);
+                break;
+
+            case PropertyAssignmentExpression propAssign:
+                ScanExpression(propAssign.Target, ref flags, inFunctionBody);
+                ScanExpression(propAssign.Property, ref flags, inFunctionBody);
+                ScanExpression(propAssign.Value, ref flags, inFunctionBody);
+                break;
+
+            case IndexAssignmentExpression indexAssign:
+                ScanExpression(indexAssign.Target, ref flags, inFunctionBody);
+                ScanExpression(indexAssign.Index, ref flags, inFunctionBody);
+                ScanExpression(indexAssign.Value, ref flags, inFunctionBody);
+                break;
+
+            case SequenceExpression sequence:
+                ScanExpression(sequence.Left, ref flags, inFunctionBody);
+                ScanExpression(sequence.Right, ref flags, inFunctionBody);
+                break;
+
+            case DestructuringAssignmentExpression destructuring:
+                ScanExpression(destructuring.Value, ref flags, inFunctionBody);
+                break;
+
+            case ArrayExpression arrayExpr:
+                foreach (var element in arrayExpr.Elements)
+                {
+                    if (element.Expression is not null)
+                    {
+                        ScanExpression(element.Expression, ref flags, inFunctionBody);
+                    }
+                }
+                break;
+
+            case ObjectExpression objectExpr:
+                foreach (var member in objectExpr.Members)
+                {
+                    if (member.IsComputed && member.Key is ExpressionNode computedKey)
+                    {
+                        ScanExpression(computedKey, ref flags, inFunctionBody);
+                    }
+                    if (member.Value is not null && member.Kind != ObjectMemberKind.Method)
+                    {
+                        ScanExpression(member.Value, ref flags, inFunctionBody);
+                    }
+                    if (member.Function is not null)
+                    {
+                        // Method - scan body with inFunctionBody=true
+                        ScanStatements(member.Function.Body.Statements, ref flags, inFunctionBody: true, inLoop: false, inSwitch: false);
+                    }
+                }
+                break;
+
+            case FunctionExpression funcExpr:
+                // FunctionExpression handles both regular functions and arrow functions
+                // Arrow functions with expression body have funcExpr.Body as a single return statement
+                ScanStatements(funcExpr.Body.Statements, ref flags, inFunctionBody: true, inLoop: false, inSwitch: false);
+                break;
+
+            case TemplateLiteralExpression template:
+                foreach (var part in template.Parts)
+                {
+                    if (part.Expression is not null)
+                    {
+                        ScanExpression(part.Expression, ref flags, inFunctionBody);
+                    }
+                }
+                break;
+
+            case TaggedTemplateExpression taggedTemplate:
+                ScanExpression(taggedTemplate.Tag, ref flags, inFunctionBody);
+                foreach (var expr in taggedTemplate.Expressions)
+                {
+                    ScanExpression(expr, ref flags, inFunctionBody);
+                }
+                break;
+
+            case AwaitExpression awaitExpr:
+                ScanExpression(awaitExpr.Expression, ref flags, inFunctionBody);
+                break;
+
+            case YieldExpression yieldExpr when yieldExpr.Expression is not null:
+                ScanExpression(yieldExpr.Expression, ref flags, inFunctionBody);
+                break;
+
+            case ClassExpression:
+                // Class expressions have their own scope
+                break;
+        }
     }
 }

@@ -420,8 +420,7 @@ public static partial class TypedAstEvaluator
             // Fast-path for simple functions (no async, no defaults, no lexical declarations)
             // Skip if this is a constructor call (newTarget set), class constructor, or has super access
             // Also skip arrow functions with uninitialized this (need to look up this at call time)
-            // DISABLED: Fast path disabled for debugging test failures
-            var canUseFastPath = false && _isSimpleFunction &&
+            var canUseFastPath = _isSimpleFunction &&
                 !_isClassConstructor &&
                 (newTarget is null || ReferenceEquals(newTarget, Symbol.Undefined)) &&
                 _capturedPrivateNameScopes.IsDefaultOrEmpty &&
@@ -436,7 +435,7 @@ public static partial class TypedAstEvaluator
                 return InvokeSimpleFast(arguments, thisValue, callingContext);
             }
 
-            var context = _realmState.CreateContext(pushScope: false);
+            var context = _realmState.RentContext(pushScope: false);
             context.AllowIdentifierCache = _allowIdentifierCache;
             _realmState.Logger?.LogInformation(
                 "InvokeWithContext enter func={Function} isAsync={IsAsync} wasAsync={WasAsync}",
@@ -996,6 +995,7 @@ public static partial class TypedAstEvaluator
             {
                 context.RemovePendingClassFieldInitializer(this);
             }
+            _realmState.ReturnContext(context);
         }
     }
 
@@ -1559,13 +1559,13 @@ public static partial class TypedAstEvaluator
         }
 
         /// <summary>
-        /// Fast-path invocation for simple functions. Avoids creating multiple JsEnvironment objects.
+        /// Fast-path invocation for simple functions. Uses pooled EvaluationContext.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private object? InvokeSimpleFast(IReadOnlyList<object?> arguments, object? thisValue, EvaluationContext? callingContext)
         {
-            // Create a single lightweight environment for parameters
-            var context = _realmState.CreateContext(pushScope: false);
+            // Rent context from pool - avoids allocation per call
+            var context = _realmState.RentContext(ScopeKind.Function, ScopeMode.Strict, pushScope: false);
             context.AllowIdentifierCache = true;
 
             if (callingContext is not null)
@@ -1574,17 +1574,14 @@ public static partial class TypedAstEvaluator
                 context.MaxCallDepth = callingContext.MaxCallDepth;
             }
 
-            var functionMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
-            using var functionScopeFrame = context.PushScope(ScopeKind.Function, functionMode);
-
-            // Create just one environment
+            // Create environment for function execution
             var description = _function.Name is { } name ? $"function {name.Name}" : "anonymous function";
             var functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source, description);
 
-            // Bind this - simple path: strict mode uses undefined/passed value, non-strict uses passed value
-            // For the fast path, we don't need the full coercion since simple functions typically don't use `this`
+            // Bind this - in strict mode (which fast path requires), this is passed through unchanged.
+            // null should remain null, undefined should remain undefined - no coercion.
             var boundThis = !IsArrowFunction
-                ? (thisValue ?? Symbol.Undefined)
+                ? thisValue
                 : _lexicalThis ?? Symbol.Undefined;
             functionEnvironment.Define(Symbol.This, boundThis);
 
@@ -1647,6 +1644,11 @@ public static partial class TypedAstEvaluator
                     return signal.ThrownValue;
                 }
                 throw;
+            }
+            finally
+            {
+                // Return context to pool for reuse
+                _realmState.ReturnContext(context);
             }
         }
     }

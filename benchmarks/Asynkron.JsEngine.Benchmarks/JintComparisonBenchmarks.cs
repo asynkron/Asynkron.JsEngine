@@ -194,6 +194,7 @@ public class JintComparisonBenchmarks
 
         // Fibonacci (recursive)
         _fibonacci = """
+            'use strict';
             function fib(n) {
                 if (n <= 1) return n;
                 return fib(n - 1) + fib(n - 2);
@@ -204,7 +205,7 @@ public class JintComparisonBenchmarks
         // For loop intensive
         _forLoop = """
             let sum = 0;
-            for (let i = 0; i < 1000000; i++) {
+            for (let i = 0; i < 100000; i++) {
                 sum += i;
             }
             sum;
@@ -214,7 +215,7 @@ public class JintComparisonBenchmarks
         _whileLoop = """
             let sum = 0;
             let i = 0;
-            while (i < 1000000) {
+            while (i < 100000) {
                 sum += i;
                 i++;
             }
@@ -224,7 +225,7 @@ public class JintComparisonBenchmarks
         // Object creation
         _objectCreation = """
             let objects = [];
-            for (let i = 0; i < 50000; i++) {
+            for (let i = 0; i < 10000; i++) {
                 objects.push({
                     id: i,
                     name: "item" + i,
@@ -238,11 +239,11 @@ public class JintComparisonBenchmarks
         // Array operations (map, filter, reduce)
         _arrayOperations = """
             let arr = [];
-            for (let i = 0; i < 50000; i++) {
+            for (let i = 0; i < 10000; i++) {
                 arr.push(i);
             }
             let mapped = arr.map(x => x * 2);
-            let filtered = mapped.filter(x => x > 25000);
+            let filtered = mapped.filter(x => x > 5000);
             let sum = filtered.reduce((a, b) => a + b, 0);
             sum;
             """;
@@ -250,7 +251,7 @@ public class JintComparisonBenchmarks
         // String operations
         _stringOperations = """
             let result = "";
-            for (let i = 0; i < 10000; i++) {
+            for (let i = 0; i < 2000; i++) {
                 result += "x";
             }
             let upper = result.toUpperCase();
@@ -261,13 +262,14 @@ public class JintComparisonBenchmarks
 
         // Function calls
         _functionCalls = """
+            'use strict';
             function add(a, b) { return a + b; }
             function mul(a, b) { return a * b; }
             function sub(a, b) { return a - b; }
             function div(a, b) { return a / b; }
 
             let result = 0;
-            for (let i = 0; i < 100000; i++) {
+            for (let i = 0; i < 20000; i++) {
                 result = add(result, mul(i, 2));
                 result = sub(result, div(i, 2));
             }
@@ -276,6 +278,7 @@ public class JintComparisonBenchmarks
 
         // Closures
         _closures = """
+            'use strict';
             function makeCounter() {
                 let count = 0;
                 return function() {
@@ -284,13 +287,13 @@ public class JintComparisonBenchmarks
             }
 
             let counters = [];
-            for (let i = 0; i < 1000; i++) {
+            for (let i = 0; i < 200; i++) {
                 counters.push(makeCounter());
             }
 
             let sum = 0;
-            for (let i = 0; i < 1000; i++) {
-                for (let j = 0; j < 50; j++) {
+            for (let i = 0; i < 200; i++) {
+                for (let j = 0; j < 20; j++) {
                     sum += counters[i]();
                 }
             }
@@ -299,6 +302,7 @@ public class JintComparisonBenchmarks
 
         // Recursion (non-fibonacci)
         _recursion = """
+            'use strict';
             function factorial(n) {
                 if (n <= 1) return 1;
                 return n * factorial(n - 1);
@@ -310,9 +314,9 @@ public class JintComparisonBenchmarks
             }
 
             let result = 0;
-            for (let i = 0; i < 5000; i++) {
+            for (let i = 0; i < 1000; i++) {
                 result += factorial(12);
-                result += sumTo(100);
+                result += sumTo(50);
             }
             result;
             """;
@@ -326,7 +330,7 @@ public class JintComparisonBenchmarks
                 z: 30
             };
             let sum = 0;
-            for (let i = 0; i < 500000; i++) {
+            for (let i = 0; i < 50000; i++) {
                 sum += obj.a.b.c.d.e;
                 sum += obj.x + obj.y + obj.z;
             }
@@ -355,7 +359,7 @@ public class JintComparisonBenchmarks
             }
 
             let dogs = [];
-            for (let i = 0; i < 10000; i++) {
+            for (let i = 0; i < 2000; i++) {
                 dogs.push(new Dog("Dog" + i, "Breed" + (i % 10)));
             }
             let sounds = dogs.map(d => d.speak());
@@ -365,7 +369,7 @@ public class JintComparisonBenchmarks
         // Destructuring
         _destructuring = """
             let results = [];
-            for (let i = 0; i < 50000; i++) {
+            for (let i = 0; i < 10000; i++) {
                 const obj = { a: i, b: i * 2, c: i * 3 };
                 const { a, b, c } = obj;
                 const arr = [i, i + 1, i + 2];
@@ -379,7 +383,7 @@ public class JintComparisonBenchmarks
         _spreadOperator = """
             let arr1 = [1, 2, 3, 4, 5];
             let results = [];
-            for (let i = 0; i < 20000; i++) {
+            for (let i = 0; i < 5000; i++) {
                 let arr2 = [...arr1, i, ...arr1];
                 let obj1 = { a: 1, b: 2 };
                 let obj2 = { ...obj1, c: i };
@@ -392,12 +396,12 @@ public class JintComparisonBenchmarks
         _mapSet = """
             let map = new Map();
             let set = new Set();
-            for (let i = 0; i < 50000; i++) {
+            for (let i = 0; i < 10000; i++) {
                 map.set("key" + i, i);
                 set.add(i);
             }
             let sum = 0;
-            for (let i = 0; i < 50000; i++) {
+            for (let i = 0; i < 10000; i++) {
                 if (map.has("key" + i)) {
                     sum += map.get("key" + i);
                 }
@@ -416,7 +420,7 @@ public class JintComparisonBenchmarks
                 nested: { a: 1, b: 2 }
             };
             let sum = 0;
-            for (let i = 0; i < 20000; i++) {
+            for (let i = 0; i < 5000; i++) {
                 let str = JSON.stringify(obj);
                 let parsed = JSON.parse(str);
                 sum += parsed.values.length;
@@ -428,7 +432,7 @@ public class JintComparisonBenchmarks
         _regexOperations = """
             let text = "The quick brown fox jumps over the lazy dog";
             let count = 0;
-            for (let i = 0; i < 50000; i++) {
+            for (let i = 0; i < 10000; i++) {
                 let matches = text.match(/[a-z]+/gi);
                 count += matches ? matches.length : 0;
                 let replaced = text.replace(/[aeiou]/g, '*');
@@ -473,6 +477,7 @@ public class JintComparisonBenchmarks
 
         // Generator function
         _generatorFunction = """
+            'use strict';
             function* range(start, end) {
                 for (let i = start; i < end; i++) {
                     yield i;

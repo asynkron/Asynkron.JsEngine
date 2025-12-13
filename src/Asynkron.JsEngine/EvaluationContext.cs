@@ -382,6 +382,28 @@ public sealed class EvaluationContext(
         CurrentSignal = null;
     }
 
+    /// <summary>
+    ///     Resets the context for reuse. Clears all stacks and signals.
+    /// </summary>
+    internal void Reset()
+    {
+        _labelStack.Clear();
+        _privateNameScopes.Clear();
+        _scopeStack.Clear();
+        _pendingClassFieldInitializers.Clear();
+        _functionNameHints.Clear();
+        _classFieldInitializerDepth = 0;
+        AllowIdentifierCache = false;
+        IsStrictSource = false;
+        CurrentSignal = null;
+        LastYieldIndex = -1;
+        CallDepth = 0;
+        MaxCallDepth = 1000;
+        IsThisInitialized = true;
+        SourceReference = null;
+        LastConstructedThis = null;
+    }
+
     private sealed class PrivateNameScopeHandle(Stack<PrivateNameScope> scopes, int count = 1) : IDisposable
     {
         private bool _disposed;

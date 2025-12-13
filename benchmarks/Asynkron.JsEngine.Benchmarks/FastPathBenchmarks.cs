@@ -13,6 +13,8 @@ public class FastPathBenchmarks
 
     private string _propertyAccess = null!;
     private string _identifierAccess = null!;
+    private string _strictFunctionCalls = null!;
+    private string _strictRecursive = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -38,6 +40,32 @@ public class FastPathBenchmarks
             }
             sum;
             """;
+
+        // Strict mode function calls - uses fast path with environment pooling
+        _strictFunctionCalls = """
+            "use strict";
+            function add(a, b) { return a + b; }
+            function mul(a, b) { return a * b; }
+            function sub(a, b) { return a - b; }
+            function div(a, b) { return a / b; }
+
+            let result = 0;
+            for (let i = 0; i < 50000; i++) {
+                result = add(result, mul(i, 2));
+                result = sub(result, div(i, 2));
+            }
+            result;
+            """;
+
+        // Strict mode recursive function - tests environment pool growth
+        _strictRecursive = """
+            "use strict";
+            function fib(n) {
+                if (n <= 1) return n;
+                return fib(n - 1) + fib(n - 2);
+            }
+            fib(25);
+            """;
     }
 
     [GlobalCleanup]
@@ -59,5 +87,17 @@ public class FastPathBenchmarks
     public async Task<object?> IdentifierAccess()
     {
         return await _engine.Evaluate(_identifierAccess);
+    }
+
+    [Benchmark]
+    public async Task<object?> StrictFunctionCalls()
+    {
+        return await _engine.Evaluate(_strictFunctionCalls);
+    }
+
+    [Benchmark]
+    public async Task<object?> StrictRecursive()
+    {
+        return await _engine.Evaluate(_strictRecursive);
     }
 }

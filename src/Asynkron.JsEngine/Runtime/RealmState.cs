@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Asynkron.JsEngine.JsTypes;
 using Microsoft.Extensions.Logging;
 
@@ -9,6 +10,11 @@ namespace Asynkron.JsEngine.Runtime;
 /// </summary>
 public sealed class RealmState
 {
+    private const int MaxContextPoolSize = 16;
+    private const int MaxEnvironmentPoolSize = 32;
+    private readonly ConcurrentStack<EvaluationContext> _contextPool = new();
+    private readonly ConcurrentStack<JsEnvironment> _environmentPool = new();
+
     public IJsEngineOptions Options { get; internal set; } = JsEngineOptions.Default;
     internal JsEngine? Engine { get; set; }
     public ILogger? Logger { get; set; }
@@ -100,6 +106,79 @@ public sealed class RealmState
         }
 
         return context;
+    }
+
+    /// <summary>
+    /// Rents an EvaluationContext from the pool or creates a new one.
+    /// Call ReturnContext when done to return it to the pool.
+    /// </summary>
+    public EvaluationContext RentContext(
+        ScopeKind kind = ScopeKind.Function,
+        ScopeMode mode = ScopeMode.Strict,
+        CancellationToken cancellationToken = default,
+        ExecutionKind executionKind = ExecutionKind.Script,
+        bool pushScope = true)
+    {
+        if (_contextPool.TryPop(out var context))
+        {
+            context.Reset();
+        }
+        else
+        {
+            context = new EvaluationContext(this, cancellationToken, executionKind);
+        }
+
+        if (pushScope)
+        {
+            context.PushScope(kind, mode);
+        }
+
+        return context;
+    }
+
+    /// <summary>
+    /// Returns an EvaluationContext to the pool for reuse.
+    /// </summary>
+    public void ReturnContext(EvaluationContext context)
+    {
+        if (_contextPool.Count < MaxContextPoolSize)
+        {
+            _contextPool.Push(context);
+        }
+    }
+
+    /// <summary>
+    /// Rents a JsEnvironment from the pool or creates a new one.
+    /// Call ReturnEnvironment when done to return it to the pool.
+    /// </summary>
+    public JsEnvironment RentEnvironment(
+        JsEnvironment? enclosing,
+        bool isFunctionScope,
+        bool isStrict,
+        Parser.SourceReference? creatingSource = null,
+        string? description = null,
+        bool isParameterEnvironment = false,
+        bool isBodyEnvironment = false)
+    {
+        if (_environmentPool.TryPop(out var env))
+        {
+            env.Reset(enclosing, isFunctionScope, isStrict, creatingSource, description, isParameterEnvironment, isBodyEnvironment);
+            return env;
+        }
+
+        return new JsEnvironment(enclosing, isFunctionScope, isStrict, creatingSource, description,
+            isParameterEnvironment: isParameterEnvironment, isBodyEnvironment: isBodyEnvironment);
+    }
+
+    /// <summary>
+    /// Returns a JsEnvironment to the pool for reuse.
+    /// </summary>
+    public void ReturnEnvironment(JsEnvironment env)
+    {
+        if (_environmentPool.Count < MaxEnvironmentPoolSize)
+        {
+            _environmentPool.Push(env);
+        }
     }
 
     public EvaluationContext CreateStrictContext(

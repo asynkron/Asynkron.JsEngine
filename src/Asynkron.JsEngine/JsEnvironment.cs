@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
@@ -12,13 +13,13 @@ public sealed class JsEnvironment
 {
     private const int MaxDepth = 1_000;
     internal static readonly object Uninitialized = new();
-    private readonly SourceReference? _creatingSource;
-    private readonly bool _inheritStrictness;
-    private readonly string? _description;
-    private readonly bool _treatAsGlobalFunctionScope;
+    private SourceReference? _creatingSource;
+    private bool _inheritStrictness;
+    private string? _description;
+    private bool _treatAsGlobalFunctionScope;
 
     private readonly Dictionary<Symbol, Binding> _values = new();
-    private readonly IJsObjectLike? _withObject;
+    private IJsObjectLike? _withObject;
     private Dictionary<Symbol, ResolvedIdentifierBinding>? _identifierBindingCache;
     private Dictionary<Symbol, List<Action<object?>>>? _bindingObservers;
     private HashSet<Symbol>? _bodyLexicalNames;
@@ -66,9 +67,9 @@ public sealed class JsEnvironment
     /// <summary>
     ///     Depth of the environment chain (0 for the root/global).
     /// </summary>
-    public int Depth { get; }
+    public int Depth { get; private set; }
 
-    private bool IsStrictLocal { get; }
+    private bool IsStrictLocal { get; set; }
 
     /// <summary>
     ///     Returns true if this environment or any enclosing environment is in strict mode.
@@ -77,11 +78,11 @@ public sealed class JsEnvironment
 
     internal bool IsObjectEnvironment => _withObject is not null;
 
-    internal bool IsParameterEnvironment { get; }
+    internal bool IsParameterEnvironment { get; private set; }
 
-    internal bool IsBodyEnvironment { get; }
+    internal bool IsBodyEnvironment { get; private set; }
 
-    internal bool IsFunctionScope { get; }
+    internal bool IsFunctionScope { get; private set; }
 
     /// <summary>
     ///     When true, indicates this environment belongs to a default derived constructor
@@ -96,11 +97,47 @@ public sealed class JsEnvironment
 
     private bool _isDefaultDerivedConstructor;
 
-    internal JsEnvironment? Enclosing { get; }
+    internal JsEnvironment? Enclosing { get; private set; }
 
     internal void SetRealmState(RealmState realmState)
     {
         RealmState = realmState;
+    }
+
+    /// <summary>
+    ///     Resets the environment for reuse from a pool.
+    ///     Sets new enclosing and clears all bindings.
+    /// </summary>
+    internal void Reset(
+        JsEnvironment? enclosing,
+        bool isFunctionScope,
+        bool isStrict,
+        SourceReference? creatingSource = null,
+        string? description = null,
+        bool isParameterEnvironment = false,
+        bool isBodyEnvironment = false)
+    {
+        Enclosing = enclosing;
+        IsFunctionScope = isFunctionScope;
+        IsStrictLocal = isStrict;
+        _creatingSource = creatingSource;
+        _description = description;
+        _values.Clear();
+        _identifierBindingCache?.Clear();
+        _bindingObservers?.Clear();
+        _bodyLexicalNames?.Clear();
+        _simpleCatchParameters?.Clear();
+        _isDefaultDerivedConstructor = false;
+        _varEnvironmentOverride = null;
+        _withObject = null;
+        IsParameterEnvironment = isParameterEnvironment;
+        IsBodyEnvironment = isBodyEnvironment;
+        _treatAsGlobalFunctionScope = false;
+        _inheritStrictness = true;
+        RealmState = enclosing?.RealmState;
+        ModulePath = enclosing?.ModulePath;
+        IsAsyncModule = enclosing?.IsAsyncModule ?? false;
+        Depth = (enclosing?.Depth ?? -1) + 1;
     }
 
     internal bool IsGlobalFunctionScope => _treatAsGlobalFunctionScope || (IsFunctionScope && Enclosing is null);
@@ -120,15 +157,9 @@ public sealed class JsEnvironment
             return;
         }
 
-        if (_values.TryGetValue(name, out var binding))
+        ref var binding = ref CollectionsMarshal.GetValueRefOrNullRef(_values, name);
+        if (!Unsafe.IsNullRef(ref binding))
         {
-            if (binding is AsyncExportBinding asyncExport)
-            {
-                asyncExport.Value = value;
-                NotifyBindingObservers(name, value);
-                return;
-            }
-
             if (binding.IsConst || binding.IsGlobalConstant)
             {
                 // Generators can execute flattened blocks without recreating the
@@ -138,7 +169,7 @@ public sealed class JsEnvironment
                 // can observe the new value instead of sticking with the first.
                 if (isLexical && blocksFunctionScopeOverride)
                 {
-                    _values[name] = new Binding(value, isConst, isGlobalConstant, isLexical,
+                    binding = new Binding(value, isConst, isGlobalConstant, isLexical,
                         blocksFunctionScopeOverride, canDelete, isImmutableBinding);
                 }
 
@@ -163,7 +194,7 @@ public sealed class JsEnvironment
             return;
         }
 
-        _values[name] = new AsyncExportBinding(promise, isConst, isLexical);
+        _values[name] = Binding.CreateAsyncExport(promise, isConst, isLexical);
     }
 
     /// <summary>
@@ -172,7 +203,7 @@ public sealed class JsEnvironment
     /// </summary>
     internal void DefineImportBinding(Symbol localName, JsEnvironment sourceEnvironment, Symbol bindingName)
     {
-        _values[localName] = new ImportBindingWrapper(sourceEnvironment, bindingName);
+        _values[localName] = Binding.CreateImport(sourceEnvironment, bindingName);
     }
 
     public void DefineFunctionScoped(
@@ -278,7 +309,8 @@ public sealed class JsEnvironment
                 context?.RealmState);
         }
 
-        if (scope._values.TryGetValue(name, out var existing))
+        ref var existing = ref CollectionsMarshal.GetValueRefOrNullRef(scope._values, name);
+        if (!Unsafe.IsNullRef(ref existing))
         {
             // Also check existing lexical bindings in the local scope
             if (isGlobalScope && existing.IsLexical)
@@ -579,7 +611,8 @@ public sealed class JsEnvironment
                 passedFunctionBoundary = true;
             }
 
-            if (current._values.TryGetValue(name, out var binding) && binding.BlocksFunctionScopeOverride)
+            ref var binding = ref CollectionsMarshal.GetValueRefOrNullRef(current._values, name);
+            if (!Unsafe.IsNullRef(ref binding) && binding.BlocksFunctionScopeOverride)
             {
                 binding.Value = value;
                 current.NotifyBindingObservers(name, value);
@@ -654,16 +687,14 @@ public sealed class JsEnvironment
                 newValue => cached.Write(name, newValue, strictContext, context));
         }
 
-        if (TryLocateBinding(name, out var bindingEnvironment, out var binding))
+        if (TryLocateBinding(name, out var bindingEnvironment, out _))
         {
-            CacheDeclarativeBinding(name, new ResolvedIdentifierBinding(bindingEnvironment, binding), context);
+            var cachedBinding = new ResolvedIdentifierBinding(bindingEnvironment, name);
+            CacheDeclarativeBinding(name, cachedBinding, context);
             return new AssignmentReference(
                 () => AssignmentReferenceResolver.ReadIdentifierValue(
-                    () => ReadResolvedBindingValue(bindingEnvironment, binding, name), context),
-                newValue =>
-                {
-                    WriteResolvedBindingValue(bindingEnvironment, binding, name, newValue, strictContext);
-                });
+                    () => cachedBinding.Read(name, context), context),
+                newValue => cachedBinding.Write(name, newValue, strictContext, context));
         }
 
         if (TryResolveGlobalObjectBinding(name, context, out var globalBinding))
@@ -696,11 +727,11 @@ public sealed class JsEnvironment
             return GetWithBindingValue(withBinding);
         }
 
-        if (TryLocateBinding(name, out var bindingEnvironment, out var binding))
+        if (TryLocateBinding(name, out var bindingEnvironment, out _))
         {
-            var value = ReadResolvedBindingValue(bindingEnvironment, binding, name);
-            CacheDeclarativeBinding(name, new ResolvedIdentifierBinding(bindingEnvironment, binding), context);
-            return value;
+            var cachedBinding = new ResolvedIdentifierBinding(bindingEnvironment, name);
+            CacheDeclarativeBinding(name, cachedBinding, context);
+            return cachedBinding.Read(name, context);
         }
 
         if (TryResolveGlobalObjectBinding(name, context, out var globalBinding))
@@ -743,31 +774,38 @@ public sealed class JsEnvironment
     internal readonly struct ResolvedIdentifierBinding
     {
         private readonly JsEnvironment _environment;
-        private readonly Binding _binding;
+        private readonly Symbol _name;
 
-        internal ResolvedIdentifierBinding(JsEnvironment environment, object binding)
+        internal ResolvedIdentifierBinding(JsEnvironment environment, Symbol name)
         {
-            if (binding is not Binding typedBinding)
-            {
-                throw new ArgumentException("Invalid binding handle.", nameof(binding));
-            }
-
             _environment = environment;
-            _binding = typedBinding;
+            _name = name;
         }
 
         internal object? Read(Symbol name, EvaluationContext context)
         {
-            return ReadResolvedBindingValue(_environment, _binding, name);
+            ref var binding = ref CollectionsMarshal.GetValueRefOrNullRef(_environment._values, _name);
+            if (Unsafe.IsNullRef(ref binding))
+            {
+                throw new InvalidOperationException($"Binding for {_name.Name} not found");
+            }
+
+            return ReadResolvedBindingValue(_environment, ref binding, _name);
         }
 
         internal void Write(Symbol name, object? value, bool isStrictContext, EvaluationContext context)
         {
-            _environment.WriteResolvedBindingValue(_environment, _binding, name, value, isStrictContext);
+            ref var binding = ref CollectionsMarshal.GetValueRefOrNullRef(_environment._values, _name);
+            if (Unsafe.IsNullRef(ref binding))
+            {
+                throw new InvalidOperationException($"Binding for {_name.Name} not found");
+            }
+
+            _environment.WriteResolvedBindingValue(_environment, ref binding, _name, value, isStrictContext);
         }
     }
 
-    private static object? ReadResolvedBindingValue(JsEnvironment bindingEnvironment, Binding binding, Symbol name)
+    private static object? ReadResolvedBindingValue(JsEnvironment bindingEnvironment, ref Binding binding, Symbol name)
     {
         if (ReferenceEquals(binding.Value, Uninitialized))
         {
@@ -801,7 +839,7 @@ public sealed class JsEnvironment
 
     private void WriteResolvedBindingValue(
         JsEnvironment bindingEnvironment,
-        Binding binding,
+        ref Binding binding,
         Symbol name,
         object? value,
         bool isStrictContext)
@@ -937,7 +975,7 @@ public sealed class JsEnvironment
         }
 
         bindingEnvironment = null!;
-        binding = null!;
+        binding = default;
         return false;
     }
 
@@ -1275,7 +1313,8 @@ public sealed class JsEnvironment
             }
             var realm = current.RealmState ?? current.Enclosing?.RealmState;
 
-            if (current._values.TryGetValue(name, out var binding))
+            ref var binding = ref CollectionsMarshal.GetValueRefOrNullRef(current._values, name);
+            if (!Unsafe.IsNullRef(ref binding))
             {
                 if (ReferenceEquals(binding.Value, Uninitialized) &&
                     binding.IsLexical &&
@@ -1842,101 +1881,173 @@ public sealed class JsEnvironment
             : firstToken.ToLowerInvariant();
     }
 
-    private class Binding(
-        object? value,
-        bool isConst,
-        bool isGlobalConstant,
-        bool isLexical,
-        bool blocksFunctionScopeOverride,
-        bool canDelete,
-        bool isImmutableBinding = false)
+    [Flags]
+    private enum BindingFlags : byte
     {
-        public virtual object? Value { get; set; } = value;
+        None = 0,
+        IsConst = 1,
+        IsGlobalConstant = 2,
+        IsLexical = 4,
+        BlocksFunctionScopeOverride = 8,
+        CanDelete = 16,
+        IsImmutableBinding = 32,
+        HasSpecialBinding = 64 // When set, _value holds ISpecialBinding
+    }
 
-        public virtual bool IsConst { get; } = isConst;
+    /// <summary>
+    /// A binding in the environment. This is a struct to avoid per-binding heap allocations.
+    /// For special bindings (async exports, imports), the HasSpecialBinding flag is set
+    /// and _value holds an ISpecialBinding instance.
+    /// </summary>
+    private struct Binding
+    {
+        private object? _value;
+        private BindingFlags _flags;
 
-        public bool IsGlobalConstant { get; } = isGlobalConstant;
+        public Binding(
+            object? value,
+            bool isConst,
+            bool isGlobalConstant,
+            bool isLexical,
+            bool blocksFunctionScopeOverride,
+            bool canDelete,
+            bool isImmutableBinding = false)
+        {
+            _value = value;
+            _flags = BindingFlags.None;
+            if (isConst) _flags |= BindingFlags.IsConst;
+            if (isGlobalConstant) _flags |= BindingFlags.IsGlobalConstant;
+            if (isLexical) _flags |= BindingFlags.IsLexical;
+            if (blocksFunctionScopeOverride) _flags |= BindingFlags.BlocksFunctionScopeOverride;
+            if (canDelete) _flags |= BindingFlags.CanDelete;
+            if (isImmutableBinding) _flags |= BindingFlags.IsImmutableBinding;
+        }
 
-        public bool IsLexical { get; private set; } = isLexical;
+        private Binding(ISpecialBinding special, BindingFlags flags)
+        {
+            _value = special;
+            _flags = flags | BindingFlags.HasSpecialBinding;
+        }
 
-        public bool BlocksFunctionScopeOverride { get; private set; } = blocksFunctionScopeOverride;
+        public static Binding CreateAsyncExport(JsPromise promise, bool isConst, bool isLexical)
+        {
+            var flags = BindingFlags.None;
+            if (isConst) flags |= BindingFlags.IsConst;
+            if (isLexical) flags |= BindingFlags.IsLexical;
+            return new Binding(new AsyncExportBinding(promise, isConst), flags);
+        }
 
-        public bool CanDelete { get; private set; } = canDelete;
+        public static Binding CreateImport(JsEnvironment sourceEnvironment, Symbol bindingName)
+        {
+            return new Binding(
+                new ImportBindingWrapper(sourceEnvironment, bindingName),
+                BindingFlags.IsConst | BindingFlags.IsLexical);
+        }
 
-        /// <summary>
-        /// Immutable bindings are like const but in non-strict mode assignment silently fails
-        /// instead of throwing. This is used for named function expression bindings.
-        /// </summary>
-        public bool IsImmutableBinding { get; } = isImmutableBinding;
+        public object? Value
+        {
+            readonly get => (_flags & BindingFlags.HasSpecialBinding) != 0
+                ? ((ISpecialBinding)_value!).GetValue()
+                : _value;
+            set
+            {
+                if ((_flags & BindingFlags.HasSpecialBinding) != 0)
+                {
+                    ((ISpecialBinding)_value!).SetValue(value);
+                }
+                else
+                {
+                    _value = value;
+                }
+            }
+        }
 
-        public virtual bool IsImportBinding => false;
+        public readonly bool IsConst => (_flags & BindingFlags.HasSpecialBinding) != 0
+            ? ((ISpecialBinding)_value!).IsConst
+            : (_flags & BindingFlags.IsConst) != 0;
+
+        public readonly bool IsGlobalConstant => (_flags & BindingFlags.IsGlobalConstant) != 0;
+
+        public readonly bool IsLexical => (_flags & BindingFlags.IsLexical) != 0;
+
+        public readonly bool BlocksFunctionScopeOverride => (_flags & BindingFlags.BlocksFunctionScopeOverride) != 0;
+
+        public readonly bool CanDelete => (_flags & BindingFlags.CanDelete) != 0;
+
+        public readonly bool IsImmutableBinding => (_flags & BindingFlags.IsImmutableBinding) != 0;
+
+        public readonly bool IsImportBinding => (_flags & BindingFlags.HasSpecialBinding) != 0
+            && _value is ImportBindingWrapper;
 
         public void UpgradeLexical(bool isLexical, bool blocksFunctionScopeOverride)
         {
             if (isLexical)
             {
-                IsLexical = true;
+                _flags |= BindingFlags.IsLexical;
             }
 
             if (blocksFunctionScopeOverride)
             {
-                BlocksFunctionScopeOverride = true;
+                _flags |= BindingFlags.BlocksFunctionScopeOverride;
             }
         }
     }
 
-    private sealed class AsyncExportBinding : Binding
+    /// <summary>
+    /// Interface for special bindings that need custom get/set behavior.
+    /// </summary>
+    private interface ISpecialBinding
+    {
+        object? GetValue();
+        void SetValue(object? value);
+        bool IsConst { get; }
+    }
+
+    private sealed class AsyncExportBinding : ISpecialBinding
     {
         private readonly bool _isConst;
         private readonly JsPromise _promise;
         private bool _resolved;
         private object? _resolvedValue;
 
-        public AsyncExportBinding(JsPromise promise, bool isConst, bool isLexical)
-            : base(promise, isConst: isConst, isGlobalConstant: false, isLexical: isLexical,
-                blocksFunctionScopeOverride: false, canDelete: false, isImmutableBinding: false)
+        public AsyncExportBinding(JsPromise promise, bool isConst)
         {
             _promise = promise;
             _isConst = isConst;
         }
 
-        public override object? Value
-        {
-            get => _resolved ? _resolvedValue : _promise.JsObject;
-            set
-            {
-                if (ReferenceEquals(value, Uninitialized) || _resolved)
-                {
-                    return;
-                }
+        public object? GetValue() => _resolved ? _resolvedValue : _promise.JsObject;
 
-                _resolved = true;
-                _resolvedValue = value;
-                _promise.Resolve(value);
+        public void SetValue(object? value)
+        {
+            if (ReferenceEquals(value, Uninitialized) || _resolved)
+            {
+                return;
             }
+
+            _resolved = true;
+            _resolvedValue = value;
+            _promise.Resolve(value);
         }
 
-        public override bool IsConst => _isConst;
+        public bool IsConst => _isConst;
     }
 
     /// <summary>
     /// An import binding that proxies reads to the source module's environment.
     /// Import bindings are immutable (assignment throws TypeError).
     /// </summary>
-    private sealed class ImportBindingWrapper(JsEnvironment sourceEnvironment, Symbol bindingName)
-        : Binding(null, isConst: true, isGlobalConstant: false, isLexical: true, blocksFunctionScopeOverride: false, canDelete: false)
+    private sealed class ImportBindingWrapper(JsEnvironment sourceEnvironment, Symbol bindingName) : ISpecialBinding
     {
         public JsEnvironment SourceEnvironment { get; } = sourceEnvironment;
         public Symbol BindingName { get; } = bindingName;
 
-        public override object? Value
-        {
-            get => SourceEnvironment.Get(BindingName);
-            set => throw new InvalidOperationException("TypeError: Cannot assign to import binding");
-        }
+        public object? GetValue() => SourceEnvironment.Get(BindingName);
 
-        public override bool IsConst => true;
-        public override bool IsImportBinding => true;
+        public void SetValue(object? value) =>
+            throw new InvalidOperationException("TypeError: Cannot assign to import binding");
+
+        public bool IsConst => true;
     }
 }
 

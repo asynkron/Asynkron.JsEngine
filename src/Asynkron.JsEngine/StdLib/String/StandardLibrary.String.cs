@@ -372,7 +372,7 @@ public static partial class StandardLibrary
                 }
 
                 var numericContext = realm?.CreateContext();
-                var primitive = JsOps.ToPrimitive(input, "number", numericContext);
+                var primitive = JsOps.ToPrimitive(input, ToPrimitiveHint.Number, numericContext);
                 if (numericContext?.IsThrow == true)
                 {
                     throw new ThrowSignal(numericContext.FlowValue);

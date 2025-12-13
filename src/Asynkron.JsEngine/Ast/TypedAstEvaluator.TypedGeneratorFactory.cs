@@ -459,7 +459,7 @@ public static partial class TypedAstEvaluator
 
         private static string ToFunctionArgumentString(object? value, EvaluationContext evalContext, RealmState realm)
         {
-            var primitive = Runtime.JsOps.ToPrimitive(value, "string", evalContext);
+            var primitive = Runtime.JsOps.ToPrimitive(value, Runtime.ToPrimitiveHint.String, evalContext);
             if (evalContext.IsThrow)
             {
                 throw new ThrowSignal(evalContext.FlowValue);

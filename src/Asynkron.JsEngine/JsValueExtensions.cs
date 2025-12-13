@@ -127,7 +127,7 @@ internal static class JsValueExtensions
 
             if (value is IJsPropertyAccessor accessor)
             {
-                var primitive = JsOps.ToPrimitive(accessor, "string", context);
+                var primitive = JsOps.ToPrimitive(accessor, ToPrimitiveHint.String, context);
                 return primitive is IJsPropertyAccessor ? "[object Object]" : primitive.ToJsString(context, realmState);
             }
 

@@ -7,9 +7,24 @@ using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Runtime;
 
+/// <summary>
+/// Enum for ToPrimitive hint to avoid string comparisons in hot paths.
+/// </summary>
+internal enum ToPrimitiveHint
+{
+    Default,
+    Number,
+    String
+}
+
 internal static class JsOps
 {
     internal const double NegativeZero = -0.0d;
+
+    // Cached hint strings for ToPrimitive (used when calling [Symbol.toPrimitive])
+    private static readonly string HintDefault = "default";
+    private static readonly string HintNumber = "number";
+    private static readonly string HintString = "string";
 
     // Static arrays for ToPrimitive to avoid allocation on every call
     private static readonly string[] StringHintMethods = ["toString", "valueOf"];
@@ -247,9 +262,7 @@ internal static class JsOps
         primitive = null;
         var attempted = false;
 
-        var toPrimitiveKey = Symbols.ToPrimitive;
-        var symbolPropertyName = TypedAstSymbol.PropertyKey(toPrimitiveKey);
-        if (TryGetPropertyValue(accessor, symbolPropertyName, out var toPrimitive, context))
+        if (TryGetPropertyValue(accessor, SymbolKeys.ToPrimitive, out var toPrimitive, context))
         {
             if (context?.IsThrow == true)
             {
@@ -347,7 +360,25 @@ internal static class JsOps
         return false;
     }
 
+    /// <summary>
+    /// Converts a value to a primitive using the specified hint string.
+    /// Prefer using the ToPrimitiveHint enum overload in hot paths.
+    /// </summary>
     public static object? ToPrimitive(object? value, string hint, EvaluationContext? context = null)
+    {
+        var hintEnum = hint switch
+        {
+            "number" => ToPrimitiveHint.Number,
+            "string" => ToPrimitiveHint.String,
+            _ => ToPrimitiveHint.Default
+        };
+        return ToPrimitive(value, hintEnum, context);
+    }
+
+    /// <summary>
+    /// Converts a value to a primitive using the specified hint enum (faster than string version).
+    /// </summary>
+    public static object? ToPrimitive(object? value, ToPrimitiveHint hint, EvaluationContext? context = null)
     {
         if (value is TypedAstSymbol)
         {
@@ -359,17 +390,16 @@ internal static class JsOps
             return value;
         }
 
-        if (hint == "default" && accessor is JsObject jsObj &&
+        // Date objects default to string hint
+        if (hint == ToPrimitiveHint.Default && accessor is JsObject jsObj &&
             jsObj.TryGetProperty("_internalDate", out _))
         {
-            hint = "string";
+            hint = ToPrimitiveHint.String;
         }
 
-        var toPrimitiveKey = Symbols.ToPrimitive;
-        var symbolPropertyName = TypedAstSymbol.PropertyKey(toPrimitiveKey);
         object? toPrimitive = null;
 
-        if (TryGetPropertyValue(accessor, symbolPropertyName, out var ownOrInheritedToPrimitive, context))
+        if (TryGetPropertyValue(accessor, SymbolKeys.ToPrimitive, out var ownOrInheritedToPrimitive, context))
         {
             if (context?.IsThrow == true)
             {
@@ -395,9 +425,16 @@ internal static class JsOps
             {
                 try
                 {
+                    // Use cached hint strings to avoid string allocation
+                    var hintString = hint switch
+                    {
+                        ToPrimitiveHint.Number => HintNumber,
+                        ToPrimitiveHint.String => HintString,
+                        _ => HintDefault
+                    };
                     var result = TypedAstEvaluator.InvokeCallable(
                         toPrimFn,
-                        new object?[] { hint },
+                        [hintString],
                         accessor,
                         context,
                         accessor is JsObject obj ? obj.RealmState?.Engine?.GlobalEnvironment : null);
@@ -430,7 +467,7 @@ internal static class JsOps
             }
         }
 
-        var methods = hint == "string"
+        var methods = hint == ToPrimitiveHint.String
             ? StringHintMethods
             : DefaultHintMethods;
 
@@ -587,7 +624,7 @@ internal static class JsOps
             if ((leftType == JsValueType.String || leftType == JsValueType.Number || leftType == JsValueType.BigInt ||
                  leftType == JsValueType.Symbol) && rightType == JsValueType.Object)
             {
-                right = ToPrimitive((IJsPropertyAccessor)right!, "default", context);
+                right = ToPrimitive((IJsPropertyAccessor)right!, ToPrimitiveHint.Default, context);
                 continue;
             }
 
@@ -595,7 +632,7 @@ internal static class JsOps
                 (rightType == JsValueType.String || rightType == JsValueType.Number ||
                  rightType == JsValueType.BigInt || rightType == JsValueType.Symbol))
             {
-                left = ToPrimitive((IJsPropertyAccessor)left!, "default", context);
+                left = ToPrimitive((IJsPropertyAccessor)left!, ToPrimitiveHint.Default, context);
                 continue;
             }
 
@@ -652,7 +689,7 @@ internal static class JsOps
         var leftPrimitive = left;
         if (left is IJsPropertyAccessor leftAccessor && left is not TypedAstSymbol)
         {
-            leftPrimitive = ToPrimitive(leftAccessor, "number", context);
+            leftPrimitive = ToPrimitive(leftAccessor, ToPrimitiveHint.Number, context);
             if (context?.IsThrow == true)
             {
                 return false;
@@ -662,7 +699,7 @@ internal static class JsOps
         var rightPrimitive = right;
         if (right is IJsPropertyAccessor rightAccessor && right is not TypedAstSymbol)
         {
-            rightPrimitive = ToPrimitive(rightAccessor, "number", context);
+            rightPrimitive = ToPrimitive(rightAccessor, ToPrimitiveHint.Number, context);
             if (context?.IsThrow == true)
             {
                 return false;
@@ -931,9 +968,9 @@ internal static class JsOps
                 case bool b:
                     return b ? "true" : "false";
                 case int i:
-                    return i.ToString(CultureInfo.InvariantCulture);
+                    return JsValueCache.GetIndexString(i);
                 case long l:
-                    return l.ToString(CultureInfo.InvariantCulture);
+                    return JsValueCache.GetIndexString(l);
                 case double d:
                     return ToCanonicalNumberString(d);
             }
@@ -942,7 +979,7 @@ internal static class JsOps
             {
                 // ToPropertyKey delegates to ToPrimitive with string hint
                 // and then converts the resulting primitive to a property name.
-                value = ToPrimitive(accessor, "string", context);
+                value = ToPrimitive(accessor, ToPrimitiveHint.String, context);
                 if (context?.IsThrow == true)
                 {
                     return null;
@@ -963,19 +1000,26 @@ internal static class JsOps
     // Align numeric property keys with ECMAScript ToString(number) formatting (case-sensitive keys).
     internal static string ToCanonicalNumberString(double value)
     {
+        // Fast path for common array indices (0-9999)
+        var cachedIndexString = JsValueCache.TryGetIndexString(value);
+        if (cachedIndexString is not null)
+        {
+            return cachedIndexString;
+        }
+
         if (double.IsNaN(value))
         {
-            return "NaN";
+            return JsValueCache.NaNString;
         }
 
         if (double.IsPositiveInfinity(value))
         {
-            return "Infinity";
+            return JsValueCache.InfinityString;
         }
 
         if (double.IsNegativeInfinity(value))
         {
-            return "-Infinity";
+            return JsValueCache.NegativeInfinityString;
         }
 
         if (value == 0)

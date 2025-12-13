@@ -14,6 +14,10 @@ public static class JsValueCache
     private const int IntegerCacheSize = 10240;
     private static readonly object?[] CachedIntegers = new object?[IntegerCacheSize];
 
+    // Cache index strings for property access (0-9999) - covers common array indices
+    private const int IndexStringCacheSize = 10000;
+    private static readonly string[] CachedIndexStrings = new string[IndexStringCacheSize];
+
     // Cache common strings
     private static readonly ConcurrentDictionary<string, string> InternedStrings = new(StringComparer.Ordinal);
 
@@ -59,6 +63,12 @@ public static class JsValueCache
         for (var i = 0; i < IntegerCacheSize; i++)
         {
             CachedIntegers[i] = (double)i;
+        }
+
+        // Pre-cache index strings 0-9999 for array property access
+        for (var i = 0; i < IndexStringCacheSize; i++)
+        {
+            CachedIndexStrings[i] = i.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
         // Cache special numbers
@@ -132,6 +142,48 @@ public static class JsValueCache
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static object GetBoolean(bool value) => value ? BoxedTrue : BoxedFalse;
+
+    /// <summary>
+    /// Gets a cached string representation of an integer index if within cache range.
+    /// This avoids allocations for common array index operations.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static string GetIndexString(int index)
+    {
+        if ((uint)index < IndexStringCacheSize)
+        {
+            return CachedIndexStrings[index];
+        }
+        return index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Gets a cached string representation of a long integer index if within cache range.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static string GetIndexString(long index)
+    {
+        if ((ulong)index < IndexStringCacheSize)
+        {
+            return CachedIndexStrings[(int)index];
+        }
+        return index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Gets a cached string representation of a double if it's a valid array index.
+    /// Returns null if not a valid index or out of cache range - caller should format manually.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static string? TryGetIndexString(double value)
+    {
+        // Check if it's a valid non-negative integer within cache range
+        if (value >= 0 && value < IndexStringCacheSize && value == Math.Truncate(value))
+        {
+            return CachedIndexStrings[(int)value];
+        }
+        return null;
+    }
 
     /// <summary>
     /// Interns a string if it's a well-known value, otherwise returns as-is.

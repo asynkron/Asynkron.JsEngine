@@ -10,8 +10,9 @@ public static partial class TypedAstEvaluator
     /// <summary>
     ///     Encapsulates property resolution (including private name scoping/branding)
     ///     and funnels get/set operations through the proper descriptor semantics.
+    ///     This is a struct to avoid heap allocations in the hot path.
     /// </summary>
-    internal sealed class PropertyHandle
+    internal readonly struct PropertyHandle
     {
         private readonly EvaluationContext _context;
         private readonly bool _isPrivate;

@@ -549,13 +549,13 @@ public static partial class TypedAstEvaluator
 
     private static object? Add(object? left, object? right, EvaluationContext context)
     {
-        var leftPrimitive = JsOps.ToPrimitive(left, "default", context);
+        var leftPrimitive = JsOps.ToPrimitive(left, ToPrimitiveHint.Default, context);
         if (context.ShouldStopEvaluation)
         {
             return context.FlowValue;
         }
 
-        var rightPrimitive = JsOps.ToPrimitive(right, "default", context);
+        var rightPrimitive = JsOps.ToPrimitive(right, ToPrimitiveHint.Default, context);
         if (context.ShouldStopEvaluation)
         {
             return context.FlowValue;

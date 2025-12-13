@@ -107,7 +107,7 @@ public static partial class StandardLibrary
 
     private static string ToFunctionArgumentString(object? value, EvaluationContext evalContext, RealmState realmState)
     {
-        var primitive = JsOps.ToPrimitive(value, "string", evalContext);
+        var primitive = JsOps.ToPrimitive(value, ToPrimitiveHint.String, evalContext);
         if (evalContext.IsThrow)
         {
             throw new ThrowSignal(evalContext.FlowValue);

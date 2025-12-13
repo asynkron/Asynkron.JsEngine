@@ -10,6 +10,40 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment,
             EvaluationContext context)
         {
+            var hoistPlan = ((IAstCacheable<HoistPlan>)block).GetOrCreateCache();
+
+            // Fast path: if the block has no lexical/function decls, execute directly in the incoming environment
+            if (!hoistPlan.NeedsEnvironment)
+            {
+                var fastResult = EmptyCompletion;
+                foreach (var statement in block.Statements)
+                {
+                    context.ThrowIfCancellationRequested();
+                    var completion = EvaluateStatement(statement, environment, context);
+                    var shouldStop = context.ShouldStopEvaluation;
+                    var shouldCapture =
+                        !ReferenceEquals(completion, EmptyCompletion) &&
+                        (!shouldStop ||
+                         context.IsReturn ||
+                         context.IsThrow ||
+                         context.IsYield ||
+                         context.IsBreak ||
+                         context.IsContinue);
+
+                    if (shouldCapture)
+                    {
+                        fastResult = completion;
+                    }
+
+                    if (shouldStop)
+                    {
+                        break;
+                    }
+                }
+
+                return fastResult;
+            }
+
             var scope = new JsEnvironment(environment, false, block.IsStrict);
             var result = EmptyCompletion;
 

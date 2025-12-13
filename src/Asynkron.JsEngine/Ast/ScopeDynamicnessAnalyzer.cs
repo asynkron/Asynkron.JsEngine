@@ -756,5 +756,238 @@ public static partial class TypedAstEvaluator
 
         return false;
     }
-}
 
+    /// <summary>
+    /// Determines whether a function body contains inner function expressions (including arrows).
+    /// Used to detect if the function creates closures that would capture the invocation environment.
+    /// If no inner functions exist, the invocation environment can be pooled for reuse.
+    /// </summary>
+    internal static bool ContainsInnerFunctionExpression(FunctionExpression function)
+    {
+        return ContainsInnerFunctionExpression(function.Body);
+    }
+
+      internal static bool ContainsInnerFunctionExpression(BlockStatement block)
+    {
+        var work = new Stack<StatementNode>();
+        work.Push(block);
+
+        while (work.Count > 0)
+        {
+            var statement = work.Pop();
+            switch (statement)
+            {
+                case BlockStatement innerBlock:
+                    foreach (var inner in innerBlock.Statements)
+                    {
+                        work.Push(inner);
+                    }
+                    break;
+                case ExpressionStatement expressionStatement:
+                    if (ContainsInnerFunctionExpression(expressionStatement.Expression))
+                        return true;
+                    break;
+                case ReturnStatement returnStatement:
+                    if (returnStatement.Expression is not null &&
+                        ContainsInnerFunctionExpression(returnStatement.Expression))
+                        return true;
+                    break;
+                case ThrowStatement throwStatement:
+                    if (ContainsInnerFunctionExpression(throwStatement.Expression))
+                        return true;
+                    break;
+                case VariableDeclaration declaration:
+                    foreach (var declarator in declaration.Declarators)
+                    {
+                        if (declarator.Initializer is not null &&
+                            ContainsInnerFunctionExpression(declarator.Initializer))
+                            return true;
+                    }
+                    break;
+                case IfStatement ifStatement:
+                    if (ContainsInnerFunctionExpression(ifStatement.Condition))
+                        return true;
+                    work.Push(ifStatement.Then);
+                    if (ifStatement.Else is not null)
+                        work.Push(ifStatement.Else);
+                    break;
+                case WhileStatement whileStatement:
+                    if (ContainsInnerFunctionExpression(whileStatement.Condition))
+                        return true;
+                    work.Push(whileStatement.Body);
+                    break;
+                case DoWhileStatement doWhileStatement:
+                    if (ContainsInnerFunctionExpression(doWhileStatement.Condition))
+                        return true;
+                    work.Push(doWhileStatement.Body);
+                    break;
+                case ForStatement forStatement:
+                    if (forStatement.Initializer is not null)
+                        work.Push(forStatement.Initializer);
+                    if (forStatement.Condition is not null &&
+                        ContainsInnerFunctionExpression(forStatement.Condition))
+                        return true;
+                    if (forStatement.Increment is not null &&
+                        ContainsInnerFunctionExpression(forStatement.Increment))
+                        return true;
+                    work.Push(forStatement.Body);
+                    break;
+                case ForEachStatement forEachStatement:
+                    if (ContainsInnerFunctionExpression(forEachStatement.Iterable))
+                        return true;
+                    work.Push(forEachStatement.Body);
+                    break;
+                case LabeledStatement labeledStatement:
+                    work.Push(labeledStatement.Statement);
+                    break;
+                case TryStatement tryStatement:
+                    work.Push(tryStatement.TryBlock);
+                    if (tryStatement.Catch is { } catchClause)
+                        work.Push(catchClause.Body);
+                    if (tryStatement.Finally is not null)
+                        work.Push(tryStatement.Finally);
+                    break;
+                case SwitchStatement switchStatement:
+                    if (ContainsInnerFunctionExpression(switchStatement.Discriminant))
+                        return true;
+                    foreach (var switchCase in switchStatement.Cases)
+                    {
+                        if (switchCase.Test is not null && ContainsInnerFunctionExpression(switchCase.Test))
+                            return true;
+                        work.Push(switchCase.Body);
+                    }
+                    break;
+                // FunctionDeclaration creates a closure - the function itself captures the environment
+                case FunctionDeclaration:
+                    return true;
+                case ClassDeclaration:
+                case EmptyStatement:
+                case BreakStatement:
+                case ContinueStatement:
+                case ImportStatement:
+                case ExportNamedStatement:
+                case ExportAllStatement:
+                case ExportNamespaceAsStatement:
+                case ExportDefaultStatement:
+                case ExportDeclarationStatement:
+                    break;
+            }
+        }
+
+        return false;
+    }
+
+      internal static bool ContainsInnerFunctionExpression(ExpressionNode expression)
+      {
+          var work = new Stack<ExpressionNode>();
+          work.Push(expression);
+
+        while (work.Count > 0)
+        {
+            var node = work.Pop();
+            switch (node)
+            {
+                // These create closures - return true immediately
+                case FunctionExpression:
+                case ClassExpression:
+                    return true;
+                case CallExpression call:
+                    work.Push(call.Callee);
+                    foreach (var argument in call.Arguments)
+                        work.Push(argument.Expression);
+                    break;
+                case BinaryExpression binary:
+                    work.Push(binary.Left);
+                    work.Push(binary.Right);
+                    break;
+                case UnaryExpression unary:
+                    work.Push(unary.Operand);
+                    break;
+                case ConditionalExpression conditional:
+                    work.Push(conditional.Test);
+                    work.Push(conditional.Consequent);
+                    work.Push(conditional.Alternate);
+                    break;
+                case NewExpression newExpression:
+                    work.Push(newExpression.Constructor);
+                    foreach (var argument in newExpression.Arguments)
+                        work.Push(argument.Expression);
+                    break;
+                case MemberExpression member:
+                    work.Push(member.Target);
+                    work.Push(member.Property);
+                    break;
+                case AssignmentExpression assignment:
+                    work.Push(assignment.Value);
+                    break;
+                case PropertyAssignmentExpression propertyAssignment:
+                    work.Push(propertyAssignment.Target);
+                    work.Push(propertyAssignment.Property);
+                    work.Push(propertyAssignment.Value);
+                    break;
+                case IndexAssignmentExpression indexAssignment:
+                    work.Push(indexAssignment.Target);
+                    work.Push(indexAssignment.Index);
+                    work.Push(indexAssignment.Value);
+                    break;
+                case SequenceExpression sequence:
+                    work.Push(sequence.Left);
+                    work.Push(sequence.Right);
+                    break;
+                case ArrayExpression array:
+                    foreach (var element in array.Elements)
+                    {
+                        if (element.Expression is not null)
+                            work.Push(element.Expression);
+                    }
+                    break;
+                case ObjectExpression obj:
+                    foreach (var member in obj.Members)
+                    {
+                        if (member.IsComputed && member.Key is ExpressionNode keyExpression)
+                            work.Push(keyExpression);
+                        // Methods in object literals are FunctionExpressions - check Value
+                        if (member.Value is not null)
+                            work.Push(member.Value);
+                        // Getters/setters are functions too
+                        if (member.Function is not null)
+                            return true;
+                    }
+                    break;
+                case TemplateLiteralExpression template:
+                    foreach (var part in template.Parts)
+                    {
+                        if (part.Expression is not null)
+                            work.Push(part.Expression);
+                    }
+                    break;
+                case TaggedTemplateExpression tagged:
+                    work.Push(tagged.Tag);
+                    foreach (var expr in tagged.Expressions)
+                        work.Push(expr);
+                    break;
+                case YieldExpression yield:
+                    if (yield.Expression is not null)
+                        work.Push(yield.Expression);
+                    break;
+                case AwaitExpression awaitExpression:
+                    work.Push(awaitExpression.Expression);
+                    break;
+                case DestructuringAssignmentExpression destructuring:
+                    work.Push(destructuring.Value);
+                    break;
+                // These don't contain inner functions
+                case LiteralExpression:
+                case IdentifierExpression:
+                case PrivateIdentifierExpression:
+                case NewTargetExpression:
+                case ImportMetaExpression:
+                case ThisExpression:
+                case SuperExpression:
+                    break;
+            }
+        }
+
+        return false;
+    }
+}

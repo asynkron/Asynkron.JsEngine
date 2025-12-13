@@ -29,6 +29,7 @@ public static partial class TypedAstEvaluator
         private readonly bool _allowIdentifierCache;
         private readonly bool _isSimpleFunction;
         private readonly bool _usesArguments;
+        private readonly bool _canPoolInvocationEnvironment;
         private readonly ImmutableArray<Symbol> _parameterNames;
         private readonly ImmutableArray<Symbol> _lexicalTemplate;
         private readonly ImmutableArray<Symbol> _catchParameterTemplate;
@@ -90,6 +91,10 @@ public static partial class TypedAstEvaluator
                                !_hasHoistableDeclarations &&
                                _allowIdentifierCache &&
                                hasSimpleParams;
+
+            // Can pool invocation environment if simple function AND no inner functions that would capture it
+            _canPoolInvocationEnvironment = _isSimpleFunction &&
+                                            !ContainsInnerFunctionExpression(function);
 
             var parameterNames = new List<Symbol>();
             CollectParameterNamesFromFunction(_function, parameterNames);
@@ -1574,9 +1579,11 @@ public static partial class TypedAstEvaluator
                 context.MaxCallDepth = callingContext.MaxCallDepth;
             }
 
-            // Create environment for function execution
+            // Create environment for function execution - use pooling when safe (no inner closures)
             var description = _function.Name is { } name ? $"function {name.Name}" : "anonymous function";
-            var functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source, description);
+            var functionEnvironment = _canPoolInvocationEnvironment
+                ? _realmState.RentEnvironment(_closure, true, _isStrict, _function.Source, description)
+                : new JsEnvironment(_closure, true, _isStrict, _function.Source, description);
 
             // Bind this - in strict mode (which fast path requires), this is passed through unchanged.
             // null should remain null, undefined should remain undefined - no coercion.
@@ -1649,6 +1656,12 @@ public static partial class TypedAstEvaluator
             {
                 // Return context to pool for reuse
                 _realmState.ReturnContext(context);
+
+                // Return environment to pool if pooling was used
+                if (_canPoolInvocationEnvironment)
+                {
+                    _realmState.ReturnEnvironment(functionEnvironment);
+                }
             }
         }
     }

@@ -145,6 +145,13 @@ internal static class LoopNormalizer
         bool conditionAfterBody,
         ImmutableArray<Symbol> perIterationBindings = default)
     {
+        var allowIterationEnvironmentPooling =
+            !TypedAstEvaluator.ContainsInnerFunctionExpression(body) &&
+            !TypedAstEvaluator.ContainsInnerFunctionExpression(condition) &&
+            !StatementsContainInnerFunctionExpression(leading) &&
+            !StatementsContainInnerFunctionExpression(conditionPrologue) &&
+            !StatementsContainInnerFunctionExpression(postIteration);
+
         return new LoopPlan(
             kind,
             leading,
@@ -153,7 +160,19 @@ internal static class LoopNormalizer
             body,
             postIteration,
             conditionAfterBody,
-            perIterationBindings);
+            perIterationBindings,
+            allowIterationEnvironmentPooling);
+    }
+
+    private static bool StatementsContainInnerFunctionExpression(ImmutableArray<StatementNode> statements)
+    {
+        if (statements.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        var synthetic = new BlockStatement(null, statements, false);
+        return TypedAstEvaluator.ContainsInnerFunctionExpression(synthetic);
     }
 
     private static BlockStatement EnsureBlock(StatementNode statement, bool isStrict)

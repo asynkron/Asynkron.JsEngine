@@ -8,7 +8,15 @@ namespace Asynkron.JsEngine.Ast;
 ///     Represents a block statement with optional strict mode.
 /// </summary>
 public sealed record BlockStatement(SourceReference? Source, ImmutableArray<StatementNode> Statements, bool IsStrict)
-    : StatementNode(Source);
+    : StatementNode(Source), IAstCacheable<HoistPlan>
+{
+    private HoistPlan? _cachedHoistPlan;
+
+    HoistPlan IAstCacheable<HoistPlan>.GetOrCreateCache()
+    {
+        return AstCache.GetOrCreate(ref _cachedHoistPlan, () => HoistPlan.Build(this));
+    }
+}
 
 /// <summary>
 ///     Represents a variable declaration (let/var/const).

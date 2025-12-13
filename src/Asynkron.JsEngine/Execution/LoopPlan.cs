@@ -23,4 +23,5 @@ internal sealed record LoopPlan(
     BlockStatement Body,
     ImmutableArray<StatementNode> PostIteration,
     bool ConditionAfterBody,
-    ImmutableArray<Symbol> PerIterationBindings = default);
+    ImmutableArray<Symbol> PerIterationBindings = default,
+    bool AllowIterationEnvironmentPooling = false);

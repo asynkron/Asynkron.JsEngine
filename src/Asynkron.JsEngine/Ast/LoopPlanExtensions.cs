@@ -27,6 +27,7 @@ public static partial class TypedAstEvaluator
 
             // Check if we need per-iteration environments for lexical bindings
             var hasPerIterationBindings = !plan.PerIterationBindings.IsDefaultOrEmpty;
+            var allowIterationEnvPooling = plan.AllowIterationEnvironmentPooling;
 
             // Per ECMAScript spec 13.7.4.8 ForBodyEvaluation step 2:
             // Create the first per-iteration environment BEFORE entering the loop
@@ -38,13 +39,13 @@ public static partial class TypedAstEvaluator
             {
                 context.ThrowIfCancellationRequested();
 
-                if (!plan.ConditionAfterBody)
+            if (!plan.ConditionAfterBody)
+            {
+                if (!ExecuteCondition(plan, iterationEnvironment, context))
                 {
-                    if (!ExecuteCondition(plan, iterationEnvironment, context))
-                    {
-                        break;
-                    }
+                    break;
                 }
+            }
 
                 lastValue = EvaluateStatement(plan.Body, iterationEnvironment, context, loopLabel);
                 if (context.IsReturn || context.IsThrow)
@@ -57,7 +58,7 @@ public static partial class TypedAstEvaluator
                     // Create new per-iteration environment before increment
                     if (hasPerIterationBindings)
                     {
-                        iterationEnvironment = plan.CreatePerIterationEnvironment(iterationEnvironment, context);
+                        iterationEnvironment = plan.CreateNextIterationEnvironment(iterationEnvironment, context);
                     }
 
                     if (!ExecutePostIteration(plan, iterationEnvironment, context))
@@ -86,7 +87,7 @@ public static partial class TypedAstEvaluator
                 // Create new per-iteration environment before increment
                 if (hasPerIterationBindings)
                 {
-                    iterationEnvironment = plan.CreatePerIterationEnvironment(iterationEnvironment, context);
+                    iterationEnvironment = plan.CreateNextIterationEnvironment(iterationEnvironment, context);
                 }
 
                 if (!ExecutePostIteration(plan, iterationEnvironment, context))
@@ -105,21 +106,41 @@ public static partial class TypedAstEvaluator
                 }
             }
 
+            if (hasPerIterationBindings &&
+                !ReferenceEquals(iterationEnvironment, environment))
+            {
+                if (allowIterationEnvPooling)
+                {
+                    JsEnvironmentPool.Return(iterationEnvironment);
+                }
+                // Otherwise keep the final iteration environment alive for any closures that captured it.
+            }
+
             return NormalizeLoopCompletion(lastValue);
         }
 
-        private JsEnvironment CreatePerIterationEnvironment(JsEnvironment currentIterationEnvironment, EvaluationContext context)
+        private JsEnvironment CreatePerIterationEnvironment(JsEnvironment currentIterationEnvironment,
+            EvaluationContext context)
         {
             // Per ECMAScript spec 13.7.4.9 CreatePerIterationEnvironment:
             // The new iteration environment's parent should be the OUTER environment (the loop environment),
             // not the current iteration environment
             var outerEnvironment = currentIterationEnvironment.Enclosing ?? currentIterationEnvironment;
 
-            // Create a new environment for this iteration
-            var newIterationEnvironment = new JsEnvironment(
-                outerEnvironment,
-                creatingSource: null,
-                description: "for-iteration");
+            // Create a fresh environment for this iteration
+            var newIterationEnvironment = plan.AllowIterationEnvironmentPooling
+                ? JsEnvironmentPool.Rent(
+                    outerEnvironment,
+                    isFunctionScope: false,
+                    isStrict: false,
+                    creatingSource: null,
+                    description: "for-iteration")
+                : new JsEnvironment(
+                    outerEnvironment,
+                    isFunctionScope: false,
+                    isStrict: false,
+                    creatingSource: null,
+                    description: "for-iteration");
 
             // Copy the per-iteration bindings from the CURRENT iteration environment to the new environment
             foreach (var bindingName in plan.PerIterationBindings)
@@ -169,6 +190,22 @@ public static partial class TypedAstEvaluator
             }
 
             return newIterationEnvironment;
+        }
+
+        private JsEnvironment CreateNextIterationEnvironment(
+            JsEnvironment currentIterationEnvironment,
+            EvaluationContext context)
+        {
+            // Create a new env using the outer of the current iteration env
+            var next = plan.CreatePerIterationEnvironment(currentIterationEnvironment, context);
+
+            if (plan.AllowIterationEnvironmentPooling &&
+                !ReferenceEquals(currentIterationEnvironment, currentIterationEnvironment.Enclosing))
+            {
+                JsEnvironmentPool.Return(currentIterationEnvironment);
+            }
+
+            return next;
         }
 
         private bool ExecuteCondition(JsEnvironment environment, EvaluationContext context)

@@ -54,6 +54,62 @@ Different cultures format numbers differently:
 
 JavaScript expects consistent number formatting (US/Invariant style with periods), so we must always use InvariantCulture to match JavaScript behavior.
 
+## Memory Profiling
+
+### Running Memory Benchmarks
+
+The benchmark project includes memory diagnostics via BenchmarkDotNet. Run with:
+
+```bash
+cd benchmarks/Asynkron.JsEngine.Benchmarks
+dotnet run -c Release -- operations --filter "*Fibonacci*"
+```
+
+### Allocation Tracing with dotnet-trace
+
+For detailed allocation analysis, use dotnet-trace with GC events:
+
+```bash
+# Install tools if needed
+dotnet tool install -g dotnet-trace
+dotnet tool install -g dotnet-gcdump
+
+# Capture allocation events
+dotnet-trace collect --providers Microsoft-Windows-DotNETRuntime:0x80000:5 -- dotnet run -c Release -- [benchmark]
+
+# Analyze the trace
+dotnet-trace report <trace-file>.nettrace topN -n 30
+```
+
+### Known Allocation Hotspots
+
+**Fibonacci Benchmark Results (as of Dec 2024):**
+| Engine | Time | Allocated | Gen0 Collections |
+|--------|------|-----------|------------------|
+| Jint | 56ms | 50.11 MB | 8,000 |
+| Asynkron | 172ms | 322.37 MB | 53,000 |
+
+**Primary Allocation Sources:**
+
+1. **JsEnvironment per function call** - `InvokeSimpleFast` in `TypedAstEvaluator.TypedFunction.cs:1579` creates a new `JsEnvironment` for every function invocation:
+   ```csharp
+   var functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source, description);
+   ```
+   For Fibonacci(25) this means ~242,000 JsEnvironment allocations.
+
+2. **Dictionary<Symbol, Binding>** - Each JsEnvironment contains a dictionary for variable bindings.
+
+3. **String allocations** - Description strings interpolated per call.
+
+4. **EvaluationContext** - Created/rented per call.
+
+### Optimization Opportunities
+
+- Pool JsEnvironment instances for simple functions
+- Use array-backed storage for small binding counts (< 8 bindings)
+- Cache function description strings
+- Consider stack-based environments for tail-recursive calls
+
 ## Other Guidelines
 
 (Add additional coding guidelines here as needed)

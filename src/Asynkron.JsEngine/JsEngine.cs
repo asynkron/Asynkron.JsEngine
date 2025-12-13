@@ -663,10 +663,29 @@ public sealed class JsEngine : IAsyncDisposable
     ///     This ensures all code executes through the event loop, maintaining proper
     ///     single-threaded execution semantics.
     /// </summary>
+    public ParsedProgram ParseProgram(string source, bool forceStrict = false, bool allowModule = false)
+    {
+        return ParseForExecution(source, forceStrict, allowModule);
+    }
+
+    /// <summary>
+    ///     Parses and schedules evaluation of the provided source on the event queue.
+    ///     This ensures all code executes through the event loop, maintaining proper
+    ///     single-threaded execution semantics.
+    /// </summary>
     public Task<object?> Evaluate(string source, CancellationToken cancellationToken = default)
     {
         var program = ParseForExecution(source);
         return Evaluate(program, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Evaluates a pre-parsed program and schedules it on the event queue.
+    ///     Useful when running the same script repeatedly to avoid re-parsing.
+    /// </summary>
+    public Task<object?> Evaluate(ParsedProgram program, CancellationToken cancellationToken = default)
+    {
+        return Evaluate(program, cancellationToken, sourcePath: null, forceModule: false);
     }
 
     /// <summary>
@@ -718,6 +737,30 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
+    ///     Evaluates a pre-parsed program and drains microtasks before returning.
+    ///     Use this overload to avoid reparsing when running the same script many times.
+    /// </summary>
+    public async Task<object?> EvaluateAndAwait(ParsedProgram program, CancellationToken cancellationToken = default)
+    {
+        // Check if the last statement is an expression statement with an identifier
+        Symbol? trailingIdentifier = null;
+        if (program.Typed.Body.Length > 0 &&
+            program.Typed.Body[^1] is ExpressionStatement { Expression: IdentifierExpression identifier })
+        {
+            trailingIdentifier = identifier.Name;
+        }
+
+        var result = await Evaluate(program, cancellationToken).ConfigureAwait(false);
+
+        if (trailingIdentifier is not null)
+        {
+            return await Evaluate(trailingIdentifier.Name, cancellationToken).ConfigureAwait(false);
+        }
+
+        return result;
+    }
+
+    /// <summary>
     ///     Synchronously evaluates JavaScript source code without using the event loop.
     ///     This is much faster for code that doesn't require async features (setTimeout,
     ///     Promises, async/await, etc.). Use this when you know the code is purely synchronous.
@@ -737,6 +780,15 @@ public sealed class JsEngine : IAsyncDisposable
     public object? EvaluateSync(string source, CancellationToken cancellationToken = default)
     {
         var program = ParseForExecution(source);
+        return EvaluateSyncInternal(program, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Synchronously evaluates a pre-parsed program without using the event loop.
+    ///     Use this to reuse a single parse across many executions.
+    /// </summary>
+    public object? EvaluateSync(ParsedProgram program, CancellationToken cancellationToken = default)
+    {
         return EvaluateSyncInternal(program, cancellationToken);
     }
 

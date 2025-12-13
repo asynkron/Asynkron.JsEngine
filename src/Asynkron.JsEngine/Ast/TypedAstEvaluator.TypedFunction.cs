@@ -30,6 +30,7 @@ public static partial class TypedAstEvaluator
         private readonly bool _isSimpleFunction;
         private readonly bool _usesArguments;
         private readonly bool _canPoolInvocationEnvironment;
+        private readonly string _functionDescription;
         private readonly ImmutableArray<Symbol> _parameterNames;
         private readonly ImmutableArray<Symbol> _lexicalTemplate;
         private readonly ImmutableArray<Symbol> _catchParameterTemplate;
@@ -95,6 +96,9 @@ public static partial class TypedAstEvaluator
             // Can pool invocation environment if simple function AND no inner functions that would capture it
             _canPoolInvocationEnvironment = _isSimpleFunction &&
                                             !ContainsInnerFunctionExpression(function);
+
+            // Cache the function description to avoid string allocation per call
+            _functionDescription = function.Name is { } funcName ? $"function {funcName.Name}" : "anonymous function";
 
             var parameterNames = new List<Symbol>();
             CollectParameterNamesFromFunction(_function, parameterNames);
@@ -475,7 +479,6 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(error);
             }
 
-            var description = _function.Name is { } name ? $"function {name.Name}" : "anonymous function";
             var hasParameterExpressions = _hasParameterExpressions;
             var lexicalNames = RentSymbolSet(_lexicalTemplate);
             var catchParameterNames = RentSymbolSet(_catchParameterTemplate);
@@ -496,28 +499,28 @@ public static partial class TypedAstEvaluator
             if (hasParameterExpressions)
             {
                 functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
-                    description);
+                    _functionDescription);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
 
                 parameterEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict, _function.Source,
-                    description, isParameterEnvironment: true);
+                    _functionDescription, isParameterEnvironment: true);
                 parameterEnvironment.SetBodyLexicalNames(bodyLexicalNames);
 
                 varEnvironment = new JsEnvironment(parameterEnvironment, true, _isStrict, _function.Source,
-                    description);
+                    _functionDescription);
                 varEnvironment.SetBodyLexicalNames(bodyLexicalNames);
             }
             else
             {
                 functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
-                    description);
+                    _functionDescription);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
                 parameterEnvironment = functionEnvironment;
                 varEnvironment = functionEnvironment;
             }
 
             var executionEnvironment = new JsEnvironment(varEnvironment, false, _isStrict,
-                _function.Source, description, isBodyEnvironment: true);
+                _function.Source, _functionDescription, isBodyEnvironment: true);
             executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
 
             // Mark environment as default derived constructor for special argument forwarding per ES spec 15.7.14
@@ -1580,10 +1583,9 @@ public static partial class TypedAstEvaluator
             }
 
             // Create environment for function execution - use pooling when safe (no inner closures)
-            var description = _function.Name is { } name ? $"function {name.Name}" : "anonymous function";
             var functionEnvironment = _canPoolInvocationEnvironment
-                ? _realmState.RentEnvironment(_closure, true, _isStrict, _function.Source, description)
-                : new JsEnvironment(_closure, true, _isStrict, _function.Source, description);
+                ? _realmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription)
+                : new JsEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
 
             // Bind this - in strict mode (which fast path requires), this is passed through unchanged.
             // null should remain null, undefined should remain undefined - no coercion.

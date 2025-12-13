@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Globalization;
+using Asynkron.JsEngine.Ast;
 using BenchmarkDotNet.Attributes;
 using Jint;
 
@@ -145,6 +147,7 @@ public class JintComparisonBenchmarks
 
     // Asynkron engine
     private JsEngine _asynkronEngine = null!;
+    private readonly Dictionary<string, ParsedProgram> _parsedPrograms = new();
 
     // Jint engine
     private Engine _jintEngine = null!;
@@ -574,6 +577,32 @@ public class JintComparisonBenchmarks
             }
             sum;
             """;
+
+        CacheParsed("simpleArithmetic", _simpleArithmetic);
+        CacheParsed("fibonacci", _fibonacci);
+        CacheParsed("forLoop", _forLoop);
+        CacheParsed("whileLoop", _whileLoop);
+        CacheParsed("objectCreation", _objectCreation);
+        CacheParsed("arrayOperations", _arrayOperations);
+        CacheParsed("stringOperations", _stringOperations);
+        CacheParsed("functionCalls", _functionCalls);
+        CacheParsed("closures", _closures);
+        CacheParsed("recursion", _recursion);
+        CacheParsed("propertyAccess", _propertyAccess);
+        CacheParsed("classDefinition", _classDefinition);
+        CacheParsed("destructuring", _destructuring);
+        CacheParsed("spreadOperator", _spreadOperator);
+        CacheParsed("mapSet", _mapSet);
+        CacheParsed("jsonOperations", _jsonOperations);
+        CacheParsed("regexOperations", _regexOperations);
+        CacheParsed("promiseBasic", _promiseBasic);
+        CacheParsed("asyncAwait", _asyncAwait);
+        CacheParsed("generatorFunction", _generatorFunction);
+        CacheParsed("asyncGeneratorFunction", _asyncGeneratorFunction);
+        CacheParsed("asyncForOf", _asyncForOf);
+        CacheParsed("asyncAwaitResolved", _asyncAwaitResolved);
+        CacheParsed("asyncAwaitPending", _asyncAwaitPending);
+        CacheParsed("forOfIteration", _forOfIteration);
     }
 
     [GlobalCleanup]
@@ -599,7 +628,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Arithmetic")]
     public async Task<object?> Asynkron_SimpleArithmetic()
     {
-        return await _asynkronEngine.Evaluate(_simpleArithmetic);
+        return await _asynkronEngine.Evaluate(_parsedPrograms["simpleArithmetic"]);
     }
 
     [Benchmark]
@@ -614,7 +643,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Recursion")]
     public async Task<object?> Asynkron_Fibonacci()
     {
-        return await _asynkronEngine.Evaluate(_fibonacci);
+        return await _asynkronEngine.Evaluate(_parsedPrograms["fibonacci"]);
     }
 
     [Benchmark]
@@ -629,7 +658,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Loop")]
     public async Task<object?> Asynkron_ForLoop()
     {
-        return await _asynkronEngine.Evaluate(_forLoop);
+        return await _asynkronEngine.Evaluate(_parsedPrograms["forLoop"]);
     }
 
     [Benchmark]
@@ -644,7 +673,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Loop")]
     public async Task<object?> Asynkron_WhileLoop()
     {
-        return await _asynkronEngine.Evaluate(_whileLoop);
+        return await _asynkronEngine.Evaluate(_parsedPrograms["whileLoop"]);
     }
 
     [Benchmark]
@@ -659,7 +688,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Object")]
     public async Task<object?> Asynkron_ObjectCreation()
     {
-        return await _asynkronEngine.Evaluate(_objectCreation);
+        return await _asynkronEngine.Evaluate(_parsedPrograms["objectCreation"]);
     }
 
     [Benchmark]
@@ -674,7 +703,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Array")]
     public async Task<object?> Asynkron_ArrayOperations()
     {
-        return await _asynkronEngine.Evaluate(_arrayOperations);
+        return await _asynkronEngine.Evaluate(_parsedPrograms["arrayOperations"]);
     }
 
     [Benchmark]
@@ -689,7 +718,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("String")]
     public async Task<object?> Asynkron_StringOperations()
     {
-        return await _asynkronEngine.Evaluate(_stringOperations);
+        return await _asynkronEngine.Evaluate(_parsedPrograms["stringOperations"]);
     }
 
     [Benchmark]
@@ -704,7 +733,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Function")]
     public async Task<object?> Asynkron_FunctionCalls()
     {
-        return await _asynkronEngine.Evaluate(_functionCalls);
+        return await _asynkronEngine.Evaluate(_parsedPrograms["functionCalls"]);
     }
 
     [Benchmark]
@@ -719,7 +748,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Function")]
     public async Task<object?> Asynkron_Closures()
     {
-        return await _asynkronEngine.Evaluate(_closures);
+        return await _asynkronEngine.Evaluate(_parsedPrograms["closures"]);
     }
 
     [Benchmark]
@@ -734,7 +763,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Recursion")]
     public async Task<object?> Asynkron_Recursion()
     {
-        return await _asynkronEngine.Evaluate(_recursion);
+        return await _asynkronEngine.Evaluate(_parsedPrograms["recursion"]);
     }
 
     [Benchmark]
@@ -749,7 +778,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Property")]
     public async Task<object?> Asynkron_PropertyAccess()
     {
-        return await _asynkronEngine.Evaluate(_propertyAccess);
+        return await _asynkronEngine.Evaluate(_parsedPrograms["propertyAccess"]);
     }
 
     [Benchmark]
@@ -764,7 +793,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Class")]
     public async Task<object?> Asynkron_ClassDefinition()
     {
-        return await _asynkronEngine.Evaluate(_classDefinition);
+        return await _asynkronEngine.Evaluate(_parsedPrograms["classDefinition"]);
     }
 
     [Benchmark]
@@ -779,7 +808,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("ES6")]
     public async Task<object?> Asynkron_Destructuring()
     {
-        return await _asynkronEngine.Evaluate(_destructuring);
+        return await _asynkronEngine.Evaluate(_parsedPrograms["destructuring"]);
     }
 
     [Benchmark]
@@ -794,7 +823,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("ES6")]
     public async Task<object?> Asynkron_SpreadOperator()
     {
-        return await _asynkronEngine.Evaluate(_spreadOperator);
+        return await _asynkronEngine.Evaluate(_parsedPrograms["spreadOperator"]);
     }
 
     [Benchmark]
@@ -809,7 +838,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Collections")]
     public async Task<object?> Asynkron_MapSet()
     {
-        return await _asynkronEngine.Evaluate(_mapSet);
+        return await _asynkronEngine.Evaluate(_parsedPrograms["mapSet"]);
     }
 
     [Benchmark]
@@ -824,7 +853,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("JSON")]
     public async Task<object?> Asynkron_JsonOperations()
     {
-        return await _asynkronEngine.Evaluate(_jsonOperations);
+        return await _asynkronEngine.Evaluate(_parsedPrograms["jsonOperations"]);
     }
 
     [Benchmark]
@@ -839,7 +868,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Regex")]
     public async Task<object?> Asynkron_RegexOperations()
     {
-        return await _asynkronEngine.Evaluate(_regexOperations);
+        return await _asynkronEngine.Evaluate(_parsedPrograms["regexOperations"]);
     }
 
     [Benchmark]
@@ -854,7 +883,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Async")]
     public async Task<object?> Asynkron_PromiseBasic()
     {
-        return await _asynkronEngine.Evaluate(_promiseBasic);
+        return await _asynkronEngine.Evaluate(_parsedPrograms["promiseBasic"]);
     }
 
     [Benchmark]
@@ -869,7 +898,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Async")]
     public async Task<object?> Asynkron_AsyncAwait()
     {
-        return await _asynkronEngine.EvaluateAndAwait(_asyncAwait);
+        return await _asynkronEngine.EvaluateAndAwait(_parsedPrograms["asyncAwait"]);
     }
 
     [Benchmark]
@@ -884,7 +913,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Generator")]
     public async Task<object?> Asynkron_GeneratorFunction()
     {
-        return await _asynkronEngine.Evaluate(_generatorFunction);
+        return await _asynkronEngine.Evaluate(_parsedPrograms["generatorFunction"]);
     }
 
     [Benchmark]
@@ -899,7 +928,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("AsyncGenerator")]
     public async Task<object?> Asynkron_AsyncGeneratorFunction()
     {
-        return await _asynkronEngine.EvaluateAndAwait(_asyncGeneratorFunction);
+        return await _asynkronEngine.EvaluateAndAwait(_parsedPrograms["asyncGeneratorFunction"]);
     }
 
     [Benchmark]
@@ -914,7 +943,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("AsyncIteration")]
     public async Task<object?> Asynkron_AsyncForOf()
     {
-        return await _asynkronEngine.EvaluateAndAwait(_asyncForOf);
+        return await _asynkronEngine.EvaluateAndAwait(_parsedPrograms["asyncForOf"]);
     }
 
     [Benchmark]
@@ -929,7 +958,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Async")]
     public async Task<object?> Asynkron_AsyncAwaitResolved()
     {
-        return await _asynkronEngine.EvaluateAndAwait(_asyncAwaitResolved);
+        return await _asynkronEngine.EvaluateAndAwait(_parsedPrograms["asyncAwaitResolved"]);
     }
 
     [Benchmark]
@@ -944,7 +973,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Async")]
     public async Task<object?> Asynkron_AsyncAwaitPending()
     {
-        return await _asynkronEngine.EvaluateAndAwait(_asyncAwaitPending);
+        return await _asynkronEngine.EvaluateAndAwait(_parsedPrograms["asyncAwaitPending"]);
     }
 
     [Benchmark]
@@ -959,7 +988,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Iteration")]
     public async Task<object?> Asynkron_ForOfIteration()
     {
-        return await _asynkronEngine.Evaluate(_forOfIteration);
+        return await _asynkronEngine.Evaluate(_parsedPrograms["forOfIteration"]);
     }
 
     [Benchmark]
@@ -967,5 +996,10 @@ public class JintComparisonBenchmarks
     public object Jint_ForOfIteration()
     {
         return _jintEngine.Evaluate(_forOfIteration).ToObject()!;
+    }
+
+    private void CacheParsed(string key, string source)
+    {
+        _parsedPrograms[key] = _asynkronEngine.ParseProgram(source);
     }
 }

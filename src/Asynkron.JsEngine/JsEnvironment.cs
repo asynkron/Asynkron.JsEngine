@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Collections;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
@@ -18,7 +19,7 @@ public sealed class JsEnvironment
     private string? _description;
     private bool _treatAsGlobalFunctionScope;
 
-    private readonly Dictionary<Symbol, Binding> _values = new();
+    private readonly SymbolHybridDictionary<Binding> _values = new();
     private IJsObjectLike? _withObject;
     private Dictionary<Symbol, ResolvedIdentifierBinding>? _identifierBindingCache;
     private Dictionary<Symbol, List<Action<object?>>>? _bindingObservers;
@@ -157,7 +158,7 @@ public sealed class JsEnvironment
             return;
         }
 
-        ref var binding = ref CollectionsMarshal.GetValueRefOrNullRef(_values, name);
+        ref var binding = ref _values.GetValueRefOrNullRef(name);
         if (!Unsafe.IsNullRef(ref binding))
         {
             if (binding.IsConst || binding.IsGlobalConstant)
@@ -301,7 +302,7 @@ public sealed class JsEnvironment
                 context?.RealmState);
         }
 
-        ref var existing = ref CollectionsMarshal.GetValueRefOrNullRef(scope._values, name);
+        ref var existing = ref scope._values.GetValueRefOrNullRef(name);
         if (!Unsafe.IsNullRef(ref existing))
         {
             // Also check existing lexical bindings in the local scope
@@ -601,7 +602,7 @@ public sealed class JsEnvironment
                 passedFunctionBoundary = true;
             }
 
-            ref var binding = ref CollectionsMarshal.GetValueRefOrNullRef(current._values, name);
+            ref var binding = ref current._values.GetValueRefOrNullRef(name);
             if (!Unsafe.IsNullRef(ref binding) && binding.BlocksFunctionScopeOverride)
             {
                 binding.Value = value;
@@ -762,7 +763,7 @@ public sealed class JsEnvironment
 
         internal object? Read(Symbol name, EvaluationContext context)
         {
-            ref var binding = ref CollectionsMarshal.GetValueRefOrNullRef(_environment._values, _name);
+            ref var binding = ref _environment._values.GetValueRefOrNullRef(_name);
             if (Unsafe.IsNullRef(ref binding))
             {
                 throw new InvalidOperationException($"Binding for {_name.Name} not found");
@@ -782,7 +783,7 @@ public sealed class JsEnvironment
         /// </summary>
         internal void Write(Symbol name, object? value, bool isStrictContext)
         {
-            ref var binding = ref CollectionsMarshal.GetValueRefOrNullRef(_environment._values, _name);
+            ref var binding = ref _environment._values.GetValueRefOrNullRef(_name);
             if (Unsafe.IsNullRef(ref binding))
             {
                 throw new InvalidOperationException($"Binding for {_name.Name} not found");
@@ -1303,7 +1304,7 @@ public sealed class JsEnvironment
             }
             var realm = current.RealmState ?? current.Enclosing?.RealmState;
 
-            ref var binding = ref CollectionsMarshal.GetValueRefOrNullRef(current._values, name);
+            ref var binding = ref current._values.GetValueRefOrNullRef(name);
             if (!Unsafe.IsNullRef(ref binding))
             {
                 if (ReferenceEquals(binding.Value, Uninitialized) &&

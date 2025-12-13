@@ -380,11 +380,13 @@ public class JsEvaluatorTests
     public async Task PrototypeAssignmentLinksObjectsAfterCreation()
     {
         await using var engine = new JsEngine();
+        // Use Object.setPrototypeOf() - the standard way to set prototype after creation
+        // (obj.__proto__ = value is Annex B and not supported)
         var source = """
 
                      let base = { greet: function() { return "hi " + this.name; } };
                      let user = { name: "Alice" };
-                     user.__proto__ = base;
+                     Object.setPrototypeOf(user, base);
                      user.greet();
 
                      """;

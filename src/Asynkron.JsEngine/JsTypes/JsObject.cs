@@ -163,12 +163,6 @@ namespace Asynkron.JsEngine.JsTypes;
 
     public void SetProperty(string name, object? value, object? receiver)
     {
-        if (string.Equals(name, PrototypeKey, StringComparison.Ordinal))
-        {
-            SetPrototype(value);
-            return;
-        }
-
         if (name.IsPrivateSlotName())
         {
             if (_privateFields.TryGetValue(name, out var existing) && existing is PropertyDescriptor

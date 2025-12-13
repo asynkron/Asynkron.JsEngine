@@ -19,16 +19,11 @@
     "annexB-octal-escape",
     "annexB-block-function",
     "annexB-function-declarations-in-if-statement-clauses",
-    "__proto__",
-    "__getter__",
-    "__setter__",
     "legacy-regexp"
   ],
   "ExcludedFlags": [
 
   ],
   "ExcludedDirectories": [],
-  "ExcludedFiles": [
-
-  ]
+  "ExcludedFiles": []
 }

@@ -640,7 +640,7 @@ try {
             fnAccessor.TryGetProperty("prototype", out var fnProto) &&
             fnProto is JsObject fnProtoObj)
         {
-            constructor.SetProperty("__proto__", fnProtoObj);
+            constructor.SetPrototype(fnProtoObj);
         }
 
         return constructor;

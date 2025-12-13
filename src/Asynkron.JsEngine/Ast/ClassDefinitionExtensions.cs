@@ -95,7 +95,8 @@ public static partial class TypedAstEvaluator
                 }
                 else
                 {
-                    constructorAccessor.SetProperty("__proto__", superConstructor);
+                    throw new InvalidOperationException(
+                        "Class constructor must implement IJsObjectLike to set prototype chain.");
                 }
             }
             else if (constructorAccessor is IJsObjectLike { Prototype: null } baseCtor &&

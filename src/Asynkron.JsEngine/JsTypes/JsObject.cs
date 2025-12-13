@@ -21,8 +21,8 @@ namespace Asynkron.JsEngine.JsTypes;
     private readonly Dictionary<string, PropertyDescriptor> _descriptors = new(StringComparer.Ordinal);
     private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
     private readonly Dictionary<string, object?> _privateFields = new(StringComparer.Ordinal);
-    private readonly List<string> _propertyInsertionOrder = [];
-    private readonly HashSet<string> _propertyInsertionSet = new(StringComparer.Ordinal);
+    private readonly LinkedList<string> _propertyInsertionOrder = new();
+    private readonly Dictionary<string, LinkedListNode<string>> _propertyInsertionNodes = new(StringComparer.Ordinal);
     private bool _trackArrayLength;
     private double _trackedArrayLength;
 
@@ -391,7 +391,7 @@ namespace Asynkron.JsEngine.JsTypes;
     internal void SeedIntrinsicConstructorKeys()
     {
         _propertyInsertionOrder.Clear();
-        _propertyInsertionSet.Clear();
+        _propertyInsertionNodes.Clear();
         SeedOwnPropertyInsertion("length");
         SeedOwnPropertyInsertion("name");
         SeedOwnPropertyInsertion("prototype");
@@ -1455,23 +1455,19 @@ namespace Asynkron.JsEngine.JsTypes;
             return;
         }
 
-        if (_propertyInsertionSet.Add(name))
+        if (!_propertyInsertionNodes.ContainsKey(name))
         {
-            _propertyInsertionOrder.Add(name);
+            var node = _propertyInsertionOrder.AddLast(name);
+            _propertyInsertionNodes[name] = node;
         }
     }
 
     private void RemoveFromInsertionOrder(string name)
     {
-        if (!_propertyInsertionSet.Remove(name))
+        if (_propertyInsertionNodes.TryGetValue(name, out var node))
         {
-            return;
-        }
-
-        var index = _propertyInsertionOrder.IndexOf(name);
-        if (index >= 0)
-        {
-            _propertyInsertionOrder.RemoveAt(index);
+            _propertyInsertionOrder.Remove(node);
+            _propertyInsertionNodes.Remove(name);
         }
     }
 

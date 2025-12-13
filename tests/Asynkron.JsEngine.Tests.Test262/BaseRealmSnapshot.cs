@@ -84,8 +84,8 @@ internal sealed class BaseRealmSnapshot
         private static readonly FieldInfo JsObjectInsertionOrderField =
             typeof(JsObject).GetField("_propertyInsertionOrder", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
-        private static readonly FieldInfo JsObjectInsertionSetField =
-            typeof(JsObject).GetField("_propertyInsertionSet", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        private static readonly FieldInfo JsObjectInsertionNodesField =
+            typeof(JsObject).GetField("_propertyInsertionNodes", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
         private static readonly FieldInfo JsObjectTrackArrayLengthField =
             typeof(JsObject).GetField("_trackArrayLength", BindingFlags.Instance | BindingFlags.NonPublic)!;
@@ -420,18 +420,16 @@ internal sealed class BaseRealmSnapshot
                 }
             }
 
-            // Copy insertion order.
-            var baseOrder = (List<string>)JsObjectInsertionOrderField.GetValue(original)!;
-            var cloneOrder = (List<string>)JsObjectInsertionOrderField.GetValue(clone)!;
+            // Copy insertion order using LinkedList + Dictionary structure.
+            var baseOrder = (LinkedList<string>)JsObjectInsertionOrderField.GetValue(original)!;
+            var cloneOrder = (LinkedList<string>)JsObjectInsertionOrderField.GetValue(clone)!;
+            var cloneNodes = (Dictionary<string, LinkedListNode<string>>)JsObjectInsertionNodesField.GetValue(clone)!;
             cloneOrder.Clear();
-            cloneOrder.AddRange(baseOrder);
-
-            var baseSet = (HashSet<string>)JsObjectInsertionSetField.GetValue(original)!;
-            var cloneSet = (HashSet<string>)JsObjectInsertionSetField.GetValue(clone)!;
-            cloneSet.Clear();
-            foreach (var key in baseSet)
+            cloneNodes.Clear();
+            foreach (var key in baseOrder)
             {
-                cloneSet.Add(key);
+                var node = cloneOrder.AddLast(key);
+                cloneNodes[key] = node;
             }
 
             JsObjectTrackArrayLengthField.SetValue(clone, JsObjectTrackArrayLengthField.GetValue(original));

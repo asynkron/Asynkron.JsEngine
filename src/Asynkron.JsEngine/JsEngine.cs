@@ -70,8 +70,10 @@ public sealed class JsEngine : IAsyncDisposable
 
     // Synchronous microtask queue for top-level await support.
     // JsEngine is single-threaded by design, so microtask bookkeeping does not use locks.
-    private readonly Queue<Action> _microtaskQueue = new();
+    // Microtasks are tagged with the epoch they were queued in to support proper timing semantics.
+    private readonly Queue<(Action task, int epoch)> _microtaskQueue = new();
     private bool _isDrainingMicrotasks;
+    private int _microtaskEpoch; // Incremented when a new execution phase begins
 
     // Module loader function: allows custom module loading logic
     private Func<string, string?, string>? _moduleLoader;
@@ -1679,18 +1681,24 @@ public sealed class JsEngine : IAsyncDisposable
         return AwaitModuleEvaluationAsync(entry, entry.EvaluationTask);
     }
 
-    private async Task<object?> AwaitModuleEvaluationAsync(ModuleEntry entry, Task<object?> evaluationTask)
+    private async Task<object?> AwaitModuleEvaluationAsync(ModuleEntry entry, Task<object?> evaluationTask, int callerEpoch = -1)
     {
         if (evaluationTask.IsCompleted)
         {
             return await evaluationTask.ConfigureAwait(false);
         }
 
+        // When waiting for an async module dependency, we must not drain microtasks
+        // that were queued by the calling module's synchronous code. Only drain
+        // microtasks from earlier epochs (before the caller started).
+        var maxDrainEpoch = callerEpoch >= 0 ? callerEpoch - 1 : -1;
+
         while (!evaluationTask.IsCompleted)
         {
             if (_eventQueue is null)
             {
-                DrainMicrotasks();
+                // Only drain microtasks from epochs before the caller's epoch
+                DrainMicrotasks(maxDrainEpoch);
                 await Task.Yield();
                 continue;
             }
@@ -1701,7 +1709,8 @@ public sealed class JsEngine : IAsyncDisposable
             await tick.Task.ConfigureAwait(false);
         }
 
-        DrainMicrotasks();
+        // After evaluation completes, still only drain earlier epochs
+        DrainMicrotasks(maxDrainEpoch);
         return await evaluationTask.ConfigureAwait(false);
     }
 
@@ -1885,15 +1894,26 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     ///     Queues a microtask to be executed synchronously.
     ///     This is used for promise reactions during top-level await.
+    ///     Microtasks are tagged with the current epoch for proper timing semantics.
     /// </summary>
     internal void QueueMicrotask(Action task)
     {
-        _microtaskQueue.Enqueue(task);
+        _microtaskQueue.Enqueue((task, _microtaskEpoch));
     }
 
-    internal List<Action> DetachMicrotasks()
+    /// <summary>
+    ///     Advances the microtask epoch, marking a new execution phase.
+    ///     Microtasks queued before this call will not be drained until
+    ///     the epoch advances past them or a full drain is requested.
+    /// </summary>
+    internal void AdvanceMicrotaskEpoch()
     {
-        var preserved = new List<Action>(_microtaskQueue.Count);
+        _microtaskEpoch++;
+    }
+
+    internal List<(Action task, int epoch)> DetachMicrotasks()
+    {
+        var preserved = new List<(Action, int)>(_microtaskQueue.Count);
         while (_microtaskQueue.Count > 0)
         {
             preserved.Add(_microtaskQueue.Dequeue());
@@ -1902,7 +1922,7 @@ public sealed class JsEngine : IAsyncDisposable
         return preserved;
     }
 
-    internal void PrependMicrotasks(List<Action>? tasks)
+    internal void PrependMicrotasks(List<(Action task, int epoch)>? tasks)
     {
         if (tasks is null || tasks.Count == 0)
         {
@@ -1919,7 +1939,7 @@ public sealed class JsEngine : IAsyncDisposable
             return;
         }
 
-        var existing = new Queue<Action>(_microtaskQueue);
+        var existing = new Queue<(Action, int)>(_microtaskQueue);
         _microtaskQueue.Clear();
         foreach (var task in tasks)
         {
@@ -1933,43 +1953,43 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    ///     Drains all pending microtasks synchronously.
-    ///     Returns when no more microtasks are pending.
+    ///     Drains pending microtasks synchronously.
+    ///     If maxEpoch is specified, only microtasks queued in epochs &lt;= maxEpoch are executed.
+    ///     Microtasks from later epochs are preserved for future draining.
     /// </summary>
-    internal void DrainMicrotasks(int skipExisting = 0)
+    /// <param name="maxEpoch">Maximum epoch to drain. Use -1 to drain all epochs (default).</param>
+    internal void DrainMicrotasks(int maxEpoch = -1, [System.Runtime.CompilerServices.CallerMemberName] string? caller = null)
     {
-        if (skipExisting < 0)
-        {
-            skipExisting = 0;
-        }
-
         if (_isDrainingMicrotasks)
         {
             return;
         }
 
         _isDrainingMicrotasks = true;
+        var drainedCount = 0;
 
         try
         {
-            List<Action>? deferred = null;
+            List<(Action task, int epoch)>? deferred = null;
             while (true)
             {
-                Action? task;
-                if (skipExisting > 0 && _microtaskQueue.Count > 0)
-                {
-                    deferred ??= new List<Action>();
-                    deferred.Add(_microtaskQueue.Dequeue());
-                    skipExisting--;
-                    continue;
-                }
-
                 if (_microtaskQueue.Count == 0)
                 {
                     break;
                 }
 
-                task = _microtaskQueue.Dequeue();
+                var (task, taskEpoch) = _microtaskQueue.Dequeue();
+
+                // If maxEpoch is set and this task is from a later epoch, defer it
+                if (maxEpoch >= 0 && taskEpoch > maxEpoch)
+                {
+                    deferred ??= new List<(Action, int)>();
+                    deferred.Add((task, taskEpoch));
+                    continue;
+                }
+
+                drainedCount++;
+                Console.WriteLine($"[DrainMicrotasks] Executing microtask from epoch {taskEpoch} (maxEpoch={maxEpoch}, caller={caller})");
 
                 try
                 {
@@ -1987,6 +2007,9 @@ public sealed class JsEngine : IAsyncDisposable
 
             if (deferred is { Count: > 0 })
             {
+                RealmState.Logger?.LogInformation(
+                    "[DrainMicrotasks] Deferred {Count} microtasks to later epochs (maxEpoch={MaxEpoch})",
+                    deferred.Count, maxEpoch);
                 foreach (var deferredTask in deferred)
                 {
                     _microtaskQueue.Enqueue(deferredTask);
@@ -1996,6 +2019,12 @@ public sealed class JsEngine : IAsyncDisposable
         finally
         {
             _isDrainingMicrotasks = false;
+            if (drainedCount > 0)
+            {
+                RealmState.Logger?.LogInformation(
+                    "[DrainMicrotasks] Drained {Count} microtasks (caller={Caller})",
+                    drainedCount, caller);
+            }
         }
     }
 
@@ -4794,7 +4823,7 @@ public sealed class JsEngine : IAsyncDisposable
             !importStatement.NamedImports.IsEmpty ||
             importStatement.NamespaceBinding is not null;
 
-        List<Action>? preservedMicrotasks = null;
+        List<(Action task, int epoch)>? preservedMicrotasks = null;
 
         try
         {

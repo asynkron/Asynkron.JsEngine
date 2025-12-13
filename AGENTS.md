@@ -66,6 +66,18 @@ When you encounter an unsupported language/runtime feature or AST shape, fail fa
 
 You have access powerful visualizations and debug outputs, check the ActivityTracingTests.EvaluatorActivitiesAttachToTestRoot test to see how you can leverage System.Diagnostics.Activity for tracing code execution paths.
 
+When reasoning about code and execution paths, consider adding custom Activity sources to trace specific operations, and use the built-in tracing capabilities to analyze performance and behavior.
+This is a good way to present execution flows to the user (example):
+```
+await EnsureModuleEvaluatedAsync(mainEntry)
+└── EvaluateModuleBodyWithAsyncDependencies(mainEntry) (returns Task)
+    └── await evaluation (for fixture.js)
+    └── await DrainAsyncDependencies(...)  <-- This drains microtasks!
+    └── ExecuteModuleBody(mainEntry)  <-- main.js body runs here
+        └── Promise.resolve().then() queues microtask
+```
+
+
 ## Logging
 
 - When adding evaluator logging, use the realm logger directly with null-propagation, e.g. `realm.Logger?.LogInformation(...)`. Do not wrap this in helper methods.

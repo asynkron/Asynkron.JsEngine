@@ -36,7 +36,9 @@ internal static class AwaitScheduler
         var engine = context.RealmState?.Engine;
         if (drainMicrotasks)
         {
-            engine?.DrainMicrotasks();
+            // Force drain microtasks at explicit await points, even during module body execution.
+            // This is correct because await is a synchronization point where microtasks should run.
+            engine?.DrainMicrotasks(force: true);
         }
 
         if (drainMicrotasks &&

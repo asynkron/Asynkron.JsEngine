@@ -25,7 +25,7 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
 
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
-            if (newTarget is not null)
+            if (!newTarget.IsUndefined)
             {
                 throw ThrowTypeError("Symbol is not a constructor", realm: Realm);
             }
@@ -41,7 +41,7 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
         var description = args.Count > 0 && !args[0].IsUndefined
             ? args[0].ToString()
             : null;
-        return new JsValue(TypedAstSymbol.Create(description));
+        return new JsValue(JsValueKind.Symbol, 0.0, TypedAstSymbol.Create(description));
     }
 
     private void AttachStatics(HostFunction constructor)
@@ -73,12 +73,12 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
         }
 
         var key = args[0].ToString() ?? "";
-        return new JsValue(TypedAstSymbol.For(key));
+        return new JsValue(JsValueKind.Symbol, 0.0, TypedAstSymbol.For(key));
     }
 
     private JsValue SymbolKeyFor(IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || !(args[0].IsObject && args[0].AsObject() is TypedAstSymbol sym))
+        if (args.Count == 0 || !(args[0].IsSymbol && args[0].ObjectValue is TypedAstSymbol sym))
         {
             return JsValue.Undefined;
         }

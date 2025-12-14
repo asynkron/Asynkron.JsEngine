@@ -598,7 +598,7 @@ internal static class AssignmentReferenceResolver
                     return;
                 }
 
-                TypedAstEvaluator.InvokeCallable(ownDescriptor.Set, [value], receiver, context);
+                TypedAstEvaluator.InvokeCallable(ownDescriptor.Set, [JsValue.FromObject(value)], JsValue.FromObject(receiver), context);
                 return;
             }
 
@@ -620,7 +620,7 @@ internal static class AssignmentReferenceResolver
         var inheritedSetter = target.GetSetter(propertyName);
         if (inheritedSetter is not null)
         {
-            TypedAstEvaluator.InvokeCallable(inheritedSetter, [value], receiver, context);
+            TypedAstEvaluator.InvokeCallable(inheritedSetter, [JsValue.FromObject(value)], JsValue.FromObject(receiver), context);
             return;
         }
 
@@ -647,7 +647,7 @@ internal static class AssignmentReferenceResolver
                             return;
                         }
 
-                        TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [value], receiver, context);
+                        TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [JsValue.FromObject(value)], JsValue.FromObject(receiver), context);
                         return;
                     }
 
@@ -702,7 +702,7 @@ internal static class AssignmentReferenceResolver
                             return;
                         }
 
-                        TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [value], receiver, context);
+                        TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [JsValue.FromObject(value)], JsValue.FromObject(receiver), context);
                         return;
                     }
 

@@ -17,10 +17,10 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
         {
             ApplyPrototype(constructing, _constructor ?? ConstructFallback);
             InitializeWrapper(constructing, args);
-            return constructing;
+            return new JsValue(constructing);
         }
 
-        return ResolveString(args);
+        return new JsValue(ResolveString(args));
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -30,13 +30,13 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
 
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
-            if (newTarget is null)
+            if (newTarget.IsUndefined)
             {
-                return ResolveString(args);
+                return new JsValue(ResolveString(args));
             }
 
             var target = _constructor ?? constructor;
-            var newTargetCallable = newTarget as IJsCallable ?? target;
+            var newTargetCallable = newTarget.IsObject && newTarget.AsObject() is IJsCallable callable ? callable : target;
             return ConstructWithNewTarget(args, newTargetCallable, target);
         });
 

@@ -193,11 +193,11 @@ public sealed partial class WeakMapConstructor(IJsObjectLike prototype, RealmSta
 {
     private HostFunction? _constructor;
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue is JsObject { IsConstructing: true })
+        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true })
         {
-            return ConstructWeakMap(args, _constructor ?? ConstructFallback);
+            return new JsValue(ConstructWeakMap(args, _constructor ?? ConstructFallback));
         }
 
         throw ThrowTypeError("Constructor WeakMap requires 'new'", realm: Realm);
@@ -221,7 +221,7 @@ public sealed partial class WeakMapConstructor(IJsObjectLike prototype, RealmSta
         });
     }
 
-    private object ConstructWeakMap(IReadOnlyList<object?> args, IJsCallable newTarget, IJsCallable? targetCtor = null)
+    private object ConstructWeakMap(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable? targetCtor = null)
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor ?? newTarget, Realm) ?? Prototype;
         var instance = new JsWeakMap();
@@ -230,14 +230,14 @@ public sealed partial class WeakMapConstructor(IJsObjectLike prototype, RealmSta
         return instance;
     }
 
-    private void PopulateWeakMap(JsWeakMap map, IReadOnlyList<object?> args)
+    private void PopulateWeakMap(JsWeakMap map, IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
+        if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
         {
             return;
         }
 
-        if (args[0] is not JsArray entries)
+        if (!args[0].IsObject || args[0].AsObject() is not JsArray entries)
         {
             return;
         }
@@ -269,11 +269,11 @@ public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmSta
 {
     private HostFunction? _constructor;
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue is JsObject { IsConstructing: true })
+        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true })
         {
-            return ConstructWeakSet(args, _constructor ?? ConstructFallback);
+            return new JsValue(ConstructWeakSet(args, _constructor ?? ConstructFallback));
         }
 
         throw ThrowTypeError("Constructor WeakSet requires 'new'", realm: Realm);
@@ -297,7 +297,7 @@ public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmSta
         });
     }
 
-    private object ConstructWeakSet(IReadOnlyList<object?> args, IJsCallable newTarget, IJsCallable? targetCtor = null)
+    private object ConstructWeakSet(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable? targetCtor = null)
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor ?? newTarget, Realm) ?? Prototype;
         var instance = new JsWeakSet();
@@ -306,14 +306,14 @@ public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmSta
         return instance;
     }
 
-    private void PopulateWeakSet(JsWeakSet set, IReadOnlyList<object?> args)
+    private void PopulateWeakSet(JsWeakSet set, IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
+        if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
         {
             return;
         }
 
-        if (args[0] is not JsArray values)
+        if (!args[0].IsObject || args[0].AsObject() is not JsArray values)
         {
             return;
         }

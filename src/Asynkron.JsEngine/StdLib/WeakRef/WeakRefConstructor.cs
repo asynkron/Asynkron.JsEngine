@@ -18,7 +18,7 @@ public sealed partial class WeakRefConstructor(IJsObjectLike prototype, RealmSta
             var target = RequireTargetObject(args);
             ApplyPrototype(constructing, targetCtor);
             InitializeWeakRef(constructing, target);
-            return constructing;
+            return new JsValue(constructing);
         }
 
         throw ThrowTypeError("Constructor WeakRef requires 'new'", realm: Realm);
@@ -29,7 +29,13 @@ public sealed partial class WeakRefConstructor(IJsObjectLike prototype, RealmSta
         _constructor = constructor;
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
-            if (newTarget is not IJsCallable callableNewTarget)
+            if (!newTarget.IsObject)
+            {
+                throw ThrowTypeError("Constructor WeakRef requires 'new'", realm: Realm);
+            }
+
+            var obj = newTarget.AsObject();
+            if (obj is not IJsCallable callableNewTarget)
             {
                 throw ThrowTypeError("Constructor WeakRef requires 'new'", realm: Realm);
             }
@@ -50,7 +56,7 @@ public sealed partial class WeakRefConstructor(IJsObjectLike prototype, RealmSta
         }
 
         InitializeWeakRef(instance, target);
-        return instance;
+        return new JsValue(instance);
     }
 
     private JsValue RequireTargetObject(IReadOnlyList<JsValue> args)

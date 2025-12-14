@@ -290,7 +290,7 @@ public static partial class TypedAstEvaluator
                 // The trap receives (target, propertyName, value, receiver)
                 try
                 {
-                    proxy.SetProperty(propertyName, value, receiver);
+                    proxy.SetProperty(propertyName, JsValue.FromObject(value), JsValue.FromObject(receiver));
                     return true;
                 }
                 catch (ThrowSignal)

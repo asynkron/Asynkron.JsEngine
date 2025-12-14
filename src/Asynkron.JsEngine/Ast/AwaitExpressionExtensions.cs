@@ -49,7 +49,7 @@ public static partial class TypedAstEvaluator
                     // Fallback: create a resolved promise in the current realm.
                     var engine = context.RealmState.Engine;
                     var promise = engine?.CreateRealmPromise();
-                    promise?.Resolve(awaitedValue.ToObject());
+                    promise?.Resolve(awaitedValue);
                     wrappedPromise = promise?.JsObject;
                 }
 

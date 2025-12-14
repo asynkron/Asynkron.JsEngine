@@ -64,10 +64,12 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
     public JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
     {
-        if (arguments.Count == 0 || arguments[0] is not string code)
+        if (arguments.Count == 0 || !arguments[0].IsString)
         {
             return arguments.Count > 0 ? arguments[0] : JsValue.Undefined;
         }
+
+        var code = arguments[0].AsString();
 
         var isDirectEval = IsDirectCall;
         IsDirectCall = false;
@@ -434,7 +436,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             var result = program.Typed.EvaluateProgram(evalEnvironment, _engine.RealmState, CancellationToken.None,
                 ExecutionKind.Eval, createStrictEnvironment: false, inheritedPrivateNameScopes: evalPrivateNameScopes);
 
-            return result;
+            return JsValue.FromObject(result);
         }
         catch (ThrowSignal)
         {

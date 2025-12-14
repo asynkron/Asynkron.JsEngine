@@ -12,7 +12,7 @@ public sealed partial class WeakRefPrototype : JsPrototype
     {
         if (thisValue.AsObject() is JsObject obj && obj.TryGetProperty("_target", out var stored))
         {
-            return stored;
+            return JsValue.FromObject(stored);
         }
 
         return JsValue.Undefined;

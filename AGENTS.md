@@ -104,13 +104,28 @@ dotnet-trace convert trace.nettrace --format Speedscope
 | Engine | Time | Allocated | Gen0 Collections |
 |--------|------|-----------|------------------|
 | Jint | 52.58 ms | 50.11 MB | 8,000 |
-| Asynkron | **134.51 ms** | **168.62 MB** | 28,000 |
+| Asynkron | 134.51 ms | 168.62 MB | 28,000 |
+
+*After optimizations (Round 3 - NumericResult struct to avoid boxing):*
+| Engine | Time | Allocated | Gen0 Collections |
+|--------|------|-----------|------------------|
+| Jint | 52.39 ms | 50.11 MB | 8,000 |
+| Asynkron | **123.07 ms** | **113.05 MB** | **18,000** |
 
 **Cumulative Improvement:**
-- Allocations: 322 MB → 168.62 MB = **~48% reduction**
-- Speed: ~172 ms → 134.51 ms = **~22% faster**
+- Allocations: 322 MB → 113.05 MB = **~65% reduction**
+- Speed: ~172 ms → 123.07 ms = **~28% faster**
+- Gap with Jint: 2.3x time, 2.3x allocations (down from 3.1x and 6.4x)
 
 ### Implemented Optimizations
+
+#### Round 3 (Dec 2024)
+
+7. **NumericResult struct to avoid boxing** (`Runtime/JsOps.cs`)
+   - Replaced `(NumericKind, object?)` tuple with `NumericResult` struct
+   - Stores `double` directly in struct field (no boxing)
+   - `ToNumericCore` returns struct with `NumberValue` or `BigIntValue` fields
+   - Massive allocation reduction - boxing was the #1 memory offender
 
 #### Round 2 (Dec 2024)
 
@@ -157,7 +172,7 @@ dotnet-trace convert trace.nettrace --format Speedscope
 
 ### Remaining Gap Analysis
 
-The remaining gap (168.62 MB vs Jint's 50.11 MB ≈ 3.4x allocations, 134 ms vs 52 ms ≈ 2.6x time) likely comes from:
+The remaining gap (113 MB vs Jint's 50 MB ≈ 2.3x allocations, 123 ms vs 52 ms ≈ 2.4x time) likely comes from:
 - Architectural differences in environment/scope management
 - `EvaluationContext` as class (required for async/await) vs Jint's `readonly struct ExecutionContext`
 - AST node caching strategies

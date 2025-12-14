@@ -130,9 +130,9 @@ internal static class JsOps
         var result = ToNumericCore(value, context);
         return result.Kind switch
         {
-            NumericKind.BigInt => result.Value!,
-            NumericKind.Number => result.Value!,
-            _ => double.NaN
+            NumericKind.BigInt => result.BigIntValue!,
+            NumericKind.Number => JsValueCache.GetNumber(result.NumberValue),
+            _ => JsValueCache.BoxedNaN
         };
     }
 
@@ -141,13 +141,13 @@ internal static class JsOps
         var result = ToNumericCore(value, context);
         return result.Kind switch
         {
-            NumericKind.Number => (double)result.Value!,
-            NumericKind.BigInt => (double)((JsBigInt)result.Value!).Value,
+            NumericKind.Number => result.NumberValue,
+            NumericKind.BigInt => (double)result.BigIntValue!.Value,
             _ => double.NaN
         };
     }
 
-    private static (NumericKind Kind, object? Value) ToNumericCore(
+    private static NumericResult ToNumericCore(
         object? value,
         EvaluationContext? context)
     {
@@ -156,16 +156,16 @@ internal static class JsOps
         {
             if (++iterations > 20)
             {
-                return (NumericKind.Number, double.NaN);
+                return new NumericResult(double.NaN);
             }
 
             switch (value)
             {
                 case null:
-                    return (NumericKind.Number, 0d);
+                    return new NumericResult(0d);
                 case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
                 case IIsHtmlDda:
-                    return (NumericKind.Number, double.NaN);
+                    return new NumericResult(double.NaN);
                 case Symbol:
                 case TypedAstSymbol:
                 {
@@ -176,36 +176,36 @@ internal static class JsOps
                     }
 
                     context.SetThrow(error);
-                    return (NumericKind.Error, null);
+                    return NumericResult.Error;
                 }
                 case JsBigInt bigInt:
-                    return (NumericKind.BigInt, bigInt);
+                    return new NumericResult(bigInt);
                 case double d:
-                    return (NumericKind.Number, d);
+                    return new NumericResult(d);
                 case float f:
-                    return (NumericKind.Number, (double)f);
+                    return new NumericResult((double)f);
                 case decimal m:
-                    return (NumericKind.Number, (double)m);
+                    return new NumericResult((double)m);
                 case int i:
-                    return (NumericKind.Number, (double)i);
+                    return new NumericResult((double)i);
                 case uint ui:
-                    return (NumericKind.Number, (double)ui);
+                    return new NumericResult((double)ui);
                 case long l:
-                    return (NumericKind.Number, (double)l);
+                    return new NumericResult((double)l);
                 case ulong ul:
-                    return (NumericKind.Number, (double)ul);
+                    return new NumericResult((double)ul);
                 case short s:
-                    return (NumericKind.Number, (double)s);
+                    return new NumericResult((double)s);
                 case ushort us:
-                    return (NumericKind.Number, (double)us);
+                    return new NumericResult((double)us);
                 case byte b:
-                    return (NumericKind.Number, (double)b);
+                    return new NumericResult((double)b);
                 case sbyte sb:
-                    return (NumericKind.Number, (double)sb);
+                    return new NumericResult((double)sb);
                 case bool flag:
-                    return (NumericKind.Number, flag ? 1d : 0d);
+                    return new NumericResult(flag ? 1d : 0d);
                 case string str:
-                    return (NumericKind.Number, NumericStringParser.ParseJsNumber(str));
+                    return new NumericResult(NumericStringParser.ParseJsNumber(str));
             }
 
             switch (value)
@@ -238,7 +238,7 @@ internal static class JsOps
 
                     if (context?.IsThrow == true)
                     {
-                        return (NumericKind.Error, null);
+                        return NumericResult.Error;
                     }
 
                     var error = CreateTypeError("Cannot convert object to primitive value", context);
@@ -248,7 +248,7 @@ internal static class JsOps
                     }
 
                     context.SetThrow(error);
-                    return (NumericKind.Error, null);
+                    return NumericResult.Error;
                 }
                 default:
                     throw new InvalidOperationException($"Cannot convert value '{value}' to a number.");
@@ -1992,5 +1992,42 @@ internal static class JsOps
         Number,
         BigInt,
         Error
+    }
+
+    /// <summary>
+    /// Result struct for ToNumericCore that avoids boxing doubles.
+    /// The double value is stored directly in the struct, not as object.
+    /// </summary>
+    private readonly struct NumericResult
+    {
+        public readonly NumericKind Kind;
+        public readonly double NumberValue;
+        public readonly JsBigInt? BigIntValue;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public NumericResult(double value)
+        {
+            Kind = NumericKind.Number;
+            NumberValue = value;
+            BigIntValue = null;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public NumericResult(JsBigInt value)
+        {
+            Kind = NumericKind.BigInt;
+            NumberValue = 0;
+            BigIntValue = value;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private NumericResult(NumericKind kind)
+        {
+            Kind = kind;
+            NumberValue = double.NaN;
+            BigIntValue = null;
+        }
+
+        public static NumericResult Error => new(NumericKind.Error);
     }
 }

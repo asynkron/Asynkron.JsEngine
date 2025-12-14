@@ -330,84 +330,98 @@ internal sealed class HoistPlan
         }
     }
 
-    private static void CollectBindingSymbols(
-        BindingTarget target,
-        HashSet<Symbol> names,
-        Dictionary<Symbol, bool> lexicalKindMap,
-        bool isConst)
+    private static void CollectBindingSymbols(BindingTarget target, HashSet<Symbol> names, Dictionary<Symbol, bool> lexicalKindMap, bool isConst)
     {
-        switch (target)
+        while (true)
         {
-            case IdentifierBinding id:
-                names.Add(id.Name);
-                lexicalKindMap[id.Name] = lexicalKindMap.TryGetValue(id.Name, out var existing)
-                    ? existing || isConst
-                    : isConst;
-                break;
+            switch (target)
+            {
+                case IdentifierBinding id:
+                    names.Add(id.Name);
+                    lexicalKindMap[id.Name] = lexicalKindMap.TryGetValue(id.Name, out var existing)
+                        ? existing || isConst
+                        : isConst;
+                    break;
 
-            case ArrayBinding arrayBinding:
-                foreach (var element in arrayBinding.Elements)
-                {
-                    if (element.Target is { } elementTarget)
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
                     {
-                        CollectBindingSymbols(elementTarget, names, lexicalKindMap, isConst);
+                        if (element.Target is { } elementTarget)
+                        {
+                            CollectBindingSymbols(elementTarget, names, lexicalKindMap, isConst);
+                        }
                     }
-                }
 
-                if (arrayBinding.RestElement is { } restElement)
-                {
-                    CollectBindingSymbols(restElement, names, lexicalKindMap, isConst);
-                }
-                break;
+                    if (arrayBinding.RestElement is { } restElement)
+                    {
+                        target = restElement;
+                        continue;
+                    }
 
-            case ObjectBinding objectBinding:
-                foreach (var property in objectBinding.Properties)
-                {
-                    CollectBindingSymbols(property.Target, names, lexicalKindMap, isConst);
-                }
+                    break;
 
-                if (objectBinding.RestElement is { } restTarget)
-                {
-                    CollectBindingSymbols(restTarget, names, lexicalKindMap, isConst);
-                }
-                break;
+                case ObjectBinding objectBinding:
+                    foreach (var property in objectBinding.Properties)
+                    {
+                        CollectBindingSymbols(property.Target, names, lexicalKindMap, isConst);
+                    }
+
+                    if (objectBinding.RestElement is { } restTarget)
+                    {
+                        target = restTarget;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            break;
         }
     }
 
     private static void CollectBindingNamesOnly(BindingTarget target, HashSet<Symbol> names)
     {
-        switch (target)
+        while (true)
         {
-            case IdentifierBinding id:
-                names.Add(id.Name);
-                break;
+            switch (target)
+            {
+                case IdentifierBinding id:
+                    names.Add(id.Name);
+                    break;
 
-            case ArrayBinding arrayBinding:
-                foreach (var element in arrayBinding.Elements)
-                {
-                    if (element.Target is { } elementTarget)
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
                     {
-                        CollectBindingNamesOnly(elementTarget, names);
+                        if (element.Target is { } elementTarget)
+                        {
+                            CollectBindingNamesOnly(elementTarget, names);
+                        }
                     }
-                }
 
-                if (arrayBinding.RestElement is { } restElement)
-                {
-                    CollectBindingNamesOnly(restElement, names);
-                }
-                break;
+                    if (arrayBinding.RestElement is { } restElement)
+                    {
+                        target = restElement;
+                        continue;
+                    }
 
-            case ObjectBinding objectBinding:
-                foreach (var property in objectBinding.Properties)
-                {
-                    CollectBindingNamesOnly(property.Target, names);
-                }
+                    break;
 
-                if (objectBinding.RestElement is { } restTarget)
-                {
-                    CollectBindingNamesOnly(restTarget, names);
-                }
-                break;
+                case ObjectBinding objectBinding:
+                    foreach (var property in objectBinding.Properties)
+                    {
+                        CollectBindingNamesOnly(property.Target, names);
+                    }
+
+                    if (objectBinding.RestElement is { } restTarget)
+                    {
+                        target = restTarget;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            break;
         }
     }
 }

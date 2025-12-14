@@ -153,12 +153,12 @@ public static partial class TypedAstEvaluator
                     }
 
                     var nextCandidate = candidate ?? throw new InvalidOperationException("Iterator result missing.");
-                    object? awaitedCandidate;
-                    if (nextCandidate is IJsObjectLike promiseCandidate && IsPromiseLike(promiseCandidate))
+                    JsValue awaitedCandidate;
+                    if (nextCandidate is IJsObjectLike promiseCandidate && IsPromiseLike(new JsValue(promiseCandidate)))
                     {
                         awaitedPromise = true;
                         if (!AwaitScheduler.TryAwaitPromiseSync(
-                                promiseCandidate,
+                                new JsValue(promiseCandidate),
                                 context,
                                 out awaitedCandidate,
                                 context.DrainAwaitMicrotasks))
@@ -168,7 +168,7 @@ public static partial class TypedAstEvaluator
                     }
                     else
                     {
-                        awaitedCandidate = nextCandidate;
+                        awaitedCandidate = JsValue.FromObject(nextCandidate);
                     }
 
                     if (awaitedCandidate is not IJsObjectLike resolvedObject)

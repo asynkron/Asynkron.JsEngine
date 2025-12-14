@@ -1840,7 +1840,7 @@ internal static class JsOps
                             return true;
                         }
 
-                        TypedAstEvaluator.InvokeCallable(ownDescriptor.Set, [value], jsArray, context);
+                        TypedAstEvaluator.InvokeCallable(ownDescriptor.Set, new JsValue[] { JsValue.FromObject(value) }, new JsValue(jsArray), context);
                         return true;
                     }
 

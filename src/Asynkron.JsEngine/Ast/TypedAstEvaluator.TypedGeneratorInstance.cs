@@ -522,12 +522,12 @@ public static partial class TypedAstEvaluator
                             continue;
 
                         case YieldInstruction yieldInstruction:
-                            object? yieldedValue = Symbol.Undefined;
+                            JsValue yieldedValue = JsValue.Undefined;
                             var yieldedDuringOperand = false;
                             if (yieldInstruction.YieldExpression is not null)
                             {
                                 yieldedValue = EvaluateExpression(yieldInstruction.YieldExpression, environment,
-                                    context).ToObject();
+                                    context);
                                 if (context.IsThrow)
                                 {
                                     var thrown = context.FlowValue;
@@ -543,7 +543,7 @@ public static partial class TypedAstEvaluator
 
                                 if (context.IsYield)
                                 {
-                                    yieldedValue = context.FlowValue;
+                                    yieldedValue = new JsValue(context.FlowValue);
                                     // Check if the yield signal includes an original iterator result object (from yield* in operand)
                                     var nestedIteratorResult = (context.CurrentSignal as YieldCompletionSignal)?.IteratorResultObject;
                                     context.Clear();
@@ -551,14 +551,14 @@ public static partial class TypedAstEvaluator
                                     _programCounter = _currentInstructionIndex;
                                     RecordYield(context);
                                     _state = GeneratorState.Suspended;
-                                    return nestedIteratorResult ?? CreateIteratorResult(yieldedValue, false);
+                                    return new JsValue(nestedIteratorResult ?? CreateIteratorResult(yieldedValue, false));
                                 }
                             }
 
                             _programCounter = yieldInstruction.Next;
                             RecordYield(context);
                             _state = GeneratorState.Suspended;
-                            return CreateIteratorResult(yieldedValue, false);
+                            return new JsValue(CreateIteratorResult(yieldedValue, false));
 
                         case YieldStarInstruction yieldStarInstruction:
                         {

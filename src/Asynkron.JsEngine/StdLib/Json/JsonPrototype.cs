@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class JsonPrototype : JsPrototype
 {
     [JsHostMethod("parse", Length = 2d)]
-    public object? Parse(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Parse(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -17,9 +17,9 @@ public sealed partial class JsonPrototype : JsPrototype
         }
 
         var context = Realm.CreateContext();
-        var jsonStr = JsOps.ToJsString(args[0], context);
-        var reviver = args.GetArgument(1);
-        return ParseJsonWithReviver(jsonStr, Realm, context, reviver);
+        var jsonStr = JsOps.ToJsString(args[0].ToObject(), context);
+        var reviver = args.GetArgument(1).ToObject();
+        return JsValue.FromObject(ParseJsonWithReviver(jsonStr, Realm, context, reviver));
     }
 
     [JsHostMethod("stringify", Length = 3d)]

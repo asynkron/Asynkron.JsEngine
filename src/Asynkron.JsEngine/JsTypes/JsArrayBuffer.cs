@@ -33,11 +33,11 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvi
 
         _sliceFunction = new HostFunction((thisValue, args) =>
         {
-            var target = thisValue as JsArrayBuffer ?? this;
-            var begin = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
-            var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : target.ByteLength;
+            var target = thisValue.TryGetObject<JsArrayBuffer>(out var buf) ? buf : this;
+            var begin = args.Count > 0 && args[0].TryGetDouble(out var d1) ? (int)d1 : 0;
+            var end = args.Count > 1 && args[1].TryGetDouble(out var d2) ? (int)d2 : target.ByteLength;
 
-            return target.Slice(begin, end);
+            return new JsValue(target.Slice(begin, end));
         });
 
         _resizeFunction = new HostFunction((thisValue, args) =>

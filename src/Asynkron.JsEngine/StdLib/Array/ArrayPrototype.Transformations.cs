@@ -491,10 +491,10 @@ public sealed partial class ArrayPrototype
     }
 
     [JsHostMethod("toReversed", Length = 0d)]
-    public object? ToReversed(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ToReversed(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toReversed", Realm);
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
         var length = (long)ToLengthOrZero(lengthValue);
 
         var result = ArraySpeciesCreate(thisValue, length, Realm);
@@ -505,7 +505,7 @@ public sealed partial class ArrayPrototype
         }
 
         SetArrayLikeLength(result, length);
-        return result;
+        return JsValue.FromObject(result);
     }
 
     [JsHostMethod("toSpliced", Length = 2d)]

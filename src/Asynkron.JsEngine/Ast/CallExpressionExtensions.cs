@@ -63,7 +63,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            IReadOnlyList<object?> frozenArguments;
+            IReadOnlyList<JsValue> frozenArguments;
             object?[]? pooledArgsArray = null; // Track if we used a pooled array
             if (!hasSpread)
             {

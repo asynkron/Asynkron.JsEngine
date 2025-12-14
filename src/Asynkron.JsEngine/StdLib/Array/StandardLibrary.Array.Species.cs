@@ -122,19 +122,19 @@ public static partial class StandardLibrary
         return receiver;
     }
 
-    internal static IJsObjectLike CreateArrayFromResult(object? constructorCandidate, RealmState? realm, long length,
+    internal static IJsObjectLike CreateArrayFromResult(JsValue constructorCandidate, RealmState? realm, long length,
         bool passLengthToConstructor, string methodName)
     {
-        if (constructorCandidate is IJsCallable callable && JsOps.IsConstructor(callable))
+        if (constructorCandidate.TryGetObject<IJsCallable>(out var callable) && JsOps.IsConstructor(callable))
         {
             var constructorRealm = GetConstructorRealm(callable, realm) ?? realm;
             var receiver =
                 CreateArrayLikeReceiverForConstructor(callable, constructorRealm, passLengthToConstructor ? length : 0);
             var args = passLengthToConstructor
-                ? new object?[] { (double)Math.Max(length, 0) }
-                : Array.Empty<object?>();
-            var constructed = callable.Invoke(args, receiver);
-            var result = constructed as IJsObjectLike ?? receiver;
+                ? new JsValue[] { new JsValue((double)Math.Max(length, 0)) }
+                : Array.Empty<JsValue>();
+            var constructed = callable.Invoke(args, new JsValue(receiver));
+            var result = constructed.TryGetObject<IJsObjectLike>(out var constructedObj) ? constructedObj : receiver;
             if (!passLengthToConstructor)
             {
                 SetArrayLikeLength(result, 0);

@@ -16,16 +16,16 @@ public sealed partial class RegExpPrototype : JsPrototype
         var resolved = ResolveRegExpInstance(thisValue);
         if (resolved is null)
         {
-            return false;
+            return new JsValue(false);
         }
 
         if (args.Count == 0)
         {
-            return false;
+            return new JsValue(false);
         }
 
-        var input = args[0]?.ToString() ?? string.Empty;
-        return resolved.Test(input);
+        var input = JsOps.ToJsString(args[0].ToObject()) ?? string.Empty;
+        return new JsValue(resolved.Test(input));
     }
 
     [JsHostMethod("exec", Length = 1d)]
@@ -42,8 +42,9 @@ public sealed partial class RegExpPrototype : JsPrototype
             return JsValue.Null;
         }
 
-        var input = args[0]?.ToString() ?? string.Empty;
-        return resolved.Exec(input);
+        var input = JsOps.ToJsString(args[0].ToObject()) ?? string.Empty;
+        var result = resolved.Exec(input);
+        return result is null ? JsValue.Null : new JsValue(result);
     }
 
     [JsHostMethod("toString", Length = 0d)]

@@ -139,10 +139,8 @@ public sealed partial class ArrayConstructor : JsConstructor
     {
         var isArray = new HostFunction(args =>
         {
-#pragma warning disable CS0618 // ToObject is obsolete but needed here for StandardLibrary method signature
             var result = StandardLibrary.ArrayIsArray(args.GetArgument(0).ToObject(), Realm);
-            return new JsValue(result);
-#pragma warning restore CS0618
+            return JsValue.FromObject(result);
         }, Realm, isConstructor: false);
         StandardLibrary.AttachBuiltinMetadata(isArray, "isArray", 1d);
         isArray.Delete("prototype");

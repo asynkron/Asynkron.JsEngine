@@ -7,10 +7,11 @@ Replace `object?` with `JsValue` throughout the engine to eliminate boxing for p
 
 The migration is **partially complete**:
 - `EvaluateExpression` already returns `JsValue`
-- 4 expression types return native `JsValue`: Literal, Identifier, Binary, Unary
-- ~20 expression types still return `object?` and wrap with `JsValue.FromObject()`
-- `IJsCallable.Invoke` returns `object?`
-- `Binding._value` stores `object?`
+- All expression types now return native `JsValue` (Phase 1 complete)
+- `Binding` struct now stores values in `JsValue _jsValue` field (Phase 2 complete)
+- `IdentifierExpressionExtensions` uses `GetIdentifierJsValue` for unboxed reads
+- `IJsCallable.Invoke` still returns `object?` (Phase 4 pending)
+- Statement evaluation still uses `object?` internally (Phase 3 pending)
 
 ## Migration Strategy
 
@@ -63,18 +64,31 @@ After each file, run tests to ensure nothing breaks.
 
 ---
 
-## Phase 2: Binding/Environment (59 occurrences, 19 files)
+## Phase 2: Binding/Environment (59 occurrences, 19 files) ✅ PARTIAL
 
-**Complexity Note:** `Binding._value` serves dual purpose (regular values AND `ISpecialBinding` for async exports/imports). Options:
-1. Keep `_value` as `object?` internally, convert at property boundary (minimal benefit)
-2. Add separate `JsValue` field (increases struct size from ~16 to ~40 bytes)
-3. Skip to Phase 4 (IJsCallable) - higher impact, cleaner change
+**Implementation:** Chose Option 2 - added separate `JsValue _jsValue` field to Binding struct.
+- Regular values stored in `_jsValue` (avoids boxing for primitives)
+- Special bindings (async exports, imports) stored in `_specialBinding` with `HasSpecialBinding` flag
 
-- [ ] Change `Binding._value` from `object?` to `JsValue`
-- [ ] Update `JsEnvironment.Set()` to take `JsValue`
-- [ ] Update `JsEnvironment.Get()` to return `JsValue`
-- [ ] Update `TryGet()` to return `JsValue`
-- [ ] Update all callers
+### 2.1 Binding Struct ✅ COMPLETE
+- [x] Add `JsValue _jsValue` field for regular values
+- [x] Rename `_value` to `_specialBinding` for special bindings only
+- [x] Add `JsValue` property for direct JsValue access
+- [x] Update `Value` property to use `_jsValue.ToObject()` for non-special bindings
+
+### 2.2 JsEnvironment Methods ✅ COMPLETE
+- [x] Add `GetJsValue(Symbol name)` - returns JsValue directly
+- [x] Add `TryGetJsValue(Symbol name, out JsValue value)` - returns JsValue
+- [x] Add `GetIdentifierJsValue(Symbol name, EvaluationContext context)` - cached lookup
+- [x] Add `ReadJsValue` to `ResolvedIdentifierBinding` struct
+- [x] Add `ReadResolvedBindingJsValue` static method
+
+### 2.3 Expression Extensions ✅ COMPLETE
+- [x] Update `IdentifierExpressionExtensions.cs` to use `GetIdentifierJsValue`
+
+### 2.4 Remaining Callers (Optional - for future optimization)
+- [ ] Update other callers to use JsValue methods where beneficial
+- [ ] Original `Get`/`TryGet`/`GetIdentifierValue` methods kept for backward compatibility
 
 ---
 

@@ -509,6 +509,63 @@ public sealed class JsEnvironment
         throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
     }
 
+    /// <summary>
+    /// Gets a binding value as JsValue, avoiding boxing for primitives.
+    /// </summary>
+    public JsValue GetJsValue(Symbol name)
+    {
+        var current = this;
+        var hops = 0;
+        const int maxLookupDepth = 10_000;
+        while (current is not null && hops++ < maxLookupDepth)
+        {
+            if (current._values is not null && current._values.TryGetValue(name, out var binding))
+            {
+                if (ReferenceEquals(binding.Value, Uninitialized))
+                {
+                    throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+                }
+
+                if (current.IsGlobalFunctionScope &&
+                    !binding.IsLexical)
+                {
+                    var globalObject = current.GetRootGlobalObject();
+                    if (globalObject is not null &&
+                        globalObject.TryGetProperty(name.Name, out var globalValue))
+                    {
+                        return JsValue.FromObject(globalValue);
+                    }
+                }
+
+                return binding.JsValue;
+            }
+
+            if (current._varEnvironmentOverride is not null &&
+                current._varEnvironmentOverride != current)
+            {
+                return current._varEnvironmentOverride.GetJsValue(name);
+            }
+
+            if (current._withObject is not null && TryGetFromWith(current._withObject, name, out var withValue))
+            {
+                return JsValue.FromObject(withValue);
+            }
+
+            current = current.Enclosing;
+        }
+
+        if (IsGlobalFunctionScope)
+        {
+            var rootGlobal = GetRootGlobalObject();
+            if (rootGlobal is not null && rootGlobal.TryGetProperty(name.Name, out var propertyValue))
+            {
+                return JsValue.FromObject(propertyValue);
+            }
+        }
+
+        throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+    }
+
     internal object? GetDeclarative(Symbol name)
     {
         var current = this;
@@ -750,6 +807,36 @@ public sealed class JsEnvironment
         return ReadUnresolvable(name);
     }
 
+    /// <summary>
+    /// Direct identifier resolution that returns JsValue, avoiding boxing for primitives.
+    /// </summary>
+    internal JsValue GetIdentifierJsValue(Symbol name, EvaluationContext context)
+    {
+        if (TryGetCachedDeclarativeBinding(name, context, out var cached))
+        {
+            return cached.ReadJsValue(name, context);
+        }
+
+        if (TryResolveWithBinding(name, context, out var withBinding))
+        {
+            return JsValue.FromObject(GetWithBindingValue(withBinding));
+        }
+
+        if (TryLocateBinding(name, out var bindingEnvironment, out _))
+        {
+            var cachedBinding = new ResolvedIdentifierBinding(bindingEnvironment, name);
+            CacheDeclarativeBinding(name, cachedBinding, context);
+            return cachedBinding.ReadJsValue(name, context);
+        }
+
+        if (TryResolveGlobalObjectBinding(name, context, out var globalBinding))
+        {
+            return JsValue.FromObject(GetWithBindingValue(globalBinding));
+        }
+
+        return JsValue.FromObject(ReadUnresolvable(name));
+    }
+
     private bool TryGetCachedDeclarativeBinding(
         Symbol name,
         EvaluationContext context,
@@ -804,6 +891,25 @@ public sealed class JsEnvironment
             }
 
             return ReadResolvedBindingValue(_environment, ref binding, _name);
+        }
+
+        /// <summary>
+        /// Reads the binding value as JsValue, avoiding boxing for primitives.
+        /// </summary>
+        internal JsValue ReadJsValue(Symbol name, EvaluationContext context)
+        {
+            if (_environment._values is null)
+            {
+                throw new InvalidOperationException($"Binding for {_name.Name} not found");
+            }
+
+            ref var binding = ref _environment._values.GetValueRefOrNullRef(_name);
+            if (Unsafe.IsNullRef(ref binding))
+            {
+                throw new InvalidOperationException($"Binding for {_name.Name} not found");
+            }
+
+            return ReadResolvedBindingJsValue(_environment, ref binding, _name);
         }
 
         internal void Write(Symbol name, object? value, bool isStrictContext, EvaluationContext context)
@@ -862,6 +968,41 @@ public sealed class JsEnvironment
         }
 
         return binding.Value;
+    }
+
+    /// <summary>
+    /// Reads a resolved binding value as JsValue, avoiding boxing for primitives.
+    /// </summary>
+    private static JsValue ReadResolvedBindingJsValue(JsEnvironment bindingEnvironment, ref Binding binding, Symbol name)
+    {
+        if (ReferenceEquals(binding.Value, Uninitialized))
+        {
+            throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+        }
+
+        if (binding.Value is LiveExportBinding liveBinding)
+        {
+            return JsValue.FromObject(liveBinding.GetValue());
+        }
+
+        bindingEnvironment.RealmState?.Logger?.LogInformation(
+            "Read binding '{Name}' (envDepth={Depth}, lexical={Lexical}, bindingHash={Hash}) -> {Value}",
+            name.Name,
+            bindingEnvironment.Depth,
+            binding.IsLexical,
+            binding.GetHashCode(),
+            binding.Value);
+
+        if (bindingEnvironment.IsGlobalFunctionScope && !binding.IsLexical)
+        {
+            var globalObject = bindingEnvironment.GetRootGlobalObject();
+            if (globalObject is not null && globalObject.TryGetProperty(name.Name, out var globalValue))
+            {
+                return JsValue.FromObject(globalValue);
+            }
+        }
+
+        return binding.JsValue;
     }
 
     private void WriteResolvedBindingValue(
@@ -1277,6 +1418,66 @@ public sealed class JsEnvironment
         }
 
         value = null;
+        return false;
+    }
+
+    /// <summary>
+    /// Tries to get a binding value as JsValue, avoiding boxing for primitives.
+    /// </summary>
+    public bool TryGetJsValue(Symbol name, out JsValue value)
+    {
+        var current = this;
+        var hops = 0;
+        const int maxLookupDepth = 10_000;
+
+        while (current is not null && hops++ < maxLookupDepth)
+        {
+            if (current._values is not null && current._values.TryGetValue(name, out var binding))
+            {
+                if (ReferenceEquals(binding.Value, Uninitialized))
+                {
+                    throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+                }
+
+                if (current.IsGlobalFunctionScope)
+                {
+                    var globalObject = current.GetRootGlobalObject();
+                    if (globalObject is not null &&
+                        globalObject.TryGetProperty(name.Name, out var globalValue))
+                    {
+                        value = JsValue.FromObject(globalValue);
+                        return true;
+                    }
+                }
+
+                value = binding.JsValue;
+                return true;
+            }
+
+            if (current._varEnvironmentOverride is not null &&
+                current._varEnvironmentOverride != current &&
+                current._varEnvironmentOverride.TryGetJsValue(name, out value))
+            {
+                return true;
+            }
+
+            if (current._withObject is not null && TryGetFromWith(current._withObject, name, out var withValue))
+            {
+                value = JsValue.FromObject(withValue);
+                return true;
+            }
+
+            current = current.Enclosing;
+        }
+
+        var rootGlobal = GetRootGlobalObject();
+        if (rootGlobal is not null && rootGlobal.TryGetProperty(name.Name, out var propertyValue))
+        {
+            value = JsValue.FromObject(propertyValue);
+            return true;
+        }
+
+        value = default;
         return false;
     }
 
@@ -1924,12 +2125,14 @@ public sealed class JsEnvironment
 
     /// <summary>
     /// A binding in the environment. This is a struct to avoid per-binding heap allocations.
+    /// Regular values are stored in _jsValue to avoid boxing primitives.
     /// For special bindings (async exports, imports), the HasSpecialBinding flag is set
-    /// and _value holds an ISpecialBinding instance.
+    /// and _specialBinding holds an ISpecialBinding instance.
     /// </summary>
     private struct Binding
     {
-        private object? _value;
+        private JsValue _jsValue;
+        private object? _specialBinding; // Only used when HasSpecialBinding flag is set
         private BindingFlags _flags;
 
         public Binding(
@@ -1941,7 +2144,8 @@ public sealed class JsEnvironment
             bool canDelete,
             bool isImmutableBinding = false)
         {
-            _value = value;
+            _jsValue = JsValue.FromObject(value);
+            _specialBinding = null;
             _flags = BindingFlags.None;
             if (isConst) _flags |= BindingFlags.IsConst;
             if (isGlobalConstant) _flags |= BindingFlags.IsGlobalConstant;
@@ -1953,7 +2157,8 @@ public sealed class JsEnvironment
 
         private Binding(ISpecialBinding special, BindingFlags flags)
         {
-            _value = special;
+            _jsValue = default;
+            _specialBinding = special;
             _flags = flags | BindingFlags.HasSpecialBinding;
         }
 
@@ -1975,23 +2180,45 @@ public sealed class JsEnvironment
         public object? Value
         {
             readonly get => (_flags & BindingFlags.HasSpecialBinding) != 0
-                ? ((ISpecialBinding)_value!).GetValue()
-                : _value;
+                ? ((ISpecialBinding)_specialBinding!).GetValue()
+                : _jsValue.ToObject();
             set
             {
                 if ((_flags & BindingFlags.HasSpecialBinding) != 0)
                 {
-                    ((ISpecialBinding)_value!).SetValue(value);
+                    ((ISpecialBinding)_specialBinding!).SetValue(value);
                 }
                 else
                 {
-                    _value = value;
+                    _jsValue = JsValue.FromObject(value);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the value as JsValue directly, avoiding boxing for primitives.
+        /// For special bindings, this still converts through object?.
+        /// </summary>
+        public JsValue JsValue
+        {
+            readonly get => (_flags & BindingFlags.HasSpecialBinding) != 0
+                ? JsValue.FromObject(((ISpecialBinding)_specialBinding!).GetValue())
+                : _jsValue;
+            set
+            {
+                if ((_flags & BindingFlags.HasSpecialBinding) != 0)
+                {
+                    ((ISpecialBinding)_specialBinding!).SetValue(value.ToObject());
+                }
+                else
+                {
+                    _jsValue = value;
                 }
             }
         }
 
         public readonly bool IsConst => (_flags & BindingFlags.HasSpecialBinding) != 0
-            ? ((ISpecialBinding)_value!).IsConst
+            ? ((ISpecialBinding)_specialBinding!).IsConst
             : (_flags & BindingFlags.IsConst) != 0;
 
         public readonly bool IsGlobalConstant => (_flags & BindingFlags.IsGlobalConstant) != 0;
@@ -2005,7 +2232,7 @@ public sealed class JsEnvironment
         public readonly bool IsImmutableBinding => (_flags & BindingFlags.IsImmutableBinding) != 0;
 
         public readonly bool IsImportBinding => (_flags & BindingFlags.HasSpecialBinding) != 0
-            && _value is ImportBindingWrapper;
+            && _specialBinding is ImportBindingWrapper;
 
         public void UpgradeLexical(bool isLexical, bool blocksFunctionScopeOverride)
         {

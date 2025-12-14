@@ -11,7 +11,7 @@ public static partial class TypedAstEvaluator
         {
             try
             {
-                return JsValue.FromObject(environment.GetIdentifierValue(identifier.Name, context));
+                return environment.GetIdentifierJsValue(identifier.Name, context);
             }
             catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                            StringComparison.Ordinal))

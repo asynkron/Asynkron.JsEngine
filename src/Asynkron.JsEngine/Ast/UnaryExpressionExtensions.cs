@@ -160,13 +160,24 @@ public static partial class TypedAstEvaluator
             JsValueKind.BigInt => "bigint",
             JsValueKind.String => "string",
             JsValueKind.Symbol => "symbol",
-            JsValueKind.Object => value.ObjectValue switch
-            {
-                IJsCallable => "function",
-                _ => "object"
-            },
+            JsValueKind.Object => GetTypeofStringForObject(value.ObjectValue),
             _ => "undefined"
         };
+    }
+
+    /// <summary>
+    /// Gets the typeof string for an object value.
+    /// Per ES spec, Proxy is "function" only if its target implements [[Call]].
+    /// </summary>
+    private static string GetTypeofStringForObject(object? obj)
+    {
+        // For Proxy, check if the target is callable (ES spec: Proxy has [[Call]] only if target does)
+        if (obj is JsProxy proxy)
+        {
+            return proxy.Target is IJsCallable ? "function" : "object";
+        }
+
+        return obj is IJsCallable ? "function" : "object";
     }
 
     /// <summary>

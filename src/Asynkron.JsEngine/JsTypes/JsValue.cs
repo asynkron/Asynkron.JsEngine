@@ -362,6 +362,8 @@ public readonly struct JsValue : IEquatable<JsValue>
         {
             // Handle boxed JsValue - unwrap it instead of wrapping again
             JsValue jsValue => jsValue,
+            // Handle JavaScript Symbol (TypedAstSymbol) - must come before JsObject check
+            TypedAstSymbol sym => new JsValue(JsValueKind.Symbol, 0.0, sym),
             float f => new JsValue((double)f),
             decimal dec => new JsValue((double)dec),
             uint ui => new JsValue((double)ui),

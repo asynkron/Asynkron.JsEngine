@@ -6,7 +6,7 @@ public static partial class TypedAstEvaluator
 {
     extension(ArrayExpression expression)
     {
-        private object? EvaluateArray(JsEnvironment environment,
+        private JsValue EvaluateArray(JsEnvironment environment,
             EvaluationContext context)
         {
             var array = new JsArray(context.RealmState);
@@ -17,7 +17,7 @@ public static partial class TypedAstEvaluator
                     var spreadValueJs = EvaluateExpression(element.Expression!, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
-                        return Symbol.Undefined;
+                        return JsValue.Undefined;
                     }
 
                     foreach (var item in EnumerateSpread(spreadValueJs.ToObject(), context))
@@ -27,7 +27,7 @@ public static partial class TypedAstEvaluator
 
                     if (context.ShouldStopEvaluation)
                     {
-                        return Symbol.Undefined;
+                        return JsValue.Undefined;
                     }
 
                     continue;
@@ -44,11 +44,11 @@ public static partial class TypedAstEvaluator
 
                 if (context.ShouldStopEvaluation)
                 {
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
             }
 
-            return array;
+            return JsValue.FromObject(array);
         }
     }
 }

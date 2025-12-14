@@ -24,16 +24,17 @@ public static partial class TypedAstEvaluator
             return new JsValue(left.NumberValue + right.NumberValue);
         }
 
-        // Fast path: string concatenation
-        if (left.IsString || right.IsString)
-        {
-            return AddStringValue(left, right, context);
-        }
-
-        // Need ToPrimitive for objects
+        // Need ToPrimitive for objects FIRST per ES spec 13.15.3
+        // (ToPrimitive must be called before checking for strings)
         if (left.IsObject || right.IsObject)
         {
             return AddWithToPrimitive(left, right, context);
+        }
+
+        // Fast path: string concatenation (both are primitives here)
+        if (left.IsString || right.IsString)
+        {
+            return AddStringValue(left, right, context);
         }
 
         // Handle BigInt
@@ -273,13 +274,13 @@ public static partial class TypedAstEvaluator
             JsValueKind.Boolean => value.AsBoolean() ? JsValue.One : JsValue.Zero,
             JsValueKind.String => new JsValue(JsOps.ToNumber(value.AsString(), context)),
             JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a number", context),
-            JsValueKind.Object => ToNumericValueFromObject(value.AsObject(), context),
+            JsValueKind.Object => ToNumericValueFromObject(value.ObjectValue, context),
             _ => JsValue.NaN
         };
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static JsValue ToNumericValueFromObject(JsObject obj, EvaluationContext context)
+    private static JsValue ToNumericValueFromObject(object? obj, EvaluationContext context)
     {
         var primitive = JsOps.ToPrimitive(obj, ToPrimitiveHint.Number, context);
         if (context.ShouldStopEvaluation)
@@ -471,8 +472,8 @@ public static partial class TypedAstEvaluator
             return left.NumberValue > right.NumberValue ? JsValue.True : JsValue.False;
         }
 
-        // Greater than is "not less than or equal"
-        return JsOps.LessThanOrEqual(right.ToObject(), left.ToObject(), context) ? JsValue.False : JsValue.True;
+        // Use direct comparison (not inversion) to handle NaN correctly
+        return JsOps.GreaterThan(left.ToObject(), right.ToObject(), context) ? JsValue.True : JsValue.False;
     }
 
     /// <summary>
@@ -487,8 +488,8 @@ public static partial class TypedAstEvaluator
             return left.NumberValue >= right.NumberValue ? JsValue.True : JsValue.False;
         }
 
-        // Greater than or equal is "not less than"
-        return JsOps.LessThan(left.ToObject(), right.ToObject(), context) ? JsValue.False : JsValue.True;
+        // Use direct comparison (not inversion) to handle NaN correctly
+        return JsOps.GreaterThanOrEqual(left.ToObject(), right.ToObject(), context) ? JsValue.True : JsValue.False;
     }
 
     /// <summary>
@@ -497,10 +498,11 @@ public static partial class TypedAstEvaluator
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static JsValue PowerValue(JsValue left, JsValue right, EvaluationContext context)
     {
-        // Fast path: both numbers
+        // Fast path: both numbers - use JsOps.MathPow for ES spec compliance
+        // (handles special cases like abs(base)==1 with ±Infinity exponent)
         if (left.IsNumber && right.IsNumber)
         {
-            return new JsValue(Math.Pow(left.NumberValue, right.NumberValue));
+            return new JsValue(JsOps.MathPow(left.NumberValue, right.NumberValue));
         }
 
         // Fall back to object path

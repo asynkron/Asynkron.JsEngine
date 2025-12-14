@@ -103,8 +103,8 @@ public static partial class TypedAstEvaluator
                 BinaryExpression binary => EvaluateBinary(binary, environment, context),
                 UnaryExpression unary => EvaluateUnary(unary, environment, context),
 
-                // Wrapped - to be converted incrementally
-                ConditionalExpression conditional => JsValue.FromObject(EvaluateConditional(conditional, environment, context)),
+                // Converted to native JsValue (Batch A)
+                ConditionalExpression conditional => EvaluateConditional(conditional, environment, context),
                 CallExpression call => JsValue.FromObject(EvaluateCall(call, environment, context)),
                 FunctionExpression functionExpression => JsValue.FromObject(CreateFunctionValue(functionExpression, environment, context,
                     createFunctionNameEnvironment: true)),
@@ -115,20 +115,19 @@ public static partial class TypedAstEvaluator
                     JsValue.FromObject(EvaluatePropertyAssignment(propertyAssignment, environment, context)),
                 IndexAssignmentExpression indexAssignment =>
                     JsValue.FromObject(EvaluateIndexAssignment(indexAssignment, environment, context)),
-                SequenceExpression sequence => JsValue.FromObject(EvaluateSequence(sequence, environment, context)),
+                SequenceExpression sequence => EvaluateSequence(sequence, environment, context),
                 MemberExpression member => JsValue.FromObject(EvaluateMember(member, environment, context)),
                 NewExpression newExpression => JsValue.FromObject(EvaluateNew(newExpression, environment, context)),
                 NewTargetExpression => environment.TryGet(Symbol.NewTarget, out var newTarget)
                     ? JsValue.FromObject(newTarget)
                     : JsValue.Undefined,
                 ImportMetaExpression => JsValue.FromObject(EvaluateImportMeta(environment, context)),
-                ArrayExpression array => JsValue.FromObject(EvaluateArray(array, environment, context)),
-                ObjectExpression obj => JsValue.FromObject(EvaluateObject(obj, environment, context)),
+                ArrayExpression array => EvaluateArray(array, environment, context),
+                ObjectExpression obj => EvaluateObject(obj, environment, context),
                 ClassExpression classExpression => JsValue.FromObject(EvaluateClassExpression(classExpression, environment, context)),
                 DecoratorExpression => throw new NotSupportedException("Decorators are not supported."),
-                TemplateLiteralExpression template => JsValue.FromObject(EvaluateTemplateLiteral(template, environment, context)),
-                TaggedTemplateExpression taggedTemplate =>
-                    JsValue.FromObject(EvaluateTaggedTemplate(taggedTemplate, environment, context)),
+                TemplateLiteralExpression template => EvaluateTemplateLiteral(template, environment, context),
+                TaggedTemplateExpression taggedTemplate => EvaluateTaggedTemplate(taggedTemplate, environment, context),
                 AwaitExpression awaitExpression => JsValue.FromObject(EvaluateAwait(awaitExpression, environment, context)),
                 YieldExpression yieldExpression => JsValue.FromObject(EvaluateYield(yieldExpression, environment, context)),
                 ThisExpression => JsValue.FromObject(ResolveThisValue(environment, context)),

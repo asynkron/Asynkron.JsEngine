@@ -1,4 +1,5 @@
 using System.Text;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -6,7 +7,7 @@ public static partial class TypedAstEvaluator
 {
     extension(TemplateLiteralExpression expression)
     {
-        private object? EvaluateTemplateLiteral(JsEnvironment environment,
+        private JsValue EvaluateTemplateLiteral(JsEnvironment environment,
             EvaluationContext context)
         {
             var builder = new StringBuilder();
@@ -26,13 +27,13 @@ public static partial class TypedAstEvaluator
                 var valueJs = EvaluateExpression(part.Expression, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
 
                 builder.Append(valueJs.ToObject().ToJsString());
             }
 
-            return builder.ToString();
+            return new JsValue(builder.ToString());
         }
     }
 }

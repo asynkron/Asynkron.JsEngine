@@ -8,13 +8,13 @@ public static partial class TypedAstEvaluator
 {
     extension(TaggedTemplateExpression expression)
     {
-        private object? EvaluateTaggedTemplate(JsEnvironment environment,
+        private JsValue EvaluateTaggedTemplate(JsEnvironment environment,
             EvaluationContext context)
         {
             var (tagValue, thisValue, skippedOptional) = EvaluateCallTarget(expression.Tag, environment, context);
             if (context.ShouldStopEvaluation || skippedOptional)
             {
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             if (tagValue is not IJsCallable callable)
@@ -37,7 +37,7 @@ public static partial class TypedAstEvaluator
                 var stringsArrayValueJs = EvaluateExpression(expression.StringsArray, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
 
                 if (stringsArrayValueJs.ToObject() is not JsArray stringsArray)
@@ -48,7 +48,7 @@ public static partial class TypedAstEvaluator
                 var rawStringsArrayValueJs = EvaluateExpression(expression.RawStringsArray, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
 
                 if (rawStringsArrayValueJs.ToObject() is not JsArray rawStringsArray)
@@ -70,7 +70,7 @@ public static partial class TypedAstEvaluator
                 arguments.Add(EvaluateExpression(expr, environment, context).ToObject());
                 if (context.ShouldStopEvaluation)
                 {
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
             }
 
@@ -91,12 +91,12 @@ public static partial class TypedAstEvaluator
 
             try
             {
-                return callable.Invoke(frozenArguments, thisValue);
+                return JsValue.FromObject(callable.Invoke(frozenArguments, thisValue));
             }
             catch (ThrowSignal signal)
             {
                 context.SetThrow(signal.ThrownValue);
-                return signal.ThrownValue;
+                return JsValue.FromObject(signal.ThrownValue);
             }
             finally
             {

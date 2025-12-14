@@ -6,7 +6,7 @@ public static partial class TypedAstEvaluator
 {
     extension(ObjectExpression expression)
     {
-        private object? EvaluateObject(JsEnvironment environment,
+        private JsValue EvaluateObject(JsEnvironment environment,
             EvaluationContext context)
         {
             var obj = new JsObject();
@@ -24,7 +24,7 @@ public static partial class TypedAstEvaluator
                         var name = ResolveObjectMemberName(member, environment, context);
                         if (context.ShouldStopEvaluation)
                         {
-                            return Symbol.Undefined;
+                            return JsValue.Undefined;
                         }
 
                         var value = member.Value is null
@@ -89,7 +89,7 @@ public static partial class TypedAstEvaluator
                         var name = ResolveObjectMemberName(member, environment, context);
                         if (context.ShouldStopEvaluation)
                         {
-                            return Symbol.Undefined;
+                            return JsValue.Undefined;
                         }
 
                         if (callable is IFunctionNameTarget nameTarget)
@@ -119,7 +119,7 @@ public static partial class TypedAstEvaluator
                         var name = ResolveObjectMemberName(member, environment, context);
                         if (context.ShouldStopEvaluation)
                         {
-                            return Symbol.Undefined;
+                            return JsValue.Undefined;
                         }
 
                         getter.EnsureHasName($"get {BuildFunctionNameDisplay(name)}");
@@ -139,7 +139,7 @@ public static partial class TypedAstEvaluator
                         var name = ResolveObjectMemberName(member, environment, context);
                         if (context.ShouldStopEvaluation)
                         {
-                            return Symbol.Undefined;
+                            return JsValue.Undefined;
                         }
 
                         setter.EnsureHasName($"set {BuildFunctionNameDisplay(name)}");
@@ -152,7 +152,7 @@ public static partial class TypedAstEvaluator
                         var name = ResolveObjectMemberName(member, environment, context);
                         if (context.ShouldStopEvaluation)
                         {
-                            return Symbol.Undefined;
+                            return JsValue.Undefined;
                         }
 
                         var value = member.Value is null
@@ -172,7 +172,7 @@ public static partial class TypedAstEvaluator
                         var spreadValue = EvaluateExpression(member.Value!, environment, context).ToObject();
                         if (context.ShouldStopEvaluation)
                         {
-                            return Symbol.Undefined;
+                            return JsValue.Undefined;
                         }
 
                         if (IsNullish(spreadValue) || spreadValue is IIsHtmlDda)
@@ -221,7 +221,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            return obj;
+            return new JsValue(obj);
         }
 
         private static string BuildFunctionNameDisplay(string propertyName)

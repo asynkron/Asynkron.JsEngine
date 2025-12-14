@@ -251,6 +251,12 @@ public static partial class StandardLibrary
 
     internal static IJsPropertyAccessor EnsureArrayLikeReceiver(object? receiver, string methodName, RealmState? realm)
     {
+        // Unwrap JsValue first
+        if (receiver is JsValue jsValue)
+        {
+            receiver = jsValue.ToObject();
+        }
+
         if (receiver is null || ReferenceEquals(receiver, Symbol.Undefined))
         {
             throw ThrowTypeError($"{methodName} called on null or undefined", realm: realm);

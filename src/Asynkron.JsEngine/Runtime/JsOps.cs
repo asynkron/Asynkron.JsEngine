@@ -89,6 +89,10 @@ internal static class JsOps
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsNullish(this object? value)
     {
+        if (value is JsValue jsValue)
+        {
+            value = jsValue.ToObject();
+        }
         return value is null ||
                (value is Symbol sym && ReferenceEquals(sym, Symbol.Undefined));
     }
@@ -103,6 +107,7 @@ internal static class JsOps
         return value switch
         {
             null => false,
+            JsValue jsValue => ToBoolean(jsValue.ToObject()),
             Symbol sym when ReferenceEquals(sym, Symbol.Undefined) => false,
             IIsHtmlDda => false,
             bool b => b,
@@ -172,6 +177,9 @@ internal static class JsOps
             {
                 case null:
                     return new NumericResult(0d);
+                case JsValue jsValue:
+                    value = jsValue.ToObject();
+                    continue;
                 case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
                 case IIsHtmlDda:
                     return new NumericResult(double.NaN);

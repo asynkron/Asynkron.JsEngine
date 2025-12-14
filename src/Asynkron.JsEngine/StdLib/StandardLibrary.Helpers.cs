@@ -14,6 +14,8 @@ public static partial class StandardLibrary
             case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
                 accessor = null!;
                 return false;
+            case JsValue jsValue:
+                return TryGetObject(jsValue.ToObject(), realm, out accessor);
             case IJsObjectLike objectLike:
                 accessor = objectLike;
                 return true;

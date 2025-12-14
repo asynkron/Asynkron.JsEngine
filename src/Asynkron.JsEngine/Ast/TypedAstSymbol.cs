@@ -17,14 +17,14 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
     private static readonly ConcurrentDictionary<int, string> PropertyKeyCache = new();
     private static int NextId;
 
-    private static readonly HostFunction SymbolToStringFunction = new((thisValue, _) =>
+    private static readonly HostFunction SymbolToStringFunction = new((JsValue thisValue, IReadOnlyList<JsValue> _) =>
     {
-        if (thisValue is TypedAstSymbol typed)
+        if (thisValue.TryGetObject<TypedAstSymbol>(out var typed))
         {
-            return typed.ToString();
+            return new JsValue(typed.ToString());
         }
 
-        return "Symbol()";
+        return new JsValue("Symbol()");
     }, isConstructor: false);
 
     private readonly int _id;
@@ -53,14 +53,14 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
 
         if (string.Equals(name, "valueOf", StringComparison.Ordinal))
         {
-            value = new HostFunction((thisValue, _) => Unbox(thisValue), isConstructor: false);
+            value = new HostFunction((JsValue thisValue, IReadOnlyList<JsValue> _) => JsValue.FromObject(Unbox(thisValue)), isConstructor: false);
             return true;
         }
 
         var toPrimitiveKey = PropertyKey(Symbols.ToPrimitive);
         if (string.Equals(name, toPrimitiveKey, StringComparison.Ordinal))
         {
-            value = new HostFunction((thisValue, _) => Unbox(thisValue), isConstructor: false);
+            value = new HostFunction((JsValue thisValue, IReadOnlyList<JsValue> _) => JsValue.FromObject(Unbox(thisValue)), isConstructor: false);
             return true;
         }
 
@@ -74,17 +74,19 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
         value = null;
         return false;
 
-        TypedAstSymbol Unbox(object? receiver)
+        TypedAstSymbol Unbox(JsValue receiver)
         {
-            switch (receiver)
+            if (receiver.TryGetObject<TypedAstSymbol>(out var sym))
             {
-                case TypedAstSymbol sym:
-                    return sym;
-                case JsObject obj when obj.TryGetProperty("__value__", out var inner) && inner is TypedAstSymbol s:
-                    return s;
-                default:
-                    throw StandardLibrary.ThrowTypeError("Symbol.prototype valueOf called on incompatible receiver");
+                return sym;
             }
+            if (receiver.TryGetObject<JsObject>(out var obj) &&
+                obj.TryGetProperty("__value__", out var inner) &&
+                inner is TypedAstSymbol s)
+            {
+                return s;
+            }
+            throw StandardLibrary.ThrowTypeError("Symbol.prototype valueOf called on incompatible receiver");
         }
     }
 

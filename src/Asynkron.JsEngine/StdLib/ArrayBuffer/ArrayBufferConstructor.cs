@@ -14,7 +14,7 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var target = _constructor ?? ConstructFallback;
-        return new JsValue(ConstructBuffer(args, target));
+        return JsValue.FromObject(ConstructBuffer(args, target));
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -136,7 +136,7 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
             return null;
         }
 
-        return ToIndexAsLong(maxVal, Realm);
+        return ToIndexAsLong(JsValue.FromObject(maxVal), Realm);
     }
 
     private HostFunction ConstructFallback =>

@@ -126,10 +126,10 @@ public static partial class TypedAstEvaluator
 
             if (promiseCtor is HostFunction hostCtor)
             {
-                return hostCtor.InvokeWithContext([JsValue.FromObject(executor)], JsValue.Undefined, null, JsValue.FromObject(hostCtor)).UnwrapObject();
+                return hostCtor.InvokeWithContext([JsValue.FromObject(executor)], JsValue.Undefined, null, JsValue.FromObject(hostCtor)).ObjectValue;
             }
 
-            return promiseCtor.Invoke([JsValue.FromObject(executor)], JsValue.Undefined).UnwrapObject();
+            return promiseCtor.Invoke([JsValue.FromObject(executor)], JsValue.Undefined).ObjectValue;
         }
 
         private static JsObject CreateAsyncIteratorResult(object? value, bool done)

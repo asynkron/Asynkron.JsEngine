@@ -47,7 +47,7 @@ public sealed partial class ArrayPrototype
         var target = ToObjectPropertyAccessor(thisValue, "Array.prototype.toString", Realm);
 
         if (JsOps.TryGetPropertyValue(target, "join", out var joinValue) &&
-            joinValue.TryGetObject<IJsCallable>(out var joinCallable))
+            JsValue.FromObject(joinValue).TryGetObject<IJsCallable>(out var joinCallable))
         {
             return joinCallable.Invoke([], JsValue.FromObject(target));
         }
@@ -240,7 +240,7 @@ public sealed partial class ArrayPrototype
             string part;
             if (element.TryGetObject<IJsPropertyAccessor>(out var elementAccessor) &&
                 elementAccessor.TryGetProperty("toLocaleString", out var method) &&
-                method.TryGetObject<IJsCallable>(out var callable))
+                JsValue.FromObject(method).TryGetObject<IJsCallable>(out var callable))
             {
                 var result = callable.Invoke([locales, options], element);
                 part = JsOps.ToJsString(result);

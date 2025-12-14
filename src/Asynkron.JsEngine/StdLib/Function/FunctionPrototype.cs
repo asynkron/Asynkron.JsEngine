@@ -86,12 +86,12 @@ public sealed partial class FunctionPrototype : JsPrototype
             }
 
             if (!JsOps.TryGetPropertyValue(accessor, "prototype", out var protoVal) ||
-                !protoVal.TryGetObject<IJsPropertyAccessor>(out var prototypeObject))
+                !JsValue.FromObject(protoVal).TryGetObject<IJsPropertyAccessor>(out var prototypeObject))
             {
                 throw ThrowTypeError("Function has non-object prototype in instanceof check", realm: Realm);
             }
 
-            var cursor = JsOps.GetPrototypePointer(candidate);
+            var cursor = JsOps.GetPrototypePointer(candidate.ToObject());
             while (cursor is not null)
             {
                 if (ReferenceEquals(cursor, prototypeObject))

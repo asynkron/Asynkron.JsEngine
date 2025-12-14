@@ -753,7 +753,7 @@ public static partial class TypedAstEvaluator
                         }
                     }
 
-                    var binding = new SuperBinding(runtimeSuperConstructor, prototypeForSuper, boundThis,
+                    var binding = new SuperBinding(runtimeSuperConstructor, prototypeForSuper, JsValue.FromObject(boundThis),
                         initialThisInitialized);
                     functionEnvironment.RealmState?.Logger?.LogInformation(
                         "SuperBinding: define in function env env={Env} isCtor={IsCtor} isDerivedCtor={IsDerivedCtor} protoNull={ProtoNull} thisInit={ThisInit}",
@@ -796,8 +796,14 @@ public static partial class TypedAstEvaluator
                 if (!IsArrowFunction)
                 {
                     // Create the `arguments` binding up front so parameter default expressions can reference it.
+                    // Convert JsValue arguments to object? for the arguments object
+                    var argumentValues = new object?[arguments.Count];
+                    for (var i = 0; i < arguments.Count; i++)
+                    {
+                        argumentValues[i] = arguments[i].ToObject();
+                    }
                     var argumentsObject =
-                        CreateArgumentsObject(_function, arguments, parameterEnvironment, _realmState, this,
+                        CreateArgumentsObject(_function, argumentValues, parameterEnvironment, _realmState, this,
                             _isStrict);
                     parameterEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
                     if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
@@ -812,7 +818,13 @@ public static partial class TypedAstEvaluator
                     parameterEnvironment.Define(functionName, this, isConst: true, isLexical: true, blocksFunctionScopeOverride: true);
                 }
 
-                BindFunctionParameters(_function, arguments, parameterEnvironment, context);
+                // Convert JsValue arguments to object? for parameter binding
+                var argumentValues2 = new object?[arguments.Count];
+                for (var i = 0; i < arguments.Count; i++)
+                {
+                    argumentValues2[i] = arguments[i].ToObject();
+                }
+                BindFunctionParameters(_function, argumentValues2, parameterEnvironment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     if (context.IsThrow)
@@ -1223,7 +1235,7 @@ public static partial class TypedAstEvaluator
                 return null;
             }
 
-            return new SuperBinding(_superConstructor, prototypeForSuper, instance, true);
+            return new SuperBinding(_superConstructor, prototypeForSuper, JsValue.FromObject(instance), true);
         }
 
         public void InitializeInstance(IJsObjectLike instance, JsEnvironment environment, EvaluationContext context)

@@ -168,7 +168,7 @@ public static partial class TypedAstEvaluator
                     {
                         try
                         {
-                            errorObject = callable.Invoke([ex.Message], Symbol.Undefined);
+                            errorObject = callable.Invoke([new JsValue(ex.Message)], JsValue.FromObject(Symbol.Undefined)).ToObject();
                         }
                         catch (ThrowSignal signal)
                         {
@@ -236,7 +236,7 @@ public static partial class TypedAstEvaluator
                         {
                             try
                             {
-                                errorObject = callable.Invoke([ex.Message], Symbol.Undefined);
+                                errorObject = callable.Invoke([new JsValue(ex.Message)], JsValue.FromObject(Symbol.Undefined)).ToObject();
                             }
                             catch (ThrowSignal signal)
                             {

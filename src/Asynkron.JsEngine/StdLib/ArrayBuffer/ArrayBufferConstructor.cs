@@ -80,7 +80,7 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
         if (ReferenceEquals(newTarget, _constructor ?? newTarget))
         {
             var allocLength = RequireAllocatableLength(byteLength);
-            int? allocMax = requestedMax is { } maxIndex ? RequireAllocatableLength(maxIndex) : (int?)null;
+            int? allocMax = requestedMax is { } maxIndex ? RequireAllocatableLength(maxIndex) : null;
             return new JsArrayBuffer(allocLength, allocMax, Realm);
         }
 
@@ -92,7 +92,7 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
         }
 
         var derivedLength = RequireAllocatableLength(byteLength);
-        int? derivedMax = requestedMax is { } maxValue2 ? RequireAllocatableLength(maxValue2) : (int?)null;
+        int? derivedMax = requestedMax is { } maxValue2 ? RequireAllocatableLength(maxValue2) : null;
         var buffer = new JsArrayBuffer(derivedLength, derivedMax, Realm);
         StoreInternalArrayBuffer(instance, buffer);
         return instance;

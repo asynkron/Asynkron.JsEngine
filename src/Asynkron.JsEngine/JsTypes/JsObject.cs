@@ -96,11 +96,11 @@ namespace Asynkron.JsEngine.JsTypes;
     public bool ContainsKey(string key) => _storage.ContainsKey(key);
     public bool Remove(string key) => _storage.Remove(key);
     public bool TryGetValue(string key, out object? value) => _storage.TryGetValue(key, out value);
-    void ICollection<KeyValuePair<string, object?>>.Add(KeyValuePair<string, object?> item) => ((ICollection<KeyValuePair<string, object?>>)_storage).Add(item);
+    void ICollection<KeyValuePair<string, object?>>.Add(KeyValuePair<string, object?> item) => _storage.Add(item);
     public void Clear() => _storage.Clear();
-    bool ICollection<KeyValuePair<string, object?>>.Contains(KeyValuePair<string, object?> item) => ((ICollection<KeyValuePair<string, object?>>)_storage).Contains(item);
-    void ICollection<KeyValuePair<string, object?>>.CopyTo(KeyValuePair<string, object?>[] array, int arrayIndex) => ((ICollection<KeyValuePair<string, object?>>)_storage).CopyTo(array, arrayIndex);
-    bool ICollection<KeyValuePair<string, object?>>.Remove(KeyValuePair<string, object?> item) => ((ICollection<KeyValuePair<string, object?>>)_storage).Remove(item);
+    bool ICollection<KeyValuePair<string, object?>>.Contains(KeyValuePair<string, object?> item) => _storage.Contains(item);
+    void ICollection<KeyValuePair<string, object?>>.CopyTo(KeyValuePair<string, object?>[] array, int arrayIndex) => _storage.CopyTo(array, arrayIndex);
+    bool ICollection<KeyValuePair<string, object?>>.Remove(KeyValuePair<string, object?> item) => _storage.Remove(item);
     public IEnumerator<KeyValuePair<string, object?>> GetEnumerator() => _storage.GetEnumerator();
     System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => _storage.GetEnumerator();
 

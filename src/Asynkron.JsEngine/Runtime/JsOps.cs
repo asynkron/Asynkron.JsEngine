@@ -140,7 +140,7 @@ internal static class JsOps
         // Fast paths for already-numeric types (avoid full conversion)
         if (value is double d) return new NumericResult(d);
         if (value is JsBigInt bi) return new NumericResult(bi);
-        if (value is int i) return new NumericResult((double)i);
+        if (value is int i) return new NumericResult(i);
 
         return ToNumericCore(value, context);
     }
@@ -192,25 +192,25 @@ internal static class JsOps
                 case double d:
                     return new NumericResult(d);
                 case float f:
-                    return new NumericResult((double)f);
+                    return new NumericResult(f);
                 case decimal m:
                     return new NumericResult((double)m);
                 case int i:
-                    return new NumericResult((double)i);
+                    return new NumericResult(i);
                 case uint ui:
-                    return new NumericResult((double)ui);
+                    return new NumericResult(ui);
                 case long l:
-                    return new NumericResult((double)l);
+                    return new NumericResult(l);
                 case ulong ul:
-                    return new NumericResult((double)ul);
+                    return new NumericResult(ul);
                 case short s:
-                    return new NumericResult((double)s);
+                    return new NumericResult(s);
                 case ushort us:
-                    return new NumericResult((double)us);
+                    return new NumericResult(us);
                 case byte b:
-                    return new NumericResult((double)b);
+                    return new NumericResult(b);
                 case sbyte sb:
-                    return new NumericResult((double)sb);
+                    return new NumericResult(sb);
                 case bool flag:
                     return new NumericResult(flag ? 1d : 0d);
                 case string str:

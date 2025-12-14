@@ -154,14 +154,14 @@ public sealed partial class DatePrototype : JsPrototype
     public object? GetUtcMonth(object? thisValue, IReadOnlyList<object?> args)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
-        return double.IsNaN(timeValue) ? double.NaN : (double)MonthFromTime(timeValue);
+        return double.IsNaN(timeValue) ? double.NaN : MonthFromTime(timeValue);
     }
 
     [JsHostMethod("getUTCDate", Length = 0d)]
     public object? GetUtcDate(object? thisValue, IReadOnlyList<object?> args)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
-        return double.IsNaN(timeValue) ? double.NaN : (double)DateFromTime(timeValue);
+        return double.IsNaN(timeValue) ? double.NaN : DateFromTime(timeValue);
     }
 
     [JsHostMethod("getUTCDay", Length = 0d)]

@@ -68,7 +68,7 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
             return Symbol.Undefined;
         }
 
-        buffer.Resize((int)newLength);
+        buffer.Resize(newLength);
         return Symbol.Undefined;
     }
 

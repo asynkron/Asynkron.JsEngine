@@ -230,7 +230,7 @@ public sealed partial class MathPrototype : JsPrototype
     {
         var number = JsOps.ToNumber(args.GetArgument(0));
         var value = JsNumericConversions.ToUInt32(number);
-        return value == 0 ? 32d : (double)BitOperations.LeadingZeroCount(value);
+        return value == 0 ? 32d : BitOperations.LeadingZeroCount(value);
     }
 
     [JsHostMethod("imul", Length = 2d)]

@@ -67,7 +67,7 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
         if (ReferenceEquals(newTarget, _constructor ?? newTarget))
         {
             var allocLength = RequireAllocatableLength(byteLength);
-            int? allocMax = requestedMax is { } maxIndex ? RequireAllocatableLength(maxIndex) : (int?)null;
+            int? allocMax = requestedMax is { } maxIndex ? RequireAllocatableLength(maxIndex) : null;
             var directBuffer = new JsArrayBuffer(allocLength, allocMax, Realm, isShared: true);
             directBuffer.SetPrototype(Prototype);
             return directBuffer;
@@ -81,7 +81,7 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
         }
 
         var derivedLength = RequireAllocatableLength(byteLength);
-        int? derivedMax = requestedMax is { } maxValue2 ? RequireAllocatableLength(maxValue2) : (int?)null;
+        int? derivedMax = requestedMax is { } maxValue2 ? RequireAllocatableLength(maxValue2) : null;
         var buffer = new JsArrayBuffer(derivedLength, derivedMax, Realm, isShared: true);
         StoreInternalArrayBuffer(instance, buffer);
         return instance;

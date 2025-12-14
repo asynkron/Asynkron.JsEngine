@@ -365,10 +365,10 @@ public readonly struct JsValue : IEquatable<JsValue>
             JsValue jsValue => jsValue,
             // Handle JavaScript Symbol (TypedAstSymbol) - must come before JsObject check
             TypedAstSymbol sym => new JsValue(JsValueKind.Symbol, 0.0, sym),
-            float f => new JsValue((double)f),
+            float f => new JsValue(f),
             decimal dec => new JsValue((double)dec),
             uint ui => new JsValue((double)ui),
-            ulong ul => new JsValue((double)ul),
+            ulong ul => new JsValue(ul),
             short s => new JsValue((double)s),
             ushort us => new JsValue((double)us),
             byte b => new JsValue((double)b),

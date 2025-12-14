@@ -660,7 +660,7 @@ public static partial class TypedAstEvaluator
                     {
                         boundThis = _realmState.Engine is { GlobalObject: { } globalObj }
                             ? globalObj
-                            : (object)Symbol.Undefined;
+                            : Symbol.Undefined;
                     }
 
                     if (boundThis is not IJsPropertyAccessor &&

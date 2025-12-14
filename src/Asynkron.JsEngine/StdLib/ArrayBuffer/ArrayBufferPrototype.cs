@@ -107,7 +107,7 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
     {
         var buffer = RequireArrayBuffer(thisValue, Realm);
         EnsureNotShared(buffer);
-        return buffer.IsDetached ? 0d : (double)buffer.ByteLength;
+        return buffer.IsDetached ? 0d : buffer.ByteLength;
     }
 
     [JsHostGetter("maxByteLength")]
@@ -115,7 +115,7 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
     {
         var buffer = RequireArrayBuffer(thisValue, Realm);
         EnsureNotShared(buffer);
-        return buffer.IsDetached ? 0d : (double)buffer.MaxByteLength;
+        return buffer.IsDetached ? 0d : buffer.MaxByteLength;
     }
 
     [JsHostGetter("resizable")]

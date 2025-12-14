@@ -25,7 +25,7 @@ public static partial class StandardLibrary
         }
 
         return DateTimeOffset.TryParse(dateStr, out var parsed)
-            ? (double)parsed.ToUnixTimeMilliseconds()
+            ? parsed.ToUnixTimeMilliseconds()
             : double.NaN;
     }
 

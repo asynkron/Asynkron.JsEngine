@@ -2939,7 +2939,7 @@ public sealed class JsEngine : IAsyncDisposable
                             var symbol = identifier.Name;
                             var isVar = variableDeclaration.Kind == VariableKind.Var;
                             var exportInitValue = isVar ? Symbol.Undefined : UninitializedExportMarker;
-                            var envInitValue = isVar ? (object?)Symbol.Undefined : JsEnvironment.Uninitialized;
+                            var envInitValue = isVar ? Symbol.Undefined : JsEnvironment.Uninitialized;
 
                             if (moduleEnv.IsAsyncModule)
                             {
@@ -4425,7 +4425,7 @@ public sealed class JsEngine : IAsyncDisposable
                     {
                         thisValue = _engine.ExecuteTypedExpression(memberAccess.Target, env, isStrict);
                         var propertyKey = memberAccess.Property is IdentifierExpression id
-                            ? (object)id.Name
+                            ? id.Name
                             : _engine.ExecuteTypedExpression(memberAccess.Property, env, isStrict);
                         calleeValue = JsOps.TryGetPropertyValue(thisValue, propertyKey, out var val, null)
                             ? val

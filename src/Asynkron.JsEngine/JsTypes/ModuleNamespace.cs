@@ -55,11 +55,11 @@ internal sealed class ModuleNamespace : IJsObjectLike
         }
     }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, out JsValue value)
     {
         if (string.Equals(name, _toStringTagKey, StringComparison.Ordinal))
         {
-            value = "Module";
+            value = JsValue.FromObject("Module");
             return true;
         }
 
@@ -67,11 +67,11 @@ internal sealed class ModuleNamespace : IJsObjectLike
         {
             if (_exportNames.Contains(name, StringComparer.Ordinal))
             {
-                value = _bindingLookup(name);
+                value = JsValue.FromObject(_bindingLookup(name));
                 return true;
             }
 
-            value = null;
+            value = JsValue.Undefined;
             return false;
         }
 
@@ -80,24 +80,24 @@ internal sealed class ModuleNamespace : IJsObjectLike
         {
             var lookedUp = _bindingLookup(name);
             EnsureInitialized(name, lookedUp);
-            value = lookedUp;
+            value = JsValue.FromObject(lookedUp);
             return true;
         }
 
-        value = null;
+        value = JsValue.Undefined;
         return false;
     }
 
-    public void SetProperty(string name, object? value, object? receiver)
+    public void SetProperty(string name, JsValue value, JsValue receiver)
     {
         // Per ES spec [[Set]] for module namespace: always return false, never triggers evaluation
         // Even for deferred namespaces, [[Set]] does not trigger evaluation
         throw StandardLibrary.ThrowTypeError("Module namespace objects are immutable", realm: _realmState);
     }
 
-    public void SetProperty(string name, object? value)
+    public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, this);
+        SetProperty(name, value, JsValue.FromObject(this));
     }
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)

@@ -252,34 +252,12 @@ public static partial class TypedAstEvaluator
             return TryGetProperty(name, JsValue.FromObject(this), out value);
         }
 
-        bool IJsPropertyAccessor.TryGetProperty(string name, out object? value)
-        {
-            var result = TryGetProperty(name, out var jsValue);
-            value = jsValue.ToObject();
-            return result;
-        }
-
-        bool IJsPropertyAccessor.TryGetProperty(string name, object? receiver, out object? value)
-        {
-            var result = TryGetProperty(name, JsValue.FromObject(receiver), out var jsValue);
-            value = jsValue.ToObject();
-            return result;
-        }
 
         public void SetProperty(string name, JsValue value)
         {
             SetProperty(name, value, JsValue.FromObject(this));
         }
 
-        void IJsPropertyAccessor.SetProperty(string name, object? value)
-        {
-            SetProperty(name, JsValue.FromObject(value));
-        }
-
-        void IJsPropertyAccessor.SetProperty(string name, object? value, object? receiver)
-        {
-            SetProperty(name, JsValue.FromObject(value), JsValue.FromObject(receiver));
-        }
 
         public void SetProperty(string name, JsValue value, JsValue receiver)
         {

@@ -216,10 +216,10 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
     public IEnumerable<string> Keys => _properties.Keys;
 
-    public bool TryGetProperty(string name, object? receiver, out object? value)
+    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
         // Allow dynamically assigned properties and prototype chain lookups first.
-        if (_properties.TryGetProperty(name, receiver ?? this, out value))
+        if (_properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObject(this) : receiver, out value))
         {
             return true;
         }
@@ -227,34 +227,34 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         switch (name)
         {
             case "length":
-                value = (double)Length;
+                value = new JsValue((double)Length);
                 return true;
             case "byteLength":
-                value = (double)ByteLength;
+                value = new JsValue((double)ByteLength);
                 return true;
             case "byteOffset":
-                value = (double)ByteOffset;
+                value = new JsValue((double)ByteOffset);
                 return true;
             case "buffer":
-                value = Buffer;
+                value = JsValue.FromObject(Buffer);
                 return true;
             case "BYTES_PER_ELEMENT":
-                value = (double)BytesPerElement;
+                value = new JsValue((double)BytesPerElement);
                 return true;
             case "set":
-                value = _setFunction;
+                value = JsValue.FromObject(_setFunction);
                 return true;
             case "subarray":
-                value = _subarrayFunction;
+                value = JsValue.FromObject(_subarrayFunction);
                 return true;
             case "slice":
-                value = _sliceFunction;
+                value = JsValue.FromObject(_sliceFunction);
                 return true;
             case "indexOf":
-                value = _indexOfFunction;
+                value = JsValue.FromObject(_indexOfFunction);
                 return true;
             case "includes":
-                value = _includesFunction;
+                value = JsValue.FromObject(_includesFunction);
                 return true;
         }
 
@@ -262,7 +262,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         {
             if (IsDetachedOrOutOfBounds())
             {
-                value = null;
+                value = JsValue.Undefined;
                 return false;
             }
 
@@ -271,7 +271,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             {
                 if (_buffer.IsDetached)
                 {
-                    value = null;
+                    value = JsValue.Undefined;
                     return false;
                 }
 
@@ -279,25 +279,25 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
                 return true;
             }
 
-            value = null;
+            value = JsValue.Undefined;
             return false;
         }
 
-        value = null;
+        value = JsValue.Undefined;
         return false;
     }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, this, out value);
+        return TryGetProperty(name, JsValue.FromObject(this), out value);
     }
 
-    public void SetProperty(string name, object? value)
+    public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, this);
+        SetProperty(name, value, JsValue.FromObject(this));
     }
 
-    public void SetProperty(string name, object? value, object? receiver)
+    public void SetProperty(string name, JsValue value, JsValue receiver)
     {
         switch (name)
         {
@@ -320,7 +320,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             return;
         }
 
-        _properties.SetProperty(name, value, receiver ?? this);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObject(this) : receiver);
     }
 
     /// <summary>
@@ -753,10 +753,10 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
     ///     Sets an element using the appropriate coercion for numeric typed arrays.
     ///     BigInt arrays override to enforce BigInt conversion.
     /// </summary>
-    public virtual void SetValue(int index, object? value)
+    public virtual void SetValue(int index, JsValue value)
     {
         var context = _buffer.RealmState?.CreateContext();
-        if (value is JsBigInt)
+        if (value.IsBigInt)
         {
             throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number", context,
                 _buffer.RealmState);

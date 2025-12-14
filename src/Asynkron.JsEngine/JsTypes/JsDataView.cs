@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -184,9 +185,9 @@ public sealed class JsDataView : IJsPropertyAccessor
 
     public int ByteLength { get; }
 
-    public bool TryGetProperty(string name, object? receiver, out object? value)
+    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        if (_properties.TryGetProperty(name, receiver ?? this, out value))
+        if (_properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObject(this) : receiver, out value))
         {
             return true;
         }
@@ -194,79 +195,79 @@ public sealed class JsDataView : IJsPropertyAccessor
         switch (name)
         {
             case "buffer":
-                value = Buffer;
+                value = JsValue.FromObject(Buffer);
                 return true;
             case "byteLength":
-                value = (double)ByteLength;
+                value = new JsValue((double)ByteLength);
                 return true;
             case "byteOffset":
-                value = (double)ByteOffset;
+                value = new JsValue((double)ByteOffset);
                 return true;
             case "getInt8":
-                value = _getInt8;
+                value = JsValue.FromObject(_getInt8);
                 return true;
             case "setInt8":
-                value = _setInt8;
+                value = JsValue.FromObject(_setInt8);
                 return true;
             case "getUint8":
-                value = _getUint8;
+                value = JsValue.FromObject(_getUint8);
                 return true;
             case "setUint8":
-                value = _setUint8;
+                value = JsValue.FromObject(_setUint8);
                 return true;
             case "getInt16":
-                value = _getInt16;
+                value = JsValue.FromObject(_getInt16);
                 return true;
             case "setInt16":
-                value = _setInt16;
+                value = JsValue.FromObject(_setInt16);
                 return true;
             case "getUint16":
-                value = _getUint16;
+                value = JsValue.FromObject(_getUint16);
                 return true;
             case "setUint16":
-                value = _setUint16;
+                value = JsValue.FromObject(_setUint16);
                 return true;
             case "getInt32":
-                value = _getInt32;
+                value = JsValue.FromObject(_getInt32);
                 return true;
             case "setInt32":
-                value = _setInt32;
+                value = JsValue.FromObject(_setInt32);
                 return true;
             case "getUint32":
-                value = _getUint32;
+                value = JsValue.FromObject(_getUint32);
                 return true;
             case "setUint32":
-                value = _setUint32;
+                value = JsValue.FromObject(_setUint32);
                 return true;
             case "getFloat32":
-                value = _getFloat32;
+                value = JsValue.FromObject(_getFloat32);
                 return true;
             case "setFloat32":
-                value = _setFloat32;
+                value = JsValue.FromObject(_setFloat32);
                 return true;
             case "getFloat64":
-                value = _getFloat64;
+                value = JsValue.FromObject(_getFloat64);
                 return true;
             case "setFloat64":
-                value = _setFloat64;
+                value = JsValue.FromObject(_setFloat64);
                 return true;
         }
 
-        value = null;
+        value = JsValue.Undefined;
         return false;
     }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, this, out value);
+        return TryGetProperty(name, JsValue.FromObject(this), out value);
     }
 
-    public void SetProperty(string name, object? value)
+    public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, this);
+        SetProperty(name, value, JsValue.FromObject(this));
     }
 
-    public void SetProperty(string name, object? value, object? receiver)
+    public void SetProperty(string name, JsValue value, JsValue receiver)
     {
         switch (name)
         {
@@ -276,7 +277,7 @@ public sealed class JsDataView : IJsPropertyAccessor
                 throw new InvalidOperationException($"Cannot assign to read-only property '{name}' on DataView.");
         }
 
-        _properties.SetProperty(name, value, receiver ?? this);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObject(this) : receiver);
     }
 
     /// <summary>

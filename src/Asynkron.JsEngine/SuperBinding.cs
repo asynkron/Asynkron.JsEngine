@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine;
 
@@ -21,7 +22,7 @@ public sealed class SuperBinding(
     public JsValue thisValue { get; } = thisValue;
     public bool IsThisInitialized { get; } = isThisInitialized;
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, out JsValue value)
     {
         if (Prototype is IJsObjectLike objectLike)
         {
@@ -31,13 +32,13 @@ public sealed class SuperBinding(
                 if (descriptor.Get is IJsCallable getter)
                 {
                     var result = getter.Invoke([], thisValue);
-                    value = result.ToObject();
+                    value = result;
                     return true;
                 }
 
                 if (descriptor.IsDataDescriptor)
                 {
-                    value = descriptor.Value;
+                    value = JsValue.FromObject(descriptor.Value);
                     return true;
                 }
             }
@@ -62,13 +63,13 @@ public sealed class SuperBinding(
                 if (descriptor.Get is IJsCallable getter)
                 {
                     var result = getter.Invoke([], thisValue);
-                    value = result.ToObject();
+                    value = result;
                     return true;
                 }
 
                 if (descriptor.IsDataDescriptor)
                 {
-                    value = descriptor.Value;
+                    value = JsValue.FromObject(descriptor.Value);
                     return true;
                 }
             }
@@ -81,11 +82,11 @@ public sealed class SuperBinding(
             return true;
         }
 
-        value = null;
+        value = JsValue.Undefined;
         return false;
     }
 
-    public void SetProperty(string name, object? value)
+    public void SetProperty(string name, JsValue value)
     {
         TrySetProperty(name, value, out _);
     }
@@ -94,11 +95,9 @@ public sealed class SuperBinding(
     /// Tries to set a property through super. Returns false if setting failed (e.g., frozen object).
     /// Per ES spec 6.2.3.2 PutValue, in strict mode a failed set should throw TypeError.
     /// </summary>
-    public bool TrySetProperty(string name, object? value, out bool usedSetter)
+    public bool TrySetProperty(string name, JsValue value, out bool usedSetter)
     {
         usedSetter = false;
-
-        var valueJs = JsValue.FromObject(value);
 
         // First, check for a setter in the super prototype chain
         if (Prototype is IJsObjectLike objectLike)
@@ -106,7 +105,7 @@ public sealed class SuperBinding(
             var descriptor = objectLike.GetOwnPropertyDescriptor(name);
             if (descriptor?.Set is IJsCallable setter)
             {
-                setter.Invoke([valueJs], thisValue);
+                setter.Invoke([value], thisValue);
                 usedSetter = true;
                 return true;
             }
@@ -117,7 +116,7 @@ public sealed class SuperBinding(
             var descriptor = ctorObject.GetOwnPropertyDescriptor(name);
             if (descriptor?.Set is IJsCallable setter)
             {
-                setter.Invoke([valueJs], thisValue);
+                setter.Invoke([value], thisValue);
                 usedSetter = true;
                 return true;
             }

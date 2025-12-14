@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
+using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
@@ -445,24 +446,32 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
     }
 
-    public bool TryGetProperty(string name, object? receiver, out object? value)
+    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        return _properties.TryGetProperty(name, receiver ?? this, out value);
+        var receiverObj = receiver.IsUndefined ? this : receiver.ToObject();
+        if (_properties.TryGetProperty(name, receiverObj ?? this, out var objValue))
+        {
+            value = JsValue.FromObject(objValue);
+            return true;
+        }
+        value = JsValue.Undefined;
+        return false;
     }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, this, out value);
+        return TryGetProperty(name, JsValue.FromObject(this), out value);
     }
 
-    public void SetProperty(string name, object? value, object? receiver)
+    public void SetProperty(string name, JsValue value, JsValue receiver)
     {
-        _properties.SetProperty(name, value, receiver ?? this);
+        var receiverObj = receiver.IsUndefined ? this : receiver.ToObject();
+        _properties.SetProperty(name, value.ToObject(), receiverObj ?? this);
     }
 
-    public void SetProperty(string name, object? value)
+    public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, this);
+        SetProperty(name, value, JsValue.FromObject(this));
     }
 
     private static void CollectVarDeclaredNames(

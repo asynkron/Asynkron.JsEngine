@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.Runtime;
+
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
@@ -21,22 +23,22 @@ public sealed class HtmlDdaValue : IIsHtmlDda, IJsCallable, IJsObjectLike, IProp
         return JsValue.Null;
     }
 
-    bool IJsPropertyAccessor.TryGetProperty(string name, out object? value)
+    bool IJsPropertyAccessor.TryGetProperty(string name, out JsValue value)
     {
         return _backing.TryGetProperty(name, out value);
     }
 
-    bool IJsPropertyAccessor.TryGetProperty(string name, object? receiver, out object? value)
+    bool IJsPropertyAccessor.TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
         return _backing.TryGetProperty(name, receiver, out value);
     }
 
-    void IJsPropertyAccessor.SetProperty(string name, object? value)
+    void IJsPropertyAccessor.SetProperty(string name, JsValue value)
     {
         _backing.SetProperty(name, value);
     }
 
-    void IJsPropertyAccessor.SetProperty(string name, object? value, object? receiver)
+    void IJsPropertyAccessor.SetProperty(string name, JsValue value, JsValue receiver)
     {
         _backing.SetProperty(name, value, receiver);
     }

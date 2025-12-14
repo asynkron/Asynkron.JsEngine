@@ -119,11 +119,11 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
     public IEnumerable<string> Keys => _properties.Keys;
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, out JsValue value)
     {
         if (string.Equals(name, "length", StringComparison.Ordinal))
         {
-            value = (double)_length;
+            value = JsValue.FromObject((double)_length);
             return true;
         }
 
@@ -132,7 +132,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             // Accessor/data descriptors defined via Object.defineProperty on an
             // index should override the internal dense/sparse storage.
             if (_properties.GetOwnPropertyDescriptor(name) is not null &&
-                _properties.TryGetProperty(name, this, out value))
+                _properties.TryGetProperty(name, JsValue.FromObject(this), out value))
             {
                 return true;
             }
@@ -144,32 +144,63 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             }
 
             // For holes, continue lookup on the prototype chain.
-            return _properties.TryGetProperty(name, this, out value);
+            return _properties.TryGetProperty(name, JsValue.FromObject(this), out value);
         }
 
-        return _properties.TryGetProperty(name, this, out value);
+        return _properties.TryGetProperty(name, JsValue.FromObject(this), out value);
     }
 
-    public void SetProperty(string name, object? value)
-    {
-        SetProperty(name, value, this);
-    }
-
-    public void SetProperty(string name, object? value, object? receiver)
+    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
         if (string.Equals(name, "length", StringComparison.Ordinal))
         {
-            SetLength(value, null);
+            value = JsValue.FromObject((double)_length);
+            return true;
+        }
+
+        if (TryParseArrayIndex(name, out var index))
+        {
+            // Accessor/data descriptors defined via Object.defineProperty on an
+            // index should override the internal dense/sparse storage.
+            if (_properties.GetOwnPropertyDescriptor(name) is not null &&
+                _properties.TryGetProperty(name, receiver, out value))
+            {
+                return true;
+            }
+
+            if (TryGetOwnIndex(index, out var jsValue))
+            {
+                value = jsValue;
+                return true;
+            }
+
+            // For holes, continue lookup on the prototype chain.
+            return _properties.TryGetProperty(name, receiver, out value);
+        }
+
+        return _properties.TryGetProperty(name, receiver, out value);
+    }
+
+    public void SetProperty(string name, JsValue value)
+    {
+        SetProperty(name, value, JsValue.FromObject(this));
+    }
+
+    public void SetProperty(string name, JsValue value, JsValue receiver)
+    {
+        if (string.Equals(name, "length", StringComparison.Ordinal))
+        {
+            SetLength(value.ToObject(), null);
             return;
         }
 
         if (TryParseArrayIndex(name, out var index))
         {
-            SetElement(index, JsValue.FromObject(value));
+            SetElement(index, value);
             return;
         }
 
-        _properties.SetProperty(name, value, receiver ?? this);
+        _properties.SetProperty(name, value, receiver.IsNull || receiver.IsUndefined ? JsValue.FromObject(this) : receiver);
     }
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)

@@ -314,18 +314,18 @@ public static partial class TypedAstEvaluator
             return _properties.DeleteOwnProperty(name);
         }
 
-        public bool TryGetProperty(string name, object? receiver, out object? value)
+        public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
         {
             // Arrow functions, async functions, and non-constructor functions should not have a "prototype" property
             // Per ES spec: Arrow functions and async functions are not constructors and don't have prototype property
             if (string.Equals(name, "prototype", StringComparison.Ordinal) &&
                 (IsArrowFunction || IsAsyncFunction || _wasAsyncFunction || !_isConstructorEnabled))
             {
-                value = null;
+                value = JsValue.Undefined;
                 return false;
             }
 
-            if (_properties.TryGetProperty(name, receiver ?? this, out value))
+            if (_properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObject(this) : receiver, out value))
             {
                 return true;
             }
@@ -337,16 +337,16 @@ public static partial class TypedAstEvaluator
             switch (name)
             {
                 case "call":
-                    value = new HostFunction((thisValue, args) =>
+                    value = JsValue.FromObject(new HostFunction((thisValue, args) =>
                     {
                         var thisArg = args.GetArgument(0);
                         var callArgs = args.SliceFrom(1);
                         return callable.Invoke(callArgs, thisArg);
-                    }, isConstructor: false);
+                    }, isConstructor: false));
                     return true;
 
                 case "apply":
-                    value = new HostFunction((thisValue, args) =>
+                    value = JsValue.FromObject(new HostFunction((thisValue, args) =>
                     {
                         var thisArg = args.GetArgument(0);
                         IReadOnlyList<JsValue> argList;
@@ -366,38 +366,38 @@ public static partial class TypedAstEvaluator
                             argList = ArgumentSlice.Empty;
                         }
                         return callable.Invoke(argList, thisArg);
-                    }, isConstructor: false);
+                    }, isConstructor: false));
                     return true;
 
                 case "bind":
-                    value = new HostFunction((thisValue, args) =>
+                    value = JsValue.FromObject(new HostFunction((thisValue, args) =>
                     {
                         var boundThis = args.GetArgument(0);
                         var boundArgs = args.SliceFrom(1);
                         var targetIsConstructor = JsOps.IsConstructor(callable);
                         return JsValue.FromObject(HostFunction.CreateBoundFunction(callable, boundThis, boundArgs, targetIsConstructor,
                             _realmState));
-                    }, isConstructor: false);
+                    }, isConstructor: false));
                     return true;
             }
 
-            value = null;
+            value = JsValue.Undefined;
             return false;
         }
 
-        public bool TryGetProperty(string name, out object? value)
+        public bool TryGetProperty(string name, out JsValue value)
         {
-            return TryGetProperty(name, this, out value);
+            return TryGetProperty(name, JsValue.FromObject(this), out value);
         }
 
-        public void SetProperty(string name, object? value)
+        public void SetProperty(string name, JsValue value)
         {
-            SetProperty(name, value, this);
+            SetProperty(name, value, JsValue.FromObject(this));
         }
 
-        public void SetProperty(string name, object? value, object? receiver)
+        public void SetProperty(string name, JsValue value, JsValue receiver)
         {
-            _properties.SetProperty(name, value, receiver ?? this);
+            _properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObject(this) : receiver);
         }
 
         PropertyDescriptor? IJsPropertyAccessor.GetOwnPropertyDescriptor(string name)
@@ -1164,7 +1164,7 @@ public static partial class TypedAstEvaluator
             // (e.g., FooObj.prototype = anotherFunction). Per ES spec, if the prototype property
             // is not an object, we should use the intrinsic %Object.prototype% instead, but
             // this is handled at the call site.
-            if (_properties.TryGetProperty("prototype", this, out var value) && value is IJsObjectLike objLike)
+            if (_properties.TryGetProperty("prototype", JsValue.FromObject(this), out var value) && value.TryGetObject<IJsObjectLike>(out var objLike))
             {
                 prototype = objLike;
                 // Also cache if it's a JsObject for backwards compatibility
@@ -1191,7 +1191,7 @@ public static partial class TypedAstEvaluator
             // Always check the current prototype property value first, in case it was reassigned
             // (e.g., FooObj.prototype = protoObj). The _prototypeObject cache is only used
             // as a fallback when the property hasn't been explicitly set.
-            if (_properties.TryGetProperty("prototype", this, out var value) && value is JsObject jsObj)
+            if (_properties.TryGetProperty("prototype", JsValue.FromObject(this), out var value) && value.TryGetObject<JsObject>(out var jsObj))
             {
                 _prototypeObject = jsObj;
                 return jsObj;

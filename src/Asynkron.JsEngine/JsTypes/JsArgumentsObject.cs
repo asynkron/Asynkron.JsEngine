@@ -149,36 +149,38 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         _backing.Seal();
     }
 
-    public bool TryGetProperty(string name, object? receiver, out object? value)
+    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
         if (TryResolveIndex(name, out var index) &&
             _mappedEnabled &&
             index < _mappedParameters.Length &&
             _mappedParameters[index] is { } mappedSymbol)
         {
-            value = _environment.Get(mappedSymbol);
+            value = JsValue.FromObject(_environment.Get(mappedSymbol));
             return true;
         }
 
-        return _backing.TryGetProperty(name, receiver ?? this, out value);
+        return _backing.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObject(this) : receiver, out value);
     }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, this, out value);
+        return TryGetProperty(name, JsValue.FromObject(this), out value);
     }
 
-    public void SetProperty(string name, object? value)
+    public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, this);
+        SetProperty(name, value, JsValue.FromObject(this));
     }
 
-    public void SetProperty(string name, object? value, object? receiver)
+    public void SetProperty(string name, JsValue value, JsValue receiver)
     {
         var descriptor = _backing.GetOwnPropertyDescriptor(name);
         var hasWritable = descriptor?.HasWritable ?? false;
         var isAccessor = descriptor?.IsAccessorDescriptor == true;
         var isWritable = !isAccessor && (!hasWritable || descriptor?.Writable != false);
+
+        var valueObj = value.ToObject();
 
         if (TryResolveIndex(name, out var index) &&
             _mappedEnabled &&
@@ -186,11 +188,11 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             index < _mappedParameters.Length &&
             _mappedParameters[index] is { } mappedSymbol)
         {
-            _values[index] = value;
-            WithSuppressedObserver(() => _environment.Assign(mappedSymbol, value));
+            _values[index] = valueObj;
+            WithSuppressedObserver(() => _environment.Assign(mappedSymbol, valueObj));
         }
 
-        _backing.SetProperty(name, value, receiver ?? this);
+        _backing.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObject(this) : receiver);
     }
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
@@ -205,10 +207,10 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
             if (_mappedEnabled)
             {
-                _backing.TryGetProperty("callee", this, out var calleeValue);
+                _backing.TryGetProperty("callee", JsValue.FromObject(this), out var calleeValue);
                 return new PropertyDescriptor
                 {
-                    Value = calleeValue ?? _calleeDescriptor.Value,
+                    Value = calleeValue.ToObject() ?? _calleeDescriptor.Value,
                     Writable = true,
                     Enumerable = false,
                     Configurable = true
@@ -488,7 +490,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         {
             if (_backing.TryGetProperty(name, out var existingValue))
             {
-                normalized.Value = existingValue;
+                normalized.Value = existingValue.ToObject();
             }
             else if (existing.HasValue)
             {
@@ -561,14 +563,14 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         if (realmState.ArrayPrototype is IJsPropertyAccessor arrayPrototype &&
             arrayPrototype.TryGetProperty(iteratorKey, out var protoIterator))
         {
-            iteratorValue = protoIterator;
+            iteratorValue = protoIterator.ToObject();
             return true;
         }
 
         var temp = new JsArray(realmState);
         if (temp.TryGetProperty(iteratorKey, out var tmpIterator))
         {
-            iteratorValue = tmpIterator;
+            iteratorValue = tmpIterator.ToObject();
             return true;
         }
 

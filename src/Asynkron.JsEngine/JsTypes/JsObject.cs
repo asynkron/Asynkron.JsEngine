@@ -157,12 +157,19 @@ namespace Asynkron.JsEngine.JsTypes;
         return null;
     }
 
-    public void SetProperty(string name, object? value)
+    // IJsPropertyAccessor interface implementation with JsValue
+    public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, this);
+        SetPropertyInternal(name, value.ToObject(), this);
     }
 
-    public void SetProperty(string name, object? value, object? receiver)
+    public void SetProperty(string name, JsValue value, JsValue receiver)
+    {
+        SetPropertyInternal(name, value.ToObject(), receiver.ToObject());
+    }
+
+    // Internal implementation that uses object? for backward compatibility
+    private void SetPropertyInternal(string name, object? value, object? receiver)
     {
         if (name.IsPrivateSlotName())
         {
@@ -343,7 +350,33 @@ namespace Asynkron.JsEngine.JsTypes;
         }
     }
 
-    public bool TryGetProperty(string name, out object? value)
+    // IJsPropertyAccessor interface implementation with JsValue
+    public bool TryGetProperty(string name, out JsValue value)
+    {
+        if (TryGetPropertyInternal(name, out var objValue))
+        {
+            value = JsValue.FromObject(objValue);
+            return true;
+        }
+
+        value = JsValue.Undefined;
+        return false;
+    }
+
+    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
+    {
+        if (TryGetPropertyInternal(name, receiver.ToObject(), out var objValue))
+        {
+            value = JsValue.FromObject(objValue);
+            return true;
+        }
+
+        value = JsValue.Undefined;
+        return false;
+    }
+
+    // Internal implementation that uses object? for backward compatibility
+    private bool TryGetPropertyInternal(string name, out object? value)
     {
         // Private slots need special handling - go through slow path
         if (name.IsPrivateSlotName())
@@ -366,7 +399,7 @@ namespace Asynkron.JsEngine.JsTypes;
         return TryGetProperty(name, this, 0, null, out value);
     }
 
-    public bool TryGetProperty(string name, object? receiver, out object? value)
+    private bool TryGetPropertyInternal(string name, object? receiver, out object? value)
     {
         // Private slots need special handling - go through slow path
         if (name.IsPrivateSlotName())
@@ -1142,8 +1175,9 @@ namespace Asynkron.JsEngine.JsTypes;
                         return true;
                     }
                 }
-                else if (prototype.TryGetProperty(name, effectiveReceiver, out value))
+                else if (prototype.TryGetProperty(name, JsValue.FromObject(effectiveReceiver), out var jsValue))
                 {
+                    value = jsValue.ToObject();
                     return true;
                 }
 
@@ -1218,8 +1252,9 @@ namespace Asynkron.JsEngine.JsTypes;
                     return true;
                 }
             }
-            else if (prototype.TryGetProperty(name, receiver, out value))
+            else if (prototype.TryGetProperty(name, JsValue.FromObject(receiver), out var jsValue))
             {
+                value = jsValue.ToObject();
                 return true;
             }
 
@@ -1324,8 +1359,9 @@ namespace Asynkron.JsEngine.JsTypes;
                     return true;
                 }
             }
-            else if (prototype.TryGetProperty(name, receiver ?? this, out value))
+            else if (prototype.TryGetProperty(name, JsValue.FromObject(receiver ?? this), out var jsValue))
             {
+                value = jsValue.ToObject();
                 return true;
             }
 

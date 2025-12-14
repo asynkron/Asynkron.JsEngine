@@ -156,12 +156,12 @@ namespace Asynkron.JsEngine.JsTypes;
     /// </summary>
     public JsEnvironment? CallingJsEnvironment { get; set; }
 
-    public bool TryGetProperty(string name, object? receiver, out object? value)
+    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
         EnsureFunctionPrototype();
 
         // First check if there's a user-defined property (including getters)
-        if (Properties.TryGetProperty(name, receiver ?? this, out value))
+        if (Properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObject(this) : receiver, out value))
         {
             return true;
         }
@@ -180,7 +180,7 @@ namespace Asynkron.JsEngine.JsTypes;
         switch (name)
         {
             case "call":
-                value = new HostFunction((thisValue, args) =>
+                value = JsValue.FromObject(new HostFunction((thisValue, args) =>
                 {
                     // When call is invoked through .bind(), thisValue is the bound target function.
                     // When called directly like fn.call(obj), jsCallable is the function to invoke.
@@ -188,11 +188,11 @@ namespace Asynkron.JsEngine.JsTypes;
                     var thisArg = args.GetArgument(0);
                     var callArgs = args.SliceFrom(1);
                     return functionToCall.Invoke(callArgs, thisArg);
-                }, isConstructor: false);
+                }, isConstructor: false));
                 return true;
 
             case "apply":
-                value = new HostFunction((thisValue, args) =>
+                value = JsValue.FromObject(new HostFunction((thisValue, args) =>
                 {
                     // Use the thisValue (the function being applied) when called via prototype chain
                     var target = thisValue.TryGetObject<IJsCallable>(out var thisObj) ? thisObj : jsCallable;
@@ -214,11 +214,11 @@ namespace Asynkron.JsEngine.JsTypes;
                         argList = ArgumentSlice.Empty;
                     }
                     return target.Invoke(argList, thisArg);
-                }, isConstructor: false);
+                }, isConstructor: false));
                 return true;
 
             case "bind":
-                value = new HostFunction((thisValue, args) =>
+                value = JsValue.FromObject(new HostFunction((thisValue, args) =>
                 {
                     // Use the thisValue (the function being bound) when called via prototype chain
                     var target = thisValue.TryGetObject<IJsCallable>(out var callable) ? callable : jsCallable;
@@ -227,27 +227,27 @@ namespace Asynkron.JsEngine.JsTypes;
                     var targetIsConstructor = JsOps.IsConstructor(target);
                     var realmState = RealmState ?? (target as ICallableMetadata)?.RealmState;
                     return JsValue.FromObject(CreateBoundFunction(target, boundThis, boundArgs, targetIsConstructor, realmState));
-                }, isConstructor: false);
+                }, isConstructor: false));
                 return true;
         }
 
-        value = null;
+        value = default;
         return false;
     }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, this, out value);
+        return TryGetProperty(name, JsValue.FromObject(this), out value);
     }
 
-    public void SetProperty(string name, object? value, object? receiver)
+    public void SetProperty(string name, JsValue value, JsValue receiver)
     {
-        Properties.SetProperty(name, value, receiver ?? this);
+        Properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObject(this) : receiver);
     }
 
-    public void SetProperty(string name, object? value)
+    public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, this);
+        SetProperty(name, value, JsValue.FromObject(this));
     }
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)

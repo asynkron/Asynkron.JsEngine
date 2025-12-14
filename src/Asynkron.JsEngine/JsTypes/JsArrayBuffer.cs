@@ -122,35 +122,35 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvi
         return _properties.Delete(name);
     }
 
-    public bool TryGetProperty(string name, object? receiver, out object? value)
+    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        if (_properties.TryGetProperty(name, receiver ?? this, out value))
+        if (_properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObject(this) : receiver, out value))
         {
             return true;
         }
 
-        value = JsValue.Undefined.ToObject();
+        value = JsValue.Undefined;
         return false;
     }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, this, out value);
+        return TryGetProperty(name, JsValue.FromObject(this), out value);
     }
 
-    public void SetProperty(string name, object? value, object? receiver)
+    public void SetProperty(string name, JsValue value, JsValue receiver)
     {
         if (string.Equals(name, "byteLength", StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Cannot assign to read-only property 'byteLength' on ArrayBuffer.");
         }
 
-        _properties.SetProperty(name, value, receiver ?? this);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObject(this) : receiver);
     }
 
-    public void SetProperty(string name, object? value)
+    public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, this);
+        SetProperty(name, value, JsValue.FromObject(this));
     }
 
     /// <summary>

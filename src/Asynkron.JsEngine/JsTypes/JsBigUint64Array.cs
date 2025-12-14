@@ -56,7 +56,7 @@ public sealed class JsBigUint64Array(JsArrayBuffer buffer, int byteOffset, int l
         BinaryPrimitives.WriteUInt64LittleEndian(span, coerced);
     }
 
-    public override void SetValue(int index, object? value)
+    public override void SetValue(int index, JsValue value)
     {
         SetElement(index, StandardLibrary.ToBigInt(value, realmState: _buffer.RealmState));
     }

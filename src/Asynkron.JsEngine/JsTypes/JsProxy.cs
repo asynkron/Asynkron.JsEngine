@@ -151,25 +151,6 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         return TryGetProperty(name, JsValue.FromObject(this), out value);
     }
 
-    // Legacy interface implementation
-    bool IJsPropertyAccessor.TryGetProperty(string name, out object? value)
-    {
-        var result = TryGetProperty(name, out var jsValue);
-#pragma warning disable CS0618 // Type or member is obsolete
-        value = jsValue.ToObject();
-#pragma warning restore CS0618 // Type or member is obsolete
-        return result;
-    }
-
-    bool IJsPropertyAccessor.TryGetProperty(string name, object? receiver, out object? value)
-    {
-        var result = TryGetProperty(name, JsValue.FromObject(receiver ?? this), out var jsValue);
-#pragma warning disable CS0618 // Type or member is obsolete
-        value = jsValue.ToObject();
-#pragma warning restore CS0618 // Type or member is obsolete
-        return result;
-    }
-
     public void SetProperty(string name, JsValue value, JsValue receiver)
     {
         if (name.IsPrivateSlotName())
@@ -200,17 +181,6 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     public void SetProperty(string name, JsValue value)
     {
         SetProperty(name, value, JsValue.FromObject(this));
-    }
-
-    // Legacy interface implementation
-    void IJsPropertyAccessor.SetProperty(string name, object? value)
-    {
-        SetProperty(name, JsValue.FromObject(value));
-    }
-
-    void IJsPropertyAccessor.SetProperty(string name, object? value, object? receiver)
-    {
-        SetProperty(name, JsValue.FromObject(value), JsValue.FromObject(receiver ?? this));
     }
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)

@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Ast;
@@ -43,35 +44,35 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
     /// </summary>
     public string? Description { get; }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, out JsValue value)
     {
         if (string.Equals(name, "toString", StringComparison.Ordinal))
         {
-            value = SymbolToStringFunction;
+            value = JsValue.FromObject(SymbolToStringFunction);
             return true;
         }
 
         if (string.Equals(name, "valueOf", StringComparison.Ordinal))
         {
-            value = new HostFunction((JsValue thisValue, IReadOnlyList<JsValue> _) => JsValue.FromObject(Unbox(thisValue)), isConstructor: false);
+            value = JsValue.FromObject(new HostFunction((JsValue thisValue, IReadOnlyList<JsValue> _) => JsValue.FromObject(Unbox(thisValue)), isConstructor: false));
             return true;
         }
 
         var toPrimitiveKey = PropertyKey(Symbols.ToPrimitive);
         if (string.Equals(name, toPrimitiveKey, StringComparison.Ordinal))
         {
-            value = new HostFunction((JsValue thisValue, IReadOnlyList<JsValue> _) => JsValue.FromObject(Unbox(thisValue)), isConstructor: false);
+            value = JsValue.FromObject(new HostFunction((JsValue thisValue, IReadOnlyList<JsValue> _) => JsValue.FromObject(Unbox(thisValue)), isConstructor: false));
             return true;
         }
 
         var toStringTagKey = PropertyKey(Symbols.ToStringTag);
         if (string.Equals(name, toStringTagKey, StringComparison.Ordinal))
         {
-            value = "Symbol";
+            value = JsValue.FromObject("Symbol");
             return true;
         }
 
-        value = null;
+        value = JsValue.Undefined;
         return false;
 
         TypedAstSymbol Unbox(JsValue receiver)
@@ -82,7 +83,7 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
             }
             if (receiver.TryGetObject<JsObject>(out var obj) &&
                 obj.TryGetProperty("__value__", out var inner) &&
-                inner is TypedAstSymbol s)
+                inner.ToObject() is TypedAstSymbol s)
             {
                 return s;
             }
@@ -90,7 +91,7 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
         }
     }
 
-    public void SetProperty(string name, object? value)
+    public void SetProperty(string name, JsValue value)
     {
         // Symbols are immutable; ignore assignments.
     }
@@ -98,7 +99,7 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
     {
         return TryGetProperty(name, out var value)
-            ? new PropertyDescriptor { Value = value, Writable = true, Enumerable = false, Configurable = true }
+            ? new PropertyDescriptor { Value = value.ToObject(), Writable = true, Enumerable = false, Configurable = true }
             : null;
     }
 

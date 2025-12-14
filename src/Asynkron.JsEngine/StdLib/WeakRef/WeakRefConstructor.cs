@@ -29,13 +29,7 @@ public sealed partial class WeakRefConstructor(IJsObjectLike prototype, RealmSta
         _constructor = constructor;
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
-            if (!newTarget.IsObject)
-            {
-                throw ThrowTypeError("Constructor WeakRef requires 'new'", realm: Realm);
-            }
-
-            var obj = newTarget.AsObject();
-            if (obj is not IJsCallable callableNewTarget)
+            if (!newTarget.IsObject || newTarget.AsObject<IJsCallable>() is not { } callableNewTarget)
             {
                 throw ThrowTypeError("Constructor WeakRef requires 'new'", realm: Realm);
             }

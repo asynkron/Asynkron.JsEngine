@@ -427,7 +427,7 @@ public sealed partial class ArrayPrototype
     }
 
     [JsHostMethod("toSorted", Length = 1d)]
-    public object? ToSorted(object? thisValue, IReadOnlyList<object?> args)
+    public object? ToSorted(object? thisValue, IReadOnlyList<JsValue?> args)
     {
         var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toSorted", realm);

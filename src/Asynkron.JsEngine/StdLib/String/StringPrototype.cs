@@ -11,13 +11,13 @@ public sealed partial class StringPrototype : JsPrototype
     [JsHostMethod("toString", Length = 0d)]
     public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        return RequireStringReceiver(thisValue.ToObject(), Realm);
+        return new JsValue(RequireStringReceiver(thisValue.ToObject(), Realm));
     }
 
     [JsHostMethod("valueOf", Length = 0d)]
     public JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        return RequireStringReceiver(thisValue.ToObject(), Realm);
+        return new JsValue(RequireStringReceiver(thisValue.ToObject(), Realm));
     }
 
     [JsHostMethod("parseJSON", Length = 1d)]
@@ -31,7 +31,7 @@ public sealed partial class StringPrototype : JsPrototype
         }
 
         var reviver = args.Count > 0 ? args[0].ToObject() : JsValue.Undefined.ToObject();
-        return ParseJsonWithReviver(source, Realm, context, reviver);
+        return JsValue.FromObject(ParseJsonWithReviver(source, Realm, context, reviver));
     }
 
     protected override void ConfigurePrototype()

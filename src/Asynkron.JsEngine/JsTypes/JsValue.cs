@@ -308,6 +308,114 @@ public readonly struct JsValue : IEquatable<JsValue>
 
     #endregion
 
+    #region TryGet Methods (for pattern matching)
+
+    /// <summary>Tries to get the double value. Returns true if this is a number.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetDouble(out double value)
+    {
+        if (Kind == JsValueKind.Number)
+        {
+            value = NumberValue;
+            return true;
+        }
+        value = default;
+        return false;
+    }
+
+    /// <summary>Tries to get the boolean value. Returns true if this is a boolean.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetBoolean(out bool value)
+    {
+        if (Kind == JsValueKind.Boolean)
+        {
+            value = NumberValue != 0.0;
+            return true;
+        }
+        value = default;
+        return false;
+    }
+
+    /// <summary>Tries to get the string value. Returns true if this is a string.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetString(out string? value)
+    {
+        if (Kind == JsValueKind.String)
+        {
+            value = (string)ObjectValue!;
+            return true;
+        }
+        value = default;
+        return false;
+    }
+
+    /// <summary>Tries to get the Symbol value. Returns true if this is a Symbol.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetSymbol(out Symbol? value)
+    {
+        if (Kind == JsValueKind.Symbol)
+        {
+            value = (Symbol)ObjectValue!;
+            return true;
+        }
+        value = default;
+        return false;
+    }
+
+    /// <summary>Tries to get the BigInt value. Returns true if this is a BigInt.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetBigInt(out JsBigInt? value)
+    {
+        if (Kind == JsValueKind.BigInt)
+        {
+            value = (JsBigInt)ObjectValue!;
+            return true;
+        }
+        value = default;
+        return false;
+    }
+
+    /// <summary>Tries to get the object value. Returns true if this is an object.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetObject(out JsObject? value)
+    {
+        if (Kind == JsValueKind.Object && ObjectValue is JsObject obj)
+        {
+            value = obj;
+            return true;
+        }
+        value = default;
+        return false;
+    }
+
+    /// <summary>Tries to get the object value as a specific type. Returns true if this is an object of that type.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetObject<T>(out T? value) where T : class
+    {
+        if (Kind == JsValueKind.Object && ObjectValue is T obj)
+        {
+            value = obj;
+            return true;
+        }
+        value = default;
+        return false;
+    }
+
+    /// <summary>Tries to unwrap the value to a specific type from ObjectValue. Works for any kind.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryUnwrap<T>(out T? value) where T : class
+    {
+        if (ObjectValue is T obj)
+        {
+            value = obj;
+            return true;
+        }
+        value = default;
+        return false;
+    }
+
+    #endregion
+
     #region Conversion Methods
 
     /// <summary>

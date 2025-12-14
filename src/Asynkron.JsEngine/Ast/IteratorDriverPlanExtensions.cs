@@ -49,7 +49,7 @@ public static partial class TypedAstEvaluator
                         // WITHOUT calling IteratorClose.
                         var thrown = context.FlowValue;
                         context.Clear();
-                        throw new ThrowSignal(thrown);
+                        throw new ThrowSignal(JsValue.FromObject(thrown));
                     }
                 }
                 else if (state.Enumerator is not null)
@@ -79,7 +79,7 @@ public static partial class TypedAstEvaluator
                         }
                     }
 
-                    throw new ThrowSignal(thrown);
+                    throw new ThrowSignal(JsValue.FromObject(thrown));
                 }
 
                 // Unwrap JsValue struct if present
@@ -154,7 +154,7 @@ public static partial class TypedAstEvaluator
                         context.SetThrow(JsValue.FromObject(typeError));
                         iteratorDone =
                             false; // force IteratorClose on exit for abrupt completion paths that require it
-                        throw new ThrowSignal(typeError);
+                        throw new ThrowSignal(JsValue.FromObject(typeError));
                     }
 
                     // Enumerator path (non-object next)

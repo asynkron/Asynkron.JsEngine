@@ -498,17 +498,17 @@ public static partial class TypedAstEvaluator
             {
                 context.RealmState.Logger?.LogInformation(
                     "EvaluateCall caught ThrowSignal type={Type} calleeType={CalleeType}",
-                    signal.ThrownValue?.GetType().Name ?? "null",
+                    signal.ThrownValue.ToObject()?.GetType().Name ?? "null",
                     callable.GetType().Name);
                 if (isAsyncCallable)
                 {
                     context.Clear();
-                    callResult = JsValue.FromObject(CreateRejectedPromise(signal.ThrownValue, environment));
+                    callResult = JsValue.FromObject(CreateRejectedPromise(signal.ThrownValue.ToObject(), environment));
                 }
                 else
                 {
-                    context.SetThrow(JsValue.FromObject(signal.ThrownValue));
-                    return JsValue.FromObject(signal.ThrownValue);
+                    context.SetThrow(signal.ThrownValue);
+                    return signal.ThrownValue;
                 }
             }
             catch (Exception ex) when (isAsyncCallable)

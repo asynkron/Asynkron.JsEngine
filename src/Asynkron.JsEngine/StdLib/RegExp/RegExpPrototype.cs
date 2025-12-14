@@ -133,7 +133,7 @@ public sealed partial class RegExpPrototype : JsPrototype
         }
         catch (Exception ex)
         {
-            throw new ThrowSignal(CreateSyntaxError(ex.Message, realm: Realm));
+            throw new ThrowSignal(JsValue.FromObject(CreateSyntaxError(ex.Message, realm: Realm)));
         }
 
         return new JsValue(target);

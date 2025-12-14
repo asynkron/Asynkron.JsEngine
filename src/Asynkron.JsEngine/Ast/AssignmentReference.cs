@@ -284,9 +284,9 @@ internal readonly struct AssignmentReference
     {
         if (_isStrict && IsStrictRestrictedName(_name))
         {
-            throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
+            throw new ThrowSignal(JsValue.FromObject(StandardLibrary.CreateSyntaxError(
                 "Assignment to eval or arguments is not allowed in strict mode.", _context,
-                _context.RealmState));
+                _context.RealmState)));
         }
 
         var objValue = ConvertJsValueToObject(value);
@@ -406,9 +406,9 @@ internal static class AssignmentReferenceResolver
         // Wrap in delegate for strict restricted names (eval/arguments)
         return AssignmentReference.ForDelegate(
             reference.GetValue,
-            _ => throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
+            _ => throw new ThrowSignal(JsValue.FromObject(StandardLibrary.CreateSyntaxError(
                 "Assignment to eval or arguments is not allowed in strict mode.", context,
-                context.RealmState)));
+                context.RealmState))));
     }
 
     private static AssignmentReference ResolveMember(

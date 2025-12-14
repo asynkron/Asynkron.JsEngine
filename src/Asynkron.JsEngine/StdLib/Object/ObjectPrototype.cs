@@ -209,7 +209,7 @@ public sealed partial class ObjectPrototype : JsPrototype
             {
                 error = new InvalidOperationException("Object.prototype.isPrototypeOf called on null or undefined");
             }
-            throw new ThrowSignal(error);
+            throw new ThrowSignal(JsValue.FromObject(error));
         }
 
         if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)

@@ -362,8 +362,8 @@ public static partial class StandardLibrary
             {
                 if (input.TryGetObject<Symbol>(out _) || input.TryGetObject<TypedAstSymbol>(out _))
                 {
-                    throw new ThrowSignal(CreateTypeError("Cannot convert a Symbol value to a number",
-                        null, realm));
+                    throw new ThrowSignal(JsValue.FromObject(CreateTypeError("Cannot convert a Symbol value to a number",
+                        null, realm)));
                 }
 
                 var numericContext = realm?.CreateContext();

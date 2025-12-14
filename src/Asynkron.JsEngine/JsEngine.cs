@@ -679,6 +679,11 @@ public sealed class JsEngine : IAsyncDisposable
         return Evaluate(program, cancellationToken, sourcePath: null, forceModule: false);
     }
 
+    private static object? UnwrapResult(object? result)
+    {
+        return result is JsValue jsValue ? jsValue.ToObject() : result;
+    }
+
     /// <summary>
     ///     Evaluates JavaScript source code and returns the value of the final identifier
     ///     AFTER all microtasks have drained.
@@ -925,7 +930,7 @@ public sealed class JsEngine : IAsyncDisposable
             if (IsEventLoopDrained())
             {
                 // Fast path: No async work pending, return immediately
-                return result;
+                return UnwrapResult(result);
             }
 
             var configured = ExecutionTimeout;
@@ -952,7 +957,7 @@ public sealed class JsEngine : IAsyncDisposable
                     $"JavaScript execution exceeded the configured timeout of {timeout}.");
             }
 
-            return result;
+            return UnwrapResult(result);
         }
         finally
         {
@@ -1016,12 +1021,12 @@ public sealed class JsEngine : IAsyncDisposable
 	                }
 
 	                DrainMicrotasks();
-	                return entry.LastValue;
+	                return UnwrapResult(entry.LastValue);
 	            }
 
             var scriptResult = ExecuteProgram(program, GlobalEnvironment, combinedToken);
             DrainMicrotasks();
-            return scriptResult;
+            return UnwrapResult(scriptResult);
         }
         finally
         {
@@ -1061,7 +1066,7 @@ public sealed class JsEngine : IAsyncDisposable
             "'import.meta' is only valid in module code.",
             context,
             RealmState);
-        throw new ThrowSignal(syntaxError);
+        throw new ThrowSignal(JsValue.FromObject(syntaxError));
     }
 
     private static bool StatementsContainImportMeta(ImmutableArray<StatementNode> statements)
@@ -4440,7 +4445,7 @@ public sealed class JsEngine : IAsyncDisposable
 
                     if (!calleeValue.TryGetObject<IJsCallable>(out var callable))
                     {
-                        throw new ThrowSignal($"TypeError: {calleeValue} is not a function");
+                        throw new ThrowSignal(JsValue.FromObject($"TypeError: {calleeValue} is not a function"));
                     }
 
                     var result = callable.Invoke(evaluatedArgs, thisValue);

@@ -58,25 +58,25 @@ public static partial class StandardLibrary
     internal static ThrowSignal ThrowTypeError(string message, EvaluationContext? context = null,
         RealmState? realm = null)
     {
-        return new ThrowSignal(CreateTypeError(message, context, realm));
+        return new ThrowSignal(JsValue.FromObject(CreateTypeError(message, context, realm)));
     }
 
     internal static ThrowSignal ThrowRangeError(string message, EvaluationContext? context = null,
         RealmState? realm = null)
     {
-        return new ThrowSignal(CreateRangeError(message, context, realm));
+        return new ThrowSignal(JsValue.FromObject(CreateRangeError(message, context, realm)));
     }
 
     internal static ThrowSignal ThrowReferenceError(string message, EvaluationContext? context = null,
         RealmState? realm = null)
     {
-        return new ThrowSignal(CreateReferenceError(message, context, realm));
+        return new ThrowSignal(JsValue.FromObject(CreateReferenceError(message, context, realm)));
     }
 
     internal static ThrowSignal ThrowSyntaxError(string message, EvaluationContext? context = null,
         RealmState? realm = null)
     {
-        return new ThrowSignal(CreateSyntaxError(message, context, realm));
+        return new ThrowSignal(JsValue.FromObject(CreateSyntaxError(message, context, realm)));
     }
 
     internal static void DefineConstantProperty(

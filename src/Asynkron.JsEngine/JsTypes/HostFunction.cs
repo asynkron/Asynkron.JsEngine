@@ -388,7 +388,7 @@ namespace Asynkron.JsEngine.JsTypes;
                         "Target is not a constructor",
                         context,
                         context?.RealmState ?? realmState);
-                    throw new ThrowSignal(error);
+                    throw new ThrowSignal(JsValue.FromObject(error));
                 }
 
                 var realm = context?.RealmState ?? realmState;

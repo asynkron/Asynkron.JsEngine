@@ -38,11 +38,11 @@ public static partial class StandardLibrary
         }
         catch (ParseException ex)
         {
-            throw new ThrowSignal(CreateSyntaxError(ex.Message, realm: realm));
+            throw new ThrowSignal(JsValue.FromObject(CreateSyntaxError(ex.Message, realm: realm)));
         }
         catch (ArgumentException ex)
         {
-            throw new ThrowSignal(CreateSyntaxError(ex.Message, realm: realm));
+            throw new ThrowSignal(JsValue.FromObject(CreateSyntaxError(ex.Message, realm: realm)));
         }
     }
 

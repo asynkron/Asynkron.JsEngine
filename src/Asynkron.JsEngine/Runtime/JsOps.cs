@@ -189,7 +189,7 @@ internal static class JsOps
                     var error = CreateTypeError("Cannot convert a Symbol value to a number", context);
                     if (context is null)
                     {
-                        throw new ThrowSignal(error);
+                        throw new ThrowSignal(JsValue.FromObject(error));
                     }
 
                     context.SetThrow(JsValue.FromObject(error));
@@ -261,7 +261,7 @@ internal static class JsOps
                     var error = CreateTypeError("Cannot convert object to primitive value", context);
                     if (context is null)
                     {
-                        throw new ThrowSignal(error);
+                        throw new ThrowSignal(JsValue.FromObject(error));
                     }
 
                     context.SetThrow(JsValue.FromObject(error));
@@ -369,7 +369,7 @@ internal static class JsOps
         var error = CreateTypeError("Cannot convert object to primitive value", context);
         if (context is null)
         {
-            throw new ThrowSignal(error);
+            throw new ThrowSignal(JsValue.FromObject(error));
         }
 
         context.SetThrow(JsValue.FromObject(error));
@@ -1114,7 +1114,7 @@ internal static class JsOps
         var error = CreateTypeError("Cannot convert object to property key", context);
         if (context is null)
         {
-            throw new ThrowSignal(error);
+            throw new ThrowSignal(JsValue.FromObject(error));
         }
 
         context.SetThrow(JsValue.FromObject(error));

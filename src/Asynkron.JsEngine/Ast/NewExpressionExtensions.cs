@@ -92,7 +92,7 @@ public static partial class TypedAstEvaluator
             if (constructor is not IJsCallable callable)
             {
                 var notCtor = StandardLibrary.CreateTypeError("Target is not a constructor", context, realm);
-                throw new ThrowSignal(notCtor);
+                throw new ThrowSignal(JsValue.FromObject(notCtor));
             }
 
             if (constructor is HostFunction hostFunction &&
@@ -102,7 +102,7 @@ public static partial class TypedAstEvaluator
                     ? typeErrorCtor.Invoke([JsValue.FromObject(hostFunction.ConstructErrorMessage ?? "is not a constructor")], JsValue.Null).ToObject()
                     : (object?)new InvalidOperationException(
                         hostFunction.ConstructErrorMessage ?? "Target is not a constructor.");
-                throw new ThrowSignal(error);
+                throw new ThrowSignal(JsValue.FromObject(error));
             }
 
             if (constructor is TypedFunction { IsArrowFunction: true })
@@ -110,7 +110,7 @@ public static partial class TypedAstEvaluator
                 var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
                     ? typeErrorCtor.Invoke([JsValue.FromObject("Target is not a constructor")], JsValue.Null).ToObject()
                     : (object?)new InvalidOperationException("Target is not a constructor.");
-                throw new ThrowSignal(error);
+                throw new ThrowSignal(JsValue.FromObject(error));
             }
 
             if (constructor is TypedFunction { DisallowConstruct: true })
@@ -118,7 +118,7 @@ public static partial class TypedAstEvaluator
                 var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
                     ? typeErrorCtor.Invoke([JsValue.FromObject("Target is not a constructor")], JsValue.Null).ToObject()
                     : (object?)new InvalidOperationException("Target is not a constructor.");
-                throw new ThrowSignal(error);
+                throw new ThrowSignal(JsValue.FromObject(error));
             }
 
             if (constructor is TypedAstEvaluator.TypedGeneratorFactory)
@@ -126,7 +126,7 @@ public static partial class TypedAstEvaluator
                 var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
                     ? typeErrorCtor.Invoke([JsValue.FromObject("Generator functions cannot be constructed with 'new'")], JsValue.Null).ToObject()
                     : (object?)new InvalidOperationException("Generator functions cannot be constructed with 'new'.");
-                throw new ThrowSignal(error);
+                throw new ThrowSignal(JsValue.FromObject(error));
             }
 
             var typedConstructor = constructor as TypedFunction;

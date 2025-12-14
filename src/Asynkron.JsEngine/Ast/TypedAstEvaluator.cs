@@ -51,7 +51,7 @@ public static partial class TypedAstEvaluator
             {
                 var error = StandardLibrary.CreateTypeError("Cannot convert undefined or null to object", context,
                     context.RealmState);
-                context.SetThrow(error);
+                context.SetThrow(JsValue.FromObject(error));
                 bindingObject = null;
                 return false;
             }
@@ -108,7 +108,7 @@ public static partial class TypedAstEvaluator
             }
 
             var typeError = StandardLibrary.CreateTypeError("Iterator is not an object", context, context.RealmState);
-            context.SetThrow(typeError);
+            context.SetThrow(JsValue.FromObject(typeError));
             return false;
         }
 
@@ -129,7 +129,7 @@ public static partial class TypedAstEvaluator
             }
 
             var typeError = StandardLibrary.CreateTypeError("Iterator is not an object", context, context.RealmState);
-            context.SetThrow(typeError);
+            context.SetThrow(JsValue.FromObject(typeError));
             return false;
         }
 
@@ -702,13 +702,13 @@ public static partial class TypedAstEvaluator
         var leftNumeric = JsOps.ToNumericResult(left, context);
         if (context.ShouldStopEvaluation)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         var rightNumeric = JsOps.ToNumericResult(right, context);
         if (context.ShouldStopEvaluation)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         // Both are numbers - most common case
@@ -780,7 +780,7 @@ public static partial class TypedAstEvaluator
         var numeric = JsOps.ToNumeric(operand, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         if (numeric is JsBigInt bigInt)
@@ -803,7 +803,7 @@ public static partial class TypedAstEvaluator
         var numeric = JsOps.ToNumeric(operand, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         if (numeric is JsBigInt bigInt)
@@ -827,13 +827,13 @@ public static partial class TypedAstEvaluator
         var leftNumeric = JsOps.ToNumeric(left, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         var rightNumeric = JsOps.ToNumeric(right, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         if (leftNumeric is JsBigInt leftBigInt && rightNumeric is JsBigInt rightBigInt)
@@ -870,13 +870,13 @@ public static partial class TypedAstEvaluator
         var leftNumeric = JsOps.ToNumeric(left, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         var rightNumeric = JsOps.ToNumeric(right, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         if (leftNumeric is JsBigInt leftBigInt && rightNumeric is JsBigInt rightBigInt)
@@ -913,13 +913,13 @@ public static partial class TypedAstEvaluator
         var leftNumeric = JsOps.ToNumeric(left, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         var rightNumeric = JsOps.ToNumeric(right, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         if (leftNumeric is JsBigInt || rightNumeric is JsBigInt)
@@ -950,13 +950,13 @@ public static partial class TypedAstEvaluator
         var leftNumeric = JsOps.ToNumeric(left, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         var rightNumeric = JsOps.ToNumeric(right, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         if (leftNumeric is JsBigInt leftBigInt && rightNumeric is JsBigInt rightBigInt)
@@ -1033,10 +1033,10 @@ public static partial class TypedAstEvaluator
         // Throw TypeError for primitives (boolean, number, string, null, undefined)
         if (target is not IJsPropertyAccessor)
         {
-            context.SetThrow(StandardLibrary.CreateTypeError(
+            context.SetThrow(JsValue.FromObject(StandardLibrary.CreateTypeError(
                 "Right-hand side of 'in' is not an object",
                 context,
-                context.RealmState));
+                context.RealmState)));
             return false;
         }
 

@@ -93,7 +93,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             var errorObject =
                 StandardLibrary.CreateSyntaxError(parseException.Message, CallingContext, environment.RealmState);
-            throw new ThrowSignal(errorObject);
+            throw new ThrowSignal(JsValue.FromObject(errorObject));
         }
 
         // Scripts evaluated via eval may not contain module syntax (export/import).

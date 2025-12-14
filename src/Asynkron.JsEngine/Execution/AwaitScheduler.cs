@@ -53,8 +53,18 @@ internal static class AwaitScheduler
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsPromiseLike(JsValue candidate)
     {
-        return candidate.IsObject &&
-               candidate.AsObject().TryGetProperty("then", out var thenValue) &&
+        // Unwrapped JsPromise instances should still count as promise-like
+        if (candidate.ObjectValue is JsPromise)
+        {
+            return true;
+        }
+
+        if (!candidate.TryGetObject(out var obj))
+        {
+            return false;
+        }
+
+        return obj.TryGetProperty("then", out var thenValue) &&
                thenValue.TryGetObject<IJsCallable>(out _);
     }
 
@@ -186,14 +196,14 @@ internal static class AwaitScheduler
             catch (ThrowSignal signal)
             {
                 ReturnState(awaitState);
-                context.SetThrow(signal.ThrownValue);
+                context.SetThrow(JsValue.FromObject(signal.ThrownValue));
                 resolvedValue = JsValue.Undefined;
                 return false;
             }
             catch (Exception ex)
             {
                 ReturnState(awaitState);
-                context.SetThrow(ex.Message);
+                context.SetThrow(JsValue.FromObject(ex.Message));
                 resolvedValue = JsValue.Undefined;
                 return false;
             }
@@ -221,14 +231,14 @@ internal static class AwaitScheduler
             catch (ThrowSignal signal)
             {
                 ReturnState(awaitState);
-                context.SetThrow(signal.ThrownValue);
+                context.SetThrow(JsValue.FromObject(signal.ThrownValue));
                 resolvedValue = JsValue.Undefined;
                 return false;
             }
             catch (Exception ex)
             {
                 ReturnState(awaitState);
-                context.SetThrow(ex.Message);
+                context.SetThrow(JsValue.FromObject(ex.Message));
                 resolvedValue = JsValue.Undefined;
                 return false;
             }
@@ -246,7 +256,7 @@ internal static class AwaitScheduler
 
             if (fulfilled == 0)
             {
-                context.SetThrow(value);
+                context.SetThrow(JsValue.FromObject(value));
                 resolvedValue = JsValue.Undefined;
                 return false;
             }
@@ -267,7 +277,7 @@ internal static class AwaitScheduler
         {
             if (isRejected)
             {
-                context.SetThrow(value);
+                context.SetThrow(JsValue.FromObject(value));
                 resolvedValue = JsValue.Undefined;
                 return false;
             }
@@ -284,7 +294,7 @@ internal static class AwaitScheduler
             {
                 if (isRejected)
                 {
-                    context.SetThrow(value);
+                    context.SetThrow(JsValue.FromObject(value));
                     resolvedValue = JsValue.Undefined;
                     return false;
                 }
@@ -360,6 +370,13 @@ internal static class AwaitScheduler
     public static bool TryAwaitPromiseOrSchedule(JsValue candidate, bool asyncStepMode, ref JsValue pendingPromise,
         EvaluationContext context, out JsValue resolvedValue)
     {
+        // Normalize raw JsPromise to its object wrapper so async-generator
+        // plumbing (which expects JsObject) can attach handlers.
+        if (candidate.ObjectValue is JsPromise jsPromise)
+        {
+            candidate = new JsValue(jsPromise.JsObject);
+        }
+
         // When not running under async-generator step execution, keep the
         // existing blocking semantics.
         if (!asyncStepMode)

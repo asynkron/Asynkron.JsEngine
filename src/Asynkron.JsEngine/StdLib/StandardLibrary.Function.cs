@@ -84,7 +84,7 @@ public static partial class StandardLibrary
             catch (ParseException parseException)
             {
                 var message = parseException.Message ?? "SyntaxError";
-                throw new ThrowSignal(CreateSyntaxError(message, evalContext, realm));
+                throw new ThrowSignal(JsValue.FromObject(CreateSyntaxError(message, evalContext, realm)));
             }
 
             var created = engine.ExecuteProgram(
@@ -110,7 +110,7 @@ public static partial class StandardLibrary
         var primitive = JsOps.ToPrimitive(value, ToPrimitiveHint.String, evalContext);
         if (evalContext.IsThrow)
         {
-            throw new ThrowSignal(evalContext.FlowValue);
+            throw new ThrowSignal(JsValue.FromObject(evalContext.FlowValue));
         }
 
         return primitive switch

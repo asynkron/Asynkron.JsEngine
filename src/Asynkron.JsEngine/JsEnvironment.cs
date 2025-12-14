@@ -1047,7 +1047,7 @@ public sealed class JsEnvironment
             var globalObject = bindingEnvironment.GetRootGlobalObject();
             if (globalObject is not null && globalObject.TryGetProperty(name.Name, out var globalValue))
             {
-                return globalValue;
+                return globalValue.ToObject();
             }
         }
 

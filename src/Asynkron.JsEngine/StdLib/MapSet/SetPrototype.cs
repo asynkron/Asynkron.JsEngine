@@ -18,7 +18,7 @@ public sealed partial class SetPrototype
     public JsValue Add(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireSet(thisValue);
-        set.Add(args.GetArgument(0));
+        set.Add(args.GetArgument(0).ToObject());
         return thisValue;
     }
 
@@ -26,14 +26,14 @@ public sealed partial class SetPrototype
     public JsValue Has(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireSet(thisValue);
-        return new JsValue(set.Has(args.GetArgument(0)));
+        return new JsValue(set.Has(args.GetArgument(0).ToObject()));
     }
 
     [JsHostMethod("delete", Length = 1d)]
     public JsValue Delete(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireSet(thisValue);
-        return new JsValue(set.Delete(args.GetArgument(0)));
+        return new JsValue(set.Delete(args.GetArgument(0).ToObject()));
     }
 
     [JsHostMethod("clear", Length = 0d)]

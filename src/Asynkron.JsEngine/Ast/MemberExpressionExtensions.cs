@@ -44,7 +44,7 @@ public static partial class TypedAstEvaluator
             if (expression.Target is SuperExpression)
             {
                 var (memberValue, _) = ResolveSuperMember(expression, environment, context);
-                return context.ShouldStopEvaluation ? JsValue.Undefined : JsValue.FromObject(memberValue);
+                return context.ShouldStopEvaluation ? JsValue.Undefined : memberValue;
             }
 
             var targetJs = EvaluateExpression(expression.Target, environment, context);
@@ -106,7 +106,7 @@ public static partial class TypedAstEvaluator
             return context.ShouldStopEvaluation ? JsValue.Undefined : JsValue.FromObject(value);
         }
 
-        private (object? Value, SuperBinding Binding) ResolveSuperMember(JsEnvironment environment,
+        private (JsValue Value, SuperBinding Binding) ResolveSuperMember(JsEnvironment environment,
             EvaluationContext context)
         {
             // Per ES spec 12.3.5.3 MakeSuperPropertyReference:
@@ -130,13 +130,13 @@ public static partial class TypedAstEvaluator
                     context,
                     context.RealmState);
                 context.SetThrow(error);
-                return (Symbol.Undefined, binding);
+                return (JsValue.Undefined, binding);
             }
 
             var propertyValueJs = EvaluateExpression(expression.Property, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return (Symbol.Undefined, binding);
+                return (JsValue.Undefined, binding);
             }
 
             // Use JsOps.GetRequiredPropertyName which properly handles errors from ToPropertyName
@@ -144,12 +144,12 @@ public static partial class TypedAstEvaluator
             var propertyName = JsOps.GetRequiredPropertyName(propertyValueJs.ToObject(), context);
             if (context.ShouldStopEvaluation)
             {
-                return (Symbol.Undefined, binding);
+                return (JsValue.Undefined, binding);
             }
 
             if (!binding.TryGetProperty(propertyName, out var value))
             {
-                return (Symbol.Undefined, binding);
+                return (JsValue.Undefined, binding);
             }
 
             return (value, binding);

@@ -323,7 +323,7 @@ public static partial class TypedAstEvaluator
                         return (Symbol.Undefined, binding.thisValue, true);
                     }
 
-                    return (memberValue, binding.thisValue, false);
+                    return (memberValue.ToObject(), binding.thisValue, false);
                 }
 
                 var targetJs = EvaluateExpression(member.Target, environment, context);

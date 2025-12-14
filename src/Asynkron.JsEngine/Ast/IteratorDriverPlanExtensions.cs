@@ -82,6 +82,12 @@ public static partial class TypedAstEvaluator
                     throw new ThrowSignal(thrown);
                 }
 
+                // Unwrap JsValue struct if present
+                if (nextResult is JsValue jsVal)
+                {
+                    nextResult = jsVal.ToObject();
+                }
+
                 if (nextResult is IJsObjectLike resultObj)
                 {
                     var done = resultObj.TryGetProperty("done", out var doneValue) &&

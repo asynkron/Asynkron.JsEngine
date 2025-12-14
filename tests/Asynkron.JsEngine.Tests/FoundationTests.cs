@@ -1047,4 +1047,781 @@ public class FoundationTests
     }
 
     #endregion
+
+    #region Async/Await
+
+    [Fact]
+    public async Task Async_SimpleReturn()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("async function test() { return 42; } test()");
+        Assert.Equal(42d, result);
+    }
+
+    [Fact]
+    public async Task Async_AwaitPromise()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            async function test() {
+                const result = await Promise.resolve(100);
+                return result;
+            }
+            test()
+        ");
+        Assert.Equal(100d, result);
+    }
+
+    [Fact]
+    public async Task Async_AwaitMultiple()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            async function test() {
+                const a = await Promise.resolve(10);
+                const b = await Promise.resolve(20);
+                return a + b;
+            }
+            test()
+        ");
+        Assert.Equal(30d, result);
+    }
+
+    [Fact]
+    public async Task Async_ArrowFunction()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const test = async () => {
+                return await Promise.resolve('async arrow');
+            };
+            test()
+        ");
+        Assert.Equal("async arrow", result);
+    }
+
+    [Fact]
+    public async Task Async_TryCatch()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            async function test() {
+                try {
+                    await Promise.reject('error');
+                    return 'not reached';
+                } catch (e) {
+                    return 'caught: ' + e;
+                }
+            }
+            test()
+        ");
+        Assert.Equal("caught: error", result);
+    }
+
+    #endregion
+
+    #region Promises
+
+    [Fact]
+    public async Task Promise_Resolve()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("Promise.resolve(55)");
+        Assert.Equal(55d, result);
+    }
+
+    [Fact]
+    public async Task Promise_Then()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("Promise.resolve(5).then(x => x * 2)");
+        Assert.Equal(10d, result);
+    }
+
+    [Fact]
+    public async Task Promise_ThenChain()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("Promise.resolve(1).then(x => x + 1).then(x => x + 1).then(x => x + 1)");
+        Assert.Equal(4d, result);
+    }
+
+    [Fact]
+    public async Task Promise_Catch()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("Promise.reject('error').catch(e => 'caught')");
+        Assert.Equal("caught", result);
+    }
+
+    [Fact]
+    public async Task Promise_All()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            Promise.all([Promise.resolve(1), Promise.resolve(2), Promise.resolve(3)])
+                .then(arr => arr.reduce((a, b) => a + b, 0))
+        ");
+        Assert.Equal(6d, result);
+    }
+
+    #endregion
+
+    #region Switch Advanced
+
+    [Fact]
+    public async Task Switch_Default()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            let x = 99;
+            let result;
+            switch (x) {
+                case 1: result = 'one'; break;
+                case 2: result = 'two'; break;
+                default: result = 'default';
+            }
+            result
+        ");
+        Assert.Equal("default", result);
+    }
+
+    [Fact]
+    public async Task Switch_Fallthrough()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            let x = 1;
+            let result = '';
+            switch (x) {
+                case 1: result += 'a';
+                case 2: result += 'b';
+                case 3: result += 'c'; break;
+                default: result += 'd';
+            }
+            result
+        ");
+        Assert.Equal("abc", result);
+    }
+
+    [Fact]
+    public async Task Switch_StringCase()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            let x = 'hello';
+            let result;
+            switch (x) {
+                case 'hello': result = 'greeting'; break;
+                case 'bye': result = 'farewell'; break;
+                default: result = 'unknown';
+            }
+            result
+        ");
+        Assert.Equal("greeting", result);
+    }
+
+    [Fact]
+    public async Task Switch_NoMatch()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            let x = 'other';
+            let result = 'initial';
+            switch (x) {
+                case 'a': result = 'found'; break;
+                case 'b': result = 'found'; break;
+            }
+            result
+        ");
+        Assert.Equal("initial", result);
+    }
+
+    #endregion
+
+    #region If/Else Advanced
+
+    [Fact]
+    public async Task If_ElseIf()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            let x = 5;
+            let result;
+            if (x < 0) {
+                result = 'negative';
+            } else if (x === 0) {
+                result = 'zero';
+            } else if (x < 10) {
+                result = 'small';
+            } else {
+                result = 'large';
+            }
+            result
+        ");
+        Assert.Equal("small", result);
+    }
+
+    [Fact]
+    public async Task If_WithoutBraces()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            let x = 1;
+            if (x === 1) x = 10;
+            x
+        ");
+        Assert.Equal(10d, result);
+    }
+
+    [Fact]
+    public async Task If_NestedConditions()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            let a = 5, b = 10;
+            let result;
+            if (a > 0) {
+                if (b > 5) {
+                    result = 'both positive and b > 5';
+                } else {
+                    result = 'both positive but b <= 5';
+                }
+            } else {
+                result = 'a not positive';
+            }
+            result
+        ");
+        Assert.Equal("both positive and b > 5", result);
+    }
+
+    #endregion
+
+    #region Labeled Breaks and Continue
+
+    [Fact]
+    public async Task LabeledBreak_OuterLoop()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            let count = 0;
+            outer: for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < 3; j++) {
+                    count++;
+                    if (i === 1 && j === 1) break outer;
+                }
+            }
+            count
+        ");
+        Assert.Equal(5d, result); // 3 from i=0, 2 from i=1 (j=0,1)
+    }
+
+    [Fact]
+    public async Task LabeledContinue_OuterLoop()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            let result = '';
+            outer: for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < 3; j++) {
+                    if (j === 1) continue outer;
+                    result += i + ',' + j + ';';
+                }
+            }
+            result
+        ");
+        Assert.Equal("0,0;1,0;2,0;", result);
+    }
+
+    [Fact]
+    public async Task LabeledBreak_WhileLoop()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            let sum = 0;
+            outer: while (true) {
+                let i = 0;
+                while (i < 10) {
+                    sum += i;
+                    i++;
+                    if (sum > 20) break outer;
+                }
+            }
+            sum
+        ");
+        Assert.Equal(21d, result);
+    }
+
+    #endregion
+
+    #region Classes Advanced
+
+    [Fact]
+    public async Task Class_PrivateField()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            class Counter {
+                #count = 0;
+                increment() { this.#count++; }
+                getCount() { return this.#count; }
+            }
+            const c = new Counter();
+            c.increment();
+            c.increment();
+            c.increment();
+            c.getCount()
+        ");
+        Assert.Equal(3d, result);
+    }
+
+    [Fact]
+    public async Task Class_PrivateMethod()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            class Calculator {
+                #double(x) { return x * 2; }
+                compute(x) { return this.#double(x) + 1; }
+            }
+            new Calculator().compute(5)
+        ");
+        Assert.Equal(11d, result);
+    }
+
+    [Fact]
+    public async Task Class_StaticField()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            class Counter {
+                static count = 0;
+                static increment() { Counter.count++; }
+            }
+            Counter.increment();
+            Counter.increment();
+            Counter.count
+        ");
+        Assert.Equal(2d, result);
+    }
+
+    [Fact]
+    public async Task Class_StaticPrivateField()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            class Config {
+                static #secret = 42;
+                static getSecret() { return Config.#secret; }
+            }
+            Config.getSecret()
+        ");
+        Assert.Equal(42d, result);
+    }
+
+    [Fact]
+    public async Task Class_ComputedMethodName()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const methodName = 'compute';
+            class Test {
+                [methodName](x) { return x * 10; }
+            }
+            new Test().compute(5)
+        ");
+        Assert.Equal(50d, result);
+    }
+
+    [Fact]
+    public async Task Class_SuperConstructor()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            class Animal {
+                constructor(name) { this.name = name; }
+            }
+            class Dog extends Animal {
+                constructor(name, breed) {
+                    super(name);
+                    this.breed = breed;
+                }
+            }
+            const d = new Dog('Rex', 'Shepherd');
+            d.name + ' is a ' + d.breed
+        ");
+        Assert.Equal("Rex is a Shepherd", result);
+    }
+
+    #endregion
+
+    #region Arrow Functions Advanced
+
+    [Fact]
+    public async Task Arrow_SingleParam_NoParens()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("const double = x => x * 2; double(5)");
+        Assert.Equal(10d, result);
+    }
+
+    [Fact]
+    public async Task Arrow_ImplicitReturn_Object()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("const makeObj = x => ({value: x}); makeObj(42).value");
+        Assert.Equal(42d, result);
+    }
+
+    [Fact]
+    public async Task Arrow_This_Binding()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const obj = {
+                value: 10,
+                getValue: function() {
+                    const inner = () => this.value;
+                    return inner();
+                }
+            };
+            obj.getValue()
+        ");
+        Assert.Equal(10d, result);
+    }
+
+    [Fact]
+    public async Task Arrow_AsCallback()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("[1, 2, 3].reduce((acc, x) => acc * x, 1)");
+        Assert.Equal(6d, result);
+    }
+
+    #endregion
+
+    #region Generators
+
+    [Fact]
+    public async Task Generator_Basic()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            function* gen() {
+                yield 1;
+                yield 2;
+                yield 3;
+            }
+            const g = gen();
+            g.next().value + g.next().value + g.next().value
+        ");
+        Assert.Equal(6d, result);
+    }
+
+    [Fact]
+    public async Task Generator_ForOf()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            function* gen() {
+                yield 'a';
+                yield 'b';
+                yield 'c';
+            }
+            let result = '';
+            for (const x of gen()) {
+                result += x;
+            }
+            result
+        ");
+        Assert.Equal("abc", result);
+    }
+
+    [Fact]
+    public async Task Generator_YieldStar()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            function* gen1() { yield 1; yield 2; }
+            function* gen2() { yield* gen1(); yield 3; }
+            let sum = 0;
+            for (const x of gen2()) { sum += x; }
+            sum
+        ");
+        Assert.Equal(6d, result);
+    }
+
+    #endregion
+
+    #region Spread and Rest Operators
+
+    [Fact]
+    public async Task Spread_FunctionCall()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            function sum(a, b, c) { return a + b + c; }
+            const args = [1, 2, 3];
+            sum(...args)
+        ");
+        Assert.Equal(6d, result);
+    }
+
+    [Fact]
+    public async Task Spread_ArrayConcat()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("[1, ...[2, 3], 4].join(',')");
+        Assert.Equal("1,2,3,4", result);
+    }
+
+    [Fact]
+    public async Task Rest_ArrayDestructuring()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const [first, ...rest] = [1, 2, 3, 4];
+            rest.join(',')
+        ");
+        Assert.Equal("2,3,4", result);
+    }
+
+    [Fact]
+    public async Task Rest_ObjectDestructuring()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const {a, ...rest} = {a: 1, b: 2, c: 3};
+            rest.b + rest.c
+        ");
+        Assert.Equal(5d, result);
+    }
+
+    #endregion
+
+    #region Optional Chaining and Nullish
+
+    [Fact]
+    public async Task OptionalChaining_Property()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const obj = {a: {b: 42}};
+            obj?.a?.b
+        ");
+        Assert.Equal(42d, result);
+    }
+
+    [Fact]
+    public async Task OptionalChaining_Undefined()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const obj = {};
+            obj?.a?.b ?? 'default'
+        ");
+        Assert.Equal("default", result);
+    }
+
+    [Fact]
+    public async Task OptionalChaining_MethodCall()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const obj = {
+                method() { return 'called'; }
+            };
+            obj.method?.()
+        ");
+        Assert.Equal("called", result);
+    }
+
+    [Fact]
+    public async Task OptionalChaining_ArrayAccess()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const arr = [1, 2, 3];
+            arr?.[1]
+        ");
+        Assert.Equal(2d, result);
+    }
+
+    #endregion
+
+    #region Symbol
+
+    [Fact]
+    public async Task Symbol_Create()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("typeof Symbol('test')");
+        Assert.Equal("symbol", result);
+    }
+
+    [Fact]
+    public async Task Symbol_Unique()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("Symbol('a') === Symbol('a')");
+        Assert.Equal(false, result);
+    }
+
+    [Fact]
+    public async Task Symbol_AsPropertyKey()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const sym = Symbol('key');
+            const obj = { [sym]: 42 };
+            obj[sym]
+        ");
+        Assert.Equal(42d, result);
+    }
+
+    #endregion
+
+    #region Map and Set
+
+    [Fact]
+    public async Task Map_SetGet()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const map = new Map();
+            map.set('key', 100);
+            map.get('key')
+        ");
+        Assert.Equal(100d, result);
+    }
+
+    [Fact]
+    public async Task Map_Size()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const map = new Map([['a', 1], ['b', 2]]);
+            map.size
+        ");
+        Assert.Equal(2d, result);
+    }
+
+    [Fact]
+    public async Task Set_AddHas()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const set = new Set();
+            set.add(1);
+            set.add(2);
+            set.add(1); // duplicate
+            set.size
+        ");
+        Assert.Equal(2d, result);
+    }
+
+    [Fact]
+    public async Task Set_Has()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const set = new Set([1, 2, 3]);
+            set.has(2)
+        ");
+        Assert.Equal(true, result);
+    }
+
+    #endregion
+
+    #region BigInt
+
+    [Fact]
+    public async Task BigInt_Literal()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("typeof 123n");
+        Assert.Equal("bigint", result);
+    }
+
+    [Fact]
+    public async Task BigInt_Arithmetic()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("(10n + 20n).toString()");
+        Assert.Equal("30", result);
+    }
+
+    [Fact]
+    public async Task BigInt_Comparison()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("10n > 5n");
+        Assert.Equal(true, result);
+    }
+
+    #endregion
+
+    #region RegExp
+
+    [Fact]
+    public async Task RegExp_Test()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("/hello/.test('hello world')");
+        Assert.Equal(true, result);
+    }
+
+    [Fact]
+    public async Task RegExp_Exec()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("/o/.exec('hello')[0]");
+        Assert.Equal("o", result);
+    }
+
+    [Fact]
+    public async Task RegExp_Match()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("'hello world'.match(/o/g).length");
+        Assert.Equal(2d, result);
+    }
+
+    [Fact]
+    public async Task RegExp_Replace()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("'hello'.replace(/l/g, 'L')");
+        Assert.Equal("heLLo", result);
+    }
+
+    #endregion
+
+    #region Date
+
+    [Fact]
+    public async Task Date_Create()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("new Date(2024, 0, 15).getFullYear()");
+        Assert.Equal(2024d, result);
+    }
+
+    [Fact]
+    public async Task Date_GetMonth()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("new Date(2024, 5, 15).getMonth()");
+        Assert.Equal(5d, result); // June (0-indexed)
+    }
+
+    [Fact]
+    public async Task Date_GetDate()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("new Date(2024, 0, 15).getDate()");
+        Assert.Equal(15d, result);
+    }
+
+    #endregion
 }

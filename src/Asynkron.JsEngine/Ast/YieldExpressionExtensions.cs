@@ -60,8 +60,7 @@ public static partial class TypedAstEvaluator
                 return yieldedValueJs;
             }
 
-            var yieldedValue = yieldedValueJs.ToObject();
-            context.SetYield(yieldedValue, yieldIndex);
+            context.SetYieldJsValue(yieldedValueJs, yieldIndex);
             yieldTracker.MarkConsumed(yieldIndex);
             return yieldedValueJs;
         }

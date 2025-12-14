@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine;
 
@@ -13,7 +14,23 @@ public interface ICompletionSignal
 /// <summary>
 ///     Signal indicating a return statement was encountered.
 /// </summary>
-internal sealed record ReturnCompletionSignal(object? Value) : ICompletionSignal;
+internal sealed class ReturnCompletionSignal : ICompletionSignal
+{
+    public object? Value { get; }
+    public JsValue JsValue { get; }
+
+    public ReturnCompletionSignal(object? value)
+    {
+        Value = value;
+        JsValue = JsValue.FromObject(value);
+    }
+
+    public ReturnCompletionSignal(JsValue jsValue)
+    {
+        JsValue = jsValue;
+        Value = jsValue.ToObject();
+    }
+}
 
 /// <summary>
 ///     Signal indicating a break statement was encountered.
@@ -28,11 +45,44 @@ internal sealed record ContinueCompletionSignal(Symbol? Label = null) : IComplet
 /// <summary>
 ///     Signal indicating a yield expression was encountered (in generator context).
 /// </summary>
-/// <param name="Value">The yielded value.</param>
-/// <param name="IteratorResultObject">Optional original iterator result object for yield* to preserve done property.</param>
-internal sealed record YieldCompletionSignal(object? Value, JsTypes.IJsObjectLike? IteratorResultObject = null) : ICompletionSignal;
+internal sealed class YieldCompletionSignal : ICompletionSignal
+{
+    public object? Value { get; }
+    public JsValue JsValue { get; }
+    public IJsObjectLike? IteratorResultObject { get; }
+
+    public YieldCompletionSignal(object? value, IJsObjectLike? iteratorResultObject = null)
+    {
+        Value = value;
+        JsValue = JsValue.FromObject(value);
+        IteratorResultObject = iteratorResultObject;
+    }
+
+    public YieldCompletionSignal(JsValue jsValue, IJsObjectLike? iteratorResultObject = null)
+    {
+        JsValue = jsValue;
+        Value = jsValue.ToObject();
+        IteratorResultObject = iteratorResultObject;
+    }
+}
 
 /// <summary>
 ///     Signal indicating a throw statement was encountered.
 /// </summary>
-internal sealed record ThrowFlowCompletionSignal(object? Value) : ICompletionSignal;
+internal sealed class ThrowFlowCompletionSignal : ICompletionSignal
+{
+    public object? Value { get; }
+    public JsValue JsValue { get; }
+
+    public ThrowFlowCompletionSignal(object? value)
+    {
+        Value = value;
+        JsValue = JsValue.FromObject(value);
+    }
+
+    public ThrowFlowCompletionSignal(JsValue jsValue)
+    {
+        JsValue = jsValue;
+        Value = jsValue.ToObject();
+    }
+}

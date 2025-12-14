@@ -6,7 +6,7 @@ public static partial class TypedAstEvaluator
     {
         private object? EvaluateThrow(JsEnvironment environment, EvaluationContext context)
         {
-            var valueJs = EvaluateExpression(statement.Expression, environment, context);
+            var jsValue = EvaluateExpression(statement.Expression, environment, context);
             // If evaluating the throw expression itself caused an abrupt completion
             // (e.g., ReferenceError from accessing undefined variable), propagate that
             // instead of overwriting with the expression result.
@@ -14,9 +14,8 @@ public static partial class TypedAstEvaluator
             {
                 return context.FlowValue;
             }
-            var value = valueJs.ToObject();
-            context.SetThrow(value);
-            return value;
+            context.SetThrowJsValue(jsValue);
+            return jsValue.ToObject();
         }
     }
 }

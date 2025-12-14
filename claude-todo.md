@@ -10,8 +10,11 @@ The migration is **partially complete**:
 - All expression types now return native `JsValue` (Phase 1 complete)
 - `Binding` struct now stores values in `JsValue _jsValue` field (Phase 2 complete)
 - `IdentifierExpressionExtensions` uses `GetIdentifierJsValue` for unboxed reads
+- Completion signals store `JsValue` directly (Phase 3 partial)
+- `SetReturnJsValue`, `SetThrowJsValue`, `SetYieldJsValue` added to EvaluationContext
+- `DefineJsValue` added for unboxed variable definitions
 - `IJsCallable.Invoke` still returns `object?` (Phase 4 pending)
-- Statement evaluation still uses `object?` internally (Phase 3 pending)
+- Statement evaluation methods still return `object?` (Phase 3 ongoing)
 
 ## Migration Strategy
 
@@ -92,20 +95,42 @@ After each file, run tests to ensure nothing breaks.
 
 ---
 
-## Phase 3: Statement Extensions (172 occurrences, 44 files)
+## Phase 3: Statement Extensions (172 occurrences, 44 files) ✅ PARTIAL
 
 Convert statement evaluation to work with JsValue internally.
 Depends on Phase 2 (EvaluationContext uses Binding values).
 
-- [ ] `StatementNodeExtensions.cs` - core statement dispatcher
-- [ ] `ReturnStatementExtensions.cs`
-- [ ] `ThrowStatementExtensions.cs`
+### 3.1 Completion Signals ✅ COMPLETE
+- [x] Convert `ReturnCompletionSignal` to class with JsValue property
+- [x] Convert `ThrowFlowCompletionSignal` to class with JsValue property
+- [x] Convert `YieldCompletionSignal` to class with JsValue property
+- [x] Add `FlowJsValue` property to EvaluationContext
+
+### 3.2 EvaluationContext Methods ✅ COMPLETE
+- [x] Add `SetReturnJsValue(JsValue value)` - stores JsValue directly
+- [x] Add `SetThrowJsValue(JsValue value)` - stores JsValue directly
+- [x] Add `SetYieldJsValue(JsValue value, int yieldIndex)` - stores JsValue directly
+
+### 3.3 JsEnvironment Enhancements ✅ COMPLETE
+- [x] Add `DefineJsValue` method for unboxed variable definition
+- [x] Add `Binding` constructor that takes `JsValue` directly
+
+### 3.4 Statement Extensions ✅ PARTIAL
+- [x] `ReturnStatementExtensions.cs` - uses SetReturnJsValue
+- [x] `ThrowStatementExtensions.cs` - uses SetThrowJsValue
+- [x] `YieldExpressionExtensions.cs` - uses SetYieldJsValue (simple yield path)
+- [ ] `StatementNodeExtensions.cs` - core statement dispatcher (returns object?)
 - [ ] `IfStatementExtensions.cs`
 - [ ] `SwitchStatementExtensions.cs`
 - [ ] `ForEachStatementExtensions.cs`
 - [ ] `LoopPlanExtensions.cs`
 - [ ] `WithStatementExtensions.cs`
 - [ ] `VariableKindExtensions.cs`
+
+### 3.5 Remaining Work
+- Statement evaluation methods still return `object?` for backward compatibility
+- Full conversion requires changing `EvaluateStatement` return type to `JsValue`
+- This would cascade to all statement dispatchers and callers
 
 ---
 

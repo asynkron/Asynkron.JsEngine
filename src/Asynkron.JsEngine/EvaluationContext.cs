@@ -116,6 +116,18 @@ public sealed class EvaluationContext(
     };
 
     /// <summary>
+    ///     The value associated with the control flow as JsValue (for Return, Throw, and Yield signals).
+    ///     Avoids boxing for primitive values.
+    /// </summary>
+    public JsValue FlowJsValue => CurrentSignal switch
+    {
+        ReturnCompletionSignal rs => rs.JsValue,
+        ThrowFlowCompletionSignal ts => ts.JsValue,
+        YieldCompletionSignal ys => ys.JsValue,
+        _ => JsValue.Undefined
+    };
+
+    /// <summary>
     ///     Returns true if evaluation should stop (any signal is present).
     /// </summary>
     public bool ShouldStopEvaluation => CurrentSignal is not null;
@@ -266,6 +278,14 @@ public sealed class EvaluationContext(
     }
 
     /// <summary>
+    ///     Sets the context to Return state with the given JsValue, avoiding boxing for primitives.
+    /// </summary>
+    public void SetReturnJsValue(JsValue value)
+    {
+        CurrentSignal = new ReturnCompletionSignal(value);
+    }
+
+    /// <summary>
     ///     Sets the context to Break state.
     /// </summary>
     public void SetBreak(Symbol? label = null)
@@ -290,9 +310,26 @@ public sealed class EvaluationContext(
     }
 
     /// <summary>
+    ///     Sets the context to Throw state with the given JsValue, avoiding boxing for primitives.
+    /// </summary>
+    public void SetThrowJsValue(JsValue value)
+    {
+        CurrentSignal = new ThrowFlowCompletionSignal(value);
+    }
+
+    /// <summary>
     ///     Sets the context to Yield state with the given value.
     /// </summary>
     public void SetYield(object? value, int yieldIndex)
+    {
+        LastYieldIndex = yieldIndex;
+        CurrentSignal = new YieldCompletionSignal(value);
+    }
+
+    /// <summary>
+    ///     Sets the context to Yield state with the given JsValue, avoiding boxing for primitives.
+    /// </summary>
+    public void SetYieldJsValue(JsValue value, int yieldIndex)
     {
         LastYieldIndex = yieldIndex;
         CurrentSignal = new YieldCompletionSignal(value);

@@ -199,6 +199,49 @@ public sealed class JsEnvironment
         NotifyBindingObservers(name, value);
     }
 
+    /// <summary>
+    /// Defines a binding with a JsValue directly, avoiding boxing for primitives.
+    /// </summary>
+    public void DefineJsValue(
+        Symbol name,
+        JsValue value,
+        bool isConst = false,
+        bool isGlobalConstant = false,
+        bool isLexical = true,
+        bool blocksFunctionScopeOverride = false,
+        bool canDelete = false,
+        bool isImmutableBinding = false)
+    {
+        if (_values is not null && _values.TryGetValue(name, out var existing) && existing.IsGlobalConstant)
+        {
+            return;
+        }
+
+        ref var binding = ref Values.GetValueRefOrNullRef(name);
+        if (!Unsafe.IsNullRef(ref binding))
+        {
+            if (binding.IsConst || binding.IsGlobalConstant)
+            {
+                if (isLexical && blocksFunctionScopeOverride)
+                {
+                    binding = new Binding(value, isConst, isGlobalConstant, isLexical,
+                        blocksFunctionScopeOverride, canDelete, isImmutableBinding);
+                }
+
+                return;
+            }
+
+            binding.JsValue = value;
+            binding.UpgradeLexical(isLexical, blocksFunctionScopeOverride);
+            NotifyBindingObservers(name, value.ToObject());
+            return;
+        }
+
+        Values[name] = new Binding(value, isConst, isGlobalConstant, isLexical, blocksFunctionScopeOverride,
+            canDelete, isImmutableBinding);
+        NotifyBindingObservers(name, value.ToObject());
+    }
+
     internal void DefineExportPromiseBinding(Symbol name, JsPromise promise, bool isLexical, bool isConst)
     {
         if (_values is not null && _values.ContainsKey(name))
@@ -2145,6 +2188,29 @@ public sealed class JsEnvironment
             bool isImmutableBinding = false)
         {
             _jsValue = JsValue.FromObject(value);
+            _specialBinding = null;
+            _flags = BindingFlags.None;
+            if (isConst) _flags |= BindingFlags.IsConst;
+            if (isGlobalConstant) _flags |= BindingFlags.IsGlobalConstant;
+            if (isLexical) _flags |= BindingFlags.IsLexical;
+            if (blocksFunctionScopeOverride) _flags |= BindingFlags.BlocksFunctionScopeOverride;
+            if (canDelete) _flags |= BindingFlags.CanDelete;
+            if (isImmutableBinding) _flags |= BindingFlags.IsImmutableBinding;
+        }
+
+        /// <summary>
+        /// Constructor that takes JsValue directly, avoiding boxing for primitives.
+        /// </summary>
+        public Binding(
+            JsValue value,
+            bool isConst,
+            bool isGlobalConstant,
+            bool isLexical,
+            bool blocksFunctionScopeOverride,
+            bool canDelete,
+            bool isImmutableBinding = false)
+        {
+            _jsValue = value;
             _specialBinding = null;
             _flags = BindingFlags.None;
             if (isConst) _flags |= BindingFlags.IsConst;

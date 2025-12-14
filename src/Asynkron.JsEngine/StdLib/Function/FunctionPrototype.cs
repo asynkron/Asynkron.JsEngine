@@ -11,9 +11,9 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class FunctionPrototype : JsPrototype
 {
     [JsHostMethod("toString", Length = 0d)]
-    public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
+    public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue.TryGetObject<IJsCallable>(out _))
+        if (thisValue.TryGetObject<IJsCallable>(out var callable))
         {
             return new JsValue("function() { [native code] }");
         }

@@ -101,7 +101,7 @@ public static partial class TypedAstEvaluator
             var instance = new TypedGeneratorInstance(
                 _function,
                 _closure,
-                ConvertArgumentsToObjectList(arguments),
+                arguments,
                 thisValue,
                 this,
                 _realmState,

@@ -19,7 +19,7 @@ public static partial class TypedAstEvaluator
 
             _nextMethod ??= iterator.GetIteratorNextCallable(context);
             var candidate = iterator.InvokeIteratorNext(_nextMethod, context: context);
-            if (candidate is not IJsObjectLike result)
+            if (!candidate.TryGetObject<IJsObjectLike>(out var result))
             {
                 throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);
             }

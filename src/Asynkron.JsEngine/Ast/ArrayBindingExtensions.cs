@@ -324,7 +324,7 @@ public static partial class TypedAstEvaluator
 
                 if (iterator is not null && !iteratorThrew && !iteratorDone)
                 {
-                    CloseIterator(true, signal.ThrownValue);
+                    CloseIterator(true, JsValue.FromObject(signal.ThrownValue));
                 }
 
                 throw;

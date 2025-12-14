@@ -271,7 +271,7 @@ public static partial class StandardLibrary
             {
                 var statics = EnsureRegExpReceiver(thisValue);
                 var value = args.GetArgument(0);
-                statics.Input = JsOps.ToString(value) ?? string.Empty;
+                statics.Input = JsOps.ToPropertyName(value.ToObject()) ?? string.Empty;
                 return JsValue.Undefined;
             }, isConstructor: false),
             Enumerable = false,

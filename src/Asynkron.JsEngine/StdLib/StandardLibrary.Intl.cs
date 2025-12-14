@@ -242,7 +242,7 @@ public static partial class StandardLibrary
 
             JsValue formatterObj;
             if (CreateIntlObject(realm).TryGetProperty("DurationFormat", out var ctorVal) &&
-                ctorVal.TryGetObject<IJsCallable>(out var durationFormatCtor))
+                JsValue.FromObject(ctorVal).TryGetObject<IJsCallable>(out var durationFormatCtor))
             {
                 formatterObj = durationFormatCtor.Invoke([locale, options], JsValue.Undefined);
             }
@@ -253,7 +253,7 @@ public static partial class StandardLibrary
 
             if (formatterObj.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
                 accessor.TryGetProperty("format", out var formatVal) &&
-                formatVal.TryGetObject<IJsCallable>(out var formatFn))
+                JsValue.FromObject(formatVal).TryGetObject<IJsCallable>(out var formatFn))
             {
                 return formatFn.Invoke([thisValue], formatterObj);
             }

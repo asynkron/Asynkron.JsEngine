@@ -19,10 +19,10 @@ public sealed partial class IntlDateTimeFormatPrototype
     }
 
     [JsHostGetter("format", DisplayName = "get format")]
-    private HostFunction GetFormat(JsValue thisValue)
+    private JsValue GetFormat(JsValue thisValue)
     {
         var slotData = ValidateReceiver(thisValue, out _);
-        return CreateBoundFormatFunction(value => FormatInternal(value, slotData));
+        return JsValue.FromObject(CreateBoundFormatFunction(value => FormatInternal(value, slotData)));
     }
 
     [JsHostMethod("formatToParts", Length = 1d)]

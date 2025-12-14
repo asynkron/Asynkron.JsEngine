@@ -29,7 +29,7 @@ public class ArrayLengthTest(ITestOutputHelper output)
         ");
 
         output.WriteLine($"Result: {result}");
-        Assert.Contains("plainText.length=15824", result?.ToString());
-        Assert.Contains("result.length=3956", result?.ToString());
+        Assert.Contains("plainText.length=15824", result.ToObject()?.ToString());
+        Assert.Contains("result.length=3956", result.ToObject()?.ToString());
     }
 }

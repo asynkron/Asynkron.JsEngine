@@ -158,7 +158,7 @@ public class GetPropertyNameTests
 
         engine.SetGlobalFunction("capture", args =>
         {
-            result = args[0]?.ToString() ?? "";
+            result = args[0].ToObject()?.ToString() ?? "";
             return null;
         });
 
@@ -181,7 +181,7 @@ public class GetPropertyNameTests
 
         engine.SetGlobalFunction("capture", args =>
         {
-            result = args[0]?.ToString() ?? "";
+            result = args[0].ToObject()?.ToString() ?? "";
             return null;
         });
 

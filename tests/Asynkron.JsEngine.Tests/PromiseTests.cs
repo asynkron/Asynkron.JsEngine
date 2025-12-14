@@ -82,7 +82,7 @@ public class PromiseTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
 
             return null;
@@ -115,7 +115,7 @@ public class PromiseTests
         {
             if (args.Count > 0)
             {
-                results.Add(args[0]?.ToString() ?? "");
+                results.Add(args[0].ToObject()?.ToString() ?? "");
             }
 
             return null;
@@ -152,7 +152,7 @@ public class PromiseTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
 
             return null;
@@ -180,7 +180,7 @@ public class PromiseTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
 
             return null;
@@ -267,7 +267,7 @@ public class PromiseTests
         {
             if (args.Count > 0)
             {
-                results.Add(args[0]?.ToString() ?? "");
+                results.Add(args[0].ToObject()?.ToString() ?? "");
             }
 
             return null;
@@ -302,7 +302,7 @@ public class PromiseTests
             rejected = true;
             if (args.Count > 0)
             {
-                reason = args[0]?.ToString() ?? "";
+                reason = args[0].ToObject()?.ToString() ?? "";
             }
 
             return null;
@@ -335,7 +335,7 @@ public class PromiseTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
 
             return null;
@@ -365,7 +365,7 @@ public class PromiseTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
 
             return null;
@@ -422,7 +422,7 @@ public class PromiseTests
         {
             if (args.Count > 0)
             {
-                finalValue = args[0]?.ToString() ?? "";
+                finalValue = args[0].ToObject()?.ToString() ?? "";
             }
 
             return null;

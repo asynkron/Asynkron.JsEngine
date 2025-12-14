@@ -86,7 +86,7 @@ public class AsyncAwaitTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
 
             return null;
@@ -120,7 +120,7 @@ public class AsyncAwaitTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
             return null;
         });
@@ -151,7 +151,7 @@ public class AsyncAwaitTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
             return null;
         });
@@ -185,7 +185,7 @@ public class AsyncAwaitTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
             return null;
         });
@@ -249,7 +249,7 @@ public class AsyncAwaitTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
 
             return null;
@@ -287,7 +287,7 @@ public class AsyncAwaitTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
 
             return null;
@@ -331,7 +331,7 @@ public class AsyncAwaitTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
 
             return null;
@@ -437,7 +437,7 @@ public class AsyncAwaitTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
             return null;
         });
@@ -533,7 +533,7 @@ public class AsyncAwaitTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
 
             return null;
@@ -573,7 +573,7 @@ public class AsyncAwaitTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
 
             return null;
@@ -621,7 +621,7 @@ public class AsyncAwaitTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
 
             return null;
@@ -666,7 +666,7 @@ public class AsyncAwaitTests
         {
             if (args.Count > 0)
             {
-                results.Add(args[0]?.ToString() ?? "");
+                results.Add(args[0].ToObject()?.ToString() ?? "");
             }
 
             return null;
@@ -713,7 +713,7 @@ public class AsyncAwaitTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
 
             return null;
@@ -764,7 +764,7 @@ public class AsyncAwaitTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
             return null;
         });

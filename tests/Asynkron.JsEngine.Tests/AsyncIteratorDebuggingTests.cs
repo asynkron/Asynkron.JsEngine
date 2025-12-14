@@ -17,7 +17,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
             return null;
         });
@@ -48,7 +48,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
             return null;
         });
@@ -84,7 +84,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
             return null;
         });
@@ -123,7 +123,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
             return null;
         });
@@ -167,7 +167,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
             return null;
         });
@@ -218,7 +218,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
             return null;
         });
@@ -289,7 +289,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         var engine1 = new JsEngine();
         engine1.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"[LOCAL] {msg}");
             localLogs.Append(msg).AppendLine();
             return null;
@@ -327,7 +327,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         var engine2 = new JsEngine();
         engine2.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"[GLOBAL] {msg}");
             globalLogs.Append(msg).AppendLine();
             return null;
@@ -381,7 +381,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
             return null;
         });
@@ -432,7 +432,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
             return null;
         });
@@ -485,7 +485,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
             return null;
         });
@@ -541,7 +541,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
             return null;
         });
@@ -605,7 +605,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
             return null;
         });
@@ -685,7 +685,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
             return null;
         });
@@ -746,14 +746,14 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
 
         engine.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
             return null;
         });
 
         engine.SetGlobalFunction("onRejection", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"REJECTION: {msg}");
             rejectionsCaught.Add(msg);
             return null;
@@ -839,7 +839,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
             return null;
         });

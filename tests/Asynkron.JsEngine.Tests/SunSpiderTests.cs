@@ -66,7 +66,7 @@ public class SunSpiderTests
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
-            Console.WriteLine(args.Count > 0 ? args[0]?.ToString() : string.Empty);
+            Console.WriteLine(args.Count > 0 ? args[0].ToObject()?.ToString() : string.Empty);
             return null;
         });
         engine.SetGlobalFunction("assert", args =>

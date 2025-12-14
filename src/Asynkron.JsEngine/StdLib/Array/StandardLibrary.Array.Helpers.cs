@@ -68,7 +68,7 @@ public static partial class StandardLibrary
 
     internal static void SetArrayLikeLength(IJsPropertyAccessor target, long length)
     {
-        target.SetProperty("length", (double)Math.Max(length, 0));
+        target.SetProperty("length", JsValue.FromObject((double)Math.Max(length, 0)));
     }
 
     internal static long LengthOfArrayLike(object? target, RealmState? realm, string operation)
@@ -291,13 +291,12 @@ public static partial class StandardLibrary
 
         var accessor = target as IJsPropertyAccessor ?? ToPropertyAccessor(target, operation, realm);
         if (!accessor.TryGetProperty(propertyKey, out var candidate) ||
-            candidate is null ||
-            ReferenceEquals(candidate, Symbol.Undefined))
+            candidate.IsNullOrUndefined)
         {
             return false;
         }
 
-        if (candidate is not IJsCallable resolved)
+        if (!candidate.TryGetObject<IJsCallable>(out var resolved))
         {
             throw ThrowTypeError($"{operation} expected a function", realm: realm);
         }
@@ -349,13 +348,12 @@ public static partial class StandardLibrary
     internal static void IteratorClose(IJsPropertyAccessor iterator, RealmState? realm, string operation)
     {
         if (!iterator.TryGetProperty("return", out var returnValue) ||
-            returnValue is null ||
-            ReferenceEquals(returnValue, Symbol.Undefined))
+            returnValue.IsNullOrUndefined)
         {
             return;
         }
 
-        if (returnValue is not IJsCallable callable)
+        if (!returnValue.TryGetObject<IJsCallable>(out var callable))
         {
             throw ThrowTypeError($"{operation} iterator return is not callable", realm: realm);
         }
@@ -414,7 +412,7 @@ public static partial class StandardLibrary
     {
         if (realm?.ObjectPrototype is IJsPropertyAccessor objectPrototype &&
             objectPrototype.TryGetProperty("toString", out var toStringValue) &&
-            toStringValue is IJsCallable callable)
+            toStringValue.TryGetObject<IJsCallable>(out var callable))
         {
             return callable.Invoke([], JsValue.FromObject(target)).ToObject();
         }

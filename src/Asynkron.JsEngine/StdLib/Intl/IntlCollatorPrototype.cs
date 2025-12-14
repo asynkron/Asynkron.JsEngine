@@ -14,8 +14,8 @@ public sealed partial class IntlCollatorPrototype
 
     internal static void InitializeInternalSlots(JsObject instance, IntlCollatorInternalSlots slots)
     {
-        instance.SetProperty(CollatorBrand, true);
-        instance.SetProperty(SlotsKey, slots);
+        instance.SetProperty(CollatorBrand, JsValue.FromObject(true));
+        instance.SetProperty(SlotsKey, JsValue.FromObject(slots));
     }
 
     [JsHostGetter("compare", DisplayName = "get compare")]
@@ -55,7 +55,7 @@ public sealed partial class IntlCollatorPrototype
 
     private IntlCollatorInternalSlots GetSlots(JsObject collator)
     {
-        if (collator.TryGetProperty(SlotsKey, out var value) && value is IntlCollatorInternalSlots slots)
+        if (collator.TryGetProperty(SlotsKey, out var value) && value.TryGetObject<IntlCollatorInternalSlots>(out var slots))
         {
             return slots;
         }

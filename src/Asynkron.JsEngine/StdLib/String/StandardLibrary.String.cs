@@ -35,9 +35,9 @@ public static partial class StandardLibrary
         return receiver switch
         {
             string s => s,
-            JsObject obj when obj.TryGetProperty("__value__", out var inner) && inner is string s => s,
+            JsObject obj when obj.TryGetProperty("__value__", out var inner) && inner.TryGetString(out var s) => s,
             IJsPropertyAccessor accessor when accessor.TryGetProperty("__value__", out var inner)
-                                              && inner is string s => s,
+                                              && inner.TryGetString(out var s) => s,
             _ => throw ThrowTypeError("String.prototype valueOf called on non-string object", realm: realm)
         };
     }
@@ -621,7 +621,7 @@ public static partial class StandardLibrary
             var regex = ToRegExpValue(searchValue, string.Empty, false);
             var result = regex.Exec(value);
             if (result is JsArray arr && arr.TryGetProperty("index", out var indexObj) &&
-                indexObj is double d)
+                indexObj.TryGetDouble(out var d))
             {
                 return new JsValue(d);
             }
@@ -1025,7 +1025,7 @@ public static partial class StandardLibrary
 
             if (candidate.TryGetObject<JsObject>(out var obj) &&
                 obj.TryGetProperty("__regex__", out var regexValue) &&
-                regexValue is JsRegExp stored)
+                regexValue.TryGetObject<JsRegExp>(out var stored))
             {
                 regex = stored;
                 return true;
@@ -1069,7 +1069,7 @@ public static partial class StandardLibrary
 
             if (candidate.TryGetObject<JsObject>(out var obj) &&
                 obj.TryGetProperty("__regex__", out var regexValue) &&
-                regexValue is JsRegExp stored)
+                regexValue.TryGetObject<JsRegExp>(out var stored))
             {
                 if (requireGlobal && !stored.Global)
                 {
@@ -1135,7 +1135,7 @@ public static partial class StandardLibrary
                 }
                 else
                 {
-                    result.SetProperty("value", Symbol.Undefined);
+                    result.SetProperty("value", JsValue.FromObject(Symbol.Undefined));
                     result.SetProperty("done", true);
                 }
 
@@ -1227,7 +1227,7 @@ public static partial class StandardLibrary
             return "";
         }
 
-        if (!template.TryGetProperty("raw", out var rawValue) || rawValue is not JsArray rawStrings)
+        if (!template.TryGetProperty("raw", out var rawValue) || !rawValue.TryGetObject<JsArray>(out var rawStrings))
         {
             return "";
         }

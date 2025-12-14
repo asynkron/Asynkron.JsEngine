@@ -376,7 +376,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             }
 
             var value = descriptor.HasValue ? descriptor.Value : Symbol.Undefined;
-            SetValue(index, value);
+            SetValue(index, JsValue.FromObject(value));
             return true;
         }
 
@@ -385,23 +385,23 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
     {
-        if (TryParseIndex(name, out var index) && index >= 0)
+        if (!TryParseIndex(name, out var index) || index < 0)
         {
-            if (IsDetachedOrOutOfBounds() || index >= Length)
-            {
-                return null;
-            }
-
-            return new PropertyDescriptor
-            {
-                Value = GetValueForIndex(index),
-                Writable = true,
-                Enumerable = true,
-                Configurable = false
-            };
+            return _properties.GetOwnPropertyDescriptor(name);
         }
 
-        return _properties.GetOwnPropertyDescriptor(name);
+        if (IsDetachedOrOutOfBounds() || index >= Length)
+        {
+            return null;
+        }
+
+        return new PropertyDescriptor
+        {
+            Value = GetValueForIndex(index),
+            Writable = true,
+            Enumerable = true,
+            Configurable = false
+        };
     }
 
     public IEnumerable<string> GetOwnPropertyNames()
@@ -574,7 +574,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
                 continue;
             }
 
-            JsValue element = target switch
+            var element = target switch
             {
                 JsBigInt64Array bi64 => new JsValue(bi64.GetBigIntElement(i)),
                 JsBigUint64Array bu64 => new JsValue(bu64.GetBigIntElement(i)),

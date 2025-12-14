@@ -183,7 +183,10 @@ public static partial class StandardLibrary
 
             foreach (var key in source.Keys)
             {
-                instance.SetProperty(key, source[key]);
+                if (source.TryGetProperty(key, out var propValue))
+                {
+                    instance.SetProperty(key, propValue);
+                }
             }
 
             return new JsValue(instance);

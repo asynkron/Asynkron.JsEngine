@@ -27,7 +27,7 @@ public static partial class StandardLibrary
         }
 
         var holder = new JsObject();
-        holder.SetProperty("", parsed);
+        holder.SetProperty("", JsValue.FromObject(parsed));
 
         return ApplyJsonReviver(reviver, holder, "", context, realm);
     }
@@ -93,7 +93,7 @@ public static partial class StandardLibrary
                     }
                     else
                     {
-                        obj.SetProperty(key, revived);
+                        obj.SetProperty(key, JsValue.FromObject(revived));
                     }
                 }
 

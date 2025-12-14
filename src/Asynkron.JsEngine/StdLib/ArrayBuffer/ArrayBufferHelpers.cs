@@ -8,7 +8,7 @@ public static partial class StandardLibrary
 {
     internal static void StoreInternalArrayBuffer(JsObject obj, JsArrayBuffer buffer)
     {
-        obj.SetProperty("_internalArrayBuffer", buffer);
+        obj.SetProperty("_internalArrayBuffer", JsValue.FromObject(buffer));
     }
 
     internal static JsArrayBuffer RequireArrayBuffer(object? thisVal, RealmState realm)
@@ -29,7 +29,7 @@ public static partial class StandardLibrary
 
         if (thisVal is IJsPropertyAccessor accessor &&
             accessor.TryGetProperty("_internalArrayBuffer", out var internalVal) &&
-            internalVal is JsArrayBuffer bufferFromAccessor)
+            internalVal.TryGetObject<JsArrayBuffer>(out var bufferFromAccessor))
         {
             return bufferFromAccessor;
         }
@@ -45,12 +45,12 @@ public static partial class StandardLibrary
             return defaultConstructor;
         }
 
-        if (ReferenceEquals(ctorVal, Symbol.Undefined))
+        if (ctorVal.IsUndefined)
         {
             return defaultConstructor;
         }
 
-        if (ctorVal is null || ctorVal is not IJsPropertyAccessor ctorAccessor)
+        if (!ctorVal.TryGetObject<IJsPropertyAccessor>(out var ctorAccessor))
         {
             throw ThrowTypeError("Constructor is not an object", realm: realm);
         }
@@ -60,12 +60,12 @@ public static partial class StandardLibrary
             ? candidate
             : ctorVal;
 
-        if (speciesVal is null || ReferenceEquals(speciesVal, Symbol.Undefined))
+        if (speciesVal.IsNullOrUndefined)
         {
             return defaultConstructor;
         }
 
-        if (speciesVal is not IJsCallable callable || !JsOps.IsConstructor(speciesVal))
+        if (!speciesVal.TryGetObject<IJsCallable>(out var callable) || !JsOps.IsConstructor(speciesVal))
         {
             throw ThrowTypeError("ArrayBuffer species constructor is not a constructor", realm: realm);
         }
@@ -88,7 +88,7 @@ public static partial class StandardLibrary
 
         if (arg.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
             accessor.TryGetProperty("_internalDataView", out var dv) &&
-            dv is JsDataView)
+            dv.TryGetObject<JsDataView>(out _))
         {
             return JsValue.True;
         }

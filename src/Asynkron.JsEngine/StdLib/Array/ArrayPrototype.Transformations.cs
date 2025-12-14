@@ -330,7 +330,7 @@ public sealed partial class ArrayPrototype
         var sourceLength = (long)ToLengthOrZero(lengthValue);
 
         var result = ArraySpeciesCreate(thisValue, 0, realm);
-        var newLength = FlattenIntoArray(result, accessor, sourceLength, 0, depth, null, null, realm,
+        var newLength = FlattenIntoArray(result, accessor, sourceLength, 0, depth, null, JsValue.Null, realm,
             "Array.prototype.flat");
         SetArrayLikeLength(result, newLength);
         return JsValue.FromObject(result);
@@ -416,7 +416,7 @@ public sealed partial class ArrayPrototype
             var fromExists = TryGetExistingElement(target, fromKey, out var value);
             if (fromExists)
             {
-                target.SetProperty(toKey, value);
+                target.SetProperty(toKey, JsValue.FromObject(value));
             }
             else
             {

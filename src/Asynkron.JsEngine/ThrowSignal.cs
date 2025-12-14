@@ -26,10 +26,10 @@ public sealed class ThrowSignal(object? thrownValue = null) : Exception(FormatTh
         if (thrownValue is JsObject jsObj)
         {
             // Try to get error message or name from the object
-            if (jsObj.TryGetProperty("message", out var message) && message != null)
+            if (jsObj.TryGetProperty("message", out var message) && !message.IsNull)
             {
                 var msgStr = message.ToString();
-                if (jsObj.TryGetProperty("name", out var name) && name != null)
+                if (jsObj.TryGetProperty("name", out var name) && !name.IsNull)
                 {
                     return $"Unhandled JavaScript throw: {name}: {msgStr}";
                 }
@@ -37,7 +37,7 @@ public sealed class ThrowSignal(object? thrownValue = null) : Exception(FormatTh
                 return $"Unhandled JavaScript throw: {msgStr}";
             }
 
-            if (jsObj.TryGetProperty("name", out var errorName) && errorName != null)
+            if (jsObj.TryGetProperty("name", out var errorName) && !errorName.IsNull)
             {
                 return $"Unhandled JavaScript throw: {errorName}";
             }

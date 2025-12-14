@@ -68,7 +68,7 @@ public static partial class StandardLibrary
             static bool TryInvokeSymbolIterator(JsObject target, TypedAstSymbol symbol, out JsObject? iterator)
             {
                 var propertyName = SymbolKeys.GetKey(symbol, target.RealmState);
-                if (target.TryGetProperty(propertyName, out var method) && method is IJsCallable callable)
+                if (target.TryGetProperty(propertyName, out var method) && method.TryGetObject<IJsCallable>(out var callable) && callable is not null)
                 {
                     var result = callable.Invoke([], new JsValue(target));
                     if (result.TryGetObject(out var iteratorObj) && iteratorObj is not null)
@@ -109,17 +109,17 @@ public static partial class StandardLibrary
                             index++;
                         }
 
-                        result.SetProperty("value", value);
-                        result.SetProperty("done", false);
+                        result.SetProperty("value", JsValue.FromObject(value));
+                        result.SetProperty("done", JsValue.FromObject(false));
                     }
                     else
                     {
-                        result.SetProperty("done", true);
+                        result.SetProperty("done", JsValue.FromObject(true));
                     }
 
                     return new JsValue(result);
                 }, isConstructor: false);
-                iteratorObj.SetProperty("next", nextFunc);
+                iteratorObj.SetProperty("next", JsValue.FromObject(nextFunc));
                 return iteratorObj;
             }
 
@@ -134,14 +134,17 @@ public static partial class StandardLibrary
                     if (index < array.Length)
                     {
                         var propertyName = index.ToString(CultureInfo.InvariantCulture);
-                        JsOps.TryGetPropertyValue(array, propertyName, out var value, context);
+                        if (!JsOps.TryGetPropertyValue(array, propertyName, out var value, context))
+                        {
+                            value = JsValue.Undefined;
+                        }
                         result.SetProperty("value", value);
-                        result.SetProperty("done", false);
+                        result.SetProperty("done", JsValue.FromObject(false));
                         index++;
                     }
                     else
                     {
-                        result.SetProperty("done", true);
+                        result.SetProperty("done", JsValue.FromObject(true));
                     }
 
                     return new JsValue(result);
@@ -154,7 +157,7 @@ public static partial class StandardLibrary
             {
                 return candidate is JsObject obj &&
                        obj.TryGetProperty("next", out var nextProp) &&
-                       nextProp is IJsCallable;
+                       nextProp.TryGetObject<IJsCallable>(out _);
             }
         }
     }
@@ -176,7 +179,7 @@ public static partial class StandardLibrary
             }
 
             // Call iterator.next()
-            if (!iterator.TryGetProperty("next", out var nextMethod) || nextMethod is not IJsCallable nextCallable)
+            if (!iterator.TryGetProperty("next", out var nextMethod) || !nextMethod.TryGetObject<IJsCallable>(out var nextCallable) || nextCallable is null)
             {
                 throw new InvalidOperationException("Iterator must have a 'next' method");
             }
@@ -217,7 +220,7 @@ public static partial class StandardLibrary
 
             // Check if result is already a promise (has a "then" method)
             if (resultObject.TryGetProperty("then", out var thenMethod) &&
-                thenMethod is IJsCallable)
+                thenMethod.TryGetObject<IJsCallable>(out _))
             {
                 engine.WriteAsyncIteratorTrace("iteratorNext: result already promise-like, returning as-is");
                 // Already a promise, return as-is
@@ -249,9 +252,9 @@ public static partial class StandardLibrary
             // Check if value is already a promise (has a "then" method)
             if (value.TryGetObject(out var valueObj) && valueObj is not null &&
                 valueObj.TryGetProperty("then", out var thenMethod) &&
-                thenMethod is IJsCallable)
-                // Already a promise, return as-is
+                thenMethod.TryGetObject<IJsCallable>(out _))
             {
+                // Already a promise, return as-is
                 return value;
             }
 

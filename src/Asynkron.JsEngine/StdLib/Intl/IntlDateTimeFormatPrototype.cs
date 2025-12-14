@@ -14,8 +14,8 @@ public sealed partial class IntlDateTimeFormatPrototype
 
     internal static void InitializeInternalSlots(JsObject instance, DateTimeFormatInternalSlots slots)
     {
-        instance.SetProperty(BrandKey, true);
-        instance.SetProperty(SlotsKey, slots);
+        instance.SetProperty(BrandKey, JsValue.FromObject(true));
+        instance.SetProperty(SlotsKey, JsValue.FromObject(slots));
     }
 
     [JsHostGetter("format", DisplayName = "get format")]
@@ -31,8 +31,8 @@ public sealed partial class IntlDateTimeFormatPrototype
         var slotData = ValidateReceiver(thisValue, out _);
         var formatted = FormatInternal(args.GetArgument(0), slotData);
         var part = new JsObject();
-        part.SetProperty("type", "literal");
-        part.SetProperty("value", formatted.ToObject());
+        part.SetProperty("type", new JsValue("literal"));
+        part.SetProperty("value", formatted);
         var parts = new JsArray(Realm);
         parts.Push(part);
         return JsValue.FromObject(parts);
@@ -65,19 +65,19 @@ public sealed partial class IntlDateTimeFormatPrototype
     {
         var slots = ValidateReceiver(thisValue, out _);
         var obj = new JsObject(Realm.ObjectPrototype);
-        obj.SetProperty("locale", slots.Locale);
-        obj.SetProperty("calendar", slots.Calendar);
-        obj.SetProperty("numberingSystem", slots.NumberingSystem);
-        obj.SetProperty("timeZone", slots.TimeZone);
-        obj.SetProperty("hourCycle", slots.HourCycle);
-        obj.SetProperty("localeMatcher", slots.LocaleMatcher);
-        obj.SetProperty("formatMatcher", slots.FormatMatcher);
-        obj.SetProperty("dateStyle", slots.DateStyle ?? (object)Symbol.Undefined);
-        obj.SetProperty("timeStyle", slots.TimeStyle ?? (object)Symbol.Undefined);
+        obj.SetProperty("locale", new JsValue(slots.Locale));
+        obj.SetProperty("calendar", new JsValue(slots.Calendar));
+        obj.SetProperty("numberingSystem", new JsValue(slots.NumberingSystem));
+        obj.SetProperty("timeZone", new JsValue(slots.TimeZone));
+        obj.SetProperty("hourCycle", new JsValue(slots.HourCycle));
+        obj.SetProperty("localeMatcher", new JsValue(slots.LocaleMatcher));
+        obj.SetProperty("formatMatcher", new JsValue(slots.FormatMatcher));
+        obj.SetProperty("dateStyle", slots.DateStyle != null ? new JsValue(slots.DateStyle) : JsValue.Undefined);
+        obj.SetProperty("timeStyle", slots.TimeStyle != null ? new JsValue(slots.TimeStyle) : JsValue.Undefined);
         foreach (var component in DateTimeFormatInternalSlots.ComponentNames)
         {
             obj.SetProperty(component,
-                slots.Components.TryGetValue(component, out var value) ? value : Symbol.Undefined);
+                slots.Components.TryGetValue(component, out var value) ? new JsValue(value) : JsValue.Undefined);
         }
 
         return new JsValue(obj);
@@ -88,7 +88,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         var obj = thisValue.EnsureBrand(BrandKey, Realm,
             "Intl.DateTimeFormat method called on incompatible receiver");
         if (!obj.TryGetProperty(SlotsKey, out var slotValue) ||
-            slotValue is not DateTimeFormatInternalSlots slots)
+            !slotValue.TryGetObject<DateTimeFormatInternalSlots>(out var slots))
         {
             throw StandardLibrary.ThrowTypeError("Intl.DateTimeFormat method called on incompatible receiver",
                 realm: Realm);
@@ -102,8 +102,8 @@ public sealed partial class IntlDateTimeFormatPrototype
     private static JsObject CreateRangePart(string type, string value)
     {
         var obj = new JsObject();
-        obj.SetProperty("type", type);
-        obj.SetProperty("value", value);
+        obj.SetProperty("type", new JsValue(type));
+        obj.SetProperty("value", new JsValue(value));
         return obj;
     }
 
@@ -162,15 +162,15 @@ public sealed partial class IntlDateTimeFormatPrototype
             return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         }
 
-        if (value.Kind == JsValueKind.Object && value.ObjectValue is JsObject jsObject &&
-            jsObject.TryGetProperty("_internalDate", out var stored) && stored is double storedMs)
+        if (value is { Kind: JsValueKind.Object, ObjectValue: JsObject jsObject } &&
+            jsObject.TryGetProperty("_internalDate", out var stored) && stored.TryGetDouble(out var storedMs))
         {
             return storedMs;
         }
 
         try
         {
-            return JsOps.ToNumber(value.ToObject());
+            return JsOps.ToNumber(value);
         }
         catch
         {

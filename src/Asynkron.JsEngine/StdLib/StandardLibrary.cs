@@ -108,7 +108,7 @@ public static partial class StandardLibrary
             return;
         }
 
-        target.SetProperty(name, value);
+        target.SetProperty(name, JsValue.FromObject(value));
     }
 
     internal static void DefineBuiltinFunction(
@@ -164,8 +164,8 @@ public static partial class StandardLibrary
             error.SetPrototype(realm.ErrorPrototype);
         }
 
-        error.SetProperty("name", name);
-        error.SetProperty("message", message);
+        error.SetProperty("name", JsValue.FromObject(name));
+        error.SetProperty("message", JsValue.FromObject(message));
         return error;
     }
 
@@ -398,9 +398,9 @@ public static partial class StandardLibrary
         }
 
         var formatter = constructor.Invoke([JsValue.FromObject(localesArg), JsValue.FromObject(optionsArg)], JsValue.Null);
-        if (!formatter.TryGetObject<IJsPropertyAccessor>(out var accessor) ||
+        if (!formatter.TryGetObject<IJsPropertyAccessor>(out var accessor) || accessor is null ||
             !accessor.TryGetProperty("format", out var formatValue) ||
-            formatValue is not IJsCallable formatFn)
+            !formatValue.TryGetObject<IJsCallable>(out var formatFn) || formatFn is null)
         {
             return false;
         }
@@ -418,12 +418,12 @@ public static partial class StandardLibrary
             return null;
         }
 
-        if (!intl.TryGetProperty("Intl", out var intlValue) || intlValue is not IJsPropertyAccessor intlAccessor)
+        if (!intl.TryGetProperty("Intl", out var intlValue) || !intlValue.TryGetObject<IJsPropertyAccessor>(out var intlAccessor) || intlAccessor is null)
         {
             return null;
         }
 
-        if (!intlAccessor.TryGetProperty("NumberFormat", out var ctorValue) || ctorValue is not IJsCallable ctor)
+        if (!intlAccessor.TryGetProperty("NumberFormat", out var ctorValue) || !ctorValue.TryGetObject<IJsCallable>(out var ctor) || ctor is null)
         {
             return null;
         }

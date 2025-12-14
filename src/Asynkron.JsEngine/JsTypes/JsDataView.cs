@@ -163,18 +163,18 @@ public sealed class JsDataView : IJsPropertyAccessor
 
         _getFloat64 = CreateMethod((target, args) =>
         {
-            var offset = args.Count > 0 && args[0] is double d ? (int)d : 0;
-            var littleEndian = args.Count > 1 && args[1] is bool and true;
-            return target.GetFloat64(offset, littleEndian);
+            var offset = args.Count > 0 && args[0].TryGetDouble(out var d) ? (int)d : 0;
+            var littleEndian = args.Count > 1 && args[1].IsTruthy;
+            return new JsValue(target.GetFloat64(offset, littleEndian));
         });
 
         _setFloat64 = CreateMethod((target, args) =>
         {
-            var offset = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
-            var value = args.Count > 1 && args[1] is double d2 ? d2 : 0.0;
-            var littleEndian = args.Count > 2 && args[2] is bool and true;
+            var offset = args.Count > 0 && args[0].TryGetDouble(out var d1) ? (int)d1 : 0;
+            var value = args.Count > 1 && args[1].TryGetDouble(out var d2) ? d2 : 0.0;
+            var littleEndian = args.Count > 2 && args[2].IsTruthy;
             target.SetFloat64(offset, value, littleEndian);
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         });
     }
 

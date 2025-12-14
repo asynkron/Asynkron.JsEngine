@@ -129,7 +129,7 @@ public static partial class TypedAstEvaluator
                 // Use GetOrFetchNext which returns cached result if available,
                 // or advances the iterator if not. This prevents skipping values
                 // when resuming a generator that has already yielded.
-                var iteratorResult = state.GetOrFetchNext(pendingSend,
+                var iteratorResult = state.GetOrFetchNext(JsValue.FromObject(pendingSend),
                     hasPendingSend && !pendingThrow && !pendingReturn,
                     pendingThrow,
                     pendingReturn,

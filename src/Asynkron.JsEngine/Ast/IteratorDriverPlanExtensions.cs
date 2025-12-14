@@ -70,7 +70,7 @@ public static partial class TypedAstEvaluator
                     if (state.IteratorObject is not null && !iteratorDone)
                     {
                         IteratorClose(state.IteratorObject, context, preserveExistingThrow: true,
-                            existingThrowOverride: thrown);
+                            existingThrowOverride: JsValue.FromObject(thrown));
 
                         if (context.IsThrow)
                         {

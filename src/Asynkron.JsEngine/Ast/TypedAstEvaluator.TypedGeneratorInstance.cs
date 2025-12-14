@@ -292,7 +292,7 @@ public static partial class TypedAstEvaluator
 
             if (superPrototype is not null)
             {
-                var superBinding = new SuperBinding(null, superPrototype, boundThis.ToObject(), true);
+                var superBinding = new SuperBinding(null, superPrototype, boundThis, true);
                 functionEnvironment.Define(Symbol.Super, superBinding);
             }
 
@@ -612,7 +612,7 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
-                                    return CompleteReturn(new JsValue(pendingValue));
+                                    return CompleteReturn(JsValue.FromObject(pendingValue));
                                 }
                             }
 
@@ -703,7 +703,7 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 var iteratorResult = yieldStarState.State!.MoveNext(
-                                    sendValue.ToObject(),
+                                    sendValue,
                                     hasSendValue,
                                     propagateThrow,
                                     propagateReturn,

@@ -9,7 +9,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("entries", Length = 0d)]
     public JsValue Entries(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObject(CreateArrayIterator(thisValue.ToObject(), "Array.prototype.entries", Realm, (accessor, _) => idx =>
+        return JsValue.FromObject(CreateArrayIterator(thisValue, "Array.prototype.entries", Realm, (accessor, _) => idx =>
         {
             var pair = new JsArray(Realm);
             pair.Push((double)idx);
@@ -21,13 +21,13 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("keys", Length = 0d)]
     public JsValue Keys(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObject(CreateArrayIterator(thisValue.ToObject(), "Array.prototype.keys", Realm, (_, _) => idx => (double)idx));
+        return JsValue.FromObject(CreateArrayIterator(thisValue, "Array.prototype.keys", Realm, (_, _) => idx => (double)idx));
     }
 
     [JsHostMethod("values", Length = 0d)]
     public JsValue Values(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObject(CreateArrayIterator(thisValue.ToObject(), "Array.prototype.values", Realm,
+        return JsValue.FromObject(CreateArrayIterator(thisValue, "Array.prototype.values", Realm,
             (accessor, _) => idx => GetElementOrUndefined(accessor, ToIndexString(idx))));
     }
 }

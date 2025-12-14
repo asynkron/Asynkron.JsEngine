@@ -2339,7 +2339,7 @@ public sealed class JsEngine : IAsyncDisposable
                         "import() requires a module specifier",
                         context,
                         RealmState);
-                    promise.Reject(new JsValue(typeError));
+                    promise.Reject(JsValue.FromObject(typeError));
                 });
                 return;
             }
@@ -2352,7 +2352,7 @@ public sealed class JsEngine : IAsyncDisposable
             }
             catch (ThrowSignal signal)
             {
-                ScheduleTask(() => promise.Reject(new JsValue(signal.ThrownValue)));
+                ScheduleTask(() => promise.Reject(JsValue.FromObject(signal.ThrownValue)));
                 return;
             }
 
@@ -2362,7 +2362,7 @@ public sealed class JsEngine : IAsyncDisposable
                 // Clear the throw signal since we're handling it by rejecting the promise
                 // This prevents the throw from propagating to EvaluateProgram
                 context.Clear();
-                ScheduleTask(() => promise.Reject(new JsValue(flowValue)));
+                ScheduleTask(() => promise.Reject(JsValue.FromObject(flowValue)));
                 return;
             }
 
@@ -2375,7 +2375,7 @@ public sealed class JsEngine : IAsyncDisposable
                         "Source phase imports are not supported",
                         context,
                         RealmState);
-                    promise.Reject(new JsValue(syntaxError));
+                    promise.Reject(JsValue.FromObject(syntaxError));
                 });
                 return;
             }
@@ -2394,16 +2394,16 @@ public sealed class JsEngine : IAsyncDisposable
                             try
                             {
                                 var namespaceObject = GetModuleNamespace(moduleEntry, phase);
-                                promise.Resolve(new JsValue(namespaceObject));
+                                promise.Resolve(JsValue.FromObject(namespaceObject));
                             }
                             catch (ThrowSignal signal)
                             {
-                                promise.Reject(new JsValue(signal.ThrownValue));
+                                promise.Reject(JsValue.FromObject(signal.ThrownValue));
                             }
                             catch (Exception ex)
                             {
                                 var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
-                                promise.Reject(new JsValue(error));
+                                promise.Reject(JsValue.FromObject(error));
                             }
                         });
                         return;
@@ -2416,7 +2416,7 @@ public sealed class JsEngine : IAsyncDisposable
                     }
                     catch (ThrowSignal signal)
                     {
-                        ScheduleTask(() => promise.Reject(new JsValue(signal.ThrownValue)));
+                        ScheduleTask(() => promise.Reject(JsValue.FromObject(signal.ThrownValue)));
                         return;
                     }
                     catch (Exception ex)
@@ -2427,7 +2427,7 @@ public sealed class JsEngine : IAsyncDisposable
                                 ex.Message,
                                 context,
                                 RealmState);
-                            promise.Reject(new JsValue(error));
+                            promise.Reject(JsValue.FromObject(error));
                         });
                         return;
                     }
@@ -2438,16 +2438,16 @@ public sealed class JsEngine : IAsyncDisposable
                         try
                         {
                             var namespaceObject = GetModuleNamespace(moduleEntry, phase);
-                            promise.Resolve(new JsValue(namespaceObject));
+                            promise.Resolve(JsValue.FromObject(namespaceObject));
                         }
                         catch (ThrowSignal signal)
                         {
-                            promise.Reject(new JsValue(signal.ThrownValue));
+                            promise.Reject(JsValue.FromObject(signal.ThrownValue));
                         }
                         catch (Exception ex)
                         {
                             var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
-                            promise.Reject(new JsValue(error));
+                            promise.Reject(JsValue.FromObject(error));
                         }
                     });
                     return;
@@ -2459,16 +2459,16 @@ public sealed class JsEngine : IAsyncDisposable
                     try
                     {
                         EnsureModuleEvaluated(moduleEntry);
-                        promise.Resolve(new JsValue(GetModuleNamespace(moduleEntry, phase)));
+                        promise.Resolve(JsValue.FromObject(GetModuleNamespace(moduleEntry, phase)));
                     }
                     catch (ThrowSignal signal)
                     {
-                        promise.Reject(new JsValue(signal.ThrownValue));
+                        promise.Reject(JsValue.FromObject(signal.ThrownValue));
                     }
                     catch (Exception ex)
                     {
                         var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
-                        promise.Reject(new JsValue(error));
+                        promise.Reject(JsValue.FromObject(error));
                     }
                 });
             }
@@ -2477,7 +2477,7 @@ public sealed class JsEngine : IAsyncDisposable
                 ScheduleTask(() =>
                 {
                     var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
-                    promise.Reject(new JsValue(error));
+                    promise.Reject(JsValue.FromObject(error));
                 });
             }
         }
@@ -2486,7 +2486,7 @@ public sealed class JsEngine : IAsyncDisposable
             ScheduleTask(() =>
             {
                 var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
-                promise.Reject(new JsValue(error));
+                promise.Reject(JsValue.FromObject(error));
             });
         }
     }
@@ -2905,7 +2905,7 @@ public sealed class JsEngine : IAsyncDisposable
                         if (!moduleEnv.HasBinding(defaultSymbol))
                         {
                             if (moduleEnv.IsAsyncModule && exports.TryGetValue("default", out var defaultExport) &&
-                                defaultExport is JsObject defaultPromise &&
+                                defaultExport.TryGetObject<JsObject>(out var defaultPromise) &&
                                 JsPromise.TryGetInternalPromise(defaultPromise, out var promise))
                             {
                                 moduleEnv.DefineExportPromiseBinding(defaultSymbol, promise, isLexical: false, isConst: false);
@@ -4244,7 +4244,7 @@ public sealed class JsEngine : IAsyncDisposable
 
             try
             {
-                thenCallable.Invoke([onFulfilledFn, onRejectedFn], promiseObject);
+                thenCallable.Invoke([new JsValue(onFulfilledFn), new JsValue(onRejectedFn)], new JsValue(promiseObject));
             }
             catch (ThrowSignal signal)
             {

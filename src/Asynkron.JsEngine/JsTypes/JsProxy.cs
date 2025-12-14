@@ -123,7 +123,10 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         if (name.IsPrivateSlotName())
         {
-            return _privateStorage.TryGetProperty(name, receiver.IsUndefined ? this : receiver.AsObject(), out value);
+            object? tempValue;
+            var result = _privateStorage.TryGetProperty(name, receiver.IsUndefined ? this : receiver.AsObject(), out tempValue);
+            value = JsValue.FromObject(tempValue);
+            return result;
         }
 
         if (TryGetTrap("get", out var trap))
@@ -133,7 +136,10 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return true;
         }
 
-        return Target.TryGetProperty(name, receiver.IsUndefined ? this : receiver.AsObject(), out value);
+        object? targetValue;
+        var targetResult = Target.TryGetProperty(name, receiver.IsUndefined ? this : receiver.AsObject(), out targetValue);
+        value = JsValue.FromObject(targetValue);
+        return targetResult;
     }
 
     public bool TryGetProperty(string name, out JsValue value)
@@ -145,14 +151,18 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     bool IJsPropertyAccessor.TryGetProperty(string name, out object? value)
     {
         var result = TryGetProperty(name, out var jsValue);
+#pragma warning disable CS0618 // Type or member is obsolete
         value = jsValue.ToObject();
+#pragma warning restore CS0618 // Type or member is obsolete
         return result;
     }
 
     bool IJsPropertyAccessor.TryGetProperty(string name, object? receiver, out object? value)
     {
         var result = TryGetProperty(name, JsValue.FromObject(receiver ?? this), out var jsValue);
+#pragma warning disable CS0618 // Type or member is obsolete
         value = jsValue.ToObject();
+#pragma warning restore CS0618 // Type or member is obsolete
         return result;
     }
 
@@ -394,39 +404,48 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         if (trapResult.IsObject)
         {
-            var obj = trapResult.AsObject();
-            switch (obj)
+            if (trapResult.TryGetObject<JsArray>(out var jsArray))
             {
-                case JsArray jsArray:
-                    foreach (var item in jsArray.Items)
-                    {
-                        yield return item;
-                    }
+                foreach (var item in jsArray.Items)
+                {
+                    yield return item;
+                }
 
-                    yield break;
-                case IEnumerable enumerable:
-                    foreach (var item in enumerable)
-                    {
-                        yield return item;
-                    }
+                yield break;
+            }
 
-                    yield break;
+            var obj = trapResult.AsObject();
+            if (obj is IEnumerable enumerable)
+            {
+                foreach (var item in enumerable)
+                {
+                    yield return item;
+                }
+
+                yield break;
             }
         }
     }
 
     private bool TryGetTrap(string trapName, out IJsCallable callable)
     {
-        callable = null!;
         var handler = Handler ?? throw StandardLibrary.ThrowTypeError("Cannot perform operation on a revoked Proxy",
             realm: _realm);
 
-        if (!handler.TryGetProperty(trapName, out var trapValue) || trapValue.IsUndefined || trapValue.IsNull)
+        if (!handler.TryGetProperty(trapName, out var trapValueObj))
         {
+            callable = null!;
             return false;
         }
 
-        if (!trapValue.IsObject || trapValue.AsObject() is not IJsCallable callableTrap)
+        var trapValue = JsValue.FromObject(trapValueObj);
+        if (trapValue.IsUndefined || trapValue.IsNull)
+        {
+            callable = null!;
+            return false;
+        }
+
+        if (!trapValue.IsObject || !trapValue.TryGetObject<IJsCallable>(out var callableTrap))
         {
             throw StandardLibrary.ThrowTypeError($"Proxy handler's '{trapName}' trap is not callable", realm: _realm);
         }
@@ -477,24 +496,26 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             descriptor.Writable = JsOps.ToBoolean(writableValue);
         }
 
-        if (descriptorObject.TryGetProperty("get", out var getterValue))
+        if (descriptorObject.TryGetProperty("get", out var getterValueObj))
         {
-            if (!getterValue.IsUndefined && (!getterValue.IsObject || getterValue.AsObject() is not IJsCallable))
+            var getterValue = JsValue.FromObject(getterValueObj);
+            if (!getterValue.IsUndefined && (!getterValue.IsObject || !getterValue.TryGetObject<IJsCallable>(out _)))
             {
                 throw StandardLibrary.ThrowTypeError("Getter must be a function", realm: realm);
             }
 
-            descriptor.Get = getterValue.IsUndefined ? null : (IJsCallable?)getterValue.AsObject();
+            descriptor.Get = getterValue.IsUndefined ? null : getterValue.TryGetObject<IJsCallable>(out var getter) ? getter : null;
         }
 
-        if (descriptorObject.TryGetProperty("set", out var setterValue))
+        if (descriptorObject.TryGetProperty("set", out var setterValueObj))
         {
-            if (!setterValue.IsUndefined && (!setterValue.IsObject || setterValue.AsObject() is not IJsCallable))
+            var setterValue = JsValue.FromObject(setterValueObj);
+            if (!setterValue.IsUndefined && (!setterValue.IsObject || !setterValue.TryGetObject<IJsCallable>(out _)))
             {
                 throw StandardLibrary.ThrowTypeError("Setter must be a function", realm: realm);
             }
 
-            descriptor.Set = setterValue.IsUndefined ? null : (IJsCallable?)setterValue.AsObject();
+            descriptor.Set = setterValue.IsUndefined ? null : setterValue.TryGetObject<IJsCallable>(out var setter) ? setter : null;
         }
 
         if (descriptor is { IsAccessorDescriptor: true, IsDataDescriptor: true })

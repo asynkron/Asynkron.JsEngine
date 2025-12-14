@@ -24,17 +24,17 @@ public static partial class StandardLibrary
 
             proto.SetHostedProperty("reduce",
                 (thisValue, reduceArgs, realmState) =>
-                    TypedArrayReduce(thisValue, reduceArgs.Select(a => JsValue.FromObject(a)).ToList(), realmState, "%TypedArray%.prototype.reduce", false),
+                    TypedArrayReduce(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduce", false),
                 realm);
             proto.SetHostedProperty("reduceRight",
                 (thisValue, reduceArgs, realmState) =>
-                    TypedArrayReduce(thisValue, reduceArgs.Select(a => JsValue.FromObject(a)).ToList(), realmState, "%TypedArray%.prototype.reduceRight", true),
+                    TypedArrayReduce(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduceRight", true),
                 realm);
             var iteratorKey = SymbolKeys.GetIterator(realm);
 
             var valuesIterator = new HostFunction((thisValue, _) =>
             {
-                var typedArray = ValidateTypedArrayReceiver(thisValue.ToObject(), "%TypedArray%.prototype.values", realm);
+                var typedArray = ValidateTypedArrayReceiver(thisValue, "%TypedArray%.prototype.values", realm);
                 return JsValue.FromObject(CreateArrayIteratorObject(typedArray, idx => typedArray.GetValueForIndex((int)idx), realm));
             }, realm, isConstructor: false);
             valuesIterator.DefineProperty("name",
@@ -44,7 +44,7 @@ public static partial class StandardLibrary
 
             var keysIterator = new HostFunction((thisValue, _) =>
             {
-                var typedArray = ValidateTypedArrayReceiver(thisValue.ToObject(), "%TypedArray%.prototype.keys", realm);
+                var typedArray = ValidateTypedArrayReceiver(thisValue, "%TypedArray%.prototype.keys", realm);
                 return JsValue.FromObject(CreateArrayIteratorObject(typedArray, idx => (double)idx, realm));
             }, realm, isConstructor: false);
             keysIterator.DefineProperty("name",
@@ -54,7 +54,7 @@ public static partial class StandardLibrary
 
             var entriesIterator = new HostFunction((thisValue, _) =>
             {
-                var typedArray = ValidateTypedArrayReceiver(thisValue.ToObject(), "%TypedArray%.prototype.entries", realm);
+                var typedArray = ValidateTypedArrayReceiver(thisValue, "%TypedArray%.prototype.entries", realm);
                 return JsValue.FromObject(CreateArrayIteratorObject(
                     typedArray,
                     idx =>
@@ -101,11 +101,11 @@ public static partial class StandardLibrary
             DefineTypedArrayFunction(proto, "toSpliced", 2d, TypedArrayToSpliced, realm);
             DefineTypedArrayFunction(proto, "with", 2d, TypedArrayWith, realm);
             proto.SetHostedProperty("indexOf",
-                (thisValue, args, realmState) => TypedArrayIndexOf(thisValue, args.Select(a => JsValue.FromObject(a)).ToList(), realmState), realm);
+                (thisValue, args, realmState) => TypedArrayIndexOf(thisValue, args, realmState), realm);
             proto.SetHostedProperty("lastIndexOf",
-                (thisValue, args, realmState) => TypedArrayLastIndexOf(thisValue, args.Select(a => JsValue.FromObject(a)).ToList(), realmState), realm);
+                (thisValue, args, realmState) => TypedArrayLastIndexOf(thisValue, args, realmState), realm);
             proto.SetHostedProperty("includes",
-                (thisValue, args, realmState) => TypedArrayIncludes(thisValue, args.Select(a => JsValue.FromObject(a)).ToList(), realmState), realm);
+                (thisValue, args, realmState) => TypedArrayIncludes(thisValue, args, realmState), realm);
             proto.SetHostedProperty("some",
                 (thisValue, someArgs, realmState) =>
                     SomeLike(thisValue, someArgs, realmState, "%TypedArray%.prototype.some"), realm);
@@ -146,10 +146,10 @@ public static partial class StandardLibrary
         var prototype = new JsObject();
 
         HostFunction constructor = null!;
-        constructor = new HostFunction((thisValue, args) => JsValue.FromObject(ConstructTypedArray(args, (thisValue.IsNullish ? JsValue.FromObject(constructor) : thisValue).ToObject())));
+        constructor = new HostFunction((thisValue, args) => JsValue.FromObject(ConstructTypedArray(args, thisValue.IsNullish ? constructor : thisValue)));
         constructor.RealmState = realm;
         constructor.SetInvokeWithContext(
-            (args, _, _, newTarget) => JsValue.FromObject(ConstructTypedArray(args, (newTarget.IsNullish ? JsValue.FromObject(constructor) : newTarget).ToObject())));
+            (args, _, _, newTarget) => JsValue.FromObject(ConstructTypedArray(args, newTarget.IsNullish ? constructor : newTarget)));
 
         constructor.SetProperty("BYTES_PER_ELEMENT", (double)bytesPerElement);
         prototype.SetPrototype(realm.ObjectPrototype);
@@ -171,7 +171,7 @@ public static partial class StandardLibrary
         constructor.DefineProperty("of",
             new PropertyDescriptor
             {
-                Value = new HostFunction((thisValue, args) => JsValue.FromObject(TypedArrayOf(thisValue.ToObject(), args)), isConstructor: false),
+                Value = new HostFunction((thisValue, args) => JsValue.FromObject(TypedArrayOf(thisValue, args)), isConstructor: false),
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -179,18 +179,18 @@ public static partial class StandardLibrary
         constructor.DefineProperty("from",
             new PropertyDescriptor
             {
-                Value = new HostFunction((thisValue, args) => JsValue.FromObject(TypedArrayFrom(thisValue.ToObject(), args)), isConstructor: false),
+                Value = new HostFunction((thisValue, args) => JsValue.FromObject(TypedArrayFrom(thisValue, args)), isConstructor: false),
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
             });
         prototype.SetHostedProperty("reduce",
             (thisValue, reduceArgs, realmState) =>
-                TypedArrayReduce(thisValue, reduceArgs.Select(a => JsValue.FromObject(a)).ToList(), realmState, "%TypedArray%.prototype.reduce", false),
+                TypedArrayReduce(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduce", false),
             realm);
         prototype.SetHostedProperty("reduceRight",
             (thisValue, reduceArgs, realmState) =>
-                TypedArrayReduce(thisValue, reduceArgs.Select(a => JsValue.FromObject(a)).ToList(), realmState, "%TypedArray%.prototype.reduceRight",
+                TypedArrayReduce(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduceRight",
                     true),
             realm);
         if (sharedPrototype is not null)
@@ -209,16 +209,16 @@ public static partial class StandardLibrary
 
         return constructor;
 
-        IJsPropertyAccessor ResolvePrototype(object? newTarget)
+        IJsPropertyAccessor ResolvePrototype(JsValue newTarget)
         {
-            if (newTarget is IJsPropertyAccessor accessor &&
+            if (newTarget.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
                 accessor.TryGetProperty("prototype", out var protoVal) &&
                 protoVal is IJsPropertyAccessor protoObj)
             {
                 return protoObj;
             }
 
-            if (newTarget is not null &&
+            if (!newTarget.IsNullish &&
                 TryGetRealmInfo(newTarget, out var newTargetRealmState, out var newTargetRealmObject))
             {
                 var realmGlobal = newTargetRealmObject ?? newTargetRealmState?.Engine?.GlobalObject;
@@ -240,14 +240,14 @@ public static partial class StandardLibrary
             return prototype;
         }
 
-        T CreateTargetFromLength(int length, object? newTarget)
+        T CreateTargetFromLength(int length, JsValue newTarget)
         {
             var target = fromLength(length, realm);
             target.SetPrototype(ResolvePrototype(newTarget));
             return target;
         }
 
-        object? ConstructTypedArray(IReadOnlyList<JsValue> args, object? newTarget)
+        object? ConstructTypedArray(IReadOnlyList<JsValue> args, JsValue newTarget)
         {
             if (args.Count == 0)
             {
@@ -258,8 +258,8 @@ public static partial class StandardLibrary
             realm.Logger?.LogInformation(
                 "TypedArray ctor entry {Ctor} arg0Type={ArgType} newTargetType={NewTargetType}",
                 constructorName,
-                firstArg.ToObject()?.GetType().Name ?? "null",
-                newTarget?.GetType().Name ?? "null");
+                firstArg.GetType().Name,
+                newTarget.GetType().Name);
 
             // TypedArray(length)
             if (firstArg.TryGetDouble(out var d))
@@ -344,7 +344,7 @@ public static partial class StandardLibrary
 
         object? TypedArrayOf(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
-            if (thisValue is not HostFunction ctor)
+            if (!thisValue.TryGetObject<HostFunction>(out var ctor))
             {
                 throw ThrowTypeError("%TypedArray%.of called on incompatible receiver");
             }
@@ -358,7 +358,7 @@ public static partial class StandardLibrary
 
             for (var i = 0; i < length; i++)
             {
-                typed.SetValue(i, args[i].ToObject());
+                typed.SetValue(i, args[i]);
             }
 
             return typed;
@@ -366,8 +366,9 @@ public static partial class StandardLibrary
 
         object? TypedArrayFrom(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
-            var callingEnv = (thisValue as HostFunction)?.CallingJsEnvironment;
-            var targetProtoSource = thisValue ?? constructor;
+            thisValue.TryGetObject<HostFunction>(out var hostFunc);
+            var callingEnv = hostFunc?.CallingJsEnvironment;
+            var targetProtoSource = thisValue.IsNullish ? JsValue.FromObject(constructor) : thisValue;
             IJsCallable? mapFn = null;
             var mapThis = JsValue.Undefined;
 
@@ -662,7 +663,7 @@ public static partial class StandardLibrary
             realm);
     }
 
-    private static object? TypedArrayMap(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
+    private static object? TypedArrayMap(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
@@ -701,13 +702,13 @@ public static partial class StandardLibrary
 
             var value = typedArray.GetValueForIndex(k);
             var mapped = callback.Invoke([JsValue.FromObject(value), JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
-            result.SetValue(k, mapped.ToObject());
+            result.SetValue(k, mapped);
         }
 
         return result;
     }
 
-    private static object? TypedArrayFilter(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
+    private static object? TypedArrayFilter(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
@@ -746,7 +747,7 @@ public static partial class StandardLibrary
 
             var value = typedArray.GetValueForIndex(k);
             var result = callback.Invoke([JsValue.FromObject(value), JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
-            if (IsTruthy(result.ToObject()))
+            if (IsTruthy(result))
             {
                 kept.Add(value);
             }
@@ -1452,7 +1453,7 @@ public static partial class StandardLibrary
             new PropertyDescriptor { Value = fn, Writable = true, Enumerable = false, Configurable = true });
     }
 
-    private static object? TypedArrayIndexOf(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
+    private static object? TypedArrayIndexOf(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typed)
         {
@@ -1462,7 +1463,7 @@ public static partial class StandardLibrary
         return TypedArrayBase.IndexOfInternal(typed, args);
     }
 
-    private static object? TypedArrayLastIndexOf(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
+    private static object? TypedArrayLastIndexOf(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typed)
         {
@@ -1472,7 +1473,7 @@ public static partial class StandardLibrary
         return TypedArrayBase.LastIndexOfInternal(typed, args);
     }
 
-    private static object? TypedArrayIncludes(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
+    private static object? TypedArrayIncludes(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typed)
         {
@@ -1482,7 +1483,7 @@ public static partial class StandardLibrary
         return TypedArrayBase.IncludesInternal(typed, args);
     }
 
-    private static TypedArrayBase ValidateTypedArrayReceiver(JsValue thisValue, string methodName, RealmState? realm)
+    private static TypedArrayBase ValidateTypedArrayReceiver(object? thisValue, string methodName, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {

@@ -84,7 +84,7 @@ public static partial class StandardLibrary
         return (long)ToLengthOrZero(value, context);
     }
 
-    internal static (IJsPropertyAccessor Accessor, long Length, IJsCallable Callback, object? ThisArg)
+    internal static (IJsPropertyAccessor Accessor, long Length, IJsCallable Callback, JsValue ThisArg)
         PrepareArrayIteration(object? receiver, IReadOnlyList<JsValue> args, RealmState? realm, string methodName)
     {
         var accessor = EnsureArrayLikeReceiver(receiver, methodName, realm);
@@ -92,7 +92,7 @@ public static partial class StandardLibrary
         var context = realm?.CreateContext();
         var length = (long)ToLengthOrZero(lengthValue, context);
 
-        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        if (args.Count == 0 || args[0].ToObject() is not IJsCallable callback)
         {
             throw ThrowTypeError($"{methodName} requires a callable callback", realm: realm);
         }
@@ -167,12 +167,12 @@ public static partial class StandardLibrary
     internal static object? ReduceLike(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm,
         string methodName, bool fromRight)
     {
-        var accessor = EnsureArrayLikeReceiver(thisValue, methodName, realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), methodName, realm);
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var lengthContext = realm?.CreateContext();
         var length = (long)ToLengthOrZero(lengthValue, lengthContext);
 
-        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        if (args.Count == 0 || args[0].ToObject() is not IJsCallable callback)
         {
             throw ThrowTypeError($"{methodName} requires a callable accumulator", realm: realm);
         }
@@ -183,7 +183,7 @@ public static partial class StandardLibrary
         }
 
         var hasInitial = args.Count > 1;
-        var accumulator = hasInitial ? args[1] : Symbol.Undefined;
+        var accumulator = hasInitial ? args[1].ToObject() : Symbol.Undefined;
         var start = fromRight ? length - 1 : 0;
         var step = fromRight ? -1 : 1;
 
@@ -201,7 +201,7 @@ public static partial class StandardLibrary
                 }
                 else
                 {
-                    accumulator = callback.Invoke([accumulator, value, (double)k, accessor], Symbol.Undefined);
+                    accumulator = callback.Invoke([JsValue.FromObject(accumulator), JsValue.FromObject(value), new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.Undefined).ToObject();
                 }
             }
 
@@ -220,7 +220,7 @@ public static partial class StandardLibrary
         string methodName)
     {
         var (accessor, length, callback, thisArg) =
-            PrepareArrayIteration(thisValue, args, realm, methodName);
+            PrepareArrayIteration(thisValue.ToObject(), args, realm, methodName);
 
         for (long k = 0; k < length; k++)
         {
@@ -229,7 +229,7 @@ public static partial class StandardLibrary
                 continue;
             }
 
-            var result = callback.Invoke([value, (double)k, accessor], thisArg);
+            var result = callback.Invoke([JsValue.FromObject(value), new JsValue((double)k), JsValue.FromObject(accessor)], thisArg).ToObject();
             if (IsTruthy(result))
             {
                 return true;
@@ -354,7 +354,7 @@ public static partial class StandardLibrary
             throw ThrowTypeError($"{operation} iterator return is not callable", realm: realm);
         }
 
-        callable.Invoke(Array.Empty<object?>(), iterator);
+        callable.Invoke(Array.Empty<JsValue>(), JsValue.FromObject(iterator));
     }
 
     internal static void CreateDataPropertyOrThrow(IJsObjectLike target, string propertyKey, object? value,
@@ -410,7 +410,7 @@ public static partial class StandardLibrary
             objectPrototype.TryGetProperty("toString", out var toStringValue) &&
             toStringValue is IJsCallable callable)
         {
-            return callable.Invoke([], target);
+            return callable.Invoke([], JsValue.FromObject(target)).ToObject();
         }
 
         return "[object Object]";

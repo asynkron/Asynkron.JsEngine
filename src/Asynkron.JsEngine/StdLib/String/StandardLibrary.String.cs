@@ -159,71 +159,66 @@ public static partial class StandardLibrary
                 throw ThrowTypeError("Cannot convert undefined or null to object", realm: realm);
             }
 
-            var str = JsOps.ToJsString(thisValue.ToObject(), context);
-            if (context?.IsThrow == true)
-            {
-                throw new ThrowSignal(context.FlowValue);
-            }
-
+            var str = thisValue.ToJsString(context, realm);
             return str;
         }
 
         string CoerceToString(JsValue value)
         {
             var context = realm?.CreateContext();
-            var result = JsOps.ToJsString(value.ToObject(), context);
-            if (context?.IsThrow == true)
-            {
-                throw new ThrowSignal(context.FlowValue);
-            }
-
+            var result = value.ToJsString(context, realm);
             return result;
+        }
+
+        string JsValueToString(JsValue value)
+        {
+            return value.ToJsString(realm?.CreateContext(), realm);
         }
 
         JsValue CharAt(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
-            var value = ResolveString(thisValue.ToObject());
+            var value = ResolveString(thisValue);
             var index = args.Count > 0 && args[0].TryGetDouble(out var d) ? (int)d : 0;
             if (index < 0 || index >= value.Length)
             {
-                return "";
+                return new JsValue("");
             }
 
-            return value[index].ToString();
+            return new JsValue(value[index].ToString());
         }
 
         JsValue CharCodeAt(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
-            var value = ResolveString(thisValue.ToObject());
+            var value = ResolveString(thisValue);
             var index = args.Count > 0 && args[0].TryGetDouble(out var d) ? (int)d : 0;
             if (index < 0 || index >= value.Length)
             {
-                return double.NaN;
+                return new JsValue(double.NaN);
             }
 
-            return (double)value[index];
+            return new JsValue((double)value[index]);
         }
 
         JsValue IndexOf(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
-            var value = ResolveString(thisValue.ToObject());
+            var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
-                return -1d;
+                return new JsValue(-1d);
             }
 
             var searchStr = args[0].TryGetString(out var s) ? s : args[0].ToObject()?.ToString() ?? "";
             var position = args.Count > 1 && args[1].TryGetDouble(out var d) ? Math.Max(0, (int)d) : 0;
             var result = value.IndexOf(searchStr, position, StringComparison.Ordinal);
-            return (double)result;
+            return new JsValue((double)result);
         }
 
         JsValue LastIndexOf(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
-            var value = ResolveString(thisValue.ToObject());
+            var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
-                return -1d;
+                return new JsValue(-1d);
             }
 
             var searchStr = args[0].TryGetString(out var s) ? s : args[0].ToObject()?.ToString() ?? "";
@@ -231,15 +226,15 @@ public static partial class StandardLibrary
                 ? Math.Min((int)d, value.Length - 1)
                 : value.Length - 1;
             var result = position >= 0 ? value.LastIndexOf(searchStr, position, StringComparison.Ordinal) : -1;
-            return (double)result;
+            return new JsValue((double)result);
         }
 
         JsValue Substring(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
-            var value = ResolveString(thisValue.ToObject());
+            var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
-                return value;
+                return new JsValue(value);
             }
 
             var start = args[0].TryGetDouble(out var d1) ? Math.Max(0, Math.Min((int)d1, value.Length)) : 0;
@@ -252,15 +247,15 @@ public static partial class StandardLibrary
                 (start, end) = (end, start);
             }
 
-            return value.Substring(start, end - start);
+            return new JsValue(value.Substring(start, end - start));
         }
 
         JsValue Slice(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
-            var value = ResolveString(thisValue.ToObject());
+            var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
-                return value;
+                return new JsValue(value);
             }
 
             var start = args[0].TryGetDouble(out var d1) ? (int)d1 : 0;
@@ -286,19 +281,19 @@ public static partial class StandardLibrary
 
             if (start >= end)
             {
-                return "";
+                return new JsValue("");
             }
 
-            return value.Substring(start, end - start);
+            return new JsValue(value.Substring(start, end - start));
         }
 
         JsValue Substr(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
-            var value = ResolveString(thisValue.ToObject());
+            var value = ResolveString(thisValue);
             var length = value.Length;
             if (args.Count == 0)
             {
-                return value;
+                return new JsValue(value);
             }
 
             var startNumber = ConvertToNumber(args[0]);
@@ -341,7 +336,7 @@ public static partial class StandardLibrary
             var start = double.IsNegativeInfinity(startInteger) ? 0 : (int)startInteger;
             if (double.IsPositiveInfinity(startInteger))
             {
-                return "";
+                return new JsValue("");
             }
 
             if (start < 0)
@@ -355,13 +350,13 @@ public static partial class StandardLibrary
 
             if (double.IsNaN(lengthNumber) || lengthNumber <= 0)
             {
-                return "";
+                return new JsValue("");
             }
 
             lengthNumber = Math.Min(Math.Max(lengthNumber, 0), length);
 
             var substrLength = (int)Math.Min(lengthNumber, Math.Max(0, length - start));
-            return value.Substring(start, substrLength);
+            return new JsValue(value.Substring(start, substrLength));
 
             double ConvertToNumber(JsValue input)
             {
@@ -389,7 +384,7 @@ public static partial class StandardLibrary
             }
         }
 
-        object? Concat(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue Concat(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
             var result = ResolveString(thisValue);
             foreach (var arg in args)
@@ -397,40 +392,40 @@ public static partial class StandardLibrary
                 result += JsValueToString(arg);
             }
 
-            return result;
+            return new JsValue(result);
         }
 
-        object? ToLowerCase(JsValue thisValue, IReadOnlyList<object?> _)
+        JsValue ToLowerCase(JsValue thisValue, IReadOnlyList<JsValue> _)
         {
-            return ResolveString(thisValue).ToLowerInvariant();
+            return new JsValue(ResolveString(thisValue).ToLowerInvariant());
         }
 
-        object? ToUpperCase(JsValue thisValue, IReadOnlyList<object?> _)
+        JsValue ToUpperCase(JsValue thisValue, IReadOnlyList<JsValue> _)
         {
-            return ResolveString(thisValue).ToUpperInvariant();
+            return new JsValue(ResolveString(thisValue).ToUpperInvariant());
         }
 
-        object? Trim(JsValue thisValue, IReadOnlyList<object?> _)
+        JsValue Trim(JsValue thisValue, IReadOnlyList<JsValue> _)
         {
-            return ResolveString(thisValue).Trim();
+            return new JsValue(ResolveString(thisValue).Trim());
         }
 
-        object? TrimStart(JsValue thisValue, IReadOnlyList<object?> _)
+        JsValue TrimStart(JsValue thisValue, IReadOnlyList<JsValue> _)
         {
-            return ResolveString(thisValue).TrimStart();
+            return new JsValue(ResolveString(thisValue).TrimStart());
         }
 
-        object? TrimEnd(JsValue thisValue, IReadOnlyList<object?> _)
+        JsValue TrimEnd(JsValue thisValue, IReadOnlyList<JsValue> _)
         {
-            return ResolveString(thisValue).TrimEnd();
+            return new JsValue(ResolveString(thisValue).TrimEnd());
         }
 
-        object? Split(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realmState)
+        JsValue Split(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realmState)
         {
             var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
-                return CreateArrayFromStrings([value], realmState ?? realm);
+                return new JsValue(CreateArrayFromStrings([value], realmState ?? realm));
             }
 
             var separatorValue = args[0];
@@ -438,10 +433,10 @@ public static partial class StandardLibrary
             if (splitMethod is not null)
             {
                 var limitArg = args.GetArgument(1);
-                return splitMethod.Invoke([value, limitArg], separatorValue);
+                return splitMethod.Invoke([new JsValue(value), limitArg], separatorValue);
             }
 
-            var separator = ReferenceEquals(separatorValue, Symbol.Undefined)
+            var separator = separatorValue.IsUndefined
                 ? null
                 : CoerceToString(separatorValue);
             var limit = args.Count > 1 && args[1].TryGetDouble(out var d) ? (int)d : int.MaxValue;
@@ -449,7 +444,7 @@ public static partial class StandardLibrary
             if (separator is null or "")
             {
                 var chars = value.Select(c => c.ToString()).Take(limit).ToArray();
-                return CreateArrayFromStrings(chars, realmState ?? realm);
+                return new JsValue(CreateArrayFromStrings(chars, realmState ?? realm));
             }
 
             var parts = value.Split([separator], StringSplitOptions.None);
@@ -458,10 +453,10 @@ public static partial class StandardLibrary
                 parts = parts.Take(limit).ToArray();
             }
 
-            return CreateArrayFromStrings(parts, realmState ?? realm);
+            return new JsValue(CreateArrayFromStrings(parts, realmState ?? realm));
         }
 
-        object? Replace(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue Replace(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
             var value = ResolveString(thisValue);
             var search = args.GetArgument(0);
@@ -470,10 +465,10 @@ public static partial class StandardLibrary
             var replaceMethod = GetMethod(search, replaceKey, "@@replace");
             if (replaceMethod is not null)
             {
-                return replaceMethod.Invoke([value, replacement], search);
+                return replaceMethod.Invoke([new JsValue(value), replacement], search);
             }
 
-            if (replacement is IJsCallable replacer)
+            if (replacement.TryGetObject<IJsCallable>(out var replacer))
             {
                 if (TryResolveRegExp(search, out var regex))
                 {
@@ -486,7 +481,7 @@ public static partial class StandardLibrary
                         var matches = dotNetRegex.Matches(value);
                         if (matches.Count == 0)
                         {
-                            return value;
+                            return new JsValue(value);
                         }
 
                         foreach (Match match in matches)
@@ -502,7 +497,7 @@ public static partial class StandardLibrary
                             }
 
                             // Per ES spec, call replacer with `undefined` as this, not the string
-                            var replacementValue = replacer.Invoke([match.Value], JsValue.Undefined);
+                            var replacementValue = replacer.Invoke([new JsValue(match.Value)], JsValue.Undefined);
                             var replacementString = replacementValue.ToJsString();
                             result.Append(replacementString);
 
@@ -514,7 +509,7 @@ public static partial class StandardLibrary
                         var match = dotNetRegex.Match(value);
                         if (!match.Success)
                         {
-                            return value;
+                            return new JsValue(value);
                         }
 
                         if (match.Index > 0)
@@ -523,7 +518,7 @@ public static partial class StandardLibrary
                         }
 
                         // Per ES spec, call replacer with `undefined` as this, not the string
-                        var replacementValue = replacer.Invoke([match.Value], Symbol.Undefined);
+                        var replacementValue = replacer.Invoke([new JsValue(match.Value)], JsValue.Undefined);
                         var replacementString = replacementValue.ToJsString();
                         result.Append(replacementString);
 
@@ -535,47 +530,47 @@ public static partial class StandardLibrary
                         result.Append(value.AsSpan(lastIndex));
                     }
 
-                    return result.ToString();
+                    return new JsValue(result.ToString());
                 }
 
                 var searchValueFunc = CoerceToString(search);
                 if (searchValueFunc.Length == 0)
                 {
                     // Per ES spec, call replacer with `undefined` as this, not the string
-                    var replacementValue = replacer.Invoke([""], Symbol.Undefined);
+                    var replacementValue = replacer.Invoke([new JsValue("")], JsValue.Undefined);
                     var replacementString = replacementValue.ToJsString();
-                    return replacementString + value;
+                    return new JsValue(replacementString + value);
                 }
 
                 var idx = value.IndexOf(searchValueFunc, StringComparison.Ordinal);
                 if (idx < 0)
                 {
-                    return value;
+                    return new JsValue(value);
                 }
 
                 var prefix = value[..idx];
                 var suffix = value[(idx + searchValueFunc.Length)..];
                 // Per ES spec, call replacer with `undefined` as this, not the string
-                var replacedSegment = replacer.Invoke([searchValueFunc], Symbol.Undefined).ToJsString();
-                return prefix + replacedSegment + suffix;
+                var replacedSegment = replacer.Invoke([new JsValue(searchValueFunc)], JsValue.Undefined).ToJsString();
+                return new JsValue(prefix + replacedSegment + suffix);
             }
 
             if (TryResolveRegExp(search, out var regex2))
             {
-                var replaceValue = replacement?.ToString() ?? "";
+                var replaceValue = replacement.ToObject()?.ToString() ?? "";
                 if (regex2.Global)
                 {
-                    return Regex.Replace(value, regex2.Pattern, replaceValue);
+                    return new JsValue(Regex.Replace(value, regex2.Pattern, replaceValue));
                 }
 
                 var match = Regex.Match(value, regex2.Pattern);
                 if (match.Success)
                 {
-                    return string.Concat(value.AsSpan(0, match.Index), replaceValue,
-                        value.AsSpan(match.Index + match.Length));
+                    return new JsValue(string.Concat(value.AsSpan(0, match.Index), replaceValue,
+                        value.AsSpan(match.Index + match.Length)));
                 }
 
-                return value;
+                return new JsValue(value);
             }
 
             var searchValue = CoerceToString(search);
@@ -583,44 +578,44 @@ public static partial class StandardLibrary
             var index = value.IndexOf(searchValue, StringComparison.Ordinal);
             if (index == -1)
             {
-                return value;
+                return new JsValue(value);
             }
 
-            return string.Concat(value.AsSpan(0, index), replaceStr, value.AsSpan(index + searchValue.Length));
+            return new JsValue(string.Concat(value.AsSpan(0, index), replaceStr, value.AsSpan(index + searchValue.Length)));
         }
 
-        object? Match(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue Match(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
             var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
-                return null;
+                return JsValue.Null;
             }
 
             var searchValue = args[0];
             var matcher = GetMethod(searchValue, matchKey, "@@match");
             if (matcher is not null)
             {
-                return matcher.Invoke([value], searchValue);
+                return matcher.Invoke([new JsValue(value)], searchValue);
             }
 
             var regex = ToRegExpValue(searchValue, string.Empty, false);
-            return regex.Global ? regex.MatchAll(value) : regex.Exec(value);
+            return JsValue.FromObject(regex.Global ? regex.MatchAll(value) : regex.Exec(value));
         }
 
-        object? Search(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue Search(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
             var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
-                return -1d;
+                return new JsValue(-1d);
             }
 
             var searchValue = args[0];
             var searchMethod = GetMethod(searchValue, searchKey, "@@search");
             if (searchMethod is not null)
             {
-                return searchMethod.Invoke([value], searchValue);
+                return searchMethod.Invoke([new JsValue(value)], searchValue);
             }
 
             var regex = ToRegExpValue(searchValue, string.Empty, false);
@@ -628,142 +623,142 @@ public static partial class StandardLibrary
             if (result is JsArray arr && arr.TryGetProperty("index", out var indexObj) &&
                 indexObj is double d)
             {
-                return d;
+                return new JsValue(d);
             }
 
-            return -1d;
+            return new JsValue(-1d);
         }
 
-        object? StartsWith(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue StartsWith(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
             var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
-                return true;
+                return JsValue.True;
             }
 
-            var searchStr = args[0]?.ToString() ?? "";
+            var searchStr = args[0].ToObject()?.ToString() ?? "";
             var position = args.Count > 1 && args[1].TryGetDouble(out var d) ? (int)d : 0;
             if (position < 0 || position >= value.Length)
             {
-                return false;
+                return JsValue.False;
             }
 
-            return value[position..].StartsWith(searchStr, StringComparison.Ordinal);
+            return new JsValue(value[position..].StartsWith(searchStr, StringComparison.Ordinal));
         }
 
-        object? EndsWith(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue EndsWith(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
             var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
-                return true;
+                return JsValue.True;
             }
 
-            var searchStr = args[0]?.ToString() ?? "";
+            var searchStr = args[0].ToObject()?.ToString() ?? "";
             var length = args.Count > 1 && args[1].TryGetDouble(out var d) ? (int)d : value.Length;
             if (length < 0)
             {
-                return false;
+                return JsValue.False;
             }
 
             length = Math.Min(length, value.Length);
-            return value[..length].EndsWith(searchStr, StringComparison.Ordinal);
+            return new JsValue(value[..length].EndsWith(searchStr, StringComparison.Ordinal));
         }
 
-        object? Includes(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue Includes(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
             var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
-                return true;
+                return JsValue.True;
             }
 
-            var searchStr = args[0]?.ToString() ?? "";
+            var searchStr = args[0].ToObject()?.ToString() ?? "";
             var position = args.Count > 1 && args[1].TryGetDouble(out var d)? Math.Max(0, (int)d) : 0;
             if (position >= value.Length)
             {
-                return searchStr.Length == 0;
+                return new JsValue(searchStr.Length == 0);
             }
 
-            return value.IndexOf(searchStr, position, StringComparison.Ordinal) >= 0;
+            return new JsValue(value.IndexOf(searchStr, position, StringComparison.Ordinal) >= 0);
         }
 
-        object? Repeat(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue Repeat(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
             var value = ResolveString(thisValue);
             if (args.Count == 0 || !args[0].TryGetDouble(out var d))
             {
-                return "";
+                return new JsValue("");
             }
 
             var count = (int)d;
             if (count is < 0 or int.MaxValue)
             {
-                return "";
+                return new JsValue("");
             }
 
             if (count == 0)
             {
-                return "";
+                return new JsValue("");
             }
 
-            return string.Concat(Enumerable.Repeat(value, count));
+            return new JsValue(string.Concat(Enumerable.Repeat(value, count)));
         }
 
-        object? PadStart(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue PadStart(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
             var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
-                return value;
+                return new JsValue(value);
             }
 
             var targetLength = args[0].TryGetDouble(out var d) ? (int)d : 0;
             if (targetLength <= value.Length)
             {
-                return value;
+                return new JsValue(value);
             }
 
-            var padString = args.Count > 1 ? args[1]?.ToString() ?? " " : " ";
+            var padString = args.Count > 1 ? args[1].ToObject()?.ToString() ?? " " : " ";
             if (padString.Length == 0)
             {
-                return value;
+                return new JsValue(value);
             }
 
             var padLength = targetLength - value.Length;
             var padCount = (int)Math.Ceiling((double)padLength / padString.Length);
             var padding = string.Concat(Enumerable.Repeat(padString, padCount));
-            return string.Concat(padding.AsSpan(0, padLength), value);
+            return new JsValue(string.Concat(padding.AsSpan(0, padLength), value));
         }
 
-        object? PadEnd(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue PadEnd(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
             var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
-                return value;
+                return new JsValue(value);
             }
 
             var targetLength = args[0].TryGetDouble(out var d) ? (int)d : 0;
             if (targetLength <= value.Length)
             {
-                return value;
+                return new JsValue(value);
             }
 
-            var padString = args.Count > 1 ? args[1]?.ToString() ?? " " : " ";
+            var padString = args.Count > 1 ? args[1].ToObject()?.ToString() ?? " " : " ";
             if (padString.Length == 0)
             {
-                return value;
+                return new JsValue(value);
             }
 
             var padLength = targetLength - value.Length;
             var padCount = (int)Math.Ceiling((double)padLength / padString.Length);
             var padding = string.Concat(Enumerable.Repeat(padString, padCount));
-            return string.Concat(value, padding.AsSpan(0, padLength));
+            return new JsValue(string.Concat(value, padding.AsSpan(0, padLength)));
         }
 
-        object? ReplaceAll(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue ReplaceAll(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
             var value = ResolveString(thisValue);
             var searchValue = args.GetArgument(0);
@@ -772,7 +767,7 @@ public static partial class StandardLibrary
             var replaceMethod = GetMethod(searchValue, replaceKey, "@@replace");
             if (replaceMethod is not null)
             {
-                return replaceMethod.Invoke([value, replaceValue], searchValue);
+                return replaceMethod.Invoke([new JsValue(value), replaceValue], searchValue);
             }
 
             if (TryResolveRegExp(searchValue, out var regex))
@@ -783,15 +778,15 @@ public static partial class StandardLibrary
                 }
 
                 var replaceStr = CoerceToString(replaceValue);
-                return Regex.Replace(value, regex.Pattern, replaceStr);
+                return new JsValue(Regex.Replace(value, regex.Pattern, replaceStr));
             }
 
-            if (replaceValue is IJsCallable replacer)
+            if (replaceValue.TryGetObject<IJsCallable>(out var replacer))
             {
                 var searchStrFunc = CoerceToString(searchValue);
                 if (searchStrFunc.Length == 0)
                 {
-                    var replacementValue = replacer.Invoke([""], value).ToJsString();
+                    var replacementValue = replacer.Invoke([new JsValue("")], new JsValue(value)).ToJsString();
                     var builder = new StringBuilder();
                     builder.Append(replacementValue);
                     foreach (var ch in value)
@@ -800,7 +795,7 @@ public static partial class StandardLibrary
                         builder.Append(replacementValue);
                     }
 
-                    return builder.ToString();
+                    return new JsValue(builder.ToString());
                 }
 
                 var result = new StringBuilder();
@@ -815,26 +810,26 @@ public static partial class StandardLibrary
                     }
 
                     result.Append(value.AsSpan(currentIndex, idx - currentIndex));
-                    var replacementValue = replacer.Invoke([searchStrFunc], value);
+                    var replacementValue = replacer.Invoke([new JsValue(searchStrFunc)], new JsValue(value));
                     var replacementString = replacementValue.ToJsString();
                     result.Append(replacementString);
                     currentIndex = idx + searchStrFunc.Length;
                 }
 
-                return result.ToString();
+                return new JsValue(result.ToString());
             }
 
             var searchStr = CoerceToString(searchValue);
             var replaceStrPlain = CoerceToString(replaceValue);
-            return value.Replace(searchStr, replaceStrPlain);
+            return new JsValue(value.Replace(searchStr, replaceStrPlain));
         }
 
-        object? At(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue At(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
             var value = ResolveString(thisValue);
             if (args.Count == 0 || !args[0].TryGetDouble(out var d))
             {
-                return null;
+                return JsValue.Undefined;
             }
 
             var index = (int)d;
@@ -845,65 +840,65 @@ public static partial class StandardLibrary
 
             if (index < 0 || index >= value.Length)
             {
-                return null;
+                return JsValue.Undefined;
             }
 
-            return value[index].ToString();
+            return new JsValue(value[index].ToString());
         }
 
-        object? CodePointAt(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue CodePointAt(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
             var value = ResolveString(thisValue);
             if (args.Count == 0 || !args[0].TryGetDouble(out var d))
             {
-                return null;
+                return JsValue.Undefined;
             }
 
             var index = (int)d;
             if (index < 0 || index >= value.Length)
             {
-                return null;
+                return JsValue.Undefined;
             }
 
             var c = value[index];
             if (!char.IsHighSurrogate(c) || index + 1 >= value.Length)
             {
-                return (double)c;
+                return new JsValue((double)c);
             }
 
             var low = value[index + 1];
             if (!char.IsLowSurrogate(low))
             {
-                return (double)c;
+                return new JsValue((double)c);
             }
 
             var high = (int)c;
             var lowInt = (int)low;
             var codePoint = ((high - 0xD800) << 10) + (lowInt - 0xDC00) + 0x10000;
-            return (double)codePoint;
+            return new JsValue((double)codePoint);
         }
 
-        object? LocaleCompare(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue LocaleCompare(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
             var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
-                return 0d;
+                return new JsValue(0d);
             }
 
-            var compareString = args[0]?.ToString() ?? "";
+            var compareString = args[0].ToObject()?.ToString() ?? "";
             var result = string.Compare(value, compareString, StringComparison.CurrentCulture);
-            return (double)result;
+            return new JsValue((double)result);
         }
 
-        object? Normalize(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue Normalize(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
             var value = ResolveString(thisValue);
-            var form = args.Count > 0 && args[0] != null ? args[0]!.ToString() : "NFC";
+            var form = args.Count > 0 && !args[0].IsUndefined ? args[0].ToObject()?.ToString() : "NFC";
 
             try
             {
-                return form switch
+                return new JsValue(form switch
                 {
                     "NFC" => value.Normalize(NormalizationForm.FormC),
                     "NFD" => value.Normalize(NormalizationForm.FormD),
@@ -911,31 +906,31 @@ public static partial class StandardLibrary
                     "NFKD" => value.Normalize(NormalizationForm.FormKD),
                     _ => throw new Exception(
                         "RangeError: The normalization form should be one of NFC, NFD, NFKC, NFKD.")
-                };
+                });
             }
             catch
             {
-                return value;
+                return new JsValue(value);
             }
         }
 
-        object? MatchAll(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue MatchAll(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
             var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
-                return null;
+                return JsValue.Null;
             }
 
             var matcher = args[0];
             var method = GetMethod(matcher, matchAllKey, "@@matchAll");
             if (method is not null)
             {
-                return method.Invoke([value], matcher);
+                return method.Invoke([new JsValue(value)], matcher);
             }
 
             var regex = ToRegExpValue(matcher, "g", true);
-            return regex.MatchAll(value);
+            return JsValue.FromObject(regex.MatchAll(value));
         }
 
         object? Anchor(JsValue thisValue, IReadOnlyList<JsValue> args)

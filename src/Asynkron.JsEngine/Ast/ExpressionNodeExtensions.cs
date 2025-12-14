@@ -349,7 +349,7 @@ public static partial class TypedAstEvaluator
                         "Cannot read properties of null or undefined",
                         context,
                         context.RealmState);
-                    context.SetThrow(error);
+                    context.SetThrow(JsValue.FromObject(error));
                     return (Symbol.Undefined, JsValue.Undefined, true);
                 }
 

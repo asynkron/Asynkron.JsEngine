@@ -192,7 +192,7 @@ internal static class JsOps
                         throw new ThrowSignal(error);
                     }
 
-                    context.SetThrow(error);
+                    context.SetThrow(JsValue.FromObject(error));
                     return NumericResult.Error;
                 }
                 case JsBigInt bigInt:
@@ -264,7 +264,7 @@ internal static class JsOps
                         throw new ThrowSignal(error);
                     }
 
-                    context.SetThrow(error);
+                    context.SetThrow(JsValue.FromObject(error));
                     return NumericResult.Error;
                 }
                 default:
@@ -310,7 +310,7 @@ internal static class JsOps
                 }
                 catch (ThrowSignal signal) when (context is not null)
                 {
-                    context.SetThrow(signal.ThrownValue);
+                    context.SetThrow(JsValue.FromObject(signal.ThrownValue));
                     return false;
                 }
             }
@@ -372,7 +372,7 @@ internal static class JsOps
             throw new ThrowSignal(error);
         }
 
-        context.SetThrow(error);
+        context.SetThrow(JsValue.FromObject(error));
 
         return false;
     }
@@ -470,7 +470,7 @@ internal static class JsOps
                             throw signal;
                         }
 
-                        context.SetThrow(signal.ThrownValue);
+                        context.SetThrow(JsValue.FromObject(signal.ThrownValue));
                         return value;
                     }
 
@@ -478,7 +478,7 @@ internal static class JsOps
                 }
                 catch (ThrowSignal signal) when (context is not null)
                 {
-                    context.SetThrow(signal.ThrownValue);
+                    context.SetThrow(JsValue.FromObject(signal.ThrownValue));
                     return value;
                 }
             }
@@ -528,7 +528,7 @@ internal static class JsOps
             throw finalSignal;
         }
 
-        context.SetThrow(finalSignal.ThrownValue);
+        context.SetThrow(JsValue.FromObject(finalSignal.ThrownValue));
         return value;
     }
 
@@ -1117,7 +1117,7 @@ internal static class JsOps
             throw new ThrowSignal(error);
         }
 
-        context.SetThrow(error);
+        context.SetThrow(JsValue.FromObject(error));
         return false;
     }
 
@@ -1152,7 +1152,7 @@ internal static class JsOps
         {
             if (context is not null)
             {
-                context.SetThrow(signal.ThrownValue);
+                context.SetThrow(JsValue.FromObject(signal.ThrownValue));
                 return false;
             }
 
@@ -1577,7 +1577,7 @@ internal static class JsOps
             {
                 if (context is not null)
                 {
-                    context.SetThrow(signal.ThrownValue);
+                    context.SetThrow(JsValue.FromObject(signal.ThrownValue));
                     value = signal.ThrownValue;
                     return true;
                 }
@@ -1712,7 +1712,7 @@ internal static class JsOps
         {
             if (context is not null)
             {
-                context.SetThrow(signal.ThrownValue);
+                context.SetThrow(JsValue.FromObject(signal.ThrownValue));
                 value = signal.ThrownValue;
                 return true;
             }
@@ -1792,7 +1792,7 @@ internal static class JsOps
         {
             if (context is not null)
             {
-                context.SetThrow(signal.ThrownValue);
+                context.SetThrow(JsValue.FromObject(signal.ThrownValue));
                 return;
             }
 

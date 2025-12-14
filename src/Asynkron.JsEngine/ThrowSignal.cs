@@ -7,42 +7,47 @@ namespace Asynkron.JsEngine;
 ///     Within the evaluator, throws are managed via EvaluationContext state machine.
 ///     This exception is thrown when a throw escapes a function boundary or reaches the top level.
 /// </summary>
-public sealed class ThrowSignal(object? thrownValue = null) : Exception(FormatThrowMessage(thrownValue))
+public sealed class ThrowSignal : Exception
 {
-    public object? ThrownValue { get; } = thrownValue;
+    public JsValue ThrownValue { get; }
 
-    private static string FormatThrowMessage(object? thrownValue)
+    public ThrowSignal(JsValue thrownValue) : base(FormatThrowMessage(thrownValue))
     {
-        if (thrownValue == null)
+        ThrownValue = thrownValue;
+    }
+
+    private static string FormatThrowMessage(JsValue thrownValue)
+    {
+        if (thrownValue.IsNull || thrownValue.IsUndefined)
         {
-            return "Unhandled JavaScript throw: null";
+            return $"Unhandled JavaScript throw: {thrownValue.Kind.ToString().ToLowerInvariant()}";
         }
 
-        if (thrownValue is string str)
+        if (thrownValue.TryGetString(out var str))
         {
             return $"Unhandled JavaScript throw: \"{str}\"";
         }
 
-        if (thrownValue is JsObject jsObj)
+        if (thrownValue.TryGetObject<JsObject>(out var jsObj))
         {
             // Try to get error message or name from the object
-            if (jsObj.TryGetProperty("message", out var message) && !message.IsNull)
+            if (jsObj.TryGetProperty("message", out var message) && !message.IsNull && !message.IsUndefined)
             {
-                var msgStr = message.ToString();
-                if (jsObj.TryGetProperty("name", out var name) && !name.IsNull)
+                var msgStr = JsOps.ToJsString(message.ToObject());
+                if (jsObj.TryGetProperty("name", out var name) && !name.IsNull && !name.IsUndefined)
                 {
-                    return $"Unhandled JavaScript throw: {name}: {msgStr}";
+                    return $"Unhandled JavaScript throw: '{JsOps.ToJsString(name.ToObject())}': '{msgStr}'";
                 }
 
                 return $"Unhandled JavaScript throw: {msgStr}";
             }
 
-            if (jsObj.TryGetProperty("name", out var errorName) && !errorName.IsNull)
+            if (jsObj.TryGetProperty("name", out var errorName) && !errorName.IsNull && !errorName.IsUndefined)
             {
-                return $"Unhandled JavaScript throw: {errorName}";
+                return $"Unhandled JavaScript throw: {JsOps.ToJsString(errorName.ToObject())}";
             }
         }
 
-        return $"Unhandled JavaScript throw: {thrownValue}";
+        return $"Unhandled JavaScript throw: {JsOps.ToJsString(thrownValue.ToObject())}";
     }
 }

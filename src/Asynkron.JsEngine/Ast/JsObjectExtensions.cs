@@ -102,8 +102,8 @@ public static partial class TypedAstEvaluator
                 savedSignal?.GetType().Name ?? "null",
                 savedSignal switch
                 {
-                    ThrowFlowCompletionSignal throwSignal => throwSignal.Value?.GetType().Name ?? "null",
-                    ReturnCompletionSignal returnSignal => returnSignal.Value?.GetType().Name ?? "null",
+                    ThrowFlowCompletionSignal throwSignal => throwSignal.JsValue.GetType().Name,
+                    ReturnCompletionSignal returnSignal => returnSignal.JsValue.GetType().Name,
                     BreakCompletionSignal => "Break",
                     ContinueCompletionSignal => "Continue",
                     _ => "null"
@@ -166,7 +166,7 @@ public static partial class TypedAstEvaluator
 
                     var typeError = StandardLibrary.CreateTypeError("Iterator.return() must return an object",
                         context, context.RealmState);
-                    context.SetThrow(typeError);
+                    context.SetThrow(JsValue.FromObject(typeError));
                     context.RealmState.Logger?.LogInformation(
                         "IteratorClose set throw: type={Type}", typeError?.GetType().Name ?? "null");
                     return;
@@ -204,7 +204,7 @@ public static partial class TypedAstEvaluator
                 "IteratorClose exit preserveExistingThrow={Preserve} currentSignal={SignalType} valueType={ValueType}",
                 preserveExistingThrow,
                 context.CurrentSignal?.GetType().Name ?? "null",
-                context.FlowValue?.GetType().Name ?? "null");
+                context.FlowValue.GetType().Name);
         }
     }
 

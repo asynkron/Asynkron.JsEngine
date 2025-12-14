@@ -221,7 +221,7 @@ internal readonly struct AssignmentReference
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
-            _context.SetThrow(errorObject);
+            _context.SetThrow(JsValue.FromObject(errorObject));
             return Symbol.Undefined;
         }
     }
@@ -235,7 +235,7 @@ internal readonly struct AssignmentReference
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
-            _context.SetThrow(errorObject);
+            _context.SetThrow(JsValue.FromObject(errorObject));
             return JsValue.Undefined;
         }
     }
@@ -256,7 +256,7 @@ internal readonly struct AssignmentReference
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
-            _context.SetThrow(errorObject);
+            _context.SetThrow(JsValue.FromObject(errorObject));
             return Symbol.Undefined;
         }
     }
@@ -275,7 +275,7 @@ internal readonly struct AssignmentReference
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
-            _context.SetThrow(errorObject);
+            _context.SetThrow(JsValue.FromObject(errorObject));
             return Symbol.Undefined;
         }
     }
@@ -305,7 +305,7 @@ internal readonly struct AssignmentReference
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
-            _context.SetThrow(errorObject);
+            _context.SetThrow(JsValue.FromObject(errorObject));
             return Symbol.Undefined;
         }
     }
@@ -575,7 +575,7 @@ internal static class AssignmentReferenceResolver
         catch (InvalidOperationException ex) when (IsReferenceError(ex))
         {
             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
-            context.SetThrow(errorObject);
+            context.SetThrow(JsValue.FromObject(errorObject));
             return Symbol.Undefined;
         }
     }

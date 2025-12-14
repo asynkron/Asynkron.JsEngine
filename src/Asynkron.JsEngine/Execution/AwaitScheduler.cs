@@ -110,7 +110,7 @@ internal static class AwaitScheduler
         {
             if (isRejected)
             {
-                context.SetThrow(settledValue);
+                context.SetThrow(JsValue.FromObject(settledValue));
                 resolvedValue = JsValue.Undefined;
                 return false;
             }
@@ -133,7 +133,7 @@ internal static class AwaitScheduler
         {
             if (isRejected)
             {
-                context.SetThrow(settledValue);
+                context.SetThrow(JsValue.FromObject(settledValue));
                 resolvedValue = JsValue.Undefined;
                 return false;
             }
@@ -154,7 +154,7 @@ internal static class AwaitScheduler
             {
                 if (rejected)
                 {
-                    context.SetThrow(loopSettled);
+                    context.SetThrow(JsValue.FromObject(loopSettled));
                     resolvedValue = JsValue.Undefined;
                     return false;
                 }

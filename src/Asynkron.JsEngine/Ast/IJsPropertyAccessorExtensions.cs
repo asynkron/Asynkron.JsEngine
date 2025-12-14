@@ -27,7 +27,7 @@ public static partial class TypedAstEvaluator
                 if (context.ShouldStopEvaluation)
                 {
                     realm?.Logger?.LogInformation("TryInvokeSymbolMethod stopDuringLookup flowType={FlowType}",
-                        context.FlowValue?.GetType().Name ?? "null");
+                        context.FlowValue.GetType().Name ?? "null");
                     result = callable;
                     return true;
                 }
@@ -51,7 +51,7 @@ public static partial class TypedAstEvaluator
             if (context.ShouldStopEvaluation)
             {
                 realm?.Logger?.LogInformation("TryInvokeSymbolMethod stopAfterLookup flowType={FlowType}",
-                    context.FlowValue?.GetType().Name ?? "null");
+                    context.FlowValue.GetType().Name ?? "null");
                 result = context.FlowValue;
                 return true;
             }
@@ -85,7 +85,7 @@ public static partial class TypedAstEvaluator
                 if (candidate is not null && !ReferenceEquals(candidate, Symbol.Undefined))
                 {
                     var error = StandardLibrary.CreateTypeError("Iterator method is not callable", context, realm);
-                    context.SetThrow(error);
+                    context.SetThrow(JsValue.FromObject(error));
                     callable = null;
                     return true;
                 }

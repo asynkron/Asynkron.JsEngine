@@ -18,7 +18,7 @@ public static partial class TypedAstEvaluator
                 return jsValue.ToObject();
             }
 
-            context.SetReturnJsValue(jsValue);
+            context.SetReturn(jsValue);
             return jsValue.ToObject();
         }
     }

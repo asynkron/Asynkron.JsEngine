@@ -226,7 +226,7 @@ public static partial class TypedAstEvaluator
             }
             catch (ThrowSignal signal)
             {
-                context.SetThrow(signal.ThrownValue);
+                context.SetThrow(JsValue.FromObject(signal.ThrownValue));
                 return JsValue.FromObject(signal.ThrownValue);
             }
             finally

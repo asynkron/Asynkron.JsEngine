@@ -27,7 +27,7 @@ public static partial class TypedAstEvaluator
                             errorMessage,
                             context,
                             context.RealmState);
-                        context.SetThrow(error);
+                        context.SetThrow(JsValue.FromObject(error));
                         return Symbol.Undefined;
                     }
 
@@ -75,7 +75,7 @@ public static partial class TypedAstEvaluator
                 "Cannot set property on null or undefined.",
                 context,
                 context.RealmState);
-            context.SetThrow(error);
+            context.SetThrow(JsValue.FromObject(error));
             return;
         }
 

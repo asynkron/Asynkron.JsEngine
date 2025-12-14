@@ -107,19 +107,7 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     The value associated with the control flow (for Return, Throw, and Yield signals).
     /// </summary>
-    public object? FlowValue => CurrentSignal switch
-    {
-        ReturnCompletionSignal rs => rs.Value,
-        ThrowFlowCompletionSignal ts => ts.Value,
-        YieldCompletionSignal ys => ys.Value,
-        _ => null
-    };
-
-    /// <summary>
-    ///     The value associated with the control flow as JsValue (for Return, Throw, and Yield signals).
-    ///     Avoids boxing for primitive values.
-    /// </summary>
-    public JsValue FlowJsValue => CurrentSignal switch
+    public JsValue FlowValue => CurrentSignal switch
     {
         ReturnCompletionSignal rs => rs.JsValue,
         ThrowFlowCompletionSignal ts => ts.JsValue,
@@ -272,15 +260,7 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     Sets the context to Return state with the given value.
     /// </summary>
-    public void SetReturn(object? value)
-    {
-        CurrentSignal = new ReturnCompletionSignal(value);
-    }
-
-    /// <summary>
-    ///     Sets the context to Return state with the given JsValue, avoiding boxing for primitives.
-    /// </summary>
-    public void SetReturnJsValue(JsValue value)
+    public void SetReturn(JsValue value)
     {
         CurrentSignal = new ReturnCompletionSignal(value);
     }
@@ -304,15 +284,7 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     Sets the context to Throw state with the given value.
     /// </summary>
-    public void SetThrow(object? value)
-    {
-        CurrentSignal = new ThrowFlowCompletionSignal(value);
-    }
-
-    /// <summary>
-    ///     Sets the context to Throw state with the given JsValue, avoiding boxing for primitives.
-    /// </summary>
-    public void SetThrowJsValue(JsValue value)
+    public void SetThrow(JsValue value)
     {
         CurrentSignal = new ThrowFlowCompletionSignal(value);
     }
@@ -320,16 +292,7 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     Sets the context to Yield state with the given value.
     /// </summary>
-    public void SetYield(object? value, int yieldIndex)
-    {
-        LastYieldIndex = yieldIndex;
-        CurrentSignal = new YieldCompletionSignal(value);
-    }
-
-    /// <summary>
-    ///     Sets the context to Yield state with the given JsValue, avoiding boxing for primitives.
-    /// </summary>
-    public void SetYieldJsValue(JsValue value, int yieldIndex)
+    public void SetYield(JsValue value, int yieldIndex)
     {
         LastYieldIndex = yieldIndex;
         CurrentSignal = new YieldCompletionSignal(value);
@@ -339,7 +302,7 @@ public sealed class EvaluationContext(
     ///     Sets the context to Yield state with the given value and original iterator result object.
     ///     Used by yield* to preserve the original iterator result properties (like done being absent).
     /// </summary>
-    public void SetYieldWithIteratorResult(object? value, int yieldIndex, JsTypes.IJsObjectLike? iteratorResultObject)
+    public void SetYieldWithIteratorResult(JsValue value, int yieldIndex, JsTypes.IJsObjectLike? iteratorResultObject)
     {
         LastYieldIndex = yieldIndex;
         CurrentSignal = new YieldCompletionSignal(value, iteratorResultObject);

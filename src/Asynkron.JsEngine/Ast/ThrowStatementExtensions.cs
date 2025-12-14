@@ -14,7 +14,7 @@ public static partial class TypedAstEvaluator
             {
                 return context.FlowValue;
             }
-            context.SetThrowJsValue(jsValue);
+            context.SetThrow(jsValue);
             return jsValue.ToObject();
         }
     }

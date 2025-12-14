@@ -176,7 +176,7 @@ public static partial class TypedAstEvaluator
                         }
                     }
 
-                    context.SetThrow(errorObject);
+                    context.SetThrow(JsValue.FromObject(errorObject));
                     currentValue = JsValue.FromObject(errorObject);
                 }
 
@@ -244,7 +244,7 @@ public static partial class TypedAstEvaluator
                             }
                         }
 
-                        context.SetThrow(errorObject);
+                        context.SetThrow(JsValue.FromObject(errorObject));
                         currentValue = JsValue.FromObject(errorObject);
                     }
 

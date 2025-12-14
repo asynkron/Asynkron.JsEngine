@@ -23,14 +23,14 @@ public static partial class TypedAstEvaluator
             {
                 // Normalize abrupt throws into the current context so catch/finally
                 // handling runs in the standard completion-flow path.
-                context.SetThrow(signal.ThrownValue);
+                context.SetThrow(JsValue.FromObject(signal.ThrownValue));
                 result = signal.ThrownValue;
             }
             if (context.IsThrow && statement.Catch is not null)
             {
                 context.RealmState.Logger?.LogInformation(
                     "EvaluateTry handling catch; throw type={ThrowType}",
-                    context.FlowValue?.GetType().Name ?? "null");
+                    !context.FlowValue.IsUndefined ? context.FlowValue.GetType().Name : "undefined");
                 var thrownValue = context.FlowValue;
                 context.Clear();
                 var catchEnv = new JsEnvironment(environment, creatingSource: statement.Catch.Body.Source,
@@ -73,13 +73,13 @@ public static partial class TypedAstEvaluator
                         pending.HasValue = true;
                         pending.IsThrow = true;
                         pending.IsReturn = false;
-                        pending.Value = throwSignal.Value;
+                        pending.Value = throwSignal.JsValue;
                         break;
                     case ReturnCompletionSignal returnSignal:
                         pending.HasValue = true;
                         pending.IsThrow = false;
                         pending.IsReturn = true;
-                        pending.Value = returnSignal.Value;
+                        pending.Value = returnSignal.JsValue;
                         break;
                 }
             }
@@ -97,11 +97,11 @@ public static partial class TypedAstEvaluator
             {
                 if (pending.IsThrow)
                 {
-                    context.SetThrow(pending.Value);
+                    context.SetThrow(JsValue.FromObject(pending.Value));
                 }
                 else if (pending.IsReturn)
                 {
-                    context.SetReturn(pending.Value);
+                    context.SetReturn(JsValue.FromObject(pending.Value));
                 }
 
                 pending.HasValue = false;

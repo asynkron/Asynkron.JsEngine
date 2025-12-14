@@ -376,8 +376,10 @@ public static partial class StandardLibrary
                 var number = JsOps.ToNumberWithContext(primitive, numericContext);
                 if (numericContext?.IsThrow == true)
                 {
-                    throw new ThrowSignal(numericContext.FlowValue ?? CreateTypeError(
-                        "Cannot convert object to primitive value", numericContext, realm));
+                    var flowValue = numericContext.FlowValue;
+                    throw new ThrowSignal(!flowValue.IsUndefined
+                        ? flowValue
+                        : JsValue.FromObject(CreateTypeError("Cannot convert object to primitive value", numericContext, realm)));
                 }
 
                 return number;

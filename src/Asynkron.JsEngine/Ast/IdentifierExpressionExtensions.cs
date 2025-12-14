@@ -31,7 +31,7 @@ public static partial class TypedAstEvaluator
                     }
                 }
 
-                context.SetThrow(errorObject);
+                context.SetThrow(JsValue.FromObject(errorObject));
                 return JsValue.FromObject(errorObject);
             }
         }

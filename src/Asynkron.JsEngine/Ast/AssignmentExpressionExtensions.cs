@@ -58,7 +58,7 @@ public static partial class TypedAstEvaluator
                     errorObject = callable.Invoke([JsValue.FromObject(ex.Message)], JsValue.Undefined).ToObject();
                 }
 
-                context.SetThrow(errorObject);
+                context.SetThrow(JsValue.FromObject(errorObject));
                 return JsValue.FromObject(errorObject);
             }
         }

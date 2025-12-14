@@ -151,7 +151,7 @@ public static partial class TypedAstEvaluator
                         context.RealmState.Logger?.LogInformation(
                             "Iterator.next non-object result; throwing TypeError (label={Label})",
                             loopLabel?.Name ?? "<none>");
-                        context.SetThrow(typeError);
+                        context.SetThrow(JsValue.FromObject(typeError));
                         iteratorDone =
                             false; // force IteratorClose on exit for abrupt completion paths that require it
                         throw new ThrowSignal(typeError);

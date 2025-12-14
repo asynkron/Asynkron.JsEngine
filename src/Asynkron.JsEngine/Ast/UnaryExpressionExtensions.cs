@@ -24,6 +24,16 @@ public static partial class TypedAstEvaluator
                             EvaluateExpression);
                         var currentValue = reference.GetValue();
 
+                        // Fast path for double (most common case) - avoid boxing
+                        if (currentValue is double d)
+                        {
+                            var updatedValue = expression.Operator == "++"
+                                ? JsValueCache.GetNumber(d + 1)
+                                : JsValueCache.GetNumber(d - 1);
+                            reference.SetValue(updatedValue);
+                            return expression.IsPrefix ? updatedValue : JsValueCache.GetNumber(d);
+                        }
+
                         // Per ES spec, convert to numeric first (handles both Number and BigInt)
                         var oldNumeric = JsOps.ToNumeric(currentValue, context);
                         if (context.ShouldStopEvaluation)
@@ -32,14 +42,14 @@ public static partial class TypedAstEvaluator
                         }
 
                         // Calculate new value (increment/decrement the already-converted numeric value)
-                        var updatedValue = expression.Operator == "++"
+                        var updated = expression.Operator == "++"
                             ? IncrementValue(oldNumeric, context)
                             : DecrementValue(oldNumeric, context);
-                        reference.SetValue(updatedValue);
+                        reference.SetValue(updated);
 
                         // Postfix returns the old numeric value (after conversion but before increment/decrement)
                         // Prefix returns the new value (after increment/decrement)
-                        return expression.IsPrefix ? updatedValue : oldNumeric;
+                        return expression.IsPrefix ? updated : oldNumeric;
                     }
                     case "delete":
                         return EvaluateDelete(expression.Operand, environment, context);

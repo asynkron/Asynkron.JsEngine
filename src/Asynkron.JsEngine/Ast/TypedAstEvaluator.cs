@@ -549,6 +549,12 @@ public static partial class TypedAstEvaluator
 
     private static object? Add(object? left, object? right, EvaluationContext context)
     {
+        // Fast path: both operands are already doubles (very common in loops)
+        if (left is double leftDouble && right is double rightDouble)
+        {
+            return JsValueCache.GetNumber(leftDouble + rightDouble);
+        }
+
         var leftPrimitive = JsOps.ToPrimitive(left, ToPrimitiveHint.Default, context);
         if (context.ShouldStopEvaluation)
         {
@@ -581,31 +587,40 @@ public static partial class TypedAstEvaluator
             return JsOps.ToJsString(leftPrimitive, context) + JsOps.ToJsString(rightPrimitive, context);
         }
 
-        var leftNumeric = JsOps.ToNumeric(leftPrimitive, context);
+        // Use NumericResult to avoid boxing
+        var leftNumeric = JsOps.ToNumericResult(leftPrimitive, context);
         if (context.ShouldStopEvaluation)
         {
             return context.FlowValue;
         }
 
-        var rightNumeric = JsOps.ToNumeric(rightPrimitive, context);
+        var rightNumeric = JsOps.ToNumericResult(rightPrimitive, context);
         if (context.ShouldStopEvaluation)
         {
             return context.FlowValue;
         }
 
-        if (leftNumeric is JsBigInt leftBigInt && rightNumeric is JsBigInt rightBigInt)
+        // Both are numbers - most common case
+        if (leftNumeric.IsNumber && rightNumeric.IsNumber)
         {
-            return leftBigInt + rightBigInt;
+            return JsValueCache.GetNumber(leftNumeric.NumberValue + rightNumeric.NumberValue);
         }
 
-        if (leftNumeric is JsBigInt || rightNumeric is JsBigInt)
+        // Both are BigInt
+        if (leftNumeric.IsBigInt && rightNumeric.IsBigInt)
+        {
+            return leftNumeric.BigIntValue! + rightNumeric.BigIntValue!;
+        }
+
+        // Mixed types - error
+        if (leftNumeric.IsBigInt || rightNumeric.IsBigInt)
         {
             throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions",
                 context);
         }
 
-        var result = JsOps.ToNumber(leftNumeric, context) + JsOps.ToNumber(rightNumeric, context);
-        return JsValueCache.GetNumber(result);
+        // Fallback
+        return JsValueCache.GetNumber(leftNumeric.NumberValue + rightNumeric.NumberValue);
     }
 
     private static object Subtract(object? left, object? right, EvaluationContext context)
@@ -678,35 +693,43 @@ public static partial class TypedAstEvaluator
         object? left,
         object? right,
         Func<JsBigInt, JsBigInt, EvaluationContext, object> bigIntOp,
-        Func<double, double, object> numericOp,
+        Func<double, double, double> numericOp,
         EvaluationContext context)
     {
-        var leftNumeric = JsOps.ToNumeric(left, context);
+        // Use NumericResult to avoid boxing during the operation
+        var leftNumeric = JsOps.ToNumericResult(left, context);
         if (context.ShouldStopEvaluation)
         {
             return context.FlowValue ?? Symbol.Undefined;
         }
 
-        var rightNumeric = JsOps.ToNumeric(right, context);
+        var rightNumeric = JsOps.ToNumericResult(right, context);
         if (context.ShouldStopEvaluation)
         {
             return context.FlowValue ?? Symbol.Undefined;
         }
 
-        if (leftNumeric is JsBigInt leftBigInt && rightNumeric is JsBigInt rightBigInt)
+        // Both are numbers - most common case
+        if (leftNumeric.IsNumber && rightNumeric.IsNumber)
         {
-            return bigIntOp(leftBigInt, rightBigInt, context);
+            return JsValueCache.GetNumber(numericOp(leftNumeric.NumberValue, rightNumeric.NumberValue));
         }
 
-        if (leftNumeric is JsBigInt || rightNumeric is JsBigInt)
+        // Both are BigInt
+        if (leftNumeric.IsBigInt && rightNumeric.IsBigInt)
+        {
+            return bigIntOp(leftNumeric.BigIntValue!, rightNumeric.BigIntValue!, context);
+        }
+
+        // Mixed types - error
+        if (leftNumeric.IsBigInt || rightNumeric.IsBigInt)
         {
             throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions",
                 context);
         }
 
-        var result = numericOp(JsOps.ToNumber(leftNumeric, context), JsOps.ToNumber(rightNumeric, context));
-        // Use cached boxed values for common integer results
-        return result is double d ? JsValueCache.GetNumber(d) : result;
+        // Fallback (shouldn't reach here normally)
+        return JsValueCache.GetNumber(numericOp(leftNumeric.NumberValue, rightNumeric.NumberValue));
     }
 
     private static bool LooseEquals(object? left, object? right, EvaluationContext context)
@@ -745,6 +768,13 @@ public static partial class TypedAstEvaluator
 
     private static object BitwiseNot(object? operand, EvaluationContext context)
     {
+        // Fast path for double (most common case)
+        if (operand is double d)
+        {
+            var int32 = JsNumericConversions.ToInt32(d);
+            return JsValueCache.GetNumber(~int32);
+        }
+
         var numeric = JsOps.ToNumeric(operand, context);
         if (context.IsThrow)
         {
@@ -756,12 +786,18 @@ public static partial class TypedAstEvaluator
             return ~bigInt;
         }
 
-        var int32 = JsNumericConversions.ToInt32(JsOps.ToNumber(numeric, context));
-        return JsValueCache.GetNumber(~int32);
+        var int32Val = JsNumericConversions.ToInt32(JsOps.ToNumber(numeric, context));
+        return JsValueCache.GetNumber(~int32Val);
     }
 
     private static object UnaryMinus(object? operand, EvaluationContext context)
     {
+        // Fast path for double (most common case)
+        if (operand is double d)
+        {
+            return JsValueCache.GetNumber(-d);
+        }
+
         var numeric = JsOps.ToNumeric(operand, context);
         if (context.IsThrow)
         {
@@ -778,6 +814,14 @@ public static partial class TypedAstEvaluator
 
     private static object LeftShift(object? left, object? right, EvaluationContext context)
     {
+        // Fast path for double operands (most common case)
+        if (left is double leftD && right is double rightD)
+        {
+            var leftInt = JsNumericConversions.ToInt32(leftD);
+            var rightInt = JsNumericConversions.ToInt32(rightD) & 0x1F;
+            return JsValueCache.GetNumber(leftInt << rightInt);
+        }
+
         var leftNumeric = JsOps.ToNumeric(left, context);
         if (context.IsThrow)
         {
@@ -806,13 +850,21 @@ public static partial class TypedAstEvaluator
                 context);
         }
 
-        var leftInt = ToInt32(leftNumeric, context);
-        var rightInt = ToInt32(rightNumeric, context) & 0x1F;
-        return JsValueCache.GetNumber(leftInt << rightInt);
+        var leftIntVal = ToInt32(leftNumeric, context);
+        var rightIntVal = ToInt32(rightNumeric, context) & 0x1F;
+        return JsValueCache.GetNumber(leftIntVal << rightIntVal);
     }
 
     private static object RightShift(object? left, object? right, EvaluationContext context)
     {
+        // Fast path for double operands (most common case)
+        if (left is double leftD && right is double rightD)
+        {
+            var leftInt = JsNumericConversions.ToInt32(leftD);
+            var rightInt = JsNumericConversions.ToInt32(rightD) & 0x1F;
+            return JsValueCache.GetNumber(leftInt >> rightInt);
+        }
+
         var leftNumeric = JsOps.ToNumeric(left, context);
         if (context.IsThrow)
         {
@@ -841,13 +893,21 @@ public static partial class TypedAstEvaluator
                 context);
         }
 
-        var leftInt = ToInt32(leftNumeric, context);
-        var rightInt = ToInt32(rightNumeric, context) & 0x1F;
-        return JsValueCache.GetNumber(leftInt >> rightInt);
+        var leftIntVal = ToInt32(leftNumeric, context);
+        var rightIntVal = ToInt32(rightNumeric, context) & 0x1F;
+        return JsValueCache.GetNumber(leftIntVal >> rightIntVal);
     }
 
     private static object UnsignedRightShift(object? left, object? right, EvaluationContext context)
     {
+        // Fast path for double operands (most common case)
+        if (left is double leftD && right is double rightD)
+        {
+            var leftUInt = JsNumericConversions.ToUInt32(leftD);
+            var rightInt = JsNumericConversions.ToInt32(rightD) & 0x1F;
+            return JsValueCache.GetNumber(leftUInt >> rightInt);
+        }
+
         var leftNumeric = JsOps.ToNumeric(left, context);
         if (context.IsThrow)
         {
@@ -865,9 +925,9 @@ public static partial class TypedAstEvaluator
             throw StandardLibrary.ThrowTypeError("BigInts have no unsigned right shift, use >> instead", context);
         }
 
-        var leftUInt = ToUInt32(leftNumeric, context);
-        var rightInt = ToInt32(rightNumeric, context) & 0x1F;
-        return JsValueCache.GetNumber(leftUInt >> rightInt);
+        var leftUIntVal = ToUInt32(leftNumeric, context);
+        var rightIntVal = ToInt32(rightNumeric, context) & 0x1F;
+        return JsValueCache.GetNumber(leftUIntVal >> rightIntVal);
     }
 
     private static object PerformBigIntOrInt32Operation(
@@ -877,6 +937,14 @@ public static partial class TypedAstEvaluator
         Func<int, int, int> int32Op,
         EvaluationContext context)
     {
+        // Fast path for double operands (most common case)
+        if (left is double leftD && right is double rightD)
+        {
+            var leftInt = JsNumericConversions.ToInt32(leftD);
+            var rightInt = JsNumericConversions.ToInt32(rightD);
+            return JsValueCache.GetNumber(int32Op(leftInt, rightInt));
+        }
+
         var leftNumeric = JsOps.ToNumeric(left, context);
         if (context.IsThrow)
         {
@@ -900,9 +968,9 @@ public static partial class TypedAstEvaluator
                 context);
         }
 
-        var leftInt = JsNumericConversions.ToInt32(JsOps.ToNumber(leftNumeric, context));
-        var rightInt = JsNumericConversions.ToInt32(JsOps.ToNumber(rightNumeric, context));
-        return JsValueCache.GetNumber(int32Op(leftInt, rightInt));
+        var leftIntVal = JsNumericConversions.ToInt32(JsOps.ToNumber(leftNumeric, context));
+        var rightIntVal = JsNumericConversions.ToInt32(JsOps.ToNumber(rightNumeric, context));
+        return JsValueCache.GetNumber(int32Op(leftIntVal, rightIntVal));
     }
 
     private static int ToInt32(object? value, EvaluationContext context)

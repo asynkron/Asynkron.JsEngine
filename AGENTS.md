@@ -106,16 +106,16 @@ dotnet-trace convert trace.nettrace --format Speedscope
 | Jint | 52.58 ms | 50.11 MB | 8,000 |
 | Asynkron | 134.51 ms | 168.62 MB | 28,000 |
 
-*After optimizations (Round 3 - NumericResult struct to avoid boxing):*
+*After optimizations (Round 3 - NumericResult struct & fast paths):*
 | Engine | Time | Allocated | Gen0 Collections |
 |--------|------|-----------|------------------|
-| Jint | 52.39 ms | 50.11 MB | 8,000 |
-| Asynkron | **123.07 ms** | **113.05 MB** | **18,000** |
+| Jint | 53.30 ms | 50.11 MB | 8,000 |
+| Asynkron | **116.84 ms** | **107.49 MB** | **17,000** |
 
 **Cumulative Improvement:**
-- Allocations: 322 MB → 113.05 MB = **~65% reduction**
-- Speed: ~172 ms → 123.07 ms = **~28% faster**
-- Gap with Jint: 2.3x time, 2.3x allocations (down from 3.1x and 6.4x)
+- Allocations: 322 MB → 107.49 MB = **~67% reduction**
+- Speed: ~172 ms → 116.84 ms = **~32% faster**
+- Gap with Jint: 2.2x time, 2.1x allocations (down from 3.1x and 6.4x)
 
 ### Implemented Optimizations
 
@@ -124,8 +124,22 @@ dotnet-trace convert trace.nettrace --format Speedscope
 7. **NumericResult struct to avoid boxing** (`Runtime/JsOps.cs`)
    - Replaced `(NumericKind, object?)` tuple with `NumericResult` struct
    - Stores `double` directly in struct field (no boxing)
-   - `ToNumericCore` returns struct with `NumberValue` or `BigIntValue` fields
-   - Massive allocation reduction - boxing was the #1 memory offender
+   - Added `ToNumericResult()` for internal use that returns struct directly
+   - Added fast paths for already-double values (most common case)
+
+8. **Fast paths for double arithmetic** (`Ast/TypedAstEvaluator.cs`)
+   - `Add()` checks if both operands are doubles first, skips full conversion
+   - `PerformBigIntOrNumericOperation()` uses `NumericResult` internally
+   - Only boxes result at the very end via `JsValueCache.GetNumber()`
+
+9. **Fast paths for increment/decrement** (`Ast/UnaryExpressionExtensions.cs`)
+   - `++` and `--` operators check if operand is already double
+   - Avoids `ToNumeric()` call and boxing for the common case
+
+10. **Fast paths for unary and bitwise operations** (`Ast/TypedAstEvaluator.cs`)
+    - `BitwiseNot()`, `UnaryMinus()` - fast path when operand is double
+    - `LeftShift()`, `RightShift()`, `UnsignedRightShift()` - fast path for double operands
+    - `PerformBigIntOrInt32Operation()` - fast path for double operands
 
 #### Round 2 (Dec 2024)
 

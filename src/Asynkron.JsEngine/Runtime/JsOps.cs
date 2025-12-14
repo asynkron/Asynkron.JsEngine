@@ -127,13 +127,22 @@ internal static class JsOps
 
     public static object ToNumeric(object? value, EvaluationContext? context = null)
     {
-        var result = ToNumericCore(value, context);
-        return result.Kind switch
-        {
-            NumericKind.BigInt => result.BigIntValue!,
-            NumericKind.Number => JsValueCache.GetNumber(result.NumberValue),
-            _ => JsValueCache.BoxedNaN
-        };
+        return ToNumericResult(value, context).ToObject();
+    }
+
+    /// <summary>
+    /// Converts a value to numeric without boxing. Use this for internal arithmetic operations.
+    /// Only call ToObject() on the result when you need to return to JS.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static NumericResult ToNumericResult(object? value, EvaluationContext? context = null)
+    {
+        // Fast paths for already-numeric types (avoid full conversion)
+        if (value is double d) return new NumericResult(d);
+        if (value is JsBigInt bi) return new NumericResult(bi);
+        if (value is int i) return new NumericResult((double)i);
+
+        return ToNumericCore(value, context);
     }
 
     public static double ToNumberWithContext(object? value, EvaluationContext? context = null)
@@ -1987,7 +1996,7 @@ internal static class JsOps
         return true;
     }
 
-    private enum NumericKind
+    internal enum NumericKind
     {
         Number,
         BigInt,
@@ -1995,10 +2004,11 @@ internal static class JsOps
     }
 
     /// <summary>
-    /// Result struct for ToNumericCore that avoids boxing doubles.
+    /// Result struct for numeric operations that avoids boxing doubles.
     /// The double value is stored directly in the struct, not as object.
+    /// Use this internally for arithmetic operations to avoid boxing/unboxing.
     /// </summary>
-    private readonly struct NumericResult
+    internal readonly struct NumericResult
     {
         public readonly NumericKind Kind;
         public readonly double NumberValue;
@@ -2029,5 +2039,23 @@ internal static class JsOps
         }
 
         public static NumericResult Error => new(NumericKind.Error);
+
+        public bool IsNumber => Kind == NumericKind.Number;
+        public bool IsBigInt => Kind == NumericKind.BigInt;
+        public bool IsError => Kind == NumericKind.Error;
+
+        /// <summary>
+        /// Boxes the result to object. Only call this when you need to return to JS.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public object ToObject()
+        {
+            return Kind switch
+            {
+                NumericKind.BigInt => BigIntValue!,
+                NumericKind.Number => JsValueCache.GetNumber(NumberValue),
+                _ => JsValueCache.BoxedNaN
+            };
+        }
     }
 }

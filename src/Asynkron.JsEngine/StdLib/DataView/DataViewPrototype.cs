@@ -10,28 +10,28 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class DataViewPrototype : JsPrototype
 {
     [JsHostGetter("buffer")]
-    public object Buffer(object? thisValue)
+    public JsValue Buffer(JsValue thisValue)
     {
         var dv = RequireDataView(thisValue, Realm);
         return dv.Buffer;
     }
 
     [JsHostGetter("byteLength")]
-    public object ByteLength(object? thisValue)
+    public JsValue ByteLength(JsValue thisValue)
     {
         var dv = RequireDataView(thisValue, Realm);
         return (double)dv.ByteLength;
     }
 
     [JsHostGetter("byteOffset")]
-    public object ByteOffset(object? thisValue)
+    public JsValue ByteOffset(JsValue thisValue)
     {
         var dv = RequireDataView(thisValue, Realm);
         return (double)dv.ByteOffset;
     }
 
     [JsHostMethod("getInt8", Length = 1d)]
-    public object GetInt8(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue GetInt8(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireDataView(thisValue, Realm);
         var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
@@ -39,17 +39,17 @@ public sealed partial class DataViewPrototype : JsPrototype
     }
 
     [JsHostMethod("setInt8", Length = 2d)]
-    public object SetInt8(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue SetInt8(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireDataView(thisValue, Realm);
         var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
         var value = args.Count > 1 ? (sbyte)(int)JsOps.ToNumber(args[1]) : (sbyte)0;
         dv.SetInt8(offset, value);
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     [JsHostMethod("getUint8", Length = 1d)]
-    public object GetUint8(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue GetUint8(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireDataView(thisValue, Realm);
         var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
@@ -57,17 +57,17 @@ public sealed partial class DataViewPrototype : JsPrototype
     }
 
     [JsHostMethod("setUint8", Length = 2d)]
-    public object SetUint8(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue SetUint8(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireDataView(thisValue, Realm);
         var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
         var value = args.Count > 1 ? (byte)(int)JsOps.ToNumber(args[1]) : (byte)0;
         dv.SetUint8(offset, value);
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     [JsHostMethod("getInt16", Length = 1d)]
-    public object GetInt16(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue GetInt16(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireDataView(thisValue, Realm);
         var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
@@ -76,18 +76,18 @@ public sealed partial class DataViewPrototype : JsPrototype
     }
 
     [JsHostMethod("setInt16", Length = 2d)]
-    public object SetInt16(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue SetInt16(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireDataView(thisValue, Realm);
         var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
         var value = args.Count > 1 ? (short)(int)JsOps.ToNumber(args[1]) : (short)0;
         var littleEndian = args.Count > 2 && args[2] is bool and true;
         dv.SetInt16(offset, value, littleEndian);
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     [JsHostMethod("getUint16", Length = 1d)]
-    public object GetUint16(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue GetUint16(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireDataView(thisValue, Realm);
         var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
@@ -96,18 +96,18 @@ public sealed partial class DataViewPrototype : JsPrototype
     }
 
     [JsHostMethod("setUint16", Length = 2d)]
-    public object SetUint16(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue SetUint16(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireDataView(thisValue, Realm);
         var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
         var value = args.Count > 1 ? (ushort)(int)JsOps.ToNumber(args[1]) : (ushort)0;
         var littleEndian = args.Count > 2 && args[2] is bool and true;
         dv.SetUint16(offset, value, littleEndian);
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     [JsHostMethod("getInt32", Length = 1d)]
-    public object GetInt32(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue GetInt32(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireDataView(thisValue, Realm);
         var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
@@ -116,18 +116,18 @@ public sealed partial class DataViewPrototype : JsPrototype
     }
 
     [JsHostMethod("setInt32", Length = 2d)]
-    public object SetInt32(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue SetInt32(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireDataView(thisValue, Realm);
         var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
         var value = args.Count > 1 ? (int)JsOps.ToNumber(args[1]) : 0;
         var littleEndian = args.Count > 2 && args[2] is bool and true;
         dv.SetInt32(offset, value, littleEndian);
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     [JsHostMethod("getUint32", Length = 1d)]
-    public object GetUint32(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue GetUint32(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireDataView(thisValue, Realm);
         var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
@@ -136,18 +136,18 @@ public sealed partial class DataViewPrototype : JsPrototype
     }
 
     [JsHostMethod("setUint32", Length = 2d)]
-    public object SetUint32(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue SetUint32(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireDataView(thisValue, Realm);
         var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
         var value = args.Count > 1 ? (uint)JsOps.ToNumber(args[1]) : 0u;
         var littleEndian = args.Count > 2 && args[2] is bool and true;
         dv.SetUint32(offset, value, littleEndian);
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     [JsHostMethod("getFloat32", Length = 1d)]
-    public object GetFloat32(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue GetFloat32(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireDataView(thisValue, Realm);
         var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
@@ -156,18 +156,18 @@ public sealed partial class DataViewPrototype : JsPrototype
     }
 
     [JsHostMethod("setFloat32", Length = 2d)]
-    public object SetFloat32(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue SetFloat32(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireDataView(thisValue, Realm);
         var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
         var value = args.Count > 1 ? (float)JsOps.ToNumber(args[1]) : 0f;
         var littleEndian = args.Count > 2 && args[2] is bool and true;
         dv.SetFloat32(offset, value, littleEndian);
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     [JsHostMethod("getFloat64", Length = 1d)]
-    public object GetFloat64(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue GetFloat64(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireDataView(thisValue, Realm);
         var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
@@ -176,14 +176,14 @@ public sealed partial class DataViewPrototype : JsPrototype
     }
 
     [JsHostMethod("setFloat64", Length = 2d)]
-    public object SetFloat64(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue SetFloat64(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireDataView(thisValue, Realm);
         var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
         var value = args.Count > 1 ? JsOps.ToNumber(args[1]) : 0.0;
         var littleEndian = args.Count > 2 && args[2] is bool and true;
         dv.SetFloat64(offset, value, littleEndian);
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     protected override void ConfigurePrototype()

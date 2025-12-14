@@ -6,10 +6,10 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public sealed class DebugAwareHostFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor
 {
-    private readonly Func<JsEnvironment, EvaluationContext, IReadOnlyList<object?>, object?> _handler;
+    private readonly Func<JsEnvironment, EvaluationContext, IReadOnlyList<JsValue>, JsValue> _handler;
     private readonly JsObject _properties = new();
 
-    public DebugAwareHostFunction(Func<JsEnvironment, EvaluationContext, IReadOnlyList<object?>, object?> handler)
+    public DebugAwareHostFunction(Func<JsEnvironment, EvaluationContext, IReadOnlyList<JsValue>, JsValue> handler)
     {
         _handler = handler ?? throw new ArgumentNullException(nameof(handler));
         _properties.SetProperty("prototype", new JsObject());
@@ -24,7 +24,7 @@ public sealed class DebugAwareHostFunction : IJsEnvironmentAwareCallable, IJsPro
     /// </summary>
     public JsEnvironment? CallingJsEnvironment { get; set; }
 
-    public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
+    public JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
     {
         if (CurrentJsEnvironment is null || CurrentContext is null)
         {

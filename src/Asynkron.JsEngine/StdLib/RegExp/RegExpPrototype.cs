@@ -11,7 +11,7 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class RegExpPrototype : JsPrototype
 {
     [JsHostMethod("test", Length = 1d)]
-    public object? Test(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Test(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var resolved = ResolveRegExpInstance(thisValue);
         if (resolved is null)
@@ -29,17 +29,17 @@ public sealed partial class RegExpPrototype : JsPrototype
     }
 
     [JsHostMethod("exec", Length = 1d)]
-    public object? Exec(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Exec(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var resolved = ResolveRegExpInstance(thisValue);
         if (resolved is null)
         {
-            return null;
+            return JsValue.Null;
         }
 
         if (args.Count == 0)
         {
-            return null;
+            return JsValue.Null;
         }
 
         var input = args[0]?.ToString() ?? string.Empty;
@@ -47,14 +47,14 @@ public sealed partial class RegExpPrototype : JsPrototype
     }
 
     [JsHostMethod("toString", Length = 0d)]
-    public object ToString(object? thisValue, IReadOnlyList<object?> _)
+    public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var resolved = ResolveRegExpInstance(thisValue);
         return resolved is null ? "/undefined/" : $"/{resolved.Pattern}/{resolved.Flags}";
     }
 
     [JsHostMethod("compile", Length = 2d)]
-    public object? Compile(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Compile(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (thisValue is not JsObject target ||
             !ReferenceEquals(target.Prototype, Realm.RegExpPrototype) ||
@@ -69,7 +69,7 @@ public sealed partial class RegExpPrototype : JsPrototype
         var patternArg = args.GetArgument(0);
         var flagsArg = args.GetArgument(1);
         if (patternArg is TypedAstSymbol ||
-            (!ReferenceEquals(flagsArg, Symbol.Undefined) && flagsArg is TypedAstSymbol))
+            (flagsArg != JsValue.Undefined && flagsArg is TypedAstSymbol))
         {
             throw ThrowTypeError("Cannot convert a Symbol value to a string", realm: Realm);
         }
@@ -92,7 +92,7 @@ public sealed partial class RegExpPrototype : JsPrototype
 
         if (providedRegExp is { } otherRegExp)
         {
-            if (!ReferenceEquals(flagsArg, Symbol.Undefined))
+            if (flagsArg != JsValue.Undefined)
             {
                 throw ThrowTypeError("RegExp.prototype.compile called on incompatible receiver", realm: Realm);
             }
@@ -102,10 +102,10 @@ public sealed partial class RegExpPrototype : JsPrototype
         }
         else
         {
-            pattern = ReferenceEquals(patternArg, Symbol.Undefined)
+            pattern = patternArg == JsValue.Undefined
                 ? string.Empty
                 : JsOps.ToJsString(patternArg);
-            flags = ReferenceEquals(flagsArg, Symbol.Undefined) ? string.Empty : JsOps.ToJsString(flagsArg);
+            flags = flagsArg == JsValue.Undefined ? string.Empty : JsOps.ToJsString(flagsArg);
         }
 
         try
@@ -136,50 +136,50 @@ public sealed partial class RegExpPrototype : JsPrototype
     }
 
     [JsHostGetter("flags")]
-    public object Flags(object? thisValue)
+    public JsValue Flags(JsValue thisValue)
     {
         return GetSortedFlags(RequireRegExp(thisValue));
     }
 
     [JsHostGetter("source")]
-    public object Source(object? thisValue)
+    public JsValue Source(JsValue thisValue)
     {
         var resolved = RequireRegExp(thisValue);
         return string.IsNullOrEmpty(resolved.Pattern) ? "(?:)" : resolved.Pattern;
     }
 
     [JsHostGetter("global")]
-    public object Global(object? thisValue)
+    public JsValue Global(JsValue thisValue)
     {
         return RequireRegExp(thisValue).Global;
     }
 
     [JsHostGetter("ignoreCase")]
-    public object IgnoreCase(object? thisValue)
+    public JsValue IgnoreCase(JsValue thisValue)
     {
         return RequireRegExp(thisValue).IgnoreCase;
     }
 
     [JsHostGetter("multiline")]
-    public object Multiline(object? thisValue)
+    public JsValue Multiline(JsValue thisValue)
     {
         return RequireRegExp(thisValue).Multiline;
     }
 
     [JsHostGetter("dotAll")]
-    public object DotAll(object? thisValue)
+    public JsValue DotAll(JsValue thisValue)
     {
         return RequireRegExp(thisValue).DotAll;
     }
 
     [JsHostGetter("unicode")]
-    public object Unicode(object? thisValue)
+    public JsValue Unicode(JsValue thisValue)
     {
         return RequireRegExp(thisValue).Unicode;
     }
 
     [JsHostGetter("sticky")]
-    public object Sticky(object? thisValue)
+    public JsValue Sticky(JsValue thisValue)
     {
         return RequireRegExp(thisValue).Sticky;
     }
@@ -200,7 +200,7 @@ public sealed partial class RegExpPrototype : JsPrototype
         }
     }
 
-    private JsRegExp RequireRegExp(object? receiver)
+    private JsRegExp RequireRegExp(JsValue receiver)
     {
         var resolved = ResolveRegExpInstance(receiver);
         if (resolved is null)
@@ -248,7 +248,7 @@ public sealed partial class RegExpPrototype : JsPrototype
         return new string(buffer[..length]);
     }
 
-    private object? Split(object? thisValue, IReadOnlyList<object?> args)
+    private JsValue Split(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var resolved = ResolveRegExpInstance(thisValue);
         if (resolved is null)
@@ -257,7 +257,7 @@ public sealed partial class RegExpPrototype : JsPrototype
         }
 
         var matchKey = SymbolKeys.GetMatch(Realm);
-        var receiver = thisValue ?? resolved.JsObject;
+        var receiver = thisValue != JsValue.Null ? thisValue : resolved.JsObject;
         JsOps.TryGetPropertyValue(receiver, matchKey, out _);
 
         resolved = ResolveRegExpInstance(receiver) ?? resolved;
@@ -268,7 +268,7 @@ public sealed partial class RegExpPrototype : JsPrototype
         var splitter = new JsRegExp(resolved.Pattern, forcedFlags, Realm);
         splitter.SetProperty("lastIndex", 0d);
 
-        var limit = ReferenceEquals(limitValue, Symbol.Undefined)
+        var limit = limitValue == JsValue.Undefined
             ? uint.MaxValue
             : ToUint32(limitValue);
 

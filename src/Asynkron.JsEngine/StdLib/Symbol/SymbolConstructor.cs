@@ -11,7 +11,7 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
 {
     private HostFunction? _constructor;
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         _ = thisValue;
         _ = args;
@@ -36,18 +36,18 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
         AttachStatics(constructor);
     }
 
-    private object CreateSymbolValue(IReadOnlyList<object?> args)
+    private JsValue CreateSymbolValue(IReadOnlyList<JsValue> args)
     {
-        var description = args.Count > 0 && args[0] != null && !ReferenceEquals(args[0], Symbol.Undefined)
-            ? args[0]!.ToString()
+        var description = args.Count > 0 && !args[0].IsUndefined
+            ? args[0].ToString()
             : null;
-        return TypedAstSymbol.Create(description);
+        return new JsValue(TypedAstSymbol.Create(description));
     }
 
     private void AttachStatics(HostFunction constructor)
     {
-        constructor.SetHostedProperty("for", SymbolFor);
-        constructor.SetHostedProperty("keyFor", SymbolKeyFor);
+        constructor.SetHostedProperty("for", new HostFunction(SymbolFor, Realm, isConstructor: false), Realm);
+        constructor.SetHostedProperty("keyFor", new HostFunction(SymbolKeyFor, Realm, isConstructor: false), Realm);
 
         constructor.SetProperty("hasInstance", Symbols.HasInstance);
         constructor.SetProperty("iterator", Symbols.Iterator);
@@ -65,25 +65,25 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
         constructor.SetProperty("isConcatSpreadable", Symbols.IsConcatSpreadable);
     }
 
-    private object? SymbolFor(IReadOnlyList<object?> args)
+    private JsValue SymbolFor(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
-        var key = args[0]?.ToString() ?? "";
-        return TypedAstSymbol.For(key);
+        var key = args[0].ToString() ?? "";
+        return new JsValue(TypedAstSymbol.For(key));
     }
 
-    private object? SymbolKeyFor(IReadOnlyList<object?> args)
+    private JsValue SymbolKeyFor(IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || args[0] is not TypedAstSymbol sym)
+        if (args.Count == 0 || !(args[0].IsObject && args[0].AsObject() is TypedAstSymbol sym))
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
         var key = TypedAstSymbol.KeyFor(sym);
-        return key ?? (object)Symbol.Undefined;
+        return key != null ? new JsValue(key) : JsValue.Undefined;
     }
 }

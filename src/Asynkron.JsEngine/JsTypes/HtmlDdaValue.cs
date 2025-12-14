@@ -16,27 +16,27 @@ public sealed class HtmlDdaValue : IIsHtmlDda, IJsCallable, IJsObjectLike, IProp
         _backing.PreventExtensions();
     }
 
-    public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
+    public JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
     {
-        return null;
+        return JsValue.Null;
     }
 
-    public bool TryGetProperty(string name, out object? value)
+    bool IJsPropertyAccessor.TryGetProperty(string name, out object? value)
     {
         return _backing.TryGetProperty(name, out value);
     }
 
-    public bool TryGetProperty(string name, object? receiver, out object? value)
+    bool IJsPropertyAccessor.TryGetProperty(string name, object? receiver, out object? value)
     {
         return _backing.TryGetProperty(name, receiver, out value);
     }
 
-    public void SetProperty(string name, object? value)
+    void IJsPropertyAccessor.SetProperty(string name, object? value)
     {
         _backing.SetProperty(name, value);
     }
 
-    public void SetProperty(string name, object? value, object? receiver)
+    void IJsPropertyAccessor.SetProperty(string name, object? value, object? receiver)
     {
         _backing.SetProperty(name, value, receiver);
     }
@@ -66,7 +66,7 @@ public sealed class HtmlDdaValue : IIsHtmlDda, IJsCallable, IJsObjectLike, IProp
         _backing.DefineProperty(name, descriptor);
     }
 
-    public void SetPrototype(object? candidate)
+    void IJsObjectLike.SetPrototype(object? candidate)
     {
         _backing.SetPrototype(candidate);
     }

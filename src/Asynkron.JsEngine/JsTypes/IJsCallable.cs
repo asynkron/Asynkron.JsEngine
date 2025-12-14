@@ -5,5 +5,5 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public interface IJsCallable
 {
-    object? Invoke(IReadOnlyList<object?> arguments, object? thisValue);
+    JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue);
 }

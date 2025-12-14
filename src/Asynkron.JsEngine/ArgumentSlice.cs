@@ -1,4 +1,5 @@
 using System.Collections;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine;
 
@@ -6,20 +7,20 @@ namespace Asynkron.JsEngine;
 /// A zero-copy slice over an IReadOnlyList that implements IReadOnlyList itself.
 /// Avoids allocating new arrays for .call(), .apply(), .bind() scenarios.
 /// </summary>
-public readonly struct ArgumentSlice : IReadOnlyList<object?>
+public readonly struct ArgumentSlice : IReadOnlyList<JsValue>
 {
-    private readonly IReadOnlyList<object?>? _source;
+    private readonly IReadOnlyList<JsValue>? _source;
     private readonly int _offset;
     private readonly int _count;
 
-    public ArgumentSlice(IReadOnlyList<object?> source, int offset)
+    public ArgumentSlice(IReadOnlyList<JsValue> source, int offset)
     {
         _source = source;
         _offset = Math.Min(offset, source.Count);
         _count = Math.Max(0, source.Count - _offset);
     }
 
-    public ArgumentSlice(IReadOnlyList<object?> source, int offset, int count)
+    public ArgumentSlice(IReadOnlyList<JsValue> source, int offset, int count)
     {
         _source = source;
         _offset = Math.Min(offset, source.Count);
@@ -28,7 +29,7 @@ public readonly struct ArgumentSlice : IReadOnlyList<object?>
 
     public int Count => _count;
 
-    public object? this[int index]
+    public JsValue this[int index]
     {
         get
         {
@@ -38,7 +39,7 @@ public readonly struct ArgumentSlice : IReadOnlyList<object?>
         }
     }
 
-    public IEnumerator<object?> GetEnumerator()
+    public IEnumerator<JsValue> GetEnumerator()
     {
         for (var i = 0; i < _count; i++)
             yield return _source![_offset + i];
@@ -49,5 +50,5 @@ public readonly struct ArgumentSlice : IReadOnlyList<object?>
     /// <summary>
     /// Static empty instance for zero-arg cases.
     /// </summary>
-    public static readonly ArgumentSlice Empty = new(Array.Empty<object?>(), 0);
+    public static readonly ArgumentSlice Empty = new(Array.Empty<JsValue>(), 0);
 }

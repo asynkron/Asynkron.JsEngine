@@ -11,9 +11,9 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
 {
     private HostFunction? _constructor;
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue is JsObject { IsConstructing: true } constructing)
+        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true } constructing)
         {
             ApplyPrototype(constructing, _constructor ?? ConstructFallback);
             InitializeWrapper(constructing, args);
@@ -43,10 +43,10 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
         AttachStatics(constructor);
     }
 
-    private object ConstructWithNewTarget(IReadOnlyList<object?> args, IJsCallable newTarget, IJsCallable targetCtor)
+    private JsValue ConstructWithNewTarget(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
-        var instance = PrepareThisObject(null, assignPrototype: false);
+        var instance = PrepareThisObject(JsValue.Undefined, assignPrototype: false);
         if (proto is not null && instance.Prototype is null)
         {
             instance.SetPrototype(proto);
@@ -56,21 +56,21 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
         return instance;
     }
 
-    private void InitializeWrapper(JsObject wrapper, IReadOnlyList<object?> args)
+    private void InitializeWrapper(JsObject wrapper, IReadOnlyList<JsValue> args)
     {
         var str = ResolveString(args);
         InitializeStringWrapper(str, wrapper, Realm);
     }
 
-    private string ResolveString(IReadOnlyList<object?> args)
+    private string ResolveString(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
             return string.Empty;
         }
 
-        var value = args[0];
-        if (value is TypedAstSymbol typedSymbol)
+        var value = args.GetArgument(0);
+        if (value.IsObject && value.AsObject() is TypedAstSymbol typedSymbol)
         {
             return typedSymbol.ToString();
         }

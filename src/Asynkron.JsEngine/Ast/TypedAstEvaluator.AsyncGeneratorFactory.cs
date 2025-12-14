@@ -96,7 +96,7 @@ public static partial class TypedAstEvaluator
                 });
         }
 
-        public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
+        public JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
         {
             var instance = new AsyncGeneratorInstance(
                 _function,
@@ -193,7 +193,7 @@ public static partial class TypedAstEvaluator
                     value = new HostFunction((_, args) =>
                     {
                         var thisArg = args.GetArgument(0);
-                        IReadOnlyList<object?> argList = args.Count > 1 && args[1] is JsArray jsArray
+                        IReadOnlyList<JsValue> argList = args.Count > 1 && args[1].AsObject() is JsArray jsArray
                             ? jsArray.Items
                             : ArgumentSlice.Empty;
                         return callable.Invoke(argList, thisArg);
@@ -215,7 +215,7 @@ public static partial class TypedAstEvaluator
                             if (innerArgs.Count == 0)
                                 return callable.Invoke(boundArgs, boundThis);
 
-                            var finalArgs = new object?[boundArgs.Count + innerArgs.Count];
+                            var finalArgs = new JsValue[boundArgs.Count + innerArgs.Count];
                             for (var i = 0; i < boundArgs.Count; i++)
                                 finalArgs[i] = boundArgs[i];
                             for (var i = 0; i < innerArgs.Count; i++)
@@ -382,15 +382,15 @@ public static partial class TypedAstEvaluator
             return constructor;
         }
 
-        private static object? AsyncGeneratorFunctionConstructorBody(
-            IReadOnlyList<object?> args,
+        private static JsValue AsyncGeneratorFunctionConstructorBody(
+            IReadOnlyList<JsValue> args,
             IJsCallable newTarget,
             JsEngine engine,
             RealmState realm)
         {
             var evalContext = realm.CreateContext();
             var argCount = args.Count;
-            var bodyValue = argCount > 0 ? args[argCount - 1] : string.Empty;
+            var bodyValue = argCount > 0 ? args[argCount - 1] : JsValue.From(string.Empty);
             var parameterCount = Math.Max(argCount - 1, 0);
 
             var parameters = new string[parameterCount];
@@ -425,7 +425,7 @@ public static partial class TypedAstEvaluator
                 engine.GlobalEnvironment,
                 CancellationToken.None);
 
-            if (created is IJsObjectLike objectLike)
+            if (created.AsObject() is IJsObjectLike objectLike)
             {
                 var proto = StandardLibrary.ResolveConstructPrototype(
                     newTarget,
@@ -440,7 +440,7 @@ public static partial class TypedAstEvaluator
             return created;
         }
 
-        private static string ToFunctionArgumentString(object? value, EvaluationContext evalContext, RealmState realm)
+        private static string ToFunctionArgumentString(JsValue value, EvaluationContext evalContext, RealmState realm)
         {
             var primitive = Runtime.JsOps.ToPrimitive(value, Runtime.ToPrimitiveHint.String, evalContext);
             if (evalContext.IsThrow)
@@ -448,32 +448,50 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(evalContext.FlowValue);
             }
 
-            switch (primitive)
+            if (primitive.IsUndefined)
             {
-                case null:
-                    return "null";
-                case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
-                    return "undefined";
-                case Symbol:
-                case TypedAstSymbol:
-                    throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", evalContext, realm);
-                case bool flag:
-                    return flag ? "true" : "false";
-                case string s:
-                    return s;
-                case JsBigInt bigInt:
-                    return bigInt.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                case double d when double.IsNaN(d):
-                    return "NaN";
-                case double d when double.IsPositiveInfinity(d):
-                    return "Infinity";
-                case double d when double.IsNegativeInfinity(d):
-                    return "-Infinity";
-                case double d:
-                    return d.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                return "undefined";
             }
 
-            return Convert.ToString(primitive, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+            if (primitive.IsNull)
+            {
+                return "null";
+            }
+
+            if (primitive.IsSymbol)
+            {
+                throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", evalContext, realm);
+            }
+
+            if (primitive.IsBoolean)
+            {
+                return primitive.AsBoolean() ? "true" : "false";
+            }
+
+            if (primitive.IsString)
+            {
+                return primitive.AsString();
+            }
+
+            if (primitive.IsBigInt)
+            {
+                return primitive.AsBigInt().Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            if (primitive.IsNumber)
+            {
+                var d = primitive.AsNumber();
+                if (double.IsNaN(d))
+                    return "NaN";
+                if (double.IsPositiveInfinity(d))
+                    return "Infinity";
+                if (double.IsNegativeInfinity(d))
+                    return "-Infinity";
+                return d.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            var obj = primitive.AsObject();
+            return Convert.ToString(obj, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
         }
 
         private void InitializeProperties()

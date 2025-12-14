@@ -11,13 +11,13 @@ namespace Asynkron.JsEngine.JsTypes;
         IPrototypeAccessorProvider,
         IJsEnvironmentAwareCallable
     {
-        private readonly Func<object?, IReadOnlyList<object?>, object?> _handler;
-        private Func<IReadOnlyList<object?>, object?, EvaluationContext?, object?, object?>? _invokeWithContext;
+        private readonly Func<JsValue, IReadOnlyList<JsValue>, JsValue> _handler;
+        private Func<IReadOnlyList<JsValue>, JsValue, EvaluationContext?, JsValue, JsValue>? _invokeWithContext;
         private bool _isConstructor = true;
         private RealmState? _realmState;
         internal bool IsBoundFunction { get; set; }
 
-    public HostFunction(Func<IReadOnlyList<object?>, object?> handler, RealmState? realmState = null,
+    public HostFunction(Func<IReadOnlyList<JsValue>, JsValue> handler, RealmState? realmState = null,
         bool isConstructor = true)
     {
         ArgumentNullException.ThrowIfNull(handler);
@@ -28,7 +28,7 @@ namespace Asynkron.JsEngine.JsTypes;
         InitializePrototype();
     }
 
-    public HostFunction(Func<object?, IReadOnlyList<object?>, object?> handler, RealmState? realmState = null,
+    public HostFunction(Func<JsValue, IReadOnlyList<JsValue>, JsValue> handler, RealmState? realmState = null,
         bool isConstructor = true)
     {
         _handler = handler ?? throw new ArgumentNullException(nameof(handler));
@@ -38,7 +38,7 @@ namespace Asynkron.JsEngine.JsTypes;
     }
 
     public HostFunction(
-        Func<object?, IReadOnlyList<object?>, RealmState?, object?> handler,
+        Func<JsValue, IReadOnlyList<JsValue>, RealmState?, JsValue> handler,
         RealmState? realmState,
         bool isConstructor = true)
     {
@@ -125,16 +125,16 @@ namespace Asynkron.JsEngine.JsTypes;
         Properties.PreventExtensions();
     }
 
-        public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
+        public JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
         {
             return _handler(thisValue, arguments);
         }
 
-        public object? InvokeWithContext(
-            IReadOnlyList<object?> arguments,
-            object? thisValue,
+        public JsValue InvokeWithContext(
+            IReadOnlyList<JsValue> arguments,
+            JsValue thisValue,
             EvaluationContext? context,
-            object? newTarget = null)
+            JsValue newTarget = default)
         {
             if (_invokeWithContext is null)
             {
@@ -145,7 +145,7 @@ namespace Asynkron.JsEngine.JsTypes;
         }
 
         public void SetInvokeWithContext(
-            Func<IReadOnlyList<object?>, object?, EvaluationContext?, object?, object?> handler)
+            Func<IReadOnlyList<JsValue>, JsValue, EvaluationContext?, JsValue, JsValue> handler)
         {
             _invokeWithContext = handler ?? throw new ArgumentNullException(nameof(handler));
         }
@@ -170,7 +170,7 @@ namespace Asynkron.JsEngine.JsTypes;
         // Only return undefined if no user-defined getter was found
         if (!_isConstructor && string.Equals(name, "prototype", StringComparison.Ordinal))
         {
-            value = Symbol.Undefined;
+            value = JsValue.Undefined;
             return true;
         }
 
@@ -184,7 +184,7 @@ namespace Asynkron.JsEngine.JsTypes;
                 {
                     // When call is invoked through .bind(), thisValue is the bound target function.
                     // When called directly like fn.call(obj), jsCallable is the function to invoke.
-                    var functionToCall = thisValue as IJsCallable ?? jsCallable;
+                    var functionToCall = thisValue.TryGetObject(out var thisObj) && thisObj is IJsCallable callable ? callable : jsCallable;
                     var thisArg = args.GetArgument(0);
                     var callArgs = args.SliceFrom(1);
                     return functionToCall.Invoke(callArgs, thisArg);
@@ -195,11 +195,24 @@ namespace Asynkron.JsEngine.JsTypes;
                 value = new HostFunction((thisValue, args) =>
                 {
                     // Use the thisValue (the function being applied) when called via prototype chain
-                    var target = thisValue as IJsCallable ?? jsCallable;
+                    var target = thisValue.TryGetObject(out var thisObj) && thisObj is IJsCallable callable ? callable : jsCallable;
                     var thisArg = args.GetArgument(0);
-                    IReadOnlyList<object?> argList = args.Count > 1 && args[1] is JsArray jsArray
-                        ? jsArray.Items
-                        : ArgumentSlice.Empty;
+                    IReadOnlyList<JsValue> argList;
+                    if (args.Count > 1 && args[1].TryGetObject(out var argObj) && argObj is JsArray jsArray)
+                    {
+                        // Convert object? array to JsValue array
+                        var items = jsArray.Items;
+                        var jsValues = new JsValue[items.Count];
+                        for (var i = 0; i < items.Count; i++)
+                        {
+                            jsValues[i] = JsValue.FromObject(items[i]);
+                        }
+                        argList = jsValues;
+                    }
+                    else
+                    {
+                        argList = ArgumentSlice.Empty;
+                    }
                     return target.Invoke(argList, thisArg);
                 }, isConstructor: false);
                 return true;
@@ -208,7 +221,7 @@ namespace Asynkron.JsEngine.JsTypes;
                 value = new HostFunction((thisValue, args) =>
                 {
                     // Use the thisValue (the function being bound) when called via prototype chain
-                    var target = thisValue as IJsCallable ?? jsCallable;
+                    var target = thisValue.TryGetObject(out var thisObj) && thisObj is IJsCallable callable ? callable : jsCallable;
                     var boundThis = args.GetArgument(0);
                     var boundArgs = args.SliceFrom(1);
                     var targetIsConstructor = JsOps.IsConstructor(target);
@@ -321,15 +334,15 @@ namespace Asynkron.JsEngine.JsTypes;
         return Properties.DeleteOwnProperty(name);
     }
 
-    internal static HostFunction CreateBoundFunction(IJsCallable target, object? boundThis,
-        IReadOnlyList<object?> boundArgs, bool targetIsConstructor, RealmState? realmState)
+    internal static HostFunction CreateBoundFunction(IJsCallable target, JsValue boundThis,
+        IReadOnlyList<JsValue> boundArgs, bool targetIsConstructor, RealmState? realmState)
     {
         // IMPORTANT: Copy bound args to an owned array to avoid issues with pooled argument arrays.
         // The caller's argument array may be returned to a pool and cleared after bind() returns,
         // which would corrupt the bound function's captured arguments.
-        if (boundArgs.Count > 0 && boundArgs is not object[])
+        if (boundArgs.Count > 0 && boundArgs is not JsValue[])
         {
-            var copy = new object?[boundArgs.Count];
+            var copy = new JsValue[boundArgs.Count];
             for (var i = 0; i < boundArgs.Count; i++)
             {
                 copy[i] = boundArgs[i];
@@ -337,14 +350,14 @@ namespace Asynkron.JsEngine.JsTypes;
             boundArgs = copy;
         }
 
-        static IReadOnlyList<object?> Combine(IReadOnlyList<object?> prefix, IReadOnlyList<object?> suffix)
+        static IReadOnlyList<JsValue> Combine(IReadOnlyList<JsValue> prefix, IReadOnlyList<JsValue> suffix)
         {
             if (prefix.Count == 0)
                 return suffix;
             if (suffix.Count == 0)
                 return prefix;
 
-            var final = new object?[prefix.Count + suffix.Count];
+            var final = new JsValue[prefix.Count + suffix.Count];
             for (var i = 0; i < prefix.Count; i++)
                 final[i] = prefix[i];
             for (var i = 0; i < suffix.Count; i++)
@@ -367,9 +380,9 @@ namespace Asynkron.JsEngine.JsTypes;
         {
             var finalArgs = Combine(boundArgs, invokeArgs);
 
-            if (newTarget is not null)
+            if (!newTarget.IsUndefined())
             {
-                if (!targetIsConstructor || newTarget is not IJsCallable newTargetCtor)
+                if (!targetIsConstructor || !newTarget.TryGetObject(out var newTargetObj) || newTargetObj is not IJsCallable newTargetCtor)
                 {
                     var error = StandardLibrary.CreateTypeError(
                         "Target is not a constructor",

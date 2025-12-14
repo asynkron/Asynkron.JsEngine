@@ -14,7 +14,7 @@ public static partial class TypedAstEvaluator
         private readonly FunctionExpression _function;
         private readonly bool _isLexicallyStrict;
         private readonly bool _hasFunctionNameEnvironment;
-        private readonly Dictionary<string, object?> _privateSlots = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, JsValue> _privateSlots = new(StringComparer.Ordinal);
         private readonly JsObject _properties = new();
         private readonly RealmState _realmState;
         private bool _isConstructorEnabled;
@@ -96,7 +96,7 @@ public static partial class TypedAstEvaluator
                 });
         }
 
-        public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
+        public JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
         {
             var instance = new TypedGeneratorInstance(
                 _function,
@@ -173,7 +173,7 @@ public static partial class TypedAstEvaluator
             return _properties.DeleteOwnProperty(name);
         }
 
-        public bool TryGetProperty(string name, object? receiver, out object? value)
+        public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
         {
             if (name.IsPrivateSlotName())
             {
@@ -201,7 +201,7 @@ public static partial class TypedAstEvaluator
                     value = new HostFunction((_, args) =>
                     {
                         var thisArg = args.GetArgument(0);
-                        IReadOnlyList<object?> argList = args.Count > 1 && args[1] is JsArray jsArray
+                        IReadOnlyList<JsValue> argList = args.Count > 1 && args[1].TryUnwrap(out JsArray? jsArray)
                             ? jsArray.Items
                             : ArgumentSlice.Empty;
                         return callable.Invoke(argList, thisArg);
@@ -223,7 +223,7 @@ public static partial class TypedAstEvaluator
                         if (innerArgs.Count == 0)
                             return callable.Invoke(boundArgs, boundThis);
 
-                        var finalArgs = new object?[boundArgs.Count + innerArgs.Count];
+                        var finalArgs = new JsValue[boundArgs.Count + innerArgs.Count];
                         for (var i = 0; i < boundArgs.Count; i++)
                             finalArgs[i] = boundArgs[i];
                         for (var i = 0; i < innerArgs.Count; i++)
@@ -236,26 +236,51 @@ public static partial class TypedAstEvaluator
             }
 
             // Fall back to properties lookup for all other properties
-            if (_properties.TryGetProperty(name, receiver ?? this, out value))
+            var receiverObj = receiver.IsUndefined() ? this : receiver.ToObject();
+            if (_properties.TryGetProperty(name, receiverObj, out value))
             {
                 return true;
             }
 
-            value = null;
+            value = JsValue.Undefined;
             return false;
         }
 
-        public bool TryGetProperty(string name, out object? value)
+        public bool TryGetProperty(string name, out JsValue value)
         {
-            return TryGetProperty(name, this, out value);
+            return TryGetProperty(name, JsValue.From(this), out value);
         }
 
-        public void SetProperty(string name, object? value)
+        bool IJsPropertyAccessor.TryGetProperty(string name, out object? value)
         {
-            SetProperty(name, value, this);
+            var result = TryGetProperty(name, out var jsValue);
+            value = jsValue.ToObject();
+            return result;
         }
 
-        public void SetProperty(string name, object? value, object? receiver)
+        bool IJsPropertyAccessor.TryGetProperty(string name, object? receiver, out object? value)
+        {
+            var result = TryGetProperty(name, JsValue.From(receiver), out var jsValue);
+            value = jsValue.ToObject();
+            return result;
+        }
+
+        public void SetProperty(string name, JsValue value)
+        {
+            SetProperty(name, value, JsValue.From(this));
+        }
+
+        void IJsPropertyAccessor.SetProperty(string name, object? value)
+        {
+            SetProperty(name, JsValue.From(value));
+        }
+
+        void IJsPropertyAccessor.SetProperty(string name, object? value, object? receiver)
+        {
+            SetProperty(name, JsValue.From(value), JsValue.From(receiver));
+        }
+
+        public void SetProperty(string name, JsValue value, JsValue receiver)
         {
             if (name.IsPrivateSlotName())
             {
@@ -263,7 +288,8 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            _properties.SetProperty(name, value, receiver ?? this);
+            var receiverObj = receiver.IsUndefined() ? this : receiver.ToObject();
+            _properties.SetProperty(name, value, receiverObj);
         }
 
         PropertyDescriptor? IJsPropertyAccessor.GetOwnPropertyDescriptor(string name)
@@ -393,15 +419,15 @@ public static partial class TypedAstEvaluator
             return generatorFunctionConstructor;
         }
 
-        private static object? GeneratorFunctionConstructorBody(
-            IReadOnlyList<object?> args,
+        private static JsValue GeneratorFunctionConstructorBody(
+            IReadOnlyList<JsValue> args,
             IJsCallable newTarget,
             JsEngine engine,
             RealmState realm)
         {
             var evalContext = realm.CreateContext();
             var argCount = args.Count;
-            var bodyValue = argCount > 0 ? args[argCount - 1] : string.Empty;
+            var bodyValue = argCount > 0 ? args[argCount - 1] : JsValue.From(string.Empty);
             var parameterCount = Math.Max(argCount - 1, 0);
 
             var parameters = new string[parameterCount];
@@ -441,7 +467,7 @@ public static partial class TypedAstEvaluator
                 CancellationToken.None);
 
             // The result should now be a TypedGeneratorFactory
-            if (created is IJsObjectLike objectLike)
+            if (created.TryUnwrap(out IJsObjectLike? objectLike))
             {
                 // Resolve the prototype from the newTarget
                 var proto = StdLib.StandardLibrary.ResolveConstructPrototype(
@@ -457,7 +483,7 @@ public static partial class TypedAstEvaluator
             return created;
         }
 
-        private static string ToFunctionArgumentString(object? value, EvaluationContext evalContext, RealmState realm)
+        private static string ToFunctionArgumentString(JsValue value, EvaluationContext evalContext, RealmState realm)
         {
             var primitive = Runtime.JsOps.ToPrimitive(value, Runtime.ToPrimitiveHint.String, evalContext);
             if (evalContext.IsThrow)
@@ -465,32 +491,49 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(evalContext.FlowValue);
             }
 
-            switch (primitive)
+            if (primitive.IsNull())
             {
-                case null:
-                    return "null";
-                case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
-                    return "undefined";
-                case Symbol:
-                case TypedAstSymbol:
-                    throw StdLib.StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", evalContext, realm);
-                case bool flag:
-                    return flag ? "true" : "false";
-                case string s:
-                    return s;
-                case JsBigInt bigInt:
-                    return bigInt.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                case double d when double.IsNaN(d):
-                    return "NaN";
-                case double d when double.IsPositiveInfinity(d):
-                    return "Infinity";
-                case double d when double.IsNegativeInfinity(d):
-                    return "-Infinity";
-                case double d:
-                    return d.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                return "null";
             }
 
-            return Convert.ToString(primitive, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+            if (primitive.IsUndefined())
+            {
+                return "undefined";
+            }
+
+            if (primitive.TryUnwrap(out Symbol? _) || primitive.TryUnwrap(out TypedAstSymbol? _))
+            {
+                throw StdLib.StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", evalContext, realm);
+            }
+
+            if (primitive.TryUnwrap(out bool flag))
+            {
+                return flag ? "true" : "false";
+            }
+
+            if (primitive.TryUnwrap(out string? s))
+            {
+                return s;
+            }
+
+            if (primitive.TryUnwrap(out JsBigInt? bigInt))
+            {
+                return bigInt.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            if (primitive.TryUnwrap(out double d))
+            {
+                if (double.IsNaN(d))
+                    return "NaN";
+                if (double.IsPositiveInfinity(d))
+                    return "Infinity";
+                if (double.IsNegativeInfinity(d))
+                    return "-Infinity";
+                return d.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            var obj = primitive.ToObject();
+            return Convert.ToString(obj, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
         }
 
         private void InitializeProperties()

@@ -62,11 +62,11 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
     internal bool IsDirectCall { get; set; }
 
-    public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
+    public JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
     {
         if (arguments.Count == 0 || arguments[0] is not string code)
         {
-            return arguments.Count > 0 ? arguments[0] : Symbol.Undefined;
+            return arguments.Count > 0 ? arguments[0] : JsValue.Undefined;
         }
 
         var isDirectEval = IsDirectCall;
@@ -189,7 +189,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             var hasSuperBinding = CallingJsEnvironment?.TryGet(Symbol.Super, out _) == true;
             var hasNewTarget = CallingJsEnvironment?.TryGet(Symbol.NewTarget, out var newTarget) == true &&
-                               !ReferenceEquals(newTarget, Symbol.Undefined);
+                               !ReferenceEquals(newTarget, JsValue.Undefined);
 
             if (!hasSuperBinding && containsSuperReferenceTopLevel)
             {

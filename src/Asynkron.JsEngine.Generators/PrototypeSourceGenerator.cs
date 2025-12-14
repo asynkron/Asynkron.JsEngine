@@ -177,7 +177,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         var prototypeExpr = info.UseArrayInstance
             ? "new JsArray(realm)"
             : info.UseFunctionInstance
-                ? "new HostFunction((_, _) => Symbol.Undefined, realm, isConstructor: false)"
+                ? "new HostFunction((_, _) => JsValue.Undefined, realm, isConstructor: false)"
                 : "new JsObject()";
         source.Append("        var prototype = ").Append(prototypeExpr).AppendLine(";");
         source.Append("        var typed = new ").Append(info.Symbol.Name)

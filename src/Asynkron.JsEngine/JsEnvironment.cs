@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Collections;
 using Asynkron.JsEngine.JsTypes;
@@ -2444,7 +2443,6 @@ public sealed class JsEnvironment
 
     private sealed class AsyncExportBinding : ISpecialBinding
     {
-        private readonly bool _isConst;
         private readonly JsPromise _promise;
         private bool _resolved;
         private object? _resolvedValue;
@@ -2452,7 +2450,7 @@ public sealed class JsEnvironment
         public AsyncExportBinding(JsPromise promise, bool isConst)
         {
             _promise = promise;
-            _isConst = isConst;
+            IsConst = isConst;
         }
 
         public object? GetValue() => _resolved ? _resolvedValue : _promise.JsObject;
@@ -2469,7 +2467,7 @@ public sealed class JsEnvironment
             _promise.Resolve(value);
         }
 
-        public bool IsConst => _isConst;
+        public bool IsConst { get; }
     }
 
     /// <summary>
@@ -2489,16 +2487,3 @@ public sealed class JsEnvironment
         public bool IsConst => true;
     }
 }
-
-internal enum DeleteBindingResult
-{
-    NotFound,
-    Deleted,
-    NotDeletable
-}
-
-internal readonly record struct ObjectEnvironmentBinding(
-    IJsObjectLike BindingObject,
-    string PropertyName,
-    bool IsStrictReference,
-    bool AllowMissingAssignment);

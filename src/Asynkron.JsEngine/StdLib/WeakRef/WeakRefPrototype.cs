@@ -8,13 +8,13 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class WeakRefPrototype : JsPrototype
 {
     [JsHostMethod("deref", Length = 0d)]
-    public object? Deref(object? thisValue, IReadOnlyList<object?> _)
+    public JsValue Deref(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        if (thisValue is JsObject obj && obj.TryGetProperty("_target", out var stored))
+        if (thisValue.AsObject() is JsObject obj && obj.TryGetProperty("_target", out var stored))
         {
             return stored;
         }
 
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 }

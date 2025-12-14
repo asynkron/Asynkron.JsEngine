@@ -65,40 +65,69 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
             if (args.Count == 0)
             {
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
-            var offset = args.Count > 1 && args[1] is double d ? (int)d : 0;
-
-            switch (args[0])
+            var offset = 0;
+            if (args.Count > 1 && args[1].IsNumber)
             {
-                case TypedArrayBase sourceTypedArray:
-                    target.Set(sourceTypedArray, offset);
-                    break;
-                case JsArray sourceArray:
-                    target.Set(sourceArray, offset);
-                    break;
+                offset = (int)args[1].AsDouble();
             }
 
-            return Symbol.Undefined;
+            var firstArg = args[0];
+            if (firstArg.IsObject)
+            {
+                var obj = firstArg.AsObject();
+                switch (obj)
+                {
+                    case TypedArrayBase sourceTypedArray:
+                        target.Set(sourceTypedArray, offset);
+                        break;
+                    case JsArray sourceArray:
+                        target.Set(sourceArray, offset);
+                        break;
+                }
+            }
+
+            return JsValue.Undefined;
         });
 
         _subarrayFunction = new HostFunction((thisValue, args) =>
         {
             var target = ResolveThis(thisValue, this);
-            var begin = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
-            var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : target.Length;
+            var begin = 0;
+            var end = target.Length;
 
-            return target.Subarray(begin, end);
+            if (args.Count > 0 && args[0].IsNumber)
+            {
+                begin = (int)args[0].AsDouble();
+            }
+
+            if (args.Count > 1 && args[1].IsNumber)
+            {
+                end = (int)args[1].AsDouble();
+            }
+
+            return new JsValue(target.Subarray(begin, end));
         });
 
         _sliceFunction = new HostFunction((thisValue, args) =>
         {
             var target = ResolveThis(thisValue, this);
-            var begin = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
-            var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : target.Length;
+            var begin = 0;
+            var end = target.Length;
 
-            return CreateSlice(target, begin, end);
+            if (args.Count > 0 && args[0].IsNumber)
+            {
+                begin = (int)args[0].AsDouble();
+            }
+
+            if (args.Count > 1 && args[1].IsNumber)
+            {
+                end = (int)args[1].AsDouble();
+            }
+
+            return new JsValue(CreateSlice(target, begin, end));
         });
 
         _indexOfFunction = new HostFunction((thisValue, args) => IndexOfInternal(ResolveThis(thisValue, this), args));

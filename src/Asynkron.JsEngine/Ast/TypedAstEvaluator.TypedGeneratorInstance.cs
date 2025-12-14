@@ -1325,7 +1325,7 @@ public static partial class TypedAstEvaluator
                     throw;
                 }
 
-                return CreateIteratorResult(Symbol.Undefined, false);
+                return new JsValue(CreateIteratorResult(JsValue.Undefined, false));
             }
             catch
             {

@@ -666,6 +666,7 @@ public static partial class StandardLibrary
 
     private static object? TypedArrayMap(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
+        if (thisValue is JsValue jsVal) thisValue = jsVal.ToObject();
         if (thisValue is not TypedArrayBase typedArray)
         {
             throw ThrowTypeError("TypedArray.prototype.map called on incompatible receiver", realm: realm);
@@ -1486,6 +1487,12 @@ public static partial class StandardLibrary
 
     private static TypedArrayBase ValidateTypedArrayReceiver(object? thisValue, string methodName, RealmState? realm)
     {
+        // Unwrap JsValue if present
+        if (thisValue is JsValue jsVal)
+        {
+            thisValue = jsVal.ToObject();
+        }
+
         if (thisValue is not TypedArrayBase typedArray)
         {
             throw ThrowTypeError($"{methodName} called on incompatible receiver", realm: realm);

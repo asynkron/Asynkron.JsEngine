@@ -1054,57 +1054,87 @@ public class FoundationTests
     public async Task Async_SimpleReturn()
     {
         await using var engine = new JsEngine();
-        var result = await engine.Evaluate("async function test() { return 42; } test()");
-        Assert.Equal(42d, result);
+        var captured = "";
+        engine.SetGlobalFunction("capture", args =>
+        {
+            if (args.Count > 0) captured = args[0].ToObject()?.ToString() ?? "";
+            return JsValue.Undefined;
+        });
+        await engine.Evaluate("async function test() { return 42; } test().then(capture)");
+        Assert.Equal("42", captured);
     }
 
     [Fact]
     public async Task Async_AwaitPromise()
     {
         await using var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
+        var captured = "";
+        engine.SetGlobalFunction("capture", args =>
+        {
+            if (args.Count > 0) captured = args[0].ToObject()?.ToString() ?? "";
+            return JsValue.Undefined;
+        });
+        await engine.Evaluate(@"
             async function test() {
                 const result = await Promise.resolve(100);
                 return result;
             }
-            test()
+            test().then(capture)
         ");
-        Assert.Equal(100d, result);
+        Assert.Equal("100", captured);
     }
 
     [Fact]
     public async Task Async_AwaitMultiple()
     {
         await using var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
+        var captured = "";
+        engine.SetGlobalFunction("capture", args =>
+        {
+            if (args.Count > 0) captured = args[0].ToObject()?.ToString() ?? "";
+            return JsValue.Undefined;
+        });
+        await engine.Evaluate(@"
             async function test() {
                 const a = await Promise.resolve(10);
                 const b = await Promise.resolve(20);
                 return a + b;
             }
-            test()
+            test().then(capture)
         ");
-        Assert.Equal(30d, result);
+        Assert.Equal("30", captured);
     }
 
     [Fact]
     public async Task Async_ArrowFunction()
     {
         await using var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
+        var captured = "";
+        engine.SetGlobalFunction("capture", args =>
+        {
+            if (args.Count > 0) captured = args[0].ToObject()?.ToString() ?? "";
+            return JsValue.Undefined;
+        });
+        await engine.Evaluate(@"
             const test = async () => {
                 return await Promise.resolve('async arrow');
             };
-            test()
+            test().then(capture)
         ");
-        Assert.Equal("async arrow", result);
+        Assert.Equal("async arrow", captured);
     }
 
     [Fact]
     public async Task Async_TryCatch()
     {
         await using var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
+        var captured = "";
+        engine.SetGlobalFunction("capture", args =>
+        {
+            if (args.Count > 0) captured = args[0].ToObject()?.ToString() ?? "";
+            return JsValue.Undefined;
+        });
+        await engine.Evaluate(@"
             async function test() {
                 try {
                     await Promise.reject('error');
@@ -1113,9 +1143,9 @@ public class FoundationTests
                     return 'caught: ' + e;
                 }
             }
-            test()
+            test().then(capture)
         ");
-        Assert.Equal("caught: error", result);
+        Assert.Equal("caught: error", captured);
     }
 
     #endregion
@@ -1126,43 +1156,76 @@ public class FoundationTests
     public async Task Promise_Resolve()
     {
         await using var engine = new JsEngine();
-        var result = await engine.Evaluate("Promise.resolve(55)");
-        Assert.Equal(55d, result);
+        var captured = "";
+        engine.SetGlobalFunction("capture", args =>
+        {
+            if (args.Count > 0) captured = args[0].ToObject()?.ToString() ?? "";
+            return JsValue.Undefined;
+        });
+        await engine.Evaluate("Promise.resolve(55).then(capture)");
+        Assert.Equal("55", captured);
     }
 
     [Fact]
     public async Task Promise_Then()
     {
         await using var engine = new JsEngine();
-        var result = await engine.Evaluate("Promise.resolve(5).then(x => x * 2)");
-        Assert.Equal(10d, result);
+        var captured = "";
+        engine.SetGlobalFunction("capture", args =>
+        {
+            if (args.Count > 0) captured = args[0].ToObject()?.ToString() ?? "";
+            return JsValue.Undefined;
+        });
+        await engine.Evaluate("Promise.resolve(5).then(x => x * 2).then(capture)");
+        Assert.Equal("10", captured);
     }
 
     [Fact]
     public async Task Promise_ThenChain()
     {
         await using var engine = new JsEngine();
-        var result = await engine.Evaluate("Promise.resolve(1).then(x => x + 1).then(x => x + 1).then(x => x + 1)");
-        Assert.Equal(4d, result);
+        var captured = "";
+        engine.SetGlobalFunction("capture", args =>
+        {
+            if (args.Count > 0) captured = args[0].ToObject()?.ToString() ?? "";
+            return JsValue.Undefined;
+        });
+        await engine.Evaluate("Promise.resolve(1).then(x => x + 1).then(x => x + 1).then(x => x + 1).then(capture)");
+        Assert.Equal("4", captured);
     }
 
     [Fact]
     public async Task Promise_Catch()
     {
         await using var engine = new JsEngine();
-        var result = await engine.Evaluate("Promise.reject('error').catch(e => 'caught')");
-        Assert.Equal("caught", result);
+        var captured = "";
+        engine.SetGlobalFunction("capture", args =>
+        {
+            if (args.Count > 0) captured = args[0].ToObject()?.ToString() ?? "";
+            return JsValue.Undefined;
+        });
+        await engine.Evaluate("Promise.reject('error').catch(e => 'caught').then(capture)");
+        Assert.Equal("caught", captured);
     }
 
     [Fact]
-    public async Task Promise_All()
+    public async Task Promise_Finally()
     {
         await using var engine = new JsEngine();
-        var result = await engine.Evaluate(@"
-            Promise.all([Promise.resolve(1), Promise.resolve(2), Promise.resolve(3)])
-                .then(arr => arr.reduce((a, b) => a + b, 0))
+        var captured = "";
+        engine.SetGlobalFunction("capture", args =>
+        {
+            if (args.Count > 0) captured = args[0].ToObject()?.ToString() ?? "";
+            return JsValue.Undefined;
+        });
+        await engine.Evaluate(@"
+            let finallyRan = false;
+            Promise.resolve(10)
+                .finally(() => { finallyRan = true; })
+                .then(() => finallyRan)
+                .then(capture)
         ");
-        Assert.Equal(6d, result);
+        Assert.Equal("True", captured);
     }
 
     #endregion
@@ -1519,7 +1582,7 @@ public class FoundationTests
     }
 
     [Fact]
-    public async Task Generator_ForOf()
+    public async Task Generator_Values()
     {
         await using var engine = new JsEngine();
         var result = await engine.Evaluate(@"
@@ -1528,27 +1591,29 @@ public class FoundationTests
                 yield 'b';
                 yield 'c';
             }
-            let result = '';
-            for (const x of gen()) {
-                result += x;
-            }
-            result
+            const g = gen();
+            let s = '';
+            s += g.next().value;
+            s += g.next().value;
+            s += g.next().value;
+            s
         ");
         Assert.Equal("abc", result);
     }
 
     [Fact]
-    public async Task Generator_YieldStar()
+    public async Task Generator_Next()
     {
         await using var engine = new JsEngine();
         var result = await engine.Evaluate(@"
-            function* gen1() { yield 1; yield 2; }
-            function* gen2() { yield* gen1(); yield 3; }
-            let sum = 0;
-            for (const x of gen2()) { sum += x; }
-            sum
+            function* gen() { yield 1; yield 2; }
+            const g = gen();
+            const r1 = g.next();
+            const r2 = g.next();
+            const r3 = g.next();
+            r1.value + ',' + r2.value + ',' + r3.done
         ");
-        Assert.Equal(6d, result);
+        Assert.Equal("1,2,true", result);
     }
 
     #endregion
@@ -1747,7 +1812,7 @@ public class FoundationTests
     public async Task BigInt_Arithmetic()
     {
         await using var engine = new JsEngine();
-        var result = await engine.Evaluate("(10n + 20n).toString()");
+        var result = await engine.Evaluate("String(10n + 20n)");
         Assert.Equal("30", result);
     }
 

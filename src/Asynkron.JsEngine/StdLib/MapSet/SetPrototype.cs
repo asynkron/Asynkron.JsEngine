@@ -108,8 +108,10 @@ public sealed partial class SetPrototype
         }
     }
 
-    private JsSet RequireSet(object? candidate)
+    private JsSet RequireSet(JsValue receiver)
     {
+        var candidate = receiver.ToObject();
+
         if (candidate is JsSet set)
         {
             return set;

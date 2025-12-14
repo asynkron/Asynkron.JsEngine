@@ -73,6 +73,12 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
+            // Unwrap JsValue if present
+            if (methodValue is JsValue jsVal)
+            {
+                methodValue = jsVal.ToObject();
+            }
+
             // Only throw if the method exists but is not callable
             if (methodValue is not IJsCallable callable)
             {

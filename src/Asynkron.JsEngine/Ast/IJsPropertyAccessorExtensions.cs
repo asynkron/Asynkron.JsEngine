@@ -61,11 +61,19 @@ public static partial class TypedAstEvaluator
 
             bool TryGetCallable(object propertyKey, out IJsCallable? callable)
             {
-                if (JsOps.TryGetPropertyValue(target, propertyKey, out var candidate, context) &&
-                    candidate is IJsCallable found)
+                if (JsOps.TryGetPropertyValue(target, propertyKey, out var candidate, context))
                 {
-                    callable = found;
-                    return true;
+                    // Unwrap JsValue if present
+                    if (candidate is JsValue jsVal)
+                    {
+                        candidate = jsVal.ToObject();
+                    }
+
+                    if (candidate is IJsCallable found)
+                    {
+                        callable = found;
+                        return true;
+                    }
                 }
 
                 if (context.ShouldStopEvaluation)

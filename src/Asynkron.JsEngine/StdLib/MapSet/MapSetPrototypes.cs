@@ -116,8 +116,10 @@ public sealed partial class MapPrototype
         }
     }
 
-    private JsMap RequireMap(object? candidate)
+    private JsMap RequireMap(JsValue receiver)
     {
+        var candidate = receiver.ToObject();
+
         if (candidate is JsMap map)
         {
             return map;

@@ -54,9 +54,9 @@ public sealed partial class WeakMapPrototype
         Realm.WeakMapPrototype ??= Prototype as JsObject;
     }
 
-    private JsWeakMap RequireWeakMap(object? candidate)
+    private JsWeakMap RequireWeakMap(JsValue receiver)
     {
-        if (candidate is JsWeakMap weakMap)
+        if (receiver.ToObject() is JsWeakMap weakMap)
         {
             return weakMap;
         }
@@ -107,9 +107,9 @@ public sealed partial class WeakSetPrototype
         Realm.WeakSetPrototype ??= Prototype as JsObject;
     }
 
-    private JsWeakSet RequireWeakSet(object? candidate)
+    private JsWeakSet RequireWeakSet(JsValue receiver)
     {
-        if (candidate is JsWeakSet weakSet)
+        if (receiver.ToObject() is JsWeakSet weakSet)
         {
             return weakSet;
         }

@@ -25,9 +25,11 @@ public static partial class StandardLibrary
         return wrapper;
     }
 
-    internal static JsBigInt RequireBigIntValue(object? receiver, RealmState realm)
+    internal static JsBigInt RequireBigIntValue(JsValue receiver, RealmState realm)
     {
-        return receiver switch
+        var candidate = receiver.ToObject();
+
+        return candidate switch
         {
             JsBigInt bi => bi,
             JsObject obj when obj.TryGetValue("__value__", out var inner) && inner is JsBigInt wrapped => wrapped,

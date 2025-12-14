@@ -7,9 +7,9 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class ArrayPrototype
 {
     [JsHostMethod("entries", Length = 0d)]
-    public object? Entries(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Entries(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return CreateArrayIterator(thisValue, "Array.prototype.entries", Realm, (accessor, _) => idx =>
+        return JsValue.FromObject(CreateArrayIterator(thisValue.ToObject(), "Array.prototype.entries", Realm, (accessor, _) => idx =>
         {
             var pair = new JsArray(Realm);
             pair.Push((double)idx);

@@ -56,7 +56,7 @@ public sealed class JsPromise
 
         // Check if value is a thenable (has a callable 'then' property)
         if (value.IsObject &&
-            value.AsObject() is IJsPropertyAccessor accessor &&
+            value.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
             accessor.TryGetProperty("then", out var thenValue) &&
             thenValue.TryGetObject<IJsCallable>(out var thenMethod))
         {
@@ -86,7 +86,7 @@ public sealed class JsPromise
             // Wrap callbacks in HostFunction so they can be passed as JsValue
             var resolveFn = new HostFunction(args => { resolveCallback.Invoke(args, JsValue.Undefined); return JsValue.Undefined; }, isConstructor: false);
             var rejectFn = new HostFunction(args => { rejectCallback.Invoke(args, JsValue.Undefined); return JsValue.Undefined; }, isConstructor: false);
-            var thenableValue = thenable is JsObject jsObj ? new JsValue(jsObj) : JsValue.Undefined;
+            var thenableValue = JsValue.FromObject(thenable);
             thenMethod.Invoke([JsValue.FromObject(resolveFn), JsValue.FromObject(rejectFn)], thenableValue);
         }
         catch (ThrowSignal signal)

@@ -489,7 +489,7 @@ public static partial class TypedAstEvaluator
                     "Class constructor cannot be invoked without 'new'",
                     callingContext ?? context,
                     _realmState);
-                throw new ThrowSignal(error);
+                throw new ThrowSignal(JsValue.FromObject(error));
             }
 
             var hasParameterExpressions = _hasParameterExpressions;
@@ -876,9 +876,10 @@ public static partial class TypedAstEvaluator
                 if (context.IsThrow)
                 {
                     var thrown = context.FlowValue;
+                    var thrownObj = thrown.ToObject();
                     _realmState.Logger?.LogInformation(
                         "InvokeWithContext propagating throw type={ThrowType} callerHasContext={HasCaller} func={FunctionName}",
-                        thrown?.GetType().Name ?? "null",
+                        thrownObj?.GetType().Name ?? "null",
                         callingContext is not null,
                         _function.Name?.Name ?? "<anonymous>");
 
@@ -920,7 +921,7 @@ public static partial class TypedAstEvaluator
                         {
                             // If `this` is uninitialized (e.g., derived ctor without super()), surface a JS ReferenceError.
                             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
-                            throw new ThrowSignal(errorObject);
+                            throw new ThrowSignal(JsValue.FromObject(errorObject));
                         }
                     }
 
@@ -929,14 +930,15 @@ public static partial class TypedAstEvaluator
 
                     var value = context.FlowValue;
                     context.ClearReturn();
+                    var valueObj = value.ToObject();
                     if (_isClassConstructor &&
-                        value is not JsObject &&
-                        value is not IJsObjectLike)
+                        !value.TryGetObject<JsObject>(out _) &&
+                        !value.TryGetObject<IJsObjectLike>(out _))
                     {
                         // Per ES spec 9.2.2 [[Construct]] step 13c:
                         // For derived class constructors, if return value is not undefined,
                         // throw TypeError. For base class constructors, fall back to `this`.
-                        if (_isDerivedClassConstructor && !ReferenceEquals(value, Symbol.Undefined))
+                        if (_isDerivedClassConstructor && !ReferenceEquals(valueObj, Symbol.Undefined))
                         {
                             throw StandardLibrary.ThrowTypeError(
                                 "Derived constructors may only return object or undefined",
@@ -959,13 +961,13 @@ public static partial class TypedAstEvaluator
                             // throws ReferenceError if `this` is uninitialized (super() not called)
                             if (_isDerivedClassConstructor &&
                                 (ReferenceEquals(currentThis, JsEnvironment.Uninitialized) ||
-                                 ReferenceEquals(value, Symbol.Undefined)))
+                                 ReferenceEquals(valueObj, Symbol.Undefined)))
                             {
                                 var errorObject = StandardLibrary.CreateReferenceError(
                                     "ReferenceError: this is not defined - must call super() in derived class constructor",
                                     context,
                                     context.RealmState);
-                                throw new ThrowSignal(errorObject);
+                                throw new ThrowSignal(JsValue.FromObject(errorObject));
                             }
                         }
                         catch (InvalidOperationException ex) when (ex.Message.StartsWith(
@@ -978,7 +980,7 @@ public static partial class TypedAstEvaluator
                             if (_isDerivedClassConstructor)
                             {
                                 var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
-                                throw new ThrowSignal(errorObject);
+                                throw new ThrowSignal(JsValue.FromObject(errorObject));
                             }
                             _realmState.Logger?.LogInformation(
                                 "Class constructor missing initialized this; falling back to return value reason={Reason}",
@@ -986,7 +988,7 @@ public static partial class TypedAstEvaluator
                         }
                     }
 
-                    return JsValue.FromObject(value);
+                    return JsValue.FromObject(valueObj);
                 }
 
                 object? completionValue;

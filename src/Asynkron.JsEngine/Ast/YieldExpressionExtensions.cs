@@ -39,13 +39,13 @@ public static partial class TypedAstEvaluator
 
                 if (payload.IsThrow)
                 {
-                    context.SetThrow(payload.Value);
+                    context.SetThrow(JsValue.FromObject(payload.Value));
                     return JsValue.FromObject(payload.Value);
                 }
 
                 if (payload.IsReturn)
                 {
-                    context.SetReturn(payload.Value);
+                    context.SetReturn(JsValue.FromObject(payload.Value));
                     return JsValue.FromObject(payload.Value);
                 }
 
@@ -60,7 +60,7 @@ public static partial class TypedAstEvaluator
                 return yieldedValueJs;
             }
 
-            context.SetYieldJsValue(yieldedValueJs, yieldIndex);
+            context.SetYield(yieldedValueJs, yieldIndex);
             yieldTracker.MarkConsumed(yieldIndex);
             return yieldedValueJs;
         }
@@ -150,7 +150,7 @@ public static partial class TypedAstEvaluator
                 {
                     if (iteratorResult.PropagateThrow)
                     {
-                        context.SetThrow(iteratorResult.Value);
+                        context.SetThrow(JsValue.FromObject(iteratorResult.Value));
                         ClearDelegatedState(stateKey, environment);
                         return JsValue.FromObject(iteratorResult.Value);
                     }
@@ -158,7 +158,7 @@ public static partial class TypedAstEvaluator
                     // For return propagation (when inner iterator has no return method),
                     // signal a return completion to the outer generator
                     ClearDelegatedState(stateKey, environment);
-                    context.SetReturn(iteratorResult.Value);
+                    context.SetReturn(JsValue.FromObject(iteratorResult.Value));
                     return JsValue.FromObject(iteratorResult.Value);
                 }
 

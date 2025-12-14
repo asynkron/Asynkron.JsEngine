@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -162,12 +163,27 @@ public class StrictModeTests
 
         var message = ex switch
         {
-            ThrowSignal { ThrownValue: Exception inner } => inner.Message,
-            ThrowSignal { ThrownValue: IJsPropertyAccessor accessor } when accessor.TryGetProperty("message", out var msg) => msg.ToString(),
+            ThrowSignal { ThrownValue: var value } => ExtractMessage(value),
             _ => ex.Message
         };
 
         Assert.Contains("constant", message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ExtractMessage(JsValue value)
+    {
+        if (value.TryGetObject<JsObject>(out var obj) &&
+            obj.TryGetProperty("message", out var msg))
+        {
+            return JsOps.ToJsString(msg.ToObject());
+        }
+
+        if (value.TryGetString(out var str))
+        {
+            return str;
+        }
+
+        return value.ToString();
     }
 
     [Fact(Timeout = 2000)]

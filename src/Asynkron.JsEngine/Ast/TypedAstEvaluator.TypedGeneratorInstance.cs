@@ -602,7 +602,7 @@ public static partial class TypedAstEvaluator
                                     }
 
                                     _tryStack.Clear();
-                                    throw new ThrowSignal(pendingValue);
+                                    throw new ThrowSignal(JsValue.FromObject(pendingValue));
                                 }
 
                                 if (pendingKind == AbruptKind.Return)
@@ -819,11 +819,11 @@ public static partial class TypedAstEvaluator
                             var (resumeKind, resumePayload) = ConsumeResumeValue();
                             if (resumeKind == ResumePayloadKind.Throw)
                             {
-                                context.SetThrow(resumePayload.ToObject());
+                                context.SetThrow(resumePayload);
                             }
                             else if (resumeKind == ResumePayloadKind.Return)
                             {
-                                context.SetReturn(resumePayload.ToObject());
+                                context.SetReturn(resumePayload);
                             }
                             else if (storeResumeValueInstruction.TargetSymbol is { } resumeSymbol)
                             {
@@ -920,7 +920,7 @@ public static partial class TypedAstEvaluator
                             }
 
                             _tryStack.Clear();
-                            throw new ThrowSignal(pending.Value);
+                            throw new ThrowSignal(JsValue.FromObject(pending.Value));
 
                         case IteratorInitInstruction iteratorInitInstruction:
                             var iterableValue = EvaluateExpression(iteratorInitInstruction.IterableExpression,
@@ -1027,7 +1027,7 @@ public static partial class TypedAstEvaluator
                                     }
 
                                     _tryStack.Clear();
-                                    throw new ThrowSignal(forAwaitResumePayload.ToObject());
+                                    throw new ThrowSignal(forAwaitResumePayload);
                                 }
 
                                 if (forAwaitResumeKind == ResumePayloadKind.Return)
@@ -1507,7 +1507,7 @@ public static partial class TypedAstEvaluator
         {
             return mode switch
             {
-                ResumeMode.Throw => throw new ThrowSignal(value.ToObject()),
+                ResumeMode.Throw => throw new ThrowSignal(value),
                 _ => JsValue.FromObject(CreateIteratorResult(value, true))
             };
         }

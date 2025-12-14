@@ -19,9 +19,12 @@ namespace Asynkron.JsEngine.Tests;
             f(iter);
             """));
 
-            var thrownName = (ex.ThrownValue as JsObject)?.TryGetProperty("name", out var name) == true
-                ? name.ToString()
-                : null;
+            string? thrownName = null;
+            if (ex.ThrownValue.TryGetObject<JsObject>(out var obj) &&
+                obj.TryGetProperty("name", out var name))
+            {
+                thrownName = JsOps.ToJsString(name.ToObject());
+            }
             Assert.Equal("Error", thrownName);
         }
 
@@ -40,9 +43,12 @@ namespace Asynkron.JsEngine.Tests;
                 f(iter);
                 """));
 
-            var thrownName = (ex.ThrownValue as JsObject)?.TryGetProperty("name", out var name) == true
-                ? name.ToString()
-                : null;
+            string? thrownName = null;
+            if (ex.ThrownValue.TryGetObject<JsObject>(out var obj) &&
+                obj.TryGetProperty("name", out var name))
+            {
+                thrownName = JsOps.ToJsString(name.ToObject());
+            }
             Assert.Equal("Error", thrownName);
         }
 

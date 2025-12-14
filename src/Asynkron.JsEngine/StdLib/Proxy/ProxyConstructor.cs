@@ -50,12 +50,12 @@ public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState
 
     private IJsObjectLike RequireObject(JsValue candidate, string message)
     {
-        if (!candidate.IsObject || candidate.AsObject() is not IJsObjectLike obj)
+        if (candidate.TryGetObject<IJsObjectLike>(out var obj) && obj is not null)
         {
-            throw ThrowTypeError(message, realm: Realm);
+            return obj;
         }
 
-        return obj;
+        throw ThrowTypeError(message, realm: Realm);
     }
 
     private JsValue Revocable(IReadOnlyList<JsValue> args)

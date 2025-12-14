@@ -2216,6 +2216,12 @@ public sealed class JsEnvironment
         while (current is not null)
         {
             // Add variables from current scope (only if not already present from inner scope)
+            if (current._values is null)
+            {
+                current = current.Enclosing;
+                continue;
+            }
+
             foreach (var kvp in current._values)
             {
                 if (!result.ContainsKey(kvp.Key.Name))

@@ -26,12 +26,12 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
         catch (ThrowSignal ex)
         {
             output.WriteLine($"ThrownValue: '{ex.ThrownValue}'");
-            output.WriteLine($"ThrownValue type: {ex.ThrownValue?.GetType()}");
-            output.WriteLine($"ThrownValue == null: {ex.ThrownValue == null}");
+            output.WriteLine($"ThrownValue type: {ex.ThrownValue.ToObject()?.GetType()}");
+            output.WriteLine($"ThrownValue IsUndefined: {ex.ThrownValue.IsUndefined}");
             output.WriteLine($"Message: {ex.Message}");
 
             // This should have a proper error message
-            Assert.NotNull(ex.ThrownValue);
+            Assert.False(ex.ThrownValue.IsUndefined);
             Assert.Contains("ERROR", ex.ThrownValue.ToString());
         }
     }
@@ -51,12 +51,12 @@ public class SunSpiderDiagnosticTests(ITestOutputHelper output)
             output.WriteLine("Script executed successfully!");
         }
         catch (ThrowSignal ex)
-        {
-            output.WriteLine($"\nThrowSignal caught!");
-            output.WriteLine($"Message: {ex.Message}");
-            output.WriteLine($"ThrownValue: {ex.ThrownValue}");
-            output.WriteLine($"ThrownValue type: {ex.ThrownValue?.GetType()}");
-            output.WriteLine($"ThrownValue == null: {ex.ThrownValue == null}");
+            {
+                output.WriteLine($"\nThrowSignal caught!");
+                output.WriteLine($"Message: {ex.Message}");
+                output.WriteLine($"ThrownValue: {ex.ThrownValue}");
+                output.WriteLine($"ThrownValue type: {ex.ThrownValue.GetType()}");
+                output.WriteLine($"ThrownValue kind: {ex.ThrownValue.Kind}");
 
             // Check debug messages
             var debugMessages = new List<DebugMessage>();

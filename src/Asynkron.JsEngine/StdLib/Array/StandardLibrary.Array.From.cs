@@ -281,41 +281,68 @@ public static partial class StandardLibrary
     internal static bool TryAwaitPromiseLike(object? candidate, RealmState? realm, Action<object?> onFulfilled,
         Action<object?> onRejected)
     {
-        if (candidate is JsObject jsObject)
+        var jsCandidate = candidate is JsValue value ? value : JsValue.FromObject(candidate);
+
+        // Handle internal JsPromise instances (both raw and wrapped)
+        if (jsCandidate.ObjectValue is JsPromise directPromise)
         {
-            if (jsObject.TryGetProperty("then", out var thenVal))
+            AttachHandlers(directPromise);
+            return true;
+        }
+
+        if (JsPromise.TryGetInternalPromise(jsCandidate, out var wrappedPromise) && wrappedPromise is not null)
+        {
+            AttachHandlers(wrappedPromise);
+            return true;
+        }
+
+        // Handle generic thenables (objects with a callable "then")
+        if (jsCandidate.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
+            accessor.TryGetProperty("then", out var thenVal) &&
+            JsValue.FromObject(thenVal).TryGetObject<IJsCallable>(out var thenCallable))
+        {
+            try
             {
-                var thenValue = JsValue.FromObject(thenVal);
-                if (thenValue.TryGetObject<IJsCallable>(out var thenCallable))
-                {
-                    try
-                    {
-                        thenCallable.Invoke(
-                            [
-                                JsValue.FromObject(new HostFunction(args =>
-                                {
-                                    onFulfilled(args.Count > 0 ? args[0].ToObject() : null);
-                                    return JsValue.Undefined;
-                                }, isConstructor: false)),
-                                JsValue.FromObject(new HostFunction(args =>
-                                {
-                                    onRejected(args.Count > 0 ? args[0].ToObject() : null);
-                                    return JsValue.Undefined;
-                                }, isConstructor: false))
-                            ],
-                            JsValue.FromObject(jsObject));
-                        return true;
-                    }
-                    catch (ThrowSignal signal)
-                    {
-                        onRejected(signal.ThrownValue.ToObject());
-                        return true;
-                    }
-                }
+                thenCallable.Invoke(
+                    [
+                        JsValue.FromObject(new HostFunction(args =>
+                        {
+                            onFulfilled(args.Count > 0 ? args[0].ToObject() : null);
+                            return JsValue.Undefined;
+                        }, isConstructor: false)),
+                        JsValue.FromObject(new HostFunction(args =>
+                        {
+                            onRejected(args.Count > 0 ? args[0].ToObject() : null);
+                            return JsValue.Undefined;
+                        }, isConstructor: false))
+                    ],
+                    JsValue.FromObject(accessor));
+                return true;
+            }
+            catch (ThrowSignal signal)
+            {
+                onRejected(signal.ThrownValue.ToObject());
+                return true;
             }
         }
 
         return false;
+
+        void AttachHandlers(JsPromise promise)
+        {
+            var resolveFn = new HostFunction(args =>
+            {
+                onFulfilled(args.Count > 0 ? args[0].ToObject() : null);
+                return JsValue.Undefined;
+            }, isConstructor: false);
+            var rejectFn = new HostFunction(args =>
+            {
+                onRejected(args.Count > 0 ? args[0].ToObject() : null);
+                return JsValue.Undefined;
+            }, isConstructor: false);
+
+            promise.Then(resolveFn, rejectFn);
+        }
     }
 
     internal static object? InvokeArrayFromMapper(IJsCallable mapper, HostFunction host, object? thisArg, object? value,

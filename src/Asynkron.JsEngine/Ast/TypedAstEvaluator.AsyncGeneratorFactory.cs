@@ -437,7 +437,7 @@ public static partial class TypedAstEvaluator
             catch (Parser.ParseException parseException)
             {
                 var message = parseException.Message ?? "SyntaxError";
-                throw new ThrowSignal(StandardLibrary.CreateSyntaxError(message, evalContext, realm));
+                throw new ThrowSignal(JsValue.FromObject(StandardLibrary.CreateSyntaxError(message, evalContext, realm)));
             }
 
             var createdObj = engine.ExecuteProgram(

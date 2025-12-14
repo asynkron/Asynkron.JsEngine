@@ -91,7 +91,7 @@ public class SunSpiderTests
         {
             // Re-throw with the actual thrown value as the message for better diagnostics.
             var thrownValue = ex.ThrownValue;
-            var message = thrownValue != null ? thrownValue.ToString() : "null";
+            var message = !thrownValue.IsUndefined ? thrownValue.ToString() : "undefined";
             throw new InvalidOperationException($"JavaScript error: {message}", ex);
         }
     }

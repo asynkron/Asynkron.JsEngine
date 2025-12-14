@@ -76,8 +76,8 @@ public static partial class TypedAstEvaluator
             // Only throw if the method exists but is not callable
             if (!methodValue.TryGetObject<IJsCallable>(out var callable))
             {
-                throw new ThrowSignal(StandardLibrary.CreateTypeError("Iterator method is not callable", context,
-                    context.RealmState));
+                throw new ThrowSignal(JsValue.FromObject(StandardLibrary.CreateTypeError("Iterator method is not callable", context,
+                    context.RealmState)));
             }
 
             var args = hasArgument ? new[] { argument } : Array.Empty<JsValue>();

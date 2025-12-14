@@ -1,6 +1,7 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -745,14 +746,14 @@ public class GeneratorTests
 
     private static void AssertIteratorResultTypeError(ThrowSignal signal)
     {
-        if (signal.ThrownValue is Asynkron.JsEngine.JsTypes.JsObject obj &&
+        if (signal.ThrownValue.TryGetObject<JsObject>(out var obj) &&
             obj.TryGetProperty("message", out var message))
         {
-            Assert.Equal("Iterator result is not an object.", message.ToString());
+            Assert.Equal("Iterator result is not an object.", JsOps.ToJsString(message.ToObject()));
             return;
         }
 
-        if (signal.ThrownValue is string str)
+        if (signal.ThrownValue.TryGetString(out var str))
         {
             Assert.Equal("Iterator result is not an object.", str);
             return;

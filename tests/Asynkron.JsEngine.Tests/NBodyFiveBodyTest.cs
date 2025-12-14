@@ -33,7 +33,7 @@ public class NBodyFiveBodyTest
         catch (ThrowSignal ex)
         {
             // JavaScript threw an error - this is a failure
-            var message = ex.ThrownValue?.ToString() ?? "null";
+            var message = !ex.ThrownValue.IsUndefined ? ex.ThrownValue.ToString() : "undefined";
             throw new InvalidOperationException($"JavaScript error: {message}", ex);
         }
     }

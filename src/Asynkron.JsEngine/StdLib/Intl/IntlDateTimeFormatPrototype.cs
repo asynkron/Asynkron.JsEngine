@@ -32,19 +32,19 @@ public sealed partial class IntlDateTimeFormatPrototype
         var formatted = FormatInternal(args.GetArgument(0), slotData);
         var part = new JsObject();
         part.SetProperty("type", "literal");
-        part.SetProperty("value", formatted);
+        part.SetProperty("value", formatted.ToObject());
         var parts = new JsArray(Realm);
         parts.Push(part);
         return parts;
     }
 
     [JsHostMethod("formatRange", Length = 2d)]
-    private string FormatRange(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue FormatRange(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var slotData = ValidateReceiver(thisValue, out _);
         var start = FormatInternal(args.GetArgument(0), slotData);
         var end = FormatInternal(args.GetArgument(1), slotData);
-        return $"{start} – {end}";
+        return new JsValue($"{start.ObjectValue} – {end.ObjectValue}");
     }
 
     [JsHostMethod("formatRangeToParts", Length = 2d)]
@@ -54,9 +54,9 @@ public sealed partial class IntlDateTimeFormatPrototype
         var start = FormatInternal(args.GetArgument(0), slotData);
         var end = FormatInternal(args.GetArgument(1), slotData);
         var parts = new JsArray(Realm);
-        parts.Push(CreateRangePart("startRange", start));
+        parts.Push(CreateRangePart("startRange", (string)start.ObjectValue!));
         parts.Push(CreateRangePart("separator", " – "));
-        parts.Push(CreateRangePart("endRange", end));
+        parts.Push(CreateRangePart("endRange", (string)end.ObjectValue!));
         return parts;
     }
 

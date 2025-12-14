@@ -292,7 +292,7 @@ public static partial class StandardLibrary
         return JsValue.FromObject(IsTargetExtensible(target));
     }
 
-    internal static object? ReflectOwnKeys(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    internal static JsValue ReflectOwnKeys(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (realm is null)
         {
@@ -307,7 +307,7 @@ public static partial class StandardLibrary
 
         if (target is ModuleNamespace moduleNamespace)
         {
-            return new JsArray(moduleNamespace.OwnKeys(), realm);
+            return new JsValue(new JsArray(moduleNamespace.OwnKeys(), realm));
         }
 
         if (target is IJsPropertyAccessor accessor)
@@ -325,7 +325,7 @@ public static partial class StandardLibrary
                 ordered.Push(key);
             }
 
-            return ordered;
+            return new JsValue(ordered);
         }
 
         var keys = target.Keys
@@ -333,10 +333,10 @@ public static partial class StandardLibrary
                         !k.StartsWith("__setter__", StringComparison.Ordinal) &&
                         !string.Equals(k, "__proto__", StringComparison.Ordinal))
             .ToArray();
-        return new JsArray(keys, realm);
+        return new JsValue(new JsArray(keys, realm));
     }
 
-    internal static object? ReflectPreventExtensions(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    internal static JsValue ReflectPreventExtensions(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (realm is null)
         {
@@ -350,10 +350,10 @@ public static partial class StandardLibrary
         }
 
         PreventExtensionsOnTarget(target);
-        return true;
+        return new JsValue(true);
     }
 
-    internal static object? ReflectSet(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    internal static JsValue ReflectSet(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (realm is null)
         {
@@ -379,19 +379,19 @@ public static partial class StandardLibrary
                 }
                 catch (ThrowSignal)
                 {
-                    return false;
+                    return new JsValue(false);
                 }
 
-                return false;
+                return new JsValue(false);
             case JsArray jsArray when string.Equals(propertyKey, "length", StringComparison.Ordinal):
-                return jsArray.SetLength(value, null, false);
+                return JsValue.FromObject(jsArray.SetLength(value, null, false));
             default:
                 target.SetProperty(propertyKey, value, receiver);
-                return true;
+                return new JsValue(true);
         }
     }
 
-    internal static object? ReflectSetPrototypeOf(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    internal static JsValue ReflectSetPrototypeOf(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (realm is null)
         {
@@ -408,11 +408,11 @@ public static partial class StandardLibrary
         try
         {
             target.SetPrototype(proto);
-            return true;
+            return new JsValue(true);
         }
         catch (ThrowSignal)
         {
-            return false;
+            return new JsValue(false);
         }
     }
 

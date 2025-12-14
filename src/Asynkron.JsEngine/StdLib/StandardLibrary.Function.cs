@@ -20,7 +20,7 @@ public static partial class StandardLibrary
         };
 
         functionConstructor.SetInvokeWithContext((args, _, _, newTarget) =>
-            FunctionConstructorBody(args, newTarget as IJsCallable ?? functionConstructor));
+            FunctionConstructorBody(args, newTarget.TryGetObject<IJsCallable>(out var callable) ? callable : functionConstructor));
 
         functionConstructor.DefineProperty("length",
             new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });

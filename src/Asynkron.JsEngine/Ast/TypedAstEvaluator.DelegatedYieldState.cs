@@ -171,7 +171,7 @@ public static partial class TypedAstEvaluator
                         awaitedCandidate = JsValue.FromObject(nextCandidate);
                     }
 
-                    if (awaitedCandidate is not IJsObjectLike resolvedObject)
+                    if (!awaitedCandidate.TryGetObject<IJsObjectLike>(out var resolvedObject))
                     {
                         throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);
                     }

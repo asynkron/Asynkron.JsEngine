@@ -63,7 +63,7 @@ public static partial class TypedAstEvaluator
             }
 
             var arguments = ImmutableArray.CreateBuilder<JsValue>(expression.Expressions.Length + 1);
-            arguments.Add(new JsValue(templateObject));
+            arguments.Add(JsValue.FromObject(templateObject));
 
             foreach (var expr in expression.Expressions)
             {
@@ -96,7 +96,7 @@ public static partial class TypedAstEvaluator
             catch (ThrowSignal signal)
             {
                 context.SetThrow(signal.ThrownValue);
-                return signal.ThrownValue;
+                return JsValue.FromObject(signal.ThrownValue);
             }
             finally
             {

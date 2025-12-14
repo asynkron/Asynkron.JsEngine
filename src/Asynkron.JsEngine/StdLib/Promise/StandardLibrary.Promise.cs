@@ -10,7 +10,7 @@ public static partial class StandardLibrary
         return PromiseConstructor.CreateConstructor(realm);
     }
 
-    internal static JsPromise RequirePromiseInstance(object? receiver, RealmState realm)
+    internal static JsPromise RequirePromiseInstance(JsValue receiver, RealmState realm)
     {
         if (JsPromise.TryGetInternalPromise(receiver, out var promise) && promise is not null)
         {

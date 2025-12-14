@@ -20,25 +20,27 @@ public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototyp
 
     protected override void ConfigureConstructor(HostFunction constructor)
     {
-        var supportedLocales = new HostFunction(
-            args => new JsValue(StandardLibrary.ResolveSupportedLocales(args.GetArgument(0).ToObject(), args.GetArgument(1).ToObject(), Realm)),
-            isConstructor: false);
-
+        var supportedLocales = new HostFunction(SupportedLocalesOf, isConstructor: false);
         supportedLocales.DefineProperty("length",
-            new PropertyDescriptor { Value = new JsValue(1d), Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
         supportedLocales.DefineProperty("name",
             new PropertyDescriptor
             {
-                Value = new JsValue("supportedLocalesOf"), Writable = false, Enumerable = false, Configurable = true
+                Value = "supportedLocalesOf", Writable = false, Enumerable = false, Configurable = true
             });
 
         constructor.DefineProperty("supportedLocalesOf",
             new PropertyDescriptor
             {
-                Value = new JsValue(supportedLocales), Writable = true, Enumerable = false, Configurable = true
+                Value = supportedLocales, Writable = true, Enumerable = false, Configurable = true
             });
 
         supportedLocales.SetPrototype(constructor.Prototype);
         supportedLocales.Delete("prototype");
+    }
+
+    private JsArray SupportedLocalesOf(IReadOnlyList<JsValue> args)
+    {
+        return StandardLibrary.ResolveSupportedLocales(args.GetArgument(0).ToObject(), args.GetArgument(1).ToObject(), Realm);
     }
 }

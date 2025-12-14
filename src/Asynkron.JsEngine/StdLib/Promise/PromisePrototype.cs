@@ -8,33 +8,33 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class PromisePrototype
 {
     [JsHostMethod("then", Length = 2d)]
-    public object? Then(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Then(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var promise = RequirePromiseInstance(thisValue, Realm);
-        var onFulfilled = args.Count > 0 ? args[0] as IJsCallable : null;
-        var onRejected = args.Count > 1 ? args[1] as IJsCallable : null;
+        var onFulfilled = args.Count > 0 && args[0].TryGetObject<IJsCallable>(out var f) ? f : null;
+        var onRejected = args.Count > 1 && args[1].TryGetObject<IJsCallable>(out var r) ? r : null;
 
         var result = promise.Then(onFulfilled, onRejected);
         ApplyPromisePrototype(result, Realm);
-        return result.JsObject;
+        return new JsValue(result.JsObject);
     }
 
     [JsHostMethod("catch", Length = 1d)]
-    public object? Catch(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Catch(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var promise = RequirePromiseInstance(thisValue, Realm);
-        var onRejected = args.Count > 0 ? args[0] as IJsCallable : null;
+        var onRejected = args.Count > 0 && args[0].TryGetObject<IJsCallable>(out var r) ? r : null;
 
         var result = promise.Then(null, onRejected);
         ApplyPromisePrototype(result, Realm);
-        return result.JsObject;
+        return new JsValue(result.JsObject);
     }
 
     [JsHostMethod("finally", Length = 1d)]
-    public object? Finally(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Finally(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var promise = RequirePromiseInstance(thisValue, Realm);
-        var onFinally = args.Count > 0 ? args[0] as IJsCallable : null;
+        var onFinally = args.Count > 0 && args[0].TryGetObject<IJsCallable>(out var f) ? f : null;
         if (onFinally is null)
         {
             return thisValue;
@@ -42,13 +42,13 @@ public sealed partial class PromisePrototype
 
         var wrapper = new HostFunction((_, wrapperArgs) =>
         {
-            onFinally.Invoke([], null);
+            onFinally.Invoke([], JsValue.Undefined);
             return wrapperArgs.GetArgument(0);
         }, Realm, isConstructor: false);
 
         var result = promise.Then(wrapper, wrapper);
         ApplyPromisePrototype(result, Realm);
-        return result.JsObject;
+        return new JsValue(result.JsObject);
     }
 
     protected override void ConfigurePrototype()

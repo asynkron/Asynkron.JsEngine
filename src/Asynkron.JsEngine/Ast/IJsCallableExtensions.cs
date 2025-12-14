@@ -49,22 +49,22 @@ public static partial class TypedAstEvaluator
             var frozenArguments = FreezeArguments(argsBuilder);
             if (targetFunction is TypedFunction typedFunction)
             {
-                return typedFunction.InvokeWithContext(frozenArguments, thisArg, context);
+                return typedFunction.InvokeWithContext(frozenArguments, thisArg, context).ToObject();
             }
 
-            return targetFunction.Invoke(frozenArguments, thisArg);
+            return targetFunction.Invoke(frozenArguments, thisArg).ToObject();
         }
 
         private object? InvokeWithCall(ImmutableArray<CallArgument> callArguments,
             JsEnvironment environment,
             EvaluationContext context)
         {
-            object? thisArg = Symbol.Undefined;
-            var argsBuilder = ImmutableArray.CreateBuilder<JsValue?>();
+            JsValue thisArg = JsValue.Undefined;
+            var argsBuilder = ImmutableArray.CreateBuilder<JsValue>();
 
             for (var i = 0; i < callArguments.Length; i++)
             {
-                var argValue = EvaluateExpression(callArguments[i].Expression, environment, context).ToObject();
+                var argValue = EvaluateExpression(callArguments[i].Expression, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return Symbol.Undefined;
@@ -88,10 +88,10 @@ public static partial class TypedAstEvaluator
             var frozenArguments = FreezeArguments(argsBuilder);
             if (targetFunction is TypedFunction typedFunction)
             {
-                return typedFunction.InvokeWithContext(frozenArguments, thisArg, context);
+                return typedFunction.InvokeWithContext(frozenArguments, thisArg, context).ToObject();
             }
 
-            return targetFunction.Invoke(frozenArguments, thisArg);
+            return targetFunction.Invoke(frozenArguments, thisArg).ToObject();
         }
     }
 }

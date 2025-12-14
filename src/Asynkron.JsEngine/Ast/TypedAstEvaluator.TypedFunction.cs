@@ -616,7 +616,7 @@ public static partial class TypedAstEvaluator
                 SuperBinding? lexicalSuperBinding = null;
                 if (_superConstructor is not null || _superPrototype is not null)
                 {
-                    lexicalSuperBinding = new SuperBinding(_superConstructor, _superPrototype, boundThis, true);
+                    lexicalSuperBinding = new SuperBinding(_superConstructor, _superPrototype, thisValue, true);
                 }
                 else if (_closure.TryGet(Symbol.Super, out var inheritedSuper) &&
                          inheritedSuper is SuperBinding inheritedSuperBinding)

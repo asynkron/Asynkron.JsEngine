@@ -153,11 +153,11 @@ public static partial class TypedAstEvaluator
                             return JsValue.Undefined;
                         }
 
-                        var spreadValue = spreadValueJs.ToObject();
+                        var spreadValue = spreadValueJs;
 
                         // For default derived constructor super calls, bypass the iterator protocol
                         // and directly iterate array items per ES spec 15.7.14.
-                        if (isDefaultDerivedConstructorSuperCall && spreadValue is JsArray jsArray)
+                        if (isDefaultDerivedConstructorSuperCall && spreadValue.TryGetObject<JsArray>(out var jsArray))
                         {
                             foreach (var item in jsArray.Items)
                             {
@@ -324,20 +324,18 @@ public static partial class TypedAstEvaluator
             }
 
             EvalHostFunction? evalHost = null;
-            var isDirectEvalCall = false;
             if (callable is EvalHostFunction evalHostFunction)
             {
                 evalHost = evalHostFunction;
-                isDirectEvalCall = !expression.IsOptional &&
-                                   expression.Callee is IdentifierExpression { Name.Name: "eval" } &&
-                                   ReferenceEquals(thisValue, Symbol.Undefined) &&
-                                   ReferenceEquals(evalHostFunction.Engine, environment.RealmState?.Engine);
+                var isDirectEvalCall = expression is { IsOptional: false, Callee: IdentifierExpression { Name.Name: "eval" } } &&
+                                       ReferenceEquals(thisValue, Symbol.Undefined) &&
+                                       ReferenceEquals(evalHostFunction.Engine, environment.RealmState?.Engine);
                 evalHost.IsDirectCall = isDirectEvalCall;
                 evalHost.InClassFieldInitializer = context.InClassFieldInitializer;
             }
 
             JsEnvironment? thisInitializationEnvironment = null;
-            JsValue thisInitializationValue = JsValue.Undefined;
+            var thisInitializationValue = JsValue.Undefined;
             if (expression.Callee is SuperExpression)
             {
                 // First check if we're in an arrow function that has captured a lexical this environment.
@@ -394,7 +392,7 @@ public static partial class TypedAstEvaluator
 
                 if (expression.Callee is SuperExpression)
                 {
-                    var callResultObj = callResult.ToObject();
+                    var callResultObj = callResult;
                     var thisAfterSuper = callResultObj;
                     if (callResultObj is not JsObject && callResultObj is not IJsObjectLike)
                     {
@@ -474,7 +472,7 @@ public static partial class TypedAstEvaluator
                     SetThisInitializationStatus(targetEnvironment,
                         context.IsThisInitialized);
 
-                    if (thisAfterSuper is IJsObjectLike initializedThis &&
+                    if (thisAfterSuper.TryGetObject<IJsObjectLike>(out var initializedThis)  &&
                         context.TryPopClassFieldInitializer(out var pendingInitializer) &&
                         pendingInitializer.Constructor is TypedFunction pendingConstructor)
                     {

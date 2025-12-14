@@ -167,7 +167,7 @@ public static partial class StandardLibrary
 
     internal static uint ToUint32(JsValue value)
     {
-        var number = JsOps.ToNumber(value);
+        var number = JsOps.ToNumber(value.ToObject());
         if (double.IsNaN(number) || double.IsInfinity(number))
         {
             return 0;
@@ -184,7 +184,7 @@ public static partial class StandardLibrary
         {
             if (descriptor.IsAccessorDescriptor)
             {
-                descriptor.Set?.Invoke([new JsValue(0d)], target);
+                descriptor.Set?.Invoke([new JsValue(0d)], new JsValue(target));
                 return;
             }
 
@@ -271,7 +271,7 @@ public static partial class StandardLibrary
             {
                 var statics = EnsureRegExpReceiver(thisValue);
                 var value = args.GetArgument(0);
-                statics.Input = JsOps.ToString(value);
+                statics.Input = JsOps.ToString(value) ?? string.Empty;
                 return JsValue.Undefined;
             }, isConstructor: false),
             Enumerable = false,

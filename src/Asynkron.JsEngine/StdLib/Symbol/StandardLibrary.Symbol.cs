@@ -61,12 +61,18 @@ public static partial class StandardLibrary
         }
 
         if (receiver.TryGetObject<JsObject>(out var obj) &&
-            obj.TryGetProperty("__value__", out var inner) &&
-            inner is JsValue innerValue &&
-            innerValue.IsSymbol &&
-            innerValue.ObjectValue is TypedAstSymbol innerSym)
+            obj.TryGetProperty("__value__", out var inner))
         {
-            return innerSym;
+            // inner is object?, need to extract JsValue from it
+            if (inner is JsValue innerValue && innerValue.IsSymbol && innerValue.ObjectValue is TypedAstSymbol innerSym)
+            {
+                return innerSym;
+            }
+            // Also check if inner is directly a TypedAstSymbol (backward compatibility)
+            if (inner is TypedAstSymbol directSym)
+            {
+                return directSym;
+            }
         }
 
         throw ThrowTypeError("Symbol.prototype valueOf called on incompatible receiver", realm: realm);

@@ -106,7 +106,7 @@ public static partial class StandardLibrary
         JsArray CreateCanonicalLocalesResult(IReadOnlyList<JsValue> args)
         {
             var localesArg = args.GetArgument(0);
-            var canonicalized = IntlUtilities.CanonicalizeLocaleList(localesArg, realm);
+            var canonicalized = IntlUtilities.CanonicalizeLocaleList(localesArg.ToObject(), realm);
             return CreateLocaleArray(canonicalized, realm);
         }
 

@@ -29,7 +29,7 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
     protected override void ConfigureConstructor(HostFunction constructor)
     {
         var supportedLocalesOf = new HostFunction(
-            (_, args) => StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm),
+            (_, args) => JsValue.FromObject(StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm)),
             isConstructor: false);
 
         supportedLocalesOf.DefineProperty("length",
@@ -68,18 +68,16 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
     private string ReadNumberingSystem(JsObject? options)
     {
         if (options is null || !options.TryGetProperty("numberingSystem", out var value) ||
-            value.IsUndefined)
+            ReferenceEquals(value, Symbol.Undefined))
         {
             return "latn";
         }
 
-        if (!value.IsString)
+        if (value is not string numberingSystem)
         {
             throw StandardLibrary.ThrowTypeError(
                 "Intl.RelativeTimeFormat numberingSystem option must be a string", realm: Realm);
         }
-
-        var numberingSystem = value.AsString();
         if (!IntlUtilities.TryNormalizeNumberingSystem(numberingSystem, out var canonical))
         {
             throw StandardLibrary.ThrowRangeError(
@@ -93,18 +91,16 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
         string defaultValue)
     {
         if (options is null || !options.TryGetProperty(propertyName, out var rawValue) ||
-            rawValue.IsUndefined)
+            ReferenceEquals(rawValue, Symbol.Undefined))
         {
             return defaultValue;
         }
 
-        if (!rawValue.IsString)
+        if (rawValue is not string strValue)
         {
             throw StandardLibrary.ThrowTypeError(
                 $"Intl.RelativeTimeFormat {propertyName} option must be a string", realm: Realm);
         }
-
-        var strValue = rawValue.AsString();
         if (!allowed.Contains(strValue, StringComparer.Ordinal))
         {
             throw StandardLibrary.ThrowRangeError(

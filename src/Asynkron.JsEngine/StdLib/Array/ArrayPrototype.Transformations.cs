@@ -22,7 +22,7 @@ public sealed partial class ArrayPrototype
             return new JsValue(string.Empty);
         }
 
-        var separator = args.Count == 0 || !args[0].HasValue || args[0].IsUndefined()
+        var separator = args.Count == 0 || args[0].IsUndefined
             ? ","
             : args[0].ToJsString();
 
@@ -224,9 +224,14 @@ public sealed partial class ArrayPrototype
 
         for (var i = 0; i < length; i++)
         {
-            if (!TryGetExistingElement(accessor, i, out var element) ||
-                !element.HasValue ||
-                element.IsUndefined())
+            if (!TryGetExistingElement(accessor, i, out var elementObj))
+            {
+                parts.Add(string.Empty);
+                continue;
+            }
+
+            var element = JsValue.FromObject(elementObj);
+            if (element.IsNullOrUndefined)
             {
                 parts.Add(string.Empty);
                 continue;
@@ -519,7 +524,7 @@ public sealed partial class ArrayPrototype
         var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0]) : 0;
         var actualStart = ClampRelativeIndex(startIndex, length);
 
-        var deleteCountIsUndefined = args.Count <= 1 || args[1].IsUndefined();
+        var deleteCountIsUndefined = args.Count <= 1 || args[1].IsUndefined;
         long actualDeleteCount;
         if (deleteCountIsUndefined)
         {

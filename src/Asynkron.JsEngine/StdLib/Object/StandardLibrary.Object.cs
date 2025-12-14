@@ -448,12 +448,13 @@ public static partial class StandardLibrary
         var result = new JsObject(realmState.ObjectPrototype) { RealmState = realmState };
         foreach (var entry in entries.Items)
         {
-            if (entry is not JsArray { Items.Count: >= 2 } entryArray)
+            if (!entry.TryGetObject<JsArray>(out var entryArray) || entryArray.Items.Count < 2)
             {
                 continue;
             }
 
-            var key = entryArray.GetElement(0)?.ToString() ?? "";
+            var keyValue = entryArray.GetElement(0);
+            var key = keyValue.ToObject()?.ToString() ?? "";
             var value = entryArray.GetElement(1);
             result[key] = value;
         }

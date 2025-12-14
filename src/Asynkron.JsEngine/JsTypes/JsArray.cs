@@ -15,9 +15,14 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     private const uint MaxArrayLength = uint.MaxValue;
 
     // Sentinel value to represent holes in sparse arrays (indices that have never been set)
-    private static readonly object ArrayHole = new();
+    // We use a special JsValue kind or a unique object that we can identify
+    private static readonly object ArrayHoleSentinel = new();
+    private static readonly JsValue ArrayHole = JsValue.FromObject(ArrayHoleSentinel);
+
+    private static bool IsArrayHole(JsValue value) =>
+        value.Kind == JsValueKind.Object && ReferenceEquals(value.AsObject(), ArrayHoleSentinel);
     private readonly IJsObjectLike? _arrayPrototype;
-    private readonly List<object?> _items = [];
+    private readonly List<JsValue> _items = [];
 
     private readonly JsObject _properties = new();
     private readonly IJsCallable? _rangeErrorCtor;
@@ -29,7 +34,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     public RealmState? RealmState => _realmState;
     private readonly IJsCallable? _typeErrorCtor;
     private uint _length;
-    private Dictionary<uint, object?>? _sparseItems;
+    private Dictionary<uint, JsValue>? _sparseItems;
 
     public JsArray(RealmState? realmState = null)
     {
@@ -52,18 +57,24 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         SetupIterator();
     }
 
-    public JsArray(IEnumerable<object?> items, RealmState? realmState = null)
+    public JsArray(IEnumerable<JsValue> items, RealmState? realmState = null)
         : this(realmState)
     {
-        if (items is not null)
-        {
-            _items.AddRange(items);
-        }
-
+        _items.AddRange(items);
         _length = (uint)_items.Count;
     }
 
-    public IReadOnlyList<object?> Items => _items;
+    /// <summary>
+    /// Convenience constructor that wraps objects in JsValue.
+    /// </summary>
+    public JsArray(IEnumerable<object?> items, RealmState? realmState = null)
+        : this(realmState)
+    {
+        _items.AddRange(items.Select(JsValue.FromObject));
+        _length = (uint)_items.Count;
+    }
+
+    public IReadOnlyList<JsValue> Items => _items;
 
     /// <summary>
     ///     Gets the length of the array
@@ -126,8 +137,9 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 return true;
             }
 
-            if (TryGetOwnIndex(index, out value))
+            if (TryGetOwnIndex(index, out var jsValue))
             {
+                value = jsValue;
                 return true;
             }
 
@@ -153,7 +165,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (TryParseArrayIndex(name, out var index))
         {
-            SetElement(index, value);
+            SetElement(index, JsValue.FromObject(value));
             return;
         }
 
@@ -257,7 +269,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         {
             if (!descriptor.IsAccessorDescriptor)
             {
-                SetElement(index, descriptor.HasValue ? descriptor.Value : Symbol.Undefined);
+                SetElement(index, JsValue.FromObject(descriptor.HasValue ? descriptor.Value : Symbol.Undefined));
             }
             else
             {
@@ -278,7 +290,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         // Match the behaviour of Array.prototype.toString / join with
         // the default separator so arrays used as property keys (e.g.
-        // reverse[colorName[key]] in Babel’s color modules) produce a
+        // reverse[colorName[key]] in Babel's color modules) produce a
         // stable comma-joined string rather than a CLR type name.
         if (_items.Count == 0)
         {
@@ -288,13 +300,14 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         var parts = new List<string>(_items.Count);
         foreach (var item in _items)
         {
-            if (ReferenceEquals(item, ArrayHole) || item is null || ReferenceEquals(item, Symbol.Undefined))
+            if (IsArrayHole(item) || item.IsNull || item.IsUndefined)
             {
                 parts.Add(string.Empty);
                 continue;
             }
 
-            parts.Add(Convert.ToString(item, CultureInfo.InvariantCulture) ?? string.Empty);
+            var obj = item.ToObject();
+            parts.Add(Convert.ToString(obj, CultureInfo.InvariantCulture) ?? string.Empty);
         }
 
         return string.Join(",", parts);
@@ -303,28 +316,28 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     /// <summary>
     ///     Gets an element at the specified index (alias for GetElement)
     /// </summary>
-    public object? Get(int index)
+    public JsValue Get(int index)
     {
         return GetElement(index);
     }
 
-    public object? GetElement(int index)
+    public JsValue GetElement(int index)
     {
         if (index < 0)
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
         return GetElement((uint)index);
     }
 
-    public object? GetElement(uint index)
+    public JsValue GetElement(uint index)
     {
         if (index < _items.Count)
         {
             var item = _items[(int)index];
             // Return undefined for holes in the array
-            return ReferenceEquals(item, ArrayHole) ? Symbol.Undefined : item;
+            return IsArrayHole(item) ? JsValue.Undefined : item;
         }
 
         if (_sparseItems is not null && _sparseItems.TryGetValue(index, out var value))
@@ -332,7 +345,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return value;
         }
 
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     /// <summary>
@@ -343,7 +356,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         if (index < _items.Count)
         {
-            return !ReferenceEquals(_items[(int)index], ArrayHole);
+            return !IsArrayHole(_items[(int)index]);
         }
 
         return _sparseItems?.ContainsKey(index) == true;
@@ -366,7 +379,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         for (var i = 0; i < _items.Count; i++)
         {
-            if (!ReferenceEquals(_items[i], ArrayHole))
+            if (!IsArrayHole(_items[i]))
             {
                 yield return (uint)i;
             }
@@ -387,7 +400,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         for (var i = 0; i < _items.Count; i++)
         {
-            if (!ReferenceEquals(_items[i], ArrayHole))
+            if (!IsArrayHole(_items[i]))
             {
                 indices.Add((uint)i);
             }
@@ -429,18 +442,18 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
     }
 
-    private bool TryGetOwnIndex(uint index, out object? value)
+    private bool TryGetOwnIndex(uint index, out JsValue value)
     {
         if (index < _items.Count)
         {
             var item = _items[(int)index];
-            if (!ReferenceEquals(item, ArrayHole))
+            if (!IsArrayHole(item))
             {
                 value = item;
                 return true;
             }
 
-            value = null;
+            value = JsValue.Undefined;
             return false;
         }
 
@@ -449,18 +462,36 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return true;
         }
 
-        value = null;
+        value = JsValue.Undefined;
         return false;
     }
 
-    public void SetElement(int index, object? value)
+    public void SetElement(int index, JsValue value)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(index);
 
         SetElement((uint)index, value);
     }
 
+    /// <summary>
+    /// Convenience overload that wraps object in JsValue.
+    /// </summary>
+    public void SetElement(int index, object? value)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
+
+        SetElement((uint)index, JsValue.FromObject(value));
+    }
+
+    /// <summary>
+    /// Convenience overload that wraps object in JsValue.
+    /// </summary>
     public void SetElement(uint index, object? value)
+    {
+        SetElement(index, JsValue.FromObject(value));
+    }
+
+    public void SetElement(uint index, JsValue value)
     {
         var extended = false;
         if (index < DenseIndexLimit)
@@ -477,7 +508,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
         else
         {
-            _sparseItems ??= new Dictionary<uint, object?>();
+            _sparseItems ??= new Dictionary<uint, JsValue>();
             _sparseItems[index] = value;
         }
 
@@ -527,21 +558,30 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         return _properties.DeleteOwnProperty(name);
     }
 
-    public void Push(object? value)
+    public void Push(JsValue value)
     {
         _items.Add(value);
         BumpLength((uint)_items.Count);
     }
 
-    public object? Pop()
+    /// <summary>
+    /// Convenience overload that wraps object in JsValue.
+    /// </summary>
+    public void Push(object? value)
+    {
+        _items.Add(JsValue.FromObject(value));
+        BumpLength((uint)_items.Count);
+    }
+
+    public JsValue Pop()
     {
         if (_length == 0)
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
         var lastIndex = _length - 1;
-        object? value = Symbol.Undefined;
+        JsValue value = JsValue.Undefined;
 
         if (lastIndex < _items.Count)
         {
@@ -558,14 +598,14 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         SetExplicitLength(_length - 1);
 
         // Return undefined for holes
-        return ReferenceEquals(value, ArrayHole) ? Symbol.Undefined : value;
+        return IsArrayHole(value) ? JsValue.Undefined : value;
     }
 
-    public object? Shift()
+    public JsValue Shift()
     {
         if (_length == 0 || _items.Count == 0)
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
         var value = _items[0];
@@ -573,16 +613,16 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         SetExplicitLength(_length - 1);
 
         // Return undefined for holes
-        return ReferenceEquals(value, ArrayHole) ? Symbol.Undefined : value;
+        return IsArrayHole(value) ? JsValue.Undefined : value;
     }
 
-    public void Unshift(params object?[] values)
+    public void Unshift(params JsValue[] values)
     {
         _items.InsertRange(0, values);
         BumpLength((uint)_items.Count);
     }
 
-    public JsArray Splice(int start, int deleteCount, params object?[] itemsToInsert)
+    public JsArray Splice(int start, int deleteCount, params JsValue[] itemsToInsert)
     {
         // Normalize start index
         if (start < 0)

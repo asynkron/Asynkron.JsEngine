@@ -1237,7 +1237,7 @@ public static partial class StandardLibrary
 
         for (var i = 0; i < rawCount; i++)
         {
-            var rawPart = rawStrings.GetElement(i)?.ToString() ?? "";
+            var rawPart = rawStrings.GetElement(i).ToObject()?.ToString() ?? "";
             result.Append(rawPart);
 
             if (i >= args.Count - 1)

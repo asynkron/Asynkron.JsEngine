@@ -81,20 +81,23 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
 
         foreach (var entry in entries.Items)
         {
-            object? key;
-            object? value;
-            switch (entry)
+            JsValue key;
+            JsValue value;
+            if (entry.TryGetObject<JsArray>(out var pair))
             {
-                case JsArray pair:
-                    key = pair.GetElement(0);
-                    value = pair.GetElement(1);
-                    break;
-                case IJsPropertyAccessor accessor:
-                    accessor.TryGetProperty("0", out key);
-                    accessor.TryGetProperty("1", out value);
-                    break;
-                default:
-                    continue;
+                key = pair.GetElement(0);
+                value = pair.GetElement(1);
+            }
+            else if (entry.TryGetObject<IJsPropertyAccessor>(out var accessor))
+            {
+                accessor.TryGetProperty("0", out var keyObj);
+                accessor.TryGetProperty("1", out var valueObj);
+                key = JsValue.FromObject(keyObj);
+                value = JsValue.FromObject(valueObj);
+            }
+            else
+            {
+                continue;
             }
 
             map.Set(key, value);
@@ -244,7 +247,7 @@ public sealed partial class WeakMapConstructor(IJsObjectLike prototype, RealmSta
 
         foreach (var entry in entries.Items)
         {
-            if (entry is not JsArray { Items.Count: >= 2 } pair)
+            if (!entry.TryGetObject<JsArray>(out var pair) || pair.Items.Count < 2)
             {
                 continue;
             }
@@ -322,7 +325,7 @@ public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmSta
         {
             try
             {
-                set.Add(value);
+                set.Add(JsValue.FromObject(value));
             }
             catch (Exception ex)
             {

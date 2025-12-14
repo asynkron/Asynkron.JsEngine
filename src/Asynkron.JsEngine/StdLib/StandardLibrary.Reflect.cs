@@ -15,7 +15,7 @@ public static partial class StandardLibrary
 
         var thisArg = args.Count > 1 ? args[1] : JsValue.Undefined;
         var argList = args.Count > 2 && args[2].TryGetObject<JsArray>(out var arr)
-            ? arr.Items.Select(JsValue.FromObject).ToArray()
+            ? arr.Items.ToArray()
             : [];
 
         return callable.Invoke(argList, thisArg);
@@ -34,7 +34,7 @@ public static partial class StandardLibrary
         }
 
         var argList = args.Count > 1 && args[1].TryGetObject<JsArray>(out var arr)
-            ? arr.Items.Select(JsValue.FromObject).ToArray()
+            ? arr.Items.ToArray()
             : Array.Empty<JsValue>();
         IJsCallable newTarget;
         if (args.Count > 2)

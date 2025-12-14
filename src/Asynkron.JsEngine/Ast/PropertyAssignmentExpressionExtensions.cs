@@ -37,19 +37,20 @@ public static partial class TypedAstEvaluator
                     throw CreateSuperReferenceError(environment, context, null);
                 }
 
-                var propertyKey = EvaluateExpression(superPropertyExpression, environment, context);
+                var propertyKeyJs = EvaluateExpression(superPropertyExpression, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return Symbol.Undefined;
                 }
 
-                var superAssignedValue = EvaluateExpression(expression.Value, environment, context);
+                var superAssignedValueJs = EvaluateExpression(expression.Value, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return superAssignedValue;
+                    return superAssignedValueJs.ToObject();
                 }
 
-                var superPropertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+                var superAssignedValue = superAssignedValueJs.ToObject();
+                var superPropertyName = JsOps.GetRequiredPropertyName(propertyKeyJs.ToObject(), context);
                 if (context.ShouldStopEvaluation)
                 {
                     return Symbol.Undefined;
@@ -86,17 +87,20 @@ public static partial class TypedAstEvaluator
                 return superAssignedValue;
             }
 
-            var target = EvaluateExpression(expression.Target, environment, context);
+            var targetJs = EvaluateExpression(expression.Target, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
             }
 
-            var property = EvaluateExpression(expression.Property, environment, context);
+            var propertyJs = EvaluateExpression(expression.Property, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
             }
+
+            var target = targetJs.ToObject();
+            var property = propertyJs.ToObject();
 
             if (expression.IsCompoundAssignment)
             {
@@ -124,12 +128,13 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            var assignedValue = EvaluateExpression(expression.Value, environment, context);
+            var assignedValueJs = EvaluateExpression(expression.Value, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return assignedValue;
+                return assignedValueJs.ToObject();
             }
 
+            var assignedValue = assignedValueJs.ToObject();
             if (assignedValue is IFunctionNameTarget nameTarget &&
                 expression.Value is FunctionExpression { Name: null } or ClassExpression { Name: null })
             {

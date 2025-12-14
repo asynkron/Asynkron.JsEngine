@@ -29,7 +29,7 @@ public static partial class TypedAstEvaluator
                     identifierExpression,
                     environment,
                     context,
-                    EvaluateExpression);
+                    (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
                 if (context.ShouldStopEvaluation)
                 {
                     return;
@@ -45,7 +45,7 @@ public static partial class TypedAstEvaluator
 
             var value = declarator.Initializer is null
                 ? Symbol.Undefined
-                : EvaluateExpression(declarator.Initializer, environment, context);
+                : EvaluateExpression(declarator.Initializer, environment, context).ToObject();
 
             if (context.ShouldStopEvaluation)
             {

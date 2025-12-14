@@ -8,11 +8,12 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             Symbol? targetLabel)
         {
-            var discriminant = EvaluateExpression(statement.Discriminant, environment, context);
+            var discriminantJs = EvaluateExpression(statement.Discriminant, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
             }
+            var discriminant = discriminantJs.ToObject();
 
             var instantiationPlan = ((IAstCacheable<SwitchInstantiationPlan>)statement).GetOrCreateCache();
 
@@ -44,13 +45,13 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
-                var test = EvaluateExpression(switchCase.Test, switchEnv, context);
+                var testJs = EvaluateExpression(switchCase.Test, switchEnv, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return completionValue;
                 }
 
-                if (StrictEquals(discriminant, test))
+                if (StrictEquals(discriminant, testJs.ToObject()))
                 {
                     matchedCaseIndex = i;
                     break;

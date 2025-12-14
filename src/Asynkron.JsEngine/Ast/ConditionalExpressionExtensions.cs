@@ -13,9 +13,9 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
-            return IsTruthy(test)
-                ? EvaluateExpression(expression.Consequent, environment, context)
-                : EvaluateExpression(expression.Alternate, environment, context);
+            return test.IsTruthy
+                ? EvaluateExpression(expression.Consequent, environment, context).ToObject()
+                : EvaluateExpression(expression.Alternate, environment, context).ToObject();
         }
     }
 }

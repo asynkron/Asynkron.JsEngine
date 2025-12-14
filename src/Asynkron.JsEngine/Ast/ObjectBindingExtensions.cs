@@ -20,13 +20,13 @@ public static partial class TypedAstEvaluator
                 var propertyName = property.Name;
                 if (property.NameExpression is not null)
                 {
-                    var propertyKeyValue = EvaluateExpression(property.NameExpression, environment, context);
+                    var propertyKeyValueJs = EvaluateExpression(property.NameExpression, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return;
                     }
 
-                    propertyName = JsOps.GetRequiredPropertyName(propertyKeyValue, context);
+                    propertyName = JsOps.GetRequiredPropertyName(propertyKeyValueJs.ToObject(), context);
                     if (context.ShouldStopEvaluation)
                     {
                         return;
@@ -39,7 +39,7 @@ public static partial class TypedAstEvaluator
                         assignmentTarget.Expression,
                         environment,
                         context,
-                        EvaluateExpression);
+                        (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
                     if (context.ShouldStopEvaluation)
                     {
                         return;
@@ -66,7 +66,7 @@ public static partial class TypedAstEvaluator
                 if (ReferenceEquals(propertyValue, Symbol.Undefined) && property.DefaultValue is not null)
                 {
                     usedDefault = true;
-                    propertyValue = EvaluateExpression(property.DefaultValue, environment, context);
+                    propertyValue = EvaluateExpression(property.DefaultValue, environment, context).ToObject();
                     if (context.ShouldStopEvaluation)
                     {
                         return;

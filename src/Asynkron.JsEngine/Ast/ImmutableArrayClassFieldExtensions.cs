@@ -14,7 +14,8 @@ public static partial class TypedAstEvaluator
         var initEnv = CreateStaticInitializationEnvironment(constructorAccessor, environment, out var superBinding);
         initEnv.Define(EvalHostFunction.FieldInitializerEvalFlag, true, isConst: true, isLexical: true,
             blocksFunctionScopeOverride: true);
-        var result = EvaluateExpression(expression, initEnv, context);
+        var resultValue = EvaluateExpression(expression, initEnv, context);
+        var result = resultValue.ToObject();
         if (result is TypedFunction typedFunction &&
             typedFunction.IsArrowFunction &&
             superBinding is not null)

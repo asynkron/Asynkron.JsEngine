@@ -23,13 +23,13 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
-                var value = EvaluateExpression(part.Expression, environment, context);
+                var valueJs = EvaluateExpression(part.Expression, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return Symbol.Undefined;
                 }
 
-                builder.Append(value.ToJsString());
+                builder.Append(valueJs.ToObject().ToJsString());
             }
 
             return builder.ToString();

@@ -20,25 +20,26 @@ public static partial class TypedAstEvaluator
                     throw CreateSuperReferenceError(environment, context, null);
                 }
 
-                var superIndex = EvaluateExpression(expression.Index, environment, context);
+                var superIndexJs = EvaluateExpression(expression.Index, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return Symbol.Undefined;
                 }
 
-                var superAssignedValue = EvaluateExpression(expression.Value, environment, context);
+                var superAssignedValueJs = EvaluateExpression(expression.Value, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return superAssignedValue;
+                    return superAssignedValueJs.ToObject();
                 }
 
+                var superAssignedValue = superAssignedValueJs.ToObject();
                 if (superAssignedValue is IFunctionNameTarget superNameTarget &&
                     expression.Value is FunctionExpression { Name: null } or ClassExpression { Name: null })
                 {
                     superNameTarget.EnsureHasName(string.Empty);
                 }
 
-                var propertyName = JsOps.GetRequiredPropertyName(superIndex, context);
+                var propertyName = JsOps.GetRequiredPropertyName(superIndexJs.ToObject(), context);
                 if (context.ShouldStopEvaluation)
                 {
                     return Symbol.Undefined;
@@ -75,21 +76,24 @@ public static partial class TypedAstEvaluator
                 return superAssignedValue;
             }
 
-            var target = EvaluateExpression(expression.Target, environment, context);
+            var targetJs = EvaluateExpression(expression.Target, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
             }
 
-            var index = EvaluateExpression(expression.Index, environment, context);
+            var indexJs = EvaluateExpression(expression.Index, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
             }
+
+            var target = targetJs.ToObject();
+            var index = indexJs.ToObject();
 
             if (expression.IsCompoundAssignment)
             {
-                if (target.IsNullish())
+                if (IsNullish(target))
                 {
                     throw StandardLibrary.ThrowTypeError("Cannot read properties of null or undefined", context,
                         context.RealmState);
@@ -120,19 +124,20 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            var assignedValue = EvaluateExpression(expression.Value, environment, context);
+            var assignedValueJs = EvaluateExpression(expression.Value, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return assignedValue;
+                return assignedValueJs.ToObject();
             }
 
+            var assignedValue = assignedValueJs.ToObject();
             if (assignedValue is IFunctionNameTarget nameTarget &&
                 expression.Value is FunctionExpression { Name: null } or ClassExpression { Name: null })
             {
                 nameTarget.EnsureHasName(string.Empty);
             }
 
-            if (target.IsNullish())
+            if (IsNullish(target))
             {
                 throw StandardLibrary.ThrowTypeError("Cannot read properties of null or undefined", context,
                     context.RealmState);

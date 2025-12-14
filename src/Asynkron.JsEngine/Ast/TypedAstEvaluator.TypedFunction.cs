@@ -1277,7 +1277,7 @@ public static partial class TypedAstEvaluator
                         throw new InvalidOperationException("Computed class field is missing name expression.");
                     }
 
-                    var nameValue = EvaluateExpression(field.ComputedName, initEnv, context);
+                    var nameValue = EvaluateExpression(field.ComputedName, initEnv, context).ToObject();
                     if (context.ShouldStopEvaluation)
                     {
                         return;
@@ -1303,7 +1303,7 @@ public static partial class TypedAstEvaluator
                 object? value = Symbol.Undefined;
                 if (field.Initializer is not null)
                 {
-                    value = EvaluateExpression(field.Initializer, initEnv, context);
+                    value = EvaluateExpression(field.Initializer, initEnv, context).ToObject();
                     if (context.ShouldStopEvaluation)
                     {
                         return;

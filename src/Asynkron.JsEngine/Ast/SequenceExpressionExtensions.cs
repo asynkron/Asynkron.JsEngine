@@ -10,7 +10,7 @@ public static partial class TypedAstEvaluator
             _ = EvaluateExpression(expression.Left, environment, context);
             return context.ShouldStopEvaluation
                 ? Symbol.Undefined
-                : EvaluateExpression(expression.Right, environment, context);
+                : EvaluateExpression(expression.Right, environment, context).ToObject();
         }
     }
 }

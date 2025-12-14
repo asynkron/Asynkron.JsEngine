@@ -18,16 +18,18 @@ public static partial class TypedAstEvaluator
                 return (null, null);
             }
 
-            var baseValue = EvaluateExpression(extendsExpression, environment, context);
+            var baseJsValue = EvaluateExpression(extendsExpression, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return (null, null);
             }
 
-            if (baseValue is null)
+            if (baseJsValue.IsNullOrUndefined)
             {
                 return (null, null);
             }
+
+            var baseValue = baseJsValue.ToObject();
 
             if (!JsOps.IsConstructor(baseValue))
             {
@@ -86,7 +88,7 @@ public static partial class TypedAstEvaluator
 
     extension(ExpressionNode expression)
     {
-        private object? EvaluateExpression(JsEnvironment environment,
+        private JsValue EvaluateExpression(JsEnvironment environment,
             EvaluationContext context)
         {
             context.SourceReference = expression.Source;
@@ -95,38 +97,41 @@ public static partial class TypedAstEvaluator
 
             return expression switch
             {
+                // Converted to native JsValue
                 LiteralExpression literal => EvaluateLiteral(literal, context),
                 IdentifierExpression identifier => EvaluateIdentifier(identifier, environment, context),
                 BinaryExpression binary => EvaluateBinary(binary, environment, context),
                 UnaryExpression unary => EvaluateUnary(unary, environment, context),
-                ConditionalExpression conditional => EvaluateConditional(conditional, environment, context),
-                CallExpression call => EvaluateCall(call, environment, context),
-                FunctionExpression functionExpression => CreateFunctionValue(functionExpression, environment, context,
-                    createFunctionNameEnvironment: true),
-                AssignmentExpression assignment => EvaluateAssignment(assignment, environment, context),
+
+                // Wrapped - to be converted incrementally
+                ConditionalExpression conditional => JsValue.FromObject(EvaluateConditional(conditional, environment, context)),
+                CallExpression call => JsValue.FromObject(EvaluateCall(call, environment, context)),
+                FunctionExpression functionExpression => JsValue.FromObject(CreateFunctionValue(functionExpression, environment, context,
+                    createFunctionNameEnvironment: true)),
+                AssignmentExpression assignment => JsValue.FromObject(EvaluateAssignment(assignment, environment, context)),
                 DestructuringAssignmentExpression destructuringAssignment =>
-                    EvaluateDestructuringAssignment(destructuringAssignment, environment, context),
+                    JsValue.FromObject(EvaluateDestructuringAssignment(destructuringAssignment, environment, context)),
                 PropertyAssignmentExpression propertyAssignment =>
-                    EvaluatePropertyAssignment(propertyAssignment, environment, context),
+                    JsValue.FromObject(EvaluatePropertyAssignment(propertyAssignment, environment, context)),
                 IndexAssignmentExpression indexAssignment =>
-                    EvaluateIndexAssignment(indexAssignment, environment, context),
-                SequenceExpression sequence => EvaluateSequence(sequence, environment, context),
-                MemberExpression member => EvaluateMember(member, environment, context),
-                NewExpression newExpression => EvaluateNew(newExpression, environment, context),
+                    JsValue.FromObject(EvaluateIndexAssignment(indexAssignment, environment, context)),
+                SequenceExpression sequence => JsValue.FromObject(EvaluateSequence(sequence, environment, context)),
+                MemberExpression member => JsValue.FromObject(EvaluateMember(member, environment, context)),
+                NewExpression newExpression => JsValue.FromObject(EvaluateNew(newExpression, environment, context)),
                 NewTargetExpression => environment.TryGet(Symbol.NewTarget, out var newTarget)
-                    ? newTarget
-                    : Symbol.Undefined,
-                ImportMetaExpression => EvaluateImportMeta(environment, context),
-                ArrayExpression array => EvaluateArray(array, environment, context),
-                ObjectExpression obj => EvaluateObject(obj, environment, context),
-                ClassExpression classExpression => EvaluateClassExpression(classExpression, environment, context),
+                    ? JsValue.FromObject(newTarget)
+                    : JsValue.Undefined,
+                ImportMetaExpression => JsValue.FromObject(EvaluateImportMeta(environment, context)),
+                ArrayExpression array => JsValue.FromObject(EvaluateArray(array, environment, context)),
+                ObjectExpression obj => JsValue.FromObject(EvaluateObject(obj, environment, context)),
+                ClassExpression classExpression => JsValue.FromObject(EvaluateClassExpression(classExpression, environment, context)),
                 DecoratorExpression => throw new NotSupportedException("Decorators are not supported."),
-                TemplateLiteralExpression template => EvaluateTemplateLiteral(template, environment, context),
+                TemplateLiteralExpression template => JsValue.FromObject(EvaluateTemplateLiteral(template, environment, context)),
                 TaggedTemplateExpression taggedTemplate =>
-                    EvaluateTaggedTemplate(taggedTemplate, environment, context),
-                AwaitExpression awaitExpression => EvaluateAwait(awaitExpression, environment, context),
-                YieldExpression yieldExpression => EvaluateYield(yieldExpression, environment, context),
-                ThisExpression => ResolveThisValue(environment, context),
+                    JsValue.FromObject(EvaluateTaggedTemplate(taggedTemplate, environment, context)),
+                AwaitExpression awaitExpression => JsValue.FromObject(EvaluateAwait(awaitExpression, environment, context)),
+                YieldExpression yieldExpression => JsValue.FromObject(EvaluateYield(yieldExpression, environment, context)),
+                ThisExpression => JsValue.FromObject(ResolveThisValue(environment, context)),
                 SuperExpression => throw new InvalidOperationException(
                     $"Super is not available in this context.{GetSourceInfo(context, expression.Source)}"),
                 _ => throw new NotSupportedException(
@@ -322,12 +327,13 @@ public static partial class TypedAstEvaluator
                     return (memberValue, binding.ThisValue, false);
                 }
 
-                var target = EvaluateExpression(member.Target, environment, context);
+                var targetJs = EvaluateExpression(member.Target, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return (Symbol.Undefined, null, true);
                 }
 
+                var target = targetJs.ToObject();
                 if (member.IsOptional && IsNullish(target))
                 {
                     return (null, null, true);
@@ -351,13 +357,13 @@ public static partial class TypedAstEvaluator
                 string propertyName;
                 if (member.IsComputed)
                 {
-                    var property = EvaluateExpression(member.Property, environment, context);
+                    var propertyJs = EvaluateExpression(member.Property, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return (Symbol.Undefined, null, true);
                     }
 
-                    propertyName = JsOps.GetRequiredPropertyName(property, context);
+                    propertyName = JsOps.GetRequiredPropertyName(propertyJs.ToObject(), context);
                     if (context.ShouldStopEvaluation)
                     {
                         return (Symbol.Undefined, null, true);
@@ -369,7 +375,7 @@ public static partial class TypedAstEvaluator
                     {
                         IdentifierExpression id => id.Name.Name,
                         LiteralExpression { Value: string s } => s,
-                        _ => JsOps.GetRequiredPropertyName(EvaluateExpression(member.Property, environment, context),
+                        _ => JsOps.GetRequiredPropertyName(EvaluateExpression(member.Property, environment, context).ToObject(),
                             context)
                     };
                 }
@@ -428,7 +434,7 @@ public static partial class TypedAstEvaluator
             }
 
             var directCallee = EvaluateExpression(callee, environment, context);
-            return (directCallee, Symbol.Undefined, false);
+            return (directCallee.ToObject(), Symbol.Undefined, false);
         }
     }
 
@@ -448,21 +454,21 @@ public static partial class TypedAstEvaluator
                             context.RealmState);
                     }
 
-                    var target = EvaluateExpression(member.Target, environment, context);
+                    var targetJs = EvaluateExpression(member.Target, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return false;
                     }
 
-                    var propertyValue = EvaluateExpression(member.Property, environment, context);
+                    var propertyValueJs = EvaluateExpression(member.Property, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return false;
                     }
 
                     var handle = PropertyHandle.Resolve(
-                        target,
-                        propertyValue,
+                        targetJs.ToObject(),
+                        propertyValueJs.ToObject(),
                         context,
                         context.CurrentScope.IsStrict,
                         allowPrivate: !member.IsComputed);

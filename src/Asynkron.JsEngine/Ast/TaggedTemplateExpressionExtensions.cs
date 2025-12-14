@@ -34,24 +34,24 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                var stringsArrayValue = EvaluateExpression(expression.StringsArray, environment, context);
+                var stringsArrayValueJs = EvaluateExpression(expression.StringsArray, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return Symbol.Undefined;
                 }
 
-                if (stringsArrayValue is not JsArray stringsArray)
+                if (stringsArrayValueJs.ToObject() is not JsArray stringsArray)
                 {
                     throw new InvalidOperationException("Tagged template strings array is invalid.");
                 }
 
-                var rawStringsArrayValue = EvaluateExpression(expression.RawStringsArray, environment, context);
+                var rawStringsArrayValueJs = EvaluateExpression(expression.RawStringsArray, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return Symbol.Undefined;
                 }
 
-                if (rawStringsArrayValue is not JsArray rawStringsArray)
+                if (rawStringsArrayValueJs.ToObject() is not JsArray rawStringsArray)
                 {
                     throw new InvalidOperationException("Tagged template raw strings array is invalid.");
                 }
@@ -67,7 +67,7 @@ public static partial class TypedAstEvaluator
 
             foreach (var expr in expression.Expressions)
             {
-                arguments.Add(EvaluateExpression(expr, environment, context));
+                arguments.Add(EvaluateExpression(expr, environment, context).ToObject());
                 if (context.ShouldStopEvaluation)
                 {
                     return Symbol.Undefined;

@@ -14,13 +14,13 @@ public static partial class TypedAstEvaluator
             {
                 if (element.IsSpread)
                 {
-                    var spreadValue = EvaluateExpression(element.Expression!, environment, context);
+                    var spreadValueJs = EvaluateExpression(element.Expression!, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return Symbol.Undefined;
                     }
 
-                    foreach (var item in EnumerateSpread(spreadValue, context))
+                    foreach (var item in EnumerateSpread(spreadValueJs.ToObject(), context))
                     {
                         array.Push(item);
                     }
@@ -39,7 +39,7 @@ public static partial class TypedAstEvaluator
                 }
                 else
                 {
-                    array.Push(EvaluateExpression(element.Expression, environment, context));
+                    array.Push(EvaluateExpression(element.Expression, environment, context).ToObject());
                 }
 
                 if (context.ShouldStopEvaluation)

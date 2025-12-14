@@ -53,7 +53,7 @@ public static partial class TypedAstEvaluator
 
             var yieldedValue = expression.Expression is null
                 ? Symbol.Undefined
-                : EvaluateExpression(expression.Expression, environment, context);
+                : EvaluateExpression(expression.Expression, environment, context).ToObject();
             if (context.ShouldStopEvaluation)
             {
                 return yieldedValue;
@@ -77,7 +77,7 @@ public static partial class TypedAstEvaluator
 
                 if (state is null)
                 {
-                    var iterable = EvaluateExpression(expression.Expression, environment, context);
+                    var iterable = EvaluateExpression(expression.Expression, environment, context).ToObject();
                     if (context.ShouldStopEvaluation)
                     {
                         return iterable;

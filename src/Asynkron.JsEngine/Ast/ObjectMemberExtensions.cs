@@ -18,7 +18,7 @@ public static partial class TypedAstEvaluator
                     throw new InvalidOperationException("Computed property name must be an expression.");
                 }
 
-                keyValue = EvaluateExpression(keyExpression, environment, context);
+                keyValue = EvaluateExpression(keyExpression, environment, context).ToObject();
             }
             else
             {

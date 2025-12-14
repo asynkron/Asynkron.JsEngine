@@ -8,7 +8,7 @@ public static partial class TypedAstEvaluator
 {
     extension(UnaryExpression expression)
     {
-        private object? EvaluateUnary(JsEnvironment environment,
+        private JsValue EvaluateUnary(JsEnvironment environment,
             EvaluationContext context)
         {
             try
@@ -21,38 +21,36 @@ public static partial class TypedAstEvaluator
                             expression.Operand,
                             environment,
                             context,
-                            EvaluateExpression);
+                            (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
                         var currentValue = reference.GetValue();
 
                         // Fast path for double (most common case) - avoid boxing
                         if (currentValue is double d)
                         {
-                            var updatedValue = expression.Operator == "++"
-                                ? JsValueCache.GetNumber(d + 1)
-                                : JsValueCache.GetNumber(d - 1);
+                            var updatedValue = d + (expression.Operator == "++" ? 1 : -1);
                             reference.SetValue(updatedValue);
-                            return expression.IsPrefix ? updatedValue : JsValueCache.GetNumber(d);
+                            return expression.IsPrefix ? new JsValue(updatedValue) : new JsValue(d);
                         }
 
                         // Per ES spec, convert to numeric first (handles both Number and BigInt)
                         var oldNumeric = JsOps.ToNumeric(currentValue, context);
                         if (context.ShouldStopEvaluation)
                         {
-                            return context.FlowValue;
+                            return JsValue.FromObject(context.FlowValue);
                         }
 
                         // Calculate new value (increment/decrement the already-converted numeric value)
                         var updated = expression.Operator == "++"
-                            ? IncrementValue(oldNumeric, context)
-                            : DecrementValue(oldNumeric, context);
-                        reference.SetValue(updated);
+                            ? IncrementValue(JsValue.FromObject(oldNumeric), context)
+                            : DecrementValue(JsValue.FromObject(oldNumeric), context);
+                        reference.SetValue(updated.ToObject());
 
                         // Postfix returns the old numeric value (after conversion but before increment/decrement)
                         // Prefix returns the new value (after increment/decrement)
-                        return expression.IsPrefix ? updated : oldNumeric;
+                        return expression.IsPrefix ? updated : JsValue.FromObject(oldNumeric);
                     }
                     case "delete":
-                        return EvaluateDelete(expression.Operand, environment, context);
+                        return EvaluateDelete(expression.Operand, environment, context) ? JsValue.True : JsValue.False;
                     case "typeof":
                     {
                         // The typeof operator has special semantics: it returns "undefined"
@@ -80,47 +78,47 @@ public static partial class TypedAstEvaluator
                                 {
                                     // Clear the error and return "undefined" for undeclared variables
                                     context.Clear();
-                                    return "undefined";
+                                    return new JsValue("undefined");
                                 }
 
                                 // Let TDZ errors propagate
-                                return Symbol.Undefined;
+                                return JsValue.Undefined;
                             }
 
                             if (context.ShouldStopEvaluation)
                             {
-                                return Symbol.Undefined;
+                                return JsValue.Undefined;
                             }
 
-                            return GetTypeofString(operandValue);
+                            return new JsValue(GetTypeofStringValue(operandValue));
                         }
 
                         // For non-identifier operands, evaluate normally
                         var value = EvaluateExpression(expression.Operand, environment, context);
                         if (context.ShouldStopEvaluation)
                         {
-                            return Symbol.Undefined;
+                            return JsValue.Undefined;
                         }
 
-                        return GetTypeofString(value);
+                        return new JsValue(GetTypeofStringValue(value));
                     }
                 }
 
                 var operand = EvaluateExpression(expression.Operand, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
 
                 return expression.Operator switch
                 {
-                    "!" => !IsTruthy(operand),
-                    "+" => operand is JsBigInt
+                    "!" => operand.IsTruthy ? JsValue.False : JsValue.True,
+                    "+" => operand.IsBigInt
                         ? throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number", context)
-                        : JsOps.ToNumber(operand, context),
-                    "-" => UnaryMinus(operand, context),
-                    "~" => BitwiseNot(operand, context),
-                    "void" => Symbol.Undefined,
+                        : new JsValue(ToNumberValue(operand, context)),
+                    "-" => NegateValue(operand, context),
+                    "~" => BitwiseNotValue(operand, context),
+                    "void" => JsValue.Undefined,
                     _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet.")
                 };
             }
@@ -143,8 +141,44 @@ public static partial class TypedAstEvaluator
                 }
 
                 context.SetThrow(errorObject);
-                return errorObject;
+                return JsValue.FromObject(errorObject);
             }
         }
+    }
+
+    /// <summary>
+    /// Gets the typeof string for a JsValue.
+    /// </summary>
+    private static string GetTypeofStringValue(JsValue value)
+    {
+        return value.Kind switch
+        {
+            JsValueKind.Undefined => "undefined",
+            JsValueKind.Null => "object",
+            JsValueKind.Boolean => "boolean",
+            JsValueKind.Number => "number",
+            JsValueKind.BigInt => "bigint",
+            JsValueKind.String => "string",
+            JsValueKind.Symbol => "symbol",
+            JsValueKind.Object => value.ObjectValue switch
+            {
+                IJsCallable => "function",
+                _ => "object"
+            },
+            _ => "undefined"
+        };
+    }
+
+    /// <summary>
+    /// Bitwise NOT of a JsValue operand.
+    /// </summary>
+    private static JsValue BitwiseNotValue(JsValue operand, EvaluationContext context)
+    {
+        if (operand.IsNumber)
+        {
+            return new JsValue((double)~Converters.JsNumericConversions.ToInt32(operand.NumberValue));
+        }
+
+        return JsValue.FromObject(BitwiseNot(operand.ToObject(), context));
     }
 }

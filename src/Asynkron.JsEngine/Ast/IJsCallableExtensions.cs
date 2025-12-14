@@ -14,7 +14,7 @@ public static partial class TypedAstEvaluator
             object? thisArg = Symbol.Undefined;
             if (callArguments.Length > 0)
             {
-                thisArg = EvaluateExpression(callArguments[0].Expression, environment, context);
+                thisArg = EvaluateExpression(callArguments[0].Expression, environment, context).ToObject();
                 if (context.ShouldStopEvaluation)
                 {
                     return Symbol.Undefined;
@@ -24,13 +24,13 @@ public static partial class TypedAstEvaluator
             var argsBuilder = ImmutableArray.CreateBuilder<object?>();
             if (callArguments.Length > 1)
             {
-                var argsArray = EvaluateExpression(callArguments[1].Expression, environment, context);
+                var argsArrayJs = EvaluateExpression(callArguments[1].Expression, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return Symbol.Undefined;
                 }
 
-                foreach (var item in EnumerateSpread(argsArray, context))
+                foreach (var item in EnumerateSpread(argsArrayJs.ToObject(), context))
                 {
                     argsBuilder.Add(item);
                 }
@@ -64,7 +64,7 @@ public static partial class TypedAstEvaluator
 
             for (var i = 0; i < callArguments.Length; i++)
             {
-                var argValue = EvaluateExpression(callArguments[i].Expression, environment, context);
+                var argValue = EvaluateExpression(callArguments[i].Expression, environment, context).ToObject();
                 if (context.ShouldStopEvaluation)
                 {
                     return Symbol.Undefined;

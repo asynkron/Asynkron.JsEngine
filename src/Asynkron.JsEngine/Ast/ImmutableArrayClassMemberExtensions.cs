@@ -15,7 +15,7 @@ public static partial class TypedAstEvaluator
         {
             foreach (var member in members)
             {
-                if (!member.TryResolveMemberName(expr => EvaluateExpression(expr, environment, context),
+                if (!member.TryResolveMemberName(expr => EvaluateExpression(expr, environment, context).ToObject(),
                         context,
                         privateNameScope,
                         out var propertyName))
@@ -53,7 +53,7 @@ public static partial class TypedAstEvaluator
                     ? CreateFunctionValue(functionExpression, environment, context,
                         createFunctionNameEnvironment: true,
                         isConstructorFunction: false)
-                    : EvaluateExpression(member.Function, environment, context);
+                    : EvaluateExpression(member.Function, environment, context).ToObject();
                 if (context.ShouldStopEvaluation)
                 {
                     return;

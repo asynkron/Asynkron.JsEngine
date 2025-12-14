@@ -29,11 +29,13 @@ public static partial class TypedAstEvaluator
                 statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment, isConstDeclaration);
             }
 
-            var iterable = EvaluateExpression(statement.Iterable, iterableEnvironment, context);
+            var iterableJsValue = EvaluateExpression(statement.Iterable, iterableEnvironment, context);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
             }
+
+            var iterable = iterableJsValue.ToObject();
 
             if (statement.Kind == ForEachKind.Of)
             {
@@ -136,12 +138,13 @@ public static partial class TypedAstEvaluator
                 statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment, isConstDeclaration);
             }
 
-            var iterable = EvaluateExpression(statement.Iterable, iterableEnvironment, context);
+            var iterableJs = EvaluateExpression(statement.Iterable, iterableEnvironment, context);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
             }
 
+            var iterable = iterableJs.ToObject();
             EnsureObjectCoercibleForIteration(iterable, context);
             var iteratorTarget = NormalizeIterableTarget(iterable, context);
 

@@ -12,7 +12,7 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
-            var branch = IsTruthy(test) ? statement.Then : statement.Else;
+            var branch = test.IsTruthy ? statement.Then : statement.Else;
             if (branch is null)
             {
                 return Symbol.Undefined;

@@ -46,12 +46,13 @@ public static partial class TypedAstEvaluator
                 return context.ShouldStopEvaluation ? Symbol.Undefined : memberValue;
             }
 
-            var target = EvaluateExpression(expression.Target, environment, context);
+            var targetJs = EvaluateExpression(expression.Target, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
             }
 
+            var target = targetJs.ToObject();
             if (expression.IsOptional && IsNullish(target))
             {
                 return Symbol.Undefined;
@@ -72,13 +73,13 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
-            var propertyValue = EvaluateExpression(expression.Property, environment, context);
+            var propertyValueJs = EvaluateExpression(expression.Property, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
             }
 
-            var propertyName = JsOps.GetRequiredPropertyName(propertyValue, context);
+            var propertyName = JsOps.GetRequiredPropertyName(propertyValueJs.ToObject(), context);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
@@ -131,7 +132,7 @@ public static partial class TypedAstEvaluator
                 return (Symbol.Undefined, binding);
             }
 
-            var propertyValue = EvaluateExpression(expression.Property, environment, context);
+            var propertyValueJs = EvaluateExpression(expression.Property, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return (Symbol.Undefined, binding);
@@ -139,7 +140,7 @@ public static partial class TypedAstEvaluator
 
             // Use JsOps.GetRequiredPropertyName which properly handles errors from ToPropertyName
             // (e.g., when toString() throws during property key coercion)
-            var propertyName = JsOps.GetRequiredPropertyName(propertyValue, context);
+            var propertyName = JsOps.GetRequiredPropertyName(propertyValueJs.ToObject(), context);
             if (context.ShouldStopEvaluation)
             {
                 return (Symbol.Undefined, binding);

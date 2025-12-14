@@ -145,7 +145,7 @@ public static partial class TypedAstEvaluator
                         return;
                     }
 
-                    value = EvaluateExpression(parameter.DefaultValue, environment, context);
+                    value = EvaluateExpression(parameter.DefaultValue, environment, context).ToObject();
                     if (context.ShouldStopEvaluation)
                     {
                         return;

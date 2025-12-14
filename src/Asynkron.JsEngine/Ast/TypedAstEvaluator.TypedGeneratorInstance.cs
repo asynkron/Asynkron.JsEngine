@@ -528,7 +528,7 @@ public static partial class TypedAstEvaluator
                             if (yieldInstruction.YieldExpression is not null)
                             {
                                 yieldedValue = EvaluateExpression(yieldInstruction.YieldExpression, environment,
-                                    context);
+                                    context).ToObject();
                                 if (context.IsThrow)
                                 {
                                     var thrown = context.FlowValue;
@@ -612,7 +612,7 @@ public static partial class TypedAstEvaluator
                             {
                                 _realmState.Logger?.LogInformation("YieldStar: Creating new DelegatedState");
                                 var yieldStarIterable =
-                                    EvaluateExpression(yieldStarInstruction.IterableExpression, environment, context);
+                                    EvaluateExpression(yieldStarInstruction.IterableExpression, environment, context).ToObject();
                                 if (context.IsThrow)
                                 {
                                     var thrown = context.FlowValue;
@@ -913,7 +913,7 @@ public static partial class TypedAstEvaluator
 
                         case IteratorInitInstruction iteratorInitInstruction:
                             var iterableValue = EvaluateExpression(iteratorInitInstruction.IterableExpression,
-                                environment, context);
+                                environment, context).ToObject();
                             if (context.IsThrow)
                             {
                                 var initThrown = context.FlowValue;
@@ -1196,7 +1196,7 @@ public static partial class TypedAstEvaluator
                                 throw new ThrowSignal(thrownBranch);
                             }
 
-                            _programCounter = IsTruthy(testValue)
+                            _programCounter = testValue.IsTruthy
                                 ? branchInstruction.ConsequentIndex
                                 : branchInstruction.AlternateIndex;
                             continue;
@@ -1223,7 +1223,7 @@ public static partial class TypedAstEvaluator
                         case ReturnInstruction returnInstruction:
                             var returnValue = returnInstruction.ReturnExpression is null
                                 ? Symbol.Undefined
-                                : EvaluateExpression(returnInstruction.ReturnExpression, environment, context);
+                                : EvaluateExpression(returnInstruction.ReturnExpression, environment, context).ToObject();
                             if (context.IsThrow)
                             {
                                 var pendingThrow = context.FlowValue;
@@ -1257,7 +1257,7 @@ public static partial class TypedAstEvaluator
 
                         case EnterWithInstruction enterWithInstruction:
                         {
-                            var objValue = EvaluateExpression(enterWithInstruction.ObjectExpression, environment, context);
+                            var objValue = EvaluateExpression(enterWithInstruction.ObjectExpression, environment, context).ToObject();
                             if (context.IsThrow)
                             {
                                 var thrownWith = context.FlowValue;
@@ -1507,7 +1507,7 @@ public static partial class TypedAstEvaluator
             // legacy blocking helper so synchronous generators remain usable.
             if (!_asyncStepMode)
             {
-                var awaitedValueSync = EvaluateExpression(expression.Expression, environment, context);
+                var awaitedValueSync = EvaluateExpression(expression.Expression, environment, context).ToObject();
                 if (context.ShouldStopEvaluation)
                 {
                     return awaitedValueSync;
@@ -1537,7 +1537,7 @@ public static partial class TypedAstEvaluator
                 return result;
             }
 
-            var awaitedValue = EvaluateExpression(expression.Expression, environment, context);
+            var awaitedValue = EvaluateExpression(expression.Expression, environment, context).ToObject();
             if (context.ShouldStopEvaluation)
             {
                 return awaitedValue;

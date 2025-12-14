@@ -82,7 +82,7 @@ public static partial class TypedAstEvaluator
                             return Symbol.Undefined;
                         }
 
-                        var arr = JsValueCache.CreateArgs(v0);
+                        var arr = JsValueCache.CreateArgs(v0.ToObject());
                         pooledArgsArray = arr;
                         frozenArguments = arr;
                         break;
@@ -103,7 +103,7 @@ public static partial class TypedAstEvaluator
                             return Symbol.Undefined;
                         }
 
-                        var arr = JsValueCache.CreateArgs(v0, v1);
+                        var arr = JsValueCache.CreateArgs(v0.ToObject(), v1.ToObject());
                         pooledArgsArray = arr;
                         frozenArguments = arr;
                         break;
@@ -122,7 +122,7 @@ public static partial class TypedAstEvaluator
 
                         for (var i = 0; i < argCount; i++)
                         {
-                            argsArray[i] = EvaluateExpression(expression.Arguments[i].Expression, environment, context);
+                            argsArray[i] = EvaluateExpression(expression.Arguments[i].Expression, environment, context).ToObject();
                             if (context.ShouldStopEvaluation)
                             {
                                 if (pooledArgsArray is not null)
@@ -146,12 +146,14 @@ public static partial class TypedAstEvaluator
                 {
                     if (argument.IsSpread)
                     {
-                        var spreadValue = EvaluateExpression(argument.Expression, environment, context);
+                        var spreadValueJs = EvaluateExpression(argument.Expression, environment, context);
                         if (context.ShouldStopEvaluation)
                         {
                             context.CallDepth--;
                             return Symbol.Undefined;
                         }
+
+                        var spreadValue = spreadValueJs.ToObject();
 
                         // For default derived constructor super calls, bypass the iterator protocol
                         // and directly iterate array items per ES spec 15.7.14.
@@ -179,7 +181,7 @@ public static partial class TypedAstEvaluator
                         continue;
                     }
 
-                    argsBuilder.Add(EvaluateExpression(argument.Expression, environment, context));
+                    argsBuilder.Add(EvaluateExpression(argument.Expression, environment, context).ToObject());
                     if (context.ShouldStopEvaluation)
                     {
                         context.CallDepth--;
@@ -223,13 +225,13 @@ public static partial class TypedAstEvaluator
                             } inner
                         })
                     {
-                        var target = EvaluateExpression(inner.Target, environment, context);
+                        var targetJs = EvaluateExpression(inner.Target, environment, context);
                         if (context.ShouldStopEvaluation)
                         {
                             return Symbol.Undefined;
                         }
 
-                        if (TryGetPropertyValue(target, "formatArgs", out var innerValue) &&
+                        if (TryGetPropertyValue(targetJs.ToObject(), "formatArgs", out var innerValue) &&
                             innerValue is IJsCallable innerFunction)
                         {
                             return InvokeWithCall(innerFunction, expression.Arguments, environment, context);
@@ -591,12 +593,14 @@ public static partial class TypedAstEvaluator
                 return false;
 
             // Evaluate the target (map or set instance) - safe because it's just an identifier lookup
-            var target = EvaluateExpression(member.Target, environment, context);
+            var targetJs = EvaluateExpression(member.Target, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 result = Symbol.Undefined;
                 return true;
             }
+
+            var target = targetJs.ToObject();
 
             // Fast-path for JsMap
             if (target is JsMap { IsPlain: true } map)
@@ -672,9 +676,9 @@ public static partial class TypedAstEvaluator
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static object? FastMapSet(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
         {
-            var key = EvaluateExpression(args[0].Expression, env, ctx);
+            var key = EvaluateExpression(args[0].Expression, env, ctx).ToObject();
             if (ctx.ShouldStopEvaluation) return Symbol.Undefined;
-            var value = EvaluateExpression(args[1].Expression, env, ctx);
+            var value = EvaluateExpression(args[1].Expression, env, ctx).ToObject();
             if (ctx.ShouldStopEvaluation) return Symbol.Undefined;
             return map.Set(key, value);
         }
@@ -682,7 +686,7 @@ public static partial class TypedAstEvaluator
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static object? FastMapGet(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
         {
-            var key = EvaluateExpression(args[0].Expression, env, ctx);
+            var key = EvaluateExpression(args[0].Expression, env, ctx).ToObject();
             if (ctx.ShouldStopEvaluation) return Symbol.Undefined;
             return map.Get(key);
         }
@@ -690,7 +694,7 @@ public static partial class TypedAstEvaluator
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static object? FastMapHas(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
         {
-            var key = EvaluateExpression(args[0].Expression, env, ctx);
+            var key = EvaluateExpression(args[0].Expression, env, ctx).ToObject();
             if (ctx.ShouldStopEvaluation) return Symbol.Undefined;
             return map.Has(key);
         }
@@ -698,7 +702,7 @@ public static partial class TypedAstEvaluator
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static object? FastMapDelete(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
         {
-            var key = EvaluateExpression(args[0].Expression, env, ctx);
+            var key = EvaluateExpression(args[0].Expression, env, ctx).ToObject();
             if (ctx.ShouldStopEvaluation) return Symbol.Undefined;
             return map.Delete(key);
         }
@@ -715,7 +719,7 @@ public static partial class TypedAstEvaluator
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static object? FastSetAdd(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
         {
-            var value = EvaluateExpression(args[0].Expression, env, ctx);
+            var value = EvaluateExpression(args[0].Expression, env, ctx).ToObject();
             if (ctx.ShouldStopEvaluation) return Symbol.Undefined;
             return set.Add(value);
         }
@@ -723,7 +727,7 @@ public static partial class TypedAstEvaluator
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static object? FastSetHas(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
         {
-            var value = EvaluateExpression(args[0].Expression, env, ctx);
+            var value = EvaluateExpression(args[0].Expression, env, ctx).ToObject();
             if (ctx.ShouldStopEvaluation) return Symbol.Undefined;
             return set.Has(value);
         }
@@ -731,7 +735,7 @@ public static partial class TypedAstEvaluator
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static object? FastSetDelete(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
         {
-            var value = EvaluateExpression(args[0].Expression, env, ctx);
+            var value = EvaluateExpression(args[0].Expression, env, ctx).ToObject();
             if (ctx.ShouldStopEvaluation) return Symbol.Undefined;
             return set.Delete(value);
         }

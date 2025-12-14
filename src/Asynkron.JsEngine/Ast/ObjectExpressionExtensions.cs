@@ -29,7 +29,7 @@ public static partial class TypedAstEvaluator
 
                         var value = member.Value is null
                             ? Symbol.Undefined
-                            : EvaluateExpression(member.Value, environment, context);
+                            : EvaluateExpression(member.Value, environment, context).ToObject();
 
                         if (!member.IsComputed &&
                             string.Equals(name, "__proto__", StringComparison.Ordinal) &&
@@ -157,7 +157,7 @@ public static partial class TypedAstEvaluator
 
                         var value = member.Value is null
                             ? Symbol.Undefined
-                            : EvaluateExpression(member.Value, environment, context);
+                            : EvaluateExpression(member.Value, environment, context).ToObject();
                         obj.DefineProperty(name, new PropertyDescriptor
                         {
                             Value = value,
@@ -169,7 +169,7 @@ public static partial class TypedAstEvaluator
                     }
                     case ObjectMemberKind.Spread:
                     {
-                        var spreadValue = EvaluateExpression(member.Value!, environment, context);
+                        var spreadValue = EvaluateExpression(member.Value!, environment, context).ToObject();
                         if (context.ShouldStopEvaluation)
                         {
                             return Symbol.Undefined;

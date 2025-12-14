@@ -13,11 +13,12 @@ public static partial class TypedAstEvaluator
         private object? EvaluateNew(JsEnvironment environment, EvaluationContext context)
         {
             var realm = context.RealmState;
-            var constructor = EvaluateExpression(expression.Constructor, environment, context);
+            var constructorJsValue = EvaluateExpression(expression.Constructor, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
             }
+            var constructor = constructorJsValue.ToObject();
 
             // ArgumentListEvaluation must run before the IsConstructor check (ES2024 12.3.3.1.1 step 6-7).
             var hasSpread = false;
@@ -42,7 +43,7 @@ public static partial class TypedAstEvaluator
                     var argsArray = new object?[expression.Arguments.Length];
                     for (var i = 0; i < expression.Arguments.Length; i++)
                     {
-                        argsArray[i] = EvaluateExpression(expression.Arguments[i].Expression, environment, context);
+                        argsArray[i] = EvaluateExpression(expression.Arguments[i].Expression, environment, context).ToObject();
                         if (context.ShouldStopEvaluation)
                         {
                             return Symbol.Undefined;
@@ -59,13 +60,13 @@ public static partial class TypedAstEvaluator
                 {
                     if (argument.IsSpread)
                     {
-                        var spreadValue = EvaluateExpression(argument.Expression, environment, context);
+                        var spreadValueJs = EvaluateExpression(argument.Expression, environment, context);
                         if (context.ShouldStopEvaluation)
                         {
                             return Symbol.Undefined;
                         }
 
-                        foreach (var item in EnumerateSpread(spreadValue, context))
+                        foreach (var item in EnumerateSpread(spreadValueJs.ToObject(), context))
                         {
                             argsBuilder.Add(item);
                         }
@@ -78,7 +79,7 @@ public static partial class TypedAstEvaluator
                         continue;
                     }
 
-                    argsBuilder.Add(EvaluateExpression(argument.Expression, environment, context));
+                    argsBuilder.Add(EvaluateExpression(argument.Expression, environment, context).ToObject());
                     if (context.ShouldStopEvaluation)
                     {
                         return Symbol.Undefined;

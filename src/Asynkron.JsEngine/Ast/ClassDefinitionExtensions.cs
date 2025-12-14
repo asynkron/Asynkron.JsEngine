@@ -39,11 +39,12 @@ public static partial class TypedAstEvaluator
                 return Symbol.Undefined;
             }
 
-            var constructorValue = EvaluateExpression(definition.Constructor, evaluationEnvironment, context);
+            var constructorJsValue = EvaluateExpression(definition.Constructor, evaluationEnvironment, context);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
             }
+            var constructorValue = constructorJsValue.ToObject();
 
             if (constructorValue is not IJsEnvironmentAwareCallable constructor ||
                 constructorValue is not IJsPropertyAccessor constructorAccessor)
@@ -177,7 +178,7 @@ public static partial class TypedAstEvaluator
             foreach (var field in fields)
             {
                 var propertyName = field.Name;
-                if (!field.TryResolveFieldName(expr => EvaluateExpression(expr, environment, context),
+                if (!field.TryResolveFieldName(expr => EvaluateExpression(expr, environment, context).ToObject(),
                         context,
                         privateNameScope,
                         out propertyName))

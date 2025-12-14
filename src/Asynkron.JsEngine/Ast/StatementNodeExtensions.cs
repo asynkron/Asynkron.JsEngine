@@ -21,7 +21,7 @@ public static partial class TypedAstEvaluator
                 BlockStatement block => EvaluateBlock(block, environment, context),
                 ExpressionStatement expressionStatement => EvaluateExpression(expressionStatement.Expression,
                     environment,
-                    context),
+                    context).ToObject(),
                 ReturnStatement returnStatement => EvaluateReturn(returnStatement, environment, context),
                 ThrowStatement throwStatement => EvaluateThrow(throwStatement, environment, context),
                 VariableDeclaration declaration => EvaluateVariableDeclaration(declaration, environment, context),

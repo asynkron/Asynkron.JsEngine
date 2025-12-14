@@ -6,12 +6,12 @@ public static partial class TypedAstEvaluator
 {
     extension(IdentifierExpression identifier)
     {
-        private object? EvaluateIdentifier(JsEnvironment environment,
+        private JsValue EvaluateIdentifier(JsEnvironment environment,
             EvaluationContext context)
         {
             try
             {
-                return environment.GetIdentifierValue(identifier.Name, context);
+                return JsValue.FromObject(environment.GetIdentifierValue(identifier.Name, context));
             }
             catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                            StringComparison.Ordinal))
@@ -32,7 +32,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 context.SetThrow(errorObject);
-                return errorObject;
+                return JsValue.FromObject(errorObject);
             }
         }
     }

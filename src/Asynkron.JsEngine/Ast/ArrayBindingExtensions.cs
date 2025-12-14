@@ -78,7 +78,7 @@ public static partial class TypedAstEvaluator
                             assignmentTarget.Expression,
                             environment,
                             context,
-                            EvaluateExpression);
+                            (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
                         if (context.ShouldStopEvaluation)
                         {
                             if (context.IsYield && stateKey is { })
@@ -160,7 +160,7 @@ public static partial class TypedAstEvaluator
                         ReferenceEquals(elementValue, Symbol.Undefined))
                     {
                         usedDefault = true;
-                        elementValue = EvaluateExpression(element.DefaultValue, environment, context);
+                        elementValue = EvaluateExpression(element.DefaultValue, environment, context).ToObject();
                         if (context.ShouldStopEvaluation)
                         {
                             if (context.IsYield && stateKey is { })
@@ -225,7 +225,7 @@ public static partial class TypedAstEvaluator
                             restTarget.Expression,
                             environment,
                             context,
-                            EvaluateExpression);
+                            (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
                         if (context.ShouldStopEvaluation)
                         {
                             if (context.IsYield && stateKey is { })

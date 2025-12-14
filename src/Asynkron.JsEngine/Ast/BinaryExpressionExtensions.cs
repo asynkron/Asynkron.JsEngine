@@ -8,7 +8,7 @@ public static partial class TypedAstEvaluator
 {
     extension(BinaryExpression expression)
     {
-        private object? EvaluateBinary(JsEnvironment environment,
+        private JsValue EvaluateBinary(JsEnvironment environment,
             EvaluationContext context)
         {
             // ES2022: Handle private identifier in 'in' operator (#field in obj)
@@ -17,30 +17,30 @@ public static partial class TypedAstEvaluator
                 var rightTarget = EvaluateExpression(expression.Right, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
 
-                return PrivateFieldInOperator(privateId.Name, rightTarget, context);
+                return PrivateFieldInOperator(privateId.Name, rightTarget.ToObject(), context) ? JsValue.True : JsValue.False;
             }
 
             var left = EvaluateExpression(expression.Left, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             switch (expression.Operator)
             {
                 case "&&":
-                    return IsTruthy(left)
+                    return left.IsTruthy
                         ? EvaluateExpression(expression.Right, environment, context)
                         : left;
                 case "||":
-                    return IsTruthy(left)
+                    return left.IsTruthy
                         ? left
                         : EvaluateExpression(expression.Right, environment, context);
                 case "??":
-                    return IsNullish(left)
+                    return left.IsNullOrUndefined
                         ? EvaluateExpression(expression.Right, environment, context)
                         : left;
             }
@@ -48,33 +48,33 @@ public static partial class TypedAstEvaluator
             var right = EvaluateExpression(expression.Right, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             return expression.Operator switch
             {
-                "+" => Add(left, right, context),
-                "-" => Subtract(left, right, context),
-                "*" => Multiply(left, right, context),
-                "/" => Divide(left, right, context),
-                "%" => Modulo(left, right, context),
-                "**" => Power(left, right, context),
-                "==" => LooseEquals(left, right, context),
-                "!=" => !LooseEquals(left, right, context),
-                "===" => StrictEquals(left, right),
-                "!==" => !StrictEquals(left, right),
-                "<" => JsOps.LessThan(left, right, context),
-                "<=" => JsOps.LessThanOrEqual(left, right, context),
-                ">" => JsOps.GreaterThan(left, right, context),
-                ">=" => JsOps.GreaterThanOrEqual(left, right, context),
-                "&" => BitwiseAnd(left, right, context),
-                "|" => BitwiseOr(left, right, context),
-                "^" => BitwiseXor(left, right, context),
-                "<<" => LeftShift(left, right, context),
-                ">>" => RightShift(left, right, context),
-                ">>>" => UnsignedRightShift(left, right, context),
-                "in" => InOperator(left, right, context),
-                "instanceof" => InstanceofOperator(left, right, context),
+                "+" => AddValue(left, right, context),
+                "-" => SubtractValue(left, right, context),
+                "*" => MultiplyValue(left, right, context),
+                "/" => DivideValue(left, right, context),
+                "%" => ModuloValue(left, right, context),
+                "**" => PowerValue(left, right, context),
+                "==" => LooseEqualsValue(left, right, context) ? JsValue.True : JsValue.False,
+                "!=" => LooseEqualsValue(left, right, context) ? JsValue.False : JsValue.True,
+                "===" => StrictEqualsValue(left, right) ? JsValue.True : JsValue.False,
+                "!==" => StrictEqualsValue(left, right) ? JsValue.False : JsValue.True,
+                "<" => LessThanValue(left, right, context),
+                "<=" => LessThanOrEqualValue(left, right, context),
+                ">" => GreaterThanValue(left, right, context),
+                ">=" => GreaterThanOrEqualValue(left, right, context),
+                "&" => BitwiseAndValue(left, right, context),
+                "|" => BitwiseOrValue(left, right, context),
+                "^" => BitwiseXorValue(left, right, context),
+                "<<" => LeftShiftValue(left, right, context),
+                ">>" => RightShiftValue(left, right, context),
+                ">>>" => UnsignedRightShiftValue(left, right, context),
+                "in" => InOperator(left.ToObject(), right.ToObject(), context) ? JsValue.True : JsValue.False,
+                "instanceof" => InstanceofOperator(left.ToObject(), right.ToObject(), context) ? JsValue.True : JsValue.False,
                 _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet.")
             };
         }

@@ -6,12 +6,13 @@ public static partial class TypedAstEvaluator
     {
         private object? EvaluateWith(JsEnvironment environment, EvaluationContext context)
         {
-            var objValue = EvaluateExpression(statement.Object, environment, context);
+            var objValueJs = EvaluateExpression(statement.Object, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return objValue;
+                return objValueJs.ToObject();
             }
 
+            var objValue = objValueJs.ToObject();
             if (!TryConvertToWithBindingObject(objValue, context, out var withObject))
             {
                 return Symbol.Undefined;

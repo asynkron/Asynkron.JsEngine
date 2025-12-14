@@ -310,7 +310,7 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            return IsTruthy(test);
+            return test.IsTruthy;
         }
 
         private bool ExecutePostIteration(JsEnvironment environment, EvaluationContext context)

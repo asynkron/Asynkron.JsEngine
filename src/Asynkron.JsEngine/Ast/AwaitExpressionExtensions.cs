@@ -21,11 +21,13 @@ public static partial class TypedAstEvaluator
                 return generator.EvaluateAwaitInGenerator(expression, environment, context);
             }
 
-            var awaited = EvaluateExpression(expression.Expression, environment, context);
+            var awaitedValue = EvaluateExpression(expression.Expression, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return awaited;
+                return awaitedValue.ToObject();
             }
+
+            var awaited = awaitedValue.ToObject();
 
             // Always await asynchronously: wrap non-promises with Promise.resolve and drive through scheduler.
             if (awaited is not JsObject jsObj || !AwaitScheduler.IsPromiseLike(jsObj))

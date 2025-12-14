@@ -6,12 +6,13 @@ public static partial class TypedAstEvaluator
     {
         private object? EvaluateDestructuringAssignment(JsEnvironment environment, EvaluationContext context)
         {
-            var assignedValue = EvaluateExpression(expression.Value, environment, context);
+            var assignedValueJs = EvaluateExpression(expression.Value, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return assignedValue;
+                return assignedValueJs.ToObject();
             }
 
+            var assignedValue = assignedValueJs.ToObject();
             // Reuse the same binding machinery as variable declarations so nested
             // destructuring assignments behave consistently.
             AssignBindingTarget(expression.Target, assignedValue, environment, context);

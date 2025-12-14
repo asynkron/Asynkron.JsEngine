@@ -12,7 +12,7 @@ public static partial class TypedAstEvaluator
         {
             var reference = AssignmentReferenceResolver.Resolve(
                 new IdentifierExpression(expression.Source, expression.Target), environment, context,
-                EvaluateExpression);
+                (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
 
             if (expression.IsCompoundAssignment &&
                 TryEvaluateCompoundAssignmentValue(expression, expression.Value, reference, environment, context,
@@ -194,12 +194,13 @@ public static partial class TypedAstEvaluator
             ? context.EnterFunctionNameHint(assignment.Target)
             : null;
 
-        var value = EvaluateExpression(rhs, environment, context);
+        var jsValue = EvaluateExpression(rhs, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return value;
+            return jsValue.ToObject();
         }
 
+        var value = jsValue.ToObject();
         if (assignment is not null &&
             value is IFunctionNameTarget nameTarget &&
             IsAnonymousFunctionDefinitionNode(rhs) &&

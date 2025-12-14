@@ -337,34 +337,47 @@ public static partial class TypedAstEvaluator
             switch (name)
             {
                 case "call":
-                    value = new HostFunction((_, args) =>
+                    value = new HostFunction((thisValue, args) =>
                     {
                         var thisArg = args.GetArgument(0);
                         var callArgs = args.SliceFrom(1);
                         return callable.Invoke(callArgs, thisArg);
-                    });
+                    }, isConstructor: false);
                     return true;
 
                 case "apply":
-                    value = new HostFunction((_, args) =>
+                    value = new HostFunction((thisValue, args) =>
                     {
                         var thisArg = args.GetArgument(0);
-                        IReadOnlyList<object?> argList = args.Count > 1 && args[1] is JsArray jsArray
-                            ? jsArray.Items
-                            : ArgumentSlice.Empty;
+                        IReadOnlyList<JsValue> argList;
+                        if (args.Count > 1 && args[1].TryGetObject<JsArray>(out var jsArray))
+                        {
+                            // Convert object? array to JsValue array
+                            var items = jsArray.Items;
+                            var jsValues = new JsValue[items.Count];
+                            for (var i = 0; i < items.Count; i++)
+                            {
+                                jsValues[i] = JsValue.FromObject(items[i]);
+                            }
+                            argList = jsValues;
+                        }
+                        else
+                        {
+                            argList = ArgumentSlice.Empty;
+                        }
                         return callable.Invoke(argList, thisArg);
-                    });
+                    }, isConstructor: false);
                     return true;
 
                 case "bind":
-                    value = new HostFunction((_, args) =>
+                    value = new HostFunction((thisValue, args) =>
                     {
                         var boundThis = args.GetArgument(0);
                         var boundArgs = args.SliceFrom(1);
                         var targetIsConstructor = JsOps.IsConstructor(callable);
                         return HostFunction.CreateBoundFunction(callable, boundThis, boundArgs, targetIsConstructor,
                             _realmState);
-                    });
+                    }, isConstructor: false);
                     return true;
             }
 

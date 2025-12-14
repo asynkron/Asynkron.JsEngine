@@ -2907,8 +2907,7 @@ public sealed class JsEngine : IAsyncDisposable
                             if (moduleEnv.IsAsyncModule && exports.TryGetValue("default", out var defaultExport))
                             {
                                 var defaultExportValue = JsValue.FromObject(defaultExport);
-                                if (defaultExportValue.TryGetObject<JsObject>(out var defaultPromise) &&
-                                    JsPromise.TryGetInternalPromise(defaultPromise, out var promise))
+                                if (JsPromise.TryGetInternalPromise(defaultExportValue, out var promise))
                                 {
                                     moduleEnv.DefineExportPromiseBinding(defaultSymbol, promise, isLexical: false, isConst: false);
                                 }
@@ -4251,7 +4250,7 @@ public sealed class JsEngine : IAsyncDisposable
 
             try
             {
-                thenCallable.Invoke(new JsValue[] { new JsValue(onFulfilledFn), new JsValue(onRejectedFn) }, new JsValue(promiseObject));
+                thenCallable.Invoke(new JsValue[] { JsValue.FromObject(onFulfilledFn), JsValue.FromObject(onRejectedFn) }, JsValue.FromObject(promiseObject));
             }
             catch (ThrowSignal signal)
             {
@@ -4426,7 +4425,7 @@ public sealed class JsEngine : IAsyncDisposable
                 {
                     if (callExpr.Callee is MemberExpression memberAccess)
                     {
-                        thisValue = _engine.ExecuteTypedExpression(memberAccess.Target, env, isStrict);
+                        thisValue = JsValue.FromObject(_engine.ExecuteTypedExpression(memberAccess.Target, env, isStrict));
                         var propertyKey = memberAccess.Property is IdentifierExpression id
                             ? (object)id.Name
                             : _engine.ExecuteTypedExpression(memberAccess.Property, env, isStrict);
@@ -4436,7 +4435,7 @@ public sealed class JsEngine : IAsyncDisposable
                     }
                     else
                     {
-                        calleeValue = _engine.ExecuteTypedExpression(callExpr.Callee, env, isStrict);
+                        calleeValue = JsValue.FromObject(_engine.ExecuteTypedExpression(callExpr.Callee, env, isStrict));
                     }
 
                     if (!calleeValue.TryGetObject<IJsCallable>(out var callable))
@@ -4654,7 +4653,7 @@ public sealed class JsEngine : IAsyncDisposable
 
             try
             {
-                thenCallable.Invoke(new JsValue[] { new JsValue(onFulfilledFn), new JsValue(onRejectedFn) }, new JsValue(promiseObject));
+                thenCallable.Invoke(new JsValue[] { JsValue.FromObject(onFulfilledFn), JsValue.FromObject(onRejectedFn) }, JsValue.FromObject(promiseObject));
             }
             catch (ThrowSignal signal)
             {
@@ -4829,7 +4828,7 @@ public sealed class JsEngine : IAsyncDisposable
 
             try
             {
-                thenCallable.Invoke([new JsValue(onFulfilledFn), new JsValue(onRejectedFn)], new JsValue(promiseObject));
+                thenCallable.Invoke(new JsValue[] { JsValue.FromObject(onFulfilledFn), JsValue.FromObject(onRejectedFn) }, JsValue.FromObject(promiseObject));
             }
             catch (ThrowSignal signal)
             {

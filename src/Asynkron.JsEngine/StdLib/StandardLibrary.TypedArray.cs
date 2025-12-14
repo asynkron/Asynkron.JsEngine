@@ -1461,7 +1461,7 @@ public static partial class StandardLibrary
             throw ThrowTypeError("TypedArray.prototype.indexOf called on incompatible receiver", realm: realm);
         }
 
-        return TypedArrayBase.IndexOfInternal(typed, args);
+        return TypedArrayBase.IndexOfInternal(typed, args.Select(a => JsValue.FromObject(a)).ToList());
     }
 
     private static object? TypedArrayLastIndexOf(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
@@ -1471,7 +1471,7 @@ public static partial class StandardLibrary
             throw ThrowTypeError("TypedArray.prototype.lastIndexOf called on incompatible receiver", realm: realm);
         }
 
-        return TypedArrayBase.LastIndexOfInternal(typed, args);
+        return TypedArrayBase.LastIndexOfInternal(typed, args.Select(a => JsValue.FromObject(a)).ToList());
     }
 
     private static object? TypedArrayIncludes(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
@@ -1481,7 +1481,7 @@ public static partial class StandardLibrary
             throw ThrowTypeError("TypedArray.prototype.includes called on incompatible receiver", realm: realm);
         }
 
-        return TypedArrayBase.IncludesInternal(typed, args);
+        return TypedArrayBase.IncludesInternal(typed, args.Select(a => JsValue.FromObject(a)).ToList());
     }
 
     private static TypedArrayBase ValidateTypedArrayReceiver(object? thisValue, string methodName, RealmState? realm)

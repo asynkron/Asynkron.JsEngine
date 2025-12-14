@@ -137,7 +137,7 @@ public static partial class TypedAstEvaluator
     }
 
 
-    private static bool IsPromiseLike(object? candidate)
+    private static bool IsPromiseLike(JsValue candidate)
     {
         return AwaitScheduler.IsPromiseLike(candidate);
     }
@@ -170,7 +170,7 @@ public static partial class TypedAstEvaluator
     // It keeps async/await and async iteration usable for now but must be replaced by
     // a non-blocking, event-loop-integrated continuation model once the async IR
     // pipeline is in place.
-    private static bool TryAwaitPromise(object? candidate, EvaluationContext context, out object? resolvedValue)
+    private static bool TryAwaitPromise(JsValue candidate, EvaluationContext context, out JsValue resolvedValue)
     {
         return AwaitScheduler.TryAwaitPromiseSync(
             candidate,
@@ -392,7 +392,7 @@ public static partial class TypedAstEvaluator
     }
 
 
-    private static ImmutableArray<object?> FreezeArguments(ImmutableArray<object?>.Builder builder)
+    private static ImmutableArray<JsValue> FreezeArguments(ImmutableArray<JsValue>.Builder builder)
     {
         return builder.Count == builder.Capacity
             ? builder.MoveToImmutable()
@@ -411,7 +411,7 @@ public static partial class TypedAstEvaluator
 
         try
         {
-            return rejectCallable.Invoke([reason], promiseCtor);
+            return rejectCallable.Invoke([JsValue.FromObject(reason)], JsValue.FromObject(promiseCtor)).ToObject();
         }
         catch (ThrowSignal signal)
         {
@@ -437,7 +437,7 @@ public static partial class TypedAstEvaluator
 
         try
         {
-            return resolveCallable.Invoke([value], promiseCtor);
+            return resolveCallable.Invoke([JsValue.FromObject(value)], JsValue.FromObject(promiseCtor)).ToObject();
         }
         catch (ThrowSignal signal)
         {
@@ -447,9 +447,9 @@ public static partial class TypedAstEvaluator
 
 
     // SpreadElement runtime semantics (ECMA-262 §12.2.5.2) use GetIterator on the operand.
-    private static IEnumerable<object?> EnumerateSpread(object? value, EvaluationContext context)
+    private static IEnumerable<JsValue> EnumerateSpread(JsValue value, EvaluationContext context)
     {
-        if (!TryGetIteratorForDestructuring(value, context, out var iterator, out var enumerator))
+        if (!TryGetIteratorForDestructuring(value.ToObject(), context, out var iterator, out var enumerator))
         {
             if (context.ShouldStopEvaluation)
             {
@@ -465,8 +465,9 @@ public static partial class TypedAstEvaluator
         }
 
         var logger = context.RealmState?.Logger;
+        var valueObj = value.ToObject();
         logger?.LogInformation("EnumerateSpread start valueType={Type} hasIterator={HasIterator} hasEnumerator={HasEnum}",
-            value?.GetType().Name ?? "null",
+            valueObj?.GetType().Name ?? "null",
             iterator is not null,
             enumerator is not null);
         var iteratorRecord = new ArrayPatternIterator(iterator, enumerator);
@@ -495,8 +496,9 @@ public static partial class TypedAstEvaluator
 
                 if (index < 5 || index % 1000 == 0)
                 {
+                    var itemObj = item.ToObject();
                     logger?.LogInformation("EnumerateSpread yield index={Index} type={Type}", index,
-                        item?.GetType().Name ?? "null");
+                        itemObj?.GetType().Name ?? "null");
                 }
 
                 yield return item;
@@ -1093,8 +1095,8 @@ public static partial class TypedAstEvaluator
 
                 try
                 {
-                    var result = callable.Invoke([left], right);
-                    return JsOps.ToBoolean(result);
+                    var result = callable.Invoke([JsValue.FromObject(left)], JsValue.FromObject(right));
+                    return JsOps.ToBoolean(result.ToObject());
                 }
                 catch (ThrowSignal signal)
                 {
@@ -1284,9 +1286,9 @@ public static partial class TypedAstEvaluator
     }
 
     private static JsObject CreateGeneratorIteratorObject(
-        Func<IReadOnlyList<object?>, object?> next,
-        Func<IReadOnlyList<object?>, object?> @return,
-        Func<IReadOnlyList<object?>, object?> @throw,
+        Func<IReadOnlyList<JsValue>, JsValue> next,
+        Func<IReadOnlyList<JsValue>, JsValue> @return,
+        Func<IReadOnlyList<JsValue>, JsValue> @throw,
         JsObject? prototype)
     {
         var iterator = new JsObject();

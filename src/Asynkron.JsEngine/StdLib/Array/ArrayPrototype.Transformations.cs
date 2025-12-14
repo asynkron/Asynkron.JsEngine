@@ -10,19 +10,19 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class ArrayPrototype
 {
     [JsHostMethod("join", Length = 1d)]
-    public object? Join(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Join(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.join", realm);
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
         var length = (long)ToLengthOrZero(lengthValue);
 
         if (length == 0)
         {
-            return string.Empty;
+            return new JsValue(string.Empty);
         }
 
-        var separator = args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined)
+        var separator = args.Count == 0 || !args[0].HasValue || args[0].IsUndefined()
             ? ","
             : args[0].ToJsString();
 
@@ -38,39 +38,37 @@ public sealed partial class ArrayPrototype
             builder.Append(element.ToJsStringForArray());
         }
 
-        return builder.ToString();
+        return new JsValue(builder.ToString());
     }
 
     [JsHostMethod("toString", Length = 0d)]
-    public object? ToString(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var target = ToObjectPropertyAccessor(thisValue, "Array.prototype.toString", Realm);
 
         if (JsOps.TryGetPropertyValue(target, "join", out var joinValue) &&
-            joinValue is IJsCallable joinCallable)
+            joinValue.TryGetObject<IJsCallable>(out var joinCallable))
         {
-#pragma warning disable CS0618 // ToObject is obsolete but needed here for return value
-            return joinCallable.Invoke([], JsValue.FromObject(target)).ToObject();
-#pragma warning restore CS0618
+            return joinCallable.Invoke([], JsValue.FromObject(target));
         }
 
-        return InvokeDefaultObjectToString(target, Realm);
+        return JsValue.FromObject(InvokeDefaultObjectToString(target, Realm));
     }
 
     [JsHostMethod("includes", Length = 1d)]
-    public object? Includes(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Includes(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.includes", realm);
 
-        var searchElement = args.Count > 0 ? args[0] : Symbol.Undefined;
-        var fromIndexArg = args.Count > 1 ? args[1] : 0d;
+        var searchElement = args.Count > 0 ? args[0] : JsValue.FromObject(Symbol.Undefined);
+        var fromIndexArg = args.Count > 1 ? args[1] : JsValue.FromObject(0d);
         var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal) : 0d;
 
         var fromIndex = ToIntegerOrInfinity(fromIndexArg);
         if (double.IsPositiveInfinity(fromIndex))
         {
-            return false;
+            return new JsValue(false);
         }
 
         if (fromIndex < 0)
@@ -95,7 +93,7 @@ public sealed partial class ArrayPrototype
                 var val = jsArr.GetElement(idx);
                 if (SameValueZero(val, searchElement))
                 {
-                    return true;
+                    return new JsValue(true);
                 }
             }
         }
@@ -105,22 +103,22 @@ public sealed partial class ArrayPrototype
             {
                 if (TryGetExistingElement(accessor, i, out var value) && SameValueZero(value, searchElement))
                 {
-                    return true;
+                    return new JsValue(true);
                 }
             }
         }
 
-        return false;
+        return new JsValue(false);
     }
 
     [JsHostMethod("indexOf", Length = 1d)]
-    public object? IndexOf(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue IndexOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.indexOf", Realm);
 
         if (args.Count == 0)
         {
-            return -1d;
+            return new JsValue(-1d);
         }
 
         var searchElement = args[0];
@@ -130,7 +128,7 @@ public sealed partial class ArrayPrototype
 
         if (double.IsPositiveInfinity(fromIndex))
         {
-            return -1d;
+            return new JsValue(-1d);
         }
 
         if (fromIndex < 0)
@@ -149,20 +147,20 @@ public sealed partial class ArrayPrototype
         {
             if (TryGetExistingElement(accessor, i, out var value) && AreStrictlyEqual(value, searchElement))
             {
-                return (double)i;
+                return new JsValue((double)i);
             }
         }
 
-        return -1d;
+        return new JsValue(-1d);
     }
 
     [JsHostMethod("lastIndexOf", Length = 1d)]
-    public object? LastIndexOf(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue LastIndexOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.lastIndexOf", realm);
         var evalContext = realm?.CreateContext();
-        var searchElement = args.Count > 0 ? args[0] : Symbol.Undefined;
+        var searchElement = args.Count > 0 ? args[0] : JsValue.FromObject(Symbol.Undefined);
         if (accessor is TypedArrayBase typed)
         {
             // Align Array.prototype.lastIndexOf with TypedArray semantics.
@@ -172,7 +170,7 @@ public sealed partial class ArrayPrototype
         var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal, evalContext) : 0d;
         if (length <= 0)
         {
-            return -1d;
+            return new JsValue(-1d);
         }
 
         var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : length - 1;
@@ -181,7 +179,7 @@ public sealed partial class ArrayPrototype
         long startIndexGeneric;
         if (double.IsNegativeInfinity(fromIndex))
         {
-            return -1d;
+            return new JsValue(-1d);
         }
 
         if (double.IsPositiveInfinity(fromIndex))
@@ -197,7 +195,7 @@ public sealed partial class ArrayPrototype
             var candidate = lenLong + (long)Math.Ceiling(fromIndex);
             if (candidate < 0)
             {
-                return -1d;
+                return new JsValue(-1d);
             }
 
             startIndexGeneric = candidate;
@@ -207,37 +205,37 @@ public sealed partial class ArrayPrototype
         {
             if (TryGetExistingElement(accessor, i, out var value) && AreStrictlyEqual(value, searchElement))
             {
-                return (double)i;
+                return new JsValue((double)i);
             }
         }
 
-        return -1d;
+        return new JsValue(-1d);
     }
 
     [JsHostMethod("toLocaleString", Length = 0d)]
-    public object? ToLocaleString(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ToLocaleString(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toLocaleString", Realm);
 
-        var locales = args.Count > 0 ? args[0] : Symbol.Undefined;
-        var options = args.Count > 1 ? args[1] : Symbol.Undefined;
+        var locales = args.Count > 0 ? args[0] : JsValue.FromObject(Symbol.Undefined);
+        var options = args.Count > 1 ? args[1] : JsValue.FromObject(Symbol.Undefined);
         var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal) : 0d;
         var parts = new List<string>((int)length);
 
         for (var i = 0; i < length; i++)
         {
             if (!TryGetExistingElement(accessor, i, out var element) ||
-                element is null ||
-                ReferenceEquals(element, Symbol.Undefined))
+                !element.HasValue ||
+                element.IsUndefined())
             {
                 parts.Add(string.Empty);
                 continue;
             }
 
             string part;
-            if (element is IJsPropertyAccessor elementAccessor &&
+            if (element.TryGetObject<IJsPropertyAccessor>(out var elementAccessor) &&
                 elementAccessor.TryGetProperty("toLocaleString", out var method) &&
-                method is IJsCallable callable)
+                method.TryGetObject<IJsCallable>(out var callable))
             {
                 var result = callable.Invoke([locales, options], element);
                 part = JsOps.ToJsString(result);
@@ -250,15 +248,15 @@ public sealed partial class ArrayPrototype
             parts.Add(part);
         }
 
-        return string.Join(",", parts);
+        return new JsValue(string.Join(",", parts));
     }
 
     [JsHostMethod("slice", Length = 2d)]
-    public object? Slice(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Slice(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.slice", realm);
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
         var length = (long)ToLengthOrZero(lengthValue);
 
         var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0]) : 0;
@@ -276,14 +274,14 @@ public sealed partial class ArrayPrototype
         }
 
         SetArrayLikeLength(result, targetIndex);
-        return result;
+        return JsValue.FromObject(result);
     }
 
     [JsHostMethod("at", Length = 1d)]
-    public object? At(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue At(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var target = EnsureArrayLikeReceiver(thisValue, "Array.prototype.at", Realm);
-        var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
         var length = (long)ToLengthOrZero(lengthValue);
 
         var indexArg = args.GetArgument(0);
@@ -291,21 +289,21 @@ public sealed partial class ArrayPrototype
         var relativeIndex = ToIntegerOrInfinity(indexArg, numericContext);
         if (double.IsPositiveInfinity(relativeIndex) || double.IsNegativeInfinity(relativeIndex))
         {
-            return Symbol.Undefined;
+            return JsValue.FromObject(Symbol.Undefined);
         }
 
         var index = relativeIndex < 0 ? length + (long)relativeIndex : (long)relativeIndex;
 
         if (index < 0 || index >= length)
         {
-            return Symbol.Undefined;
+            return JsValue.FromObject(Symbol.Undefined);
         }
 
         return GetElementOrUndefined(target, ToIndexString(index));
     }
 
     [JsHostMethod("flat", Length = 0d)]
-    public object? Flat(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Flat(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.flat", realm);
@@ -323,40 +321,40 @@ public sealed partial class ArrayPrototype
         {
             depth = (long)depthNum;
         }
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
         var sourceLength = (long)ToLengthOrZero(lengthValue);
 
         var result = ArraySpeciesCreate(thisValue, 0, realm);
         var newLength = FlattenIntoArray(result, accessor, sourceLength, 0, depth, null, null, realm,
             "Array.prototype.flat");
         SetArrayLikeLength(result, newLength);
-        return result;
+        return JsValue.FromObject(result);
     }
 
     [JsHostMethod("flatMap", Length = 1d)]
-    public object? FlatMap(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue FlatMap(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.flatMap", Realm);
-        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
         {
             throw ThrowTypeError("Array.prototype.flatMap expects a callable mapper", realm: Realm);
         }
-        var thisArg = args.Count > 1 ? args[1] : Symbol.Undefined;
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var thisArg = args.Count > 1 ? args[1] : JsValue.FromObject(Symbol.Undefined);
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
         var sourceLength = (long)ToLengthOrZero(lengthValue);
         var result = ArraySpeciesCreate(thisValue, 0, Realm);
         var newLength = FlattenIntoArray(result, accessor, sourceLength, 0, 1, callback, thisArg, Realm,
             "Array.prototype.flatMap");
         SetArrayLikeLength(result, newLength);
-        return result;
+        return JsValue.FromObject(result);
     }
 
     [JsHostMethod("fill", Length = 1d)]
-    public object? Fill(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Fill(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
         var target = EnsureArrayLikeReceiver(thisValue, "Array.prototype.fill", realm);
-        var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
         var length = (long)ToLengthOrZero(lengthValue);
 
         var value = args.GetArgument(0);
@@ -370,15 +368,15 @@ public sealed partial class ArrayPrototype
             target.SetProperty(ToIndexString(k), value);
         }
 
-        return target;
+        return JsValue.FromObject(target);
     }
 
     [JsHostMethod("copyWithin", Length = 2d)]
-    public object? CopyWithin(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue CopyWithin(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         const string MethodName = "Array.prototype.copyWithin";
         var target = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
-        var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
         var length = (long)ToLengthOrZero(lengthValue);
 
         var toIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0]) : 0;
@@ -392,7 +390,7 @@ public sealed partial class ArrayPrototype
         var count = Math.Min(final - from, length - to);
         if (count <= 0)
         {
-            return target;
+            return JsValue.FromObject(target);
         }
 
         long direction = 1;
@@ -425,18 +423,18 @@ public sealed partial class ArrayPrototype
             to += direction;
         }
 
-        return target;
+        return JsValue.FromObject(target);
     }
 
     [JsHostMethod("toSorted", Length = 1d)]
-    public object? ToSorted(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ToSorted(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toSorted", realm);
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
         var length = (long)ToLengthOrZero(lengthValue);
 
-        var values = new List<object?>((int)Math.Min(length, int.MaxValue));
+        var values = new List<JsValue>((int)Math.Min(length, int.MaxValue));
         for (long k = 0; k < length; k++)
         {
             if (TryGetExistingElement(accessor, k, out var value))
@@ -445,11 +443,11 @@ public sealed partial class ArrayPrototype
             }
         }
 
-        if (args.Count > 0 && args[0].HasValue && args[0].Value.TryGetObject<IJsCallable>(out var compareFn))
+        if (args.Count > 0 && args[0].HasValue && args[0].TryGetObject<IJsCallable>(out var compareFn))
         {
             values.Sort((a, b) =>
             {
-                var cmp = compareFn.Invoke([JsValue.FromObject(a), JsValue.FromObject(b)], JsValue.Null);
+                var cmp = compareFn.Invoke([a, b], JsValue.Null);
                 if (!cmp.TryGetDouble(out var d))
                 {
                     return 0;
@@ -489,7 +487,7 @@ public sealed partial class ArrayPrototype
         }
 
         SetArrayLikeLength(result, length);
-        return result;
+        return JsValue.FromObject(result);
     }
 
     [JsHostMethod("toReversed", Length = 0d)]

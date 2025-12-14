@@ -284,8 +284,8 @@ internal static class JsOps
                 {
                     var result = TypedAstEvaluator.InvokeCallable(
                         toPrimFn,
-                        new object?[] { "number" },
-                        accessor,
+                        new JsValue[] { new JsValue("number") },
+                        JsValue.FromObject(accessor),
                         context,
                         accessor is JsObject obj ? obj.RealmState?.Engine?.GlobalEnvironment : null);
                     if (context?.IsThrow == true)
@@ -443,8 +443,8 @@ internal static class JsOps
                     };
                     var result = TypedAstEvaluator.InvokeCallable(
                         toPrimFn,
-                        [hintString],
-                        accessor,
+                        new JsValue[] { new JsValue(hintString) },
+                        JsValue.FromObject(accessor),
                         context,
                         accessor is JsObject obj ? obj.RealmState?.Engine?.GlobalEnvironment : null);
                     if (context?.IsThrow == true)
@@ -1136,7 +1136,7 @@ internal static class JsOps
 
         try
         {
-            result = TypedAstEvaluator.InvokeCallable(callable, Array.Empty<object?>(), accessor, context,
+            result = TypedAstEvaluator.InvokeCallable(callable, Array.Empty<JsValue>(), JsValue.FromObject(accessor), context,
                 accessor is JsObject obj ? obj.RealmState?.Engine?.GlobalEnvironment : null);
             return context?.IsThrow != true;
         }

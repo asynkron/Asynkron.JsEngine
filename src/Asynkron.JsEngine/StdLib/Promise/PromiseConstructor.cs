@@ -71,12 +71,12 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         try
         {
-            var executorArgs = new JsValue[] { new JsValue(resolve), new JsValue(reject) };
+            var executorArgs = new JsValue[] { JsValue.FromObject(resolve), JsValue.FromObject(reject) };
             executor.Invoke(executorArgs, JsValue.Undefined);
         }
         catch (Exception ex)
         {
-            promise.Reject(new JsValue(ex.Message));
+            promise.Reject(JsValue.FromObject(ex.Message));
         }
 
         return promise.JsObject;
@@ -84,15 +84,15 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
     private void AttachStatics(HostFunction constructor)
     {
-        constructor.SetHostedProperty("resolve", (thisValue, args, _) => PromiseResolve(JsValue.FromObject(thisValue), ConvertArgs(args)), Realm);
-        constructor.SetHostedProperty("reject", (thisValue, args, _) => PromiseReject(JsValue.FromObject(thisValue), ConvertArgs(args)), Realm);
-        constructor.SetHostedProperty("all", (thisValue, args, _) => PromiseAll(JsValue.FromObject(thisValue), ConvertArgs(args)), Realm);
-        constructor.SetHostedProperty("race", (thisValue, args, _) => PromiseRace(JsValue.FromObject(thisValue), ConvertArgs(args)), Realm);
-        constructor.SetHostedProperty("allSettled", (thisValue, args, _) => PromiseAllSettled(JsValue.FromObject(thisValue), ConvertArgs(args)), Realm);
-        constructor.SetHostedProperty("any", (thisValue, args, _) => PromiseAny(JsValue.FromObject(thisValue), ConvertArgs(args)), Realm);
+        constructor.SetHostedProperty("resolve", (thisValue, args, _) => PromiseResolve(JsValue.FromObject(thisValue), ConvertArgs(args)).ToObject(), Realm);
+        constructor.SetHostedProperty("reject", (thisValue, args, _) => PromiseReject(JsValue.FromObject(thisValue), ConvertArgs(args)).ToObject(), Realm);
+        constructor.SetHostedProperty("all", (thisValue, args, _) => PromiseAll(JsValue.FromObject(thisValue), ConvertArgs(args)).ToObject(), Realm);
+        constructor.SetHostedProperty("race", (thisValue, args, _) => PromiseRace(JsValue.FromObject(thisValue), ConvertArgs(args)).ToObject(), Realm);
+        constructor.SetHostedProperty("allSettled", (thisValue, args, _) => PromiseAllSettled(JsValue.FromObject(thisValue), ConvertArgs(args)).ToObject(), Realm);
+        constructor.SetHostedProperty("any", (thisValue, args, _) => PromiseAny(JsValue.FromObject(thisValue), ConvertArgs(args)).ToObject(), Realm);
     }
 
-    private static IReadOnlyList<JsValue> ConvertArgs(IReadOnlyList<JsValue> args)
+    private static IReadOnlyList<JsValue> ConvertArgs(IReadOnlyList<object?> args)
     {
         var result = new JsValue[args.Count];
         for (var i = 0; i < args.Count; i++)

@@ -22,7 +22,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext? context = null,
             JsEnvironment? callingEnvironment = null)
         {
-            var args = hasSendValue ? new[] { sendValue } : Array.Empty<object?>();
+            var args = hasSendValue ? new[] { sendValue } : Array.Empty<JsValue>();
             return InvokeCallable(nextMethod, args, iterator, context, callingEnvironment);
         }
 

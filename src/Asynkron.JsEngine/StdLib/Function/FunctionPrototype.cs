@@ -11,27 +11,27 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class FunctionPrototype : JsPrototype
 {
     [JsHostMethod("toString", Length = 0d)]
-    public object ToString(JsValue thisValue, IReadOnlyList<object?> _)
+    public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        return thisValue switch
+        if (thisValue.TryGetObject<IJsCallable>(out _))
         {
-            IJsCallable => "function() { [native code] }",
-            _ => "function undefined() { [native code] }"
-        };
+            return new JsValue("function() { [native code] }");
+        }
+        return new JsValue("function undefined() { [native code] }");
     }
 
     [JsHostMethod("valueOf", Length = 0d)]
-    public object? ValueOf(JsValue thisValue, IReadOnlyList<object?> _)
+    public JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         return thisValue;
     }
 
     [JsHostMethod("call", Length = 1d)]
-    public object? Call(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Call(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue is not IJsCallable target)
+        if (!thisValue.TryGetObject<IJsCallable>(out var target))
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
         var thisArg = args.GetArgument(0);
@@ -58,7 +58,7 @@ public sealed partial class FunctionPrototype : JsPrototype
         // ES spec requires "caller" and "arguments" to be "poison pill" accessors
         // on Function.prototype that throw TypeError when accessed.
         // See ECMA-262 AddRestrictedFunctionProperties
-        var thrower = new HostFunction((_, _) =>
+        var thrower = new HostFunction((JsValue _, IReadOnlyList<JsValue> _) =>
             throw ThrowTypeError("'caller' and 'arguments' are restricted function properties and cannot be accessed in this context.", realm: Realm), Realm,
             isConstructor: false);
         var poisonDescriptor = new PropertyDescriptor
@@ -72,21 +72,21 @@ public sealed partial class FunctionPrototype : JsPrototype
     private void AttachHasInstance()
     {
         var hasInstanceKey = SymbolKeys.GetHasInstance(Realm);
-        var hasInstance = new HostFunction((thisValue, args) =>
+        var hasInstance = new HostFunction((JsValue thisValue, IReadOnlyList<JsValue> args) =>
         {
-            if (thisValue is not IJsPropertyAccessor accessor)
+            if (!thisValue.TryGetObject<IJsPropertyAccessor>(out var accessor))
             {
                 throw ThrowTypeError("Function.prototype[@@hasInstance] called on non-object", realm: Realm);
             }
 
             var candidate = args.GetArgument(0);
-            if (candidate is not JsObject && candidate is not IJsObjectLike)
+            if (!candidate.TryGetObject<JsObject>(out _) && !candidate.TryGetObject<IJsObjectLike>(out _))
             {
-                return false;
+                return new JsValue(false);
             }
 
             if (!JsOps.TryGetPropertyValue(accessor, "prototype", out var protoVal) ||
-                protoVal is not IJsPropertyAccessor prototypeObject)
+                !protoVal.TryGetObject<IJsPropertyAccessor>(out var prototypeObject))
             {
                 throw ThrowTypeError("Function has non-object prototype in instanceof check", realm: Realm);
             }
@@ -96,13 +96,13 @@ public sealed partial class FunctionPrototype : JsPrototype
             {
                 if (ReferenceEquals(cursor, prototypeObject))
                 {
-                    return true;
+                    return new JsValue(true);
                 }
 
                 cursor = JsOps.GetPrototypePointer(cursor);
             }
 
-            return false;
+            return new JsValue(false);
         }, Realm, isConstructor: false);
 
         hasInstance.DefineProperty("name",

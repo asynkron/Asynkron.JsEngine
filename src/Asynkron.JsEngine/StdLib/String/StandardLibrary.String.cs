@@ -425,7 +425,7 @@ public static partial class StandardLibrary
             var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
-                return new JsValue(CreateArrayFromStrings([value], realmState ?? realm));
+                return JsValue.FromObject(CreateArrayFromStrings([value], realmState ?? realm));
             }
 
             var separatorValue = args[0];
@@ -444,7 +444,7 @@ public static partial class StandardLibrary
             if (separator is null or "")
             {
                 var chars = value.Select(c => c.ToString()).Take(limit).ToArray();
-                return new JsValue(CreateArrayFromStrings(chars, realmState ?? realm));
+                return JsValue.FromObject(CreateArrayFromStrings(chars, realmState ?? realm));
             }
 
             var parts = value.Split([separator], StringSplitOptions.None);
@@ -453,7 +453,7 @@ public static partial class StandardLibrary
                 parts = parts.Take(limit).ToArray();
             }
 
-            return new JsValue(CreateArrayFromStrings(parts, realmState ?? realm));
+            return JsValue.FromObject(CreateArrayFromStrings(parts, realmState ?? realm));
         }
 
         JsValue Replace(JsValue thisValue, IReadOnlyList<JsValue> args)

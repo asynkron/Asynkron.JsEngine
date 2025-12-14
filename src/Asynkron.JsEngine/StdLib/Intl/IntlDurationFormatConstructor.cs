@@ -12,7 +12,7 @@ public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototyp
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var localesArg = args.GetArgument(0);
-        var (_, resolvedLocale) = StandardLibrary.ResolveIntlLocales(localesArg, Realm);
+        var (_, resolvedLocale) = StandardLibrary.ResolveIntlLocales(localesArg.ToObject(), Realm);
         var instance = PrepareThisObject(thisValue);
         IntlDurationFormatPrototype.InitializeInternalSlots(instance, resolvedLocale);
         return new JsValue(instance);
@@ -21,21 +21,21 @@ public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototyp
     protected override void ConfigureConstructor(HostFunction constructor)
     {
         var supportedLocales = new HostFunction(
-            args => StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm),
+            args => new JsValue(StandardLibrary.ResolveSupportedLocales(args.GetArgument(0).ToObject(), args.GetArgument(1).ToObject(), Realm)),
             isConstructor: false);
 
         supportedLocales.DefineProperty("length",
-            new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { Value = new JsValue(1d), Writable = false, Enumerable = false, Configurable = true });
         supportedLocales.DefineProperty("name",
             new PropertyDescriptor
             {
-                Value = "supportedLocalesOf", Writable = false, Enumerable = false, Configurable = true
+                Value = new JsValue("supportedLocalesOf"), Writable = false, Enumerable = false, Configurable = true
             });
 
         constructor.DefineProperty("supportedLocalesOf",
             new PropertyDescriptor
             {
-                Value = supportedLocales, Writable = true, Enumerable = false, Configurable = true
+                Value = new JsValue(supportedLocales), Writable = true, Enumerable = false, Configurable = true
             });
 
         supportedLocales.SetPrototype(constructor.Prototype);

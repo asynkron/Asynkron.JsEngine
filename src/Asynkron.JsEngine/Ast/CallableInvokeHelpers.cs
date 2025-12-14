@@ -38,15 +38,9 @@ public static partial class TypedAstEvaluator
         }
         finally
         {
-            if (envAware is not null)
-            {
-                envAware.CallingJsEnvironment = previousEnvironment;
-            }
+            envAware?.CallingJsEnvironment = previousEnvironment;
 
-            if (contextAware is not null)
-            {
-                contextAware.CallingContext = null;
-            }
+            contextAware?.CallingContext = null;
         }
     }
 }

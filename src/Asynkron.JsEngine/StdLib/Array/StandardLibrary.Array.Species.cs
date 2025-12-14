@@ -18,7 +18,7 @@ public static partial class StandardLibrary
     internal static readonly string SymbolIsConcatSpreadableKey =
         SymbolKeys.IsConcatSpreadable;
 
-    internal static IJsObjectLike ArraySpeciesCreate(object? original, long length, RealmState? realm)
+    internal static IJsObjectLike ArraySpeciesCreate(JsValue original, long length, RealmState? realm)
     {
         length = Math.Max(length, 0);
 
@@ -39,7 +39,7 @@ public static partial class StandardLibrary
             return CreateDefaultArray();
         }
 
-        if (original is not IJsPropertyAccessor accessor)
+        if (!original.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
             return CreateDefaultArray();
         }
@@ -113,8 +113,8 @@ public static partial class StandardLibrary
             receiver.SetPrototype(proto);
         }
 
-        var constructed = callable.Invoke([(double)length], receiver);
-        if (constructed is IJsObjectLike objectLike)
+        var constructed = callable.Invoke([new JsValue((double)length)], new JsValue(receiver));
+        if (constructed.TryGetObject<IJsObjectLike>(out var objectLike))
         {
             return objectLike;
         }

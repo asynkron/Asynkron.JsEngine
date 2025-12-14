@@ -36,7 +36,7 @@ public static partial class TypedAstEvaluator
                     callable?.GetType().Name ?? "null");
                 result = InvokeCallable(
                     callable!,
-                    Array.Empty<object?>(),
+                    Array.Empty<JsValue>(),
                     thisArg,
                     context,
                     context.RealmState?.Engine?.GlobalEnvironment);

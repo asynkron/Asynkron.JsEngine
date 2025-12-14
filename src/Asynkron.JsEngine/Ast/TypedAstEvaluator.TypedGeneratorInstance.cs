@@ -11,7 +11,7 @@ public static partial class TypedAstEvaluator
 {
     private sealed class TypedGeneratorInstance
     {
-        private readonly IReadOnlyList<object?> _arguments;
+        private readonly IReadOnlyList<JsValue> _arguments;
         private readonly IJsCallable _callable;
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
@@ -27,7 +27,7 @@ public static partial class TypedAstEvaluator
         // Track yield slots that have already produced a value so re-running the body after a
         // nested suspension skips only those slots (per the generator resumption rules).
         private readonly HashSet<int> _consumedYieldIndices = new();
-        private readonly object? _thisValue;
+        private readonly JsValue _thisValue;
         private readonly Stack<TryFrame> _tryStack = new();
         // Track active with-scope slots for restoration after yield/resume
         private readonly Stack<Symbol> _activeWithScopes = new();
@@ -39,9 +39,9 @@ public static partial class TypedAstEvaluator
         private int _lastYieldIndex = -1;
 
         private Symbol? _pendingAwaitKey;
-        private object? _pendingPromise;
+        private JsValue _pendingPromise;
         private ResumePayloadKind _pendingResumeKind;
-        private object? _pendingResumeValue = Symbol.Undefined;
+        private JsValue _pendingResumeValue = JsValue.Undefined;
         private int _programCounter;
         private bool _privateScopesApplied;
         private GeneratorState _state = GeneratorState.Start;
@@ -49,7 +49,7 @@ public static partial class TypedAstEvaluator
         public TypedGeneratorInstance(
             FunctionExpression function,
             JsEnvironment closure,
-            IReadOnlyList<object?> arguments,
+            IReadOnlyList<JsValue> arguments,
             JsValue thisValue,
             IJsCallable callable,
             RealmState realmState,
@@ -87,11 +87,11 @@ public static partial class TypedAstEvaluator
             var prototype = ResolveGeneratorPrototype();
             var iterator = CreateGeneratorIteratorObject(
                 args => Next(args.GetArgument(0)),
-                args => Return(args.Count > 0 ? args[0] : null),
-                args => Throw(args.Count > 0 ? args[0] : null),
+                args => Return(args.Count > 0 ? args[0] : JsValue.Undefined),
+                args => Throw(args.Count > 0 ? args[0] : JsValue.Undefined),
                 prototype);
-            iterator.SetProperty(IteratorSymbolPropertyName, new HostFunction((_, _) => iterator));
-            iterator.SetProperty(GeneratorBrandPropertyName, GeneratorBrandMarker);
+            iterator.SetProperty(IteratorSymbolPropertyName, new JsValue(new HostFunction((_, _) => new JsValue(iterator))));
+            iterator.SetProperty(GeneratorBrandPropertyName, new JsValue(GeneratorBrandMarker));
             return iterator;
         }
 
@@ -100,17 +100,17 @@ public static partial class TypedAstEvaluator
             EnsureExecutionEnvironment();
         }
 
-        private object? Next(object? value)
+        private JsValue Next(JsValue value)
         {
             return ExecutePlan(ResumeMode.Next, value);
         }
 
-        private object? Return(object? value)
+        private JsValue Return(JsValue value)
         {
             return ExecutePlan(ResumeMode.Return, value);
         }
 
-        private object? Throw(object? error)
+        private JsValue Throw(JsValue error)
         {
             return ExecutePlan(ResumeMode.Throw, error);
         }
@@ -123,7 +123,7 @@ public static partial class TypedAstEvaluator
             // 3. Otherwise, fall back to %GeneratorPrototype% (the intrinsic default)
             if (_callable is IJsPropertyAccessor accessor &&
                 accessor.TryGetProperty("prototype", out var protoValue) &&
-                protoValue is JsObject prototypeObject)
+                protoValue.TryGetObject<JsObject>(out var prototypeObject))
             {
                 return prototypeObject;
             }
@@ -132,7 +132,7 @@ public static partial class TypedAstEvaluator
             return _realmState.GeneratorPrototype ?? _realmState.ObjectPrototype;
         }
 
-        internal AsyncGeneratorStepResult ExecuteAsyncStep(ResumeMode mode, object? resumeValue)
+        internal AsyncGeneratorStepResult ExecuteAsyncStep(ResumeMode mode, JsValue resumeValue)
         {
             // Reuse the existing ExecutePlan logic but translate its iterator
             // result / exceptions into a structured step result that async
@@ -141,38 +141,38 @@ public static partial class TypedAstEvaluator
             // pending Promises instead of blocking.
             var previousAsyncStepMode = _asyncStepMode;
             _asyncStepMode = true;
-            _pendingPromise = null;
+            _pendingPromise = JsValue.Undefined;
 
             try
             {
                 var result = ExecutePlan(mode, resumeValue);
 
-                if (_pendingPromise is JsObject pending)
+                if (_pendingPromise.TryGetObject<JsObject>(out var pending))
                 {
-                    return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, Symbol.Undefined, false,
-                        pending);
+                    return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, JsValue.Undefined, false,
+                        new JsValue(pending));
                 }
 
-                if (result is JsObject obj &&
+                if (result.TryGetObject<JsObject>(out var obj) &&
                     obj.TryGetProperty("done", out var doneRaw) &&
-                    doneRaw is bool done &&
+                    doneRaw.TryGetObject<bool>(out var done) &&
                     obj.TryGetProperty("value", out var value))
                 {
                     return done
-                        ? new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Completed, value, true, null)
-                        : new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Yield, value, false, null);
+                        ? new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Completed, value, true, JsValue.Undefined)
+                        : new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Yield, value, false, JsValue.Undefined);
                 }
 
                 // If the plan completed without producing a well-formed iterator
                 // result, treat it as a completed step with undefined.
-                return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Completed, Symbol.Undefined, true, null);
+                return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Completed, JsValue.Undefined, true, JsValue.Undefined);
             }
             catch (PendingAwaitException)
             {
-                if (_pendingPromise is JsObject pending)
+                if (_pendingPromise.TryGetObject<JsObject>(out var pending))
                 {
-                    return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, Symbol.Undefined, false,
-                        pending);
+                    return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, JsValue.Undefined, false,
+                        new JsValue(pending));
                 }
 
                 throw new InvalidOperationException("Async generator awaited a non-promise value.");
@@ -180,7 +180,7 @@ public static partial class TypedAstEvaluator
             finally
             {
                 _asyncStepMode = previousAsyncStepMode;
-                _pendingPromise = null;
+                _pendingPromise = JsValue.Undefined;
             }
         }
 
@@ -252,43 +252,42 @@ public static partial class TypedAstEvaluator
                 ScopeKind.Function,
                 DetermineGeneratorScopeMode());
 
-            object? boundThis = _thisValue;
+            JsValue boundThis = _thisValue;
             if (!_isStrict)
             {
-                if (boundThis is null || ReferenceEquals(boundThis, Symbol.Undefined))
+                if (boundThis.IsNullish)
                 {
-                    boundThis = _realmState.Engine?.GlobalObject;
-                    boundThis ??= Symbol.Undefined;
+                    boundThis = _realmState.Engine?.GlobalObject is { } go ? new JsValue(go) : JsValue.Undefined;
                 }
 
-                if (boundThis is null)
+                if (boundThis.IsNull)
                 {
-                    boundThis = new JsObject
+                    boundThis = new JsValue(new JsObject
                     {
                         RealmState = _realmState
-                    };
+                    });
                 }
-                else if (boundThis is not IJsPropertyAccessor &&
-                         !IsNullish(boundThis) &&
-                         boundThis is not IIsHtmlDda)
+                else if (!boundThis.TryGetObject<IJsPropertyAccessor>(out _) &&
+                         !boundThis.IsNullish &&
+                         !boundThis.TryGetObject<IIsHtmlDda>(out _))
                 {
-                    boundThis = ToObjectForDestructuring(boundThis, generatorContext);
+                    boundThis = new JsValue(ToObjectForDestructuring(boundThis.ToObject(), generatorContext));
                 }
             }
 
-            functionEnvironment.Define(Symbol.This, boundThis);
+            functionEnvironment.Define(Symbol.This, boundThis.ToObject());
             functionEnvironment.Define(Symbol.YieldResumeContextSymbol, _resumeContext);
             functionEnvironment.Define(Symbol.GeneratorInstanceSymbol, this);
 
             var superPrototype = _homeObject?.Prototype;
-            if (superPrototype is null && boundThis is JsObject thisObj)
+            if (superPrototype is null && boundThis.TryGetObject<JsObject>(out var thisObj))
             {
                 superPrototype = thisObj.Prototype;
             }
 
             if (superPrototype is not null)
             {
-                var superBinding = new SuperBinding(null, superPrototype, boundThis, true);
+                var superBinding = new SuperBinding(null, superPrototype, boundThis.ToObject(), true);
                 functionEnvironment.Define(Symbol.Super, superBinding);
             }
 
@@ -327,20 +326,20 @@ public static partial class TypedAstEvaluator
             return executionEnvironment;
         }
 
-        private static JsObject CreateIteratorResult(object? value, bool done)
+        private static JsObject CreateIteratorResult(JsValue value, bool done)
         {
             var result = new JsObject();
             result.SetProperty("value", value);
-            result.SetProperty("done", done);
+            result.SetProperty("done", new JsValue(done));
             return result;
         }
 
         private static IteratorDriverState CreateIteratorDriverState(
-            object? iterable,
+            JsValue iterable,
             IteratorDriverKind kind,
             EvaluationContext context)
         {
-            var iteratorTarget = NormalizeIterableTarget(iterable, context);
+            var iteratorTarget = NormalizeIterableTarget(iterable.ToObject(), context);
 
             if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
             {
@@ -381,7 +380,7 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        private object? ExecutePlan(ResumeMode mode, object? resumeValue)
+        private JsValue ExecutePlan(ResumeMode mode, JsValue resumeValue)
         {
             if (_plan is null)
             {

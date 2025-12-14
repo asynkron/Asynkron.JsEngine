@@ -32,14 +32,24 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
         constructor.SetInvokeWithContext((args, thisArg, _, newTarget) =>
         {
             var targetCtor = _constructor ?? constructor;
-            var effectiveNewTarget = newTarget as IJsCallable ?? targetCtor;
-            return ConstructRegExp(args, effectiveNewTarget, targetCtor, thisArg as JsObject);
+            IJsCallable effectiveNewTarget;
+            if (newTarget.TryGetObject<IJsCallable>(out var callable))
+            {
+                effectiveNewTarget = callable;
+            }
+            else
+            {
+                effectiveNewTarget = targetCtor;
+            }
+            JsObject? thisObj = null;
+            thisArg.TryGetObject<JsObject>(out thisObj);
+            return ConstructRegExp(args, effectiveNewTarget, targetCtor, thisObj);
         });
 
         DefineLegacyRegExpAccessors(constructor, Realm);
     }
 
-    private object ConstructRegExp(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor,
+    private JsValue ConstructRegExp(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor,
         JsObject? thisArg)
     {
         var provided = thisArg is JsObject jsObj &&
@@ -47,7 +57,7 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
             ? jsObj
             : null;
         var instance = PrepareTargetInstance(provided, newTarget, targetCtor);
-        return InitializeRegExp(args, instance);
+        return JsValue.FromObject(InitializeRegExp(args, instance));
     }
 
     private JsObject PrepareTargetInstance(JsObject? provided, IJsCallable newTarget, IJsCallable targetCtor)

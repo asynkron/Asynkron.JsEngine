@@ -11,17 +11,17 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment,
             EvaluationContext context)
         {
-            object? thisArg = Symbol.Undefined;
+            var thisArg = JsValue.Undefined;
             if (callArguments.Length > 0)
             {
-                thisArg = EvaluateExpression(callArguments[0].Expression, environment, context).ToObject();
+                thisArg = EvaluateExpression(callArguments[0].Expression, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return Symbol.Undefined;
                 }
             }
 
-            var argsBuilder = ImmutableArray.CreateBuilder<object?>();
+            var argsBuilder = ImmutableArray.CreateBuilder<JsValue>();
             if (callArguments.Length > 1)
             {
                 var argsArrayJs = EvaluateExpression(callArguments[1].Expression, environment, context);
@@ -30,7 +30,7 @@ public static partial class TypedAstEvaluator
                     return Symbol.Undefined;
                 }
 
-                foreach (var item in EnumerateSpread(argsArrayJs.ToObject(), context))
+                foreach (var item in EnumerateSpread(argsArrayJs, context))
                 {
                     argsBuilder.Add(item);
                 }
@@ -60,7 +60,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext context)
         {
             object? thisArg = Symbol.Undefined;
-            var argsBuilder = ImmutableArray.CreateBuilder<object?>();
+            var argsBuilder = ImmutableArray.CreateBuilder<JsValue?>();
 
             for (var i = 0; i < callArguments.Length; i++)
             {

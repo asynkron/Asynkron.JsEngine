@@ -6,8 +6,8 @@ public static partial class TypedAstEvaluator
 {
     internal static object? InvokeCallable(
         IJsCallable callable,
-        IReadOnlyList<object?> arguments,
-        object? thisValue,
+        IReadOnlyList<JsValue> arguments,
+        JsValue thisValue,
         EvaluationContext? callingContext,
         JsEnvironment? callingEnvironment = null)
     {
@@ -31,9 +31,9 @@ public static partial class TypedAstEvaluator
         {
             return callable switch
             {
-                TypedFunction typedFunction => typedFunction.InvokeWithContext(arguments, thisValue, callingContext),
-                HostFunction hostFunction => hostFunction.InvokeWithContext(arguments, thisValue, callingContext),
-                _ => callable.Invoke(arguments, thisValue)
+                TypedFunction typedFunction => typedFunction.InvokeWithContext(arguments, thisValue, callingContext).ToObject(),
+                HostFunction hostFunction => hostFunction.InvokeWithContext(arguments, thisValue, callingContext).ToObject(),
+                _ => callable.Invoke(arguments, thisValue).ToObject()
             };
         }
         finally

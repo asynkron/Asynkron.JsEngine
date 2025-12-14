@@ -10,16 +10,16 @@ public sealed partial class BooleanConstructor(IJsObjectLike prototype, RealmSta
 {
     private HostFunction? _constructor;
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue is JsObject { IsConstructing: true } constructing)
+        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true } constructing)
         {
             ApplyPrototype(constructing, _constructor ?? ConstructFallback);
             InitializeBooleanWrapper(constructing, args);
-            return constructing;
+            return new JsValue(constructing);
         }
 
-        return JsOps.ToBoolean(args.GetArgument(0));
+        return new JsValue(JsOps.ToBoolean(args.GetArgument(0)));
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -47,7 +47,7 @@ public sealed partial class BooleanConstructor(IJsObjectLike prototype, RealmSta
             ResolveConstructPrototype(newTarget, targetCtor, Realm) ??
             Prototype;
 
-        var instance = PrepareThisObject(null, assignPrototype: false);
+        var instance = PrepareThisObject(JsValue.Undefined, assignPrototype: false);
         if (resolvedProto is not null && instance.Prototype is null)
         {
             instance.SetPrototype(resolvedProto);
@@ -57,7 +57,7 @@ public sealed partial class BooleanConstructor(IJsObjectLike prototype, RealmSta
         return instance;
     }
 
-    private void InitializeBooleanWrapper(JsObject wrapper, IReadOnlyList<object?> args)
+    private void InitializeBooleanWrapper(JsObject wrapper, IReadOnlyList<JsValue> args)
     {
         var value = JsOps.ToBoolean(args.GetArgument(0));
         wrapper.SetProperty("__value__", value);

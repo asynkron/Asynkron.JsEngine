@@ -135,7 +135,7 @@ public static partial class TypedAstEvaluator
                         return;
                     }
 
-                    descriptor.Set.Invoke([value], target);
+                    descriptor.Set.Invoke([JsValue.FromObject(value)], JsValue.FromObject(target));
                     return;
                 }
 
@@ -262,7 +262,7 @@ public static partial class TypedAstEvaluator
             {
                 if (ownDescriptor.Set is not null)
                 {
-                    InvokeCallable(ownDescriptor.Set, [value], receiver, context);
+                    InvokeCallable(ownDescriptor.Set, [JsValue.FromObject(value)], JsValue.FromObject(receiver), context);
                     return true;
                 }
                 // Accessor with only getter - [[Set]] returns false
@@ -307,7 +307,7 @@ public static partial class TypedAstEvaluator
                 {
                     if (inheritedDescriptor.Set is not null)
                     {
-                        InvokeCallable(inheritedDescriptor.Set, [value], receiver, context);
+                        InvokeCallable(inheritedDescriptor.Set, [JsValue.FromObject(value)], JsValue.FromObject(receiver), context);
                         return true;
                     }
                     // Accessor with only getter - [[Set]] returns false

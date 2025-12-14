@@ -30,7 +30,9 @@ public sealed class SuperBinding(
             {
                 if (descriptor.Get is IJsCallable getter)
                 {
-                    value = getter.Invoke([], ThisValue);
+                    var thisValueJs = JsValue.FromObject(ThisValue);
+                    var result = getter.Invoke([], thisValueJs);
+                    value = result.ToObject();
                     return true;
                 }
 
@@ -60,7 +62,9 @@ public sealed class SuperBinding(
             {
                 if (descriptor.Get is IJsCallable getter)
                 {
-                    value = getter.Invoke([], ThisValue);
+                    var thisValueJs = JsValue.FromObject(ThisValue);
+                    var result = getter.Invoke([], thisValueJs);
+                    value = result.ToObject();
                     return true;
                 }
 
@@ -96,13 +100,16 @@ public sealed class SuperBinding(
     {
         usedSetter = false;
 
+        var valueJs = JsValue.FromObject(value);
+        var thisValueJs = JsValue.FromObject(ThisValue);
+
         // First, check for a setter in the super prototype chain
         if (Prototype is IJsObjectLike objectLike)
         {
             var descriptor = objectLike.GetOwnPropertyDescriptor(name);
             if (descriptor?.Set is IJsCallable setter)
             {
-                setter.Invoke([value], ThisValue);
+                setter.Invoke([valueJs], thisValueJs);
                 usedSetter = true;
                 return true;
             }
@@ -113,7 +120,7 @@ public sealed class SuperBinding(
             var descriptor = ctorObject.GetOwnPropertyDescriptor(name);
             if (descriptor?.Set is IJsCallable setter)
             {
-                setter.Invoke([value], ThisValue);
+                setter.Invoke([valueJs], thisValueJs);
                 usedSetter = true;
                 return true;
             }

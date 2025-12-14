@@ -12,11 +12,11 @@ public sealed partial class ArrayConstructor : JsConstructor
     {
     }
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var array = AllocateArrayInstance(thisValue);
         InitializeArrayLength(array, args);
-        return array;
+        return new JsValue(array);
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -48,15 +48,15 @@ public sealed partial class ArrayConstructor : JsConstructor
         AttachSpeciesGetter(constructor);
     }
 
-    private JsArray AllocateArrayInstance(object? thisValue)
+    private JsArray AllocateArrayInstance(JsValue thisValue)
     {
-        if (thisValue is JsArray providedArray)
+        if (thisValue.IsObject && thisValue.AsObject() is JsArray providedArray)
         {
             return providedArray;
         }
 
         var instance = new JsArray(Realm);
-        if (thisValue is JsObject { Prototype: JsObject providedProto })
+        if (thisValue.IsObject && thisValue.AsObject() is JsObject { Prototype: JsObject providedProto })
         {
             instance.SetPrototype(providedProto);
         }
@@ -83,7 +83,7 @@ public sealed partial class ArrayConstructor : JsConstructor
         };
     }
 
-    private void InitializeArrayLength(JsArray array, IReadOnlyList<object?> args)
+    private void InitializeArrayLength(JsArray array, IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -120,9 +120,9 @@ public sealed partial class ArrayConstructor : JsConstructor
         }
     }
 
-    private static bool IsNumericPrimitive(object? value)
+    private static bool IsNumericPrimitive(JsValue value)
     {
-        return value is double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte;
+        return value.Type == JsValueType.Number;
     }
 
     private void AttachIsArray(HostFunction constructor)

@@ -9,13 +9,13 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototype, RealmState realm)
     : JsConstructor(prototype, realm)
 {
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var localesArg = args.GetArgument(0);
         var (_, resolvedLocale) = StandardLibrary.ResolveIntlLocales(localesArg, Realm);
         var instance = PrepareThisObject(thisValue);
         IntlDurationFormatPrototype.InitializeInternalSlots(instance, resolvedLocale);
-        return instance;
+        return new JsValue(instance);
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)

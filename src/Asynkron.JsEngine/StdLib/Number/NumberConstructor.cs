@@ -11,21 +11,21 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
 {
     private HostFunction? _constructor;
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue is JsObject { IsConstructing: true } constructing)
+        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true } constructing)
         {
             ApplyPrototype(constructing, _constructor ?? ConstructFallback);
             InitializeNumberWrapper(constructing, args);
-            return constructing;
+            return new JsValue(constructing);
         }
 
         if (args.Count == 0)
         {
-            return 0d;
+            return new JsValue(0d);
         }
 
-        return JsOps.ToNumber(args.GetArgument(0));
+        return new JsValue(JsOps.ToNumber(args.GetArgument(0)));
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -52,7 +52,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
     private object ConstructWithNewTarget(IReadOnlyList<object?> args, IJsCallable newTarget, IJsCallable targetCtor)
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
-        var instance = PrepareThisObject(null, assignPrototype: false);
+        var instance = PrepareThisObject(JsValue.Undefined, assignPrototype: false);
         if (proto is not null && instance.Prototype is null)
         {
             instance.SetPrototype(proto);
@@ -62,7 +62,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
         return instance;
     }
 
-    private void InitializeNumberWrapper(JsObject wrapper, IReadOnlyList<object?> args)
+    private void InitializeNumberWrapper(JsObject wrapper, IReadOnlyList<JsValue> args)
     {
         var result = args.Count == 0 ? 0d : JsOps.ToNumber(args.GetArgument(0));
         wrapper.SetProperty("__value__", result);

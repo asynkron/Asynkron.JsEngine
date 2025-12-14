@@ -10,12 +10,12 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 {
     private HostFunction? _constructor;
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue is JsObject { IsConstructing: true })
+        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true })
         {
             var target = _constructor ?? ConstructFallback;
-            return ConstructPromise(args, target, target);
+            return new JsValue(ConstructPromise(args, target, target));
         }
 
         throw ThrowTypeError("Constructor Promise requires 'new'", realm: Realm);
@@ -41,9 +41,9 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         AttachStatics(constructor);
     }
 
-    private object ConstructPromise(IReadOnlyList<object?> args, IJsCallable newTarget, IJsCallable targetCtor)
+    private object ConstructPromise(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
     {
-        if (args.Count == 0 || args[0] is not IJsCallable executor)
+        if (args.Count == 0 || !args[0].IsObject || args[0].AsObject() is not IJsCallable executor)
         {
             throw ThrowTypeError("Promise constructor requires an executor function", realm: Realm);
         }

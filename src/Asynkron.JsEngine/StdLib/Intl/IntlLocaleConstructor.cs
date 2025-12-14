@@ -46,7 +46,7 @@ public sealed partial class IntlLocaleConstructor : JsConstructor
         DefineInternalSlot(target, IntlLocalePrototype.TextDirectionSlot, "ltr");
     }
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var instance = PrepareThisObject(thisValue);
         var tagValue = args.GetArgument(0);
@@ -62,7 +62,7 @@ public sealed partial class IntlLocaleConstructor : JsConstructor
             ApplyOptions(instance, options);
         }
 
-        return instance;
+        return new JsValue(instance);
     }
 
     private void ApplyOptions(JsObject locale, IJsPropertyAccessor options)
@@ -213,7 +213,7 @@ public sealed partial class IntlLocaleConstructor : JsConstructor
 
     private bool TryGetStringOption(IJsPropertyAccessor options, string property, out string value)
     {
-        if (!options.TryGetProperty(property, out var raw) || ReferenceEquals(raw, Symbol.Undefined))
+        if (!options.TryGetProperty(property, out var raw) || raw.IsUndefined)
         {
             value = string.Empty;
             return false;
@@ -225,7 +225,7 @@ public sealed partial class IntlLocaleConstructor : JsConstructor
 
     private static bool TryGetBooleanOption(IJsPropertyAccessor options, string property, out bool value)
     {
-        if (!options.TryGetProperty(property, out var raw) || ReferenceEquals(raw, Symbol.Undefined))
+        if (!options.TryGetProperty(property, out var raw) || raw.IsUndefined)
         {
             value = false;
             return false;
@@ -250,7 +250,7 @@ public sealed partial class IntlLocaleConstructor : JsConstructor
     private bool TryGetFirstDayOfWeekOption(IJsPropertyAccessor options, out string value)
     {
         value = string.Empty;
-        if (!options.TryGetProperty("firstDayOfWeek", out var raw) || ReferenceEquals(raw, Symbol.Undefined))
+        if (!options.TryGetProperty("firstDayOfWeek", out var raw) || raw.IsUndefined)
         {
             return false;
         }

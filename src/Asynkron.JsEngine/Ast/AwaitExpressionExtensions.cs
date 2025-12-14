@@ -27,20 +27,21 @@ public static partial class TypedAstEvaluator
                 return awaitedValue;
             }
 
-            var awaited = awaitedValue.ToObject();
-
             // Always await asynchronously: wrap non-promises with Promise.resolve and drive through scheduler.
-            if (awaited is not JsObject jsObj || !AwaitScheduler.IsPromiseLike(jsObj))
+            if (!awaitedValue.IsObject || !AwaitScheduler.IsPromiseLike(awaitedValue))
             {
                 var promiseCtor = context.RealmState.PromiseConstructor;
                 JsObject? wrappedPromise = null;
 
                 if (promiseCtor is IJsPropertyAccessor accessor &&
                     accessor.TryGetProperty("resolve", out var resolveValue) &&
-                    resolveValue is IJsCallable resolveCallable &&
-                    resolveCallable.Invoke([awaited], promiseCtor as object) is JsObject resolvedPromise)
+                    resolveValue is IJsCallable resolveCallable)
                 {
-                    wrappedPromise = resolvedPromise;
+                    var resolveResult = resolveCallable.Invoke([awaitedValue], JsValue.FromObject(promiseCtor));
+                    if (resolveResult.IsObject)
+                    {
+                        wrappedPromise = resolveResult.AsObject();
+                    }
                 }
 
                 if (wrappedPromise is null)
@@ -48,23 +49,23 @@ public static partial class TypedAstEvaluator
                     // Fallback: create a resolved promise in the current realm.
                     var engine = context.RealmState.Engine;
                     var promise = engine?.CreateRealmPromise();
-                    promise?.Resolve(awaited);
+                    promise?.Resolve(awaitedValue.ToObject());
                     wrappedPromise = promise?.JsObject;
                 }
 
-                awaited = wrappedPromise ?? awaited;
+                awaitedValue = wrappedPromise is not null ? new JsValue(wrappedPromise) : awaitedValue;
             }
 
             if (!AwaitScheduler.TryAwaitPromiseSync(
-                    awaited,
+                    awaitedValue,
                     context,
                     out var resolvedValue,
                     context.DrainAwaitMicrotasks))
             {
-                return JsValue.FromObject(resolvedValue);
+                return resolvedValue;
             }
 
-            return JsValue.FromObject(resolvedValue);
+            return resolvedValue;
         }
 
         private Symbol? GetAwaitStateKey()

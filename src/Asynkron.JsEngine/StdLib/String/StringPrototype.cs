@@ -9,28 +9,28 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class StringPrototype : JsPrototype
 {
     [JsHostMethod("toString", Length = 0d)]
-    public object? ToString(object? thisValue, IReadOnlyList<object?> _)
+    public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        return RequireStringReceiver(thisValue, Realm);
+        return RequireStringReceiver(thisValue.ToObject(), Realm);
     }
 
     [JsHostMethod("valueOf", Length = 0d)]
-    public object? ValueOf(object? thisValue, IReadOnlyList<object?> _)
+    public JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        return RequireStringReceiver(thisValue, Realm);
+        return RequireStringReceiver(thisValue.ToObject(), Realm);
     }
 
     [JsHostMethod("parseJSON", Length = 1d)]
-    public object? ParseJson(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue ParseJson(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var context = Realm.CreateContext();
-        var source = JsOps.ToJsString(thisValue, context);
+        var source = JsOps.ToJsString(thisValue.ToObject(), context);
         if (context.IsThrow)
         {
             throw new ThrowSignal(context.FlowValue);
         }
 
-        var reviver = args.Count > 0 ? args[0] : null;
+        var reviver = args.Count > 0 ? args[0].ToObject() : JsValue.Undefined.ToObject();
         return ParseJsonWithReviver(source, Realm, context, reviver);
     }
 

@@ -11,16 +11,16 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 {
     private HostFunction? _constructor;
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var targetCtor = _constructor ?? ConstructFallback;
-        if (thisValue is JsObject { IsConstructing: true } constructing)
+        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true } constructing)
         {
             ApplyPrototype(constructing, targetCtor);
-            return ConstructCore(args, targetCtor, constructing);
+            return new JsValue(ConstructCore(args, targetCtor, constructing));
         }
 
-        return ConstructCore(args, targetCtor, null);
+        return new JsValue(ConstructCore(args, targetCtor, null));
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -39,31 +39,47 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         AttachPrototypeShortcut(constructor);
     }
 
-    private object ConstructCore(IReadOnlyList<object?> args, IJsCallable newTarget, JsObject? existing)
+    private object ConstructCore(IReadOnlyList<JsValue> args, IJsCallable newTarget, JsObject? existing)
     {
-        if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
+        if (args.Count == 0 || args[0].IsUndefined || args[0].IsNull)
         {
             return CreateBlank(newTarget, existing);
         }
 
         var value = args[0];
-        return value switch
+
+        if (value.Type == JsValueType.Symbol && value.AsSymbol() is TypedAstSymbol sym)
         {
-            TypedAstSymbol sym => CreateSymbolWrapper(sym, realm: Realm),
-            JsBigInt bigInt => CreateBigIntWrapper(bigInt, realm: Realm),
-            bool b => CreateBooleanWrapper(b, realm: Realm),
-            string s => CreateStringWrapper(s, realm: Realm),
-            double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte =>
-                CreateNumberWrapper(JsOps.ToNumber(value), realm: Realm),
-            IJsPropertyAccessor accessor => accessor,
-            _ => CreateBlank(newTarget, existing)
-        };
+            return CreateSymbolWrapper(sym, realm: Realm);
+        }
+        if (value.Type == JsValueType.BigInt && value.AsBigInt() is JsBigInt bigInt)
+        {
+            return CreateBigIntWrapper(bigInt, realm: Realm);
+        }
+        if (value.Type == JsValueType.Boolean)
+        {
+            return CreateBooleanWrapper(value.AsBoolean(), realm: Realm);
+        }
+        if (value.Type == JsValueType.String)
+        {
+            return CreateStringWrapper(value.AsString(), realm: Realm);
+        }
+        if (value.Type == JsValueType.Number)
+        {
+            return CreateNumberWrapper(value.AsNumber(), realm: Realm);
+        }
+        if (value.IsObject && value.AsObject() is IJsPropertyAccessor accessor)
+        {
+            return accessor;
+        }
+
+        return CreateBlank(newTarget, existing);
     }
 
     private JsObject CreateBlank(IJsCallable newTarget, JsObject? existing)
     {
         var targetCtor = _constructor ?? newTarget;
-        var obj = existing ?? PrepareThisObject(null, assignPrototype: false);
+        var obj = existing ?? PrepareThisObject(JsValue.Undefined, assignPrototype: false);
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
         if (proto is not null && obj.Prototype is null)
         {

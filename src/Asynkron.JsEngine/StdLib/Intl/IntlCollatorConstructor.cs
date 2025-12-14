@@ -9,12 +9,12 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, RealmState realm)
     : JsConstructor(prototype, realm)
 {
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var slots = CreateInternalSlots(args.GetArgument(0), args.GetArgument(1));
         var instance = PrepareThisObject(thisValue);
         IntlCollatorPrototype.InitializeInternalSlots(instance, slots);
-        return instance;
+        return new JsValue(instance);
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -38,12 +38,12 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
         supportedLocalesOf.Delete("prototype");
     }
 
-    private JsArray SupportedLocalesOf(IReadOnlyList<object?> args)
+    private JsArray SupportedLocalesOf(IReadOnlyList<JsValue> args)
     {
         return StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
     }
 
-    private IntlCollatorInternalSlots CreateInternalSlots(object? localesArg, object? optionsArg)
+    private IntlCollatorInternalSlots CreateInternalSlots(JsValue localesArg, JsValue optionsArg)
     {
         var (_, resolvedLocale) = StandardLibrary.ResolveIntlLocales(localesArg, Realm);
         var baseLocale = IntlUtilities.RemoveUnicodeExtensions(resolvedLocale);
@@ -95,7 +95,7 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
     private string ResolveCollationOption(IJsPropertyAccessor? options)
     {
         if (options is null || !options.TryGetProperty("collation", out var value) ||
-            ReferenceEquals(value, Symbol.Undefined))
+            value.IsUndefined)
         {
             return string.Empty;
         }

@@ -10,10 +10,11 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
 {
     private HostFunction? _constructor;
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var targetCtor = _constructor ?? ConstructFallback;
-        return ConstructDate(args, targetCtor, targetCtor, thisValue as JsObject, null);
+        var providedThis = thisValue.IsObject ? thisValue.AsObject() as JsObject : null;
+        return new JsValue(ConstructDate(args, targetCtor, targetCtor, providedThis, null));
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -39,13 +40,13 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
     }
 
     private object ConstructDate(
-        IReadOnlyList<object?> args,
+        IReadOnlyList<JsValue> args,
         IJsCallable newTarget,
         IJsCallable targetCtor,
         JsObject? providedThis,
         EvaluationContext? context)
     {
-        var instance = PrepareThisObject(providedThis, assignPrototype: false);
+        var instance = PrepareThisObject(providedThis != null ? new JsValue(providedThis) : JsValue.Undefined, assignPrototype: false);
         instance.RealmState ??= Realm;
 
         if (instance.Prototype is null)

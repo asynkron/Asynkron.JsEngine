@@ -130,8 +130,8 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             return new JsValue(CreateSlice(target, begin, end));
         });
 
-        _indexOfFunction = new HostFunction((thisValue, args) => IndexOfInternal(ResolveThis(thisValue, this), args));
-        _includesFunction = new HostFunction((thisValue, args) => IncludesInternal(ResolveThis(thisValue, this), args));
+        _indexOfFunction = new HostFunction((thisValue, args) => new JsValue(IndexOfInternal(ResolveThis(thisValue, this), args)));
+        _includesFunction = new HostFunction((thisValue, args) => new JsValue(IncludesInternal(ResolveThis(thisValue, this), args)));
     }
 
     /// <summary>

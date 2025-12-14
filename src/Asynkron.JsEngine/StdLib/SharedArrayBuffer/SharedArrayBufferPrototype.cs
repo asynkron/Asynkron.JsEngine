@@ -10,7 +10,7 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class SharedArrayBufferPrototype : JsPrototype
 {
     [JsHostGetter("byteLength")]
-    public object ByteLength(object? thisValue)
+    public JsValue ByteLength(JsValue thisValue)
     {
         var buffer = RequireArrayBuffer(thisValue, Realm);
         EnsureShared(buffer);
@@ -18,7 +18,7 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
     }
 
     [JsHostGetter("maxByteLength")]
-    public object MaxByteLength(object? thisValue)
+    public JsValue MaxByteLength(JsValue thisValue)
     {
         var buffer = RequireArrayBuffer(thisValue, Realm);
         EnsureShared(buffer);
@@ -26,7 +26,7 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
     }
 
     [JsHostGetter("resizable")]
-    public object Resizable(object? thisValue)
+    public JsValue Resizable(JsValue thisValue)
     {
         var buffer = RequireArrayBuffer(thisValue, Realm);
         EnsureShared(buffer);
@@ -34,7 +34,7 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
     }
 
     [JsHostGetter("growable")]
-    public object Growable(object? thisValue)
+    public JsValue Growable(JsValue thisValue)
     {
         var buffer = RequireArrayBuffer(thisValue, Realm);
         EnsureShared(buffer);
@@ -42,7 +42,7 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
     }
 
     [JsHostMethod("grow", Length = 1d)]
-    public object? Grow(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Grow(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var buffer = RequireArrayBuffer(thisValue, Realm);
         EnsureShared(buffer);
@@ -65,24 +65,24 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
 
         if (newLength == buffer.ByteLength)
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
         buffer.Resize(newLength);
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     [JsHostMethod("slice", Length = 2d)]
-    public object? Slice(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Slice(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var buffer = RequireArrayBuffer(thisValue, Realm);
         EnsureShared(buffer);
         var length = (long)buffer.ByteLength;
 
-        var startIndex = args.Count > 0 && !ReferenceEquals(args[0], Symbol.Undefined)
+        var startIndex = args.Count > 0 && !args[0].IsUndefined
             ? ToIntegerOrInfinity(args[0], Realm.CreateContext())
             : 0d;
-        var endIndex = args.Count > 1 && !ReferenceEquals(args[1], Symbol.Undefined)
+        var endIndex = args.Count > 1 && !args[1].IsUndefined
             ? ToIntegerOrInfinity(args[1], Realm.CreateContext())
             : length;
 
@@ -130,7 +130,7 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
                 realm: Realm);
         }
 
-        if (ReferenceEquals(newBuffer, thisValue))
+        if (ReferenceEquals(newBuffer, thisValue.ObjectValue))
         {
             throw ThrowTypeError("SharedArrayBuffer species constructor returned this value", realm: Realm);
         }
@@ -179,7 +179,7 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
         }
     }
 
-    private void DefineAccessor(JsObject target, string name, Func<object?, object> getter, bool enumerable)
+    private void DefineAccessor(JsObject target, string name, Func<JsValue, JsValue> getter, bool enumerable)
     {
         var getterFn = new HostFunction((thisVal, _) => getter(thisVal), Realm)
         {

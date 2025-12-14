@@ -10,7 +10,7 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prototype, RealmState realm)
     : JsConstructor(prototype, realm)
 {
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var localesArg = args.GetArgument(0);
         var optionsArg = args.GetArgument(1);
@@ -23,7 +23,7 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
         var instance = PrepareThisObject(thisValue);
         IntlRelativeTimeFormatPrototype.InitializeInternalSlots(instance, resolvedLocale, numberingSystem, numeric,
             style);
-        return instance;
+        return new JsValue(instance);
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -50,19 +50,14 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
         supportedLocalesOf.Delete("prototype");
     }
 
-    private JsObject? NormalizeOptions(object? optionsArg)
+    private JsObject? NormalizeOptions(JsValue optionsArg)
     {
-        if (optionsArg is null)
-        {
-            throw StandardLibrary.ThrowTypeError("Intl.RelativeTimeFormat options must be an object", realm: Realm);
-        }
-
-        if (ReferenceEquals(optionsArg, Symbol.Undefined))
+        if (optionsArg.IsNullOrUndefined)
         {
             return null;
         }
 
-        if (optionsArg is JsObject jsObject)
+        if (optionsArg.IsObject && optionsArg.AsObject() is JsObject jsObject)
         {
             return jsObject;
         }
@@ -73,17 +68,18 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
     private string ReadNumberingSystem(JsObject? options)
     {
         if (options is null || !options.TryGetProperty("numberingSystem", out var value) ||
-            value is null || ReferenceEquals(value, Symbol.Undefined))
+            value.IsUndefined)
         {
             return "latn";
         }
 
-        if (value is not string numberingSystem)
+        if (!value.IsString)
         {
             throw StandardLibrary.ThrowTypeError(
                 "Intl.RelativeTimeFormat numberingSystem option must be a string", realm: Realm);
         }
 
+        var numberingSystem = value.AsString();
         if (!IntlUtilities.TryNormalizeNumberingSystem(numberingSystem, out var canonical))
         {
             throw StandardLibrary.ThrowRangeError(

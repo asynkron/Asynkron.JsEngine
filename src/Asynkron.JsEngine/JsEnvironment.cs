@@ -192,7 +192,7 @@ public sealed class JsEnvironment
                 return;
             }
 
-            binding.Value = value;
+            binding.JsValue = JsValue.FromObject(value);
             binding.UpgradeLexical(isLexical, blocksFunctionScopeOverride);
             NotifyBindingObservers(name, value);
             return;
@@ -237,13 +237,21 @@ public sealed class JsEnvironment
 
             binding.JsValue = value;
             binding.UpgradeLexical(isLexical, blocksFunctionScopeOverride);
-            NotifyBindingObservers(name, value.ToObject());
+            // Only notify if there are observers (avoid ToObject boxing in hot path)
+            if (_bindingObservers is not null)
+            {
+                NotifyBindingObservers(name, value.ToObject());
+            }
             return;
         }
 
         Values[name] = new Binding(value, isConst, isGlobalConstant, isLexical, blocksFunctionScopeOverride,
             canDelete, isImmutableBinding);
-        NotifyBindingObservers(name, value.ToObject());
+        // Only notify if there are observers (avoid ToObject boxing in hot path)
+        if (_bindingObservers is not null)
+        {
+            NotifyBindingObservers(name, value.ToObject());
+        }
     }
 
     internal void DefineExportPromiseBinding(Symbol name, JsPromise promise, bool isLexical, bool isConst)
@@ -386,7 +394,7 @@ public sealed class JsEnvironment
             {
                 if (hasInitializer)
                 {
-                    existing.Value = value;
+                    existing.JsValue = JsValue.FromObject(value);
                     if (isGlobalScope && globalThis is not null)
                     {
                         globalThis.SetProperty(name.Name, value);
@@ -398,7 +406,7 @@ public sealed class JsEnvironment
 
             if (hasInitializer)
             {
-                existing.Value = value;
+                existing.JsValue = JsValue.FromObject(value);
                 if (isGlobalScope && globalThis is not null)
                 {
                     globalThis.SetProperty(name.Name, value);
@@ -511,7 +519,6 @@ public sealed class JsEnvironment
         {
             if (current._values is not null && current._values.TryGetValue(name, out var binding))
             {
-                // Use IsUninitialized to avoid calling binding.Value which triggers ToObject() boxing
                 if (binding.IsUninitialized)
                 {
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
@@ -528,7 +535,7 @@ public sealed class JsEnvironment
                     }
                 }
 
-                return binding.Value;
+                return binding.JsValue.ToObject();
             }
 
             if (current._varEnvironmentOverride is not null &&
@@ -569,7 +576,7 @@ public sealed class JsEnvironment
         {
             if (current._values is not null && current._values.TryGetValue(name, out var binding))
             {
-                // Use IsUninitialized to avoid calling binding.Value which triggers ToObject() boxing
+                // Check IsUninitialized before reading
                 if (binding.IsUninitialized)
                 {
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
@@ -624,7 +631,7 @@ public sealed class JsEnvironment
         {
             if (current._values is not null && current._values.TryGetValue(name, out var binding))
             {
-                // Use IsUninitialized to avoid calling binding.Value which triggers ToObject() boxing
+                // Check IsUninitialized before reading
                 if (binding.IsUninitialized)
                 {
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
@@ -641,7 +648,7 @@ public sealed class JsEnvironment
                     }
                 }
 
-                return binding.Value;
+                return binding.JsValue.ToObject();
             }
 
             if (current._varEnvironmentOverride is not null &&
@@ -740,7 +747,7 @@ public sealed class JsEnvironment
                 ref var binding = ref current._values.GetValueRefOrNullRef(name);
                 if (!Unsafe.IsNullRef(ref binding) && binding.BlocksFunctionScopeOverride)
                 {
-                    binding.Value = value;
+                    binding.JsValue = JsValue.FromObject(value);
                     current.NotifyBindingObservers(name, value);
                     if (current.IsGlobalFunctionScope)
                     {
@@ -1012,13 +1019,13 @@ public sealed class JsEnvironment
 
     private static object? ReadResolvedBindingValue(JsEnvironment bindingEnvironment, ref Binding binding, Symbol name)
     {
-        // Use IsUninitialized to avoid calling binding.Value which triggers ToObject() boxing
+        // Check IsUninitialized before reading
         if (binding.IsUninitialized)
         {
             throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
         }
 
-        // Use LiveExportBindingOrNull to avoid calling binding.Value which triggers ToObject() boxing
+        // Check for live export bindings
         if (binding.LiveExportBindingOrNull is { } liveBinding)
         {
             return liveBinding.GetValue();
@@ -1051,13 +1058,13 @@ public sealed class JsEnvironment
     /// </summary>
     private static JsValue ReadResolvedBindingJsValue(JsEnvironment bindingEnvironment, ref Binding binding, Symbol name)
     {
-        // Use IsUninitialized to avoid calling binding.Value which triggers ToObject() boxing
+        // Check IsUninitialized before reading
         if (binding.IsUninitialized)
         {
             throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
         }
 
-        // Use LiveExportBindingOrNull to avoid calling binding.Value which triggers ToObject() boxing
+        // Check for live export bindings
         if (binding.LiveExportBindingOrNull is { } liveBinding)
         {
             return JsValue.FromObject(liveBinding.GetValue());
@@ -1102,7 +1109,7 @@ public sealed class JsEnvironment
             value);
         var realm = bindingEnvironment.RealmState ?? bindingEnvironment.Enclosing?.RealmState;
 
-        // Use IsUninitialized to avoid calling binding.Value which triggers ToObject() boxing
+        // Check IsUninitialized before reading
         if (binding.IsUninitialized &&
             binding.IsLexical &&
             !Equals(name, Symbol.This))
@@ -1142,7 +1149,7 @@ public sealed class JsEnvironment
             return;
         }
 
-        binding.Value = value;
+        binding.JsValue = JsValue.FromObject(value);
         if (!binding.IsLexical && bindingEnvironment.IsGlobalFunctionScope)
         {
             bindingEnvironment.GetRootGlobalObject()?.SetProperty(name.Name, value);
@@ -1169,7 +1176,7 @@ public sealed class JsEnvironment
             value);
         var realm = bindingEnvironment.RealmState ?? bindingEnvironment.Enclosing?.RealmState;
 
-        // Use IsUninitialized to avoid calling binding.Value which triggers ToObject() boxing
+        // Check IsUninitialized before reading
         if (binding.IsUninitialized &&
             binding.IsLexical &&
             !Equals(name, Symbol.This))
@@ -1216,7 +1223,11 @@ public sealed class JsEnvironment
             bindingEnvironment.GetRootGlobalObject()?.SetProperty(name.Name, value.ToObject());
         }
 
-        bindingEnvironment.NotifyBindingObservers(name, value.ToObject());
+        // Only notify if there are observers (avoid ToObject boxing in hot path)
+        if (bindingEnvironment._bindingObservers is not null)
+        {
+            bindingEnvironment.NotifyBindingObservers(name, value.ToObject());
+        }
     }
 
     internal static object ReadUnresolvable(Symbol name)
@@ -1523,7 +1534,7 @@ public sealed class JsEnvironment
         {
             if (current._values is not null && current._values.TryGetValue(name, out var binding))
             {
-                // Use IsUninitialized to avoid calling binding.Value which triggers ToObject() boxing
+                // Check IsUninitialized before reading
                 if (binding.IsUninitialized)
                 {
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
@@ -1540,7 +1551,7 @@ public sealed class JsEnvironment
                     }
                 }
 
-                value = binding.Value;
+                value = binding.JsValue.ToObject();
                 return true;
             }
 
@@ -1583,7 +1594,7 @@ public sealed class JsEnvironment
         {
             if (current._values is not null && current._values.TryGetValue(name, out var binding))
             {
-                // Use IsUninitialized to avoid calling binding.Value which triggers ToObject() boxing
+                // Check IsUninitialized before reading
                 if (binding.IsUninitialized)
                 {
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
@@ -1647,14 +1658,14 @@ public sealed class JsEnvironment
         {
             if (current._values is not null && current._values.TryGetValue(name, out var binding))
             {
-                // Use IsUninitialized to avoid calling binding.Value which triggers ToObject() boxing
+                // Check IsUninitialized before reading
                 if (binding.IsUninitialized && !allowUninitialized)
                 {
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
                 }
 
                 environment = current;
-                value = binding.Value;
+                value = binding.JsValue.ToObject();
                 return true;
             }
 
@@ -1700,7 +1711,7 @@ public sealed class JsEnvironment
                 ref var binding = ref current._values.GetValueRefOrNullRef(name);
                 if (!Unsafe.IsNullRef(ref binding))
                 {
-                    // Use IsUninitialized to avoid calling binding.Value which triggers ToObject() boxing
+                    // Check IsUninitialized before reading
                     if (binding.IsUninitialized &&
                         binding.IsLexical &&
                         !Equals(name, Symbol.This))
@@ -1739,7 +1750,7 @@ public sealed class JsEnvironment
                         return;
                     }
 
-                    binding.Value = value;
+                    binding.JsValue = JsValue.FromObject(value);
                     if (!binding.IsLexical)
                     {
                         globalObject?.SetProperty(name.Name, value);
@@ -1902,7 +1913,7 @@ public sealed class JsEnvironment
 
         if (current._values is not null &&
             current._values.TryGetValue(Symbol.This, out var thisBinding) &&
-            thisBinding.Value is JsObject globalObject)
+            thisBinding.JsValue.ToObject() is JsObject globalObject)
         {
             return globalObject;
         }
@@ -2200,7 +2211,7 @@ public sealed class JsEnvironment
             {
                 if (!result.ContainsKey(kvp.Key.Name))
                 {
-                    result[kvp.Key.Name] = kvp.Value.Value;
+                    result[kvp.Key.Name] = kvp.Value.JsValue.ToObject();
                 }
             }
 
@@ -2350,24 +2361,6 @@ public sealed class JsEnvironment
             return new Binding(
                 new ImportBindingWrapper(sourceEnvironment, bindingName),
                 BindingFlags.IsConst | BindingFlags.IsLexical);
-        }
-
-        public object? Value
-        {
-            readonly get => (_flags & BindingFlags.HasSpecialBinding) != 0
-                ? ((ISpecialBinding)_specialBinding!).GetValue()
-                : _jsValue.ToObject();
-            set
-            {
-                if ((_flags & BindingFlags.HasSpecialBinding) != 0)
-                {
-                    ((ISpecialBinding)_specialBinding!).SetValue(value);
-                }
-                else
-                {
-                    _jsValue = JsValue.FromObject(value);
-                }
-            }
         }
 
         /// <summary>

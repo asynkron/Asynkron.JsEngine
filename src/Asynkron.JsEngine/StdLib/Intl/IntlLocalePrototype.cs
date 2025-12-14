@@ -34,14 +34,14 @@ public sealed partial class IntlLocalePrototype
     };
 
     [JsHostGetter("baseName", DisplayName = "get baseName")]
-    private string GetBaseName(JsValue thisValue)
+    private JsValue GetBaseName(JsValue thisValue)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         return BuildBaseName(locale);
     }
 
     [JsHostGetter("language", DisplayName = "get language")]
-    private string GetLanguage(JsValue thisValue)
+    private JsValue GetLanguage(JsValue thisValue)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var language = locale.TryGetProperty(LanguageSlot, out var value) && value is string lang && lang.Length > 0
@@ -51,7 +51,7 @@ public sealed partial class IntlLocalePrototype
     }
 
     [JsHostGetter("script", DisplayName = "get script")]
-    private object? GetScript(JsValue thisValue)
+    private JsValue GetScript(JsValue thisValue)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         if (locale.TryGetProperty(ScriptSlot, out var value) && value is string script && script.Length > 0)
@@ -59,11 +59,11 @@ public sealed partial class IntlLocalePrototype
             return script;
         }
 
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     [JsHostGetter("region", DisplayName = "get region")]
-    private object? GetRegion(JsValue thisValue)
+    private JsValue GetRegion(JsValue thisValue)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         if (locale.TryGetProperty(RegionSlot, out var value) && value is string region && region.Length > 0)
@@ -71,11 +71,11 @@ public sealed partial class IntlLocalePrototype
             return region;
         }
 
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     [JsHostGetter("variants", DisplayName = "get variants")]
-    private JsArray GetVariants(JsValue thisValue)
+    private JsValue GetVariants(JsValue thisValue)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var variants = GetLocaleVariants(locale);
@@ -85,41 +85,41 @@ public sealed partial class IntlLocalePrototype
             result.Push(variant);
         }
 
-        return result;
+        return new JsValue(result);
     }
 
     [JsHostGetter("calendar", DisplayName = "get calendar")]
-    private object? GetCalendar(JsValue thisValue)
+    private JsValue GetCalendar(JsValue thisValue)
     {
         return GetKeywordValue(thisValue, "ca");
     }
 
     [JsHostGetter("numberingSystem", DisplayName = "get numberingSystem")]
-    private object? GetNumberingSystem(JsValue thisValue)
+    private JsValue GetNumberingSystem(JsValue thisValue)
     {
         return GetKeywordValue(thisValue, "nu");
     }
 
     [JsHostGetter("collation", DisplayName = "get collation")]
-    private object? GetCollation(JsValue thisValue)
+    private JsValue GetCollation(JsValue thisValue)
     {
         return GetKeywordValue(thisValue, "co");
     }
 
     [JsHostGetter("hourCycle", DisplayName = "get hourCycle")]
-    private object? GetHourCycle(JsValue thisValue)
+    private JsValue GetHourCycle(JsValue thisValue)
     {
         return GetKeywordValue(thisValue, "hc");
     }
 
     [JsHostGetter("caseFirst", DisplayName = "get caseFirst")]
-    private object? GetCaseFirst(JsValue thisValue)
+    private JsValue GetCaseFirst(JsValue thisValue)
     {
         return GetKeywordValue(thisValue, "kf");
     }
 
     [JsHostGetter("numeric", DisplayName = "get numeric")]
-    private object? GetNumeric(JsValue thisValue)
+    private JsValue GetNumeric(JsValue thisValue)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var keywords = GetLocaleKeywords(locale);
@@ -128,18 +128,18 @@ public sealed partial class IntlLocalePrototype
             return string.Equals(keyword, "true", StringComparison.Ordinal);
         }
 
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     [JsHostGetter("firstDayOfWeek", DisplayName = "get firstDayOfWeek")]
-    private string GetFirstDayOfWeek(JsValue thisValue)
+    private JsValue GetFirstDayOfWeek(JsValue thisValue)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         return ResolveFirstDayOfWeek(locale);
     }
 
     [JsHostMethod("getCalendars", Length = 0d)]
-    private JsArray GetCalendars(JsValue thisValue, IReadOnlyList<object?> _)
+    private JsValue GetCalendars(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var preferred = GetKeyword(locale, "ca");
@@ -163,11 +163,11 @@ public sealed partial class IntlLocalePrototype
             result.Push(DefaultCalendars[0]);
         }
 
-        return result;
+        return new JsValue(result);
     }
 
     [JsHostMethod("getCollations", Length = 0d)]
-    private JsArray GetCollations(JsValue thisValue, IReadOnlyList<object?> _)
+    private JsValue GetCollations(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var result = new JsArray(Realm);
@@ -178,11 +178,11 @@ public sealed partial class IntlLocalePrototype
         }
 
         result.Push("default");
-        return result;
+        return new JsValue(result);
     }
 
     [JsHostMethod("getHourCycles", Length = 0d)]
-    private JsArray GetHourCycles(JsValue thisValue, IReadOnlyList<object?> _)
+    private JsValue GetHourCycles(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var result = new JsArray(Realm);
@@ -200,11 +200,11 @@ public sealed partial class IntlLocalePrototype
             }
         }
 
-        return result;
+        return new JsValue(result);
     }
 
     [JsHostMethod("getNumberingSystems", Length = 0d)]
-    private JsArray GetNumberingSystems(JsValue thisValue, IReadOnlyList<object?> _)
+    private JsValue GetNumberingSystems(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var result = new JsArray(Realm);
@@ -222,11 +222,11 @@ public sealed partial class IntlLocalePrototype
             }
         }
 
-        return result;
+        return new JsValue(result);
     }
 
     [JsHostMethod("getTextInfo", Length = 0d)]
-    private JsObject GetTextInfo(JsValue thisValue, IReadOnlyList<object?> _)
+    private JsValue GetTextInfo(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var direction = locale.TryGetProperty(TextDirectionSlot, out var value) && value is string dir && dir.Length > 0
@@ -234,18 +234,18 @@ public sealed partial class IntlLocalePrototype
             : "ltr";
         var info = new JsObject(Realm.ObjectPrototype);
         info.SetProperty("direction", direction);
-        return info;
+        return new JsValue(info);
     }
 
     [JsHostMethod("getTimeZones", Length = 0d)]
-    private object? GetTimeZones(JsValue thisValue, IReadOnlyList<object?> _)
+    private JsValue GetTimeZones(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var hasRegion = locale.TryGetProperty(RegionSlot, out var regionValue) && regionValue is string region &&
                         region.Length > 0;
         if (!hasRegion)
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
         var result = new JsArray(Realm);
@@ -260,11 +260,11 @@ public sealed partial class IntlLocalePrototype
             result.Push("UTC");
         }
 
-        return result;
+        return new JsValue(result);
     }
 
     [JsHostMethod("getWeekInfo", Length = 0d)]
-    private JsObject GetWeekInfo(JsValue thisValue, IReadOnlyList<object?> _)
+    private JsValue GetWeekInfo(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var info = new JsObject(Realm.ObjectPrototype);
@@ -274,32 +274,32 @@ public sealed partial class IntlLocalePrototype
         var weekend = ResolveWeekendDays(locale);
         info.SetProperty("weekend", CreateWeekendArray(weekend));
         info.SetProperty("minimalDays", ResolveMinimalDays(locale));
-        return info;
+        return new JsValue(info);
     }
 
     [JsHostMethod("toString", Length = 0d)]
-    private string ToStringLocale(JsValue thisValue, IReadOnlyList<object?> _)
+    private JsValue ToStringLocale(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         return GetCanonicalTag(locale);
     }
 
     [JsHostMethod("maximize", Length = 0d)]
-    private JsObject MaximizeLocale(JsValue thisValue, IReadOnlyList<object?> _)
+    private JsValue MaximizeLocale(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var tag = GetCanonicalTag(locale);
         var maximized = IntlLocaleLikelySubtags.AddLikelySubtags(tag);
-        return IntlLocaleConstructor.CreateLocaleFromCanonical(maximized, Realm, locale.Prototype);
+        return new JsValue(IntlLocaleConstructor.CreateLocaleFromCanonical(maximized, Realm, locale.Prototype));
     }
 
     [JsHostMethod("minimize", Length = 0d)]
-    private JsObject MinimizeLocale(JsValue thisValue, IReadOnlyList<object?> _)
+    private JsValue MinimizeLocale(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var tag = GetCanonicalTag(locale);
         var minimized = IntlLocaleLikelySubtags.RemoveLikelySubtags(tag);
-        return IntlLocaleConstructor.CreateLocaleFromCanonical(minimized, Realm, locale.Prototype);
+        return new JsValue(IntlLocaleConstructor.CreateLocaleFromCanonical(minimized, Realm, locale.Prototype));
     }
 
     internal static bool TryBuildLocaleIdentifier(JsObject candidate, out string identifier)
@@ -330,11 +330,11 @@ public sealed partial class IntlLocalePrototype
         throw ThrowTypeError("Intl.Locale method called on incompatible receiver", realm: Realm);
     }
 
-    private object? GetKeywordValue(JsValue thisValue, string keyword)
+    private JsValue GetKeywordValue(JsValue thisValue, string keyword)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var value = GetKeyword(locale, keyword);
-        return string.IsNullOrEmpty(value) ? Symbol.Undefined : value;
+        return string.IsNullOrEmpty(value) ? JsValue.Undefined : value;
     }
 
     private static string? GetKeyword(JsObject locale, string keyword)

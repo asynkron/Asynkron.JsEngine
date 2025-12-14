@@ -11,11 +11,11 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class NumberPrototype
 {
     [JsHostMethod("toString", Length = 1d)]
-    public object? ToString(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var num = RequireNumberReceiver(thisValue, "Number.prototype.toString");
         var radixArg = args.GetArgument(0);
-        var radixNumber = ReferenceEquals(radixArg, Symbol.Undefined) ? 10d : JsOps.ToNumber(radixArg);
+        var radixNumber = radixArg.IsUndefined ? 10d : JsOps.ToNumber(radixArg);
         if (double.IsNaN(radixNumber) || Math.Abs(radixNumber % 1) > double.Epsilon)
         {
             throw ThrowRangeError("radix must be an integer at least 2 and no greater than 36", realm: Realm);
@@ -31,13 +31,13 @@ public sealed partial class NumberPrototype
     }
 
     [JsHostMethod("valueOf", Length = 0d)]
-    public object? ValueOf(JsValue thisValue, IReadOnlyList<object?> _)
+    public JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         return RequireNumberReceiver(thisValue, "Number.prototype.valueOf");
     }
 
     [JsHostMethod("toFixed", Length = 1d)]
-    public object? ToFixed(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ToFixed(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var num = RequireNumberReceiver(thisValue, "Number.prototype.toFixed");
         var fractionDigits = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
@@ -60,7 +60,7 @@ public sealed partial class NumberPrototype
     }
 
     [JsHostMethod("toExponential", Length = 1d)]
-    public object? ToExponential(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ToExponential(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var num = RequireNumberReceiver(thisValue, "Number.prototype.toExponential");
         if (double.IsNaN(num))
@@ -74,7 +74,7 @@ public sealed partial class NumberPrototype
         }
 
         string result;
-        if (args.Count <= 0 || args[0] is not double d)
+        if (args.Count <= 0 || !args[0].TryGetDouble(out var d))
         {
             result = num.ToString("e", CultureInfo.InvariantCulture);
         }
@@ -93,7 +93,7 @@ public sealed partial class NumberPrototype
     }
 
     [JsHostMethod("toPrecision", Length = 1d)]
-    public object? ToPrecision(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ToPrecision(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var num = RequireNumberReceiver(thisValue, "Number.prototype.toPrecision");
         if (args.Count == 0)
@@ -111,7 +111,7 @@ public sealed partial class NumberPrototype
             return num > 0 ? "Infinity" : "-Infinity";
         }
 
-        if (args[0] is not double d)
+        if (!args[0].TryGetDouble(out var d))
         {
             return num.ToString(CultureInfo.InvariantCulture);
         }
@@ -126,7 +126,7 @@ public sealed partial class NumberPrototype
     }
 
     [JsHostMethod("toLocaleString", Length = 0d)]
-    public object? ToLocaleString(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ToLocaleString(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var num = RequireNumberReceiver(thisValue, "Number.prototype.toLocaleString");
         var localesArg = args.GetArgument(0);
@@ -134,10 +134,10 @@ public sealed partial class NumberPrototype
 
         if (TryFormatWithIntlNumberFormat(num, localesArg, optionsArg, Realm, out var formatted))
         {
-            return formatted;
+            return JsValue.FromObject(formatted);
         }
 
-        if (optionsArg is JsObject options)
+        if (optionsArg.TryGetObject(out JsObject? options) && options is not null)
         {
             var style = options.TryGetProperty("style", out var styleVal) ? styleVal?.ToString() : null;
             if (string.Equals(style, "unit", StringComparison.OrdinalIgnoreCase) &&
@@ -168,17 +168,29 @@ public sealed partial class NumberPrototype
         Realm.NumberPrototype ??= Prototype as JsObject;
     }
 
-    private double RequireNumberReceiver(object? receiver, string methodName)
+    private double RequireNumberReceiver(JsValue receiver, string methodName)
     {
-        return receiver switch
+        // Check if it's a direct number
+        if (receiver.TryGetDouble(out var num))
         {
-            JsObject obj when obj.TryGetProperty("__value__", out var inner) => JsOps.ToNumber(inner),
-            IJsPropertyAccessor accessor when accessor.TryGetProperty("__value__", out var inner) =>
-                JsOps.ToNumber(inner),
-            double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte
-                => JsOps.ToNumber(receiver),
-            _ => throw ThrowTypeError($"{methodName} called on non-number object", realm: Realm)
-        };
+            return num;
+        }
+
+        // Check if it's a Number object (with __value__ property)
+        if (receiver.TryGetObject(out var obj) && obj is not null)
+        {
+            if (obj.TryGetProperty("__value__", out var inner))
+            {
+                return JsOps.ToNumber(inner);
+            }
+
+            if (obj is IJsPropertyAccessor accessor && accessor.TryGetProperty("__value__", out var innerVal))
+            {
+                return JsOps.ToNumber(innerVal);
+            }
+        }
+
+        throw ThrowTypeError($"{methodName} called on non-number object", realm: Realm);
     }
 
     private static string FormatExponentialForJs(string netExponential)

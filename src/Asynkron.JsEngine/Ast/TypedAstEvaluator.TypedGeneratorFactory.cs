@@ -214,7 +214,13 @@ public static partial class TypedAstEvaluator
                         IReadOnlyList<JsValue> argList = ArgumentSlice.Empty;
                         if (args.Count > 1 && args[1].TryUnwrap(out JsArray? jsArray))
                         {
-                            argList = jsArray.Items;
+                            var items = jsArray.Items;
+                            var converted = new JsValue[items.Count];
+                            for (var i = 0; i < items.Count; i++)
+                            {
+                                converted[i] = JsValue.FromObject(items[i]);
+                            }
+                            argList = converted;
                         }
                         return callable.Invoke(argList, thisArg);
                     }));
@@ -481,10 +487,12 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(StdLib.StandardLibrary.CreateSyntaxError(message, evalContext, realm));
             }
 
-            var created = engine.ExecuteProgram(
+            var createdObj = engine.ExecuteProgram(
                 program,
                 engine.GlobalEnvironment,
                 CancellationToken.None);
+
+            var created = JsValue.FromObject(createdObj);
 
             // The result should now be a TypedGeneratorFactory
             if (created.TryUnwrap(out IJsObjectLike? objectLike))
@@ -513,12 +521,12 @@ public static partial class TypedAstEvaluator
 
             var primitive = JsValue.FromObject(primitiveObj);
 
-            if (primitive.IsNull())
+            if (primitive.IsNull)
             {
                 return "null";
             }
 
-            if (primitive.IsUndefined())
+            if (primitive.IsUndefined)
             {
                 return "undefined";
             }
@@ -528,14 +536,14 @@ public static partial class TypedAstEvaluator
                 throw StdLib.StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", evalContext, realm);
             }
 
-            if (primitive.TryUnwrap(out bool flag))
+            if (primitive.TryGetBoolean(out var flag))
             {
                 return flag ? "true" : "false";
             }
 
-            if (primitive.TryUnwrap(out string? s))
+            if (primitive.TryGetString(out var s))
             {
-                return s;
+                return s ?? string.Empty;
             }
 
             if (primitive.TryUnwrap(out JsBigInt? bigInt))
@@ -543,7 +551,7 @@ public static partial class TypedAstEvaluator
                 return bigInt.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
             }
 
-            if (primitive.TryUnwrap(out double d))
+            if (primitive.TryGetDouble(out var d))
             {
                 if (double.IsNaN(d))
                     return "NaN";

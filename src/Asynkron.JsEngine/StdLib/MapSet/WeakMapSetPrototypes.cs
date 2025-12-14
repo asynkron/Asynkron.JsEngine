@@ -8,14 +8,14 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class WeakMapPrototype
 {
     [JsHostMethod("set", Length = 2d)]
-    public object? Set(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Set(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireWeakMap(thisValue);
         var key = args.GetArgument(0);
         var value = args.GetArgument(1);
         try
         {
-            return map.Set(key, value);
+            return JsValue.FromObject(map.Set(key, value));
         }
         catch (Exception ex)
         {
@@ -24,24 +24,24 @@ public sealed partial class WeakMapPrototype
     }
 
     [JsHostMethod("get", Length = 1d)]
-    public object? Get(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Get(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireWeakMap(thisValue);
-        return map.Get(args.GetArgument(0));
+        return JsValue.FromObject(map.Get(args.GetArgument(0)));
     }
 
     [JsHostMethod("has", Length = 1d)]
-    public object Has(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Has(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireWeakMap(thisValue);
-        return map.Has(args.GetArgument(0));
+        return new JsValue(map.Has(args.GetArgument(0)));
     }
 
     [JsHostMethod("delete", Length = 1d)]
-    public object Delete(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Delete(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireWeakMap(thisValue);
-        return map.Delete(args.GetArgument(0));
+        return new JsValue(map.Delete(args.GetArgument(0)));
     }
 
     protected override void ConfigurePrototype()
@@ -69,13 +69,13 @@ public sealed partial class WeakMapPrototype
 public sealed partial class WeakSetPrototype
 {
     [JsHostMethod("add", Length = 1d)]
-    public object? Add(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Add(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireWeakSet(thisValue);
         var value = args.GetArgument(0);
         try
         {
-            return set.Add(value);
+            return JsValue.FromObject(set.Add(value));
         }
         catch (Exception ex)
         {
@@ -84,17 +84,17 @@ public sealed partial class WeakSetPrototype
     }
 
     [JsHostMethod("has", Length = 1d)]
-    public object Has(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Has(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireWeakSet(thisValue);
-        return set.Has(args.GetArgument(0));
+        return new JsValue(set.Has(args.GetArgument(0)));
     }
 
     [JsHostMethod("delete", Length = 1d)]
-    public object Delete(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Delete(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireWeakSet(thisValue);
-        return set.Delete(args.GetArgument(0));
+        return new JsValue(set.Delete(args.GetArgument(0)));
     }
 
     protected override void ConfigurePrototype()

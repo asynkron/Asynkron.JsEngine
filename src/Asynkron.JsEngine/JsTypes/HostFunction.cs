@@ -184,7 +184,7 @@ namespace Asynkron.JsEngine.JsTypes;
                 {
                     // When call is invoked through .bind(), thisValue is the bound target function.
                     // When called directly like fn.call(obj), jsCallable is the function to invoke.
-                    var functionToCall = thisValue.TryGetObject(out var thisObj) && thisObj is IJsCallable callable ? callable : jsCallable;
+                    var functionToCall = thisValue.TryGetObject<IJsCallable>(out var callable) ? callable : jsCallable;
                     var thisArg = args.GetArgument(0);
                     var callArgs = args.SliceFrom(1);
                     return functionToCall.Invoke(callArgs, thisArg);
@@ -195,10 +195,10 @@ namespace Asynkron.JsEngine.JsTypes;
                 value = new HostFunction((thisValue, args) =>
                 {
                     // Use the thisValue (the function being applied) when called via prototype chain
-                    var target = thisValue.TryGetObject(out var thisObj) && thisObj is IJsCallable callable ? callable : jsCallable;
+                    var target = thisValue.TryGetObject<IJsCallable>(out var thisObj) ? thisObj : jsCallable;
                     var thisArg = args.GetArgument(0);
                     IReadOnlyList<JsValue> argList;
-                    if (args.Count > 1 && args[1].TryGetObject(out var argObj) && argObj is JsArray jsArray)
+                    if (args.Count > 1 && args[1].TryGetObject<JsArray>(out var jsArray) )
                     {
                         // Convert object? array to JsValue array
                         var items = jsArray.Items;
@@ -221,7 +221,7 @@ namespace Asynkron.JsEngine.JsTypes;
                 value = new HostFunction((thisValue, args) =>
                 {
                     // Use the thisValue (the function being bound) when called via prototype chain
-                    var target = thisValue.TryGetObject(out var thisObj) && thisObj is IJsCallable callable ? callable : jsCallable;
+                    var target = thisValue.TryGetObject<IJsCallable>(out var callable) ? callable : jsCallable;
                     var boundThis = args.GetArgument(0);
                     var boundArgs = args.SliceFrom(1);
                     var targetIsConstructor = JsOps.IsConstructor(target);

@@ -15,7 +15,7 @@ public sealed partial class SetPrototype
     }
 
     [JsHostMethod("add", Length = 1d)]
-    public object? Add(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Add(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireSet(thisValue);
         set.Add(args.GetArgument(0));
@@ -23,66 +23,66 @@ public sealed partial class SetPrototype
     }
 
     [JsHostMethod("has", Length = 1d)]
-    public object Has(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Has(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireSet(thisValue);
-        return set.Has(args.GetArgument(0));
+        return new JsValue(set.Has(args.GetArgument(0)));
     }
 
     [JsHostMethod("delete", Length = 1d)]
-    public object Delete(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Delete(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireSet(thisValue);
-        return set.Delete(args.GetArgument(0));
+        return new JsValue(set.Delete(args.GetArgument(0)));
     }
 
     [JsHostMethod("clear", Length = 0d)]
-    public object? Clear(JsValue thisValue, IReadOnlyList<object?> _)
+    public JsValue Clear(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var set = RequireSet(thisValue);
         set.Clear();
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     [JsHostMethod("forEach", Length = 1d)]
-    public object? ForEach(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ForEach(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireSet(thisValue);
-        if (args.GetArgument(0) is not IJsCallable callback)
+        if (!args.GetArgument(0).TryGetObject<IJsCallable>(out var callback))
         {
             throw StandardLibrary.ThrowTypeError("Set.prototype.forEach callback must be callable", realm: Realm);
         }
 
         set.ForEach(callback, args.GetArgument(1));
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     [JsHostMethod("entries", Length = 0d)]
-    public object? Entries(JsValue thisValue, IReadOnlyList<object?> _)
+    public JsValue Entries(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var set = RequireSet(thisValue);
-        return CreateSetIterator(set, SetIterationKind.Entries);
+        return new JsValue(CreateSetIterator(set, SetIterationKind.Entries));
     }
 
     [JsHostMethod("keys", Length = 0d)]
-    public object? Keys(JsValue thisValue, IReadOnlyList<object?> _)
+    public JsValue Keys(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var set = RequireSet(thisValue);
-        return CreateSetIterator(set, SetIterationKind.Keys);
+        return new JsValue(CreateSetIterator(set, SetIterationKind.Keys));
     }
 
     [JsHostMethod("values", Length = 0d)]
-    public object? Values(JsValue thisValue, IReadOnlyList<object?> _)
+    public JsValue Values(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var set = RequireSet(thisValue);
-        return CreateSetIterator(set, SetIterationKind.Values);
+        return new JsValue(CreateSetIterator(set, SetIterationKind.Values));
     }
 
     [JsHostGetter("size")]
-    public object Size(JsValue thisValue)
+    public JsValue Size(JsValue thisValue)
     {
         var set = RequireSet(thisValue);
-        return (double)set.Size;
+        return new JsValue((double)set.Size);
     }
 
     protected override void ConfigurePrototype()

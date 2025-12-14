@@ -190,7 +190,7 @@ public static partial class TypedAstEvaluator
 
                     if (preResolvedReference is { } resolvedReference)
                     {
-                        resolvedReference.SetValue(elementValue);
+                        resolvedReference.SetValue(JsValue.FromObject(elementValue));
                     }
                     else
                     {
@@ -306,7 +306,7 @@ public static partial class TypedAstEvaluator
 
                     if (preResolvedRest is { } resolvedRestReference)
                     {
-                        resolvedRestReference.SetValue(restArray);
+                        resolvedRestReference.SetValue(JsValue.FromObject(restArray));
                     }
                     else
                     {

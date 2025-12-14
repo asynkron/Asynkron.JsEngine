@@ -188,7 +188,7 @@ internal readonly struct AssignmentReference
         };
     }
 
-    public void SetValue(object? value)
+    public void SetValue(JsValue value)
     {
         switch (_kind)
         {
@@ -196,16 +196,16 @@ internal readonly struct AssignmentReference
                 WriteDeclarativeBinding(value);
                 break;
             case ReferenceKind.GlobalBinding:
-                WriteGlobalBinding(value);
+                WriteGlobalBinding(value.ToObject());
                 break;
             case ReferenceKind.WithBinding:
-                WriteWithBinding(value);
+                WriteWithBinding(value.ToObject());
                 break;
             case ReferenceKind.Unresolvable:
-                WriteUnresolvable(value);
+                WriteUnresolvable(value.ToObject());
                 break;
             case ReferenceKind.Delegate:
-                _delegateSetter!(value);
+                _delegateSetter!(value.ToObject());
                 break;
             default:
                 throw new InvalidOperationException($"Unknown reference kind: {_kind}");
@@ -240,11 +240,11 @@ internal readonly struct AssignmentReference
         }
     }
 
-    private void WriteDeclarativeBinding(object? value)
+    private void WriteDeclarativeBinding(JsValue value)
     {
         // Note: Don't rely on _context for write operations as it may be stale in async contexts.
         // The binding's environment has access to the RealmState for logging.
-        _binding.Write(_name, value, _isStrict);
+        _binding.WriteJsValue(_name, value, _isStrict);
     }
 
     private object? ReadGlobalBinding()

@@ -27,7 +27,7 @@ public static partial class TypedAstEvaluator
 
                 if (shouldAssignCompound)
                 {
-                    reference.SetValue(compoundJsValue.ToObject());
+                    reference.SetValue(compoundJsValue);
                 }
 
                 return compoundJsValue;
@@ -41,7 +41,7 @@ public static partial class TypedAstEvaluator
 
             try
             {
-                reference.SetValue(targetValue);
+                reference.SetValue(JsValue.FromObject(targetValue));
                 return JsValue.FromObject(targetValue);
             }
             catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",

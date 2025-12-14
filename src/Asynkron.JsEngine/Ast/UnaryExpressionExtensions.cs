@@ -31,7 +31,7 @@ public static partial class TypedAstEvaluator
                         {
                             var d = currentJsValue.NumberValue;
                             var updatedValue = d + (expression.Operator == "++" ? 1 : -1);
-                            reference.SetValue(updatedValue);
+                            reference.SetValue(new JsValue(updatedValue));
                             return expression.IsPrefix ? new JsValue(updatedValue) : new JsValue(d);
                         }
 
@@ -49,7 +49,7 @@ public static partial class TypedAstEvaluator
                         var updated = expression.Operator == "++"
                             ? IncrementValue(JsValue.FromObject(oldNumeric), context)
                             : DecrementValue(JsValue.FromObject(oldNumeric), context);
-                        reference.SetValue(updated.ToObject());
+                        reference.SetValue(updated);
 
                         // Postfix returns the old numeric value (after conversion but before increment/decrement)
                         // Prefix returns the new value (after increment/decrement)

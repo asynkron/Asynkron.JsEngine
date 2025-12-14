@@ -90,6 +90,11 @@ After each file, run tests to ensure nothing breaks.
 - [x] Add `LiveExportBindingOrNull` property to Binding struct (boxing-free check)
 - [x] Fix `ReadResolvedBindingJsValue` to use `IsUninitialized` (avoids ToObject boxing)
 - [x] Fix `GetJsValue` to use `IsUninitialized` (avoids ToObject boxing)
+- [x] Fix `ReadResolvedBindingValue` to use `IsUninitialized` (avoids ToObject boxing)
+- [x] Fix `WriteResolvedBindingValue` to use `IsUninitialized` (avoids ToObject boxing)
+- [x] Fix all `ReferenceEquals(binding.Value, Uninitialized)` patterns to use `binding.IsUninitialized`:
+  - `Get`, `GetDeclarative`, `TryGet`, `TryGetJsValue`, `TryFindBinding`, `AssignInternal`
+- [x] Add `GetJsValue()` to `AssignmentReference` struct (avoids boxing in compound assignments/unary ops)
 
 ### 2.3 Expression Extensions ✅ COMPLETE
 - [x] Update `IdentifierExpressionExtensions.cs` to use `GetIdentifierJsValue`

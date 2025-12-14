@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.JsTypes;
+
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
@@ -159,7 +161,7 @@ public static partial class TypedAstEvaluator
                         return;
                     }
 
-                    reference.SetValue(value);
+                    reference.SetValue(JsValue.FromObject(value));
                     break;
                 }
                 default:

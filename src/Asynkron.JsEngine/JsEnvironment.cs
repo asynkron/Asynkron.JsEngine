@@ -988,6 +988,26 @@ public sealed class JsEnvironment
 
             _environment.WriteResolvedBindingValue(_environment, ref binding, _name, value, isStrictContext);
         }
+
+        /// <summary>
+        /// Writes the binding value as JsValue, avoiding boxing for primitives.
+        /// This is safe for async contexts where the original context may be stale.
+        /// </summary>
+        internal void WriteJsValue(Symbol name, JsValue value, bool isStrictContext)
+        {
+            if (_environment._values is null)
+            {
+                throw new InvalidOperationException($"Binding for {_name.Name} not found");
+            }
+
+            ref var binding = ref _environment._values.GetValueRefOrNullRef(_name);
+            if (Unsafe.IsNullRef(ref binding))
+            {
+                throw new InvalidOperationException($"Binding for {_name.Name} not found");
+            }
+
+            _environment.WriteResolvedBindingJsValue(_environment, ref binding, _name, value, isStrictContext);
+        }
     }
 
     private static object? ReadResolvedBindingValue(JsEnvironment bindingEnvironment, ref Binding binding, Symbol name)
@@ -1129,6 +1149,74 @@ public sealed class JsEnvironment
         }
 
         bindingEnvironment.NotifyBindingObservers(name, value);
+    }
+
+    private void WriteResolvedBindingJsValue(
+        JsEnvironment bindingEnvironment,
+        ref Binding binding,
+        Symbol name,
+        JsValue value,
+        bool isStrictContext)
+    {
+        RealmState?.Logger?.LogInformation(
+            "Write binding '{Name}' (envDepth={Depth}, lexical={Lexical}, const={Const}, strictCtx={StrictCtx}, bindingHash={Hash}) = {Value}",
+            name.Name,
+            bindingEnvironment.Depth,
+            binding.IsLexical,
+            binding.IsConst,
+            isStrictContext,
+            binding.GetHashCode(),
+            value);
+        var realm = bindingEnvironment.RealmState ?? bindingEnvironment.Enclosing?.RealmState;
+
+        // Use IsUninitialized to avoid calling binding.Value which triggers ToObject() boxing
+        if (binding.IsUninitialized &&
+            binding.IsLexical &&
+            !Equals(name, Symbol.This))
+        {
+            throw StandardLibrary.ThrowReferenceError($"ReferenceError: {name.Name} is not defined", null, realm);
+        }
+
+        if (binding.IsConst)
+        {
+            // Per ES spec, assignment to const always throws TypeError regardless of strict mode
+            throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                $"Cannot reassign constant '{name.Name}'.", realm: realm));
+        }
+
+        if (binding.IsImmutableBinding)
+        {
+            // Immutable bindings (named function expression names) throw in strict mode,
+            // but silently fail in non-strict mode
+            var bindingIsStrict = bindingEnvironment.IsStrict || bindingEnvironment.GetFunctionScope().IsStrict;
+            if (bindingIsStrict || isStrictContext)
+            {
+                throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                    $"Cannot reassign constant '{name.Name}'.", realm: realm));
+            }
+
+            return;
+        }
+
+        if (binding.IsGlobalConstant)
+        {
+            if (isStrictContext)
+            {
+                throw new ThrowSignal(
+                    StandardLibrary.CreateTypeError($"ReferenceError: {name.Name} is not writable", realm: realm));
+            }
+
+            return;
+        }
+
+        // Use JsValue directly to avoid boxing
+        binding.JsValue = value;
+        if (!binding.IsLexical && bindingEnvironment.IsGlobalFunctionScope)
+        {
+            bindingEnvironment.GetRootGlobalObject()?.SetProperty(name.Name, value.ToObject());
+        }
+
+        bindingEnvironment.NotifyBindingObservers(name, value.ToObject());
     }
 
     internal static object ReadUnresolvable(Symbol name)

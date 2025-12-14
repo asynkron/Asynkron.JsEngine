@@ -86,7 +86,7 @@ public static partial class TypedAstEvaluator
 
                 if (preResolvedReference is { } resolvedReference)
                 {
-                    resolvedReference.SetValue(propertyValue);
+                    resolvedReference.SetValue(JsValue.FromObject(propertyValue));
                 }
                 else
                 {

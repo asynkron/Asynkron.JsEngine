@@ -98,7 +98,7 @@ public static partial class TypedAstEvaluator
                 EnsureFunctionScopedVarBinding(environment, targetIdentifier.Name, context);
                 if (!assignedBlockedBinding)
                 {
-                    resolvedReference.SetValue(value);
+                    resolvedReference.SetValue(JsValue.FromObject(value));
                 }
 
                 return;

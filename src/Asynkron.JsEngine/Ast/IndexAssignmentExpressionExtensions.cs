@@ -118,7 +118,7 @@ public static partial class TypedAstEvaluator
 
                     if (shouldAssign)
                     {
-                        reference.SetValue(compoundValue);
+                        reference.SetValue(JsValue.FromObject(compoundValue));
                     }
 
                     return JsValue.FromObject(compoundValue);
@@ -151,7 +151,7 @@ public static partial class TypedAstEvaluator
             }
 
             var finalReference = CreatePropertyReference(target, finalPropertyName, context, allowPrivate: false);
-            finalReference.SetValue(assignedValue);
+            finalReference.SetValue(JsValue.FromObject(assignedValue));
             return JsValue.FromObject(assignedValue);
         }
     }

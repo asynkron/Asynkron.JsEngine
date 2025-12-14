@@ -1137,7 +1137,7 @@ internal static class JsOps
         EvaluationContext? context)
     {
         result = null;
-        if (!accessor.TryGetProperty(methodName, out var method) || method is not IJsCallable callable)
+        if (!accessor.TryGetProperty(methodName, out var method) || !method.TryGetObject<IJsCallable>(out var callable))
         {
             return false;
         }
@@ -1548,8 +1548,9 @@ internal static class JsOps
                 // For Symbol primitives, first try own properties, then fall back to Symbol.prototype
                 if (propertyAccessor is TypedAstSymbol symbol)
                 {
-                    if (symbol.TryGetProperty(propertyName, out value))
+                    if (symbol.TryGetProperty(propertyName, out var jsValue))
                     {
+                        value = jsValue.ToObject();
                         return true;
                     }
 
@@ -1564,7 +1565,13 @@ internal static class JsOps
                     return false;
                 }
 
-                return propertyAccessor.TryGetProperty(propertyName, target, out value);
+                if (propertyAccessor.TryGetProperty(propertyName, JsValue.FromObject(target), out var jsVal))
+                {
+                    value = jsVal.ToObject();
+                    return true;
+                }
+                value = null;
+                return false;
             }
             catch (ThrowSignal signal)
             {
@@ -1797,7 +1804,7 @@ internal static class JsOps
     {
         if (target is IJsPropertyAccessor accessor)
         {
-            accessor.SetProperty(propertyName, value, target);
+            accessor.SetProperty(propertyName, JsValue.FromObject(value), JsValue.FromObject(target));
             return;
         }
 
@@ -1933,13 +1940,13 @@ internal static class JsOps
                 return true;
             }
 
-            jsArray.SetProperty(propertyName, value, jsArray);
+            jsArray.SetProperty(propertyName, JsValue.FromObject(value), JsValue.FromObject(jsArray));
             return true;
         }
 
         if (target is TypedArrayBase typedArray && TryResolveArrayIndex(propertyKey, out var typedIndex, context))
         {
-            typedArray.SetValue(typedIndex, value);
+            typedArray.SetValue(typedIndex, JsValue.FromObject(value));
             return true;
         }
 

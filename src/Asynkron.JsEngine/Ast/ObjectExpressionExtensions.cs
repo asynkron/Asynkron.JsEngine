@@ -205,11 +205,11 @@ public static partial class TypedAstEvaluator
                         foreach (var key in GetEnumerableOwnPropertyKeysInOrder(accessor))
                         {
                             var spreadPropertyValue = accessor.TryGetProperty(key, out var val)
-                                ? val
+                                ? val.ToObject()
                                 : Symbol.Undefined;
                             obj.DefineProperty(key, new PropertyDescriptor
                             {
-                                Value = JsValue.FromObject(spreadPropertyValue),
+                                Value = spreadPropertyValue,
                                 Writable = true,
                                 Enumerable = true,
                                 Configurable = true

@@ -559,7 +559,7 @@ public sealed partial class ArrayPrototype
         long index = 0;
         foreach (var pair in elements)
         {
-            accessor.SetProperty(ToIndexString(index++), pair.Value);
+            accessor.SetProperty(ToIndexString(index++), JsValue.FromObject(pair.Value));
         }
 
         if (objectLike is not null)
@@ -573,12 +573,12 @@ public sealed partial class ArrayPrototype
         {
             for (var k = index; k < length; k++)
             {
-                accessor.SetProperty(ToIndexString(k), Symbol.Undefined);
+                accessor.SetProperty(ToIndexString(k), JsValue.FromObject(Symbol.Undefined));
             }
         }
 
         // Clear re-entrancy guard
-        accessor.SetProperty("__sorting__", Symbol.Undefined);
+        accessor.SetProperty("__sorting__", JsValue.FromObject(Symbol.Undefined));
 
         return JsValue.FromObject(accessor);
     }

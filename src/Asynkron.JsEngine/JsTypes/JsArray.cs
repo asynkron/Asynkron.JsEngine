@@ -842,7 +842,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             var iterator = new JsObject();
 
             // Add next() method to iterator
-            iterator.SetProperty("next", new HostFunction((_, _) =>
+            iterator.SetProperty("next", JsValue.FromObject(new HostFunction((_, _) =>
             {
                 var result = new JsObject();
                 if (indexHolder[0] < _length)
@@ -859,7 +859,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 }
 
                 return new JsValue(result);
-            }));
+            })));
 
             return new JsValue(iterator);
         });

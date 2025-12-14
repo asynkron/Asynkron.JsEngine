@@ -448,14 +448,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        var receiverObj = receiver.IsUndefined ? (object?)this : receiver.ToObject();
-        if (_properties.TryGetProperty(name, receiverObj ?? this, context: null, out var objValue))
-        {
-            value = JsValue.FromObject(objValue);
-            return true;
-        }
-        value = JsValue.Undefined;
-        return false;
+        return _properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObject(this) : receiver, out value);
     }
 
     public bool TryGetProperty(string name, out JsValue value)
@@ -465,8 +458,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
     {
-        var receiverObj = receiver.IsUndefined ? (object?)this : receiver.ToObject();
-        _properties.SetProperty(name, value.ToObject(), receiverObj ?? this);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObject(this) : receiver);
     }
 
     public void SetProperty(string name, JsValue value)

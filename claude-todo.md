@@ -63,9 +63,25 @@ After each file, run tests to ensure nothing breaks.
 
 ---
 
-## Phase 2: Statement Extensions
+## Phase 2: Binding/Environment (59 occurrences, 19 files)
+
+**Complexity Note:** `Binding._value` serves dual purpose (regular values AND `ISpecialBinding` for async exports/imports). Options:
+1. Keep `_value` as `object?` internally, convert at property boundary (minimal benefit)
+2. Add separate `JsValue` field (increases struct size from ~16 to ~40 bytes)
+3. Skip to Phase 4 (IJsCallable) - higher impact, cleaner change
+
+- [ ] Change `Binding._value` from `object?` to `JsValue`
+- [ ] Update `JsEnvironment.Set()` to take `JsValue`
+- [ ] Update `JsEnvironment.Get()` to return `JsValue`
+- [ ] Update `TryGet()` to return `JsValue`
+- [ ] Update all callers
+
+---
+
+## Phase 3: Statement Extensions (172 occurrences, 44 files)
 
 Convert statement evaluation to work with JsValue internally.
+Depends on Phase 2 (EvaluationContext uses Binding values).
 
 - [ ] `StatementNodeExtensions.cs` - core statement dispatcher
 - [ ] `ReturnStatementExtensions.cs`
@@ -76,16 +92,6 @@ Convert statement evaluation to work with JsValue internally.
 - [ ] `LoopPlanExtensions.cs`
 - [ ] `WithStatementExtensions.cs`
 - [ ] `VariableKindExtensions.cs`
-
----
-
-## Phase 3: Binding/Environment
-
-- [ ] Change `Binding._value` from `object?` to `JsValue`
-- [ ] Update `JsEnvironment.Set()` to take `JsValue`
-- [ ] Update `JsEnvironment.Get()` to return `JsValue`
-- [ ] Update `TryGet()` to return `JsValue`
-- [ ] Update all callers
 
 ---
 

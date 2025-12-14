@@ -37,7 +37,7 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvi
             var begin = args.Count > 0 && args[0].TryGetDouble(out var d1) ? (int)d1 : 0;
             var end = args.Count > 1 && args[1].TryGetDouble(out var d2) ? (int)d2 : target.ByteLength;
 
-            return new JsValue(target.Slice(begin, end));
+            return JsValue.FromObject(target.Slice(begin, end));
         });
 
         _resizeFunction = new HostFunction((thisValue, args) =>

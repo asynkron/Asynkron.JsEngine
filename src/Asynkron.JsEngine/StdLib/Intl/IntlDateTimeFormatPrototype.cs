@@ -35,7 +35,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         part.SetProperty("value", formatted.ToObject());
         var parts = new JsArray(Realm);
         parts.Push(part);
-        return new JsValue(parts);
+        return JsValue.FromObject(parts);
     }
 
     [JsHostMethod("formatRange", Length = 2d)]
@@ -57,7 +57,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         parts.Push(CreateRangePart("startRange", (string)start.ObjectValue!));
         parts.Push(CreateRangePart("separator", " – "));
         parts.Push(CreateRangePart("endRange", (string)end.ObjectValue!));
-        return new JsValue(parts);
+        return JsValue.FromObject(parts);
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]

@@ -275,7 +275,7 @@ public sealed partial class IntlLocaleConstructor : JsConstructor
             return false;
         }
 
-        if (raw.TryGetNumber(out var dbl))
+        if (raw.TryGetDouble(out var dbl))
         {
             return TryNormalizeWeekdayFromNumber((int)dbl, out value);
         }

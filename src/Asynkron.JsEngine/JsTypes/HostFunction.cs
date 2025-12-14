@@ -226,7 +226,7 @@ namespace Asynkron.JsEngine.JsTypes;
                     var boundArgs = args.SliceFrom(1);
                     var targetIsConstructor = JsOps.IsConstructor(target);
                     var realmState = RealmState ?? (target as ICallableMetadata)?.RealmState;
-                    return new JsValue(CreateBoundFunction(target, boundThis, boundArgs, targetIsConstructor, realmState));
+                    return JsValue.FromObject(CreateBoundFunction(target, boundThis, boundArgs, targetIsConstructor, realmState));
                 }, isConstructor: false);
                 return true;
         }

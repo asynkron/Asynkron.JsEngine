@@ -22,7 +22,7 @@ public sealed partial class IntlNumberFormatPrototype
     public JsValue GetFormat(JsValue thisValue)
     {
         var nf = ValidateNumberFormatReceiver(thisValue);
-        return new JsValue(CreateBoundFormatFunction(value => new JsValue(FormatNumberValue(nf, value))));
+        return JsValue.FromObject(CreateBoundFormatFunction(value => new JsValue(FormatNumberValue(nf, value))));
     }
 
     [JsHostMethod("formatToParts", Length = 0d)]
@@ -44,7 +44,7 @@ public sealed partial class IntlNumberFormatPrototype
             partsArray.Push(entry);
         }
 
-        return new JsValue(partsArray);
+        return JsValue.FromObject(partsArray);
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]

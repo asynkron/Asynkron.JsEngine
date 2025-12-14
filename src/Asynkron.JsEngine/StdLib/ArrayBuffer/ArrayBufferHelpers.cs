@@ -73,7 +73,7 @@ public static partial class StandardLibrary
         return callable;
     }
 
-    internal static JsValue ArrayBufferIsView(object? _, IReadOnlyList<JsValue> args, RealmState? __)
+    internal static JsValue ArrayBufferIsView(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (args.Count == 0 || args[0].IsNullOrUndefined)
         {

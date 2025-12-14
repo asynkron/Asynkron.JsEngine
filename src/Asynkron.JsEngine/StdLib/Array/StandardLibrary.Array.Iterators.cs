@@ -37,7 +37,7 @@ public static partial class StandardLibrary
                 var doneResult = new JsObject(realm?.ObjectPrototype);
                 doneResult.SetProperty("value", Symbol.Undefined);
                 doneResult.SetProperty("done", true);
-                return doneResult;
+                return new JsValue(doneResult);
             }
 
             if (typedAccessor is not null && typedAccessor.IsDetachedOrOutOfBounds())

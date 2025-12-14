@@ -397,7 +397,7 @@ public sealed partial class DatePrototype : JsPrototype
             throw ThrowTypeError("toISOString is not callable", realm: Realm);
         }
 
-        return fn.Invoke(Array.Empty<JsValue>(), obj);
+        return fn.Invoke(Array.Empty<JsValue>(), new JsValue(obj));
     }
 
     [JsHostMethod("toString", Length = 0d)]

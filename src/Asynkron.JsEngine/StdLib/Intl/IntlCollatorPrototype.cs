@@ -23,7 +23,7 @@ public sealed partial class IntlCollatorPrototype
     {
         var collator = ValidateCollatorReceiver(thisValue);
         var slots = GetSlots(collator);
-        return new JsValue(new HostFunction((_, args) =>
+        return JsValue.FromObject(new HostFunction((_, args) =>
         {
             var first = args.Count > 0 ? JsValueToString(args[0], Realm) : string.Empty;
             var second = args.Count > 1 ? JsValueToString(args[1], Realm) : string.Empty;

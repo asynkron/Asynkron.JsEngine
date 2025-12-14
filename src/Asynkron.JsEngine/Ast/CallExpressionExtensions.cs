@@ -392,7 +392,7 @@ public static partial class TypedAstEvaluator
 
                 if (expression.Callee is SuperExpression)
                 {
-                    var callResultObj = callResult;
+                    var callResultObj = callResult.ToObject();
                     var thisAfterSuper = callResultObj;
                     if (callResultObj is not JsObject && callResultObj is not IJsObjectLike)
                     {

@@ -275,7 +275,7 @@ public sealed partial class RegExpPrototype : JsPrototype
 
         var limit = limitValue == JsValue.Undefined
             ? uint.MaxValue
-            : ToUint32(limitValue.ToObject());
+            : ToUint32(limitValue);
 
         var resultArray = new JsArray(Realm);
         if (limit == 0)

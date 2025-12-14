@@ -34,7 +34,7 @@ public static partial class StandardLibrary
         }
 
         var argList = args.Count > 1 && args[1].TryGetObject<JsArray>(out var arr)
-            ? arr.Items.Select(JsValue.FromObject).ToArray()
+            ? arr.Items.ToArray()
             : [];
         IJsCallable newTarget;
         if (args.Count > 2)
@@ -109,7 +109,7 @@ public static partial class StandardLibrary
             }
 
             var jsValueArgs = argList.Select(JsValue.FromObject).ToArray();
-            var result = target.Invoke(jsValueArgs, new JsValue(arrayInstance));
+            var result = target.Invoke(jsValueArgs, JsValue.FromObject(arrayInstance));
             return result.TryGetObject<JsObject>(out var jsObj) ? jsObj : arrayInstance;
         }
 
@@ -161,8 +161,7 @@ public static partial class StandardLibrary
 
         var arg1 = args.Count > 1 ? args[1].ToObject() : null;
         var propertyKey = JsOps.ToPropertyName(arg1) ?? string.Empty;
-        var arg2 = args.Count > 2 ? args[2].ToObject() : null;
-        var descriptor = ToPropertyDescriptor(arg2, realm);
+        var descriptor = ToPropertyDescriptor(args[2], realm);
 
         return JsValue.FromObject(TryDefinePropertyOnTarget(target, propertyKey, descriptor, realm, false));
     }

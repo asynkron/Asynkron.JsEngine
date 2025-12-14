@@ -228,7 +228,7 @@ public sealed partial class ArrayPrototype
         if (accessor.TryGetProperty(ReentrancyKey, out var inSpliceFlag) && !ReferenceEquals(inSpliceFlag, Symbol.Undefined))
         {
             // Already in splice, return empty array to break recursion
-            return JsValue.FromObject(ArraySpeciesCreate(thisValue.ToObject(), 0, Realm));
+            return JsValue.FromObject(ArraySpeciesCreate(thisValue, 0, Realm));
         }
 
         try
@@ -279,7 +279,7 @@ public sealed partial class ArrayPrototype
                 throw ThrowRangeError("Array length exceeds 2^32 - 1", realm: Realm);
             }
 
-            var result = ArraySpeciesCreate(thisValue.ToObject(), actualDeleteCount, Realm);
+            var result = ArraySpeciesCreate(thisValue, actualDeleteCount, Realm);
             for (long k = 0; k < actualDeleteCount; k++)
             {
                 CopyArrayElement(accessor, actualStart + k, result, k);
@@ -428,14 +428,14 @@ public sealed partial class ArrayPrototype
         var realm = Realm;
         const string MethodName = "Array.prototype.concat";
         var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), MethodName, realm);
-        var result = ArraySpeciesCreate(thisValue.ToObject(), 0, realm);
+        var result = ArraySpeciesCreate(thisValue, 0, realm);
         long resultIndex = 0;
 
-        var sources = new object?[args.Count + 1];
-        sources[0] = accessor;
+        var sources = new JsValue[args.Count + 1];
+        sources[0] = JsValue.FromObject(accessor);
         for (var i = 0; i < args.Count; i++)
         {
-            sources[i + 1] = args[i].ToObject();
+            sources[i + 1] = args[i];
         }
 
         foreach (var sourceValue in sources)

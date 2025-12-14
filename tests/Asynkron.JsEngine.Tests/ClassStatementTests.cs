@@ -234,9 +234,9 @@ public class ClassStatementTests
             """);
 
         var array = Assert.IsType<Asynkron.JsEngine.JsTypes.JsArray>(result);
-        Assert.True(array.GetElement(0).AsBoolean());
-        Assert.True(array.GetElement(1).AsBoolean());
-        Assert.True(array.GetElement(2).AsBoolean());
+        Assert.True((bool)array.GetElement(0).ToObject()!);
+        Assert.True((bool)array.GetElement(1).ToObject()!);
+        Assert.True((bool)array.GetElement(2).ToObject()!);
     }
 
     [Fact(Timeout = 2000)]

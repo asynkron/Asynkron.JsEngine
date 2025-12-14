@@ -309,9 +309,9 @@ public class AdditionalArrayMethodsTests
         Assert.Equal(3d, obj["outLength"]);
         Assert.Equal(3d, obj["seenCount"]);
         var entries = Assert.IsType<JsArray>(obj["entries"]);
-        Assert.Equal(127d, entries.GetElement(0));
-        Assert.Equal(127d, entries.GetElement(1));
-        Assert.Equal(127d, entries.GetElement(2));
+        Assert.Equal(127d, entries.GetElement(0).ToObject());
+        Assert.Equal(127d, entries.GetElement(1).ToObject());
+        Assert.Equal(127d, entries.GetElement(2).ToObject());
     }
 
     [Fact(Timeout = 2000)]
@@ -469,8 +469,8 @@ public class AdditionalArrayMethodsTests
         Assert.False(engine.GlobalObject.ContainsKey("__asyncError"));
         Assert.True(engine.GlobalObject.TryGetValue("__asyncResult", out var stored));
         var arr = Assert.IsType<JsArray>(stored);
-        Assert.Equal(0d, arr.GetElement(0));
-        Assert.Equal(7d, arr.GetElement(1));
+        Assert.Equal(0d, arr.GetElement(0).ToObject());
+        Assert.Equal(7d, arr.GetElement(1).ToObject());
     }
 
     [Fact(Timeout = 2000)]
@@ -493,8 +493,8 @@ public class AdditionalArrayMethodsTests
         Assert.False(engine.GlobalObject.ContainsKey("__asyncArrayLikeError"));
         Assert.True(engine.GlobalObject.TryGetValue("__asyncArrayLike", out var stored));
         var arr = Assert.IsType<JsArray>(stored);
-        Assert.Equal("a!", arr.GetElement(0));
-        Assert.Equal("b!", arr.GetElement(1));
+        Assert.Equal("a!", arr.GetElement(0).ToObject());
+        Assert.Equal("b!", arr.GetElement(1).ToObject());
     }
 
     [Fact(Timeout = 2000)]

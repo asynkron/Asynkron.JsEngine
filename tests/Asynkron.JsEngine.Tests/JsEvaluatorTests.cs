@@ -56,7 +56,7 @@ public class JsEvaluatorTests
 
         var result = await engine.Evaluate("collect(\"hello\", 3); collect(\"world\");");
 
-        Assert.Equal(1, result); // last call returns number of args
+        Assert.Equal(1d, result); // last call returns number of args
         Assert.Collection(captured,
             item => Assert.Equal("hello", item),
             item => Assert.Equal(3d, item),
@@ -1451,13 +1451,13 @@ public class JsEvaluatorTests
         await using var engine = new JsEngine();
 
         var positive = await engine.Evaluate("Math.sign(10);");
-        Assert.Equal(1, positive);
+        Assert.Equal(1d, positive);
 
         var negative = await engine.Evaluate("Math.sign(-5);");
-        Assert.Equal(-1, negative);
+        Assert.Equal(-1d, negative);
 
         var zero = await engine.Evaluate("Math.sign(0);");
-        Assert.Equal(0, zero);
+        Assert.Equal(0d, zero);
     }
 
     [Fact(Timeout = 2000)]

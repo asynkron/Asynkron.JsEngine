@@ -78,8 +78,8 @@ public class WithStatementTests
             """);
 
         var array = Assert.IsType<JsArray>(result);
-        Assert.Equal(1d, array.GetElement(0));
-        Assert.Equal(7d, array.GetElement(1));
+        Assert.Equal(1d, array.GetElement(0).ToObject());
+        Assert.Equal(7d, array.GetElement(1).ToObject());
     }
 
     [Theory]
@@ -135,8 +135,8 @@ public class WithStatementTests
             """);
 
         var array = Assert.IsType<JsArray>(result);
-        Assert.Equal(2d, array.GetElement(0));
-        Assert.Equal("undefined", array.GetElement(1));
+        Assert.Equal(2d, array.GetElement(0).ToObject());
+        Assert.Equal("undefined", array.GetElement(1).ToObject());
         Assert.Same(Symbol.Undefined, array.GetElement(2).ToObject());
     }
 
@@ -153,8 +153,8 @@ public class WithStatementTests
             """);
 
         var array = Assert.IsType<JsArray>(result);
-        Assert.Equal("number", array.GetElement(0));
-        Assert.Equal(7d, array.GetElement(1));
+        Assert.Equal("number", array.GetElement(0).ToObject());
+        Assert.Equal(7d, array.GetElement(1).ToObject());
     }
 
     [Fact(Timeout = 2000)]
@@ -195,9 +195,9 @@ public class WithStatementTests
             """);
 
         var array = Assert.IsType<JsArray>(result);
-        Assert.Equal(1d, array.GetElement(0));
+        Assert.Equal(1d, array.GetElement(0).ToObject());
 
-        var logArray = Assert.IsType<JsArray>(array.GetElement(1));
+        var logArray = Assert.IsType<JsArray>(array.GetElement(1).ToObject());
         AssertLogContainsInOrder(logArray, "has:value", "get:value");
     }
 
@@ -231,9 +231,9 @@ public class WithStatementTests
             """);
 
         var array = Assert.IsType<JsArray>(result);
-        Assert.Equal(2d, array.GetElement(0));
+        Assert.Equal(2d, array.GetElement(0).ToObject());
 
-        var logArray = Assert.IsType<JsArray>(array.GetElement(1));
+        var logArray = Assert.IsType<JsArray>(array.GetElement(1).ToObject());
         AssertLogContainsInOrder(logArray, "has:p", "get:p", "set:p");
     }
 

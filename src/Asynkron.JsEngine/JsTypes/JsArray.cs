@@ -20,7 +20,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     private static readonly JsValue ArrayHole = JsValue.FromObject(ArrayHoleSentinel);
 
     private static bool IsArrayHole(JsValue value) =>
-        value.Kind == JsValueKind.Object && ReferenceEquals(value.AsObject(), ArrayHoleSentinel);
+        value.Kind == JsValueKind.Object && ReferenceEquals(value.ToObject(), ArrayHoleSentinel);
     private readonly IJsObjectLike? _arrayPrototype;
     private readonly List<JsValue> _items = [];
 

@@ -162,7 +162,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
             return JsValue.NaN;
         }
 
-        var str = args[0].ToString() ?? "";
+        var str = JsOps.ToJsString(args[0].ToObject()) ?? "";
         str = str.Trim();
         if (str.Length == 0)
         {
@@ -204,7 +204,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
             return JsValue.NaN;
         }
 
-        var str = args[0].ToString() ?? "";
+        var str = JsOps.ToJsString(args[0].ToObject()) ?? "";
         str = str.Trim();
         if (str.Length == 0)
         {

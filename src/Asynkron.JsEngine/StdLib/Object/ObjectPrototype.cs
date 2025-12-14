@@ -10,10 +10,10 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class ObjectPrototype : JsPrototype
 {
     [JsHostMethod("toString", Length = 0d)]
-    public object? ToString(object? thisValue, IReadOnlyList<object?> _)
+    public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var tagKey = SymbolKeys.GetToStringTag(Realm);
-        if (thisValue is JsObject obj)
+        if (thisValue.TryGetObject<JsObject>(out var obj))
         {
             if (obj.TryGetProperty(tagKey, out var tagValue) && !ReferenceEquals(tagValue, Symbol.Undefined))
             {
@@ -21,7 +21,7 @@ public sealed partial class ObjectPrototype : JsPrototype
                 return $"[object {tagString}]";
             }
         }
-        else if (thisValue is IJsPropertyAccessor accessor)
+        else if (thisValue.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
             if (accessor.TryGetProperty(tagKey, out var tagValue) &&
                 !ReferenceEquals(tagValue, Symbol.Undefined))
@@ -31,76 +31,105 @@ public sealed partial class ObjectPrototype : JsPrototype
             }
         }
 
-        var tag = thisValue switch
+        string tag;
+        if (thisValue.IsNull)
         {
-            null => "Null",
-            JsObject => "Object",
-            JsArray => "Array",
-            string => "String",
-            double => "Number",
-            bool => "Boolean",
-            IJsCallable => "Function",
-            _ when ReferenceEquals(thisValue, Symbol.Undefined) => "Undefined",
-            _ => "Object"
-        };
+            tag = "Null";
+        }
+        else if (thisValue.IsUndefined)
+        {
+            tag = "Undefined";
+        }
+        else if (thisValue.IsString)
+        {
+            tag = "String";
+        }
+        else if (thisValue.IsNumber)
+        {
+            tag = "Number";
+        }
+        else if (thisValue.IsBoolean)
+        {
+            tag = "Boolean";
+        }
+        else if (thisValue.TryGetObject<JsArray>(out var _))
+        {
+            tag = "Array";
+        }
+        else if (thisValue.TryGetObject<IJsCallable>(out var __))
+        {
+            tag = "Function";
+        }
+        else
+        {
+            tag = "Object";
+        }
 
         return $"[object {tag}]";
     }
 
     [JsHostMethod("valueOf", Length = 0d)]
-    public object? ValueOf(object? thisValue, IReadOnlyList<object?> _)
+    public JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         return thisValue;
     }
 
     [JsHostMethod("hasOwnProperty", Length = 1d)]
-    public object? HasOwnProperty(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue HasOwnProperty(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
-            return false;
+            return new JsValue(false);
         }
 
         var propertyName = JsOps.ToPropertyName(args[0]);
         if (propertyName is null)
         {
-            return false;
+            return new JsValue(false);
         }
 
-        return thisValue switch
+        bool result = false;
+        if (thisValue.TryGetObject<JsObject>(out var obj))
         {
-            JsObject obj => obj.GetOwnPropertyDescriptor(propertyName) is not null,
-            JsArray array => array.GetOwnPropertyDescriptor(propertyName) is not null,
-            IJsObjectLike accessor => accessor.GetOwnPropertyDescriptor(propertyName) is not null,
-            _ => false
-        };
+            result = obj.GetOwnPropertyDescriptor(propertyName) is not null;
+        }
+        else if (thisValue.TryGetObject<JsArray>(out var array))
+        {
+            result = array.GetOwnPropertyDescriptor(propertyName) is not null;
+        }
+        else if (thisValue.TryGetObject<IJsObjectLike>(out var accessor))
+        {
+            result = accessor.GetOwnPropertyDescriptor(propertyName) is not null;
+        }
+
+        return new JsValue(result);
     }
 
     [JsHostMethod("propertyIsEnumerable", Length = 1d)]
-    public object? PropertyIsEnumerable(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue PropertyIsEnumerable(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
-            return false;
+            return new JsValue(false);
         }
 
         var propertyName = JsOps.ToPropertyName(args[0]);
         if (propertyName is null)
         {
-            return false;
+            return new JsValue(false);
         }
 
-        if (thisValue is not IJsObjectLike accessor)
+        if (!thisValue.TryGetObject<IJsObjectLike>(out var accessor))
         {
-            return false;
+            return new JsValue(false);
         }
 
         var desc = accessor.GetOwnPropertyDescriptor(propertyName);
-        return desc?.Enumerable == true;
+        return new JsValue(desc?.Enumerable == true);
     }
 
     [JsHostMethod("__lookupGetter__", Length = 1d)]
-    public object? LookupGetter(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue LookupGetter(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (!TryGetObject(thisValue, Realm, out var obj))
         {
@@ -110,7 +139,7 @@ public sealed partial class ObjectPrototype : JsPrototype
         var propertyName = JsOps.ToPropertyName(args.GetArgument(0));
         if (propertyName is null)
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
         var cursor = obj;
@@ -121,20 +150,20 @@ public sealed partial class ObjectPrototype : JsPrototype
             {
                 if (!desc.IsAccessorDescriptor)
                 {
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
 
-                return desc.Get is null ? Symbol.Undefined : desc.Get;
+                return desc.Get is null ? JsValue.Undefined : JsValue.FromObject(desc.Get);
             }
 
             cursor = cursor.Prototype;
         }
 
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     [JsHostMethod("__lookupSetter__", Length = 1d)]
-    public object? LookupSetter(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue LookupSetter(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (!TryGetObject(thisValue, Realm, out var obj))
         {
@@ -144,7 +173,7 @@ public sealed partial class ObjectPrototype : JsPrototype
         var propertyName = JsOps.ToPropertyName(args.GetArgument(0));
         if (propertyName is null)
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
         var cursor = obj;
@@ -155,51 +184,57 @@ public sealed partial class ObjectPrototype : JsPrototype
             {
                 if (!desc.IsAccessorDescriptor)
                 {
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
 
-                return desc.Set is null ? Symbol.Undefined : desc.Set;
+                return desc.Set is null ? JsValue.Undefined : JsValue.FromObject(desc.Set);
             }
 
             cursor = cursor.Prototype;
         }
 
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     [JsHostMethod("isPrototypeOf", Length = 1d)]
-    public object? IsPrototypeOf(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue IsPrototypeOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue is null || ReferenceEquals(thisValue, Symbol.Undefined))
+        if (thisValue.IsNull || thisValue.IsUndefined)
         {
-            var error = Realm.TypeErrorConstructor is IJsCallable ctor
-                ? ctor.Invoke(["Object.prototype.isPrototypeOf called on null or undefined"], null)
-                : new InvalidOperationException("Object.prototype.isPrototypeOf called on null or undefined");
+            object error;
+            if (Realm.TypeErrorConstructor is IJsCallable ctor)
+            {
+                error = ctor.Invoke(["Object.prototype.isPrototypeOf called on null or undefined"], null);
+            }
+            else
+            {
+                error = new InvalidOperationException("Object.prototype.isPrototypeOf called on null or undefined");
+            }
             throw new ThrowSignal(error);
         }
 
-        if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
+        if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
         {
-            return false;
+            return new JsValue(false);
         }
 
-        if (args[0] is not IJsObjectLike objectLike)
+        if (!args[0].TryGetObject<IJsObjectLike>(out var objectLike))
         {
-            return false;
+            return new JsValue(false);
         }
 
         var cursor = objectLike as object;
         while (TryGetPrototype(cursor, out var proto))
         {
-            if (ReferenceEquals(proto, thisValue))
+            if (thisValue.TryGetObject<object>(out var thisObj) && ReferenceEquals(proto, thisObj))
             {
-                return true;
+                return new JsValue(true);
             }
 
             cursor = proto;
         }
 
-        return false;
+        return new JsValue(false);
 
         static bool TryGetPrototype(object? candidate, out IJsObjectLike? prototype)
         {
@@ -276,7 +311,7 @@ public sealed partial class ObjectPrototype : JsPrototype
         }
     }
 
-    private object? GetProto(object? thisValue, IReadOnlyList<object?> args)
+    private JsValue GetProto(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         _ = args;
         if (!TryGetObject(thisValue, Realm, out var obj))
@@ -286,7 +321,7 @@ public sealed partial class ObjectPrototype : JsPrototype
 
         if (obj is JsProxy proxy)
         {
-            return proxy.GetPrototypeWithTrap();
+            return JsValue.FromObject(proxy.GetPrototypeWithTrap());
         }
 
         object? proto = obj.Prototype;
@@ -295,10 +330,10 @@ public sealed partial class ObjectPrototype : JsPrototype
             proto = provider.PrototypeAccessor;
         }
 
-        return proto;
+        return proto is null ? JsValue.Null : JsValue.FromObject(proto);
     }
 
-    private object? SetProto(object? thisValue, IReadOnlyList<object?> args)
+    private JsValue SetProto(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var newProto = args.GetArgument(0);
         if (!TryGetObject(thisValue, Realm, out var obj))
@@ -306,17 +341,22 @@ public sealed partial class ObjectPrototype : JsPrototype
             throw ThrowTypeError("Object.prototype.__proto__ called on null or undefined", realm: Realm);
         }
 
-        if (newProto is not IJsPropertyAccessor && newProto is not null)
+        object? protoToSet = null;
+        if (!newProto.IsNull)
         {
-            return Symbol.Undefined;
+            if (!newProto.TryGetObject<IJsPropertyAccessor>(out var protoAccessor))
+            {
+                return JsValue.Undefined;
+            }
+            protoToSet = protoAccessor;
         }
 
         if (!IsTargetExtensible(obj))
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
-        obj.SetPrototype(newProto);
-        return Symbol.Undefined;
+        obj.SetPrototype(protoToSet);
+        return JsValue.Undefined;
     }
 }

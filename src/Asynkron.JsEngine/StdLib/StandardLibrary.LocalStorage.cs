@@ -16,7 +16,7 @@ public static partial class StandardLibrary
 
         return storage;
 
-        object? GetItem(object? _, IReadOnlyList<object?> args)
+        object? GetItem(object? _, IReadOnlyList<JsValue> args)
         {
             if (args.Count == 0)
             {
@@ -27,7 +27,7 @@ public static partial class StandardLibrary
             return backing.GetValueOrDefault(key);
         }
 
-        object? SetItem(object? _, IReadOnlyList<object?> args)
+        object? SetItem(object? _, IReadOnlyList<JsValue> args)
         {
             if (args.Count < 2)
             {
@@ -40,7 +40,7 @@ public static partial class StandardLibrary
             return null;
         }
 
-        object? RemoveItem(object? _, IReadOnlyList<object?> args)
+        object? RemoveItem(object? _, IReadOnlyList<JsValue> args)
         {
             if (args.Count == 0)
             {

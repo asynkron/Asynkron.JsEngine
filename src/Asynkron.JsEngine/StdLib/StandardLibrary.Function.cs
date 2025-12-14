@@ -47,7 +47,7 @@ public static partial class StandardLibrary
 
         return functionConstructor;
 
-        object? FunctionConstructorBody(IReadOnlyList<object?> args, IJsCallable newTarget)
+        object? FunctionConstructorBody(IReadOnlyList<JsValue> args, IJsCallable newTarget)
         {
             var evalContext = realm.CreateContext();
             var argCount = args.Count;

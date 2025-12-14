@@ -15,7 +15,7 @@ public sealed partial class SetPrototype
     }
 
     [JsHostMethod("add", Length = 1d)]
-    public object? Add(object? thisValue, IReadOnlyList<object?> args)
+    public object? Add(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireSet(thisValue);
         set.Add(args.GetArgument(0));
@@ -23,21 +23,21 @@ public sealed partial class SetPrototype
     }
 
     [JsHostMethod("has", Length = 1d)]
-    public object Has(object? thisValue, IReadOnlyList<object?> args)
+    public object Has(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireSet(thisValue);
         return set.Has(args.GetArgument(0));
     }
 
     [JsHostMethod("delete", Length = 1d)]
-    public object Delete(object? thisValue, IReadOnlyList<object?> args)
+    public object Delete(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireSet(thisValue);
         return set.Delete(args.GetArgument(0));
     }
 
     [JsHostMethod("clear", Length = 0d)]
-    public object? Clear(object? thisValue, IReadOnlyList<object?> _)
+    public object? Clear(JsValue thisValue, IReadOnlyList<object?> _)
     {
         var set = RequireSet(thisValue);
         set.Clear();
@@ -45,7 +45,7 @@ public sealed partial class SetPrototype
     }
 
     [JsHostMethod("forEach", Length = 1d)]
-    public object? ForEach(object? thisValue, IReadOnlyList<object?> args)
+    public object? ForEach(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireSet(thisValue);
         if (args.GetArgument(0) is not IJsCallable callback)
@@ -58,28 +58,28 @@ public sealed partial class SetPrototype
     }
 
     [JsHostMethod("entries", Length = 0d)]
-    public object? Entries(object? thisValue, IReadOnlyList<object?> _)
+    public object? Entries(JsValue thisValue, IReadOnlyList<object?> _)
     {
         var set = RequireSet(thisValue);
         return CreateSetIterator(set, SetIterationKind.Entries);
     }
 
     [JsHostMethod("keys", Length = 0d)]
-    public object? Keys(object? thisValue, IReadOnlyList<object?> _)
+    public object? Keys(JsValue thisValue, IReadOnlyList<object?> _)
     {
         var set = RequireSet(thisValue);
         return CreateSetIterator(set, SetIterationKind.Keys);
     }
 
     [JsHostMethod("values", Length = 0d)]
-    public object? Values(object? thisValue, IReadOnlyList<object?> _)
+    public object? Values(JsValue thisValue, IReadOnlyList<object?> _)
     {
         var set = RequireSet(thisValue);
         return CreateSetIterator(set, SetIterationKind.Values);
     }
 
     [JsHostGetter("size")]
-    public object Size(object? thisValue)
+    public object Size(JsValue thisValue)
     {
         var set = RequireSet(thisValue);
         return (double)set.Size;

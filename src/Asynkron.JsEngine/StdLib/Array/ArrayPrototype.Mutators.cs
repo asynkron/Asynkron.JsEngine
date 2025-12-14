@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class ArrayPrototype
 {
     [JsHostMethod("push", Length = 1d)]
-    public object? Push(object? thisValue, IReadOnlyList<object?> args)
+    public object? Push(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.push", Realm);
 
@@ -49,7 +49,7 @@ public sealed partial class ArrayPrototype
     }
 
     [JsHostMethod("pop", Length = 0d)]
-    public object? Pop(object? thisValue, IReadOnlyList<object?> args)
+    public object? Pop(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         const string MethodName = "Array.prototype.pop";
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
@@ -93,7 +93,7 @@ public sealed partial class ArrayPrototype
     }
 
     [JsHostMethod("shift", Length = 0d)]
-    public object? Shift(object? thisValue, IReadOnlyList<object?> args)
+    public object? Shift(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         const string MethodName = "Array.prototype.shift";
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
@@ -159,7 +159,7 @@ public sealed partial class ArrayPrototype
     }
 
     [JsHostMethod("unshift", Length = 1d)]
-    public object? Unshift(object? thisValue, IReadOnlyList<object?> args)
+    public object? Unshift(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
         const string MethodName = "Array.prototype.unshift";
@@ -218,7 +218,7 @@ public sealed partial class ArrayPrototype
     }
 
     [JsHostMethod("splice", Length = 2d)]
-    public object? Splice(object? thisValue, IReadOnlyList<object?> args)
+    public object? Splice(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         const string MethodName = "Array.prototype.splice";
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
@@ -350,7 +350,7 @@ public sealed partial class ArrayPrototype
     }
 
     [JsHostMethod("reverse", Length = 0d)]
-    public object? Reverse(object? thisValue, IReadOnlyList<object?> args)
+    public object? Reverse(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         const string MethodName = "Array.prototype.reverse";
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
@@ -423,7 +423,7 @@ public sealed partial class ArrayPrototype
     }
 
     [JsHostMethod("concat", Length = 1d)]
-    public object? Concat(object? thisValue, IReadOnlyList<object?> args)
+    public object? Concat(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
         const string MethodName = "Array.prototype.concat";
@@ -478,7 +478,7 @@ public sealed partial class ArrayPrototype
     }
 
     [JsHostMethod("sort", Length = 1d)]
-    public object? Sort(object? thisValue, IReadOnlyList<object?> args)
+    public object? Sort(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.sort", realm);

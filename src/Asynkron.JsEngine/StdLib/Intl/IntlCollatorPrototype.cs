@@ -19,7 +19,7 @@ public sealed partial class IntlCollatorPrototype
     }
 
     [JsHostGetter("compare", DisplayName = "get compare")]
-    private object GetCompare(object? thisValue)
+    private object GetCompare(JsValue thisValue)
     {
         var collator = ValidateCollatorReceiver(thisValue);
         var slots = GetSlots(collator);
@@ -32,7 +32,7 @@ public sealed partial class IntlCollatorPrototype
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    private JsObject ResolvedOptions(object? thisValue, IReadOnlyList<object?> _)
+    private JsObject ResolvedOptions(JsValue thisValue, IReadOnlyList<object?> _)
     {
         var collator = ValidateCollatorReceiver(thisValue);
         var slots = GetSlots(collator);
@@ -47,7 +47,7 @@ public sealed partial class IntlCollatorPrototype
         return options;
     }
 
-    private JsObject ValidateCollatorReceiver(object? thisValue)
+    private JsObject ValidateCollatorReceiver(JsValue thisValue)
     {
         return thisValue.EnsureBrand(CollatorBrand, Realm,
             "Intl.Collator method called on incompatible receiver");

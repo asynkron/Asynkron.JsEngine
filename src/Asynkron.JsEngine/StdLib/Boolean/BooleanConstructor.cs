@@ -40,7 +40,7 @@ public sealed partial class BooleanConstructor(IJsObjectLike prototype, RealmSta
         });
     }
 
-    private object ConstructWithNewTarget(IReadOnlyList<object?> args, IJsCallable newTarget)
+    private object ConstructWithNewTarget(IReadOnlyList<JsValue> args, IJsCallable newTarget)
     {
         var targetCtor = _constructor ?? newTarget;
         var resolvedProto =

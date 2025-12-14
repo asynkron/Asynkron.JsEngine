@@ -31,7 +31,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            IReadOnlyList<object?> args;
+            IReadOnlyList<JsValue> args;
             if (!hasSpread)
             {
                 if (expression.Arguments.Length == 0)

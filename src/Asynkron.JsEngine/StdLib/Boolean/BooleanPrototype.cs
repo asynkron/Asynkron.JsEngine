@@ -8,13 +8,13 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class BooleanPrototype
 {
     [JsHostMethod("toString", Length = 0d)]
-    public object? ToString(object? thisValue, IReadOnlyList<object?> _)
+    public object? ToString(JsValue thisValue, IReadOnlyList<object?> _)
     {
         return RequireBooleanReceiver(thisValue) ? "true" : "false";
     }
 
     [JsHostMethod("valueOf", Length = 0d)]
-    public object? ValueOf(object? thisValue, IReadOnlyList<object?> _)
+    public object? ValueOf(JsValue thisValue, IReadOnlyList<object?> _)
     {
         return RequireBooleanReceiver(thisValue);
     }

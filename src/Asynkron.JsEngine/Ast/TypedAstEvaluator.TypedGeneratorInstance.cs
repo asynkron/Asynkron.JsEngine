@@ -50,7 +50,7 @@ public static partial class TypedAstEvaluator
             FunctionExpression function,
             JsEnvironment closure,
             IReadOnlyList<object?> arguments,
-            object? thisValue,
+            JsValue thisValue,
             IJsCallable callable,
             RealmState realmState,
             bool isLexicallyStrict,
@@ -1580,7 +1580,7 @@ public static partial class TypedAstEvaluator
             // let the caller observe the pending throw/return.
         }
 
-        private bool TryAwaitPromiseOrSchedule(object? candidate, EvaluationContext context, out object? resolvedValue)
+        private bool TryAwaitPromiseOrSchedule(JsValue candidate, EvaluationContext context, out object? resolvedValue)
         {
             var pendingPromise = _pendingPromise;
             var result = AwaitScheduler.TryAwaitPromiseOrSchedule(candidate, _asyncStepMode, ref pendingPromise,

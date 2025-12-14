@@ -19,14 +19,14 @@ public sealed partial class IntlNumberFormatPrototype
     }
 
     [JsHostGetter("format", DisplayName = "get format")]
-    public HostFunction GetFormat(object? thisValue)
+    public HostFunction GetFormat(JsValue thisValue)
     {
         var nf = ValidateNumberFormatReceiver(thisValue);
         return CreateBoundFormatFunction(value => FormatNumberValue(nf, value));
     }
 
     [JsHostMethod("formatToParts", Length = 0d)]
-    public JsArray FormatToParts(object? thisValue, IReadOnlyList<object?> args)
+    public JsArray FormatToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var nf = ValidateNumberFormatReceiver(thisValue);
         var value = args.GetArgument(0);
@@ -48,13 +48,13 @@ public sealed partial class IntlNumberFormatPrototype
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    public JsObject ResolvedOptions(object? thisValue, IReadOnlyList<object?> _)
+    public JsObject ResolvedOptions(JsValue thisValue, IReadOnlyList<object?> _)
     {
         var nf = ValidateNumberFormatReceiver(thisValue);
         return CreateNumberFormatResolvedOptions(nf);
     }
 
-    private JsObject ValidateNumberFormatReceiver(object? thisValue)
+    private JsObject ValidateNumberFormatReceiver(JsValue thisValue)
     {
         return thisValue.EnsureBrand(NumberFormatBrand, Realm,
             "Intl.NumberFormat method called on incompatible receiver");

@@ -10,7 +10,7 @@ namespace Asynkron.JsEngine;
 public sealed class SuperBinding(
     IJsEnvironmentAwareCallable? constructor,
     IJsPropertyAccessor? prototype,
-    object? thisValue,
+    JsValue thisValue,
     bool isThisInitialized = false)
     : IJsPropertyAccessor
 {
@@ -18,7 +18,7 @@ public sealed class SuperBinding(
 
     public IJsPropertyAccessor? Prototype { get; } = prototype;
 
-    public object? ThisValue { get; } = thisValue;
+    public JsValue thisValue { get; } = thisValue;
     public bool IsThisInitialized { get; } = isThisInitialized;
 
     public bool TryGetProperty(string name, out object? value)
@@ -30,8 +30,7 @@ public sealed class SuperBinding(
             {
                 if (descriptor.Get is IJsCallable getter)
                 {
-                    var thisValueJs = JsValue.FromObject(ThisValue);
-                    var result = getter.Invoke([], thisValueJs);
+                    var result = getter.Invoke([], thisValue);
                     value = result.ToObject();
                     return true;
                 }
@@ -62,8 +61,7 @@ public sealed class SuperBinding(
             {
                 if (descriptor.Get is IJsCallable getter)
                 {
-                    var thisValueJs = JsValue.FromObject(ThisValue);
-                    var result = getter.Invoke([], thisValueJs);
+                    var result = getter.Invoke([], thisValue);
                     value = result.ToObject();
                     return true;
                 }
@@ -101,7 +99,6 @@ public sealed class SuperBinding(
         usedSetter = false;
 
         var valueJs = JsValue.FromObject(value);
-        var thisValueJs = JsValue.FromObject(ThisValue);
 
         // First, check for a setter in the super prototype chain
         if (Prototype is IJsObjectLike objectLike)
@@ -109,7 +106,7 @@ public sealed class SuperBinding(
             var descriptor = objectLike.GetOwnPropertyDescriptor(name);
             if (descriptor?.Set is IJsCallable setter)
             {
-                setter.Invoke([valueJs], thisValueJs);
+                setter.Invoke([valueJs], thisValue);
                 usedSetter = true;
                 return true;
             }
@@ -120,7 +117,7 @@ public sealed class SuperBinding(
             var descriptor = ctorObject.GetOwnPropertyDescriptor(name);
             if (descriptor?.Set is IJsCallable setter)
             {
-                setter.Invoke([valueJs], thisValueJs);
+                setter.Invoke([valueJs], thisValue);
                 usedSetter = true;
                 return true;
             }

@@ -85,7 +85,7 @@ public static partial class StandardLibrary
     }
 
     internal static (IJsPropertyAccessor Accessor, long Length, IJsCallable Callback, object? ThisArg)
-        PrepareArrayIteration(object? receiver, IReadOnlyList<object?> args, RealmState? realm, string methodName)
+        PrepareArrayIteration(object? receiver, IReadOnlyList<JsValue> args, RealmState? realm, string methodName)
     {
         var accessor = EnsureArrayLikeReceiver(receiver, methodName, realm);
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
@@ -164,7 +164,7 @@ public static partial class StandardLibrary
         return Math.Min((long)index, length);
     }
 
-    internal static object? ReduceLike(object? thisValue, IReadOnlyList<object?> args, RealmState? realm,
+    internal static object? ReduceLike(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm,
         string methodName, bool fromRight)
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, methodName, realm);
@@ -216,7 +216,7 @@ public static partial class StandardLibrary
         return accumulator;
     }
 
-    internal static object? SomeLike(object? thisValue, IReadOnlyList<object?> args, RealmState? realm,
+    internal static object? SomeLike(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm,
         string methodName)
     {
         var (accessor, length, callback, thisArg) =

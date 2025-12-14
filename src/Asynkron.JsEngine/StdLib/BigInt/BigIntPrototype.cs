@@ -11,7 +11,7 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class BigIntPrototype : JsPrototype
 {
     [JsHostMethod("toString", Length = 0d)]
-    public object ToString(object? thisValue, IReadOnlyList<object?> args)
+    public object ToString(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var value = RequireBigIntValue(thisValue, Realm);
         var radixArg = args.GetArgument(0);
@@ -36,13 +36,13 @@ public sealed partial class BigIntPrototype : JsPrototype
     }
 
     [JsHostMethod("valueOf", Length = 0d)]
-    public object ValueOf(object? thisValue, IReadOnlyList<object?> _)
+    public object ValueOf(JsValue thisValue, IReadOnlyList<object?> _)
     {
         return RequireBigIntValue(thisValue, Realm);
     }
 
     [JsHostMethod("toLocaleString", Length = 0d)]
-    public object? ToLocaleString(object? thisValue, IReadOnlyList<object?> args)
+    public object? ToLocaleString(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var value = RequireBigIntValue(thisValue, Realm);
         var localesArg = args.GetArgument(0);

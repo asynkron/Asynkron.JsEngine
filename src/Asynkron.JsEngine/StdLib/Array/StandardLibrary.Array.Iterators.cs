@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    internal static object CreateArrayIterator(object? thisValue, string methodName, RealmState? realm,
+    internal static object CreateArrayIterator(JsValue thisValue, string methodName, RealmState? realm,
         Func<IJsPropertyAccessor, object?, Func<uint, object?>> projectorFactory)
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, methodName, realm);

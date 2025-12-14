@@ -21,7 +21,7 @@ public sealed partial class IntlRelativeTimeFormatPrototype
     }
 
     [JsHostMethod("format", Length = 2d)]
-    private string Format(object? thisValue, IReadOnlyList<object?> args)
+    private string Format(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         ValidateReceiver(thisValue);
         var value = args.Count > 0 ? JsOps.ToNumber(args[0]) : double.NaN;
@@ -36,7 +36,7 @@ public sealed partial class IntlRelativeTimeFormatPrototype
     }
 
     [JsHostMethod("formatToParts", Length = 2d)]
-    private JsArray FormatToParts(object? thisValue, IReadOnlyList<object?> args)
+    private JsArray FormatToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var formatted = Format(thisValue, args);
         var part = new JsObject();
@@ -48,7 +48,7 @@ public sealed partial class IntlRelativeTimeFormatPrototype
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    private JsObject ResolvedOptions(object? thisValue, IReadOnlyList<object?> _)
+    private JsObject ResolvedOptions(JsValue thisValue, IReadOnlyList<object?> _)
     {
         var instance = ValidateReceiver(thisValue);
         var obj = new JsObject(Realm.ObjectPrototype);
@@ -65,7 +65,7 @@ public sealed partial class IntlRelativeTimeFormatPrototype
         return obj;
     }
 
-    private JsObject ValidateReceiver(object? thisValue)
+    private JsObject ValidateReceiver(JsValue thisValue)
     {
         return thisValue.EnsureBrand(BrandKey, Realm,
             "Intl.RelativeTimeFormat method called on incompatible receiver");

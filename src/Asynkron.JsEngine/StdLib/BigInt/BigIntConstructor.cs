@@ -38,7 +38,7 @@ public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmStat
         AttachStatics(constructor);
     }
 
-    private object InvokeBigInt(IReadOnlyList<object?> args)
+    private object InvokeBigInt(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -54,7 +54,7 @@ public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmStat
         DefineBuiltinFunction(constructor.PropertiesObject, "asUintN", new HostFunction(BigIntAsUintN, Realm), 2);
     }
 
-    private object BigIntAsIntN(IReadOnlyList<object?> args)
+    private object BigIntAsIntN(IReadOnlyList<JsValue> args)
     {
         if (args.Count < 2)
         {
@@ -72,7 +72,7 @@ public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmStat
         return new JsBigInt(AsIntN(bits, bigIntValue.Value));
     }
 
-    private object BigIntAsUintN(IReadOnlyList<object?> args)
+    private object BigIntAsUintN(IReadOnlyList<JsValue> args)
     {
         if (args.Count < 2)
         {

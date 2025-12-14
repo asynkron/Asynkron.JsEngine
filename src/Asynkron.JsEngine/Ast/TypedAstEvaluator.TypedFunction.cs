@@ -542,7 +542,7 @@ public static partial class TypedAstEvaluator
             if (!IsArrowFunction)
             {
                 var newTargetValue = newTarget.IsUndefined ? JsValue.Undefined : newTarget;
-                functionEnvironment.Define(Symbol.NewTarget, newTargetValue.ToObject(), true, isLexical: true,
+                functionEnvironment.DefineJsValue(Symbol.NewTarget, newTargetValue, true, isLexical: true,
                     blocksFunctionScopeOverride: true);
             }
 

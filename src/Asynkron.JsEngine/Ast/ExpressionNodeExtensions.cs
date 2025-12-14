@@ -268,7 +268,7 @@ public static partial class TypedAstEvaluator
 
     extension(ExpressionNode callee)
     {
-        private (object? Callee, object? ThisValue, bool SkippedOptional) EvaluateCallTarget(JsEnvironment environment,
+        private (object? Callee, JsValue thisValue, bool SkippedOptional) EvaluateCallTarget(JsEnvironment environment,
             EvaluationContext context)
         {
             if (callee is SuperExpression superExpression)

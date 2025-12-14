@@ -34,14 +34,14 @@ public sealed partial class IntlLocalePrototype
     };
 
     [JsHostGetter("baseName", DisplayName = "get baseName")]
-    private string GetBaseName(object? thisValue)
+    private string GetBaseName(JsValue thisValue)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         return BuildBaseName(locale);
     }
 
     [JsHostGetter("language", DisplayName = "get language")]
-    private string GetLanguage(object? thisValue)
+    private string GetLanguage(JsValue thisValue)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var language = locale.TryGetProperty(LanguageSlot, out var value) && value is string lang && lang.Length > 0
@@ -51,7 +51,7 @@ public sealed partial class IntlLocalePrototype
     }
 
     [JsHostGetter("script", DisplayName = "get script")]
-    private object? GetScript(object? thisValue)
+    private object? GetScript(JsValue thisValue)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         if (locale.TryGetProperty(ScriptSlot, out var value) && value is string script && script.Length > 0)
@@ -63,7 +63,7 @@ public sealed partial class IntlLocalePrototype
     }
 
     [JsHostGetter("region", DisplayName = "get region")]
-    private object? GetRegion(object? thisValue)
+    private object? GetRegion(JsValue thisValue)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         if (locale.TryGetProperty(RegionSlot, out var value) && value is string region && region.Length > 0)
@@ -75,7 +75,7 @@ public sealed partial class IntlLocalePrototype
     }
 
     [JsHostGetter("variants", DisplayName = "get variants")]
-    private JsArray GetVariants(object? thisValue)
+    private JsArray GetVariants(JsValue thisValue)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var variants = GetLocaleVariants(locale);
@@ -89,37 +89,37 @@ public sealed partial class IntlLocalePrototype
     }
 
     [JsHostGetter("calendar", DisplayName = "get calendar")]
-    private object? GetCalendar(object? thisValue)
+    private object? GetCalendar(JsValue thisValue)
     {
         return GetKeywordValue(thisValue, "ca");
     }
 
     [JsHostGetter("numberingSystem", DisplayName = "get numberingSystem")]
-    private object? GetNumberingSystem(object? thisValue)
+    private object? GetNumberingSystem(JsValue thisValue)
     {
         return GetKeywordValue(thisValue, "nu");
     }
 
     [JsHostGetter("collation", DisplayName = "get collation")]
-    private object? GetCollation(object? thisValue)
+    private object? GetCollation(JsValue thisValue)
     {
         return GetKeywordValue(thisValue, "co");
     }
 
     [JsHostGetter("hourCycle", DisplayName = "get hourCycle")]
-    private object? GetHourCycle(object? thisValue)
+    private object? GetHourCycle(JsValue thisValue)
     {
         return GetKeywordValue(thisValue, "hc");
     }
 
     [JsHostGetter("caseFirst", DisplayName = "get caseFirst")]
-    private object? GetCaseFirst(object? thisValue)
+    private object? GetCaseFirst(JsValue thisValue)
     {
         return GetKeywordValue(thisValue, "kf");
     }
 
     [JsHostGetter("numeric", DisplayName = "get numeric")]
-    private object? GetNumeric(object? thisValue)
+    private object? GetNumeric(JsValue thisValue)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var keywords = GetLocaleKeywords(locale);
@@ -132,14 +132,14 @@ public sealed partial class IntlLocalePrototype
     }
 
     [JsHostGetter("firstDayOfWeek", DisplayName = "get firstDayOfWeek")]
-    private string GetFirstDayOfWeek(object? thisValue)
+    private string GetFirstDayOfWeek(JsValue thisValue)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         return ResolveFirstDayOfWeek(locale);
     }
 
     [JsHostMethod("getCalendars", Length = 0d)]
-    private JsArray GetCalendars(object? thisValue, IReadOnlyList<object?> _)
+    private JsArray GetCalendars(JsValue thisValue, IReadOnlyList<object?> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var preferred = GetKeyword(locale, "ca");
@@ -167,7 +167,7 @@ public sealed partial class IntlLocalePrototype
     }
 
     [JsHostMethod("getCollations", Length = 0d)]
-    private JsArray GetCollations(object? thisValue, IReadOnlyList<object?> _)
+    private JsArray GetCollations(JsValue thisValue, IReadOnlyList<object?> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var result = new JsArray(Realm);
@@ -182,7 +182,7 @@ public sealed partial class IntlLocalePrototype
     }
 
     [JsHostMethod("getHourCycles", Length = 0d)]
-    private JsArray GetHourCycles(object? thisValue, IReadOnlyList<object?> _)
+    private JsArray GetHourCycles(JsValue thisValue, IReadOnlyList<object?> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var result = new JsArray(Realm);
@@ -204,7 +204,7 @@ public sealed partial class IntlLocalePrototype
     }
 
     [JsHostMethod("getNumberingSystems", Length = 0d)]
-    private JsArray GetNumberingSystems(object? thisValue, IReadOnlyList<object?> _)
+    private JsArray GetNumberingSystems(JsValue thisValue, IReadOnlyList<object?> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var result = new JsArray(Realm);
@@ -226,7 +226,7 @@ public sealed partial class IntlLocalePrototype
     }
 
     [JsHostMethod("getTextInfo", Length = 0d)]
-    private JsObject GetTextInfo(object? thisValue, IReadOnlyList<object?> _)
+    private JsObject GetTextInfo(JsValue thisValue, IReadOnlyList<object?> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var direction = locale.TryGetProperty(TextDirectionSlot, out var value) && value is string dir && dir.Length > 0
@@ -238,7 +238,7 @@ public sealed partial class IntlLocalePrototype
     }
 
     [JsHostMethod("getTimeZones", Length = 0d)]
-    private object? GetTimeZones(object? thisValue, IReadOnlyList<object?> _)
+    private object? GetTimeZones(JsValue thisValue, IReadOnlyList<object?> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var hasRegion = locale.TryGetProperty(RegionSlot, out var regionValue) && regionValue is string region &&
@@ -264,7 +264,7 @@ public sealed partial class IntlLocalePrototype
     }
 
     [JsHostMethod("getWeekInfo", Length = 0d)]
-    private JsObject GetWeekInfo(object? thisValue, IReadOnlyList<object?> _)
+    private JsObject GetWeekInfo(JsValue thisValue, IReadOnlyList<object?> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var info = new JsObject(Realm.ObjectPrototype);
@@ -278,14 +278,14 @@ public sealed partial class IntlLocalePrototype
     }
 
     [JsHostMethod("toString", Length = 0d)]
-    private string ToStringLocale(object? thisValue, IReadOnlyList<object?> _)
+    private string ToStringLocale(JsValue thisValue, IReadOnlyList<object?> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         return GetCanonicalTag(locale);
     }
 
     [JsHostMethod("maximize", Length = 0d)]
-    private JsObject MaximizeLocale(object? thisValue, IReadOnlyList<object?> _)
+    private JsObject MaximizeLocale(JsValue thisValue, IReadOnlyList<object?> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var tag = GetCanonicalTag(locale);
@@ -294,7 +294,7 @@ public sealed partial class IntlLocalePrototype
     }
 
     [JsHostMethod("minimize", Length = 0d)]
-    private JsObject MinimizeLocale(object? thisValue, IReadOnlyList<object?> _)
+    private JsObject MinimizeLocale(JsValue thisValue, IReadOnlyList<object?> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var tag = GetCanonicalTag(locale);
@@ -320,7 +320,7 @@ public sealed partial class IntlLocalePrototype
         return true;
     }
 
-    private JsObject ValidateLocaleReceiver(object? thisValue)
+    private JsObject ValidateLocaleReceiver(JsValue thisValue)
     {
         if (thisValue is JsObject obj && obj.TryGetProperty(BrandKey, out var marker) && marker is true)
         {
@@ -330,7 +330,7 @@ public sealed partial class IntlLocalePrototype
         throw ThrowTypeError("Intl.Locale method called on incompatible receiver", realm: Realm);
     }
 
-    private object? GetKeywordValue(object? thisValue, string keyword)
+    private object? GetKeywordValue(JsValue thisValue, string keyword)
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var value = GetKeyword(locale, keyword);

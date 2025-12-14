@@ -103,14 +103,14 @@ public static partial class StandardLibrary
 
         return intl;
 
-        JsArray CreateCanonicalLocalesResult(IReadOnlyList<object?> args)
+        JsArray CreateCanonicalLocalesResult(IReadOnlyList<JsValue> args)
         {
             var localesArg = args.GetArgument(0);
             var canonicalized = IntlUtilities.CanonicalizeLocaleList(localesArg, realm);
             return CreateLocaleArray(canonicalized, realm);
         }
 
-        JsArray CreateSupportedValuesResult(IReadOnlyList<object?> args)
+        JsArray CreateSupportedValuesResult(IReadOnlyList<JsValue> args)
         {
             var keyValue = args.GetArgument(0);
             var key = JsValueToString(keyValue, realm);
@@ -206,7 +206,7 @@ public static partial class StandardLibrary
         temporal.SetProperty("Duration", durationCtor);
         return temporal;
 
-        object? DurationToLocaleString(object? thisValue, IReadOnlyList<object?> args)
+        object? DurationToLocaleString(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
             var locale = args.GetArgument(0);
             var options = args.GetArgument(1);

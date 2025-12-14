@@ -42,7 +42,7 @@ public abstract partial class ErrorConstructorBase(IJsObjectLike prototype, Real
         CacheRealmReferences(constructor);
     }
 
-    private object ConstructWithNewTarget(IReadOnlyList<object?> args, IJsCallable newTarget, IJsCallable targetCtor)
+    private object ConstructWithNewTarget(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
         var instance = PrepareThisObject(JsValue.Undefined, assignPrototype: false);

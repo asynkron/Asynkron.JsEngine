@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class WeakMapPrototype
 {
     [JsHostMethod("set", Length = 2d)]
-    public object? Set(object? thisValue, IReadOnlyList<object?> args)
+    public object? Set(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireWeakMap(thisValue);
         var key = args.GetArgument(0);
@@ -24,21 +24,21 @@ public sealed partial class WeakMapPrototype
     }
 
     [JsHostMethod("get", Length = 1d)]
-    public object? Get(object? thisValue, IReadOnlyList<object?> args)
+    public object? Get(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireWeakMap(thisValue);
         return map.Get(args.GetArgument(0));
     }
 
     [JsHostMethod("has", Length = 1d)]
-    public object Has(object? thisValue, IReadOnlyList<object?> args)
+    public object Has(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireWeakMap(thisValue);
         return map.Has(args.GetArgument(0));
     }
 
     [JsHostMethod("delete", Length = 1d)]
-    public object Delete(object? thisValue, IReadOnlyList<object?> args)
+    public object Delete(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireWeakMap(thisValue);
         return map.Delete(args.GetArgument(0));
@@ -69,7 +69,7 @@ public sealed partial class WeakMapPrototype
 public sealed partial class WeakSetPrototype
 {
     [JsHostMethod("add", Length = 1d)]
-    public object? Add(object? thisValue, IReadOnlyList<object?> args)
+    public object? Add(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireWeakSet(thisValue);
         var value = args.GetArgument(0);
@@ -84,14 +84,14 @@ public sealed partial class WeakSetPrototype
     }
 
     [JsHostMethod("has", Length = 1d)]
-    public object Has(object? thisValue, IReadOnlyList<object?> args)
+    public object Has(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireWeakSet(thisValue);
         return set.Has(args.GetArgument(0));
     }
 
     [JsHostMethod("delete", Length = 1d)]
-    public object Delete(object? thisValue, IReadOnlyList<object?> args)
+    public object Delete(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireWeakSet(thisValue);
         return set.Delete(args.GetArgument(0));

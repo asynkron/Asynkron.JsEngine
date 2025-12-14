@@ -16,21 +16,21 @@ public sealed partial class IntlDurationFormatPrototype
     }
 
     [JsHostMethod("format", Length = 0d)]
-    private string Format(object? thisValue, IReadOnlyList<object?> args)
+    private string Format(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         ValidateReceiver(thisValue);
         return "PT0S";
     }
 
     [JsHostMethod("formatToParts", Length = 0d)]
-    private JsArray FormatToParts(object? thisValue, IReadOnlyList<object?> args)
+    private JsArray FormatToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         ValidateReceiver(thisValue);
         return new JsArray(Realm);
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    private JsObject ResolvedOptions(object? thisValue, IReadOnlyList<object?> args)
+    private JsObject ResolvedOptions(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var instance = ValidateReceiver(thisValue);
         var obj = new JsObject();
@@ -61,7 +61,7 @@ public sealed partial class IntlDurationFormatPrototype
         return obj;
     }
 
-    private JsObject ValidateReceiver(object? thisValue)
+    private JsObject ValidateReceiver(JsValue thisValue)
     {
         return thisValue.EnsureBrand(BrandKey, Realm,
             "Intl.DurationFormat method called on incompatible receiver");

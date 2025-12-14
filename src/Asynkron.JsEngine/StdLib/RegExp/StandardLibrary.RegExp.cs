@@ -131,7 +131,7 @@ public static partial class StandardLibrary
         }
     }
 
-    internal static JsRegExp? ResolveRegExpInstance(object? thisValue)
+    internal static JsRegExp? ResolveRegExpInstance(JsValue thisValue)
     {
         if (thisValue is JsRegExp direct)
         {
@@ -229,7 +229,7 @@ public static partial class StandardLibrary
 
     internal static void DefineLegacyRegExpAccessors(HostFunction constructor, RealmState realm)
     {
-        RegExpStatics EnsureRegExpReceiver(object? thisValue)
+        RegExpStatics EnsureRegExpReceiver(JsValue thisValue)
         {
             if (!ReferenceEquals(thisValue, realm.RegExpConstructor))
             {

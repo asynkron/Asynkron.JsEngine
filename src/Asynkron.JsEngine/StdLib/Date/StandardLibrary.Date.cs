@@ -17,7 +17,7 @@ public static partial class StandardLibrary
     internal const double MsPerMinute = 60000d;
     internal const double MsPerSecond = 1000d;
 
-    internal static object? DateParse(IReadOnlyList<object?> args, RealmState realm)
+    internal static object? DateParse(IReadOnlyList<JsValue> args, RealmState realm)
     {
         if (args.Count == 0 || args[0] is not string dateStr)
         {
@@ -29,7 +29,7 @@ public static partial class StandardLibrary
             : double.NaN;
     }
 
-    internal static object? DateUtc(IReadOnlyList<object?> args, RealmState realm)
+    internal static object? DateUtc(IReadOnlyList<JsValue> args, RealmState realm)
     {
         if (args.Count == 0)
         {
@@ -81,7 +81,7 @@ public static partial class StandardLibrary
     }
 
     internal static double ComputeDateTimeValue(
-        IReadOnlyList<object?> args,
+        IReadOnlyList<JsValue> args,
         RealmState realm,
         EvaluationContext? context)
     {

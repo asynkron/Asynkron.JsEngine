@@ -58,7 +58,7 @@ public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState
         return obj;
     }
 
-    private object? Revocable(object? _, IReadOnlyList<object?> args)
+    private object? Revocable(object? _, IReadOnlyList<JsValue> args)
     {
         var target = RequireObject(args.GetArgument(0), "Proxy target must be an object");
         var handler = RequireObject(args.GetArgument(1), "Proxy handler must be an object");

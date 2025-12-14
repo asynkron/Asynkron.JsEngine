@@ -11,7 +11,7 @@ public static partial class StandardLibrary
         return ArrayConstructor.CreateConstructor(realm);
     }
 
-    internal static object? ArrayOf(HostFunction host, object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    internal static object? ArrayOf(HostFunction host, JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         const string MethodName = "Array.of";
         var len = args.Count;
@@ -46,7 +46,7 @@ public static partial class StandardLibrary
         }
     }
 
-    internal static object? ArrayFrom(HostFunction host, object? thisValue, IReadOnlyList<object?> args,
+    internal static object? ArrayFrom(HostFunction host, JsValue thisValue, IReadOnlyList<JsValue> args,
         RealmState? realm)
     {
         const string MethodName = "Array.from";
@@ -119,7 +119,7 @@ public static partial class StandardLibrary
         return result;
     }
 
-    internal static object? ArrayFromAsync(HostFunction host, object? thisValue, IReadOnlyList<object?> args,
+    internal static object? ArrayFromAsync(HostFunction host, JsValue thisValue, IReadOnlyList<JsValue> args,
         RealmState? realm)
     {
         const string MethodName = "Array.fromAsync";
@@ -195,7 +195,7 @@ public static partial class StandardLibrary
         return promise.JsObject;
     }
 
-    internal static object? ArrayFromIterable(HostFunction host, object? thisValue, object? items,
+    internal static object? ArrayFromIterable(HostFunction host, JsValue thisValue, object? items,
         IJsCallable iteratorMethod, IJsCallable? mapper, bool mapping, object? thisArg, RealmState? realm)
     {
         const string MethodName = "Array.from";

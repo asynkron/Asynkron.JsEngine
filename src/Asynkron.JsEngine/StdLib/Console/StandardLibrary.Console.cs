@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    internal static string FormatConsoleArgs(IReadOnlyList<object?> args)
+    internal static string FormatConsoleArgs(IReadOnlyList<JsValue> args)
     {
         var parts = new List<string>();
         foreach (var arg in args)

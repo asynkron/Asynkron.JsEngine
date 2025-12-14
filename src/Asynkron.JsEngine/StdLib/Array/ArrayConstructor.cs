@@ -16,7 +16,7 @@ public sealed partial class ArrayConstructor : JsConstructor
     {
         var array = AllocateArrayInstance(thisValue);
         InitializeArrayLength(array, args);
-        return new JsValue(array);
+        return JsValue.FromObject(array);
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -46,7 +46,7 @@ public sealed partial class ArrayConstructor : JsConstructor
             }
 
             InitializeArrayLength(array, args);
-            return new JsValue(array);
+            return JsValue.FromObject(array);
         });
 
         AttachIsArray(constructor);
@@ -124,7 +124,9 @@ public sealed partial class ArrayConstructor : JsConstructor
         array.SetProperty("length", (double)args.Count);
         for (var i = 0; i < args.Count; i++)
         {
-            array.SetProperty(StandardLibrary.ToIndexString(i), args[i]);
+#pragma warning disable CS0618 // ToObject is obsolete but needed here for SetProperty
+            array.SetProperty(StandardLibrary.ToIndexString(i), args[i].ToObject());
+#pragma warning restore CS0618
         }
     }
 
@@ -135,8 +137,13 @@ public sealed partial class ArrayConstructor : JsConstructor
 
     private void AttachIsArray(HostFunction constructor)
     {
-        var isArray = new HostFunction(args => StandardLibrary.ArrayIsArray(args.GetArgument(0), Realm), Realm,
-            isConstructor: false);
+        var isArray = new HostFunction(args =>
+        {
+#pragma warning disable CS0618 // ToObject is obsolete but needed here for StandardLibrary method signature
+            var result = StandardLibrary.ArrayIsArray(args.GetArgument(0).ToObject(), Realm);
+            return new JsValue(result);
+#pragma warning restore CS0618
+        }, Realm, isConstructor: false);
         StandardLibrary.AttachBuiltinMetadata(isArray, "isArray", 1d);
         isArray.Delete("prototype");
         constructor.DefineProperty("isArray",

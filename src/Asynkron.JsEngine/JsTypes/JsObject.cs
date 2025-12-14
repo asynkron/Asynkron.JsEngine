@@ -178,7 +178,7 @@ namespace Asynkron.JsEngine.JsTypes;
                         realm: ResolveRealmState(receiver));
                 }
 
-                desc.Set.Invoke([value], receiver ?? this);
+                desc.Set.Invoke([JsValue.FromObject(value)], JsValue.FromObject(receiver ?? this));
 
                 return;
             }
@@ -213,7 +213,7 @@ namespace Asynkron.JsEngine.JsTypes;
                                 realm: ResolveRealmState(receiver));
                         }
 
-                        inheritedDesc.Set.Invoke([value], receiver ?? this);
+                        inheritedDesc.Set.Invoke([JsValue.FromObject(value)], JsValue.FromObject(receiver ?? this));
                         return;
                     }
 
@@ -251,7 +251,7 @@ namespace Asynkron.JsEngine.JsTypes;
         {
             if (descriptor!.IsAccessorDescriptor)
             {
-                descriptor.Set?.Invoke([value], receiver ?? this);
+                descriptor.Set?.Invoke([JsValue.FromObject(value)], JsValue.FromObject(receiver ?? this));
 
                 return;
             }
@@ -278,7 +278,7 @@ namespace Asynkron.JsEngine.JsTypes;
         var setter = GetSetter(name);
         if (setter != null)
         {
-            setter.Invoke([value], receiver ?? this);
+            setter.Invoke([JsValue.FromObject(value)], JsValue.FromObject(receiver ?? this));
             return;
         }
 
@@ -291,7 +291,7 @@ namespace Asynkron.JsEngine.JsTypes;
             var foundSetter = FindSetterInPrototypeChain(_prototypeAccessor, name);
             if (foundSetter != null)
             {
-                foundSetter.Invoke([value], receiver ?? this);
+                foundSetter.Invoke([JsValue.FromObject(value)], JsValue.FromObject(receiver ?? this));
                 return;
             }
         }
@@ -1261,8 +1261,8 @@ namespace Asynkron.JsEngine.JsTypes;
                             {
                                 value = TypedAstEvaluator.InvokeCallable(
                                     desc.Get,
-                                    Array.Empty<object?>(),
-                                    receiver ?? this,
+                                    Array.Empty<JsValue>(),
+                                    JsValue.FromObject(receiver ?? this),
                                     context,
                                     ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
                             }
@@ -1372,8 +1372,8 @@ namespace Asynkron.JsEngine.JsTypes;
                 {
                     value = TypedAstEvaluator.InvokeCallable(
                         virtualDescriptor.Get,
-                        Array.Empty<object?>(),
-                        receiver ?? this,
+                        Array.Empty<JsValue>(),
+                        JsValue.FromObject(receiver ?? this),
                         context,
                         ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
                 }
@@ -1404,8 +1404,8 @@ namespace Asynkron.JsEngine.JsTypes;
                     {
                         value = TypedAstEvaluator.InvokeCallable(
                             descriptor.Get,
-                            Array.Empty<object?>(),
-                            receiver ?? this,
+                            Array.Empty<JsValue>(),
+                            JsValue.FromObject(receiver ?? this),
                             context,
                             ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
                     }

@@ -77,7 +77,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             var firstArg = args[0];
             if (firstArg.IsObject)
             {
-                var obj = firstArg.AsObject();
+                var obj = firstArg.AsObject<IJsObjectLike>();
                 switch (obj)
                 {
                     case TypedArrayBase sourceTypedArray:
@@ -511,7 +511,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         return Math.Sign(number) * Math.Floor(Math.Abs(number));
     }
 
-    internal static object IndexOfInternal(TypedArrayBase target, IReadOnlyList<object?> args)
+    internal static object IndexOfInternal(TypedArrayBase target, IReadOnlyList<JsValue> args)
     {
         if (target.IsDetachedOrOutOfBounds())
         {
@@ -590,7 +590,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         return -1d;
     }
 
-    internal static object IncludesInternal(TypedArrayBase target, IReadOnlyList<object?> args)
+    internal static object IncludesInternal(TypedArrayBase target, IReadOnlyList<JsValue> args)
     {
         if (target.IsDetachedOrOutOfBounds())
         {
@@ -667,7 +667,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         return false;
     }
 
-    internal static object LastIndexOfInternal(TypedArrayBase target, IReadOnlyList<object?> args)
+    internal static object LastIndexOfInternal(TypedArrayBase target, IReadOnlyList<JsValue> args)
     {
         if (target.IsDetachedOrOutOfBounds())
         {
@@ -928,7 +928,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         return int.TryParse(candidate, NumberStyles.Integer, CultureInfo.InvariantCulture, out index);
     }
 
-    private static TypedArrayBase ResolveThis(object? thisValue, TypedArrayBase fallback)
+    private static TypedArrayBase ResolveThis(JsValue thisValue, TypedArrayBase fallback)
     {
         return thisValue as TypedArrayBase ?? fallback;
     }

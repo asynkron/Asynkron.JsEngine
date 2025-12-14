@@ -10,7 +10,7 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class ErrorPrototype : JsPrototype
 {
     [JsHostMethod("toString", Length = 0d)]
-    public object? ToString(object? thisValue, IReadOnlyList<object?> _)
+    public object? ToString(JsValue thisValue, IReadOnlyList<object?> _)
     {
         if (thisValue is not IJsPropertyAccessor accessor)
         {

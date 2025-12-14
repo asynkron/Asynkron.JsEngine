@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class PromisePrototype
 {
     [JsHostMethod("then", Length = 2d)]
-    public object? Then(object? thisValue, IReadOnlyList<object?> args)
+    public object? Then(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var promise = RequirePromiseInstance(thisValue, Realm);
         var onFulfilled = args.Count > 0 ? args[0] as IJsCallable : null;
@@ -20,7 +20,7 @@ public sealed partial class PromisePrototype
     }
 
     [JsHostMethod("catch", Length = 1d)]
-    public object? Catch(object? thisValue, IReadOnlyList<object?> args)
+    public object? Catch(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var promise = RequirePromiseInstance(thisValue, Realm);
         var onRejected = args.Count > 0 ? args[0] as IJsCallable : null;
@@ -31,7 +31,7 @@ public sealed partial class PromisePrototype
     }
 
     [JsHostMethod("finally", Length = 1d)]
-    public object? Finally(object? thisValue, IReadOnlyList<object?> args)
+    public object? Finally(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var promise = RequirePromiseInstance(thisValue, Realm);
         var onFinally = args.Count > 0 ? args[0] as IJsCallable : null;

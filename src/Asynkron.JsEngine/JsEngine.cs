@@ -289,28 +289,19 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobalFunction("clearInterval", ClearTimer);
 
         // Register dynamic import function
-        var importFunction = new HostFunction((_, args) => DynamicImport(args, null, ImportPhase.Module, null), RealmState)
-        {
-            IsConstructor = false
-        };
+        var importFunction = new HostFunction((_, args) => DynamicImport(args, null, ImportPhase.Module, null), RealmState, isConstructor: false);
         importFunction.SetInvokeWithContext(
-            (args, _, ctx, _) => DynamicImport(args, ctx, ImportPhase.Module, importFunction));
+            (args, thisValue, ctx, _) => DynamicImport(args, ctx, ImportPhase.Module, importFunction));
 
         var importDeferFunction =
-            new HostFunction((_, args) => DynamicImport(args, null, ImportPhase.Defer, null), RealmState)
-            {
-                IsConstructor = false
-            };
+            new HostFunction((_, args) => DynamicImport(args, null, ImportPhase.Defer, null), RealmState, isConstructor: false);
         importDeferFunction.SetInvokeWithContext(
-            (args, _, ctx, _) => DynamicImport(args, ctx, ImportPhase.Defer, importDeferFunction));
+            (args, thisValue, ctx, _) => DynamicImport(args, ctx, ImportPhase.Defer, importDeferFunction));
 
         var importSourceFunction =
-            new HostFunction((_, args) => DynamicImport(args, null, ImportPhase.Source, null), RealmState)
-            {
-                IsConstructor = false
-            };
+            new HostFunction((_, args) => DynamicImport(args, null, ImportPhase.Source, null), RealmState, isConstructor: false);
         importSourceFunction.SetInvokeWithContext(
-            (args, _, ctx, _) => DynamicImport(args, ctx, ImportPhase.Source, importSourceFunction));
+            (args, thisValue, ctx, _) => DynamicImport(args, ctx, ImportPhase.Source, importSourceFunction));
         importFunction.SetProperty("defer", importDeferFunction);
         importFunction.SetProperty("source", importSourceFunction);
         SetGlobal("import", importFunction);
@@ -318,7 +309,7 @@ public sealed class JsEngine : IAsyncDisposable
         // Provide a stable global object helper used by Test262 harness utilities.
         // Note: NOT marked as constant so Test262 harness can redeclare it if needed.
         SetGlobal("fnGlobalObject",
-            new HostFunction(_ => GlobalObject) { Realm = GlobalObject, RealmState = RealmState });
+            new HostFunction((_, __) => new JsValue(GlobalObject)) { Realm = GlobalObject, RealmState = RealmState });
 
         // Register debug function as a debug-aware host function
         GlobalEnvironment.Define(Symbol.DebugIdentifier, new DebugAwareHostFunction(CaptureDebugMessage));
@@ -386,8 +377,8 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     ///     Captures the current execution state and writes a debug message to the debug channel.
     /// </summary>
-    private object? CaptureDebugMessage(JsEnvironment environment, EvaluationContext context,
-        IReadOnlyList<object?> args)
+    private JsValue CaptureDebugMessage(JsEnvironment environment, EvaluationContext context,
+        IReadOnlyList<JsValue> args)
     {
         // Get all variables from the current environment and parent scopes
         var variables = environment.GetAllVariables();
@@ -411,7 +402,7 @@ public sealed class JsEngine : IAsyncDisposable
         var debugMessage = new DebugMessage(variables, controlFlowState, callStack);
         _debugChannel.Writer.TryWrite(debugMessage);
 
-        return null;
+        return JsValue.Undefined;
     }
 
     /// <summary>
@@ -1860,7 +1851,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     ///     Registers a host function that can be invoked from interpreted code.
     /// </summary>
-    public void SetGlobalFunction(string name, Func<IReadOnlyList<object?>, object?> handler)
+    public void SetGlobalFunction(string name, Func<IReadOnlyList<JsValue>, JsValue> handler)
     {
         SetGlobal(name, new HostFunction(handler) { Realm = GlobalObject }, registerBinding: true);
     }
@@ -1868,7 +1859,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     ///     Registers a host function that receives the <c>this</c> binding.
     /// </summary>
-    public void SetGlobalFunction(string name, Func<object?, IReadOnlyList<object?>, object?> handler)
+    public void SetGlobalFunction(string name, Func<JsValue, IReadOnlyList<JsValue>, JsValue> handler)
     {
         GlobalEnvironment.Define(Symbol.Intern(name), new HostFunction(handler) { Realm = GlobalObject });
     }
@@ -2120,14 +2111,14 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     ///     Implements setTimeout - schedules a callback to run after a delay.
     /// </summary>
-    private object? SetTimeout(IReadOnlyList<object?> args)
+    private JsValue SetTimeout(IReadOnlyList<JsValue> args)
     {
-        if (args.Count < 2 || args[0] is not IJsCallable callback)
+        if (!args[0].TryGetObject<IJsCallable>(out var callback))
         {
-            return null;
+            return JsValue.Undefined;
         }
 
-        var delay = args[1] is double d ? (int)d : 0;
+        var delay = args[1].TryGetDouble(out var d) ? (int)d : 0;
         var timerId = Interlocked.Increment(ref _nextTimerId);
 
         var cts = new CancellationTokenSource();
@@ -2143,7 +2134,7 @@ public sealed class JsEngine : IAsyncDisposable
                 {
                     if (!cts.Token.IsCancellationRequested)
                     {
-                        callback.Invoke([], null);
+                        callback.Invoke([], JsValue.Undefined);
                     }
                 }
                 finally
@@ -2155,12 +2146,12 @@ public sealed class JsEngine : IAsyncDisposable
                     }
                 }
             });
-            return (double)timerId;
+            return new JsValue(timerId);
         }
 
         _ = RunTimeoutAsync(timerId, delay, callback, cts);
 
-        return (double)timerId;
+        return new JsValue(timerId);
     }
 
     private async Task RunTimeoutAsync(
@@ -2179,7 +2170,7 @@ public sealed class JsEngine : IAsyncDisposable
                 {
                     if (!cts.Token.IsCancellationRequested)
                     {
-                        callback.Invoke([], null);
+                        callback.Invoke([], JsValue.Undefined);
                     }
                 });
             }
@@ -2201,14 +2192,14 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     ///     Implements setInterval - schedules a callback to run repeatedly at a fixed interval.
     /// </summary>
-    private object? SetInterval(IReadOnlyList<object?> args)
+    private JsValue SetInterval(IReadOnlyList<JsValue> args)
     {
-        if (args.Count < 2 || args[0] is not IJsCallable callback)
+        if (!args[0].TryGetObject<IJsCallable>(out var callback))
         {
-            return null;
+            return JsValue.Undefined;
         }
 
-        var interval = args[1] is double d ? (int)d : 0;
+        var interval = args[1].TryGetDouble(out var d) ? (int)d : 0;
         var timerId = Interlocked.Increment(ref _nextTimerId);
 
         var cts = new CancellationTokenSource();
@@ -2219,7 +2210,7 @@ public sealed class JsEngine : IAsyncDisposable
 
         _ = RunIntervalAsync(timerId, interval, callback, cts);
 
-        return (double)timerId;
+        return new JsValue(timerId);
     }
 
     private async Task RunIntervalAsync(
@@ -2240,7 +2231,7 @@ public sealed class JsEngine : IAsyncDisposable
                     {
                         if (!cts.Token.IsCancellationRequested)
                         {
-                            callback.Invoke([], null);
+                            callback.Invoke([], JsValue.Undefined);
                         }
                     });
                 }
@@ -2263,11 +2254,11 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     ///     Implements clearTimeout/clearInterval - cancels a timer.
     /// </summary>
-    private object? ClearTimer(IReadOnlyList<object?> args)
+    private JsValue ClearTimer(IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || args[0] is not double timerId)
+        if (!args[0].TryGetDouble(out var timerId))
         {
-            return null;
+            return JsValue.Undefined;
         }
 
         var id = (int)timerId;
@@ -2278,7 +2269,7 @@ public sealed class JsEngine : IAsyncDisposable
             TrySignalDrainComplete();
         }
 
-        return null;
+        return JsValue.Undefined;
     }
 
     private enum ImportPhase
@@ -2403,16 +2394,16 @@ public sealed class JsEngine : IAsyncDisposable
                             try
                             {
                                 var namespaceObject = GetModuleNamespace(moduleEntry, phase);
-                                promise.Resolve(namespaceObject);
+                                promise.Resolve(new JsValue(namespaceObject));
                             }
                             catch (ThrowSignal signal)
                             {
-                                promise.Reject(signal.ThrownValue);
+                                promise.Reject(new JsValue(signal.ThrownValue));
                             }
                             catch (Exception ex)
                             {
                                 var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
-                                promise.Reject(error);
+                                promise.Reject(new JsValue(error));
                             }
                         });
                         return;
@@ -2425,7 +2416,7 @@ public sealed class JsEngine : IAsyncDisposable
                     }
                     catch (ThrowSignal signal)
                     {
-                        ScheduleTask(() => promise.Reject(signal.ThrownValue));
+                        ScheduleTask(() => promise.Reject(new JsValue(signal.ThrownValue)));
                         return;
                     }
                     catch (Exception ex)
@@ -2436,7 +2427,7 @@ public sealed class JsEngine : IAsyncDisposable
                                 ex.Message,
                                 context,
                                 RealmState);
-                            promise.Reject(error);
+                            promise.Reject(new JsValue(error));
                         });
                         return;
                     }
@@ -2447,16 +2438,16 @@ public sealed class JsEngine : IAsyncDisposable
                         try
                         {
                             var namespaceObject = GetModuleNamespace(moduleEntry, phase);
-                            promise.Resolve(namespaceObject);
+                            promise.Resolve(new JsValue(namespaceObject));
                         }
                         catch (ThrowSignal signal)
                         {
-                            promise.Reject(signal.ThrownValue);
+                            promise.Reject(new JsValue(signal.ThrownValue));
                         }
                         catch (Exception ex)
                         {
                             var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
-                            promise.Reject(error);
+                            promise.Reject(new JsValue(error));
                         }
                     });
                     return;
@@ -2468,16 +2459,16 @@ public sealed class JsEngine : IAsyncDisposable
                     try
                     {
                         EnsureModuleEvaluated(moduleEntry);
-                        promise.Resolve(GetModuleNamespace(moduleEntry, phase));
+                        promise.Resolve(new JsValue(GetModuleNamespace(moduleEntry, phase)));
                     }
                     catch (ThrowSignal signal)
                     {
-                        promise.Reject(signal.ThrownValue);
+                        promise.Reject(new JsValue(signal.ThrownValue));
                     }
                     catch (Exception ex)
                     {
                         var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
-                        promise.Reject(error);
+                        promise.Reject(new JsValue(error));
                     }
                 });
             }
@@ -2486,7 +2477,7 @@ public sealed class JsEngine : IAsyncDisposable
                 ScheduleTask(() =>
                 {
                     var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
-                    promise.Reject(error);
+                    promise.Reject(new JsValue(error));
                 });
             }
         }
@@ -2495,7 +2486,7 @@ public sealed class JsEngine : IAsyncDisposable
             ScheduleTask(() =>
             {
                 var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
-                promise.Reject(error);
+                promise.Reject(new JsValue(error));
             });
         }
     }
@@ -4417,7 +4408,7 @@ public sealed class JsEngine : IAsyncDisposable
             {
                 // All arguments evaluated, now evaluate callee and call
                 object? calleeValue;
-                object? thisValue = null;
+                JsValue thisValue = null;
 
                 try
                 {

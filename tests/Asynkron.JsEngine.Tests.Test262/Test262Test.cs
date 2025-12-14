@@ -217,7 +217,7 @@ try {
             {
                 if (args.Count == 0)
                 {
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
 
                 switch (args[0])
@@ -250,7 +250,7 @@ try {
             {
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
-                return null;
+                return JsValue.Null;
             }),
 
             // HTMLDDA-like object used by Test262 harness
@@ -612,14 +612,14 @@ try {
 
         var toStringTagGetter = new HostFunction((thisValue, _) =>
         {
-            if (thisValue is JsObject obj &&
+            if (thisValue.TryGetObject(out var obj) &&
                 obj.TryGetProperty("__moduleSourceClassName__", out var name) &&
                 name is string tag)
             {
                 return tag;
             }
 
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         });
 
         var toStringTagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";

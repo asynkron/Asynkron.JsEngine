@@ -175,7 +175,7 @@ public static partial class TypedAstEvaluator
         {
             var logger = environment.RealmState?.Logger;
             binding = null!;
-            object? thisValue;
+            JsValue thisValue;
             try
             {
                 if (!environment.TryGet(Symbol.This, out thisValue))

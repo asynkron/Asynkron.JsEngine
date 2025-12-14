@@ -17,10 +17,10 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true } constructing)
         {
             ApplyPrototype(constructing, targetCtor);
-            return new JsValue(ConstructCore(args, targetCtor, constructing));
+            return JsValue.FromObject(ConstructCore(args, targetCtor, constructing));
         }
 
-        return new JsValue(ConstructCore(args, targetCtor, null));
+        return JsValue.FromObject(ConstructCore(args, targetCtor, null));
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -31,8 +31,11 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
             var target = _constructor ?? constructor;
-            var newTargetCallable = newTarget as IJsCallable ?? target;
-            return ConstructCore(args, newTargetCallable, null);
+            if (newTarget.TryGetObject<IJsCallable>(out var newTargetCallable))
+            {
+                return JsValue.FromObject(ConstructCore(args, newTargetCallable!, null));
+            }
+            return JsValue.FromObject(ConstructCore(args, target, null));
         });
 
         AttachStatics(constructor);
@@ -48,29 +51,30 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
         var value = args[0];
 
-        if (value.Type == JsValueType.Symbol && value.AsSymbol() is TypedAstSymbol sym)
+        // Check if it's a TypedAstSymbol (stored in ObjectValue when Kind is Symbol)
+        if (value.IsSymbol && value.ObjectValue is TypedAstSymbol typedSym)
         {
-            return CreateSymbolWrapper(sym, realm: Realm);
+            return CreateSymbolWrapper(typedSym, realm: Realm);
         }
-        if (value.Type == JsValueType.BigInt && value.AsBigInt() is JsBigInt bigInt)
+        if (value.TryGetBigInt(out var bigInt))
         {
-            return CreateBigIntWrapper(bigInt, realm: Realm);
+            return CreateBigIntWrapper(bigInt!, realm: Realm);
         }
-        if (value.Type == JsValueType.Boolean)
+        if (value.TryGetBoolean(out var boolValue))
         {
-            return CreateBooleanWrapper(value.AsBoolean(), realm: Realm);
+            return CreateBooleanWrapper(boolValue, realm: Realm);
         }
-        if (value.Type == JsValueType.String)
+        if (value.TryGetString(out var strValue))
         {
-            return CreateStringWrapper(value.AsString(), realm: Realm);
+            return CreateStringWrapper(strValue!, realm: Realm);
         }
-        if (value.Type == JsValueType.Number)
+        if (value.TryGetDouble(out var numValue))
         {
-            return CreateNumberWrapper(value.AsNumber(), realm: Realm);
+            return CreateNumberWrapper(numValue, realm: Realm);
         }
-        if (value.IsObject && value.AsObject() is IJsPropertyAccessor accessor)
+        if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
-            return accessor;
+            return accessor!;
         }
 
         return CreateBlank(newTarget, existing);
@@ -106,28 +110,28 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
     private void AttachStatics(HostFunction constructor)
     {
-        constructor.SetHostedProperty("defineProperties", ObjectDefineProperties, Realm);
-        constructor.SetHostedProperty("setPrototypeOf", ObjectSetPrototypeOf, Realm);
-        constructor.SetHostedProperty("preventExtensions", ObjectPreventExtensions, Realm);
-        constructor.SetHostedProperty("isExtensible", ObjectIsExtensible, Realm);
-        constructor.SetHostedProperty("getOwnPropertySymbols", ObjectGetOwnPropertySymbols, Realm);
-        constructor.SetHostedProperty("keys", ObjectKeys, Realm);
-        constructor.SetHostedProperty("values", ObjectValues, Realm);
-        constructor.SetHostedProperty("entries", ObjectEntries, Realm);
-        constructor.SetHostedProperty("assign", ObjectAssign, Realm);
-        constructor.SetHostedProperty("fromEntries", ObjectFromEntries, Realm);
-        constructor.SetHostedProperty("hasOwn", ObjectHasOwn, Realm);
-        constructor.SetHostedProperty("freeze", ObjectFreeze, Realm);
-        constructor.SetHostedProperty("seal", ObjectSeal, Realm);
-        constructor.SetHostedProperty("isFrozen", ObjectIsFrozen, Realm);
-        constructor.SetHostedProperty("isSealed", ObjectIsSealed, Realm);
-        constructor.SetHostedProperty("is", ObjectIs, Realm);
-        constructor.SetHostedProperty("create", ObjectCreate, Realm);
-        constructor.SetHostedProperty("getOwnPropertyNames", ObjectGetOwnPropertyNames, Realm);
-        constructor.SetHostedProperty("getOwnPropertyDescriptor", ObjectGetOwnPropertyDescriptor, Realm);
-        constructor.SetHostedProperty("getOwnPropertyDescriptors", ObjectGetOwnPropertyDescriptors, Realm);
-        constructor.SetHostedProperty("getPrototypeOf", ObjectGetPrototypeOf, Realm);
-        constructor.SetHostedProperty("defineProperty", ObjectDefineProperty, Realm);
+        constructor.SetHostedProperty("defineProperties", (thisArg, args, realm) => ObjectDefineProperties(thisArg, (IReadOnlyList<JsValue>)args.Select(JsValue.FromObject).ToList(), realm), Realm);
+        constructor.SetHostedProperty("setPrototypeOf", (thisArg, args, realm) => ObjectSetPrototypeOf(thisArg, (IReadOnlyList<JsValue>)args.Select(JsValue.FromObject).ToList(), realm), Realm);
+        constructor.SetHostedProperty("preventExtensions", (thisArg, args, realm) => ObjectPreventExtensions(thisArg, (IReadOnlyList<JsValue>)args.Select(JsValue.FromObject).ToList(), realm), Realm);
+        constructor.SetHostedProperty("isExtensible", (thisArg, args, realm) => ObjectIsExtensible(thisArg, (IReadOnlyList<JsValue>)args.Select(JsValue.FromObject).ToList(), realm), Realm);
+        constructor.SetHostedProperty("getOwnPropertySymbols", (thisArg, args, realm) => ObjectGetOwnPropertySymbols(thisArg, (IReadOnlyList<JsValue>)args.Select(JsValue.FromObject).ToList(), realm), Realm);
+        constructor.SetHostedProperty("keys", (thisArg, args, realm) => ObjectKeys(thisArg, (IReadOnlyList<JsValue>)args.Select(JsValue.FromObject).ToList(), realm), Realm);
+        constructor.SetHostedProperty("values", (thisArg, args, realm) => ObjectValues(thisArg, (IReadOnlyList<JsValue>)args.Select(JsValue.FromObject).ToList(), realm), Realm);
+        constructor.SetHostedProperty("entries", (thisArg, args, realm) => ObjectEntries(thisArg, (IReadOnlyList<JsValue>)args.Select(JsValue.FromObject).ToList(), realm), Realm);
+        constructor.SetHostedProperty("assign", (thisArg, args, realm) => ObjectAssign(thisArg, (IReadOnlyList<JsValue>)args.Select(JsValue.FromObject).ToList(), realm), Realm);
+        constructor.SetHostedProperty("fromEntries", (thisArg, args, realm) => ObjectFromEntries(thisArg, (IReadOnlyList<JsValue>)args.Select(JsValue.FromObject).ToList(), realm), Realm);
+        constructor.SetHostedProperty("hasOwn", (thisArg, args, realm) => ObjectHasOwn(thisArg, (IReadOnlyList<JsValue>)args.Select(JsValue.FromObject).ToList(), realm), Realm);
+        constructor.SetHostedProperty("freeze", (thisArg, args, realm) => ObjectFreeze(thisArg, (IReadOnlyList<JsValue>)args.Select(JsValue.FromObject).ToList(), realm), Realm);
+        constructor.SetHostedProperty("seal", (thisArg, args, realm) => ObjectSeal(thisArg, (IReadOnlyList<JsValue>)args.Select(JsValue.FromObject).ToList(), realm), Realm);
+        constructor.SetHostedProperty("isFrozen", (thisArg, args, realm) => ObjectIsFrozen(thisArg, (IReadOnlyList<JsValue>)args.Select(JsValue.FromObject).ToList(), realm), Realm);
+        constructor.SetHostedProperty("isSealed", (thisArg, args, realm) => ObjectIsSealed(thisArg, (IReadOnlyList<JsValue>)args.Select(JsValue.FromObject).ToList(), realm), Realm);
+        constructor.SetHostedProperty("is", (thisArg, args, realm) => ObjectIs(thisArg, (IReadOnlyList<JsValue>)args.Select(JsValue.FromObject).ToList(), realm), Realm);
+        constructor.SetHostedProperty("create", (thisArg, args, realm) => ObjectCreate(thisArg, (IReadOnlyList<JsValue>)args.Select(JsValue.FromObject).ToList(), realm), Realm);
+        constructor.SetHostedProperty("getOwnPropertyNames", (thisArg, args, realm) => ObjectGetOwnPropertyNames(thisArg, (IReadOnlyList<JsValue>)args.Select(JsValue.FromObject).ToList(), realm), Realm);
+        constructor.SetHostedProperty("getOwnPropertyDescriptor", (thisArg, args, realm) => ObjectGetOwnPropertyDescriptor(thisArg, (IReadOnlyList<JsValue>)args.Select(JsValue.FromObject).ToList(), realm), Realm);
+        constructor.SetHostedProperty("getOwnPropertyDescriptors", (thisArg, args, realm) => ObjectGetOwnPropertyDescriptors(thisArg, (IReadOnlyList<JsValue>)args.Select(JsValue.FromObject).ToList(), realm), Realm);
+        constructor.SetHostedProperty("getPrototypeOf", (thisArg, args, realm) => ObjectGetPrototypeOf(thisArg, (IReadOnlyList<JsValue>)args.Select(JsValue.FromObject).ToList(), realm), Realm);
+        constructor.SetHostedProperty("defineProperty", (thisArg, args, realm) => ObjectDefineProperty(thisArg, (IReadOnlyList<JsValue>)args.Select(JsValue.FromObject).ToList(), realm), Realm);
     }
 
     private void AttachPrototypeShortcut(HostFunction constructor)

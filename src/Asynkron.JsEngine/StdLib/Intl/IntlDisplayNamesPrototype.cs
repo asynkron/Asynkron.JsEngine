@@ -33,7 +33,7 @@ public sealed partial class IntlDisplayNamesPrototype
     }
 
     [JsHostMethod("of", Length = 1d)]
-    private object? Of(object? thisValue, IReadOnlyList<object?> args)
+    private object? Of(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var instance = ValidateReceiver(thisValue);
         if (args.Count == 0)
@@ -54,7 +54,7 @@ public sealed partial class IntlDisplayNamesPrototype
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    private JsObject ResolvedOptions(object? thisValue, IReadOnlyList<object?> _)
+    private JsObject ResolvedOptions(JsValue thisValue, IReadOnlyList<object?> _)
     {
         var instance = ValidateReceiver(thisValue);
         var obj = new JsObject(Realm.ObjectPrototype);

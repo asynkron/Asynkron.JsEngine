@@ -19,14 +19,14 @@ public sealed partial class IntlDateTimeFormatPrototype
     }
 
     [JsHostGetter("format", DisplayName = "get format")]
-    private HostFunction GetFormat(object? thisValue)
+    private HostFunction GetFormat(JsValue thisValue)
     {
         var slotData = ValidateReceiver(thisValue, out _);
         return CreateBoundFormatFunction(value => FormatInternal(value, slotData));
     }
 
     [JsHostMethod("formatToParts", Length = 1d)]
-    private JsArray FormatToParts(object? thisValue, IReadOnlyList<object?> args)
+    private JsArray FormatToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var slotData = ValidateReceiver(thisValue, out _);
         var formatted = FormatInternal(args.GetArgument(0), slotData);
@@ -39,7 +39,7 @@ public sealed partial class IntlDateTimeFormatPrototype
     }
 
     [JsHostMethod("formatRange", Length = 2d)]
-    private string FormatRange(object? thisValue, IReadOnlyList<object?> args)
+    private string FormatRange(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var slotData = ValidateReceiver(thisValue, out _);
         var start = FormatInternal(args.GetArgument(0), slotData);
@@ -48,7 +48,7 @@ public sealed partial class IntlDateTimeFormatPrototype
     }
 
     [JsHostMethod("formatRangeToParts", Length = 2d)]
-    private JsArray FormatRangeToParts(object? thisValue, IReadOnlyList<object?> args)
+    private JsArray FormatRangeToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var slotData = ValidateReceiver(thisValue, out _);
         var start = FormatInternal(args.GetArgument(0), slotData);
@@ -61,7 +61,7 @@ public sealed partial class IntlDateTimeFormatPrototype
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    private JsObject ResolvedOptions(object? thisValue, IReadOnlyList<object?> _unused)
+    private JsObject ResolvedOptions(JsValue thisValue, IReadOnlyList<object?> _unused)
     {
         var slots = ValidateReceiver(thisValue, out _);
         var obj = new JsObject(Realm.ObjectPrototype);
@@ -83,7 +83,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         return obj;
     }
 
-    private DateTimeFormatInternalSlots ValidateReceiver(object? thisValue, out JsObject instance)
+    private DateTimeFormatInternalSlots ValidateReceiver(JsValue thisValue, out JsObject instance)
     {
         var obj = thisValue.EnsureBrand(BrandKey, Realm,
             "Intl.DateTimeFormat method called on incompatible receiver");

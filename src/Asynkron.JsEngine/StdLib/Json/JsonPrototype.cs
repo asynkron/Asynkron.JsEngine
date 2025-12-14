@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
@@ -8,7 +9,7 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class JsonPrototype : JsPrototype
 {
     [JsHostMethod("parse", Length = 2d)]
-    public object? Parse(object? thisValue, IReadOnlyList<object?> args)
+    public object? Parse(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -22,7 +23,7 @@ public sealed partial class JsonPrototype : JsPrototype
     }
 
     [JsHostMethod("stringify", Length = 3d)]
-    public object? Stringify(object? thisValue, IReadOnlyList<object?> args)
+    public object? Stringify(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {

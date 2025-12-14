@@ -474,7 +474,7 @@ public sealed class JsDataView : IJsPropertyAccessor
         });
     }
 
-    private static JsDataView ResolveThis(object? thisValue, JsDataView fallback)
+    private static JsDataView ResolveThis(JsValue thisValue, JsDataView fallback)
     {
         return thisValue as JsDataView ?? fallback;
     }

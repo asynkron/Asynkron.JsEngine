@@ -11,7 +11,7 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class NumberPrototype
 {
     [JsHostMethod("toString", Length = 1d)]
-    public object? ToString(object? thisValue, IReadOnlyList<object?> args)
+    public object? ToString(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var num = RequireNumberReceiver(thisValue, "Number.prototype.toString");
         var radixArg = args.GetArgument(0);
@@ -31,13 +31,13 @@ public sealed partial class NumberPrototype
     }
 
     [JsHostMethod("valueOf", Length = 0d)]
-    public object? ValueOf(object? thisValue, IReadOnlyList<object?> _)
+    public object? ValueOf(JsValue thisValue, IReadOnlyList<object?> _)
     {
         return RequireNumberReceiver(thisValue, "Number.prototype.valueOf");
     }
 
     [JsHostMethod("toFixed", Length = 1d)]
-    public object? ToFixed(object? thisValue, IReadOnlyList<object?> args)
+    public object? ToFixed(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var num = RequireNumberReceiver(thisValue, "Number.prototype.toFixed");
         var fractionDigits = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
@@ -60,7 +60,7 @@ public sealed partial class NumberPrototype
     }
 
     [JsHostMethod("toExponential", Length = 1d)]
-    public object? ToExponential(object? thisValue, IReadOnlyList<object?> args)
+    public object? ToExponential(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var num = RequireNumberReceiver(thisValue, "Number.prototype.toExponential");
         if (double.IsNaN(num))
@@ -93,7 +93,7 @@ public sealed partial class NumberPrototype
     }
 
     [JsHostMethod("toPrecision", Length = 1d)]
-    public object? ToPrecision(object? thisValue, IReadOnlyList<object?> args)
+    public object? ToPrecision(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var num = RequireNumberReceiver(thisValue, "Number.prototype.toPrecision");
         if (args.Count == 0)
@@ -126,7 +126,7 @@ public sealed partial class NumberPrototype
     }
 
     [JsHostMethod("toLocaleString", Length = 0d)]
-    public object? ToLocaleString(object? thisValue, IReadOnlyList<object?> args)
+    public object? ToLocaleString(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var num = RequireNumberReceiver(thisValue, "Number.prototype.toLocaleString");
         var localesArg = args.GetArgument(0);

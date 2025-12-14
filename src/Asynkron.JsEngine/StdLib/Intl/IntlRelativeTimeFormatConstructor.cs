@@ -93,17 +93,18 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
         string defaultValue)
     {
         if (options is null || !options.TryGetProperty(propertyName, out var rawValue) ||
-            rawValue is null || ReferenceEquals(rawValue, Symbol.Undefined))
+            rawValue.IsUndefined)
         {
             return defaultValue;
         }
 
-        if (rawValue is not string strValue)
+        if (!rawValue.IsString)
         {
             throw StandardLibrary.ThrowTypeError(
                 $"Intl.RelativeTimeFormat {propertyName} option must be a string", realm: Realm);
         }
 
+        var strValue = rawValue.AsString();
         if (!allowed.Contains(strValue, StringComparer.Ordinal))
         {
             throw StandardLibrary.ThrowRangeError(

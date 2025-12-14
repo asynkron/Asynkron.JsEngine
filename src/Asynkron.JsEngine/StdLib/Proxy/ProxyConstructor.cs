@@ -9,11 +9,11 @@ namespace Asynkron.JsEngine.StdLib;
 [JsConstructor("Proxy", PrototypeType = typeof(ProxyPrototype), Length = 2d, DisplayName = "Proxy")]
 public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
 {
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var target = RequireObject(args.GetArgument(0), "Proxy target must be an object");
         var handler = RequireObject(args.GetArgument(1), "Proxy handler must be an object");
-        return new JsProxy(target, handler, Realm);
+        return new JsValue(new JsProxy(target, handler, Realm));
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -48,9 +48,9 @@ public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState
         });
     }
 
-    private IJsObjectLike RequireObject(object? candidate, string message)
+    private IJsObjectLike RequireObject(JsValue candidate, string message)
     {
-        if (candidate is not IJsObjectLike obj)
+        if (!candidate.IsObject || candidate.AsObject() is not IJsObjectLike obj)
         {
             throw ThrowTypeError(message, realm: Realm);
         }

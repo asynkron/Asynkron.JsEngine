@@ -13,7 +13,7 @@ public sealed partial class IntlDisplayNamesConstructor(IJsObjectLike prototype,
     private static readonly string[] SupportedTypes =
         ["language", "region", "script", "currency", "calendar", "dateTimeField"];
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var localesArg = args.GetArgument(0);
         var optionsArg = args.GetArgument(1);
@@ -37,7 +37,7 @@ public sealed partial class IntlDisplayNamesConstructor(IJsObjectLike prototype,
             type,
             fallback,
             languageDisplay);
-        return instance;
+        return new JsValue(instance);
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -65,19 +65,14 @@ public sealed partial class IntlDisplayNamesConstructor(IJsObjectLike prototype,
         supportedLocalesOf.Delete("prototype");
     }
 
-    private JsObject? NormalizeOptions(object? optionsArg)
+    private JsObject? NormalizeOptions(JsValue optionsArg)
     {
-        if (optionsArg is null)
-        {
-            throw StandardLibrary.ThrowTypeError("Intl.DisplayNames options must be an object", realm: Realm);
-        }
-
-        if (ReferenceEquals(optionsArg, Symbol.Undefined))
+        if (optionsArg.IsNullOrUndefined)
         {
             return null;
         }
 
-        if (optionsArg is JsObject jsObject)
+        if (optionsArg.IsObject && optionsArg.AsObject() is JsObject jsObject)
         {
             return jsObject;
         }
@@ -90,7 +85,7 @@ public sealed partial class IntlDisplayNamesConstructor(IJsObjectLike prototype,
     {
         if (options is null ||
             !options.TryGetProperty(propertyName, out var value) ||
-            ReferenceEquals(value, Symbol.Undefined))
+            value.IsUndefined)
         {
             if (requireValue)
             {

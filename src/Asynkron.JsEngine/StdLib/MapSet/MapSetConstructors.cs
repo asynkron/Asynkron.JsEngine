@@ -11,11 +11,11 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
 {
     private HostFunction? _constructor;
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue is JsObject { IsConstructing: true } constructing)
+        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true } constructing)
         {
-            return ConstructMap(args, _constructor ?? ConstructFallback, _constructor ?? ConstructFallback, constructing);
+            return new JsValue(ConstructMap(args, _constructor ?? ConstructFallback, _constructor ?? ConstructFallback, constructing));
         }
 
         throw ThrowTypeError("Constructor Map requires 'new'", realm: Realm);
@@ -39,7 +39,7 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
         });
     }
 
-    private object ConstructMap(IReadOnlyList<object?> args, IJsCallable newTarget, IJsCallable targetCtor,
+    private object ConstructMap(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor,
         JsObject? providedThis = null)
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
@@ -67,14 +67,14 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
         return receiver;
     }
 
-    private void PopulateMap(JsMap map, IReadOnlyList<object?> args)
+    private void PopulateMap(JsMap map, IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
+        if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
         {
             return;
         }
 
-        if (args[0] is not JsArray entries)
+        if (!args[0].IsObject || args[0].AsObject() is not JsArray entries)
         {
             return;
         }
@@ -110,11 +110,11 @@ public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState r
 {
     private HostFunction? _constructor;
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue is JsObject { IsConstructing: true } constructing)
+        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true } constructing)
         {
-            return ConstructSet(args, _constructor ?? ConstructFallback, _constructor ?? ConstructFallback, constructing);
+            return new JsValue(ConstructSet(args, _constructor ?? ConstructFallback, _constructor ?? ConstructFallback, constructing));
         }
 
         throw ThrowTypeError("Constructor Set requires 'new'", realm: Realm);
@@ -138,7 +138,7 @@ public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState r
         });
     }
 
-    private object ConstructSet(IReadOnlyList<object?> args, IJsCallable newTarget, IJsCallable targetCtor,
+    private object ConstructSet(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor,
         JsObject? providedThis = null)
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
@@ -166,14 +166,14 @@ public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState r
         return receiver;
     }
 
-    private void PopulateSet(JsSet set, IReadOnlyList<object?> args)
+    private void PopulateSet(JsSet set, IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
+        if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
         {
             return;
         }
 
-        if (args[0] is not JsArray values)
+        if (!args[0].IsObject || args[0].AsObject() is not JsArray values)
         {
             return;
         }

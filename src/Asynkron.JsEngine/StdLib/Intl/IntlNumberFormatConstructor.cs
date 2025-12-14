@@ -10,14 +10,14 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype, RealmState realm)
     : JsConstructor(prototype, realm)
 {
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var (_, resolvedLocale) = StandardLibrary.ResolveIntlLocales(args.GetArgument(0), Realm);
         var options = IntlOptionHelpers.GetOptionsObject(args.GetArgument(1), Realm, "NumberFormat");
         var slots = CreateInternalSlots(resolvedLocale, options);
         var instance = PrepareThisObject(thisValue);
         IntlNumberFormatPrototype.InitializeInternalSlots(instance, slots);
-        return instance;
+        return new JsValue(instance);
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -40,7 +40,7 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
         supportedLocalesOf.Delete("prototype");
     }
 
-    private JsArray SupportedLocalesOf(IReadOnlyList<object?> args)
+    private JsArray SupportedLocalesOf(IReadOnlyList<JsValue> args)
     {
         return StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
     }
@@ -109,17 +109,18 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
     {
         if (options is null ||
             !options.TryGetProperty("numberingSystem", out var rawValue) ||
-            ReferenceEquals(rawValue, Symbol.Undefined))
+            rawValue.IsUndefined)
         {
             return "latn";
         }
 
-        if (rawValue is not string numberingSystem)
+        if (!rawValue.IsString)
         {
             throw StandardLibrary.ThrowTypeError(
                 "Intl.NumberFormat numberingSystem option must be a string", realm: Realm);
         }
 
+        var numberingSystem = rawValue.AsString();
         return IntlUtilities.TryNormalizeNumberingSystem(numberingSystem, out var canonical)
             ? canonical
             : "latn";
@@ -128,18 +129,19 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
     private string ResolveCurrency(IJsPropertyAccessor? options)
     {
         if (options is null || !options.TryGetProperty("currency", out var value) ||
-            ReferenceEquals(value, Symbol.Undefined))
+            value.IsUndefined)
         {
             throw StandardLibrary.ThrowTypeError(
                 "Intl.NumberFormat currency option is required when style is 'currency'", realm: Realm);
         }
 
-        if (value is not string currency)
+        if (!value.IsString)
         {
             throw StandardLibrary.ThrowTypeError(
                 "Intl.NumberFormat currency option must be a string", realm: Realm);
         }
 
+        var currency = value.AsString();
         if (!IntlUtilities.TryGetCanonicalCurrency(currency, out var canonical))
         {
             throw StandardLibrary.ThrowRangeError($"Invalid currency code '{currency}'", realm: Realm);
@@ -163,18 +165,19 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
     private string ResolveUnit(IJsPropertyAccessor? options)
     {
         if (options is null || !options.TryGetProperty("unit", out var value) ||
-            ReferenceEquals(value, Symbol.Undefined))
+            value.IsUndefined)
         {
             throw StandardLibrary.ThrowTypeError(
                 "Intl.NumberFormat unit option is required when style is 'unit'", realm: Realm);
         }
 
-        if (value is not string unit)
+        if (!value.IsString)
         {
             throw StandardLibrary.ThrowTypeError(
                 "Intl.NumberFormat unit option must be a string", realm: Realm);
         }
 
+        var unit = value.AsString();
         if (!IntlUtilities.TryGetCanonicalUnit(unit, out var canonical))
         {
             throw StandardLibrary.ThrowRangeError($"Invalid unit '{unit}'", realm: Realm);
@@ -193,18 +196,19 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
     {
         if (options is null ||
             !options.TryGetProperty("useGrouping", out var value) ||
-            ReferenceEquals(value, Symbol.Undefined))
+            value.IsUndefined)
         {
             return true;
         }
 
-        if (value is bool boolValue)
+        if (value.IsBool)
         {
-            return boolValue;
+            return value.AsBool();
         }
 
-        if (value is string stringValue)
+        if (value.IsString)
         {
+            var stringValue = value.AsString();
             return stringValue switch
             {
                 "always" => true,
@@ -283,7 +287,7 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
     {
         if (options is null ||
             !options.TryGetProperty(property, out var value) ||
-            ReferenceEquals(value, Symbol.Undefined))
+            value.IsUndefined)
         {
             return fallback;
         }
@@ -308,7 +312,7 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
         result = null;
         if (options is null ||
             !options.TryGetProperty(property, out var value) ||
-            ReferenceEquals(value, Symbol.Undefined))
+            value.IsUndefined)
         {
             return false;
         }

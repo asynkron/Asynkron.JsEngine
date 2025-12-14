@@ -11,7 +11,7 @@ public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmStat
 {
     private HostFunction? _constructor;
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         _ = thisValue;
         _ = args;

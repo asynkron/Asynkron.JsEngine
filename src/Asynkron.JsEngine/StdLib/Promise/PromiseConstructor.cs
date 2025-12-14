@@ -107,7 +107,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         var value = args.GetArgument(0);
 
         if (value.TryGetObject<JsObject>(out var jsObj) &&
-            JsPromise.TryGetInternalPromise(value, out JsPromise? _) &&
+            JsPromise.TryGetInternalPromise(value, out var _) &&
             jsObj.TryGetProperty("constructor", out var ctor) &&
             ReferenceEquals(ctor, _constructor ?? ConstructFallback))
         {

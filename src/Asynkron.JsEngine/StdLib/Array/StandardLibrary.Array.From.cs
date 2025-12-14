@@ -206,7 +206,11 @@ public static partial class StandardLibrary
             throw ThrowTypeError("Array.from iterator method did not return an object", realm: realm);
         }
 
-        var nextValue = iterator.TryGetProperty("next", out var nextVal) ? nextVal : JsValue.Undefined;
+        if (!iterator.TryGetProperty("next", out var nextVal))
+        {
+            throw ThrowTypeError("Array.from iterator does not expose a callable next()", realm: realm);
+        }
+        var nextValue = JsValue.FromObject(nextVal);
         if (!nextValue.TryGetObject<IJsCallable>(out var nextFn))
         {
             throw ThrowTypeError("Array.from iterator does not expose a callable next()", realm: realm);
@@ -279,31 +283,34 @@ public static partial class StandardLibrary
     {
         if (candidate is JsObject jsObject)
         {
-            var thenValue = jsObject.TryGetProperty("then", out var thenVal) ? thenVal : JsValue.Undefined;
-            if (thenValue.TryGetObject<IJsCallable>(out var thenCallable))
+            if (jsObject.TryGetProperty("then", out var thenVal))
             {
-                try
+                var thenValue = JsValue.FromObject(thenVal);
+                if (thenValue.TryGetObject<IJsCallable>(out var thenCallable))
                 {
-                    thenCallable.Invoke(
-                        [
-                            JsValue.FromObject(new HostFunction(args =>
-                            {
-                                onFulfilled(args.Count > 0 ? args[0].ToObject() : null);
-                                return JsValue.Undefined;
-                            }, isConstructor: false)),
-                            JsValue.FromObject(new HostFunction(args =>
-                            {
-                                onRejected(args.Count > 0 ? args[0].ToObject() : null);
-                                return JsValue.Undefined;
-                            }, isConstructor: false))
-                        ],
-                        JsValue.FromObject(jsObject));
-                    return true;
-                }
-                catch (ThrowSignal signal)
-                {
-                    onRejected(signal.ThrownValue ?? signal);
-                    return true;
+                    try
+                    {
+                        thenCallable.Invoke(
+                            [
+                                JsValue.FromObject(new HostFunction(args =>
+                                {
+                                    onFulfilled(args.Count > 0 ? args[0].ToObject() : null);
+                                    return JsValue.Undefined;
+                                }, isConstructor: false)),
+                                JsValue.FromObject(new HostFunction(args =>
+                                {
+                                    onRejected(args.Count > 0 ? args[0].ToObject() : null);
+                                    return JsValue.Undefined;
+                                }, isConstructor: false))
+                            ],
+                            JsValue.FromObject(jsObject));
+                        return true;
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        onRejected(signal.ThrownValue ?? signal);
+                        return true;
+                    }
                 }
             }
         }
@@ -359,7 +366,13 @@ public static partial class StandardLibrary
                 return;
             }
 
-            var nextValue = iterator.TryGetProperty("next", out var nextVal) ? nextVal : JsValue.Undefined;
+            if (!iterator.TryGetProperty("next", out var nextVal))
+            {
+                RejectFailure(CreateTypeError("Array.fromAsync iterator does not expose a callable next()", null,
+                    realm));
+                return;
+            }
+            var nextValue = JsValue.FromObject(nextVal);
             if (!nextValue.TryGetObject<IJsCallable>(out var nextFn))
             {
                 RejectFailure(CreateTypeError("Array.fromAsync iterator does not expose a callable next()", null,

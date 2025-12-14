@@ -108,7 +108,7 @@ public static partial class StandardLibrary
                 (thisValue, args, realmState) => TypedArrayIncludes(thisValue, args, realmState), realm);
             proto.SetHostedProperty("some",
                 (thisValue, someArgs, realmState) =>
-                    SomeLike(thisValue, someArgs, realmState, "%TypedArray%.prototype.some"), realm);
+                    SomeLike(JsValue.FromObject(thisValue), someArgs.Select(a => JsValue.FromObject(a)).ToList(), realmState, "%TypedArray%.prototype.some"), realm);
 
             realm.TypedArrayPrototype = proto;
         }
@@ -146,10 +146,10 @@ public static partial class StandardLibrary
         var prototype = new JsObject();
 
         HostFunction constructor = null!;
-        constructor = new HostFunction((thisValue, args) => JsValue.FromObject(ConstructTypedArray(args, thisValue.IsNullish ? constructor : thisValue)));
+        constructor = new HostFunction((thisValue, args) => JsValue.FromObject(ConstructTypedArray(args, thisValue.IsNullish ? JsValue.FromObject(constructor) : thisValue)));
         constructor.RealmState = realm;
         constructor.SetInvokeWithContext(
-            (args, _, _, newTarget) => JsValue.FromObject(ConstructTypedArray(args, newTarget.IsNullish ? constructor : newTarget)));
+            (args, _, _, newTarget) => JsValue.FromObject(ConstructTypedArray(args, newTarget.IsNullish ? JsValue.FromObject(constructor) : newTarget)));
 
         constructor.SetProperty("BYTES_PER_ELEMENT", (double)bytesPerElement);
         prototype.SetPrototype(realm.ObjectPrototype);
@@ -294,7 +294,7 @@ public static partial class StandardLibrary
                     srcTypedArray.Buffer.Resizable);
                 var ta = CreateTargetFromLength(length, newTarget);
                 realm.Logger?.LogInformation("TypedArray ctor target length={Length} newTarget={NewTargetType}", ta.Length,
-                    newTarget?.GetType().Name ?? "null");
+                    newTarget.GetType().Name);
                 if (length == 0)
                 {
                     realm.Logger?.LogInformation(
@@ -527,7 +527,7 @@ public static partial class StandardLibrary
 
             object? ApplyMap(int index, object? value)
             {
-                return mapFn is null ? value : mapFn.Invoke([JsValue.FromObject(value), JsValue.FromNumber((double)index)], mapThis).ToObject();
+                return mapFn is null ? value : mapFn.Invoke([JsValue.FromObject(value), JsValue.FromNumber((double)index)], mapThis);
             }
         }
     }
@@ -762,7 +762,7 @@ public static partial class StandardLibrary
         return filtered;
     }
 
-    private static object? TypedArrayReduce(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm,
+    private static object? TypedArrayReduce(object? thisValue, IReadOnlyList<object?> args, RealmState? realm,
         string methodName, bool fromRight)
     {
         if (thisValue is not TypedArrayBase typedArray)
@@ -770,7 +770,8 @@ public static partial class StandardLibrary
             throw ThrowTypeError($"{methodName} called on incompatible receiver", realm: realm);
         }
 
-        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
+        var argsJsValue = args.Select(a => JsValue.FromObject(a)).ToList();
+        if (argsJsValue.Count == 0 || !argsJsValue[0].TryGetObject<IJsCallable>(out var callback))
         {
             throw ThrowTypeError($"{methodName} requires a callable accumulator", realm: realm);
         }
@@ -791,9 +792,9 @@ public static partial class StandardLibrary
 
         object? accumulator = Symbol.Undefined;
         var hasAccumulator = false;
-        if (args.Count > 1 && !args[1].IsUndefined)
+        if (argsJsValue.Count > 1 && !argsJsValue[1].IsUndefined)
         {
-            accumulator = args[1].ToObject();
+            accumulator = argsJsValue[1];
             hasAccumulator = true;
         }
 
@@ -821,7 +822,7 @@ public static partial class StandardLibrary
             }
             else
             {
-                accumulator = callback.Invoke([JsValue.FromObject(accumulator), JsValue.FromObject(value), JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], JsValue.Undefined).ToObject();
+                accumulator = callback.Invoke([JsValue.FromObject(accumulator), JsValue.FromObject(value), JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], JsValue.Undefined);
             }
 
             k += step;
@@ -835,7 +836,7 @@ public static partial class StandardLibrary
         return accumulator;
     }
 
-    private static object? TypedArrayEvery(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
+    private static object? TypedArrayEvery(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
@@ -859,7 +860,7 @@ public static partial class StandardLibrary
             var strictValue = strictField?.GetValue(callback);
             var thisArgKind = thisArg.IsUndefined
                 ? "undefined"
-                : thisArg.ToObject()?.GetType().Name ?? "null";
+                : thisArg.GetType().Name;
             logger.LogInformation(
                 "TypedArray.every callback type={Type} strict={Strict} thisArg={ThisArg}",
                 callback.GetType().Name,
@@ -877,7 +878,7 @@ public static partial class StandardLibrary
         {
             var value = typedArray.GetValueForIndex(k);
             var result = callback.Invoke([JsValue.FromObject(value), JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
-            if (!IsTruthy(result.ToObject()))
+            if (!IsTruthy(result))
             {
                 return false;
             }
@@ -886,7 +887,7 @@ public static partial class StandardLibrary
         return true;
     }
 
-    private static object? TypedArrayFind(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
+    private static object? TypedArrayFind(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
@@ -915,7 +916,7 @@ public static partial class StandardLibrary
             var key = k.ToString(CultureInfo.InvariantCulture);
             var value = typedArray.TryGetProperty(key, typedArray, out var candidate) ? candidate : Symbol.Undefined;
             var match = callback.Invoke([JsValue.FromObject(value), JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
-            if (IsTruthy(match.ToObject()))
+            if (IsTruthy(match))
             {
                 return value;
             }
@@ -924,7 +925,7 @@ public static partial class StandardLibrary
         return Symbol.Undefined;
     }
 
-    private static object? TypedArrayFindIndex(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
+    private static object? TypedArrayFindIndex(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
@@ -953,7 +954,7 @@ public static partial class StandardLibrary
             var key = k.ToString(CultureInfo.InvariantCulture);
             var value = typedArray.TryGetProperty(key, typedArray, out var candidate) ? candidate : Symbol.Undefined;
             var match = callback.Invoke([JsValue.FromObject(value), JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
-            if (IsTruthy(match.ToObject()))
+            if (IsTruthy(match))
             {
                 return (double)k;
             }
@@ -962,7 +963,7 @@ public static partial class StandardLibrary
         return -1d;
     }
 
-    private static object? TypedArrayFindLast(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
+    private static object? TypedArrayFindLast(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
@@ -991,7 +992,7 @@ public static partial class StandardLibrary
             var key = k.ToString(CultureInfo.InvariantCulture);
             var value = typedArray.TryGetProperty(key, typedArray, out var candidate) ? candidate : Symbol.Undefined;
             var match = callback.Invoke([JsValue.FromObject(value), JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
-            if (IsTruthy(match.ToObject()))
+            if (IsTruthy(match))
             {
                 return value;
             }
@@ -1000,7 +1001,7 @@ public static partial class StandardLibrary
         return Symbol.Undefined;
     }
 
-    private static object? TypedArrayFindLastIndex(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
+    private static object? TypedArrayFindLastIndex(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
@@ -1029,7 +1030,7 @@ public static partial class StandardLibrary
             var key = k.ToString(CultureInfo.InvariantCulture);
             var value = typedArray.TryGetProperty(key, typedArray, out var candidate) ? candidate : Symbol.Undefined;
             var match = callback.Invoke([JsValue.FromObject(value), JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
-            if (IsTruthy(match.ToObject()))
+            if (IsTruthy(match))
             {
                 return (double)k;
             }
@@ -1038,7 +1039,7 @@ public static partial class StandardLibrary
         return -1d;
     }
 
-    private static object? TypedArrayForEach(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
+    private static object? TypedArrayForEach(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
@@ -1081,7 +1082,7 @@ public static partial class StandardLibrary
         return Symbol.Undefined;
     }
 
-    private static object? TypedArrayFill(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
+    private static object? TypedArrayFill(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
@@ -1095,8 +1096,8 @@ public static partial class StandardLibrary
 
         var length = typedArray.Length;
         var value = args.GetArgument(0);
-        var startIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1].ToObject(), realm?.CreateContext()) : 0;
-        var endIndex = args.Count > 2 ? ToIntegerOrInfinity(args[2].ToObject(), realm?.CreateContext()) : length;
+        var startIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], realm?.CreateContext()) : 0;
+        var endIndex = args.Count > 2 ? ToIntegerOrInfinity(args[2], realm?.CreateContext()) : length;
 
         var start = ClampRelativeIndex(startIndex, length);
         var end = ClampRelativeIndex(endIndex, length);
@@ -1113,13 +1114,13 @@ public static partial class StandardLibrary
                 break;
             }
 
-            typedArray.SetValue(k, value.ToObject());
+            typedArray.SetValue(k, value);
         }
 
         return typedArray;
     }
 
-    private static object? TypedArrayCopyWithin(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
+    private static object? TypedArrayCopyWithin(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
@@ -1132,9 +1133,9 @@ public static partial class StandardLibrary
         }
 
         var length = typedArray.Length;
-        var toIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0].ToObject(), realm?.CreateContext()) : 0;
-        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1].ToObject(), realm?.CreateContext()) : 0;
-        var endIndex = args.Count > 2 ? ToIntegerOrInfinity(args[2].ToObject(), realm?.CreateContext()) : length;
+        var toIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0], realm?.CreateContext()) : 0;
+        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], realm?.CreateContext()) : 0;
+        var endIndex = args.Count > 2 ? ToIntegerOrInfinity(args[2], realm?.CreateContext()) : length;
 
         var to = ClampRelativeIndex(toIndex, length);
         var from = ClampRelativeIndex(fromIndex, length);
@@ -1177,7 +1178,7 @@ public static partial class StandardLibrary
         return typedArray;
     }
 
-    private static object? TypedArrayReverse(JsValue thisValue, IReadOnlyList<JsValue> _, RealmState? realm)
+    private static object? TypedArrayReverse(object? thisValue, IReadOnlyList<JsValue> _, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
@@ -1215,7 +1216,7 @@ public static partial class StandardLibrary
         return typedArray;
     }
 
-    private static object? TypedArrayToReversed(JsValue thisValue, IReadOnlyList<JsValue> _, RealmState? realm)
+    private static object? TypedArrayToReversed(object? thisValue, IReadOnlyList<JsValue> _, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
@@ -1243,7 +1244,7 @@ public static partial class StandardLibrary
         return result;
     }
 
-    private static object? TypedArrayToSorted(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
+    private static object? TypedArrayToSorted(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
@@ -1293,7 +1294,7 @@ public static partial class StandardLibrary
             if (compareFn is not null)
             {
                 var result = compareFn.Invoke([JsValue.FromObject(left), JsValue.FromObject(right)], JsValue.Undefined);
-                var numeric = JsOps.ToNumber(result.ToObject());
+                var numeric = JsOps.ToNumber(result);
                 return numeric > 0 ? 1 : numeric < 0 ? -1 : 0;
             }
 
@@ -1320,7 +1321,7 @@ public static partial class StandardLibrary
         }
     }
 
-    private static object? TypedArrayToSpliced(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
+    private static object? TypedArrayToSpliced(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
@@ -1333,10 +1334,10 @@ public static partial class StandardLibrary
         }
 
         var length = typedArray.Length;
-        var start = args.Count > 0 ? ToIntegerOrInfinity(args[0].ToObject(), realm?.CreateContext()) : 0;
+        var start = args.Count > 0 ? ToIntegerOrInfinity(args[0], realm?.CreateContext()) : 0;
         var actualStart = ClampRelativeIndex(start, length);
 
-        var deleteCountIsUndefined = args.Count <= 1 || ReferenceEquals(args[1], Symbol.Undefined);
+        var deleteCountIsUndefined = args.Count <= 1 || args[1].IsUndefined;
         int actualDeleteCount;
         if (deleteCountIsUndefined)
         {
@@ -1344,7 +1345,7 @@ public static partial class StandardLibrary
         }
         else
         {
-            var deleteCount = ToIntegerOrInfinity(args[1].ToObject(), realm?.CreateContext());
+            var deleteCount = ToIntegerOrInfinity(args[1], realm?.CreateContext());
             if (double.IsPositiveInfinity(deleteCount))
             {
                 actualDeleteCount = length - actualStart;
@@ -1390,7 +1391,7 @@ public static partial class StandardLibrary
         return result;
     }
 
-    private static object? TypedArrayWith(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
+    private static object? TypedArrayWith(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
@@ -1408,7 +1409,7 @@ public static partial class StandardLibrary
         }
 
         var length = typedArray.Length;
-        var indexNumber = ToIntegerOrInfinity(args[0].ToObject(), realm?.CreateContext());
+        var indexNumber = ToIntegerOrInfinity(args[0], realm?.CreateContext());
         int actualIndex;
         if (double.IsPositiveInfinity(indexNumber) || double.IsNegativeInfinity(indexNumber))
         {

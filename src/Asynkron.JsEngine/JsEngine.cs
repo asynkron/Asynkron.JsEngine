@@ -2904,11 +2904,18 @@ public sealed class JsEngine : IAsyncDisposable
                         var defaultSymbol = Symbol.Intern("*default*");
                         if (!moduleEnv.HasBinding(defaultSymbol))
                         {
-                            if (moduleEnv.IsAsyncModule && exports.TryGetValue("default", out var defaultExport) &&
-                                defaultExport.TryGetObject<JsObject>(out var defaultPromise) &&
-                                JsPromise.TryGetInternalPromise(defaultPromise, out var promise))
+                            if (moduleEnv.IsAsyncModule && exports.TryGetValue("default", out var defaultExport))
                             {
-                                moduleEnv.DefineExportPromiseBinding(defaultSymbol, promise, isLexical: false, isConst: false);
+                                var defaultExportValue = JsValue.FromObject(defaultExport);
+                                if (defaultExportValue.TryGetObject<JsObject>(out var defaultPromise) &&
+                                    JsPromise.TryGetInternalPromise(defaultPromise, out var promise))
+                                {
+                                    moduleEnv.DefineExportPromiseBinding(defaultSymbol, promise, isLexical: false, isConst: false);
+                                }
+                                else
+                                {
+                                    moduleEnv.Define(defaultSymbol, JsEnvironment.Uninitialized, isLexical: false, blocksFunctionScopeOverride: false);
+                                }
                             }
                             else
                             {
@@ -4244,7 +4251,7 @@ public sealed class JsEngine : IAsyncDisposable
 
             try
             {
-                thenCallable.Invoke([new JsValue(onFulfilledFn), new JsValue(onRejectedFn)], new JsValue(promiseObject));
+                thenCallable.Invoke(new JsValue[] { new JsValue(onFulfilledFn), new JsValue(onRejectedFn) }, new JsValue(promiseObject));
             }
             catch (ThrowSignal signal)
             {
@@ -4258,26 +4265,31 @@ public sealed class JsEngine : IAsyncDisposable
         private JsObject? WrapAwaitedValue(object? value)
         {
             var promiseCtor = _engine.RealmState.PromiseConstructor;
+            var promiseCtorValue = JsValue.FromObject(promiseCtor);
             if (promiseCtor is IJsPropertyAccessor accessor &&
-                accessor.TryGetProperty("resolve", out var resolveValue) &&
-                resolveValue is IJsCallable resolveCallable)
+                accessor.TryGetProperty("resolve", out var resolveValue))
             {
-                try
+                var resolveJsValue = JsValue.FromObject(resolveValue);
+                if (resolveJsValue.TryGetObject<IJsCallable>(out var resolveCallable))
                 {
-                    if (resolveCallable.Invoke([value], promiseCtor as object) is JsObject resolvedPromise)
+                    try
                     {
-                        return resolvedPromise;
+                        var result = resolveCallable.Invoke(new JsValue[] { JsValue.FromObject(value) }, promiseCtorValue);
+                        if (result.TryGetObject<JsObject>(out var resolvedPromise))
+                        {
+                            return resolvedPromise;
+                        }
                     }
-                }
-                catch (ThrowSignal signal)
-                {
-                    Fail(signal);
-                    return null;
+                    catch (ThrowSignal signal)
+                    {
+                        Fail(signal);
+                        return null;
+                    }
                 }
             }
 
             var promise = _engine.CreateRealmPromise();
-            promise.Resolve(value);
+            promise.Resolve(JsValue.FromObject(value));
             return promise.JsObject;
         }
 
@@ -4402,13 +4414,13 @@ public sealed class JsEngine : IAsyncDisposable
         private bool TryEvaluateCallExpressionWithAwait(CallExpression callExpr, JsEnvironment env, bool isStrict, Action<object?> continuation)
         {
             // Evaluate arguments left to right, handling any await expressions
-            var evaluatedArgs = new List<object?>();
+            var evaluatedArgs = new List<JsValue>();
             var argList = callExpr.Arguments.ToList();
             return TryEvaluateArgumentsWithAwait(argList, 0, evaluatedArgs, env, isStrict, () =>
             {
                 // All arguments evaluated, now evaluate callee and call
-                object? calleeValue;
-                JsValue thisValue = null;
+                JsValue calleeValue;
+                JsValue thisValue = JsValue.Undefined;
 
                 try
                 {
@@ -4416,18 +4428,18 @@ public sealed class JsEngine : IAsyncDisposable
                     {
                         thisValue = _engine.ExecuteTypedExpression(memberAccess.Target, env, isStrict);
                         var propertyKey = memberAccess.Property is IdentifierExpression id
-                            ? id.Name
+                            ? (object)id.Name
                             : _engine.ExecuteTypedExpression(memberAccess.Property, env, isStrict);
                         calleeValue = JsOps.TryGetPropertyValue(thisValue, propertyKey, out var val, null)
-                            ? val
-                            : Symbol.Undefined;
+                            ? JsValue.FromObject(val)
+                            : JsValue.Undefined;
                     }
                     else
                     {
                         calleeValue = _engine.ExecuteTypedExpression(callExpr.Callee, env, isStrict);
                     }
 
-                    if (calleeValue is not IJsCallable callable)
+                    if (!calleeValue.TryGetObject<IJsCallable>(out var callable))
                     {
                         throw new ThrowSignal($"TypeError: {calleeValue} is not a function");
                     }
@@ -4442,7 +4454,7 @@ public sealed class JsEngine : IAsyncDisposable
             });
         }
 
-        private bool TryEvaluateArgumentsWithAwait(List<CallArgument> args, int index, List<object?> evaluated, JsEnvironment env, bool isStrict, Action onComplete)
+        private bool TryEvaluateArgumentsWithAwait(List<CallArgument> args, int index, List<JsValue> evaluated, JsEnvironment env, bool isStrict, Action onComplete)
         {
             if (index >= args.Count)
             {
@@ -4455,7 +4467,7 @@ public sealed class JsEngine : IAsyncDisposable
             {
                 return TryEvaluateExpressionWithAwait(arg.Expression, env, isStrict, resolved =>
                 {
-                    evaluated.Add(resolved);
+                    evaluated.Add(JsValue.FromObject(resolved));
                     TryEvaluateArgumentsWithAwait(args, index + 1, evaluated, env, isStrict, onComplete);
                 });
             }
@@ -4463,7 +4475,7 @@ public sealed class JsEngine : IAsyncDisposable
             try
             {
                 var value = _engine.ExecuteTypedExpression(arg.Expression, env, isStrict);
-                evaluated.Add(value);
+                evaluated.Add(JsValue.FromObject(value));
                 return TryEvaluateArgumentsWithAwait(args, index + 1, evaluated, env, isStrict, onComplete);
             }
             catch (ThrowSignal signal)
@@ -4642,7 +4654,7 @@ public sealed class JsEngine : IAsyncDisposable
 
             try
             {
-                thenCallable.Invoke([onFulfilledFn, onRejectedFn], promiseObject);
+                thenCallable.Invoke(new JsValue[] { new JsValue(onFulfilledFn), new JsValue(onRejectedFn) }, new JsValue(promiseObject));
             }
             catch (ThrowSignal signal)
             {
@@ -4817,7 +4829,7 @@ public sealed class JsEngine : IAsyncDisposable
 
             try
             {
-                thenCallable.Invoke([onFulfilledFn, onRejectedFn], promiseObject);
+                thenCallable.Invoke([new JsValue(onFulfilledFn), new JsValue(onRejectedFn)], new JsValue(promiseObject));
             }
             catch (ThrowSignal signal)
             {

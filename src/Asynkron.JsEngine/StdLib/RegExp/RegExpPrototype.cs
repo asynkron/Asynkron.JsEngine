@@ -51,13 +51,15 @@ public sealed partial class RegExpPrototype : JsPrototype
     public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var resolved = ResolveRegExpInstance(thisValue);
-        return resolved is null ? "/undefined/" : $"/{resolved.Pattern}/{resolved.Flags}";
+        var result = resolved is null ? "/undefined/" : $"/{resolved.Pattern}/{resolved.Flags}";
+        return new JsValue(result);
     }
 
     [JsHostMethod("compile", Length = 2d)]
     public JsValue Compile(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue is not JsObject target ||
+        if (!thisValue.TryGetObject<JsObject>(out var target) ||
+            target is null ||
             !ReferenceEquals(target.Prototype, Realm.RegExpPrototype) ||
             !target.TryGetValue("__regex__", out var existingInner) ||
             existingInner is not JsRegExp existingRegExp ||
@@ -69,14 +71,15 @@ public sealed partial class RegExpPrototype : JsPrototype
 
         var patternArg = args.GetArgument(0);
         var flagsArg = args.GetArgument(1);
-        if (patternArg is TypedAstSymbol ||
-            (flagsArg != JsValue.Undefined && flagsArg is TypedAstSymbol))
+        if (patternArg.TryUnwrap<TypedAstSymbol>(out _) ||
+            (flagsArg != JsValue.Undefined && flagsArg.TryUnwrap<TypedAstSymbol>(out _)))
         {
             throw ThrowTypeError("Cannot convert a Symbol value to a string", realm: Realm);
         }
 
         JsRegExp? providedRegExp = null;
-        if (patternArg is JsObject patternObj &&
+        if (patternArg.TryGetObject<JsObject>(out var patternObj) &&
+            patternObj is not null &&
             patternObj.TryGetValue("__regex__", out var innerVal) &&
             innerVal is JsRegExp regExpFromSlot &&
             ReferenceEquals(regExpFromSlot.JsObject, patternObj))

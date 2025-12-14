@@ -71,7 +71,7 @@ public static partial class TypedAstEvaluator
                 switch (argCount)
                 {
                     case 0:
-                        frozenArguments = Array.Empty<object?>();
+                        frozenArguments = Array.Empty<JsValue>();
                         break;
                     case 1:
                     {

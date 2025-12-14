@@ -651,7 +651,7 @@ public static partial class TypedAstEvaluator
 
                             while (true)
                             {
-                                object? sendValue = Symbol.Undefined;
+                                JsValue sendValue = JsValue.Undefined;
                                 var hasSendValue = false;
                                 var propagateThrow = false;
                                 var propagateReturn = false;
@@ -664,7 +664,7 @@ public static partial class TypedAstEvaluator
                                     // On first entry to yield*, we pass undefined as the argument
                                     // (the outer generator's first next() argument is ignored per spec)
                                     hasSendValue = true;
-                                    sendValue = Symbol.Undefined;
+                                    sendValue = JsValue.Undefined;
                                     // Mark that we're no longer on first entry for subsequent iterations
                                     isFirstYieldStarEntry = false;
                                 }
@@ -691,7 +691,7 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 var iteratorResult = yieldStarState.State!.MoveNext(
-                                    sendValue,
+                                    sendValue.ToObject(),
                                     hasSendValue,
                                     propagateThrow,
                                     propagateReturn,
@@ -727,12 +727,12 @@ public static partial class TypedAstEvaluator
                                     if (!iteratorResult.Done)
                                     {
                                         yieldStarState.PendingAbrupt = pendingKind;
-                                        yieldStarState.PendingValue = sendValue;
+                                        yieldStarState.PendingValue = sendValue.ToObject();
                                         yieldStarState.AwaitingResume = true;
                                         _programCounter = currentIndex;
                                         _state = GeneratorState.Suspended;
                                         // Use original iterator result object to preserve done/value properties
-                                        return iteratorResult.IteratorResultObject ?? CreateIteratorResult(iteratorResult.Value, false);
+                                        return new JsValue(iteratorResult.IteratorResultObject ?? CreateIteratorResult(new JsValue(iteratorResult.Value), false));
                                     }
 
                                     yieldStarState.State = null;

@@ -248,8 +248,8 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             if (jsItem.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
                 thenMethod is IJsCallable thenCallable)
             {
-                var thenArgs = new JsValue[] { new JsValue(CreateRaceResolve()), new JsValue(CreateRaceReject()) };
-                thenCallable.Invoke(thenArgs, new JsValue(itemObj));
+                var thenArgs = new JsValue[] { JsValue.FromObject(CreateRaceResolve()), JsValue.FromObject(CreateRaceReject()) };
+                thenCallable.Invoke(thenArgs, JsValue.FromObject(itemObj));
             }
             else if (!settled)
             {
@@ -333,8 +333,8 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             if (item.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
                 thenMethod is IJsCallable thenCallable)
             {
-                var thenArgs = new JsValue[] { new JsValue(CreateResolve(index)), new JsValue(CreateReject(index)) };
-                thenCallable.Invoke(thenArgs, new JsValue(itemObj));
+                var thenArgs = new JsValue[] { JsValue.FromObject(CreateResolve(index)), JsValue.FromObject(CreateReject(index)) };
+                thenCallable.Invoke(thenArgs, JsValue.FromObject(itemObj));
             }
             else
             {

@@ -509,17 +509,17 @@ public sealed partial class ArrayPrototype
     }
 
     [JsHostMethod("toSpliced", Length = 2d)]
-    public object? ToSpliced(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ToSpliced(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toSpliced", realm);
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
         var length = (long)ToLengthOrZero(lengthValue);
 
         var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0]) : 0;
         var actualStart = ClampRelativeIndex(startIndex, length);
 
-        var deleteCountIsUndefined = args.Count <= 1 || ReferenceEquals(args[1], Symbol.Undefined);
+        var deleteCountIsUndefined = args.Count <= 1 || args[1].IsUndefined();
         long actualDeleteCount;
         if (deleteCountIsUndefined)
         {
@@ -566,14 +566,14 @@ public sealed partial class ArrayPrototype
         }
 
         SetArrayLikeLength(result, targetIndex);
-        return result;
+        return JsValue.FromObject(result);
     }
 
     [JsHostMethod("with", Length = 2d)]
-    public object? With(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue With(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.with", Realm);
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
         var length = (long)ToLengthOrZero(lengthValue);
 
         if (args.Count == 0)
@@ -602,7 +602,7 @@ public sealed partial class ArrayPrototype
             throw ThrowRangeError("Array.prototype.with index out of range", realm: Realm);
         }
 
-        var value = args.Count > 1 ? args[1] : Symbol.Undefined;
+        var value = args.Count > 1 ? args[1] : JsValue.FromObject(Symbol.Undefined);
         var result = ArraySpeciesCreate(thisValue, length, Realm);
 
         for (long k = 0; k < length; k++)
@@ -618,6 +618,6 @@ public sealed partial class ArrayPrototype
         }
 
         SetArrayLikeLength(result, length);
-        return result;
+        return JsValue.FromObject(result);
     }
 }

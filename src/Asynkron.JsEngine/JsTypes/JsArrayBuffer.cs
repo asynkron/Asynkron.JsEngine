@@ -42,13 +42,13 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvi
 
         _resizeFunction = new HostFunction((thisValue, args) =>
         {
-            var target = thisValue as JsArrayBuffer ?? this;
+            var target = thisValue.TryGetObject<JsArrayBuffer>(out var buf) ? buf : this;
             if (!Resizable)
             {
                 throw new ThrowSignal(CreateTypeError("ArrayBuffer is not resizable"));
             }
 
-            if (args.Count == 0 || args[0] is not double d)
+            if (args.Count == 0 || !args[0].TryGetDouble(out var d))
             {
                 throw new ThrowSignal(CreateTypeError("resize requires a new length"));
             }
@@ -129,7 +129,7 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvi
             return true;
         }
 
-        value = null;
+        value = JsValue.Undefined.ToObject();
         return false;
     }
 

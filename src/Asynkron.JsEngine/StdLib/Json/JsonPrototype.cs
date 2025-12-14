@@ -23,16 +23,16 @@ public sealed partial class JsonPrototype : JsPrototype
     }
 
     [JsHostMethod("stringify", Length = 3d)]
-    public object? Stringify(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Stringify(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
-            return "undefined";
+            return new JsValue("undefined");
         }
 
-        var value = args[0];
+        var value = args[0].ToObject();
 
         // TODO: replacer and space are not yet supported; fallback to basic stringify.
-        return StringifyValue(value);
+        return new JsValue(StringifyValue(value));
     }
 }

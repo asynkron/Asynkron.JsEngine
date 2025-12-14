@@ -156,11 +156,8 @@ public sealed partial class ArrayConstructor : JsConstructor
         HostFunction arrayFrom = null!;
         arrayFrom = new HostFunction((thisValue, args) =>
         {
-#pragma warning disable CS0618 // ToObject is obsolete but needed here for StandardLibrary method signature
-            var argsObj = args.Select(a => a.ToObject()).ToList();
-            var result = StandardLibrary.ArrayFrom(arrayFrom, thisValue.ToObject(), argsObj, Realm);
+            var result = StandardLibrary.ArrayFrom(arrayFrom, thisValue, args, Realm);
             return JsValue.FromObject(result);
-#pragma warning restore CS0618
         }, Realm, isConstructor: false);
         StandardLibrary.AttachBuiltinMetadata(arrayFrom, "from", 1d);
         arrayFrom.Delete("prototype");
@@ -176,11 +173,8 @@ public sealed partial class ArrayConstructor : JsConstructor
         HostFunction arrayFromAsync = null!;
         arrayFromAsync = new HostFunction((thisValue, args) =>
         {
-#pragma warning disable CS0618 // ToObject is obsolete but needed here for StandardLibrary method signature
-            var argsObj = args.Select(a => a.ToObject()).ToList();
-            var result = StandardLibrary.ArrayFromAsync(arrayFromAsync, thisValue.ToObject(), argsObj, Realm);
+            var result = StandardLibrary.ArrayFromAsync(arrayFromAsync, thisValue, args, Realm);
             return JsValue.FromObject(result);
-#pragma warning restore CS0618
         }, Realm, isConstructor: false);
         StandardLibrary.AttachBuiltinMetadata(arrayFromAsync, "fromAsync", 1d);
         arrayFromAsync.Delete("prototype");

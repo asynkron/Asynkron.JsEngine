@@ -307,9 +307,9 @@ public static partial class TypedAstEvaluator
                         $"Super constructor is not available in this context.{GetSourceInfo(context, superExpression.Source)}");
                 }
 
-                var superThis = ReferenceEquals(binding.ThisValue, JsEnvironment.Uninitialized)
-                    ? Symbol.Undefined
-                    : binding.ThisValue;
+                var superThis = ReferenceEquals(binding.thisValue, JsEnvironment.Uninitialized)
+                    ? JsValue.FromObject(Symbol.Undefined)
+                    : binding.thisValue;
                 return (dynamicSuperConstructor, superThis, false);
             }
 
@@ -320,10 +320,10 @@ public static partial class TypedAstEvaluator
                     var (memberValue, binding) = ResolveSuperMember(member, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
-                        return (Symbol.Undefined, binding.ThisValue, true);
+                        return (Symbol.Undefined, binding.thisValue, true);
                     }
 
-                    return (memberValue, binding.ThisValue, false);
+                    return (memberValue, binding.thisValue, false);
                 }
 
                 var targetJs = EvaluateExpression(member.Target, environment, context);

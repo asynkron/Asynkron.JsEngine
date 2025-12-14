@@ -214,16 +214,16 @@ public static partial class StandardLibrary
         }
     }
 
-    internal static bool IsConcatSpreadable(object? candidate, RealmState? realm, string operation,
+    internal static bool IsConcatSpreadable(JsValue candidate, RealmState? realm, string operation,
         out IJsPropertyAccessor accessor)
     {
         accessor = null!;
-        if (candidate is null || ReferenceEquals(candidate, Symbol.Undefined))
+        if (candidate.IsNullOrUndefined)
         {
             return false;
         }
 
-        if (candidate is not IJsPropertyAccessor propertyAccessor)
+        if (!candidate.TryGetObject<IJsPropertyAccessor>(out var propertyAccessor))
         {
             return false;
         }
@@ -247,15 +247,15 @@ public static partial class StandardLibrary
         return false;
     }
 
-    internal static bool ArrayIsArray(object? candidate, RealmState? realm)
+    internal static bool ArrayIsArray(JsValue candidate, RealmState? realm)
     {
-        if (candidate is null)
+        if (candidate.IsNull)
         {
             return false;
         }
 
         var inspected = UnwrapProxy(candidate, realm, "Array.isArray");
-        if (inspected is JsArray jsArray)
+        if (inspected.TryGetObject<JsArray>(out var jsArray))
         {
             if (jsArray.TryGetProperty("__arguments__", out var isArgs) && isArgs is true)
             {
@@ -266,7 +266,8 @@ public static partial class StandardLibrary
         }
 
         if (realm?.ArrayPrototype is not null &&
-            ReferenceEquals(inspected, realm.ArrayPrototype))
+            inspected.TryGetObject(out var inspectedObj) &&
+            ReferenceEquals(inspectedObj, realm.ArrayPrototype))
         {
             return true;
         }

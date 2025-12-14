@@ -67,20 +67,20 @@ public class SunSpiderTests
         engine.SetGlobalFunction("log", args =>
         {
             Console.WriteLine(args.Count > 0 ? args[0].ToObject()?.ToString() : string.Empty);
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
         engine.SetGlobalFunction("assert", args =>
         {
             if (args.Count >= 2)
             {
-                var condition = args[0];
-                var message = args[1]?.ToString() ?? string.Empty;
+                var condition = args[0].ToObject();
+                var message = args[1].ToObject()?.ToString() ?? string.Empty;
                 Assert.True(condition is true, message);
             }
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
         // Add __debug() function for debugging test scripts.
-        engine.SetGlobalFunction("__debug", _ => null);
+        engine.SetGlobalFunction("__debug", _ => JsTypes.JsValue.Undefined);
 
         try
         {

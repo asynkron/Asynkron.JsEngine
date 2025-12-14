@@ -11,7 +11,7 @@ public class TimerTests
         engine.SetGlobalFunction("callback", _ =>
         {
             executed = true;
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -48,7 +48,7 @@ public class TimerTests
         engine.SetGlobalFunction("callback", _ =>
         {
             executed = true;
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -73,10 +73,10 @@ public class TimerTests
         engine.SetGlobalFunction("callback", _ =>
         {
             count++;
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
-        engine.SetGlobalFunction("getCount", _ => count);
+        engine.SetGlobalFunction("getCount", _ => new JsTypes.JsValue(count));
 
         var result = await engine.Evaluate("""
 
@@ -101,7 +101,7 @@ public class TimerTests
         engine.SetGlobalFunction("callback", _ =>
         {
             count++;
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -127,12 +127,12 @@ public class TimerTests
 
         engine.SetGlobalFunction("addToOrder", args =>
         {
-            if (args.Count > 0 && args[0] is string s)
+            if (args.Count > 0 && args[0].ToObject() is string s)
             {
                 order.Add(s);
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -156,12 +156,12 @@ public class TimerTests
 
         engine.SetGlobalFunction("capture", args =>
         {
-            if (args.Count > 0 && args[0] is string s)
+            if (args.Count > 0 && args[0].ToObject() is string s)
             {
                 capturedValue = s;
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""

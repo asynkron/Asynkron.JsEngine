@@ -4846,7 +4846,7 @@ public class GeneratorTests
 
         var result = await engine.Evaluate(testCode);
         // Should work - ONE func decl
-        Assert.Contains("\"callCount\":1", result.ToObject()?.ToString() ?? "");
+        Assert.Contains("\"callCount\":1", result?.ToString() ?? "");
     }
 
     [Fact(Timeout = 5000)]
@@ -4891,7 +4891,7 @@ public class GeneratorTests
 
         var result = await engine.Evaluate(testCode);
         // This works - having 2 function declarations doesn't break it
-        Assert.Contains("\"callCount\":1", result.ToObject()?.ToString() ?? "");
+        Assert.Contains("\"callCount\":1", result?.ToString() ?? "");
     }
 
     [Fact(Timeout = 5000)]
@@ -4939,7 +4939,7 @@ public class GeneratorTests
 
         var result = await engine.Evaluate(testCode);
         // This WORKS - constant args don't trigger the bug
-        Assert.Contains("\"callCount\":1", result.ToObject()?.ToString() ?? "");
+        Assert.Contains("\"callCount\":1", result?.ToString() ?? "");
     }
 
     [Fact(Timeout = 5000)]
@@ -4987,7 +4987,7 @@ public class GeneratorTests
 
         var result = await engine.Evaluate(testCode);
         // This is the BUG - referencing variables in function calls causes callCount to be 0
-        Assert.Contains("\"callCount\":1", result.ToObject()?.ToString() ?? "");
+        Assert.Contains("\"callCount\":1", result?.ToString() ?? "");
     }
 
     [Fact(Timeout = 5000)]
@@ -5861,8 +5861,8 @@ public class GeneratorTests
             JSON.stringify({ argsLength: args.length, callCount: callCount });
             """);
 
-        Assert.Contains("\"callCount\":1", result.ToObject()?.ToString() ?? "");
-        Assert.Contains("\"argsLength\":1", result.ToObject()?.ToString() ?? "");
+        Assert.Contains("\"callCount\":1", result?.ToString() ?? "");
+        Assert.Contains("\"argsLength\":1", result?.ToString() ?? "");
     }
 
     [Fact(Timeout = 5000)]
@@ -5902,7 +5902,7 @@ public class GeneratorTests
             """);
 
         // Print result for debugging
-        var resultStr = result.ToObject()?.ToString() ?? "";
+        var resultStr = result?.ToString() ?? "";
         // Per ES spec (14.4.14), the first call to inner iterator's next() receives undefined as the argument,
         // not the value passed to outer generator's next(). The outer's next() argument is only used on RESUME.
         // Node.js V8 confirms: argsLength=1, argsZero=undefined
@@ -5937,7 +5937,7 @@ public class GeneratorTests
             """);
 
         // Direct call should have args[0] = 9876
-        Assert.Contains("\"argsZero\":9876", result.ToObject()?.ToString() ?? "");
+        Assert.Contains("\"argsZero\":9876", result?.ToString() ?? "");
     }
 
     [Fact(Timeout = 5000)]
@@ -5980,7 +5980,7 @@ public class GeneratorTests
             });
             """);
 
-        var resultStr = result.ToObject()?.ToString() ?? "";
+        var resultStr = result?.ToString() ?? "";
         // The callCount should be 1
         Assert.Contains("\"callCount\":1", resultStr);
         // Let's see what args.length and args[0] are

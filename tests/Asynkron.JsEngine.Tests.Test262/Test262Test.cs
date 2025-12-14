@@ -183,7 +183,7 @@ try {
             {
                 var value = args[0];
                 // Convert to string representation
-                return value?.ToString() ?? "";
+                return value.ToObject()?.ToString() ?? "";
             }
 
             return "";
@@ -196,8 +196,8 @@ try {
             ["evalScript"] = new HostFunction(args => args.Count switch
             {
                 > 1 => throw new Exception("only script parsing supported"),
-                > 0 when args[0] is string script => EvalScriptSync(engine, script),
-                _ => null
+                > 0 when args[0].ToObject() is string script => JsValue.FromObject(EvalScriptSync(engine, script)),
+                _ => JsValue.Undefined
             }),
 
             // createRealm function - not fully implemented but needed for compatibility
@@ -209,7 +209,7 @@ try {
                 var realmGlobal = realmEngine.GlobalObject;
                 realmGlobal["global"] = realmGlobal;
 
-                return realmGlobal;
+                return JsValue.FromObject(realmGlobal);
             }),
 
             // detachArrayBuffer function - placeholder implementation
@@ -220,29 +220,30 @@ try {
                     return JsValue.Undefined;
                 }
 
-                switch (args[0])
+                if (args[0].TryGetObject<TypedArrayBase>(out var view))
                 {
-                    case TypedArrayBase view:
-                        view.Buffer.Detach();
-                        break;
-                    case JsArrayBuffer buffer:
-                        buffer.Detach();
-                        break;
-                    case IJsPropertyAccessor accessor when accessor.TryGetProperty("buffer", out var inner) &&
-                                                           inner is JsArrayBuffer innerBuffer:
-                        innerBuffer.Detach();
-                        break;
+                    view.Buffer.Detach();
+                }
+                else if (args[0].TryGetObject<JsArrayBuffer>(out var buffer))
+                {
+                    buffer.Detach();
+                }
+                else if (args[0].TryGetObject<IJsPropertyAccessor>(out var accessor) &&
+                         accessor.TryGetProperty("buffer", out var inner) &&
+                         inner is JsArrayBuffer innerBuffer)
+                {
+                    innerBuffer.Detach();
                 }
 
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }),
 
             // Host hook for resizable ArrayBuffers
             ["createResizableArrayBuffer"] = new HostFunction(args =>
             {
-                var length = args.Count > 0 && args[0] is double d ? (int)d : 0;
-                var max = args.Count > 1 && args[1] is double d2 ? (int)d2 : length;
-                return new JsArrayBuffer(length, max);
+                var length = args.Count > 0 && args[0].TryGetDouble(out var d) ? (int)d : 0;
+                var max = args.Count > 1 && args[1].TryGetDouble(out var d2) ? (int)d2 : length;
+                return JsValue.FromObject(new JsArrayBuffer(length, max));
             }),
 
             // gc function - triggers garbage collection
@@ -553,7 +554,7 @@ try {
 
         var constructor = new HostFunction((_, _) =>
         {
-            object? error = "%AbstractModuleSource% is not constructable";
+            var error = JsValue.FromObject("%AbstractModuleSource% is not constructable");
             if (engine.GlobalObject.TryGetValue("TypeError", out var typeErrorValue) &&
                 typeErrorValue is IJsCallable typeErrorCtor)
             {
@@ -563,7 +564,7 @@ try {
                 }
                 catch (ThrowSignal signal)
                 {
-                    error = signal.ThrownValue;
+                    error = JsValue.FromObject(signal.ThrownValue);
                 }
             }
 

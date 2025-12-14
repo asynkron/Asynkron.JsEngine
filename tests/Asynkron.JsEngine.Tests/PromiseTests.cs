@@ -12,12 +12,12 @@ public class PromiseTests
         engine.SetGlobalFunction("checkResolved", args =>
         {
             resolved = true;
-            if (args.Count > 0 && args[0] is string s)
+            if (args.Count > 0 && args[0].ToObject() is string s)
             {
                 resolvedValue = s;
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -48,12 +48,12 @@ public class PromiseTests
         engine.SetGlobalFunction("checkRejected", args =>
         {
             rejected = true;
-            if (args.Count > 0 && args[0] is string s)
+            if (args.Count > 0 && args[0].ToObject() is string s)
             {
                 rejectedReason = s;
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -85,7 +85,7 @@ public class PromiseTests
                 result = args[0].ToObject()?.ToString() ?? "";
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -118,7 +118,7 @@ public class PromiseTests
                 results.Add(args[0].ToObject()?.ToString() ?? "");
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -155,7 +155,7 @@ public class PromiseTests
                 result = args[0].ToObject()?.ToString() ?? "";
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -183,7 +183,7 @@ public class PromiseTests
                 result = args[0].ToObject()?.ToString() ?? "";
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -208,7 +208,7 @@ public class PromiseTests
         engine.SetGlobalFunction("markCaught", _ =>
         {
             caught = true;
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -237,7 +237,7 @@ public class PromiseTests
         engine.SetGlobalFunction("incrementFinally", _ =>
         {
             finallyCount++;
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -270,7 +270,7 @@ public class PromiseTests
                 results.Add(args[0].ToObject()?.ToString() ?? "");
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -305,7 +305,7 @@ public class PromiseTests
                 reason = args[0].ToObject()?.ToString() ?? "";
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -338,7 +338,7 @@ public class PromiseTests
                 result = args[0].ToObject()?.ToString() ?? "";
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -368,7 +368,7 @@ public class PromiseTests
                 result = args[0].ToObject()?.ToString() ?? "";
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -397,7 +397,7 @@ public class PromiseTests
         engine.SetGlobalFunction("markExecutorRan", _ =>
         {
             executorCount++;
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -425,7 +425,7 @@ public class PromiseTests
                 finalValue = args[0].ToObject()?.ToString() ?? "";
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""

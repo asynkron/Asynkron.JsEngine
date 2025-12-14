@@ -24,8 +24,8 @@ public class SparseArrayTest(ITestOutputHelper output)
         ");
 
         output.WriteLine($"Result: {result}");
-        Assert.Contains("length=6", result.ToObject()?.ToString());
-        Assert.Contains("arr[1]===undefined=true", result.ToObject()?.ToString());
+        Assert.Contains("length=6", result?.ToString());
+        Assert.Contains("arr[1]===undefined=true", result?.ToString());
     }
 
     [Fact]
@@ -48,9 +48,9 @@ public class SparseArrayTest(ITestOutputHelper output)
         ");
 
         output.WriteLine($"Result: {result}");
-        Assert.Contains("length=6", result.ToObject()?.ToString());
-        Assert.Contains("arr[0]=50", result.ToObject()?.ToString());
-        Assert.Contains("arr[1]===undefined=true", result.ToObject()?.ToString());
-        Assert.Contains("arr[5]=100", result.ToObject()?.ToString());
+        Assert.Contains("length=6", result?.ToString());
+        Assert.Contains("arr[0]=50", result?.ToString());
+        Assert.Contains("arr[1]===undefined=true", result?.ToString());
+        Assert.Contains("arr[5]=100", result?.ToString());
     }
 }

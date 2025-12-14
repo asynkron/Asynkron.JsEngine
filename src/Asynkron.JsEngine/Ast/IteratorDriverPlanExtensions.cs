@@ -1,3 +1,4 @@
+using System;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -15,7 +16,8 @@ public static partial class TypedAstEvaluator
             JsEnvironment loopEnvironment,
             JsEnvironment outerEnvironment,
             EvaluationContext context,
-            Symbol? loopLabel)
+            Symbol? loopLabel,
+            Func<JsEnvironment>? rentIterationEnvironment = null)
         {
             object? lastValue = Symbol.Undefined;
             var iteratorDone = false;
@@ -105,8 +107,8 @@ public static partial class TypedAstEvaluator
 
                     var iterationEnvironment = plan.DeclarationKind is VariableKind.Let or VariableKind.Const
                         or VariableKind.Using or VariableKind.AwaitUsing
-                        ? new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source,
-                            description: "for-each-iteration")
+                        ? rentIterationEnvironment?.Invoke() ?? new JsEnvironment(loopEnvironment,
+                            creatingSource: plan.Body.Source, description: "for-each-iteration")
                         : loopEnvironment;
 
                     try
@@ -151,8 +153,8 @@ public static partial class TypedAstEvaluator
                 // Enumerator path (non-object next)
                 var iterationEnvironment = plan.DeclarationKind is VariableKind.Let or VariableKind.Const
                     or VariableKind.Using or VariableKind.AwaitUsing
-                    ? new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source,
-                        description: "for-each-iteration")
+                    ? rentIterationEnvironment?.Invoke() ?? new JsEnvironment(loopEnvironment,
+                        creatingSource: plan.Body.Source, description: "for-each-iteration")
                     : loopEnvironment;
 
                 AssignLoopBinding(plan.Target, nextResult, iterationEnvironment, outerEnvironment, context,

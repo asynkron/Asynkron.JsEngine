@@ -1,6 +1,8 @@
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
+using Asynkron.JsEngine.Parser;
+using Asynkron.JsEngine;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -63,7 +65,13 @@ public static partial class TypedAstEvaluator
                 if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
                 {
                     var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
-                    var completion = ExecuteIteratorDriver(plan, iterator, null, loopEnvironment, environment, context,
+                    var completion = ExecuteIteratorDriver(
+                        plan,
+                        iterator,
+                        enumerator: null,
+                        loopEnvironment,
+                        environment,
+                        context,
                         loopLabel);
                     return ReferenceEquals(completion, EmptyCompletion) ? Symbol.Undefined : completion;
                 }

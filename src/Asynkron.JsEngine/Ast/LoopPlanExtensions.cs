@@ -202,6 +202,82 @@ public static partial class TypedAstEvaluator
             JsEnvironment currentIterationEnvironment,
             EvaluationContext context)
         {
+            if (plan.AllowIterationEnvironmentPooling)
+            {
+                var bindings = plan.PerIterationBindings;
+                if (bindings.IsDefaultOrEmpty)
+                {
+                    return currentIterationEnvironment;
+                }
+
+                var outerEnvironment = currentIterationEnvironment.Enclosing ?? currentIterationEnvironment;
+
+                // Snapshot current values before we reset the environment instance.
+                var count = bindings.Length;
+                var values = new object?[count];
+                var constFlags = new bool[count];
+
+                for (var i = 0; i < count; i++)
+                {
+                    var bindingName = bindings[i];
+                    object? currentValue;
+                    try
+                    {
+                        currentValue = currentIterationEnvironment.GetIdentifierValue(bindingName, context);
+                    }
+                    catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
+                                                               StringComparison.Ordinal))
+                    {
+                        object? errorObject = ex.Message;
+
+                        if (currentIterationEnvironment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
+                            ctor is IJsCallable callable)
+                        {
+                            try
+                            {
+                                errorObject = callable.Invoke([ex.Message], Symbol.Undefined);
+                            }
+                            catch (ThrowSignal signal)
+                            {
+                                errorObject = signal.ThrownValue;
+                            }
+                        }
+
+                        context.SetThrow(errorObject);
+                        currentValue = errorObject;
+                    }
+
+                    values[i] = currentValue;
+                    constFlags[i] = currentIterationEnvironment.IsConstBinding(bindingName);
+                }
+
+                // Reset the environment in place to mimic a fresh per-iteration lexical environment,
+                // but keep the enclosing/scope metadata intact.
+                currentIterationEnvironment.Reset(
+                    outerEnvironment,
+                    isFunctionScope: false,
+                    isStrict: false,
+                    creatingSource: null,
+                    description: "for-iteration",
+                    isParameterEnvironment: false,
+                    isBodyEnvironment: false);
+
+                for (var i = 0; i < count; i++)
+                {
+                    var bindingName = bindings[i];
+                    currentIterationEnvironment.Define(
+                        bindingName,
+                        values[i],
+                        isConst: constFlags[i],
+                        isGlobalConstant: false,
+                        isLexical: true,
+                        blocksFunctionScopeOverride: false,
+                        canDelete: false);
+                }
+
+                return currentIterationEnvironment;
+            }
+
             // Create a new env using the outer of the current iteration env
             var next = plan.CreatePerIterationEnvironment(currentIterationEnvironment, context);
 

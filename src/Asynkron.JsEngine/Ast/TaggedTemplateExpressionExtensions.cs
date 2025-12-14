@@ -62,12 +62,12 @@ public static partial class TypedAstEvaluator
                 realmState?.TemplateObjectCache[expression] = templateObject;
             }
 
-            var arguments = ImmutableArray.CreateBuilder<object?>(expression.Expressions.Length + 1);
-            arguments.Add(templateObject);
+            var arguments = ImmutableArray.CreateBuilder<JsValue>(expression.Expressions.Length + 1);
+            arguments.Add(new JsValue(templateObject));
 
             foreach (var expr in expression.Expressions)
             {
-                arguments.Add(EvaluateExpression(expr, environment, context).ToObject());
+                arguments.Add(EvaluateExpression(expr, environment, context));
                 if (context.ShouldStopEvaluation)
                 {
                     return JsValue.Undefined;

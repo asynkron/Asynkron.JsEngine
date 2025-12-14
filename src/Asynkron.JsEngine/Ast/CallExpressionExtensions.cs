@@ -84,7 +84,7 @@ public static partial class TypedAstEvaluator
 
                         var arr = JsValueCache.CreateArgs(v0.ToObject());
                         pooledArgsArray = arr;
-                        frozenArguments = arr;
+                        frozenArguments = WrapArgumentsAsJsValues(arr);
                         break;
                     }
                     case 2:

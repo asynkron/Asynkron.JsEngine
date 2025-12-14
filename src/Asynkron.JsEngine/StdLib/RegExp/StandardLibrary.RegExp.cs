@@ -264,14 +264,14 @@ public static partial class StandardLibrary
             Get = new HostFunction((thisValue, _) =>
             {
                 var statics = EnsureRegExpReceiver(thisValue);
-                return statics.Input;
+                return new JsValue(statics.Input);
             }, isConstructor: false),
             Set = new HostFunction((thisValue, args) =>
             {
                 var statics = EnsureRegExpReceiver(thisValue);
                 var value = args.GetArgument(0);
-                statics.Input = value?.ToString() ?? string.Empty;
-                return null;
+                statics.Input = JsOps.ToString(value);
+                return JsValue.Undefined;
             }, isConstructor: false),
             Enumerable = false,
             Configurable = true

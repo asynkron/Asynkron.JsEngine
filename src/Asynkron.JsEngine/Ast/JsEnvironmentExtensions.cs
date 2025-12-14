@@ -125,7 +125,7 @@ public static partial class TypedAstEvaluator
                          StringComparison.Ordinal))
             {
                 // Super access before 'this' is initialised (e.g. during synthetic ctor setup).
-                var placeholder = new SuperBinding(null, null, JsEnvironment.Uninitialized, false);
+                var placeholder = new SuperBinding(null, null, JsValue.Undefined, false);
                 environment.Define(Symbol.Super, placeholder, false, isLexical: true, blocksFunctionScopeOverride: true);
                 logger?.LogInformation("SuperBinding: synthesized placeholder after ReferenceError for 'this'");
                 return placeholder;
@@ -143,18 +143,20 @@ public static partial class TypedAstEvaluator
 
             // Fall back to a best-effort binding so evaluation order (property/key/value)
             // can proceed before any prototype-based errors are raised.
-            var thisValue = JsEnvironment.Uninitialized;
+            object? thisValueObj = null;
             try
             {
-                environment.TryGet(Symbol.This, out thisValue);
+                environment.TryGet(Symbol.This, out thisValueObj);
             }
             catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                          StringComparison.Ordinal))
             {
                 logger?.LogInformation("SuperBinding: fallback with uninitialized 'this'");
             }
+
+            var thisValue = JsValue.FromObject(thisValueObj);
             IJsPropertyAccessor? prototypeGuess = null;
-            if (thisValue is IJsObjectLike thisObject)
+            if (thisValue.TryGetObject<IJsObjectLike>(out var thisObject))
             {
                 prototypeGuess = thisObject is IJsEnvironmentAwareCallable
                     ? thisObject.Prototype

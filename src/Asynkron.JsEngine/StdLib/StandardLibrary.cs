@@ -18,13 +18,13 @@ public static partial class StandardLibrary
         realm ??= context?.RealmState;
         if (realm?.TypeErrorConstructor is IJsCallable callable)
         {
-            var result = callable.Invoke([message], null);
-            if (result is null || ReferenceEquals(result, Symbol.Undefined))
+            var result = callable.Invoke([new JsValue(message)], JsValue.Null);
+            if (result.IsUndefined)
             {
                 return CreateErrorFallback("TypeError", message, realm);
             }
 
-            return result;
+            return result.ToObject()!;
         }
 
         return CreateErrorFallback("TypeError", message, realm);

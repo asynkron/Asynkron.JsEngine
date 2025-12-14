@@ -15,4 +15,15 @@ internal static class IntlBrandExtensions
 
         throw StandardLibrary.ThrowTypeError(errorMessage, realm: realm);
     }
+
+    public static JsObject EnsureBrand(this JsValue candidate, string brandKey, RealmState realm,
+        string errorMessage)
+    {
+        if (candidate.TryGetObject(out var obj) && obj!.TryGetProperty(brandKey, out var marker) && marker is true)
+        {
+            return obj;
+        }
+
+        throw StandardLibrary.ThrowTypeError(errorMessage, realm: realm);
+    }
 }

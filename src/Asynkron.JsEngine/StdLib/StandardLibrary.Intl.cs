@@ -128,7 +128,7 @@ public static partial class StandardLibrary
         JsValue localesArg,
         RealmState realm)
     {
-        var requestedLocales = IntlUtilities.CanonicalizeLocaleList(localesArg, realm);
+        var requestedLocales = IntlUtilities.CanonicalizeLocaleList(localesArg.ToObject(), realm);
         var resolvedLocale = IntlUtilities.ResolveRequestedLocale(requestedLocales);
         return (requestedLocales, resolvedLocale);
     }

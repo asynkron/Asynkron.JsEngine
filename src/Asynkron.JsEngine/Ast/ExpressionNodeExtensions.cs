@@ -350,7 +350,7 @@ public static partial class TypedAstEvaluator
                         context,
                         context.RealmState);
                     context.SetThrow(error);
-                    return (Symbol.Undefined, null, true);
+                    return (Symbol.Undefined, JsValue.Undefined, true);
                 }
 
                 string propertyName;

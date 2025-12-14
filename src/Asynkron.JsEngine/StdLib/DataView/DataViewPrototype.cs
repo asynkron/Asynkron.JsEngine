@@ -71,7 +71,7 @@ public sealed partial class DataViewPrototype : JsPrototype
     {
         var dv = RequireDataView(thisValue, Realm);
         var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
-        var littleEndian = args.Count > 1 && args[1] is bool and true;
+        var littleEndian = args.Count > 1 && args[1].IsTruthy;
         return (double)dv.GetInt16(offset, littleEndian);
     }
 
@@ -81,7 +81,7 @@ public sealed partial class DataViewPrototype : JsPrototype
         var dv = RequireDataView(thisValue, Realm);
         var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
         var value = args.Count > 1 ? (short)(int)JsOps.ToNumber(args[1]) : (short)0;
-        var littleEndian = args.Count > 2 && args[2] is bool and true;
+        var littleEndian = args.Count > 2 && args[2].IsTruthy;
         dv.SetInt16(offset, value, littleEndian);
         return JsValue.Undefined;
     }

@@ -490,7 +490,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         return length;
     }
 
-    private static double ToIntegerOrInfinity(object? value, EvaluationContext? context)
+    private static double ToIntegerOrInfinity(JsValue value, EvaluationContext? context)
     {
         var number = JsOps.ToNumberWithContext(value, context);
         if (context is not null && context.IsThrow)

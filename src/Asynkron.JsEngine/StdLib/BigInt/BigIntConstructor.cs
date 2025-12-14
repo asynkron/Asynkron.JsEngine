@@ -38,14 +38,14 @@ public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmStat
         AttachStatics(constructor);
     }
 
-    private object InvokeBigInt(IReadOnlyList<JsValue> args)
+    private JsValue InvokeBigInt(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
             throw ThrowTypeError("Cannot convert undefined to a BigInt", realm: Realm);
         }
 
-        return ToBigInt(args[0], realmState: Realm);
+        return new JsValue(ToBigInt(args[0].ToObject(), realmState: Realm));
     }
 
     private void AttachStatics(HostFunction constructor)

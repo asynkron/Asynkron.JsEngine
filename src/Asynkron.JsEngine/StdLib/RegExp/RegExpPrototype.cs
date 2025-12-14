@@ -262,12 +262,12 @@ public sealed partial class RegExpPrototype : JsPrototype
         }
 
         var matchKey = SymbolKeys.GetMatch(Realm);
-        var receiver = thisValue != JsValue.Null ? thisValue : resolved.JsObject;
-        JsOps.TryGetPropertyValue(receiver, matchKey, out _);
+        var receiver = thisValue != JsValue.Null ? thisValue : new JsValue(resolved.JsObject);
+        JsOps.TryGetPropertyValue(receiver.ToObject(), matchKey, out _);
 
         resolved = ResolveRegExpInstance(receiver) ?? resolved;
 
-        var input = JsOps.ToJsString(args.Count > 0 ? args[0] : string.Empty);
+        var input = JsOps.ToJsString(args.Count > 0 ? args[0].ToObject() : string.Empty);
         var limitValue = args.GetArgument(1);
         var forcedFlags = resolved.Flags.Contains('g') ? resolved.Flags : resolved.Flags + "g";
         var splitter = new JsRegExp(resolved.Pattern, forcedFlags, Realm);
@@ -275,7 +275,7 @@ public sealed partial class RegExpPrototype : JsPrototype
 
         var limit = limitValue == JsValue.Undefined
             ? uint.MaxValue
-            : ToUint32(limitValue);
+            : ToUint32(limitValue.ToObject());
 
         var resultArray = new JsArray(Realm);
         if (limit == 0)

@@ -85,7 +85,7 @@ public sealed partial class IntlLocalePrototype
             result.Push(variant);
         }
 
-        return new JsValue(result);
+        return JsValue.FromObject(result);
     }
 
     [JsHostGetter("calendar", DisplayName = "get calendar")]

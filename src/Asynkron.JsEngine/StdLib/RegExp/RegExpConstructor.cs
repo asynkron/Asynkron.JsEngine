@@ -15,12 +15,12 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
         if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true } constructing)
         {
             var target = _constructor ?? ConstructFallback;
-            return new JsValue(ConstructRegExp(args, target, target, constructing));
+            return ConstructRegExp(args, target, target, constructing);
         }
 
         var targetCtor = _constructor ?? ConstructFallback;
         var providedThis = thisValue.IsObject ? thisValue.AsObject() as JsObject : null;
-        return new JsValue(ConstructRegExp(args, targetCtor, targetCtor, providedThis));
+        return ConstructRegExp(args, targetCtor, targetCtor, providedThis);
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)

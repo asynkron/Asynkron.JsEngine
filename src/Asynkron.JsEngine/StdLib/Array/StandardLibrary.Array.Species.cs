@@ -372,7 +372,7 @@ public static partial class StandardLibrary
     }
 
     internal static long FlattenIntoArray(IJsPropertyAccessor target, IJsPropertyAccessor source, long sourceLength,
-        long targetIndex, long depth, IJsCallable? mapper, object? thisArg, RealmState? realm, string operation)
+        long targetIndex, long depth, IJsCallable? mapper, JsValue thisArg, RealmState? realm, string operation)
     {
         for (long k = 0; k < sourceLength; k++)
         {

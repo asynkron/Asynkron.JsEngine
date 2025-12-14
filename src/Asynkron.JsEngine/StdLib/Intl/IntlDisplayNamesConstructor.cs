@@ -42,10 +42,7 @@ public sealed partial class IntlDisplayNamesConstructor(IJsObjectLike prototype,
 
     protected override void ConfigureConstructor(HostFunction constructor)
     {
-        var supportedLocalesOf = new HostFunction((_, args) =>
-        {
-            return StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
-        }, isConstructor: false);
+        var supportedLocalesOf = new HostFunction(SupportedLocalesOf, isConstructor: false);
 
         supportedLocalesOf.DefineProperty("length",
             new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
@@ -63,6 +60,12 @@ public sealed partial class IntlDisplayNamesConstructor(IJsObjectLike prototype,
 
         supportedLocalesOf.SetPrototype(constructor.Prototype);
         supportedLocalesOf.Delete("prototype");
+    }
+
+    private JsValue SupportedLocalesOf(IReadOnlyList<JsValue> args)
+    {
+        var result = StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
+        return JsValue.FromObject(result);
     }
 
     private JsObject? NormalizeOptions(JsValue optionsArg)

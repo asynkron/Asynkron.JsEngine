@@ -24,16 +24,17 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
 
         constructor.SetInvokeWithContext((args, thisValue, context, newTarget) =>
         {
-            if (newTarget is null)
+            if (newTarget.IsUndefined)
             {
                 var current = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 var local = ConvertMillisecondsToLocal(current, Realm);
-                return FormatDateToJsString(local, Realm);
+                return new JsValue(FormatDateToJsString(local, Realm));
             }
 
             var target = _constructor ?? constructor;
-            var effectiveNewTarget = newTarget as IJsCallable ?? target;
-            return ConstructDate(args, effectiveNewTarget, target, thisValue as JsObject, context);
+            var effectiveNewTarget = newTarget.TryGetObject<IJsCallable>(out var nt) ? nt : target;
+            var thisObj = thisValue.TryGetObject(out JsObject? jsObj) ? jsObj : null;
+            return new JsValue(ConstructDate(args, effectiveNewTarget, target, thisObj, context));
         });
 
         AttachStatics(constructor);

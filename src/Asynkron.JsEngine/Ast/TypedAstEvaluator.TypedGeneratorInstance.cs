@@ -944,7 +944,7 @@ public static partial class TypedAstEvaluator
 
                             if (!driverState.IsAsyncIterator)
                             {
-                                object? currentValue;
+                                JsValue currentValue;
                                 if (driverState.IteratorObject is JsObject iteratorObj)
                                 {
                                     driverState.NextMethod ??= iteratorObj.GetIteratorNextCallable(context);
@@ -968,7 +968,7 @@ public static partial class TypedAstEvaluator
 
                                     currentValue = resultObj.TryGetProperty("value", out var yielded)
                                         ? yielded
-                                        : Symbol.Undefined;
+                                        : JsValue.Undefined;
                                 }
                                 else if (driverState.Enumerator is IEnumerator<object?> enumerator)
                                 {
@@ -978,7 +978,7 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
-                                    currentValue = enumerator.Current;
+                                    currentValue = new JsValue(enumerator.Current);
                                 }
                                 else
                                 {
@@ -986,13 +986,13 @@ public static partial class TypedAstEvaluator
                                     continue;
                                 }
 
-                                StoreSymbolValue(environment, iteratorMoveNextInstruction.ValueSlot, currentValue);
+                                StoreSymbolValue(environment, iteratorMoveNextInstruction.ValueSlot, currentValue.ToObject());
                                 _programCounter = iteratorMoveNextInstruction.Next;
                                 continue;
                             }
 
-                            object? awaitedValue = null;
-                            object? awaitedNextResult = null;
+                            JsValue awaitedValue = JsValue.Undefined;
+                            JsValue awaitedNextResult = JsValue.Undefined;
 
                             // If we're resuming after a pending await from this
                             // iterator site, consume the resume payload and treat

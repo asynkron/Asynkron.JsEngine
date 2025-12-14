@@ -105,7 +105,7 @@ public static partial class TypedAstEvaluator
 
                 // Converted to native JsValue (Batch A)
                 ConditionalExpression conditional => EvaluateConditional(conditional, environment, context),
-                CallExpression call => JsValue.FromObject(EvaluateCall(call, environment, context)),
+                CallExpression call => EvaluateCall(call, environment, context),
                 FunctionExpression functionExpression => JsValue.FromObject(CreateFunctionValue(functionExpression, environment, context,
                     createFunctionNameEnvironment: true)),
                 AssignmentExpression assignment => EvaluateAssignment(assignment, environment, context),
@@ -121,7 +121,7 @@ public static partial class TypedAstEvaluator
                 NewTargetExpression => environment.TryGet(Symbol.NewTarget, out var newTarget)
                     ? JsValue.FromObject(newTarget)
                     : JsValue.Undefined,
-                ImportMetaExpression => JsValue.FromObject(EvaluateImportMeta(environment, context)),
+                ImportMetaExpression => EvaluateImportMeta(environment, context),
                 ArrayExpression array => EvaluateArray(array, environment, context),
                 ObjectExpression obj => EvaluateObject(obj, environment, context),
                 ClassExpression classExpression => EvaluateClassExpression(classExpression, environment, context),
@@ -130,7 +130,7 @@ public static partial class TypedAstEvaluator
                 TaggedTemplateExpression taggedTemplate => EvaluateTaggedTemplate(taggedTemplate, environment, context),
                 AwaitExpression awaitExpression => EvaluateAwait(awaitExpression, environment, context),
                 YieldExpression yieldExpression => EvaluateYield(yieldExpression, environment, context),
-                ThisExpression => JsValue.FromObject(ResolveThisValue(environment, context)),
+                ThisExpression => ResolveThisValue(environment, context),
                 SuperExpression => throw new InvalidOperationException(
                     $"Super is not available in this context.{GetSourceInfo(context, expression.Source)}"),
                 _ => throw new NotSupportedException(
@@ -504,7 +504,7 @@ public static partial class TypedAstEvaluator
         }
     }
 
-    private static object? ResolveThisValue(JsEnvironment environment, EvaluationContext context)
+    private static JsValue ResolveThisValue(JsEnvironment environment, EvaluationContext context)
     {
         try
         {
@@ -515,9 +515,9 @@ public static partial class TypedAstEvaluator
             if (environment.TryFindBinding(Symbol.LexicalThisEnvironment, allowUninitialized: true, out _, out var lexicalEnvValue) &&
                 lexicalEnvValue is JsEnvironment lexicalThisEnv)
             {
-                return lexicalThisEnv.Get(Symbol.This);
+                return JsValue.FromObject(lexicalThisEnv.Get(Symbol.This));
             }
-            return environment.Get(Symbol.This);
+            return JsValue.FromObject(environment.Get(Symbol.This));
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                      StringComparison.Ordinal))
@@ -530,13 +530,13 @@ public static partial class TypedAstEvaluator
     /// <summary>
     ///     Evaluates an import.meta expression. Returns the import.meta object for the current module.
     /// </summary>
-    private static object? EvaluateImportMeta(JsEnvironment environment, EvaluationContext context)
+    private static JsValue EvaluateImportMeta(JsEnvironment environment, EvaluationContext context)
     {
         // Try to get the import.meta object from the environment
         // If running in module context, this should be set by the module loader
         if (environment.TryGet(Symbol.ImportMeta, out var importMeta))
         {
-            return importMeta;
+            return JsValue.FromObject(importMeta);
         }
 
         // Return a basic import.meta object with a url property
@@ -545,6 +545,6 @@ public static partial class TypedAstEvaluator
         metaObject.SetPrototype(null);
         // Set a default URL if we can determine it from the environment
         metaObject.SetProperty("url", string.Empty);
-        return metaObject;
+        return JsValue.FromObject(metaObject);
     }
 }

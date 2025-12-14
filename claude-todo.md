@@ -49,13 +49,17 @@ After each file, run tests to ensure nothing breaks.
 - [x] `AwaitExpressionExtensions.cs` - EvaluateAwait → JsValue
 - [x] `YieldExpressionExtensions.cs` - EvaluateYield → JsValue
 
-### 1.6 Call Expression (Highest Risk - Largest File)
-- [ ] `CallExpressionExtensions.cs` - EvaluateCall → JsValue
+### 1.6 Call Expression (Highest Risk - Largest File) ✅ COMPLETE
+- [x] `CallExpressionExtensions.cs` - EvaluateCall → JsValue
   - This is 750+ lines and touches IJsCallable
 
-### 1.7 Update ExpressionNodeExtensions.cs
-- [ ] Remove all `JsValue.FromObject()` wrappers from the switch statement
-- [ ] Update helper methods that still return `object?`
+### 1.7 Update ExpressionNodeExtensions.cs ✅ COMPLETE
+- [x] Remove all `JsValue.FromObject()` wrappers from the switch statement
+  - FunctionExpression wrapper kept (returns IJsCallable, used by 7 callers)
+  - NewTargetExpression wrapper kept (requires Phase 3 - Binding/Environment)
+- [x] Update helper methods that still return `object?`
+  - `ResolveThisValue` → JsValue
+  - `EvaluateImportMeta` → JsValue
 
 ---
 

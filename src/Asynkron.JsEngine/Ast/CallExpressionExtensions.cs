@@ -13,12 +13,12 @@ public static partial class TypedAstEvaluator
 {
     extension(CallExpression expression)
     {
-        private object? EvaluateCall(JsEnvironment environment, EvaluationContext context)
+        private JsValue EvaluateCall(JsEnvironment environment, EvaluationContext context)
         {
             // Fast-path for plain Map/Set method calls - bypasses prototype lookup and host function machinery
             if (TryFastPathMapSetCall(expression, environment, context, out var fastResult))
             {
-                return fastResult;
+                return JsValue.FromObject(fastResult);
             }
 
             using var callActivity = Activity.Current?.StartEvaluatorActivity("CallExpression", context, expression.Source);
@@ -34,7 +34,7 @@ public static partial class TypedAstEvaluator
                     expression.Callee.GetType().Name,
                     context.ShouldStopEvaluation,
                     skippedOptional);
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             if (++context.CallDepth > context.MaxCallDepth)
@@ -45,7 +45,7 @@ public static partial class TypedAstEvaluator
             if (expression.IsOptional && IsNullish(callee))
             {
                 context.CallDepth--;
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             // Per ES spec 15.7.14, default derived constructors forward arguments directly
@@ -79,7 +79,7 @@ public static partial class TypedAstEvaluator
                         if (context.ShouldStopEvaluation)
                         {
                             context.CallDepth--;
-                            return Symbol.Undefined;
+                            return JsValue.Undefined;
                         }
 
                         var arr = JsValueCache.CreateArgs(v0.ToObject());
@@ -93,14 +93,14 @@ public static partial class TypedAstEvaluator
                         if (context.ShouldStopEvaluation)
                         {
                             context.CallDepth--;
-                            return Symbol.Undefined;
+                            return JsValue.Undefined;
                         }
 
                         var v1 = EvaluateExpression(expression.Arguments[1].Expression, environment, context);
                         if (context.ShouldStopEvaluation)
                         {
                             context.CallDepth--;
-                            return Symbol.Undefined;
+                            return JsValue.Undefined;
                         }
 
                         var arr = JsValueCache.CreateArgs(v0.ToObject(), v1.ToObject());
@@ -130,7 +130,7 @@ public static partial class TypedAstEvaluator
                                     JsValueCache.ReturnArgumentArray(pooledArgsArray);
                                 }
                                 context.CallDepth--;
-                                return Symbol.Undefined;
+                                return JsValue.Undefined;
                             }
                         }
 
@@ -150,7 +150,7 @@ public static partial class TypedAstEvaluator
                         if (context.ShouldStopEvaluation)
                         {
                             context.CallDepth--;
-                            return Symbol.Undefined;
+                            return JsValue.Undefined;
                         }
 
                         var spreadValue = spreadValueJs.ToObject();
@@ -175,7 +175,7 @@ public static partial class TypedAstEvaluator
                         if (context.ShouldStopEvaluation)
                         {
                             context.CallDepth--;
-                            return Symbol.Undefined;
+                            return JsValue.Undefined;
                         }
 
                         continue;
@@ -185,7 +185,7 @@ public static partial class TypedAstEvaluator
                     if (context.ShouldStopEvaluation)
                     {
                         context.CallDepth--;
-                        return Symbol.Undefined;
+                        return JsValue.Undefined;
                     }
                 }
 
@@ -203,12 +203,12 @@ public static partial class TypedAstEvaluator
                     {
                         if (string.Equals(propertyName, "apply", StringComparison.Ordinal))
                         {
-                            return InvokeWithApply(targetFunction, expression.Arguments, environment, context);
+                            return JsValue.FromObject(InvokeWithApply(targetFunction, expression.Arguments, environment, context));
                         }
 
                         if (string.Equals(propertyName, "call", StringComparison.Ordinal))
                         {
-                            return InvokeWithCall(targetFunction, expression.Arguments, environment, context);
+                            return JsValue.FromObject(InvokeWithCall(targetFunction, expression.Arguments, environment, context));
                         }
                     }
 
@@ -228,13 +228,13 @@ public static partial class TypedAstEvaluator
                         var targetJs = EvaluateExpression(inner.Target, environment, context);
                         if (context.ShouldStopEvaluation)
                         {
-                            return Symbol.Undefined;
+                            return JsValue.Undefined;
                         }
 
                         if (TryGetPropertyValue(targetJs.ToObject(), "formatArgs", out var innerValue) &&
                             innerValue is IJsCallable innerFunction)
                         {
-                            return InvokeWithCall(innerFunction, expression.Arguments, environment, context);
+                            return JsValue.FromObject(InvokeWithCall(innerFunction, expression.Arguments, environment, context));
                         }
                     }
                 }
@@ -257,7 +257,7 @@ public static partial class TypedAstEvaluator
                     context.RealmState);
                 context.SetThrow(error);
                 context.CallDepth--;
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             // Class constructors cannot be invoked without 'new' (except via super() call)
@@ -269,7 +269,7 @@ public static partial class TypedAstEvaluator
                     context.RealmState);
                 context.SetThrow(error);
                 context.CallDepth--;
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             var isAsyncCallable = callable is TypedFunction { IsAsyncLike: true };
@@ -319,7 +319,7 @@ public static partial class TypedAstEvaluator
                         context.RealmState);
                     context.SetThrow(error);
                     context.CallDepth--;
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
             }
 
@@ -485,7 +485,7 @@ public static partial class TypedAstEvaluator
                                 throw new ThrowSignal(thrownDuringInitialization);
                             }
 
-                            return context.FlowValue;
+                            return JsValue.FromObject(context.FlowValue);
                         }
                     }
                 }
@@ -504,7 +504,7 @@ public static partial class TypedAstEvaluator
                 else
                 {
                     context.SetThrow(signal.ThrownValue);
-                    return signal.ThrownValue;
+                    return JsValue.FromObject(signal.ThrownValue);
                 }
             }
             catch (Exception ex) when (isAsyncCallable)
@@ -546,7 +546,7 @@ public static partial class TypedAstEvaluator
                 {
                     var reason = context.FlowValue;
                     context.Clear();
-                    return CreateRejectedPromise(reason, environment);
+                    return JsValue.FromObject(CreateRejectedPromise(reason, environment));
                 }
                 case true:
                     // Async functions should never propagate a throw signal; ensure the
@@ -555,7 +555,7 @@ public static partial class TypedAstEvaluator
                     break;
             }
 
-            return callResult;
+            return JsValue.FromObject(callResult);
         }
 
         /// <summary>

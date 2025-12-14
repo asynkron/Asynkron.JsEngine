@@ -108,7 +108,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
                 end = (int)args[1].AsDouble();
             }
 
-            return new JsValue(target.Subarray(begin, end));
+            return JsValue.FromObject(target.Subarray(begin, end));
         });
 
         _sliceFunction = new HostFunction((thisValue, args) =>
@@ -127,11 +127,11 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
                 end = (int)args[1].AsDouble();
             }
 
-            return new JsValue(CreateSlice(target, begin, end));
+            return JsValue.FromObject(CreateSlice(target, begin, end));
         });
 
-        _indexOfFunction = new HostFunction((thisValue, args) => new JsValue(IndexOfInternal(ResolveThis(thisValue, this), args)));
-        _includesFunction = new HostFunction((thisValue, args) => new JsValue(IncludesInternal(ResolveThis(thisValue, this), args)));
+        _indexOfFunction = new HostFunction((thisValue, args) => IndexOfInternal(ResolveThis(thisValue, this), args));
+        _includesFunction = new HostFunction((thisValue, args) => IncludesInternal(ResolveThis(thisValue, this), args));
     }
 
     /// <summary>
@@ -511,7 +511,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         return Math.Sign(number) * Math.Floor(Math.Abs(number));
     }
 
-    internal static object IndexOfInternal(TypedArrayBase target, IReadOnlyList<JsValue> args)
+    internal static JsValue IndexOfInternal(TypedArrayBase target, IReadOnlyList<JsValue> args)
     {
         if (target.IsDetachedOrOutOfBounds())
         {
@@ -524,14 +524,14 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         var initialLength = target.Length;
         if (initialLength <= 0)
         {
-            return -1d;
+            return new JsValue(-1d);
         }
 
         var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : 0d;
 
         if (target.IsDetachedOrOutOfBounds())
         {
-            return -1d;
+            return new JsValue(-1d);
         }
 
         var currentLength = target.Length;
@@ -539,13 +539,13 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         var len = target._isLengthTracking ? initialLength : Math.Min(initialLength, currentLength);
         if (len <= 0)
         {
-            return -1d;
+            return new JsValue(-1d);
         }
 
         double startIndexNumber;
         if (double.IsPositiveInfinity(fromIndex))
         {
-            return -1d;
+            return new JsValue(-1d);
         }
 
         if (double.IsNegativeInfinity(fromIndex))
@@ -566,7 +566,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         {
             if (target.IsDetachedOrOutOfBounds())
             {
-                return -1d;
+                return new JsValue(-1d);
             }
 
             if (i >= target.Length)
@@ -574,23 +574,23 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
                 continue;
             }
 
-            object? element = target switch
+            JsValue element = target switch
             {
-                JsBigInt64Array bi64 => bi64.GetBigIntElement(i),
-                JsBigUint64Array bu64 => bu64.GetBigIntElement(i),
-                _ => target.GetElement(i)
+                JsBigInt64Array bi64 => new JsValue(bi64.GetBigIntElement(i)),
+                JsBigUint64Array bu64 => new JsValue(bu64.GetBigIntElement(i)),
+                _ => new JsValue(target.GetElement(i))
             };
 
-            if (JsOps.StrictEquals(new JsValue(element), searchElement))
+            if (JsOps.StrictEquals(element, searchElement))
             {
-                return (double)i;
+                return new JsValue((double)i);
             }
         }
 
-        return -1d;
+        return new JsValue(-1d);
     }
 
-    internal static object IncludesInternal(TypedArrayBase target, IReadOnlyList<JsValue> args)
+    internal static JsValue IncludesInternal(TypedArrayBase target, IReadOnlyList<JsValue> args)
     {
         if (target.IsDetachedOrOutOfBounds())
         {
@@ -602,26 +602,26 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         var initialLength = target.Length;
         if (initialLength <= 0)
         {
-            return false;
+            return JsValue.False;
         }
 
         var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : 0d;
 
         if (target.IsDetachedOrOutOfBounds())
         {
-            return false;
+            return JsValue.False;
         }
 
         var currentLength = target.Length;
         var len = target._isLengthTracking ? initialLength : Math.Min(initialLength, currentLength);
         if (len <= 0)
         {
-            return false;
+            return JsValue.False;
         }
 
         if (double.IsPositiveInfinity(fromIndex))
         {
-            return false;
+            return JsValue.False;
         }
 
         double startIndexNumber;
@@ -643,7 +643,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         {
             if (target.IsDetachedOrOutOfBounds())
             {
-                return false;
+                return JsValue.False;
             }
 
             if (i >= target.Length)
@@ -651,23 +651,23 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
                 continue;
             }
 
-            object? element = target switch
+            JsValue element = target switch
             {
-                JsBigInt64Array bi64 => bi64.GetBigIntElement(i),
-                JsBigUint64Array bu64 => bu64.GetBigIntElement(i),
-                _ => target.GetElement(i)
+                JsBigInt64Array bi64 => new JsValue(bi64.GetBigIntElement(i)),
+                JsBigUint64Array bu64 => new JsValue(bu64.GetBigIntElement(i)),
+                _ => new JsValue(target.GetElement(i))
             };
 
             if (SameValueZero(element, searchElement))
             {
-                return true;
+                return JsValue.True;
             }
         }
 
-        return false;
+        return JsValue.False;
     }
 
-    internal static object LastIndexOfInternal(TypedArrayBase target, IReadOnlyList<JsValue> args)
+    internal static JsValue LastIndexOfInternal(TypedArrayBase target, IReadOnlyList<JsValue> args)
     {
         if (target.IsDetachedOrOutOfBounds())
         {
@@ -679,21 +679,21 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         var initialLength = target.Length;
         if (initialLength <= 0)
         {
-            return -1d;
+            return new JsValue(-1d);
         }
 
         var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : initialLength - 1;
 
         if (target.IsDetachedOrOutOfBounds())
         {
-            return -1d;
+            return new JsValue(-1d);
         }
 
         var currentLength = target.Length;
         var len = target._isLengthTracking ? initialLength : Math.Min(initialLength, currentLength);
         if (len <= 0)
         {
-            return -1d;
+            return new JsValue(-1d);
         }
 
         double startIndexNumber;
@@ -703,7 +703,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         }
         else if (double.IsNegativeInfinity(fromIndex))
         {
-            return -1d;
+            return new JsValue(-1d);
         }
         else if (fromIndex >= 0)
         {
@@ -714,7 +714,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             startIndexNumber = len + fromIndex;
             if (startIndexNumber < 0)
             {
-                return -1d;
+                return new JsValue(-1d);
             }
         }
 
@@ -724,7 +724,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         {
             if (target.IsDetachedOrOutOfBounds())
             {
-                return -1d;
+                return new JsValue(-1d);
             }
 
             var loopLength = target.Length;
@@ -733,20 +733,20 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
                 continue;
             }
 
-            object? element = target switch
+            JsValue element = target switch
             {
-                JsBigInt64Array bi64 => bi64.GetBigIntElement(i),
-                JsBigUint64Array bu64 => bu64.GetBigIntElement(i),
-                _ => target.GetElement(i)
+                JsBigInt64Array bi64 => new JsValue(bi64.GetBigIntElement(i)),
+                JsBigUint64Array bu64 => new JsValue(bu64.GetBigIntElement(i)),
+                _ => new JsValue(target.GetElement(i))
             };
 
-            if (JsOps.StrictEquals(new JsValue(element), searchElement))
+            if (JsOps.StrictEquals(element, searchElement))
             {
-                return (double)i;
+                return new JsValue((double)i);
             }
         }
 
-        return -1d;
+        return new JsValue(-1d);
     }
 
     /// <summary>
@@ -958,22 +958,22 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         return _byteOffset + _initialLength * _bytesPerElement > _buffer.ByteLength;
     }
 
-    private static bool SameValueZero(object? left, JsValue right)
+    private static bool SameValueZero(JsValue left, JsValue right)
     {
-        if (left is double and double.NaN && right.IsNumber && double.IsNaN(right.AsDouble()))
+        if (left.IsNumber && double.IsNaN(left.AsDouble()) && right.IsNumber && double.IsNaN(right.AsDouble()))
         {
             return true;
         }
 
-        return JsOps.StrictEquals(new JsValue(left), right);
+        return JsOps.StrictEquals(left, right);
     }
 
     internal ThrowSignal CreateOutOfBoundsTypeError()
     {
         if (_buffer.RealmState?.TypeErrorConstructor is IJsCallable ctor)
         {
-            var obj = ctor.Invoke(["Out of bounds access on TypedArray"], null);
-            if (obj is not null)
+            var obj = ctor.Invoke([new JsValue("Out of bounds access on TypedArray")], JsValue.Undefined);
+            if (!obj.IsUndefined)
             {
                 return new ThrowSignal(obj);
             }
@@ -981,6 +981,6 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
         var fallback = new JsObject { ["name"] = "TypeError", ["message"] = "Out of bounds access on TypedArray" };
 
-        return new ThrowSignal(fallback);
+        return new ThrowSignal(new JsValue(fallback));
     }
 }

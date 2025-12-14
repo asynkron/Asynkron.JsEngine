@@ -888,7 +888,7 @@ public static partial class TypedAstEvaluator
                                     continue;
                                 }
 
-                                return CompleteReturn(pending.Value);
+                                return CompleteReturn(new JsValue(pending.Value));
                             }
 
                             if (pending.Kind == AbruptKind.Break || pending.Kind == AbruptKind.Continue)

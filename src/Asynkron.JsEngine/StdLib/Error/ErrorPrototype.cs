@@ -10,9 +10,9 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class ErrorPrototype : JsPrototype
 {
     [JsHostMethod("toString", Length = 0d)]
-    public object? ToString(JsValue thisValue, IReadOnlyList<object?> _)
+    public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        if (thisValue is not IJsPropertyAccessor accessor)
+        if (!thisValue.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
             throw ThrowTypeError("Error.prototype.toString called on non-object", realm: Realm);
         }
@@ -29,15 +29,15 @@ public sealed partial class ErrorPrototype : JsPrototype
 
         if (nameString.Length == 0)
         {
-            return messageString;
+            return new JsValue(messageString);
         }
 
         if (messageString.Length == 0)
         {
-            return nameString;
+            return new JsValue(nameString);
         }
 
-        return $"{nameString}: {messageString}";
+        return new JsValue($"{nameString}: {messageString}");
     }
 
     protected override void ConfigurePrototype()

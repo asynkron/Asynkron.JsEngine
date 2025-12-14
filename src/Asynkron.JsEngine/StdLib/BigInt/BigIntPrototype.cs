@@ -11,15 +11,23 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class BigIntPrototype : JsPrototype
 {
     [JsHostMethod("toString", Length = 0d)]
-    public object ToString(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var value = RequireBigIntValue(thisValue, Realm);
         var radixArg = args.GetArgument(0);
-        var radixNumber = ReferenceEquals(radixArg, Symbol.Undefined)
-            ? 10d
-            : radixArg is JsBigInt biRadix
-                ? (double)biRadix.Value
-                : JsOps.ToNumber(radixArg);
+        double radixNumber;
+        if (radixArg.IsUndefined)
+        {
+            radixNumber = 10d;
+        }
+        else if (radixArg.TryGetBigInt(out var biRadix))
+        {
+            radixNumber = (double)biRadix!.Value;
+        }
+        else
+        {
+            radixNumber = JsOps.ToNumber(radixArg);
+        }
 
         if (double.IsNaN(radixNumber) || Math.Abs(radixNumber % 1) > double.Epsilon)
         {
@@ -32,27 +40,27 @@ public sealed partial class BigIntPrototype : JsPrototype
             throw ThrowRangeError("toString() radix argument must be between 2 and 36", realm: Realm);
         }
 
-        return BigIntToString(value.Value, intRadix);
+        return new JsValue(BigIntToString(value.Value, intRadix));
     }
 
     [JsHostMethod("valueOf", Length = 0d)]
-    public object ValueOf(JsValue thisValue, IReadOnlyList<object?> _)
+    public JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        return RequireBigIntValue(thisValue, Realm);
+        return new JsValue(RequireBigIntValue(thisValue, Realm));
     }
 
     [JsHostMethod("toLocaleString", Length = 0d)]
-    public object? ToLocaleString(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ToLocaleString(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var value = RequireBigIntValue(thisValue, Realm);
         var localesArg = args.GetArgument(0);
         var optionsArg = args.GetArgument(1);
         if (TryFormatWithIntlNumberFormat(value, localesArg, optionsArg, Realm, out var formatted))
         {
-            return formatted;
+            return new JsValue(formatted);
         }
 
-        return BigIntToString(value.Value, 10);
+        return new JsValue(BigIntToString(value.Value, 10));
     }
 
     protected override void ConfigurePrototype()

@@ -19,20 +19,20 @@ public sealed partial class IntlCollatorPrototype
     }
 
     [JsHostGetter("compare", DisplayName = "get compare")]
-    private object GetCompare(JsValue thisValue)
+    private JsValue GetCompare(JsValue thisValue)
     {
         var collator = ValidateCollatorReceiver(thisValue);
         var slots = GetSlots(collator);
-        return new HostFunction((_, args) =>
+        return new JsValue(new HostFunction((_, args) =>
         {
             var first = args.Count > 0 ? JsValueToString(args[0], Realm) : string.Empty;
             var second = args.Count > 1 ? JsValueToString(args[1], Realm) : string.Empty;
-            return CompareStrings(slots, first, second);
-        }, Realm, isConstructor: false);
+            return new JsValue(CompareStrings(slots, first, second));
+        }, Realm, isConstructor: false));
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    private JsObject ResolvedOptions(JsValue thisValue, IReadOnlyList<object?> _)
+    private JsValue ResolvedOptions(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var collator = ValidateCollatorReceiver(thisValue);
         var slots = GetSlots(collator);
@@ -44,7 +44,7 @@ public sealed partial class IntlCollatorPrototype
         options.SetProperty("collation", slots.Collation);
         options.SetProperty("numeric", slots.Numeric);
         options.SetProperty("caseFirst", slots.CaseFirst);
-        return options;
+        return new JsValue(options);
     }
 
     private JsObject ValidateCollatorReceiver(JsValue thisValue)

@@ -21,34 +21,34 @@ public sealed partial class IntlRelativeTimeFormatPrototype
     }
 
     [JsHostMethod("format", Length = 2d)]
-    private string Format(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue Format(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         ValidateReceiver(thisValue);
         var value = args.Count > 0 ? JsOps.ToNumber(args[0]) : double.NaN;
         if (double.IsNaN(value))
         {
-            return "NaN";
+            return new JsValue("NaN");
         }
 
         var unit = args.Count > 1 ? JsValueToString(args[1], Realm) : throw ThrowTypeError(
             "Intl.RelativeTimeFormat format requires a unit argument", realm: Realm);
-        return $"{value} {unit}";
+        return new JsValue($"{value} {unit}");
     }
 
     [JsHostMethod("formatToParts", Length = 2d)]
-    private JsArray FormatToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue FormatToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var formatted = Format(thisValue, args);
         var part = new JsObject();
         part.SetProperty("type", "literal");
-        part.SetProperty("value", formatted);
+        part.SetProperty("value", formatted.AsString());
         var parts = new JsArray(Realm);
         parts.Push(part);
-        return parts;
+        return new JsValue(parts);
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    private JsObject ResolvedOptions(JsValue thisValue, IReadOnlyList<object?> _)
+    private JsValue ResolvedOptions(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var instance = ValidateReceiver(thisValue);
         var obj = new JsObject(Realm.ObjectPrototype);
@@ -62,7 +62,7 @@ public sealed partial class IntlRelativeTimeFormatPrototype
             instance.TryGetProperty("__numeric__", out var numeric) ? numeric ?? "always" : "always");
         obj.SetProperty("style",
             instance.TryGetProperty("__style__", out var style) ? style ?? "long" : "long");
-        return obj;
+        return new JsValue(obj);
     }
 
     private JsObject ValidateReceiver(JsValue thisValue)

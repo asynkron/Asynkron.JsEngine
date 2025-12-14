@@ -124,7 +124,7 @@ public sealed class SuperBinding(
         }
 
         // Set on the receiver (thisValue) - this is where strict mode matters
-        if (ThisValue is IJsObjectLike thisObject)
+        if (thisValue.TryGetObject<IJsObjectLike>(out var thisObject))
         {
             // Check if the object is frozen or the property is non-writable
             if (thisObject.IsFrozen)
@@ -147,7 +147,7 @@ public sealed class SuperBinding(
             return true;
         }
 
-        if (ThisValue is IJsPropertyAccessor receiver)
+        if (thisValue.TryGetObject<IJsPropertyAccessor>(out var receiver))
         {
             receiver.SetProperty(name, value);
             return true;

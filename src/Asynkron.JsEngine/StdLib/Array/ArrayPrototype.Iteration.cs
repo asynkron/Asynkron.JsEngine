@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class ArrayPrototype
 {
     [JsHostMethod("map", Length = 1d)]
-    public object? Map(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Map(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var (accessor, length, callback, thisArg) =
             PrepareArrayIteration(thisValue, args, Realm, "Array.prototype.map");
@@ -28,11 +28,11 @@ public sealed partial class ArrayPrototype
         }
 
         SetArrayLikeLength(result, length);
-        return result;
+        return JsValue.FromObject(result);
     }
 
     [JsHostMethod("filter", Length = 1d)]
-    public object? Filter(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Filter(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
         var (accessor, length, callback, thisArg) =
@@ -59,24 +59,24 @@ public sealed partial class ArrayPrototype
             toIndex++;
         }
 
-        return result;
+        return JsValue.FromObject(result);
     }
 
     [JsHostMethod("reduce", Length = 1d)]
-    public object? Reduce(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Reduce(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return ReduceLike(thisValue, args, Realm, "Array.prototype.reduce", false);
     }
 
     [JsHostMethod("reduceRight", Length = 1d)]
-    public object? ReduceRight(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ReduceRight(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
         return ReduceLike(thisValue, args, realm, "Array.prototype.reduceRight", true);
     }
 
     [JsHostMethod("forEach", Length = 1d)]
-    public object? ForEach(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ForEach(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var (accessor, length, callback, thisArg) =
             PrepareArrayIteration(thisValue, args, Realm, "Array.prototype.forEach");
@@ -91,11 +91,11 @@ public sealed partial class ArrayPrototype
             callback.Invoke([JsValue.FromObject(value), new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.FromObject(thisArg));
         }
 
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     [JsHostMethod("find", Length = 1d)]
-    public object? Find(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Find(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
         var (accessor, length, callback, thisArg) =
@@ -111,15 +111,15 @@ public sealed partial class ArrayPrototype
             if (IsTruthy(match.ToObject()))
 #pragma warning restore CS0618
             {
-                return value;
+                return JsValue.FromObject(value);
             }
         }
 
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     [JsHostMethod("findIndex", Length = 1d)]
-    public object? FindIndex(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue FindIndex(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var (accessor, length, callback, thisArg) =
             PrepareArrayIteration(thisValue, args, Realm, "Array.prototype.findIndex");
@@ -134,22 +134,22 @@ public sealed partial class ArrayPrototype
             if (IsTruthy(match.ToObject()))
 #pragma warning restore CS0618
             {
-                return (double)k;
+                return new JsValue((double)k);
             }
         }
 
-        return -1d;
+        return new JsValue(-1d);
     }
 
     [JsHostMethod("some", Length = 1d)]
-    public object? Some(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Some(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
         return SomeLike(thisValue, args, realm, "Array.prototype.some");
     }
 
     [JsHostMethod("every", Length = 1d)]
-    public object? Every(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Every(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var (accessor, length, callback, thisArg) =
             PrepareArrayIteration(thisValue, args, Realm, "Array.prototype.every");
@@ -166,15 +166,15 @@ public sealed partial class ArrayPrototype
             if (!IsTruthy(result.ToObject()))
 #pragma warning restore CS0618
             {
-                return false;
+                return JsValue.False;
             }
         }
 
-        return true;
+        return JsValue.True;
     }
 
     [JsHostMethod("findLast", Length = 1d)]
-    public object? FindLast(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue FindLast(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
         var (accessor, length, callback, thisArg) =
@@ -190,15 +190,15 @@ public sealed partial class ArrayPrototype
             if (IsTruthy(matches.ToObject()))
 #pragma warning restore CS0618
             {
-                return value;
+                return JsValue.FromObject(value);
             }
         }
 
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     [JsHostMethod("findLastIndex", Length = 1d)]
-    public object? FindLastIndex(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue FindLastIndex(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var (accessor, length, callback, thisArg) =
             PrepareArrayIteration(thisValue, args, Realm, "Array.prototype.findLastIndex");
@@ -213,10 +213,10 @@ public sealed partial class ArrayPrototype
             if (IsTruthy(matches.ToObject()))
 #pragma warning restore CS0618
             {
-                return (double)k;
+                return new JsValue((double)k);
             }
         }
 
-        return -1d;
+        return new JsValue(-1d);
     }
 }

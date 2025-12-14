@@ -8,15 +8,15 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class BooleanPrototype
 {
     [JsHostMethod("toString", Length = 0d)]
-    public object? ToString(JsValue thisValue, IReadOnlyList<object?> _)
+    public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        return RequireBooleanReceiver(thisValue) ? "true" : "false";
+        return new JsValue(RequireBooleanReceiver(thisValue) ? "true" : "false");
     }
 
     [JsHostMethod("valueOf", Length = 0d)]
-    public object? ValueOf(JsValue thisValue, IReadOnlyList<object?> _)
+    public JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        return RequireBooleanReceiver(thisValue);
+        return new JsValue(RequireBooleanReceiver(thisValue));
     }
 
     protected override void ConfigurePrototype()
@@ -29,15 +29,23 @@ public sealed partial class BooleanPrototype
         Realm.BooleanPrototype ??= Prototype as JsObject;
     }
 
-    private bool RequireBooleanReceiver(object? receiver)
+    private bool RequireBooleanReceiver(JsValue receiver)
     {
-        return receiver switch
+        if (receiver.TryGetBoolean(out var flag))
         {
-            bool flag => flag,
-            JsObject obj when obj.TryGetProperty("__value__", out var inner) && inner is bool b => b,
-            IJsPropertyAccessor accessor when accessor.TryGetProperty("__value__", out var inner) &&
-                                              inner is bool b => b,
-            _ => throw ThrowTypeError("Boolean method called on non-boolean object", realm: Realm)
-        };
+            return flag;
+        }
+
+        if (receiver.TryGetObject<JsObject>(out var obj) && obj.TryGetProperty("__value__", out var inner) && inner is bool b)
+        {
+            return b;
+        }
+
+        if (receiver.TryGetObject<IJsPropertyAccessor>(out var accessor) && accessor.TryGetProperty("__value__", out var innerVal) && innerVal is bool bVal)
+        {
+            return bVal;
+        }
+
+        throw ThrowTypeError("Boolean method called on non-boolean object", realm: Realm);
     }
 }

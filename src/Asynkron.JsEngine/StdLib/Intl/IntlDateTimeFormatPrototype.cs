@@ -61,7 +61,7 @@ public sealed partial class IntlDateTimeFormatPrototype
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    private JsObject ResolvedOptions(JsValue thisValue, IReadOnlyList<JsValue> _unused)
+    private JsValue ResolvedOptions(JsValue thisValue, IReadOnlyList<JsValue> _unused)
     {
         var slots = ValidateReceiver(thisValue, out _);
         var obj = new JsObject(Realm.ObjectPrototype);
@@ -80,7 +80,7 @@ public sealed partial class IntlDateTimeFormatPrototype
                 slots.Components.TryGetValue(component, out var value) ? value : Symbol.Undefined);
         }
 
-        return obj;
+        return new JsValue(obj);
     }
 
     private DateTimeFormatInternalSlots ValidateReceiver(JsValue thisValue, out JsObject instance)

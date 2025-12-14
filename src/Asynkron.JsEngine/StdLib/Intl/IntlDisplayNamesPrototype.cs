@@ -33,7 +33,7 @@ public sealed partial class IntlDisplayNamesPrototype
     }
 
     [JsHostMethod("of", Length = 1d)]
-    private object? Of(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue Of(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var instance = ValidateReceiver(thisValue);
         if (args.Count == 0)
@@ -48,13 +48,15 @@ public sealed partial class IntlDisplayNamesPrototype
             : "code";
 
         var canonical = CanonicalizeCode(type, codeInput);
-        return canonical ?? (object?)(fallback == "none"
-            ? Symbol.Undefined
-            : codeInput);
+        if (canonical != null)
+        {
+            return new JsValue(canonical);
+        }
+        return fallback == "none" ? JsValue.Undefined : new JsValue(codeInput);
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    private JsObject ResolvedOptions(JsValue thisValue, IReadOnlyList<object?> _)
+    private JsValue ResolvedOptions(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var instance = ValidateReceiver(thisValue);
         var obj = new JsObject(Realm.ObjectPrototype);
@@ -75,10 +77,10 @@ public sealed partial class IntlDisplayNamesPrototype
             ? languageDisplay ?? "dialect"
             : "dialect";
         CreateDataPropertyOrThrow(obj, "languageDisplay", languageDisplayValue, Realm, operation);
-        return obj;
+        return new JsValue(obj);
     }
 
-    private JsObject ValidateReceiver(object? candidate)
+    private JsObject ValidateReceiver(JsValue candidate)
     {
         return candidate.EnsureBrand(BrandKey, Realm, "Intl.DisplayNames method called on incompatible receiver");
     }

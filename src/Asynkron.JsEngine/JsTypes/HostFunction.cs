@@ -226,7 +226,7 @@ namespace Asynkron.JsEngine.JsTypes;
                     var boundArgs = args.SliceFrom(1);
                     var targetIsConstructor = JsOps.IsConstructor(target);
                     var realmState = RealmState ?? (target as ICallableMetadata)?.RealmState;
-                    return CreateBoundFunction(target, boundThis, boundArgs, targetIsConstructor, realmState);
+                    return new JsValue(CreateBoundFunction(target, boundThis, boundArgs, targetIsConstructor, realmState));
                 }, isConstructor: false);
                 return true;
         }
@@ -380,7 +380,7 @@ namespace Asynkron.JsEngine.JsTypes;
         {
             var finalArgs = Combine(boundArgs, invokeArgs);
 
-            if (!newTarget.IsUndefined())
+            if (!newTarget.IsUndefined)
             {
                 if (!targetIsConstructor || !newTarget.TryGetObject(out var newTargetObj) || newTargetObj is not IJsCallable newTargetCtor)
                 {

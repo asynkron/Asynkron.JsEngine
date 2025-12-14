@@ -30,7 +30,7 @@ public sealed partial class IntlDurationFormatPrototype
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    private JsObject ResolvedOptions(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue ResolvedOptions(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var instance = ValidateReceiver(thisValue);
         var obj = new JsObject();
@@ -58,7 +58,7 @@ public sealed partial class IntlDurationFormatPrototype
         obj.SetProperty("nanosecondsDisplay", "auto");
         obj.SetProperty("locale",
             instance.TryGetProperty(LocaleSlot, out var locale) ? locale ?? "en" : "en");
-        return obj;
+        return new JsValue(obj);
     }
 
     private JsObject ValidateReceiver(JsValue thisValue)

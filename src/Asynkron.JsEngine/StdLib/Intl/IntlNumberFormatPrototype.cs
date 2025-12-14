@@ -48,10 +48,10 @@ public sealed partial class IntlNumberFormatPrototype
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    public JsObject ResolvedOptions(JsValue thisValue, IReadOnlyList<JsValue> _)
+    public JsValue ResolvedOptions(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var nf = ValidateNumberFormatReceiver(thisValue);
-        return CreateNumberFormatResolvedOptions(nf);
+        return new JsValue(CreateNumberFormatResolvedOptions(nf));
     }
 
     private JsObject ValidateNumberFormatReceiver(JsValue thisValue)

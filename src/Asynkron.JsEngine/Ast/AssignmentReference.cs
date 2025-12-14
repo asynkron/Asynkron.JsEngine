@@ -172,6 +172,22 @@ internal readonly struct AssignmentReference
         };
     }
 
+    /// <summary>
+    /// Gets the value as JsValue, avoiding boxing for primitives in the declarative binding path.
+    /// </summary>
+    public JsValue GetJsValue()
+    {
+        return _kind switch
+        {
+            ReferenceKind.DeclarativeBinding => ReadDeclarativeBindingJsValue(),
+            ReferenceKind.GlobalBinding => JsValue.FromObject(ReadGlobalBinding()),
+            ReferenceKind.WithBinding => JsValue.FromObject(ReadWithBinding()),
+            ReferenceKind.Unresolvable => JsValue.FromObject(ReadUnresolvable()),
+            ReferenceKind.Delegate => JsValue.FromObject(_delegateGetter!()),
+            _ => throw new InvalidOperationException($"Unknown reference kind: {_kind}")
+        };
+    }
+
     public void SetValue(object? value)
     {
         switch (_kind)
@@ -207,6 +223,20 @@ internal readonly struct AssignmentReference
             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
             _context.SetThrow(errorObject);
             return Symbol.Undefined;
+        }
+    }
+
+    private JsValue ReadDeclarativeBindingJsValue()
+    {
+        try
+        {
+            return _binding.ReadJsValue(_name, _context);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
+        {
+            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
+            _context.SetThrow(errorObject);
+            return JsValue.Undefined;
         }
     }
 

@@ -154,6 +154,10 @@ public sealed class JsEnvironment
 
     internal bool IsGlobalFunctionScope => _treatAsGlobalFunctionScope || (IsFunctionScope && Enclosing is null);
 
+    /// <summary>
+    /// Defines a binding with an object value. Consider using DefineJsValue instead to avoid boxing primitives.
+    /// </summary>
+    [Obsolete("Use DefineJsValue to avoid boxing primitives")]
     public void Define(
         Symbol name,
         object? value,
@@ -507,7 +511,8 @@ public sealed class JsEnvironment
         {
             if (current._values is not null && current._values.TryGetValue(name, out var binding))
             {
-                if (ReferenceEquals(binding.Value, Uninitialized))
+                // Use IsUninitialized to avoid calling binding.Value which triggers ToObject() boxing
+                if (binding.IsUninitialized)
                 {
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
                 }
@@ -564,7 +569,8 @@ public sealed class JsEnvironment
         {
             if (current._values is not null && current._values.TryGetValue(name, out var binding))
             {
-                if (ReferenceEquals(binding.Value, Uninitialized))
+                // Use IsUninitialized to avoid calling binding.Value which triggers ToObject() boxing
+                if (binding.IsUninitialized)
                 {
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
                 }
@@ -618,7 +624,8 @@ public sealed class JsEnvironment
         {
             if (current._values is not null && current._values.TryGetValue(name, out var binding))
             {
-                if (ReferenceEquals(binding.Value, Uninitialized))
+                // Use IsUninitialized to avoid calling binding.Value which triggers ToObject() boxing
+                if (binding.IsUninitialized)
                 {
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
                 }
@@ -823,6 +830,7 @@ public sealed class JsEnvironment
     ///     Direct identifier resolution for read accesses without allocating AssignmentReference delegates.
     ///     Mirrors the semantics of <see cref="ResolveIdentifierAssignmentReference" /> for GetValue.
     /// </summary>
+    [Obsolete("Use GetIdentifierJsValue to avoid boxing primitives")]
     internal object? GetIdentifierValue(Symbol name, EvaluationContext context)
     {
         if (TryGetCachedDeclarativeBinding(name, context, out var cached))
@@ -920,6 +928,7 @@ public sealed class JsEnvironment
             _name = name;
         }
 
+        [Obsolete("Use ReadJsValue to avoid boxing primitives")]
         internal object? Read(Symbol name, EvaluationContext context)
         {
             if (_environment._values is null)
@@ -983,23 +992,26 @@ public sealed class JsEnvironment
 
     private static object? ReadResolvedBindingValue(JsEnvironment bindingEnvironment, ref Binding binding, Symbol name)
     {
-        if (ReferenceEquals(binding.Value, Uninitialized))
+        // Use IsUninitialized to avoid calling binding.Value which triggers ToObject() boxing
+        if (binding.IsUninitialized)
         {
             throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
         }
 
-        if (binding.Value is LiveExportBinding liveBinding)
+        // Use LiveExportBindingOrNull to avoid calling binding.Value which triggers ToObject() boxing
+        if (binding.LiveExportBindingOrNull is { } liveBinding)
         {
             return liveBinding.GetValue();
         }
 
+        // Use binding.JsValue for logging to avoid boxing, then convert at the end
         bindingEnvironment.RealmState?.Logger?.LogInformation(
             "Read binding '{Name}' (envDepth={Depth}, lexical={Lexical}, bindingHash={Hash}) -> {Value}",
             name.Name,
             bindingEnvironment.Depth,
             binding.IsLexical,
             binding.GetHashCode(),
-            binding.Value);
+            binding.JsValue);
 
         if (bindingEnvironment.IsGlobalFunctionScope && !binding.IsLexical)
         {
@@ -1010,7 +1022,8 @@ public sealed class JsEnvironment
             }
         }
 
-        return binding.Value;
+        // Only call ToObject() once at the very end
+        return binding.JsValue.ToObject();
     }
 
     /// <summary>
@@ -1018,23 +1031,26 @@ public sealed class JsEnvironment
     /// </summary>
     private static JsValue ReadResolvedBindingJsValue(JsEnvironment bindingEnvironment, ref Binding binding, Symbol name)
     {
-        if (ReferenceEquals(binding.Value, Uninitialized))
+        // Use IsUninitialized to avoid calling binding.Value which triggers ToObject() boxing
+        if (binding.IsUninitialized)
         {
             throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
         }
 
-        if (binding.Value is LiveExportBinding liveBinding)
+        // Use LiveExportBindingOrNull to avoid calling binding.Value which triggers ToObject() boxing
+        if (binding.LiveExportBindingOrNull is { } liveBinding)
         {
             return JsValue.FromObject(liveBinding.GetValue());
         }
 
+        // Use binding.JsValue for logging to avoid boxing
         bindingEnvironment.RealmState?.Logger?.LogInformation(
             "Read binding '{Name}' (envDepth={Depth}, lexical={Lexical}, bindingHash={Hash}) -> {Value}",
             name.Name,
             bindingEnvironment.Depth,
             binding.IsLexical,
             binding.GetHashCode(),
-            binding.Value);
+            binding.JsValue);
 
         if (bindingEnvironment.IsGlobalFunctionScope && !binding.IsLexical)
         {
@@ -1066,7 +1082,8 @@ public sealed class JsEnvironment
             value);
         var realm = bindingEnvironment.RealmState ?? bindingEnvironment.Enclosing?.RealmState;
 
-        if (ReferenceEquals(binding.Value, Uninitialized) &&
+        // Use IsUninitialized to avoid calling binding.Value which triggers ToObject() boxing
+        if (binding.IsUninitialized &&
             binding.IsLexical &&
             !Equals(name, Symbol.This))
         {
@@ -1418,7 +1435,8 @@ public sealed class JsEnvironment
         {
             if (current._values is not null && current._values.TryGetValue(name, out var binding))
             {
-                if (ReferenceEquals(binding.Value, Uninitialized))
+                // Use IsUninitialized to avoid calling binding.Value which triggers ToObject() boxing
+                if (binding.IsUninitialized)
                 {
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
                 }
@@ -1477,7 +1495,8 @@ public sealed class JsEnvironment
         {
             if (current._values is not null && current._values.TryGetValue(name, out var binding))
             {
-                if (ReferenceEquals(binding.Value, Uninitialized))
+                // Use IsUninitialized to avoid calling binding.Value which triggers ToObject() boxing
+                if (binding.IsUninitialized)
                 {
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
                 }
@@ -1540,7 +1559,8 @@ public sealed class JsEnvironment
         {
             if (current._values is not null && current._values.TryGetValue(name, out var binding))
             {
-                if (ReferenceEquals(binding.Value, Uninitialized) && !allowUninitialized)
+                // Use IsUninitialized to avoid calling binding.Value which triggers ToObject() boxing
+                if (binding.IsUninitialized && !allowUninitialized)
                 {
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
                 }
@@ -1592,7 +1612,8 @@ public sealed class JsEnvironment
                 ref var binding = ref current._values.GetValueRefOrNullRef(name);
                 if (!Unsafe.IsNullRef(ref binding))
                 {
-                    if (ReferenceEquals(binding.Value, Uninitialized) &&
+                    // Use IsUninitialized to avoid calling binding.Value which triggers ToObject() boxing
+                    if (binding.IsUninitialized &&
                         binding.IsLexical &&
                         !Equals(name, Symbol.This))
                     {
@@ -2299,6 +2320,22 @@ public sealed class JsEnvironment
 
         public readonly bool IsImportBinding => (_flags & BindingFlags.HasSpecialBinding) != 0
             && _specialBinding is ImportBindingWrapper;
+
+        /// <summary>
+        /// Checks if this binding holds the Uninitialized sentinel without triggering ToObject().
+        /// </summary>
+        public readonly bool IsUninitialized =>
+            (_flags & BindingFlags.HasSpecialBinding) == 0 &&
+            ReferenceEquals(_jsValue.ObjectValue, Uninitialized);
+
+        /// <summary>
+        /// Gets the LiveExportBinding if this is a live export, otherwise null.
+        /// Does not trigger ToObject() boxing.
+        /// </summary>
+        public readonly LiveExportBinding? LiveExportBindingOrNull =>
+            (_flags & BindingFlags.HasSpecialBinding) == 0
+                ? _jsValue.ObjectValue as LiveExportBinding
+                : null;
 
         public void UpgradeLexical(bool isLexical, bool blocksFunctionScopeOverride)
         {

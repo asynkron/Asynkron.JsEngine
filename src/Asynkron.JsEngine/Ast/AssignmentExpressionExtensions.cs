@@ -14,22 +14,23 @@ public static partial class TypedAstEvaluator
                 new IdentifierExpression(expression.Source, expression.Target), environment, context,
                 (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
 
+            // Use JsValue version of compound assignment to avoid boxing
             if (expression.IsCompoundAssignment &&
-                TryEvaluateCompoundAssignmentValue(expression, expression.Value, reference, environment, context,
-                    out var compoundValue,
+                TryEvaluateCompoundAssignmentJsValue(expression, expression.Value, reference, environment, context,
+                    out var compoundJsValue,
                     out var shouldAssignCompound))
             {
                 if (context.ShouldStopEvaluation)
                 {
-                    return JsValue.FromObject(compoundValue);
+                    return compoundJsValue;
                 }
 
                 if (shouldAssignCompound)
                 {
-                    reference.SetValue(compoundValue);
+                    reference.SetValue(compoundJsValue.ToObject());
                 }
 
-                return JsValue.FromObject(compoundValue);
+                return compoundJsValue;
             }
 
             var targetValue = EvaluateAssignmentRhsWithNameHint(expression, expression.Value, environment, context);
@@ -81,6 +82,139 @@ public static partial class TypedAstEvaluator
         }
 
         return index >= 0 && source[index] == '(';
+    }
+
+    /// <summary>
+    /// JsValue version of compound assignment evaluation that avoids boxing for numeric operations.
+    /// </summary>
+    private static bool TryEvaluateCompoundAssignmentJsValue(
+        AssignmentExpression? assignment,
+        ExpressionNode candidate,
+        AssignmentReference reference,
+        JsEnvironment environment,
+        EvaluationContext context,
+        out JsValue value,
+        out bool shouldAssign)
+    {
+        if (candidate is not BinaryExpression binary)
+        {
+            value = JsValue.Undefined;
+            shouldAssign = false;
+            return false;
+        }
+
+        // Use GetJsValue() to avoid boxing for declarative bindings
+        var leftJs = reference.GetJsValue();
+        if (context.ShouldStopEvaluation)
+        {
+            value = JsValue.Undefined;
+            shouldAssign = false;
+            return true;
+        }
+
+        switch (binary.Operator)
+        {
+            case "&&":
+                if (!leftJs.IsTruthy)
+                {
+                    value = leftJs;
+                    shouldAssign = false;
+                    return true;
+                }
+
+                value = EvaluateAssignmentRhsWithNameHintJsValue(assignment, binary.Right, environment, context);
+                shouldAssign = !context.ShouldStopEvaluation;
+                return true;
+            case "||":
+                if (leftJs.IsTruthy)
+                {
+                    value = leftJs;
+                    shouldAssign = false;
+                    return true;
+                }
+
+                value = EvaluateAssignmentRhsWithNameHintJsValue(assignment, binary.Right, environment, context);
+                shouldAssign = !context.ShouldStopEvaluation;
+                return true;
+            case "??":
+                if (!leftJs.IsNullish)
+                {
+                    value = leftJs;
+                    shouldAssign = false;
+                    return true;
+                }
+
+                value = EvaluateAssignmentRhsWithNameHintJsValue(assignment, binary.Right, environment, context);
+                shouldAssign = !context.ShouldStopEvaluation;
+                return true;
+        }
+
+        var rightJs = EvaluateAssignmentRhsWithNameHintJsValue(assignment, binary.Right, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            value = JsValue.Undefined;
+            shouldAssign = false;
+            return true;
+        }
+
+        // Use JsValue arithmetic operations to avoid boxing
+        value = binary.Operator switch
+        {
+            "+" => AddValue(leftJs, rightJs, context),
+            "-" => SubtractValue(leftJs, rightJs, context),
+            "*" => MultiplyValue(leftJs, rightJs, context),
+            "/" => DivideValue(leftJs, rightJs, context),
+            "%" => ModuloValue(leftJs, rightJs, context),
+            "**" => PowerValue(leftJs, rightJs, context),
+            "==" => LooseEqualsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
+            "!=" => !LooseEqualsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
+            "===" => StrictEqualsValue(leftJs, rightJs) ? JsValue.True : JsValue.False,
+            "!==" => !StrictEqualsValue(leftJs, rightJs) ? JsValue.True : JsValue.False,
+            "<" => LessThanValue(leftJs, rightJs, context),
+            "<=" => LessThanOrEqualValue(leftJs, rightJs, context),
+            ">" => GreaterThanValue(leftJs, rightJs, context),
+            ">=" => GreaterThanOrEqualValue(leftJs, rightJs, context),
+            "&" => BitwiseAndValue(leftJs, rightJs, context),
+            "|" => BitwiseOrValue(leftJs, rightJs, context),
+            "^" => BitwiseXorValue(leftJs, rightJs, context),
+            "<<" => LeftShiftValue(leftJs, rightJs, context),
+            ">>" => RightShiftValue(leftJs, rightJs, context),
+            ">>>" => UnsignedRightShiftValue(leftJs, rightJs, context),
+            "in" => InOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
+            "instanceof" => InstanceofOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
+            _ => throw new NotSupportedException(
+                $"Compound assignment operator '{binary.Operator}' is not supported yet.")
+        };
+        shouldAssign = true;
+
+        return true;
+    }
+
+    private static JsValue EvaluateAssignmentRhsWithNameHintJsValue(
+        AssignmentExpression? assignment,
+        ExpressionNode rhs,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        using var functionNameHint = ShouldApplyAssignmentNameHint(assignment, rhs)
+            ? context.EnterFunctionNameHint(assignment!.Target)
+            : null;
+
+        var jsValue = EvaluateExpression(rhs, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return jsValue;
+        }
+
+        if (assignment is not null &&
+            jsValue.ObjectValue is IFunctionNameTarget nameTarget &&
+            IsAnonymousFunctionDefinitionNode(rhs) &&
+            !IsParenthesizedIdentifierAssignment(assignment))
+        {
+            nameTarget.EnsureHasName(assignment.Target.Name);
+        }
+
+        return jsValue;
     }
 
     private static bool TryEvaluateCompoundAssignmentValue(

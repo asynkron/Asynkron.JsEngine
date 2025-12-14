@@ -5,16 +5,17 @@ Replace `object?` with `JsValue` throughout the engine to eliminate boxing for p
 
 ## Current State
 
-The migration is **partially complete**:
-- `EvaluateExpression` already returns `JsValue`
-- All expression types now return native `JsValue` (Phase 1 complete)
-- `Binding` struct now stores values in `JsValue _jsValue` field (Phase 2 complete)
-- `IdentifierExpressionExtensions` uses `GetIdentifierJsValue` for unboxed reads
-- Completion signals store `JsValue` directly (Phase 3 partial)
-- `SetReturnJsValue`, `SetThrowJsValue`, `SetYieldJsValue` added to EvaluationContext
-- `DefineJsValue` added for unboxed variable definitions
-- `IJsCallable.Invoke` still returns `object?` (Phase 4 pending)
-- Statement evaluation methods still return `object?` (Phase 3 ongoing)
+The migration is **mostly complete through Phase 3**:
+- ✅ `EvaluateExpression` returns `JsValue` (Phase 1)
+- ✅ All expression types return native `JsValue` (Phase 1)
+- ✅ `Binding` struct stores values in `JsValue _jsValue` field (Phase 2)
+- ✅ `IdentifierExpressionExtensions` uses `GetIdentifierJsValue` for unboxed reads (Phase 2)
+- ✅ Completion signals store `JsValue` directly (Phase 3)
+- ✅ `SetReturnJsValue`, `SetThrowJsValue`, `SetYieldJsValue` in EvaluationContext (Phase 3)
+- ✅ `DefineJsValue` for unboxed variable definitions (Phase 3)
+- ✅ Most statement extensions optimized (Phase 3)
+- ⏳ `IJsCallable.Invoke` still uses `object?` (Phase 4 pending)
+- ⏳ Remaining ToObject calls at interface boundaries (Phase 4/5)
 
 ## Migration Strategy
 
@@ -85,6 +86,10 @@ After each file, run tests to ensure nothing breaks.
 - [x] Add `GetIdentifierJsValue(Symbol name, EvaluationContext context)` - cached lookup
 - [x] Add `ReadJsValue` to `ResolvedIdentifierBinding` struct
 - [x] Add `ReadResolvedBindingJsValue` static method
+- [x] Add `IsUninitialized` property to Binding struct (boxing-free check)
+- [x] Add `LiveExportBindingOrNull` property to Binding struct (boxing-free check)
+- [x] Fix `ReadResolvedBindingJsValue` to use `IsUninitialized` (avoids ToObject boxing)
+- [x] Fix `GetJsValue` to use `IsUninitialized` (avoids ToObject boxing)
 
 ### 2.3 Expression Extensions ✅ COMPLETE
 - [x] Update `IdentifierExpressionExtensions.cs` to use `GetIdentifierJsValue`
@@ -95,7 +100,7 @@ After each file, run tests to ensure nothing breaks.
 
 ---
 
-## Phase 3: Statement Extensions (172 occurrences, 44 files) ✅ PARTIAL
+## Phase 3: Statement Extensions ✅ MOSTLY COMPLETE
 
 Convert statement evaluation to work with JsValue internally.
 Depends on Phase 2 (EvaluationContext uses Binding values).
@@ -115,22 +120,28 @@ Depends on Phase 2 (EvaluationContext uses Binding values).
 - [x] Add `DefineJsValue` method for unboxed variable definition
 - [x] Add `Binding` constructor that takes `JsValue` directly
 
-### 3.4 Statement Extensions ✅ PARTIAL
+### 3.4 Statement Extensions ✅ MOSTLY COMPLETE
 - [x] `ReturnStatementExtensions.cs` - uses SetReturnJsValue
 - [x] `ThrowStatementExtensions.cs` - uses SetThrowJsValue
 - [x] `YieldExpressionExtensions.cs` - uses SetYieldJsValue (simple yield path)
 - [x] `SwitchStatementExtensions.cs` - uses StrictEqualsValue for case comparison
-- [x] `IfStatementExtensions.cs` - already uses JsValue.IsTruthy (no changes needed)
-- [ ] `StatementNodeExtensions.cs` - core statement dispatcher (returns object?)
-- [ ] `ForEachStatementExtensions.cs`
-- [ ] `LoopPlanExtensions.cs`
-- [ ] `WithStatementExtensions.cs`
-- [ ] `VariableKindExtensions.cs`
+- [x] `IfStatementExtensions.cs` - already uses JsValue.IsTruthy
+- [x] `WhileStatementExtensions.cs` - no ToObject calls
+- [x] `DoWhileStatementExtensions.cs` - no ToObject calls
+- [x] `ForStatementExtensions.cs` - no ToObject calls
+- [x] `TryStatementExtensions.cs` - no ToObject calls
+- [x] `LoopPlanExtensions.cs` - uses GetIdentifierJsValue/DefineJsValue for per-iteration bindings
+- [x] `ConditionalExpressionExtensions.cs` - uses JsValue.IsTruthy
+- [x] `SequenceExpressionExtensions.cs` - no ToObject calls
+- [~] `StatementNodeExtensions.cs` - line 24 ExpressionStatement (tied to return type change)
+- [~] `ForEachStatementExtensions.cs` - iterator protocols need object?
+- [~] `WithStatementExtensions.cs` - with binding needs object?
+- [~] `VariableKindExtensions.cs` - ApplyBindingTarget needs object?
 
-### 3.5 Remaining Work
-- Statement evaluation methods still return `object?` for backward compatibility
+### 3.5 Remaining Work (Blocked on Phase 4/5)
+- `[~]` items have ToObject calls at interface boundaries
 - Full conversion requires changing `EvaluateStatement` return type to `JsValue`
-- This would cascade to all statement dispatchers and callers
+- Or changing `ApplyBindingTarget`, iterator protocols to accept JsValue
 
 ---
 

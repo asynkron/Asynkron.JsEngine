@@ -22,15 +22,21 @@ public static partial class TypedAstEvaluator
                             environment,
                             context,
                             (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
-                        var currentValue = reference.GetValue();
 
-                        // Fast path for double (most common case) - avoid boxing
-                        if (currentValue is double d)
+                        // Use GetJsValue() to avoid boxing for declarative bindings
+                        var currentJsValue = reference.GetJsValue();
+
+                        // Fast path for Number (most common case) - avoid boxing entirely
+                        if (currentJsValue.Kind == JsValueKind.Number)
                         {
+                            var d = currentJsValue.NumberValue;
                             var updatedValue = d + (expression.Operator == "++" ? 1 : -1);
                             reference.SetValue(updatedValue);
                             return expression.IsPrefix ? new JsValue(updatedValue) : new JsValue(d);
                         }
+
+                        // Fall back to object path for non-numeric values
+                        var currentValue = currentJsValue.ToObject();
 
                         // Per ES spec, convert to numeric first (handles both Number and BigInt)
                         var oldNumeric = JsOps.ToNumeric(currentValue, context);

@@ -152,11 +152,11 @@ public static partial class TypedAstEvaluator
             foreach (var bindingName in plan.PerIterationBindings)
             {
                 // Get the current value from the current iteration environment.
-                // Use direct identifier resolution to avoid per-iteration IdentifierExpression allocations.
-                object? currentValue;
+                // Use direct identifier resolution with JsValue to avoid boxing primitives.
+                JsValue currentValue;
                 try
                 {
-                    currentValue = currentIterationEnvironment.GetIdentifierValue(bindingName, context);
+                    currentValue = currentIterationEnvironment.GetIdentifierJsValue(bindingName, context);
                 }
                 catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                            StringComparison.Ordinal))
@@ -177,15 +177,15 @@ public static partial class TypedAstEvaluator
                     }
 
                     context.SetThrow(errorObject);
-                    currentValue = errorObject;
+                    currentValue = JsValue.FromObject(errorObject);
                 }
 
                 var isConstBinding = currentIterationEnvironment.IsConstBinding(bindingName);
 
-                // Define the binding in the new iteration environment
+                // Define the binding in the new iteration environment using JsValue to avoid boxing
                 // Use let semantics (isLexical=true, isConst=false by default, but the original
                 // declaration kind doesn't matter for the copy)
-                newIterationEnvironment.Define(
+                newIterationEnvironment.DefineJsValue(
                     bindingName,
                     currentValue,
                     isConst: isConstBinding,
@@ -213,17 +213,18 @@ public static partial class TypedAstEvaluator
                 var outerEnvironment = currentIterationEnvironment.Enclosing ?? currentIterationEnvironment;
 
                 // Snapshot current values before we reset the environment instance.
+                // Use JsValue[] to avoid boxing primitives.
                 var count = bindings.Length;
-                var values = new object?[count];
+                var values = new JsValue[count];
                 var constFlags = new bool[count];
 
                 for (var i = 0; i < count; i++)
                 {
                     var bindingName = bindings[i];
-                    object? currentValue;
+                    JsValue currentValue;
                     try
                     {
-                        currentValue = currentIterationEnvironment.GetIdentifierValue(bindingName, context);
+                        currentValue = currentIterationEnvironment.GetIdentifierJsValue(bindingName, context);
                     }
                     catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                                StringComparison.Ordinal))
@@ -244,7 +245,7 @@ public static partial class TypedAstEvaluator
                         }
 
                         context.SetThrow(errorObject);
-                        currentValue = errorObject;
+                        currentValue = JsValue.FromObject(errorObject);
                     }
 
                     values[i] = currentValue;
@@ -265,7 +266,7 @@ public static partial class TypedAstEvaluator
                 for (var i = 0; i < count; i++)
                 {
                     var bindingName = bindings[i];
-                    currentIterationEnvironment.Define(
+                    currentIterationEnvironment.DefineJsValue(
                         bindingName,
                         values[i],
                         isConst: constFlags[i],

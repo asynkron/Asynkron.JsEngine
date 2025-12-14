@@ -119,9 +119,9 @@ Depends on Phase 2 (EvaluationContext uses Binding values).
 - [x] `ReturnStatementExtensions.cs` - uses SetReturnJsValue
 - [x] `ThrowStatementExtensions.cs` - uses SetThrowJsValue
 - [x] `YieldExpressionExtensions.cs` - uses SetYieldJsValue (simple yield path)
+- [x] `SwitchStatementExtensions.cs` - uses StrictEqualsValue for case comparison
+- [x] `IfStatementExtensions.cs` - already uses JsValue.IsTruthy (no changes needed)
 - [ ] `StatementNodeExtensions.cs` - core statement dispatcher (returns object?)
-- [ ] `IfStatementExtensions.cs`
-- [ ] `SwitchStatementExtensions.cs`
 - [ ] `ForEachStatementExtensions.cs`
 - [ ] `LoopPlanExtensions.cs`
 - [ ] `WithStatementExtensions.cs`

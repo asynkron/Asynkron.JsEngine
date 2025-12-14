@@ -13,7 +13,6 @@ public static partial class TypedAstEvaluator
             {
                 return Symbol.Undefined;
             }
-            var discriminant = discriminantJs.ToObject();
 
             var instantiationPlan = ((IAstCacheable<SwitchInstantiationPlan>)statement).GetOrCreateCache();
 
@@ -51,7 +50,7 @@ public static partial class TypedAstEvaluator
                     return completionValue;
                 }
 
-                if (StrictEquals(discriminant, testJs.ToObject()))
+                if (StrictEqualsValue(discriminantJs, testJs))
                 {
                     matchedCaseIndex = i;
                     break;

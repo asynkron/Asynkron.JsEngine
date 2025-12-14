@@ -40,7 +40,7 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(context.FlowValue);
             }
 
-            if (nextValue is not IJsCallable callable)
+            if (!nextValue.TryGetObject<IJsCallable>(out var callable))
             {
                 throw StandardLibrary.ThrowTypeError("Iterator.next is not callable.", context, context?.RealmState);
             }
@@ -68,26 +68,20 @@ public static partial class TypedAstEvaluator
             }
 
             // Per GetMethod spec: if value is null or undefined, return undefined (not an error)
-            if (methodValue is null || ReferenceEquals(methodValue, Symbol.Undefined))
+            if (methodValue.IsNullish)
             {
                 return false;
             }
 
-            // Unwrap JsValue if present
-            if (methodValue is JsValue jsVal)
-            {
-                methodValue = jsVal.ToObject();
-            }
-
             // Only throw if the method exists but is not callable
-            if (methodValue is not IJsCallable callable)
+            if (!methodValue.TryGetObject<IJsCallable>(out var callable))
             {
                 throw new ThrowSignal(StandardLibrary.CreateTypeError("Iterator method is not callable", context,
                     context.RealmState));
             }
 
             var args = hasArgument ? new[] { argument } : Array.Empty<JsValue>();
-            result = callable.Invoke(args, new JsValue((JsObject)iterator));
+            result = callable.Invoke(args, JsValue.FromObject((JsObject)iterator));
 
             // Check if the method threw an error
             if (context.IsThrow)

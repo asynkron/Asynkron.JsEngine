@@ -55,7 +55,7 @@ internal static class AwaitScheduler
     {
         return candidate.IsObject &&
                candidate.AsObject().TryGetProperty("then", out var thenValue) &&
-               thenValue is IJsCallable;
+               thenValue.TryGetObject<IJsCallable>(out _);
     }
 
     /// <summary>
@@ -74,7 +74,7 @@ internal static class AwaitScheduler
         // JsObject wrapping a JsPromise
         if (candidate.IsObject &&
             candidate.AsObject().TryGetProperty(JsPromise.InternalPromiseKey, out var inner) &&
-            inner is JsPromise wrappedPromise)
+            inner.TryGetObject<JsPromise>(out var wrappedPromise))
         {
             return wrappedPromise.TryGetSettled(out value, out isRejected);
         }
@@ -163,7 +163,7 @@ internal static class AwaitScheduler
             }
 
             if (!promiseObj.TryGetProperty("then", out var thenValue) ||
-                thenValue is not IJsCallable thenCallable)
+                !thenValue.TryGetObject<IJsCallable>(out var thenCallable))
             {
                 break;
             }

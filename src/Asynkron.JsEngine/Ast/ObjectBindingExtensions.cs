@@ -121,7 +121,7 @@ public static partial class TypedAstEvaluator
 
                 if (JsOps.TryGetPropertyValue(obj, key, out var restValue, context))
                 {
-                    restObject.SetProperty(key, restValue);
+                    restObject.SetProperty(key, JsValue.FromObject(restValue));
                 }
                 else if (context.ShouldStopEvaluation)
                 {

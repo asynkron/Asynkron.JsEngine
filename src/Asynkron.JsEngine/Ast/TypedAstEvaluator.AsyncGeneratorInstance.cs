@@ -58,7 +58,7 @@ public static partial class TypedAstEvaluator
 
             // asyncIterator[Symbol.asyncIterator] returns itself.
             var asyncKey = SymbolKeys.AsyncIterator;
-            asyncIterator.SetProperty(asyncKey, new HostFunction((thisValue, _) => thisValue));
+            asyncIterator.SetProperty(asyncKey, JsValue.FromObject(new HostFunction((thisValue, _) => thisValue)));
 
             return asyncIterator;
         }
@@ -135,8 +135,8 @@ public static partial class TypedAstEvaluator
         private static JsObject CreateAsyncIteratorResult(object? value, bool done)
         {
             var result = new JsObject();
-            result.SetProperty("value", value);
-            result.SetProperty("done", done);
+            result.SetProperty("value", JsValue.FromObject(value));
+            result.SetProperty("done", JsValue.FromObject(done));
             return result;
         }
 
@@ -213,7 +213,7 @@ public static partial class TypedAstEvaluator
         {
             if (callable is IJsPropertyAccessor accessor &&
                 accessor.TryGetProperty("prototype", out var protoValue) &&
-                protoValue is JsObject prototypeObject)
+                protoValue.TryGetObject<JsObject>(out var prototypeObject))
             {
                 return prototypeObject;
             }

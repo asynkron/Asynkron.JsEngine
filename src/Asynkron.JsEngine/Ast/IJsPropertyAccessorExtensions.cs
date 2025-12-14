@@ -121,7 +121,7 @@ public static partial class TypedAstEvaluator
     {
         private JsObject EnsurePrototype(RealmState realm)
         {
-            if (constructor.TryGetProperty("prototype", out var prototypeValue) && prototypeValue is JsObject prototype)
+            if (constructor.TryGetProperty("prototype", out var prototypeValue) && prototypeValue.TryGetObject<JsObject>(out var prototype))
             {
                 if (prototype.Prototype is null && realm.ObjectPrototype is not null)
                 {
@@ -137,7 +137,7 @@ public static partial class TypedAstEvaluator
                 Origin = "constructor.prototype (auto-created)"
             };
 
-            constructor.SetProperty("prototype", created);
+            constructor.SetProperty("prototype", JsValue.FromObject(created));
             return created;
         }
     }

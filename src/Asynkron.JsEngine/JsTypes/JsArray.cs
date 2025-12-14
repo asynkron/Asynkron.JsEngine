@@ -854,7 +854,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 }
                 else
                 {
-                    result.SetProperty("value", Symbol.Undefined);
+                    result.SetProperty("value", JsValue.FromObject(Symbol.Undefined));
                     result.SetProperty("done", true);
                 }
 
@@ -864,7 +864,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return new JsValue(iterator);
         });
 
-        _properties.SetProperty(iteratorKey, iteratorFunction);
+        _properties.SetProperty(iteratorKey, JsValue.FromObject(iteratorFunction));
     }
 
     private static bool TryParseArrayIndex(string propertyName, out uint index)

@@ -106,7 +106,7 @@ public static partial class TypedAstEvaluator
                 baseCtor.SetPrototype(realm.FunctionPrototype);
             }
 
-            prototype.SetProperty("constructor", constructorValue);
+            prototype.SetProperty("constructor", JsValue.FromObject(constructorValue));
 
             if (constructorAccessor is IPropertyDefinitionHost definitionHost &&
                 constructorValue is TypedFunction { IsClassConstructor: true })

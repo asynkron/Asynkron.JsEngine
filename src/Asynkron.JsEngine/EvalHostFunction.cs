@@ -46,7 +46,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             _properties.SetPrototype(functionPrototype);
         }
-        _properties.SetProperty("prototype", new JsObject());
+        _properties.SetProperty("prototype", JsValue.FromObject(new JsObject()));
     }
 
     internal JsEngine Engine => _engine;
@@ -448,8 +448,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        var receiverObj = receiver.IsUndefined ? this : receiver.ToObject();
-        if (_properties.TryGetProperty(name, receiverObj ?? this, out var objValue))
+        var receiverObj = receiver.IsUndefined ? (object?)this : receiver.ToObject();
+        if (_properties.TryGetProperty(name, receiverObj ?? this, context: null, out var objValue))
         {
             value = JsValue.FromObject(objValue);
             return true;
@@ -465,7 +465,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
     {
-        var receiverObj = receiver.IsUndefined ? this : receiver.ToObject();
+        var receiverObj = receiver.IsUndefined ? (object?)this : receiver.ToObject();
         _properties.SetProperty(name, value.ToObject(), receiverObj ?? this);
     }
 

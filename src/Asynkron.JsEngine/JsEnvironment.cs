@@ -300,7 +300,10 @@ public sealed class JsEnvironment
                 existingDescriptor = globalThis.GetOwnPropertyDescriptor(name.Name);
                 if (existingDescriptor is not null)
                 {
-                    globalThis.TryGetProperty(name.Name, out existingGlobalValue);
+                    if (globalThis.TryGetProperty(name.Name, out var jsValue))
+                    {
+                        existingGlobalValue = jsValue.ToObject();
+                    }
                 }
                 else if (globalThis.TryGetValue(name.Name, out var looseValue))
                 {
@@ -396,7 +399,7 @@ public sealed class JsEnvironment
                     existing.JsValue = JsValue.FromObject(value);
                     if (isGlobalScope && globalThis is not null)
                     {
-                        globalThis.SetProperty(name.Name, value);
+                        globalThis.SetProperty(name.Name, JsValue.FromObject(value));
                     }
                 }
 
@@ -408,7 +411,7 @@ public sealed class JsEnvironment
                 existing.JsValue = JsValue.FromObject(value);
                 if (isGlobalScope && globalThis is not null)
                 {
-                    globalThis.SetProperty(name.Name, value);
+                    globalThis.SetProperty(name.Name, JsValue.FromObject(value));
                 }
             }
 
@@ -503,7 +506,7 @@ public sealed class JsEnvironment
                 }
                 else
                 {
-                    globalThis.SetProperty(name.Name, initialValue);
+                    globalThis.SetProperty(name.Name, JsValue.FromObject(initialValue));
                 }
             }
         }
@@ -751,7 +754,7 @@ public sealed class JsEnvironment
                     if (current.IsGlobalFunctionScope)
                     {
                         var globalObject = current.GetRootGlobalObject();
-                        globalObject?.SetProperty(name.Name, value);
+                        globalObject?.SetProperty(name.Name, JsValue.FromObject(value));
                     }
 
                     return true;
@@ -1151,7 +1154,7 @@ public sealed class JsEnvironment
         binding.JsValue = JsValue.FromObject(value);
         if (!binding.IsLexical && bindingEnvironment.IsGlobalFunctionScope)
         {
-            bindingEnvironment.GetRootGlobalObject()?.SetProperty(name.Name, value);
+            bindingEnvironment.GetRootGlobalObject()?.SetProperty(name.Name, JsValue.FromObject(value));
         }
 
         bindingEnvironment.NotifyBindingObservers(name, value);
@@ -1219,7 +1222,7 @@ public sealed class JsEnvironment
         binding.JsValue = value;
         if (!binding.IsLexical && bindingEnvironment.IsGlobalFunctionScope)
         {
-            bindingEnvironment.GetRootGlobalObject()?.SetProperty(name.Name, value.ToObject());
+            bindingEnvironment.GetRootGlobalObject()?.SetProperty(name.Name, value);
         }
 
         // Only notify if there are observers (avoid ToObject boxing in hot path)
@@ -1269,7 +1272,7 @@ public sealed class JsEnvironment
         // Sloppy assignment to an unresolvable reference creates a new
         // configurable property on the global object rather than a declarative
         // binding so that `delete` can remove it (ES2024 9.1.1.3.4 SetMutableBinding).
-        globalObject.SetProperty(name.Name, value);
+        globalObject.SetProperty(name.Name, JsValue.FromObject(value));
         context.RealmState?.Logger?.LogInformation(
             "Sloppy assignment created unresolvable binding name={Name} valueType={ValueType}",
             name.Name,
@@ -1752,7 +1755,7 @@ public sealed class JsEnvironment
                     binding.JsValue = JsValue.FromObject(value);
                     if (!binding.IsLexical)
                     {
-                        globalObject?.SetProperty(name.Name, value);
+                        globalObject?.SetProperty(name.Name, JsValue.FromObject(value));
                     }
                     current.NotifyBindingObservers(name, value);
                     return;
@@ -1775,7 +1778,7 @@ public sealed class JsEnvironment
                 }
                 else
                 {
-                    current._withObject.SetProperty(name.Name, value);
+                    current._withObject.SetProperty(name.Name, JsValue.FromObject(value));
                 }
 
                 return;
@@ -1810,7 +1813,7 @@ public sealed class JsEnvironment
 
                 // Non-strict mode: Create the variable in the global scope (this environment)
                 current.Define(name, value);
-                globalObject?.SetProperty(name.Name, value);
+                globalObject?.SetProperty(name.Name, JsValue.FromObject(value));
                 return;
             }
 
@@ -1928,7 +1931,7 @@ public sealed class JsEnvironment
         if (target.TryGetProperty(key, out var unscopables))
         {
             touchedUnscopables = true;
-            if (unscopables is IJsPropertyAccessor accessor &&
+            if (unscopables.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
                 JsOps.TryGetPropertyValue(accessor, name, out var blocked) && JsOps.ToBoolean(blocked))
             {
                 return true;
@@ -1961,11 +1964,18 @@ public sealed class JsEnvironment
 
         if (target.TryGetProperty(propertyName, out var propertyValue))
         {
-            value = propertyValue;
+            value = propertyValue.ToObject();
             return true;
         }
 
-        return target.TryGetProperty(propertyName, target, out value);
+        if (target.TryGetProperty(propertyName, JsValue.FromObject(target), out var receiverValue))
+        {
+            value = receiverValue.ToObject();
+            return true;
+        }
+
+        value = null;
+        return false;
     }
 
     private static bool HasVisibleWithBinding(IJsObjectLike target, Symbol name)

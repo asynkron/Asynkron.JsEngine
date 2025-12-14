@@ -456,7 +456,7 @@ internal static class AssignmentReferenceResolver
                     }
 
                     var propertyName = GetPropertyName();
-                    if (!binding.TrySetProperty(propertyName, newValue, out _) &&
+                    if (!binding.TrySetProperty(propertyName, JsValue.FromObject(newValue), out _) &&
                         context.CurrentScope.IsStrict)
                     {
                         throw StandardLibrary.ThrowTypeError(
@@ -598,7 +598,7 @@ internal static class AssignmentReferenceResolver
                     return;
                 }
 
-                TypedAstEvaluator.InvokeCallable(ownDescriptor.Set, [JsValue.FromObject(value)], JsValue.FromObject(receiver), context);
+                TypedAstEvaluator.InvokeCallable(JsValue.FromObject(ownDescriptor.Set), [JsValue.FromObject(value)], JsValue.FromObject(receiver), context);
                 return;
             }
 
@@ -613,14 +613,14 @@ internal static class AssignmentReferenceResolver
                 return;
             }
 
-            target.SetProperty(propertyName, value, receiver);
+            target.SetProperty(propertyName, JsValue.FromObject(value), receiver);
             return;
         }
 
         var inheritedSetter = target.GetSetter(propertyName);
         if (inheritedSetter is not null)
         {
-            TypedAstEvaluator.InvokeCallable(inheritedSetter, [JsValue.FromObject(value)], JsValue.FromObject(receiver), context);
+            TypedAstEvaluator.InvokeCallable(JsValue.FromObject(inheritedSetter), [JsValue.FromObject(value)], JsValue.FromObject(receiver), context);
             return;
         }
 
@@ -647,7 +647,7 @@ internal static class AssignmentReferenceResolver
                             return;
                         }
 
-                        TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [JsValue.FromObject(value)], JsValue.FromObject(receiver), context);
+                        TypedAstEvaluator.InvokeCallable(JsValue.FromObject(inheritedDescriptor.Set), [JsValue.FromObject(value)], JsValue.FromObject(receiver), context);
                         return;
                     }
 
@@ -666,7 +666,7 @@ internal static class AssignmentReferenceResolver
 
                     target.DefineProperty(propertyName, new PropertyDescriptor
                     {
-                        Value = value,
+                        Value = JsValue.FromObject(value),
                         Writable = true,
                         Enumerable = inheritedDescriptor.Enumerable,
                         Configurable = inheritedDescriptor.Configurable,
@@ -702,7 +702,7 @@ internal static class AssignmentReferenceResolver
                             return;
                         }
 
-                        TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [JsValue.FromObject(value)], JsValue.FromObject(receiver), context);
+                        TypedAstEvaluator.InvokeCallable(JsValue.FromObject(inheritedDescriptor.Set), [JsValue.FromObject(value)], JsValue.FromObject(receiver), context);
                         return;
                     }
 
@@ -721,7 +721,7 @@ internal static class AssignmentReferenceResolver
 
                     target.DefineProperty(propertyName, new PropertyDescriptor
                     {
-                        Value = value,
+                        Value = JsValue.FromObject(value),
                         Writable = true,
                         Enumerable = inheritedDescriptor.Enumerable,
                         Configurable = inheritedDescriptor.Configurable,
@@ -733,11 +733,11 @@ internal static class AssignmentReferenceResolver
                     return;
                 }
 
-                prototypeAccessor.SetProperty(propertyName, value, receiver);
+                prototypeAccessor.SetProperty(propertyName, JsValue.FromObject(value), receiver);
                 return;
             }
 
-            prototypeAccessor.SetProperty(propertyName, value, receiver);
+            prototypeAccessor.SetProperty(propertyName, JsValue.FromObject(value), receiver);
             return;
         }
 
@@ -752,6 +752,6 @@ internal static class AssignmentReferenceResolver
             return;
         }
 
-        target.SetProperty(propertyName, value, receiver);
+        target.SetProperty(propertyName, JsValue.FromObject(value), receiver);
     }
 }

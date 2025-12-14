@@ -35,7 +35,7 @@ public static partial class TypedAstEvaluator
 
                 if (promiseCtor is IJsPropertyAccessor accessor &&
                     accessor.TryGetProperty("resolve", out var resolveValue) &&
-                    resolveValue is IJsCallable resolveCallable)
+                    resolveValue.TryGetObject<IJsCallable>(out var resolveCallable))
                 {
                     var resolveResult = resolveCallable.Invoke([awaitedValue], JsValue.FromObject(promiseCtor));
                     if (resolveResult.IsObject)

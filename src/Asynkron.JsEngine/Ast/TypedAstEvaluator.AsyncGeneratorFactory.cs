@@ -236,10 +236,10 @@ public static partial class TypedAstEvaluator
             }
 
             // Fall back to properties lookup for all other properties
-            var receiverObj = receiver.IsUndefined ? this : receiver.ToObject();
-            if (_properties.TryGetProperty(name, receiverObj, out var objValue))
+            var receiverValue = receiver.IsUndefined ? JsValue.FromObject(this) : receiver;
+            if (_properties.TryGetProperty(name, receiverValue, out var objValue))
             {
-                value = JsValue.FromObject(objValue);
+                value = objValue;
                 return true;
             }
 
@@ -261,8 +261,8 @@ public static partial class TypedAstEvaluator
 
         public void SetProperty(string name, JsValue value, JsValue receiver)
         {
-            var receiverObj = receiver.IsUndefined ? this : receiver.ToObject();
-            _properties.SetProperty(name, value.ToObject(), receiverObj);
+            var receiverValue = receiver.IsUndefined ? JsValue.FromObject(this) : receiver;
+            _properties.SetProperty(name, value, receiverValue);
         }
 
         PropertyDescriptor? IJsPropertyAccessor.GetOwnPropertyDescriptor(string name)
@@ -351,7 +351,7 @@ public static partial class TypedAstEvaluator
 
                 if (_realmState.AsyncGeneratorFunctionConstructor is { } asyncGenCtor)
                 {
-                    asyncGenCtor.SetProperty("prototype", asyncGenFuncProto);
+                    asyncGenCtor.SetProperty("prototype", JsValue.FromObject(asyncGenFuncProto));
                 }
 
                 asyncGenFuncProto.DefineProperty("constructor",

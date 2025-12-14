@@ -135,7 +135,7 @@ public static partial class TypedAstEvaluator
                         return;
                     }
 
-                    descriptor.Set.Invoke([JsValue.FromObject(value)], JsValue.FromObject(target));
+                    descriptor.Set.Invoke([JsValue.FromObject(value)], JsValue.FromObject(receiver));
                     return;
                 }
 
@@ -152,7 +152,7 @@ public static partial class TypedAstEvaluator
                     return;
                 }
 
-                accessor.SetProperty(propertyName, value, target);
+                accessor.SetProperty(propertyName, JsValue.FromObject(value), receiver);
                 return;
             }
 
@@ -307,7 +307,7 @@ public static partial class TypedAstEvaluator
                 {
                     if (inheritedDescriptor.Set is not null)
                     {
-                        InvokeCallable(inheritedDescriptor.Set, [JsValue.FromObject(value)], JsValue.FromObject(receiver), context);
+                        InvokeCallable(JsValue.FromObject(inheritedDescriptor.Set), [JsValue.FromObject(value)], JsValue.FromObject(receiver), context);
                         return true;
                     }
                     // Accessor with only getter - [[Set]] returns false
@@ -346,7 +346,7 @@ public static partial class TypedAstEvaluator
             obj.SetPrototype(realm.BooleanPrototype);
         }
 
-        obj.SetProperty("__value__", value);
+        obj.SetProperty("__value__", JsValue.FromObject(value));
         return obj;
     }
 
@@ -358,7 +358,7 @@ public static partial class TypedAstEvaluator
             obj.SetPrototype(realm.SymbolPrototype);
         }
 
-        obj.SetProperty("__value__", symbol);
+        obj.SetProperty("__value__", JsValue.FromObject(symbol));
         return obj;
     }
 

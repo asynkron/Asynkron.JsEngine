@@ -22,9 +22,7 @@ public sealed partial class ArrayPrototype
             }
 
             var mapped = callback.Invoke([JsValue.FromObject(value), new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.FromObject(thisArg));
-#pragma warning disable CS0618 // ToObject is obsolete but needed here for property access
-            result.SetProperty(ToIndexString(k), mapped.ToObject());
-#pragma warning restore CS0618
+            result.SetProperty(ToIndexString(k), mapped);
         }
 
         SetArrayLikeLength(result, length);
@@ -55,7 +53,7 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            result.SetProperty(ToIndexString(toIndex), value);
+            result.SetProperty(ToIndexString(toIndex), JsValue.FromObject(value));
             toIndex++;
         }
 
@@ -104,7 +102,7 @@ public sealed partial class ArrayPrototype
         for (long k = 0; k < length; k++)
         {
             var key = ToIndexString(k);
-            var value = accessor.TryGetProperty(key, out var candidate) ? candidate : Symbol.Undefined;
+            var value = accessor.TryGetProperty(key, out var candidate) ? JsValue.FromObject(candidate) : JsValue.FromObject(Symbol.Undefined);
 
             var match = callback.Invoke([JsValue.FromObject(value), new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.FromObject(thisArg));
 #pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
@@ -127,7 +125,7 @@ public sealed partial class ArrayPrototype
         for (long k = 0; k < length; k++)
         {
             var key = ToIndexString(k);
-            var value = accessor.TryGetProperty(key, out var candidate) ? candidate : Symbol.Undefined;
+            var value = accessor.TryGetProperty(key, out var candidate) ? JsValue.FromObject(candidate) : JsValue.FromObject(Symbol.Undefined);
 
             var match = callback.Invoke([JsValue.FromObject(value), new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.FromObject(thisArg));
 #pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
@@ -183,7 +181,7 @@ public sealed partial class ArrayPrototype
         for (var k = length - 1; k >= 0; k--)
         {
             var key = ToIndexString(k);
-            var value = accessor.TryGetProperty(key, out var candidate) ? candidate : Symbol.Undefined;
+            var value = accessor.TryGetProperty(key, out var candidate) ? JsValue.FromObject(candidate) : JsValue.FromObject(Symbol.Undefined);
 
             var matches = callback.Invoke([JsValue.FromObject(value), new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.FromObject(thisArg));
 #pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
@@ -206,7 +204,7 @@ public sealed partial class ArrayPrototype
         for (var k = length - 1; k >= 0; k--)
         {
             var key = ToIndexString(k);
-            var value = accessor.TryGetProperty(key, out var candidate) ? candidate : Symbol.Undefined;
+            var value = accessor.TryGetProperty(key, out var candidate) ? JsValue.FromObject(candidate) : JsValue.FromObject(Symbol.Undefined);
 
             var matches = callback.Invoke([JsValue.FromObject(value), new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.FromObject(thisArg));
 #pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy

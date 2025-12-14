@@ -240,7 +240,7 @@ internal static class JsOps
                         // Symbol wrappers should behave like their unboxed symbol value for ToNumeric
                         // so mixed BigInt/Symbol cases throw correctly.
                         if (jsObj.TryGetProperty("SymbolData", out var symbolData) &&
-                            symbolData is TypedAstSymbol sym)
+                            symbolData.TryGetObject<TypedAstSymbol>(out var sym))
                         {
                             value = sym;
                             continue;

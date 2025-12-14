@@ -65,7 +65,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 // Per ES spec 6.2.3.2 PutValue, if set fails in strict mode, throw TypeError
-                if (!binding.TrySetProperty(propertyName, superAssignedValue, out _) &&
+                if (!binding.TrySetProperty(propertyName, JsValue.FromObject(superAssignedValue), out _) &&
                     context.CurrentScope.IsStrict)
                 {
                     throw StandardLibrary.ThrowTypeError(

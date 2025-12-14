@@ -35,7 +35,7 @@ public sealed partial class ArrayPrototype
             for (var i = 0; i < args.Count; i++)
             {
                 var index = length + i;
-                accessor.SetProperty(ToIndexString(index), args[i].ToObject());
+                accessor.SetProperty(ToIndexString(index), args[i]);
             }
 
             // Set length using ToUint32 semantics
@@ -44,7 +44,7 @@ public sealed partial class ArrayPrototype
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, Symbol.Undefined);
+            accessor.SetProperty(ReentrancyKey, JsValue.FromObject(Symbol.Undefined));
         }
     }
 
@@ -88,7 +88,7 @@ public sealed partial class ArrayPrototype
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, Symbol.Undefined);
+            accessor.SetProperty(ReentrancyKey, JsValue.FromObject(Symbol.Undefined));
         }
     }
 
@@ -137,7 +137,7 @@ public sealed partial class ArrayPrototype
                 var fromExists = TryGetExistingElement(accessor, fromKey, out var fromValue);
                 if (fromExists)
                 {
-                    accessor.SetProperty(toKey, fromValue);
+                    accessor.SetProperty(toKey, JsValue.FromObject(fromValue));
                 }
                 else
                 {
@@ -154,7 +154,7 @@ public sealed partial class ArrayPrototype
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, Symbol.Undefined);
+            accessor.SetProperty(ReentrancyKey, JsValue.FromObject(Symbol.Undefined));
         }
     }
 
@@ -193,7 +193,7 @@ public sealed partial class ArrayPrototype
                 var fromExists = TryGetExistingElement(accessor, fromKey, out var fromValue);
                 if (fromExists)
                 {
-                    accessor.SetProperty(toKey, fromValue);
+                    accessor.SetProperty(toKey, JsValue.FromObject(fromValue));
                 }
                 else
                 {
@@ -204,7 +204,7 @@ public sealed partial class ArrayPrototype
 
             for (var j = 0; j < argCount; j++)
             {
-                accessor.SetProperty(ToIndexString(j), args[j].ToObject());
+                accessor.SetProperty(ToIndexString(j), args[j]);
             }
 
             var newLength = length + argCount;
@@ -213,7 +213,7 @@ public sealed partial class ArrayPrototype
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, Symbol.Undefined);
+            accessor.SetProperty(ReentrancyKey, JsValue.FromObject(Symbol.Undefined));
         }
     }
 
@@ -298,7 +298,7 @@ public sealed partial class ArrayPrototype
 
                     if (TryGetExistingElement(accessor, fromKey, out var fromValue))
                     {
-                        accessor.SetProperty(toKey, fromValue);
+                        accessor.SetProperty(toKey, JsValue.FromObject(fromValue));
                     }
                     else
                     {
@@ -325,7 +325,7 @@ public sealed partial class ArrayPrototype
 
                     if (TryGetExistingElement(accessor, fromKey, out var fromValue))
                     {
-                        accessor.SetProperty(toKey, fromValue);
+                        accessor.SetProperty(toKey, JsValue.FromObject(fromValue));
                     }
                     else
                     {
@@ -337,7 +337,7 @@ public sealed partial class ArrayPrototype
 
             for (var j = 0; j < insertCount; j++)
             {
-                accessor.SetProperty(ToIndexString(actualStart + j), args[j + 2].ToObject());
+                accessor.SetProperty(ToIndexString(actualStart + j), args[j + 2]);
             }
 
             accessor.SetProperty("length", (double)newLength);
@@ -345,7 +345,7 @@ public sealed partial class ArrayPrototype
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, Symbol.Undefined);
+            accessor.SetProperty(ReentrancyKey, JsValue.FromObject(Symbol.Undefined));
         }
     }
 
@@ -391,14 +391,14 @@ public sealed partial class ArrayPrototype
 
                 if (lowerExists && upperExists)
                 {
-                    accessor.SetProperty(lowerKey, upperValue);
-                    accessor.SetProperty(upperKey, lowerValue);
+                    accessor.SetProperty(lowerKey, JsValue.FromObject(upperValue));
+                    accessor.SetProperty(upperKey, JsValue.FromObject(lowerValue));
                     continue;
                 }
 
                 if (!lowerExists && upperExists)
                 {
-                    accessor.SetProperty(lowerKey, upperValue);
+                    accessor.SetProperty(lowerKey, JsValue.FromObject(upperValue));
                     DeletePropertyOrThrow(objectLike, upperKey, upperExists, MethodName, Realm);
                     continue;
                 }
@@ -406,7 +406,7 @@ public sealed partial class ArrayPrototype
                 if (lowerExists && !upperExists)
                 {
                     DeletePropertyOrThrow(objectLike, lowerKey, lowerExists, MethodName, Realm);
-                    accessor.SetProperty(upperKey, lowerValue);
+                    accessor.SetProperty(upperKey, JsValue.FromObject(lowerValue));
                     continue;
                 }
 
@@ -418,7 +418,7 @@ public sealed partial class ArrayPrototype
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, Symbol.Undefined);
+            accessor.SetProperty(ReentrancyKey, JsValue.FromObject(Symbol.Undefined));
         }
     }
 

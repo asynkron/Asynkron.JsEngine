@@ -124,9 +124,7 @@ public sealed partial class ArrayConstructor : JsConstructor
         array.SetProperty("length", (double)args.Count);
         for (var i = 0; i < args.Count; i++)
         {
-#pragma warning disable CS0618 // ToObject is obsolete but needed here for SetProperty
-            array.SetProperty(StandardLibrary.ToIndexString(i), args[i].ToObject());
-#pragma warning restore CS0618
+            array.SetProperty(StandardLibrary.ToIndexString(i), args[i]);
         }
     }
 

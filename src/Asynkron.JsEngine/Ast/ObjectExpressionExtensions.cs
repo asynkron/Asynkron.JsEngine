@@ -209,7 +209,7 @@ public static partial class TypedAstEvaluator
                                 : Symbol.Undefined;
                             obj.DefineProperty(key, new PropertyDescriptor
                             {
-                                Value = spreadPropertyValue,
+                                Value = JsValue.FromObject(spreadPropertyValue),
                                 Writable = true,
                                 Enumerable = true,
                                 Configurable = true

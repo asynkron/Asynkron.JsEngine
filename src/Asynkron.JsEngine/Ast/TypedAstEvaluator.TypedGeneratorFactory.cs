@@ -254,10 +254,10 @@ public static partial class TypedAstEvaluator
             }
 
             // Fall back to properties lookup for all other properties
-            var receiverObj = receiver.IsUndefined ? this : receiver.ToObject();
-            if (_properties.TryGetProperty(name, receiverObj, out var objValue))
+            var receiverValue = receiver.IsUndefined ? JsValue.FromObject(this) : receiver;
+            if (_properties.TryGetProperty(name, receiverValue, out var objValue))
             {
-                value = JsValue.FromObject(objValue);
+                value = objValue;
                 return true;
             }
 
@@ -285,8 +285,8 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            var receiverObj = receiver.IsUndefined ? this : receiver.ToObject();
-            _properties.SetProperty(name, value.ToObject(), receiverObj);
+            var receiverValue = receiver.IsUndefined ? JsValue.FromObject(this) : receiver;
+            _properties.SetProperty(name, value, receiverValue);
         }
 
         PropertyDescriptor? IJsPropertyAccessor.GetOwnPropertyDescriptor(string name)
@@ -392,7 +392,7 @@ public static partial class TypedAstEvaluator
                     }
 
                     // GeneratorFunction.prototype = GeneratorFunctionPrototype
-                    generatorFunctionConstructor.SetProperty("prototype", genFuncProto);
+                    generatorFunctionConstructor.SetProperty("prototype", JsValue.FromObject(genFuncProto));
                 }
             }
         }

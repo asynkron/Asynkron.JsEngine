@@ -56,15 +56,15 @@ public static partial class TypedAstEvaluator
     private static SuperBinding? ResolveStaticInitializationSuperBinding(IJsPropertyAccessor constructorAccessor)
     {
         if (!constructorAccessor.TryGetProperty("__proto__", out var prototypeValue) ||
-            ReferenceEquals(prototypeValue, Symbol.Undefined))
+            prototypeValue.IsNullish)
         {
             return null;
         }
 
-        var prototypeAccessor = prototypeValue as IJsPropertyAccessor;
-        var superConstructor = prototypeValue as IJsEnvironmentAwareCallable;
+        var prototypeAccessor = prototypeValue.TryGetObject<IJsPropertyAccessor>(out var pa) ? pa : null;
+        var superConstructor = prototypeValue.TryGetObject<IJsEnvironmentAwareCallable>(out var sc) ? sc : null;
 
-        if (prototypeValue is null)
+        if (prototypeValue.IsNull)
         {
             return new SuperBinding(null, null, JsValue.FromObject(constructorAccessor), true);
         }

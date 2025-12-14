@@ -28,7 +28,7 @@ public sealed class JsPromise
     {
         if (candidate.IsObject &&
             candidate.AsObject().TryGetProperty(InternalPromiseKey, out var inner) &&
-            inner is JsPromise jsPromise)
+            inner.TryGetObject<JsPromise>(out var jsPromise))
         {
             promise = jsPromise;
             return true;
@@ -58,7 +58,7 @@ public sealed class JsPromise
         if (value.IsObject &&
             value.AsObject() is IJsPropertyAccessor accessor &&
             accessor.TryGetProperty("then", out var thenValue) &&
-            thenValue is IJsCallable thenMethod)
+            thenValue.TryGetObject<IJsCallable>(out var thenMethod))
         {
             // Value is a thenable - adopt its state
             ResolveThenable(accessor, thenMethod);
@@ -265,7 +265,7 @@ public sealed class JsPromise
         // If the result is a promise (JsObject with "then" method), chain it
         if (result.IsObject &&
             result.AsObject().TryGetProperty("then", out var thenMethod) &&
-            thenMethod is IJsCallable thenCallable)
+            thenMethod.TryGetObject<IJsCallable>(out var thenCallable))
         {
             // Use lightweight callback objects instead of closures
             var resolveCallback = new ChainResolveCallback(nextPromise);

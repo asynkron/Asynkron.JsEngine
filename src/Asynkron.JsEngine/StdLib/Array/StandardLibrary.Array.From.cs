@@ -109,8 +109,8 @@ public static partial class StandardLibrary
             var key = ToIndexString(k);
             var value = GetElementOrUndefined(arrayLike, key);
             var mapped = mapping && mapper is not null
-                ? InvokeArrayFromMapper(mapper, host, thisArg, value, k)
-                : value;
+                ? JsValue.FromObject(InvokeArrayFromMapper(mapper, host, thisArg, value, k))
+                : JsValue.FromObject(value);
             CreateDataPropertyOrThrow(result, key, mapped, realm, MethodName);
             k++;
         }
@@ -249,13 +249,13 @@ public static partial class StandardLibrary
                 throw ThrowTypeError("Array.from result exceeds 2^32 - 1 elements", realm: realm);
             }
 
-            var value = stepAccessor.TryGetProperty("value", out var entryValue) ? entryValue : JsValue.Undefined;
+            var value = stepAccessor.TryGetProperty("value", out var entryValue) ? JsValue.FromObject(entryValue) : JsValue.Undefined;
             var mappedValue = value;
             if (mapping && mapper is not null)
             {
                 try
                 {
-                    mappedValue = InvokeArrayFromMapper(mapper, host, thisArg, value, k);
+                    mappedValue = JsValue.FromObject(InvokeArrayFromMapper(mapper, host, thisArg, value, k));
                 }
                 catch (ThrowSignal)
                 {
@@ -454,7 +454,7 @@ public static partial class StandardLibrary
                 return false;
             }
 
-            var value = stepAccessor.TryGetProperty("value", out var entryValue) ? entryValue : Symbol.Undefined;
+            var value = stepAccessor.TryGetProperty("value", out var entryValue) ? JsValue.FromObject(entryValue) : JsValue.FromObject(Symbol.Undefined);
             if (TryAwaitPromiseLike(value, realm,
                     resolved =>
                     {

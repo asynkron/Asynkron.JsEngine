@@ -302,8 +302,8 @@ public sealed class JsEngine : IAsyncDisposable
             new HostFunction((_, args) => DynamicImport(args, null, ImportPhase.Source, null), RealmState, isConstructor: false);
         importSourceFunction.SetInvokeWithContext(
             (args, thisValue, ctx, _) => DynamicImport(args, ctx, ImportPhase.Source, importSourceFunction));
-        importFunction.SetProperty("defer", importDeferFunction);
-        importFunction.SetProperty("source", importSourceFunction);
+        importFunction.SetProperty("defer", JsValue.FromObject(importDeferFunction));
+        importFunction.SetProperty("source", JsValue.FromObject(importSourceFunction));
         SetGlobal("import", importFunction);
 
         // Provide a stable global object helper used by Test262 harness utilities.
@@ -1499,15 +1499,15 @@ public sealed class JsEngine : IAsyncDisposable
 
         if (RealmState?.PromiseConstructor is IJsPropertyAccessor realmPromiseCtor &&
             realmPromiseCtor.TryGetProperty("prototype", out var realmPrototype) &&
-            realmPrototype is IJsPropertyAccessor promisePrototypeAccessorFromCtor)
+            realmPrototype.TryGetObject<IJsPropertyAccessor>(out var promisePrototypeAccessorFromCtor))
         {
             return promisePrototypeAccessorFromCtor;
         }
 
         if (GlobalObject.TryGetProperty("Promise", out var promiseCtor) &&
-            promiseCtor is IJsPropertyAccessor promiseCtorAccessor &&
+            promiseCtor.TryGetObject<IJsPropertyAccessor>(out var promiseCtorAccessor) &&
             promiseCtorAccessor.TryGetProperty("prototype", out var promiseProto) &&
-            promiseProto is IJsPropertyAccessor promisePrototypeAccessor)
+            promiseProto.TryGetObject<IJsPropertyAccessor>(out var promisePrototypeAccessor))
         {
             return promisePrototypeAccessor;
         }
@@ -4205,7 +4205,7 @@ public sealed class JsEngine : IAsyncDisposable
             }
 
             if (!promiseObject.TryGetProperty("then", out var thenValue) ||
-                thenValue is not IJsCallable thenCallable)
+                !thenValue.TryGetObject<IJsCallable>(out var thenCallable))
             {
                 throw new NotSupportedException("Await expression produced a non-awaitable value.");
             }
@@ -4568,7 +4568,7 @@ public sealed class JsEngine : IAsyncDisposable
             }
 
             if (!promiseObject.TryGetProperty("then", out var thenValue) ||
-                thenValue is not IJsCallable thenCallable)
+                !thenValue.TryGetObject<IJsCallable>(out var thenCallable))
             {
                 throw new NotSupportedException("Await expression produced a non-awaitable value.");
             }
@@ -4782,7 +4782,7 @@ public sealed class JsEngine : IAsyncDisposable
             }
 
             if (!promiseObject.TryGetProperty("then", out var thenValue) ||
-                thenValue is not IJsCallable thenCallable)
+                !thenValue.TryGetObject<IJsCallable>(out var thenCallable))
             {
                 throw new NotSupportedException("Await expression produced a non-awaitable value.");
             }

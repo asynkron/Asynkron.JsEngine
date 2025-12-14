@@ -404,7 +404,7 @@ public static partial class TypedAstEvaluator
         if (!environment.TryGet(Symbol.PromiseIdentifier, out var promiseCtor) ||
             promiseCtor is not IJsPropertyAccessor accessor ||
             !accessor.TryGetProperty("reject", out var rejectValue) ||
-            rejectValue is not IJsCallable rejectCallable)
+            !rejectValue.TryGetObject<IJsCallable>(out var rejectCallable))
         {
             return reason;
         }
@@ -421,17 +421,17 @@ public static partial class TypedAstEvaluator
 
     private static object? CreateResolvedPromise(object? value, JsEnvironment environment)
     {
-        object? resolveCandidate = null;
+        JsValue resolveCandidate = JsValue.Undefined;
         if (!environment.TryGet(Symbol.PromiseIdentifier, out var promiseCtor) ||
             promiseCtor is not IJsPropertyAccessor accessor ||
             !accessor.TryGetProperty("resolve", out resolveCandidate) ||
-            resolveCandidate is not IJsCallable resolveCallable)
+            !resolveCandidate.TryGetObject<IJsCallable>(out var resolveCallable))
         {
             environment.RealmState?.Logger?.LogInformation(
                 "CreateResolvedPromise falling back (promiseCtorType={CtorType}, hasResolve={HasResolve}, resolveCallable={ResolveCallable})",
                 promiseCtor?.GetType().Name ?? "null",
                 promiseCtor is IJsPropertyAccessor a && a.TryGetProperty("resolve", out _),
-                resolveCandidate is IJsCallable);
+                resolveCandidate.TryGetObject<IJsCallable>(out _));
             return value;
         }
 
@@ -1206,7 +1206,7 @@ public static partial class TypedAstEvaluator
             // Fallback: treat objects with a callable `next` as iterators even if
             // @@iterator is missing so generator objects still participate in
             // destructuring when their symbol lookup fails.
-            if (!iteratorTarget.TryGetProperty("next", out var nextVal) || nextVal is not IJsCallable)
+            if (!iteratorTarget.TryGetProperty("next", out var nextVal) || !nextVal.TryGetObject<IJsCallable>(out _))
             {
                 return false;
             }
@@ -1297,9 +1297,9 @@ public static partial class TypedAstEvaluator
             iterator.SetPrototype(prototype);
         }
 
-        iterator.SetProperty("next", new HostFunction(next));
-        iterator.SetProperty("return", new HostFunction(@return));
-        iterator.SetProperty("throw", new HostFunction(@throw));
+        iterator.SetProperty("next", JsValue.FromObject(new HostFunction(next)));
+        iterator.SetProperty("return", JsValue.FromObject(new HostFunction(@return)));
+        iterator.SetProperty("throw", JsValue.FromObject(new HostFunction(@throw)));
         return iterator;
     }
 }

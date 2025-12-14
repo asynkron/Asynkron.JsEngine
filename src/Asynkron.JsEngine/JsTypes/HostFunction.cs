@@ -452,12 +452,12 @@ namespace Asynkron.JsEngine.JsTypes;
         }
 
         var prototype = new JsObject();
-        prototype.SetProperty("constructor", this);
+        prototype.SetProperty("constructor", JsValue.FromObject(this));
         // Per ES spec, the "prototype" property on constructor functions should be
         // writable, but NOT enumerable and NOT configurable
         Properties.DefineProperty("prototype", new PropertyDescriptor
         {
-            Value = prototype,
+            Value = JsValue.FromObject(prototype),
             Writable = true,
             Enumerable = false,
             Configurable = false

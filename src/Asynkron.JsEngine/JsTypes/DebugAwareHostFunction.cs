@@ -14,7 +14,7 @@ public sealed class DebugAwareHostFunction : IJsEnvironmentAwareCallable, IJsPro
     public DebugAwareHostFunction(Func<JsEnvironment, EvaluationContext, IReadOnlyList<JsValue>, JsValue> handler)
     {
         _handler = handler ?? throw new ArgumentNullException(nameof(handler));
-        _properties.SetProperty("prototype", new JsObject());
+        _properties.SetProperty("prototype", JsValue.FromObject(new JsObject()));
     }
 
     // Store the environment and context for the invoke

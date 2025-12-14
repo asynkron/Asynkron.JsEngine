@@ -1210,7 +1210,7 @@ public static partial class TypedAstEvaluator
                     ? "anonymous function prototype (materialized)"
                     : $"prototype of {_function.Name!.Name} (materialized)"
             };
-            _properties.SetProperty("prototype", created);
+            _properties.SetProperty("prototype", JsValue.FromObject(created));
             _prototypeObject = created;
             return created;
         }

@@ -375,8 +375,8 @@ public static partial class TypedAstEvaluator
                         var boundThis = args.GetArgument(0);
                         var boundArgs = args.SliceFrom(1);
                         var targetIsConstructor = JsOps.IsConstructor(callable);
-                        return HostFunction.CreateBoundFunction(callable, boundThis, boundArgs, targetIsConstructor,
-                            _realmState);
+                        return JsValue.FromObject(HostFunction.CreateBoundFunction(callable, boundThis, boundArgs, targetIsConstructor,
+                            _realmState));
                     }, isConstructor: false);
                     return true;
             }
@@ -475,7 +475,7 @@ public static partial class TypedAstEvaluator
             if (_realmState.Logger is { } logger && _isStrict && !thisValue.IsUndefined)
             {
                 logger.LogInformation("TypedFunction strict received thisValue type={Type}",
-                    thisValue.Type);
+                    thisValue.Kind);
             }
             if (callingContext is not null)
             {

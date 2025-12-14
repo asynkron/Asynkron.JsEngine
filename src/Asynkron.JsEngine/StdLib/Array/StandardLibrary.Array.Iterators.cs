@@ -29,7 +29,7 @@ public static partial class StandardLibrary
         iterator.SetHostedProperty(iteratorKey, ReturnIterator, realm);
         return iterator;
 
-        object? Next(object? _, IReadOnlyList<object?> __, RealmState? ___)
+        JsValue Next(JsValue _, IReadOnlyList<JsValue> __, RealmState? ___)
         {
             realm?.Logger?.LogInformation("ArrayIterator.next index={Index}", index);
             if (exhausted)
@@ -61,12 +61,12 @@ public static partial class StandardLibrary
                 exhausted = true;
             }
 
-            return result;
+            return new JsValue(result);
         }
 
-        object? ReturnIterator(object? _, IReadOnlyList<object?> __, RealmState? ___)
+        JsValue ReturnIterator(JsValue _, IReadOnlyList<JsValue> __, RealmState? ___)
         {
-            return iterator;
+            return new JsValue(iterator);
         }
     }
 }

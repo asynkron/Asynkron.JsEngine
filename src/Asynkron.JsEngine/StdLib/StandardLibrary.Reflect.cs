@@ -107,8 +107,8 @@ public static partial class StandardLibrary
                 arrayInstance.SetPrototype(proto);
             }
 
-            var result = target.Invoke(argList, new JsValue(arrayInstance));
-            return result.TryGetObject<JsObject>(out var jsObj) ? new JsValue(jsObj) : new JsValue(arrayInstance);
+            var result = target.Invoke(argList, JsValue.FromObject(arrayInstance));
+            return result.TryGetObject<JsObject>(out var jsObj) ? new JsValue(jsObj) : JsValue.FromObject(arrayInstance);
         }
 
         var instance = new JsObject();
@@ -127,7 +127,7 @@ public static partial class StandardLibrary
             if (invokeWithContext is not null)
             {
                 var constructContext = realm.CreateContext(pushScope: false);
-                var invokeResult = invokeWithContext.Invoke(target, [argList, new JsValue(instance), constructContext, new JsValue(newTarget)]);
+                var invokeResult = invokeWithContext.Invoke(target, [argList, new JsValue(instance), constructContext, JsValue.FromObject(newTarget)]);
                 constructed = invokeResult is JsValue jsv ? jsv : JsValue.FromObject(invokeResult);
             }
             else

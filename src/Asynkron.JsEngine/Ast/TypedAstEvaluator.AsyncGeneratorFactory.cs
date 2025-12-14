@@ -101,7 +101,7 @@ public static partial class TypedAstEvaluator
             var instance = new AsyncGeneratorInstance(
                 _function,
                 _closure,
-                ConvertArgumentsToObjectList(arguments),
+                arguments,
                 thisValue,
                 this,
                 _realmState,
@@ -112,16 +112,6 @@ public static partial class TypedAstEvaluator
                 _capturedPrivateNameScopes);
             instance.Initialize();
             return JsValue.FromObject(instance.CreateAsyncIteratorObject());
-        }
-
-        private static IReadOnlyList<object?> ConvertArgumentsToObjectList(IReadOnlyList<JsValue> arguments)
-        {
-            var result = new object?[arguments.Count];
-            for (var i = 0; i < arguments.Count; i++)
-            {
-                result[i] = arguments[i].ToObject();
-            }
-            return result;
         }
 
         public JsObject? Prototype => _properties.Prototype;

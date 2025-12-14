@@ -67,7 +67,7 @@ public static partial class StandardLibrary
                 Value = displayNamesCtor, Writable = true, Enumerable = false, Configurable = true
             });
 
-        var getCanonicalLocales = new HostFunction(args => new JsValue(CreateCanonicalLocalesResult(args)), realm,
+        var getCanonicalLocales = new HostFunction(args => JsValue.FromObject(CreateCanonicalLocalesResult(args)), realm,
             isConstructor: false);
         getCanonicalLocales.DefineProperty("length",
             new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
@@ -85,7 +85,7 @@ public static partial class StandardLibrary
             });
 
         var supportedValuesOf =
-            new HostFunction(args => new JsValue(CreateSupportedValuesResult(args)), realm, isConstructor: false);
+            new HostFunction(args => JsValue.FromObject(CreateSupportedValuesResult(args)), realm, isConstructor: false);
         supportedValuesOf.DefineProperty("length",
             new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
         supportedValuesOf.DefineProperty("name",

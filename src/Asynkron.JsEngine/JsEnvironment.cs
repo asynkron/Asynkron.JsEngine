@@ -2464,7 +2464,7 @@ public sealed class JsEnvironment
 
             _resolved = true;
             _resolvedValue = value;
-            _promise.Resolve(value);
+            _promise.Resolve(JsValue.FromObject(value));
         }
 
         public bool IsConst { get; }

@@ -1840,7 +1840,7 @@ internal static class JsOps
                             return true;
                         }
 
-                        TypedAstEvaluator.InvokeCallable(ownDescriptor.Set, new JsValue[] { JsValue.FromObject(value) }, new JsValue(jsArray), context);
+                        TypedAstEvaluator.InvokeCallable(ownDescriptor.Set, new JsValue[] { JsValue.FromObject(value) }, JsValue.FromObject(jsArray), context);
                         return true;
                     }
 
@@ -1882,7 +1882,7 @@ internal static class JsOps
                                 return true;
                             }
 
-                            TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, new JsValue[] { JsValue.FromObject(value) }, new JsValue(jsArray), context);
+                            TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, new JsValue[] { JsValue.FromObject(value) }, JsValue.FromObject(jsArray), context);
                             return true;
                         }
 

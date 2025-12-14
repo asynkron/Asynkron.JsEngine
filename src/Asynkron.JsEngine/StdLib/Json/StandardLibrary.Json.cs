@@ -120,8 +120,8 @@ public static partial class StandardLibrary
             }
         }
 
-        var replacement = reviver.Invoke([name, value], holder);
-        return replacement;
+        var replacement = reviver.Invoke([new JsValue(name), JsValue.FromObject(value)], JsValue.FromObject(holder));
+        return replacement.ToObject();
     }
 
     internal static string StringifyValue(object? value, int depth = 0)

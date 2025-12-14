@@ -13,7 +13,7 @@ public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState
     {
         var target = RequireObject(args.GetArgument(0), "Proxy target must be an object");
         var handler = RequireObject(args.GetArgument(1), "Proxy handler must be an object");
-        return new JsValue(new JsProxy(target, handler, Realm));
+        return JsValue.FromObject(new JsProxy(target, handler, Realm));
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)

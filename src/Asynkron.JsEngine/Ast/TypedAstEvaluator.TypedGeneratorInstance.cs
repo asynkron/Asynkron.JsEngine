@@ -90,8 +90,8 @@ public static partial class TypedAstEvaluator
                 args => Return(args.Count > 0 ? args[0] : JsValue.Undefined),
                 args => Throw(args.Count > 0 ? args[0] : JsValue.Undefined),
                 prototype);
-            iterator.SetProperty(IteratorSymbolPropertyName, new JsValue(new HostFunction((_, _) => new JsValue(iterator))));
-            iterator.SetProperty(GeneratorBrandPropertyName, new JsValue(GeneratorBrandMarker));
+            iterator.SetProperty(IteratorSymbolPropertyName, JsValue.FromObject(new HostFunction((_, _) => new JsValue(iterator))));
+            iterator.SetProperty(GeneratorBrandPropertyName, JsValue.FromObject(GeneratorBrandMarker));
             return iterator;
         }
 
@@ -122,10 +122,13 @@ public static partial class TypedAstEvaluator
             // 2. If it's an object, use it
             // 3. Otherwise, fall back to %GeneratorPrototype% (the intrinsic default)
             if (_callable is IJsPropertyAccessor accessor &&
-                accessor.TryGetProperty("prototype", out var protoValue) &&
-                protoValue.TryGetObject<JsObject>(out var prototypeObject))
+                accessor.TryGetProperty("prototype", out var protoValue))
             {
-                return prototypeObject;
+                var protoJsValue = JsValue.FromObject(protoValue);
+                if (protoJsValue.TryGetObject<JsObject>(out var prototypeObject))
+                {
+                    return prototypeObject;
+                }
             }
 
             // Fall back to %GeneratorPrototype% if the function's .prototype is not an object
@@ -155,9 +158,11 @@ public static partial class TypedAstEvaluator
 
                 if (result.TryGetObject<JsObject>(out var obj) &&
                     obj.TryGetProperty("done", out var doneRaw) &&
-                    doneRaw.TryGetObject<bool>(out var done) &&
-                    obj.TryGetProperty("value", out var value))
+                    obj.TryGetProperty("value", out var valueRaw))
                 {
+                    var doneJsValue = JsValue.FromObject(doneRaw);
+                    var done = doneJsValue.IsTruthy;
+                    var value = JsValue.FromObject(valueRaw);
                     return done
                         ? new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Completed, value, true, JsValue.Undefined)
                         : new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Yield, value, false, JsValue.Undefined);
@@ -271,7 +276,7 @@ public static partial class TypedAstEvaluator
                          !boundThis.IsNullish &&
                          !boundThis.TryGetObject<IIsHtmlDda>(out _))
                 {
-                    boundThis = new JsValue(ToObjectForDestructuring(boundThis.ToObject(), generatorContext));
+                    boundThis = JsValue.FromObject(ToObjectForDestructuring(boundThis.ToObject(), generatorContext));
                 }
             }
 
@@ -291,8 +296,15 @@ public static partial class TypedAstEvaluator
                 functionEnvironment.Define(Symbol.Super, superBinding);
             }
 
+            // Convert JsValue arguments to object? for CreateArgumentsObject and BindFunctionParameters
+            var argumentValues = new object?[_arguments.Count];
+            for (var i = 0; i < _arguments.Count; i++)
+            {
+                argumentValues[i] = _arguments[i].ToObject();
+            }
+
             var argumentsObject =
-                CreateArgumentsObject(_function, _arguments, parameterEnvironment, _realmState, _callable,
+                CreateArgumentsObject(_function, argumentValues, parameterEnvironment, _realmState, _callable,
                     _isStrict);
             parameterEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
             if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
@@ -310,7 +322,7 @@ public static partial class TypedAstEvaluator
                 catchParameterNames: catchParameterNames,
                 simpleCatchParameterNames: simpleCatchParameterNames);
 
-            BindFunctionParameters(_function, _arguments, parameterEnvironment, generatorContext);
+            BindFunctionParameters(_function, argumentValues, parameterEnvironment, generatorContext);
             if (generatorContext.IsThrow)
             {
                 var thrown = generatorContext.FlowValue;
@@ -1123,9 +1135,9 @@ public static partial class TypedAstEvaluator
                                     continue;
                                 }
 
-                                awaitedValue = new JsValue(fullyAwaitedValue);
+                                awaitedValue = fullyAwaitedValue;
                             }
-                            else if (driverState.Enumerator is IEnumerator<object?> awaitEnumerator)
+                            else if (driverState.Enumerator is IEnumerator<JsValue> awaitEnumerator)
                             {
                                 if (!awaitEnumerator.MoveNext())
                                 {
@@ -1134,7 +1146,7 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 var enumerated = awaitEnumerator.Current;
-                                if (!TryAwaitPromiseOrSchedule(new JsValue(enumerated), context, out var awaitedEnumerated))
+                                if (!TryAwaitPromiseOrSchedule(enumerated, context, out var awaitedEnumerated))
                                 {
                                     if (_asyncStepMode && _pendingPromise.TryGetObject<JsObject>(out _))
                                     {
@@ -1163,7 +1175,7 @@ public static partial class TypedAstEvaluator
                                     continue;
                                 }
 
-                                awaitedValue = new JsValue(awaitedEnumerated);
+                                awaitedValue = awaitedEnumerated;
                             }
                             else
                             {

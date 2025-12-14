@@ -128,8 +128,8 @@ public static partial class TypedAstEvaluator
                 DecoratorExpression => throw new NotSupportedException("Decorators are not supported."),
                 TemplateLiteralExpression template => EvaluateTemplateLiteral(template, environment, context),
                 TaggedTemplateExpression taggedTemplate => EvaluateTaggedTemplate(taggedTemplate, environment, context),
-                AwaitExpression awaitExpression => JsValue.FromObject(EvaluateAwait(awaitExpression, environment, context)),
-                YieldExpression yieldExpression => JsValue.FromObject(EvaluateYield(yieldExpression, environment, context)),
+                AwaitExpression awaitExpression => EvaluateAwait(awaitExpression, environment, context),
+                YieldExpression yieldExpression => EvaluateYield(yieldExpression, environment, context),
                 ThisExpression => JsValue.FromObject(ResolveThisValue(environment, context)),
                 SuperExpression => throw new InvalidOperationException(
                     $"Super is not available in this context.{GetSourceInfo(context, expression.Source)}"),

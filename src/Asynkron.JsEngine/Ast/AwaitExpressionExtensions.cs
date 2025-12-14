@@ -7,7 +7,7 @@ public static partial class TypedAstEvaluator
 {
     extension(AwaitExpression expression)
     {
-        private object? EvaluateAwait(JsEnvironment environment,
+        private JsValue EvaluateAwait(JsEnvironment environment,
             EvaluationContext context)
         {
             // Async generators execute on the generator IR path via TypedGeneratorInstance.
@@ -18,13 +18,13 @@ public static partial class TypedAstEvaluator
             if (environment.TryGet(Symbol.GeneratorInstanceSymbol, out var instanceObj) &&
                 instanceObj is TypedGeneratorInstance generator)
             {
-                return generator.EvaluateAwaitInGenerator(expression, environment, context);
+                return JsValue.FromObject(generator.EvaluateAwaitInGenerator(expression, environment, context));
             }
 
             var awaitedValue = EvaluateExpression(expression.Expression, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return awaitedValue.ToObject();
+                return awaitedValue;
             }
 
             var awaited = awaitedValue.ToObject();
@@ -61,10 +61,10 @@ public static partial class TypedAstEvaluator
                     out var resolvedValue,
                     context.DrainAwaitMicrotasks))
             {
-                return resolvedValue;
+                return JsValue.FromObject(resolvedValue);
             }
 
-            return resolvedValue;
+            return JsValue.FromObject(resolvedValue);
         }
 
         private Symbol? GetAwaitStateKey()

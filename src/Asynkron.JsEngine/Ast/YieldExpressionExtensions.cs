@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.JsTypes;
 using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
@@ -6,7 +7,7 @@ public static partial class TypedAstEvaluator
 {
     extension(YieldExpression expression)
     {
-        private object? EvaluateYield(JsEnvironment environment,
+        private JsValue EvaluateYield(JsEnvironment environment,
             EvaluationContext context)
         {
             return expression.IsDelegated
@@ -14,7 +15,7 @@ public static partial class TypedAstEvaluator
                 : EvaluateSimpleYield(expression, environment, context);
         }
 
-        private object? EvaluateSimpleYield(JsEnvironment environment,
+        private JsValue EvaluateSimpleYield(JsEnvironment environment,
             EvaluationContext context)
         {
             var logger = environment.RealmState?.Logger;
@@ -26,7 +27,7 @@ public static partial class TypedAstEvaluator
                 if (!payload.HasValue)
                 {
                     logger?.LogInformation("Yield skip without payload index={Index}", yieldIndex);
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
 
                 logger?.LogInformation(
@@ -39,32 +40,33 @@ public static partial class TypedAstEvaluator
                 if (payload.IsThrow)
                 {
                     context.SetThrow(payload.Value);
-                    return payload.Value;
+                    return JsValue.FromObject(payload.Value);
                 }
 
                 if (payload.IsReturn)
                 {
                     context.SetReturn(payload.Value);
-                    return payload.Value;
+                    return JsValue.FromObject(payload.Value);
                 }
 
-                return payload.Value;
+                return JsValue.FromObject(payload.Value);
             }
 
-            var yieldedValue = expression.Expression is null
-                ? Symbol.Undefined
-                : EvaluateExpression(expression.Expression, environment, context).ToObject();
+            var yieldedValueJs = expression.Expression is null
+                ? JsValue.Undefined
+                : EvaluateExpression(expression.Expression, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return yieldedValue;
+                return yieldedValueJs;
             }
 
+            var yieldedValue = yieldedValueJs.ToObject();
             context.SetYield(yieldedValue, yieldIndex);
             yieldTracker.MarkConsumed(yieldIndex);
-            return yieldedValue;
+            return yieldedValueJs;
         }
 
-        private object? EvaluateDelegatedYield(JsEnvironment environment,
+        private JsValue EvaluateDelegatedYield(JsEnvironment environment,
             EvaluationContext context)
         {
             if (expression.Expression is null)
@@ -77,16 +79,16 @@ public static partial class TypedAstEvaluator
 
                 if (state is null)
                 {
-                    var iterable = EvaluateExpression(expression.Expression, environment, context).ToObject();
+                    var iterableJs = EvaluateExpression(expression.Expression, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
-                        return iterable;
+                        return iterableJs;
                     }
 
-                    state = CreateDelegatedState(iterable, context);
+                    state = CreateDelegatedState(iterableJs.ToObject(), context);
                     if (context.ShouldStopEvaluation)
                     {
-                        return context.FlowValue;
+                        return JsValue.FromObject(context.FlowValue);
                     }
 
                     StoreDelegatedState(stateKey, environment, state);
@@ -137,7 +139,7 @@ public static partial class TypedAstEvaluator
 
                 if (awaitedPromise && context.IsThrow)
                 {
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
 
                 pendingSend = null;
@@ -151,21 +153,21 @@ public static partial class TypedAstEvaluator
                     {
                         context.SetThrow(iteratorResult.Value);
                         ClearDelegatedState(stateKey, environment);
-                        return iteratorResult.Value;
+                        return JsValue.FromObject(iteratorResult.Value);
                     }
 
                     // For return propagation (when inner iterator has no return method),
                     // signal a return completion to the outer generator
                     ClearDelegatedState(stateKey, environment);
                     context.SetReturn(iteratorResult.Value);
-                    return iteratorResult.Value;
+                    return JsValue.FromObject(iteratorResult.Value);
                 }
 
                 var (value, done) = (iteratorResult.Value, iteratorResult.Done);
                 if (done)
                 {
                     ClearDelegatedState(stateKey, environment);
-                    return value;
+                    return JsValue.FromObject(value);
                 }
 
                 if (!tracker.ShouldYield(out var yieldIndex))
@@ -215,7 +217,7 @@ public static partial class TypedAstEvaluator
                 // the outer generator returns that same object instead of creating a new one with done: false
                 context.SetYieldWithIteratorResult(value, yieldIndex, iteratorResult.IteratorResultObject);
                 tracker.MarkConsumed(yieldIndex);
-                return value;
+                return JsValue.FromObject(value);
             }
         }
 

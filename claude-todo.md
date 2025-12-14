@@ -45,9 +45,9 @@ After each file, run tests to ensure nothing breaks.
 - [x] `FunctionExpressionExtensions.cs` - CreateFunctionValue → IJsCallable (kept typed - used by 7 callers)
 - [x] `ClassExpressionExtensions.cs` - EvaluateClassExpression → JsValue
 
-### 1.5 Async/Generator (Higher Risk)
-- [ ] `AwaitExpressionExtensions.cs` - EvaluateAwait → JsValue
-- [ ] `YieldExpressionExtensions.cs` - EvaluateYield → JsValue
+### 1.5 Async/Generator (Higher Risk) ✅ COMPLETE
+- [x] `AwaitExpressionExtensions.cs` - EvaluateAwait → JsValue
+- [x] `YieldExpressionExtensions.cs` - EvaluateYield → JsValue
 
 ### 1.6 Call Expression (Highest Risk - Largest File)
 - [ ] `CallExpressionExtensions.cs` - EvaluateCall → JsValue

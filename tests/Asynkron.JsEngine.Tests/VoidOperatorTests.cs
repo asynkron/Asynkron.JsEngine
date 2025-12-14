@@ -86,12 +86,12 @@ public class VoidOperatorTests
         Assert.Equal(2, arr.Length);
 
         // First element should be undefined
-        var first = arr.Items[0];
+        var first = arr.GetElement(0).ToObject();
         Assert.IsType<Symbol>(first);
-        Assert.True(ReferenceEquals((Symbol)first, Symbol.Undefined));
+        Assert.True(ReferenceEquals((Symbol)first!, Symbol.Undefined));
 
         // Second element should be true
-        Assert.Equal(true, arr.Items[1]);
+        Assert.Equal(true, arr.GetElement(1).ToObject());
     }
 
     [Fact]

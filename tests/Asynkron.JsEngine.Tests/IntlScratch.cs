@@ -33,17 +33,17 @@ public class IntlScratch
             """);
 
         var array = Assert.IsType<JsArray>(result);
-        Assert.Equal("object", array.Items[0]);
-        Assert.False((bool)array.Items[1]!);
-        Assert.False((bool)array.Items[2]!);
-        Assert.True((double)array.Items[3]! > 0);
-        Assert.Equal("object", array.Items[4]);
-        Assert.False((bool)array.Items[5]!);
-        Assert.False((bool)array.Items[6]!);
-        Assert.True((double)array.Items[7]! > 0);
-        Assert.Equal("object", array.Items[8]);
-        Assert.False((bool)array.Items[9]!);
-        Assert.False((bool)array.Items[10]!);
-        Assert.True((double)array.Items[11]! > 0);
+        Assert.Equal("object", array.GetElement(0).ToObject());
+        Assert.False(array.GetElement(1).AsBoolean());
+        Assert.False(array.GetElement(2).AsBoolean());
+        Assert.True(array.GetElement(3).AsDouble() > 0);
+        Assert.Equal("object", array.GetElement(4).ToObject());
+        Assert.False(array.GetElement(5).AsBoolean());
+        Assert.False(array.GetElement(6).AsBoolean());
+        Assert.True(array.GetElement(7).AsDouble() > 0);
+        Assert.Equal("object", array.GetElement(8).ToObject());
+        Assert.False(array.GetElement(9).AsBoolean());
+        Assert.False(array.GetElement(10).AsBoolean());
+        Assert.True(array.GetElement(11).AsDouble() > 0);
     }
 }

@@ -60,8 +60,8 @@ public class ClassComputedAccessorTests
             """);
 
         var array = Assert.IsType<Asynkron.JsEngine.JsTypes.JsArray>(result);
-        Assert.Equal("get yield", array.Items[0]?.ToString());
-        Assert.Equal("set yield", array.Items[1]?.ToString());
+        Assert.Equal("get yield", array.GetElement(0).ToObject()?.ToString());
+        Assert.Equal("set yield", array.GetElement(1).ToObject()?.ToString());
     }
 
 }

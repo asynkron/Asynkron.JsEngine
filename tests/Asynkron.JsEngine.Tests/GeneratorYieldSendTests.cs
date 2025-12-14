@@ -73,7 +73,7 @@ public class GeneratorYieldSendTests
             throw new Exception($"second keys: {string.Join(",", second.Keys)}");
         }
         var secondArr = Assert.IsType<JsArray>(secondValue);
-        Assert.Equal(new object?[] { "a", "b", "c" }, secondArr.Items);
+        Assert.Equal(new[] { "a", "b", "c" }, secondArr.Items.Select(v => v.ToObject()).ToArray());
         if (!(second.TryGetProperty("done", out var secondDone) && secondDone is bool { } sd && sd == false))
         {
             throw new Exception($"second keys: {string.Join(",", second.Keys)}");
@@ -81,7 +81,7 @@ public class GeneratorYieldSendTests
 
         Assert.True(third.TryGetProperty("value", out var thirdValue));
         var thirdArr = Assert.IsType<JsArray>(thirdValue);
-        Assert.Equal(new object?[] { "i", "g", "n", "o", "r", "e", "d" }, thirdArr.Items);
+        Assert.Equal(new[] { "i", "g", "n", "o", "r", "e", "d" }, thirdArr.Items.Select(v => v.ToObject()).ToArray());
         Assert.True(third.TryGetProperty("done", out var thirdDone) && thirdDone is bool { } td && td == false);
 
         if (!(fourth.TryGetProperty("done", out var fourthDone) && fourthDone is bool { } fod && fod))

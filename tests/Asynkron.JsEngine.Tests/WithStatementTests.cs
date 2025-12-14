@@ -137,7 +137,7 @@ public class WithStatementTests
         var array = Assert.IsType<JsArray>(result);
         Assert.Equal(2d, array.GetElement(0));
         Assert.Equal("undefined", array.GetElement(1));
-        Assert.Same(Symbol.Undefined, array.GetElement(2));
+        Assert.Same(Symbol.Undefined, array.GetElement(2).ToObject());
     }
 
     [Fact(Timeout = 2000)]
@@ -243,7 +243,7 @@ public class WithStatementTests
         var length = (int)logArray.Length;
         for (var i = 0; i < length && matches < expected.Length; i++)
         {
-            var entry = logArray.GetElement(i)?.ToString();
+            var entry = logArray.GetElement(i).ToObject()?.ToString();
             if (string.Equals(entry, expected[matches], StringComparison.Ordinal))
             {
                 matches++;

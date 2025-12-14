@@ -41,9 +41,9 @@ After each file, run tests to ensure nothing breaks.
 - [x] `IndexAssignmentExpressionExtensions.cs` - EvaluateIndexAssignment → JsValue
 - [x] `DestructuringAssignmentExpressionExtensions.cs` - EvaluateDestructuringAssignment → JsValue
 
-### 1.4 Function/Class Expressions (Medium Risk)
-- [ ] `FunctionExpressionExtensions.cs` - CreateFunctionValue → JsValue
-- [ ] `ClassDefinitionExtensions.cs` - EvaluateClassExpression → JsValue
+### 1.4 Function/Class Expressions (Medium Risk) ✅ COMPLETE
+- [x] `FunctionExpressionExtensions.cs` - CreateFunctionValue → IJsCallable (kept typed - used by 7 callers)
+- [x] `ClassExpressionExtensions.cs` - EvaluateClassExpression → JsValue
 
 ### 1.5 Async/Generator (Higher Risk)
 - [ ] `AwaitExpressionExtensions.cs` - EvaluateAwait → JsValue

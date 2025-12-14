@@ -124,7 +124,7 @@ public static partial class TypedAstEvaluator
                 ImportMetaExpression => JsValue.FromObject(EvaluateImportMeta(environment, context)),
                 ArrayExpression array => EvaluateArray(array, environment, context),
                 ObjectExpression obj => EvaluateObject(obj, environment, context),
-                ClassExpression classExpression => JsValue.FromObject(EvaluateClassExpression(classExpression, environment, context)),
+                ClassExpression classExpression => EvaluateClassExpression(classExpression, environment, context),
                 DecoratorExpression => throw new NotSupportedException("Decorators are not supported."),
                 TemplateLiteralExpression template => EvaluateTemplateLiteral(template, environment, context),
                 TaggedTemplateExpression taggedTemplate => EvaluateTaggedTemplate(taggedTemplate, environment, context),

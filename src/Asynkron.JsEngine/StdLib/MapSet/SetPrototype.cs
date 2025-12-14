@@ -53,7 +53,7 @@ public sealed partial class SetPrototype
             throw StandardLibrary.ThrowTypeError("Set.prototype.forEach callback must be callable", realm: Realm);
         }
 
-        set.ForEach(callback, args.GetArgument(1));
+        set.ForEach(callback, args.GetArgument(1).ToObject());
         return JsValue.Undefined;
     }
 

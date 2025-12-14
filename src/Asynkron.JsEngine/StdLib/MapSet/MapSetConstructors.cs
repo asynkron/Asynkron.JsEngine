@@ -90,17 +90,15 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
             }
             else if (entry.TryGetObject<IJsPropertyAccessor>(out var accessor))
             {
-                accessor.TryGetProperty("0", out var keyObj);
-                accessor.TryGetProperty("1", out var valueObj);
-                key = JsValue.FromObject(keyObj);
-                value = JsValue.FromObject(valueObj);
+                accessor.TryGetProperty("0", out key);
+                accessor.TryGetProperty("1", out value);
             }
             else
             {
                 continue;
             }
 
-            map.Set(key, value);
+            map.Set(key.ToObject(), value.ToObject());
         }
     }
 
@@ -183,7 +181,7 @@ public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState r
 
         foreach (var value in values.Items)
         {
-            set.Add(value);
+            set.Add(value.ToObject());
         }
     }
 

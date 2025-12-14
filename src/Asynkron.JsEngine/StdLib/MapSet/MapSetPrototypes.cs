@@ -19,7 +19,7 @@ public sealed partial class MapPrototype
     public JsValue Set(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireMap(thisValue);
-        map.Set(args.GetArgument(0), args.GetArgument(1));
+        map.Set(args.GetArgument(0).ToObject(), args.GetArgument(1).ToObject());
         return thisValue;
     }
 
@@ -27,21 +27,21 @@ public sealed partial class MapPrototype
     public JsValue Get(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireMap(thisValue);
-        return JsValue.FromObject(map.Get(args.GetArgument(0)));
+        return JsValue.FromObject(map.Get(args.GetArgument(0).ToObject()));
     }
 
     [JsHostMethod("has", Length = 1d)]
     public JsValue Has(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireMap(thisValue);
-        return new JsValue(map.Has(args.GetArgument(0)));
+        return new JsValue(map.Has(args.GetArgument(0).ToObject()));
     }
 
     [JsHostMethod("delete", Length = 1d)]
     public JsValue Delete(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireMap(thisValue);
-        return new JsValue(map.Delete(args.GetArgument(0)));
+        return new JsValue(map.Delete(args.GetArgument(0).ToObject()));
     }
 
     [JsHostMethod("clear", Length = 0d)]
@@ -61,7 +61,7 @@ public sealed partial class MapPrototype
             throw ThrowTypeError("Map.prototype.forEach callback must be callable", realm: Realm);
         }
 
-        map.ForEach(callback, args.GetArgument(1));
+        map.ForEach(callback, args.GetArgument(1).ToObject());
         return JsValue.Undefined;
     }
 

@@ -194,6 +194,9 @@ public static partial class StandardLibrary
 
             switch (value)
             {
+                case JsValue jsValue:
+                    value = jsValue.ToObject();
+                    continue;
                 case JsBigInt bigInt:
                     return bigInt;
                 case JsObject or IJsPropertyAccessor:

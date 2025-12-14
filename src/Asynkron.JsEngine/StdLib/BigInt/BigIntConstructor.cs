@@ -27,7 +27,7 @@ public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmStat
         constructor.ConstructErrorMessage = "BigInt is not a constructor";
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
-            if (newTarget is not null)
+            if (!newTarget.IsUndefined)
             {
                 throw ThrowTypeError("BigInt is not a constructor", realm: Realm);
             }
@@ -54,39 +54,39 @@ public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmStat
         DefineBuiltinFunction(constructor.PropertiesObject, "asUintN", new HostFunction(BigIntAsUintN, Realm), 2);
     }
 
-    private object BigIntAsIntN(IReadOnlyList<JsValue> args)
+    private JsValue BigIntAsIntN(IReadOnlyList<JsValue> args)
     {
         if (args.Count < 2)
         {
             throw ThrowTypeError("BigInt.asIntN requires bits and value", realm: Realm);
         }
 
-        var bits = ToIndex(args[0], Realm);
+        var bits = ToIndex(args[0].ToObject(), Realm);
         var value = args[1];
-        if (ReferenceEquals(value, Symbol.Undefined))
+        if (value.IsUndefined)
         {
             throw ThrowTypeError("Cannot convert undefined to a BigInt", realm: Realm);
         }
 
-        var bigIntValue = ToBigInt(value, realmState: Realm);
-        return new JsBigInt(AsIntN(bits, bigIntValue.Value));
+        var bigIntValue = ToBigInt(value.ToObject(), realmState: Realm);
+        return new JsValue(new JsBigInt(AsIntN(bits, bigIntValue.Value)));
     }
 
-    private object BigIntAsUintN(IReadOnlyList<JsValue> args)
+    private JsValue BigIntAsUintN(IReadOnlyList<JsValue> args)
     {
         if (args.Count < 2)
         {
             throw ThrowTypeError("BigInt.asUintN requires bits and value", realm: Realm);
         }
 
-        var bits = ToIndex(args[0], Realm);
+        var bits = ToIndex(args[0].ToObject(), Realm);
         var value = args[1];
-        if (ReferenceEquals(value, Symbol.Undefined))
+        if (value.IsUndefined)
         {
             throw ThrowTypeError("Cannot convert undefined to a BigInt", realm: Realm);
         }
 
-        var bigIntValue = ToBigInt(value, realmState: Realm);
-        return new JsBigInt(AsUintN(bits, bigIntValue.Value));
+        var bigIntValue = ToBigInt(value.ToObject(), realmState: Realm);
+        return new JsValue(new JsBigInt(AsUintN(bits, bigIntValue.Value)));
     }
 }

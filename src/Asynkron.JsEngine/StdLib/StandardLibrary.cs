@@ -35,7 +35,8 @@ public static partial class StandardLibrary
         realm ??= context?.RealmState;
         if (realm?.RangeErrorConstructor is IJsCallable callable)
         {
-            return callable.Invoke([message], null) ?? CreateErrorFallback("RangeError", message, realm);
+            var result = callable.Invoke([new JsValue(message)], JsValue.Null);
+            return result.IsUndefined ? CreateErrorFallback("RangeError", message, realm) : result.ToObject()!;
         }
 
         return CreateErrorFallback("RangeError", message, realm);
@@ -47,7 +48,8 @@ public static partial class StandardLibrary
         realm ??= context?.RealmState;
         if (realm?.ReferenceErrorConstructor is IJsCallable callable)
         {
-            return callable.Invoke([message], null) ?? CreateErrorFallback("ReferenceError", message, realm);
+            var result = callable.Invoke([new JsValue(message)], JsValue.Null);
+            return result.IsUndefined ? CreateErrorFallback("ReferenceError", message, realm) : result.ToObject()!;
         }
 
         return CreateErrorFallback("ReferenceError", message, realm);
@@ -147,7 +149,8 @@ public static partial class StandardLibrary
         realm ??= context?.RealmState;
         if (realm?.SyntaxErrorConstructor is IJsCallable callable)
         {
-            return callable.Invoke([message], null) ?? CreateErrorFallback("SyntaxError", message, realm);
+            var result = callable.Invoke([new JsValue(message)], JsValue.Null);
+            return result.IsUndefined ? CreateErrorFallback("SyntaxError", message, realm) : result.ToObject()!;
         }
 
         return CreateErrorFallback("SyntaxError", message, realm);
@@ -394,15 +397,16 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var formatter = constructor.Invoke([localesArg, optionsArg], null);
-        if (formatter is not IJsPropertyAccessor accessor ||
+        var formatter = constructor.Invoke([new JsValue(localesArg), new JsValue(optionsArg)], JsValue.Null);
+        if (!formatter.TryGetObject<IJsPropertyAccessor>(out var accessor) ||
             !accessor.TryGetProperty("format", out var formatValue) ||
             formatValue is not IJsCallable formatFn)
         {
             return false;
         }
 
-        formatted = formatFn.Invoke([numericValue], formatter);
+        var result = formatFn.Invoke([new JsValue(numericValue)], formatter);
+        formatted = result.ToObject();
         return true;
     }
 

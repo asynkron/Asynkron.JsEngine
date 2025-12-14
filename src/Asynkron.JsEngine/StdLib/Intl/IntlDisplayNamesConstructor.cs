@@ -68,45 +68,14 @@ public sealed partial class IntlDisplayNamesConstructor(IJsObjectLike prototype,
         return JsValue.FromObject(result);
     }
 
-    private JsObject? NormalizeOptions(JsValue optionsArg)
+    private IJsPropertyAccessor? NormalizeOptions(JsValue optionsArg)
     {
-        if (optionsArg.IsNullOrUndefined)
-        {
-            return null;
-        }
-
-        if (optionsArg.IsObject && optionsArg.AsObject() is JsObject jsObject)
-        {
-            return jsObject;
-        }
-
-        throw StandardLibrary.ThrowTypeError("Intl.DisplayNames options must be an object", realm: Realm);
+        return IntlOptionHelpers.GetOptionsObject(optionsArg.UnwrapToObject(), Realm, "DisplayNames");
     }
 
-    private string ReadStringOption(JsObject? options, string propertyName, IReadOnlyList<string> allowed,
+    private string ReadStringOption(IJsPropertyAccessor? options, string propertyName, IReadOnlyList<string>? allowed,
         string? defaultValue, bool requireValue = false)
     {
-        if (options is null ||
-            !options.TryGetProperty(propertyName, out var value) ||
-            value.IsUndefined)
-        {
-            if (requireValue)
-            {
-                throw StandardLibrary.ThrowTypeError(
-                    $"Intl.DisplayNames requires a {propertyName} option", realm: Realm);
-            }
-
-            return defaultValue ?? string.Empty;
-        }
-
-        var str = StandardLibrary.JsValueToString(value, Realm);
-
-        if (allowed is not null && !allowed.Contains(str, StringComparer.Ordinal))
-        {
-            throw StandardLibrary.ThrowRangeError(
-                $"Intl.DisplayNames {propertyName} option '{str}' is not supported", realm: Realm);
-        }
-
-        return str;
+        return IntlOptionHelpers.GetStringOption(options, propertyName, Realm, "DisplayNames", allowed, defaultValue, requireValue);
     }
 }

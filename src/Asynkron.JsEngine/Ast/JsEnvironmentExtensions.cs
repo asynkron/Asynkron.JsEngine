@@ -177,10 +177,10 @@ public static partial class TypedAstEvaluator
         {
             var logger = environment.RealmState?.Logger;
             binding = null!;
-            JsValue thisValue;
+            object? thisValueObj;
             try
             {
-                if (!environment.TryGet(Symbol.This, out thisValue))
+                if (!environment.TryGet(Symbol.This, out thisValueObj))
                 {
                     logger?.LogInformation("SuperBinding: no 'this' binding available");
                     return false;
@@ -193,10 +193,11 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            if (thisValue is not IJsObjectLike thisObject)
+            var thisValue = JsValue.FromObject(thisValueObj);
+            if (!thisValue.TryGetObject<IJsObjectLike>(out var thisObject))
             {
                 logger?.LogInformation("SuperBinding: 'this' is not object-like type={Type}",
-                    thisValue?.GetType().Name ?? "null");
+                    thisValue.Kind);
                 return false;
             }
 
@@ -243,7 +244,7 @@ public static partial class TypedAstEvaluator
                     logger?.LogInformation("SuperBinding: bump thisInit -> true env={Env}",
                         environment.GetHashCode());
                     environment.Assign(Symbol.Super,
-                        new SuperBinding(binding.Constructor, binding.Prototype, binding.ThisValue, true));
+                        new SuperBinding(binding.Constructor, binding.Prototype, binding.thisValue, true));
                 }
 
                 logger?.LogInformation("ThisInitialized updated to {Initialized} env={Env}",

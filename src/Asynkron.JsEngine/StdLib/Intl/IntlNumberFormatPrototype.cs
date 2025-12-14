@@ -22,7 +22,7 @@ public sealed partial class IntlNumberFormatPrototype
     public HostFunction GetFormat(JsValue thisValue)
     {
         var nf = ValidateNumberFormatReceiver(thisValue);
-        return CreateBoundFormatFunction(value => FormatNumberValue(nf, value));
+        return CreateBoundFormatFunction(value => new JsValue(FormatNumberValue(nf, value)));
     }
 
     [JsHostMethod("formatToParts", Length = 0d)]
@@ -48,7 +48,7 @@ public sealed partial class IntlNumberFormatPrototype
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    public JsObject ResolvedOptions(JsValue thisValue, IReadOnlyList<object?> _)
+    public JsObject ResolvedOptions(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var nf = ValidateNumberFormatReceiver(thisValue);
         return CreateNumberFormatResolvedOptions(nf);

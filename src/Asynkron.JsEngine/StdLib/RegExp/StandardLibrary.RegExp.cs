@@ -231,7 +231,7 @@ public static partial class StandardLibrary
     {
         RegExpStatics EnsureRegExpReceiver(JsValue thisValue)
         {
-            if (!ReferenceEquals(thisValue, realm.RegExpConstructor))
+            if (!ReferenceEquals(thisValue.ObjectValue, realm.RegExpConstructor))
             {
                 throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm);
             }
@@ -303,9 +303,9 @@ public static partial class StandardLibrary
         var multilineDescriptor = new PropertyDescriptor
         {
             Get = new HostFunction((thisValue, _) =>
-                !ReferenceEquals(thisValue, realm.RegExpConstructor)
+                !ReferenceEquals(thisValue.ObjectValue, realm.RegExpConstructor)
                     ? throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm)
-                    : false, isConstructor: false),
+                    : JsValue.False, isConstructor: false),
             Set = null,
             Enumerable = false,
             Configurable = true

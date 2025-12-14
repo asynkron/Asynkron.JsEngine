@@ -359,13 +359,13 @@ public static partial class TypedAstEvaluator
                     var propertyJs = EvaluateExpression(member.Property, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
-                        return (Symbol.Undefined, null, true);
+                        return (Symbol.Undefined, JsValue.Undefined, true);
                     }
 
                     propertyName = JsOps.GetRequiredPropertyName(propertyJs.ToObject(), context);
                     if (context.ShouldStopEvaluation)
                     {
-                        return (Symbol.Undefined, null, true);
+                        return (Symbol.Undefined, JsValue.Undefined, true);
                     }
                 }
                 else
@@ -385,18 +385,18 @@ public static partial class TypedAstEvaluator
                     {
                         if (context.ShouldStopEvaluation)
                         {
-                            return (Symbol.Undefined, null, true);
+                            return (Symbol.Undefined, JsValue.Undefined, true);
                         }
 
-                        return (directValue, target, false);
+                        return (directValue, JsValue.FromObject(target), false);
                     }
 
                     if (context.ShouldStopEvaluation)
                     {
-                        return (Symbol.Undefined, null, true);
+                        return (Symbol.Undefined, JsValue.Undefined, true);
                     }
 
-                    return (Symbol.Undefined, target, false);
+                    return (Symbol.Undefined, JsValue.FromObject(target), false);
                 }
 
                 var handle = PropertyHandle.Resolve(
@@ -408,10 +408,10 @@ public static partial class TypedAstEvaluator
                 var value = handle.GetValue();
                 if (context.ShouldStopEvaluation)
                 {
-                    return (Symbol.Undefined, null, true);
+                    return (Symbol.Undefined, JsValue.Undefined, true);
                 }
 
-                return (value, target, false);
+                return (value, JsValue.FromObject(target), false);
             }
 
             if (callee is IdentifierExpression identifier)
@@ -419,21 +419,21 @@ public static partial class TypedAstEvaluator
                 if (environment.TryResolveWithBinding(identifier.Name, context, out var withBinding))
                 {
                     var withValue = JsEnvironment.GetWithBindingValue(withBinding);
-                    return (withValue, withBinding.BindingObject, false);
+                    return (withValue, JsValue.FromObject(withBinding.BindingObject), false);
                 }
 
                 var reference = environment.ResolveIdentifierAssignmentReference(identifier.Name, context);
                 var calleeValue = AssignmentReferenceResolver.ReadIdentifierValue(reference.GetValue, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return (Symbol.Undefined, null, true);
+                    return (Symbol.Undefined, JsValue.Undefined, true);
                 }
 
-                return (calleeValue, Symbol.Undefined, false);
+                return (calleeValue, JsValue.FromObject(Symbol.Undefined), false);
             }
 
             var directCallee = EvaluateExpression(callee, environment, context);
-            return (directCallee.ToObject(), Symbol.Undefined, false);
+            return (directCallee.ToObject(), JsValue.FromObject(Symbol.Undefined), false);
         }
     }
 

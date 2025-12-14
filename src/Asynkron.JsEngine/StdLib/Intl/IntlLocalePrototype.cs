@@ -163,7 +163,7 @@ public sealed partial class IntlLocalePrototype
             result.Push(DefaultCalendars[0]);
         }
 
-        return new JsValue(result);
+        return JsValue.FromObject(result);
     }
 
     [JsHostMethod("getCollations", Length = 0d)]
@@ -178,7 +178,7 @@ public sealed partial class IntlLocalePrototype
         }
 
         result.Push("default");
-        return new JsValue(result);
+        return JsValue.FromObject(result);
     }
 
     [JsHostMethod("getHourCycles", Length = 0d)]
@@ -200,7 +200,7 @@ public sealed partial class IntlLocalePrototype
             }
         }
 
-        return new JsValue(result);
+        return JsValue.FromObject(result);
     }
 
     [JsHostMethod("getNumberingSystems", Length = 0d)]
@@ -222,7 +222,7 @@ public sealed partial class IntlLocalePrototype
             }
         }
 
-        return new JsValue(result);
+        return JsValue.FromObject(result);
     }
 
     [JsHostMethod("getTextInfo", Length = 0d)]
@@ -234,7 +234,7 @@ public sealed partial class IntlLocalePrototype
             : "ltr";
         var info = new JsObject(Realm.ObjectPrototype);
         info.SetProperty("direction", direction);
-        return new JsValue(info);
+        return JsValue.FromObject(info);
     }
 
     [JsHostMethod("getTimeZones", Length = 0d)]
@@ -260,7 +260,7 @@ public sealed partial class IntlLocalePrototype
             result.Push("UTC");
         }
 
-        return new JsValue(result);
+        return JsValue.FromObject(result);
     }
 
     [JsHostMethod("getWeekInfo", Length = 0d)]

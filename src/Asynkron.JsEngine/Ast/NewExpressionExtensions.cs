@@ -36,14 +36,14 @@ public static partial class TypedAstEvaluator
             {
                 if (expression.Arguments.Length == 0)
                 {
-                    args = Array.Empty<object?>();
+                    args = Array.Empty<JsValue>();
                 }
                 else
                 {
-                    var argsArray = new object?[expression.Arguments.Length];
+                    var argsArray = new JsValue[expression.Arguments.Length];
                     for (var i = 0; i < expression.Arguments.Length; i++)
                     {
-                        argsArray[i] = EvaluateExpression(expression.Arguments[i].Expression, environment, context).ToObject();
+                        argsArray[i] = EvaluateExpression(expression.Arguments[i].Expression, environment, context);
                         if (context.ShouldStopEvaluation)
                         {
                             return JsValue.Undefined;
@@ -55,7 +55,7 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                var argsBuilder = ImmutableArray.CreateBuilder<object?>(expression.Arguments.Length);
+                var argsBuilder = ImmutableArray.CreateBuilder<JsValue>(expression.Arguments.Length);
                 foreach (var argument in expression.Arguments)
                 {
                     if (argument.IsSpread)
@@ -66,7 +66,7 @@ public static partial class TypedAstEvaluator
                             return JsValue.Undefined;
                         }
 
-                        foreach (var item in EnumerateSpread(spreadValueJs.ToObject(), context))
+                        foreach (var item in EnumerateSpread(spreadValueJs, context))
                         {
                             argsBuilder.Add(item);
                         }
@@ -79,7 +79,7 @@ public static partial class TypedAstEvaluator
                         continue;
                     }
 
-                    argsBuilder.Add(EvaluateExpression(argument.Expression, environment, context).ToObject());
+                    argsBuilder.Add(EvaluateExpression(argument.Expression, environment, context));
                     if (context.ShouldStopEvaluation)
                     {
                         return JsValue.Undefined;
@@ -99,7 +99,7 @@ public static partial class TypedAstEvaluator
                 (!hostFunction.IsConstructor || hostFunction.DisallowConstruct))
             {
                 var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke([hostFunction.ConstructErrorMessage ?? "is not a constructor"], null)
+                    ? typeErrorCtor.Invoke([JsValue.FromObject(hostFunction.ConstructErrorMessage ?? "is not a constructor")], JsValue.Null)
                     : new InvalidOperationException(
                         hostFunction.ConstructErrorMessage ?? "Target is not a constructor.");
                 throw new ThrowSignal(error);
@@ -108,7 +108,7 @@ public static partial class TypedAstEvaluator
             if (constructor is TypedFunction { IsArrowFunction: true })
             {
                 var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke(["Target is not a constructor"], null)
+                    ? typeErrorCtor.Invoke([JsValue.FromObject("Target is not a constructor")], JsValue.Null)
                     : new InvalidOperationException("Target is not a constructor.");
                 throw new ThrowSignal(error);
             }
@@ -116,7 +116,7 @@ public static partial class TypedAstEvaluator
             if (constructor is TypedFunction { DisallowConstruct: true })
             {
                 var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke(["Target is not a constructor"], null)
+                    ? typeErrorCtor.Invoke([JsValue.FromObject("Target is not a constructor")], JsValue.Null)
                     : new InvalidOperationException("Target is not a constructor.");
                 throw new ThrowSignal(error);
             }
@@ -124,7 +124,7 @@ public static partial class TypedAstEvaluator
             if (constructor is TypedAstEvaluator.TypedGeneratorFactory)
             {
                 var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke(["Generator functions cannot be constructed with 'new'"], null)
+                    ? typeErrorCtor.Invoke([JsValue.FromObject("Generator functions cannot be constructed with 'new'")], JsValue.Null)
                     : new InvalidOperationException("Generator functions cannot be constructed with 'new'.");
                 throw new ThrowSignal(error);
             }
@@ -204,20 +204,20 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            object? result;
+            JsValue result;
             instance?.BeginConstruction();
             try
             {
-                object? receiver = isDerivedClassCtor ? Symbol.Undefined : instance;
+                JsValue receiver = isDerivedClassCtor ? JsValue.FromObject(Symbol.Undefined) : JsValue.FromObject(instance);
                 if (typedConstructor is not null)
                 {
                     result = typedConstructor.InvokeWithContext(args, receiver, context,
-                        constructor);
+                        JsValue.FromObject(constructor));
                 }
                 else if (callable is HostFunction hostFn)
                 {
                     result = hostFn.InvokeWithContext(args, receiver, context,
-                        constructor);
+                        JsValue.FromObject(constructor));
                 }
                 else
                 {

@@ -146,8 +146,8 @@ public static partial class StandardLibrary
 
     internal static JsArray ResolveSupportedLocales(JsValue localesArg, JsValue optionsArg, RealmState realm)
     {
-        var requestedLocales = IntlUtilities.CanonicalizeLocaleList(localesArg, realm);
-        var options = IntlOptionHelpers.GetOptionsObject(optionsArg, realm, "supportedLocalesOf");
+        var requestedLocales = IntlUtilities.CanonicalizeLocaleList(localesArg.ToObject(), realm);
+        var options = IntlOptionHelpers.GetOptionsObject(optionsArg.ToObject(), realm, "supportedLocalesOf");
         var _ = IntlOptionHelpers.GetStringOption(
             options,
             "localeMatcher",
@@ -166,11 +166,19 @@ public static partial class StandardLibrary
 
         var durationCtor = new HostFunction((thisValue, args) =>
         {
-            var instance = thisValue as JsObject ?? new JsObject();
-            instance.SetPrototype(durationPrototype);
-            if (args.Count == 0 || args[0] is not JsObject source)
+            JsObject instance;
+            if (!thisValue.TryGetObject<JsObject>(out var existingInstance))
             {
-                return instance;
+                instance = new JsObject();
+            }
+            else
+            {
+                instance = existingInstance;
+            }
+            instance.SetPrototype(durationPrototype);
+            if (args.Count == 0 || !args[0].TryGetObject<JsObject>(out var source))
+            {
+                return new JsValue(instance);
             }
 
             foreach (var key in source.Keys)
@@ -178,21 +186,38 @@ public static partial class StandardLibrary
                 instance.SetProperty(key, source[key]);
             }
 
-            return instance;
-        }) { IsConstructor = true };
+            return new JsValue(instance);
+        }, realm) { IsConstructor = true };
 
         var durationFrom = new HostFunction(args =>
         {
-            var input = args.Count > 0 && args[0] is JsObject jsObj ? jsObj : new JsObject();
-            var instance = durationCtor.Invoke([input], null) as JsObject ?? new JsObject();
+            JsObject input;
+            if (args.Count > 0 && args[0].TryGetObject<JsObject>(out var jsObj))
+            {
+                input = jsObj;
+            }
+            else
+            {
+                input = new JsObject();
+            }
+            var result = durationCtor.Invoke([new JsValue(input)], JsValue.Undefined);
+            JsObject instance;
+            if (!result.TryGetObject<JsObject>(out var resultObj))
+            {
+                instance = new JsObject();
+            }
+            else
+            {
+                instance = resultObj;
+            }
             instance.SetPrototype(durationPrototype);
-            return instance;
-        }, isConstructor: false);
+            return new JsValue(instance);
+        }, realm, isConstructor: false);
 
         durationCtor.DefineProperty("from",
             new PropertyDescriptor { Value = durationFrom, Writable = true, Enumerable = false, Configurable = true });
 
-        var durationToLocaleString = new HostFunction(DurationToLocaleString, isConstructor: false);
+        var durationToLocaleString = new HostFunction(args => DurationToLocaleString(JsValue.Undefined, args), realm, isConstructor: false);
         durationPrototype.SetProperty("toLocaleString", durationToLocaleString);
 
         durationCtor.DefineProperty("prototype",
@@ -206,28 +231,34 @@ public static partial class StandardLibrary
         temporal.SetProperty("Duration", durationCtor);
         return temporal;
 
-        object? DurationToLocaleString(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue DurationToLocaleString(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
             var locale = args.GetArgument(0);
             var options = args.GetArgument(1);
-            if (Symbol.Undefined.Equals(locale) && args.Count > 0)
+            if (locale.IsUndefined && args.Count > 0)
             {
                 locale = args[0];
             }
 
-            var formatterObj = CreateIntlObject(realm).TryGetProperty("DurationFormat", out var ctorVal) &&
-                               ctorVal is IJsCallable durationFormatCtor
-                ? durationFormatCtor.Invoke([locale, options], null)
-                : new JsObject();
+            JsValue formatterObj;
+            if (CreateIntlObject(realm).TryGetProperty("DurationFormat", out var ctorVal) &&
+                ctorVal.TryGetObject<IJsCallable>(out var durationFormatCtor))
+            {
+                formatterObj = durationFormatCtor.Invoke([locale, options], JsValue.Undefined);
+            }
+            else
+            {
+                formatterObj = new JsValue(new JsObject());
+            }
 
-            if (formatterObj is IJsPropertyAccessor accessor &&
+            if (formatterObj.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
                 accessor.TryGetProperty("format", out var formatVal) &&
-                formatVal is IJsCallable formatFn)
+                formatVal.TryGetObject<IJsCallable>(out var formatFn))
             {
                 return formatFn.Invoke([thisValue], formatterObj);
             }
 
-            return "";
+            return new JsValue("");
         }
     }
 }

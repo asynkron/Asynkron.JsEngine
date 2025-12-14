@@ -280,13 +280,14 @@ public sealed partial class RegExpPrototype : JsPrototype
         var resultArray = new JsArray(Realm);
         if (limit == 0)
         {
-            return resultArray;
+            return new JsValue(resultArray);
         }
 
         var position = 0;
         while (resultArray.Length < limit)
         {
-            var matchObj = splitter.Exec(input) as JsArray;
+            var execResult = splitter.Exec(input);
+            var matchObj = execResult as JsArray;
             if (matchObj is null)
             {
                 break;
@@ -331,6 +332,6 @@ public sealed partial class RegExpPrototype : JsPrototype
             resultArray.Push(input[position..]);
         }
 
-        return resultArray;
+        return new JsValue(resultArray);
     }
 }

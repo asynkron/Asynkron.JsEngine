@@ -581,7 +581,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
                 _ => target.GetElement(i)
             };
 
-            if (JsOps.StrictEquals(element, searchElement))
+            if (JsOps.StrictEquals(new JsValue(element), searchElement))
             {
                 return (double)i;
             }
@@ -740,7 +740,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
                 _ => target.GetElement(i)
             };
 
-            if (JsOps.StrictEquals(element, searchElement))
+            if (JsOps.StrictEquals(new JsValue(element), searchElement))
             {
                 return (double)i;
             }
@@ -930,7 +930,11 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
     private static TypedArrayBase ResolveThis(JsValue thisValue, TypedArrayBase fallback)
     {
-        return thisValue as TypedArrayBase ?? fallback;
+        if (thisValue.IsObject && thisValue.AsObject<IJsObjectLike>() is TypedArrayBase typedArray)
+        {
+            return typedArray;
+        }
+        return fallback;
     }
 
     private static object CreateSlice(TypedArrayBase typedArray, int begin, int end)
@@ -954,14 +958,14 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         return _byteOffset + _initialLength * _bytesPerElement > _buffer.ByteLength;
     }
 
-    private static bool SameValueZero(object? left, object? right)
+    private static bool SameValueZero(object? left, JsValue right)
     {
-        if (left is double and double.NaN && right is double and double.NaN)
+        if (left is double and double.NaN && right.IsNumber && double.IsNaN(right.AsDouble()))
         {
             return true;
         }
 
-        return JsOps.StrictEquals(left, right);
+        return JsOps.StrictEquals(new JsValue(left), right);
     }
 
     internal ThrowSignal CreateOutOfBoundsTypeError()

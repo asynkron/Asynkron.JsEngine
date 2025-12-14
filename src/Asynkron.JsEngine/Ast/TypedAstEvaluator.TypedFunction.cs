@@ -734,7 +734,7 @@ public static partial class TypedAstEvaluator
                 else
                 {
                     prototypeForSuper = _superPrototype;
-                    if (prototypeForSuper is null && thisValue is JsObject thisObj)
+                    if (prototypeForSuper is null && thisValue.TryGetObject<JsObject>(out var thisObj))
                     {
                         prototypeForSuper = thisObj.Prototype;
                     }

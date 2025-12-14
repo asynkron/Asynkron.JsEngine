@@ -91,12 +91,12 @@ public static partial class TypedAstEvaluator
 
             try
             {
-                return JsValue.FromObject(callable.Invoke(frozenArguments, thisValue));
+                return callable.Invoke(frozenArguments, thisValue);
             }
             catch (ThrowSignal signal)
             {
                 context.SetThrow(signal.ThrownValue);
-                return JsValue.FromObject(signal.ThrownValue);
+                return signal.ThrownValue;
             }
             finally
             {

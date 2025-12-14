@@ -67,7 +67,7 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
     private void AttachStatics(HostFunction constructor)
     {
         constructor.SetHostedProperty("now",
-            new HostFunction(_ => (double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Realm, isConstructor: false),
+            new HostFunction(_ => new JsValue((double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()), Realm, isConstructor: false),
             Realm);
 
         constructor.SetHostedProperty("UTC", new HostFunction(args => DateUtc(args, Realm), Realm, isConstructor: false),

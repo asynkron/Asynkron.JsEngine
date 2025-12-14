@@ -1008,23 +1008,23 @@ public static partial class TypedAstEvaluator
 
                                 if (forAwaitResumeKind == ResumePayloadKind.Throw)
                                 {
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, forAwaitResumePayload, environment))
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, forAwaitResumePayload.ToObject(), environment))
                                     {
                                         continue;
                                     }
 
                                     _tryStack.Clear();
-                                    throw new ThrowSignal(forAwaitResumePayload);
+                                    throw new ThrowSignal(forAwaitResumePayload.ToObject());
                                 }
 
                                 if (forAwaitResumeKind == ResumePayloadKind.Return)
                                 {
-                                    if (HandleAbruptCompletion(AbruptKind.Return, forAwaitResumePayload, environment))
+                                    if (HandleAbruptCompletion(AbruptKind.Return, forAwaitResumePayload.ToObject(), environment))
                                     {
                                         continue;
                                     }
 
-                                    return CompleteReturn(forAwaitResumePayload);
+                                    return CompleteReturn(forAwaitResumePayload.ToObject());
                                 }
 
                                 if (awaitingValue)
@@ -1038,23 +1038,23 @@ public static partial class TypedAstEvaluator
 
                             if (driverState.IteratorObject is JsObject awaitIteratorObj)
                             {
-                                if (awaitedNextResult is null)
+                                if (awaitedNextResult.IsUndefined)
                                 {
                                     driverState.NextMethod ??= awaitIteratorObj.GetIteratorNextCallable(context);
                                     var nextResult = awaitIteratorObj.InvokeIteratorNext(
                                         driverState.NextMethod!,
                                         context: context,
                                         callingEnvironment: environment);
-                                    if (!TryAwaitPromiseOrSchedule(nextResult, context, out var awaitedNext))
+                                    if (!TryAwaitPromiseOrSchedule(new JsValue(nextResult), context, out var awaitedNext))
                                     {
-                                        if (_asyncStepMode && _pendingPromise is JsObject)
+                                        if (_asyncStepMode && _pendingPromise.TryGetObject<JsObject>(out _))
                                         {
                                             driverState.AwaitingNextResult = true;
                                             StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
                                                 driverState);
                                             _state = GeneratorState.Suspended;
                                             _programCounter = iteratorIndex;
-                                            return CreateIteratorResult(Symbol.Undefined, false);
+                                            return new JsValue(CreateIteratorResult(JsValue.Undefined, false));
                                         }
 
                                         if (context.IsThrow)
@@ -1074,17 +1074,17 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
-                                    awaitedNextResult = awaitedNext;
+                                    awaitedNextResult = new JsValue(awaitedNext);
                                 }
 
-                                if (awaitedNextResult is not JsObject awaitResultObj)
+                                if (!awaitedNextResult.TryGetObject<JsObject>(out var awaitResultObj))
                                 {
                                     _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                     continue;
                                 }
 
                                 var doneAwait = awaitResultObj.TryGetProperty("done", out var awaitDoneValue) &&
-                                                awaitDoneValue is bool and true;
+                                                awaitDoneValue.TryGetObject<bool>(out var doneVal) && doneVal;
                                 if (doneAwait)
                                 {
                                     _programCounter = iteratorMoveNextInstruction.BreakIndex;
@@ -1093,17 +1093,17 @@ public static partial class TypedAstEvaluator
 
                                 var rawValue = awaitResultObj.TryGetProperty("value", out var yieldedAwait)
                                     ? yieldedAwait
-                                    : Symbol.Undefined;
+                                    : JsValue.Undefined;
                                 if (!TryAwaitPromiseOrSchedule(rawValue, context, out var fullyAwaitedValue))
                                 {
-                                    if (_asyncStepMode && _pendingPromise is JsObject)
+                                    if (_asyncStepMode && _pendingPromise.TryGetObject<JsObject>(out _))
                                     {
                                         driverState.AwaitingValue = true;
                                         StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
                                             driverState);
                                         _state = GeneratorState.Suspended;
                                         _programCounter = iteratorIndex;
-                                        return CreateIteratorResult(Symbol.Undefined, false);
+                                        return new JsValue(CreateIteratorResult(JsValue.Undefined, false));
                                     }
 
                                     if (context.IsThrow)
@@ -1123,7 +1123,7 @@ public static partial class TypedAstEvaluator
                                     continue;
                                 }
 
-                                awaitedValue = fullyAwaitedValue;
+                                awaitedValue = new JsValue(fullyAwaitedValue);
                             }
                             else if (driverState.Enumerator is IEnumerator<object?> awaitEnumerator)
                             {
@@ -1134,16 +1134,16 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 var enumerated = awaitEnumerator.Current;
-                                if (!TryAwaitPromiseOrSchedule(enumerated, context, out var awaitedEnumerated))
+                                if (!TryAwaitPromiseOrSchedule(new JsValue(enumerated), context, out var awaitedEnumerated))
                                 {
-                                    if (_asyncStepMode && _pendingPromise is JsObject)
+                                    if (_asyncStepMode && _pendingPromise.TryGetObject<JsObject>(out _))
                                     {
                                         driverState.AwaitingValue = true;
                                         StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
                                             driverState);
                                         _state = GeneratorState.Suspended;
                                         _programCounter = iteratorIndex;
-                                        return CreateIteratorResult(Symbol.Undefined, false);
+                                        return new JsValue(CreateIteratorResult(JsValue.Undefined, false));
                                     }
 
                                     if (context.IsThrow)
@@ -1163,7 +1163,7 @@ public static partial class TypedAstEvaluator
                                     continue;
                                 }
 
-                                awaitedValue = awaitedEnumerated;
+                                awaitedValue = new JsValue(awaitedEnumerated);
                             }
                             else
                             {
@@ -1172,7 +1172,7 @@ public static partial class TypedAstEvaluator
                             }
 
                             StoreIteratorValue:
-                            StoreSymbolValue(environment, iteratorMoveNextInstruction.ValueSlot, awaitedValue);
+                            StoreSymbolValue(environment, iteratorMoveNextInstruction.ValueSlot, awaitedValue.ToObject());
                             _programCounter = iteratorMoveNextInstruction.Next;
                             continue;
 
@@ -1221,8 +1221,8 @@ public static partial class TypedAstEvaluator
 
                         case ReturnInstruction returnInstruction:
                             var returnValue = returnInstruction.ReturnExpression is null
-                                ? Symbol.Undefined
-                                : EvaluateExpression(returnInstruction.ReturnExpression, environment, context).ToObject();
+                                ? JsValue.Undefined
+                                : EvaluateExpression(returnInstruction.ReturnExpression, environment, context);
                             if (context.IsThrow)
                             {
                                 var pendingThrow = context.FlowValue;
@@ -1240,10 +1240,10 @@ public static partial class TypedAstEvaluator
                             {
                                 var pendingReturn = context.FlowValue;
                                 context.ClearReturn();
-                                returnValue = pendingReturn;
+                                returnValue = new JsValue(pendingReturn);
                             }
 
-                            if (HandleAbruptCompletion(AbruptKind.Return, returnValue, environment))
+                            if (HandleAbruptCompletion(AbruptKind.Return, returnValue.ToObject(), environment))
                             {
                                 continue;
                             }
@@ -1252,7 +1252,7 @@ public static partial class TypedAstEvaluator
                             _state = GeneratorState.Completed;
                             _done = true;
                             _tryStack.Clear();
-                            return CreateIteratorResult(returnValue, true);
+                            return new JsValue(CreateIteratorResult(returnValue, true));
 
                         case EnterWithInstruction enterWithInstruction:
                         {
@@ -1340,7 +1340,7 @@ public static partial class TypedAstEvaluator
             _state = GeneratorState.Completed;
             _done = true;
             _tryStack.Clear();
-            return CreateIteratorResult(Symbol.Undefined, true);
+            return new JsValue(CreateIteratorResult(JsValue.Undefined, true));
         }
 
         private JsEnvironment EnsureExecutionEnvironment()

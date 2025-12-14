@@ -105,7 +105,7 @@ public static partial class TypedAstEvaluator
 
                         var arr = JsValueCache.CreateArgs(v0.ToObject(), v1.ToObject());
                         pooledArgsArray = arr;
-                        frozenArguments = arr;
+                        frozenArguments = WrapArgumentsAsJsValues(arr);
                         break;
                     }
                     default:
@@ -134,14 +134,14 @@ public static partial class TypedAstEvaluator
                             }
                         }
 
-                        frozenArguments = argsArray;
+                        frozenArguments = WrapArgumentsAsJsValues(argsArray);
                         break;
                     }
                 }
             }
             else
             {
-                var argsBuilder = ImmutableArray.CreateBuilder<object?>(expression.Arguments.Length);
+                var argsBuilder = ImmutableArray.CreateBuilder<JsValue>(expression.Arguments.Length);
                 foreach (var argument in expression.Arguments)
                 {
                     if (argument.IsSpread)
@@ -161,7 +161,7 @@ public static partial class TypedAstEvaluator
                         {
                             foreach (var item in jsArray.Items)
                             {
-                                argsBuilder.Add(item);
+                                argsBuilder.Add(JsValue.FromObject(item));
                             }
                         }
                         else
@@ -181,7 +181,7 @@ public static partial class TypedAstEvaluator
                         continue;
                     }
 
-                    argsBuilder.Add(EvaluateExpression(argument.Expression, environment, context).ToObject());
+                    argsBuilder.Add(EvaluateExpression(argument.Expression, environment, context));
                     if (context.ShouldStopEvaluation)
                     {
                         context.CallDepth--;
@@ -198,7 +198,7 @@ public static partial class TypedAstEvaluator
                 // Object.prototype.hasOwnProperty.apply(target, args).
                 if (expression.Callee is MemberExpression member)
                 {
-                    if (thisValue is IJsCallable targetFunction &&
+                    if (thisValue.TryGetObject<IJsCallable>(out var targetFunction) &&
                         member.Property is LiteralExpression { Value: string propertyName })
                     {
                         if (string.Equals(propertyName, "apply", StringComparison.Ordinal))
@@ -248,7 +248,7 @@ public static partial class TypedAstEvaluator
                     "[EvaluateCall] Non-callable callee={Callee} type={Type} thisValueType={ThisType}{SymbolSuffix}{SourceInfo}",
                     calleeDescription,
                     typeName,
-                    thisValue?.GetType().Name ?? "null",
+                    thisValue.ToObject()?.GetType().Name ?? "null",
                     symbolSuffix,
                     sourceInfo);
                 var error = StandardLibrary.CreateTypeError(
@@ -296,12 +296,12 @@ public static partial class TypedAstEvaluator
                 debugFunction.CurrentContext = context;
             }
 
-            object? callResult = Symbol.Undefined;
-            object? newTargetForCall = null;
+            JsValue callResult = JsValue.Undefined;
+            JsValue newTargetForCall = JsValue.Undefined;
             if (expression.Callee is SuperExpression &&
                 environment.TryGet(Symbol.NewTarget, out var inheritedNewTarget))
             {
-                newTargetForCall = inheritedNewTarget;
+                newTargetForCall = JsValue.FromObject(inheritedNewTarget);
             }
 
             SuperBinding? superBindingForCall = null;

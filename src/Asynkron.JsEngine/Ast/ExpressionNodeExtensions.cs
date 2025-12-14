@@ -329,18 +329,18 @@ public static partial class TypedAstEvaluator
                 var targetJs = EvaluateExpression(member.Target, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return (Symbol.Undefined, null, true);
+                    return (Symbol.Undefined, JsValue.Undefined, true);
                 }
 
                 var target = targetJs.ToObject();
                 if (member.IsOptional && IsNullish(target))
                 {
-                    return (null, null, true);
+                    return (null, JsValue.Undefined, true);
                 }
 
                 if (IsNullish(target) && HasOptionalChaining(member.Target))
                 {
-                    return (Symbol.Undefined, null, true);
+                    return (Symbol.Undefined, JsValue.Undefined, true);
                 }
 
                 if (IsNullish(target))

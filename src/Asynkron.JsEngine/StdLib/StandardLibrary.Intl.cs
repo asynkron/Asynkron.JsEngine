@@ -67,7 +67,7 @@ public static partial class StandardLibrary
                 Value = displayNamesCtor, Writable = true, Enumerable = false, Configurable = true
             });
 
-        var getCanonicalLocales = new HostFunction(args => CreateCanonicalLocalesResult(args), realm,
+        var getCanonicalLocales = new HostFunction(args => new JsValue(CreateCanonicalLocalesResult(args)), realm,
             isConstructor: false);
         getCanonicalLocales.DefineProperty("length",
             new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
@@ -85,7 +85,7 @@ public static partial class StandardLibrary
             });
 
         var supportedValuesOf =
-            new HostFunction(args => CreateSupportedValuesResult(args), realm, isConstructor: false);
+            new HostFunction(args => new JsValue(CreateSupportedValuesResult(args)), realm, isConstructor: false);
         supportedValuesOf.DefineProperty("length",
             new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
         supportedValuesOf.DefineProperty("name",
@@ -125,7 +125,7 @@ public static partial class StandardLibrary
     }
 
     internal static (IReadOnlyList<string> RequestedLocales, string ResolvedLocale) ResolveIntlLocales(
-        object? localesArg,
+        JsValue localesArg,
         RealmState realm)
     {
         var requestedLocales = IntlUtilities.CanonicalizeLocaleList(localesArg, realm);
@@ -144,7 +144,7 @@ public static partial class StandardLibrary
         return result;
     }
 
-    internal static JsArray ResolveSupportedLocales(object? localesArg, object? optionsArg, RealmState realm)
+    internal static JsArray ResolveSupportedLocales(JsValue localesArg, JsValue optionsArg, RealmState realm)
     {
         var requestedLocales = IntlUtilities.CanonicalizeLocaleList(localesArg, realm);
         var options = IntlOptionHelpers.GetOptionsObject(optionsArg, realm, "supportedLocalesOf");

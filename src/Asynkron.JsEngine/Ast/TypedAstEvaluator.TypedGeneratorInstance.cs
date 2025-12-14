@@ -794,10 +794,10 @@ public static partial class TypedAstEvaluator
                                 // Use original iterator result object to preserve done/value properties
                                 if (iteratorResult.IteratorResultObject is { } originalResult)
                                 {
-                                    return originalResult;
+                                    return new JsValue(originalResult);
                                 }
                                 var resultDone = propagateReturn ? iteratorResult.Done : false;
-                                return CreateIteratorResult(iteratorResult.Value, resultDone);
+                                return new JsValue(CreateIteratorResult(new JsValue(iteratorResult.Value), resultDone));
                             }
 
                             continue;
@@ -912,7 +912,7 @@ public static partial class TypedAstEvaluator
 
                         case IteratorInitInstruction iteratorInitInstruction:
                             var iterableValue = EvaluateExpression(iteratorInitInstruction.IterableExpression,
-                                environment, context).ToObject();
+                                environment, context);
                             if (context.IsThrow)
                             {
                                 var initThrown = context.FlowValue;

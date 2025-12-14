@@ -190,11 +190,8 @@ public sealed partial class ArrayConstructor : JsConstructor
         HostFunction arrayOf = null!;
         arrayOf = new HostFunction((thisValue, args) =>
         {
-#pragma warning disable CS0618 // ToObject is obsolete but needed here for StandardLibrary method signature
-            var argsObj = args.Select(a => a.ToObject()).ToList();
-            var result = StandardLibrary.ArrayOf(arrayOf, thisValue.ToObject(), argsObj, Realm);
+            var result = StandardLibrary.ArrayOf(arrayOf, thisValue, args, Realm);
             return JsValue.FromObject(result);
-#pragma warning restore CS0618
         }, Realm, isConstructor: false);
         StandardLibrary.AttachBuiltinMetadata(arrayOf, "of", 0d);
         arrayOf.Delete("prototype");

@@ -204,8 +204,8 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvi
     {
         if (RealmState?.TypeErrorConstructor is IJsCallable ctor)
         {
-            var created = ctor.Invoke([message], null);
-            if (created is JsObject jsObj)
+            var created = ctor.Invoke([new JsValue(message)], JsValue.Undefined);
+            if (created.TryGetObject<JsObject>(out var jsObj))
             {
                 return jsObj;
             }
@@ -218,8 +218,8 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvi
     {
         if (RealmState?.RangeErrorConstructor is IJsCallable ctor)
         {
-            var created = ctor.Invoke([message], null);
-            if (created is JsObject jsObj)
+            var created = ctor.Invoke([new JsValue(message)], JsValue.Undefined);
+            if (created.TryGetObject<JsObject>(out var jsObj))
             {
                 return jsObj;
             }

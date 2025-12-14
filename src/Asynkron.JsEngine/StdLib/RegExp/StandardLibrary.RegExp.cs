@@ -133,12 +133,12 @@ public static partial class StandardLibrary
 
     internal static JsRegExp? ResolveRegExpInstance(JsValue thisValue)
     {
-        if (thisValue is JsRegExp direct)
+        if (thisValue.TryGetObject<JsRegExp>(out var direct))
         {
             return direct;
         }
 
-        if (thisValue is JsObject obj &&
+        if (thisValue.TryGetObject<JsObject>(out var obj) &&
             obj.TryGetProperty("__regex__", out var internalRegex) &&
             internalRegex is JsRegExp stored)
         {
@@ -164,7 +164,7 @@ public static partial class StandardLibrary
         return false;
     }
 
-    internal static uint ToUint32(object? value)
+    internal static uint ToUint32(JsValue value)
     {
         var number = JsOps.ToNumber(value);
         if (double.IsNaN(number) || double.IsInfinity(number))
@@ -183,7 +183,7 @@ public static partial class StandardLibrary
         {
             if (descriptor.IsAccessorDescriptor)
             {
-                descriptor.Set?.Invoke([0d], target);
+                descriptor.Set?.Invoke([new JsValue(0d)], target);
                 return;
             }
 
@@ -239,14 +239,14 @@ public static partial class StandardLibrary
             return realm.RegExpStatics;
         }
 
-        PropertyDescriptor MakeAccessor(Func<RegExpStatics, object?> getter)
+        PropertyDescriptor MakeAccessor(Func<RegExpStatics, string> getter)
         {
             return new PropertyDescriptor
             {
                 Get = new HostFunction((thisValue, _) =>
                 {
                     var statics = EnsureRegExpReceiver(thisValue);
-                    return getter(statics);
+                    return new JsValue(getter(statics));
                 }, isConstructor: false),
                 Set = null,
                 Enumerable = false,
@@ -254,7 +254,7 @@ public static partial class StandardLibrary
             };
         }
 
-        object? GetCapture(RegExpStatics s, int index)
+        string GetCapture(RegExpStatics s, int index)
         {
             return index < s.Captures.Length ? s.Captures[index] : string.Empty;
         }

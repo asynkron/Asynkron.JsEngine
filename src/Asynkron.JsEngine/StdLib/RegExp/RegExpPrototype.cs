@@ -108,8 +108,8 @@ public sealed partial class RegExpPrototype : JsPrototype
         {
             pattern = patternArg == JsValue.Undefined
                 ? string.Empty
-                : JsOps.ToJsString(patternArg);
-            flags = flagsArg == JsValue.Undefined ? string.Empty : JsOps.ToJsString(flagsArg);
+                : JsOps.ToJsString(patternArg.ToObject());
+            flags = flagsArg == JsValue.Undefined ? string.Empty : JsOps.ToJsString(flagsArg.ToObject());
         }
 
         try
@@ -136,56 +136,57 @@ public sealed partial class RegExpPrototype : JsPrototype
             throw new ThrowSignal(CreateSyntaxError(ex.Message, realm: Realm));
         }
 
-        return target;
+        return new JsValue(target);
     }
 
     [JsHostGetter("flags")]
     public JsValue Flags(JsValue thisValue)
     {
-        return GetSortedFlags(RequireRegExp(thisValue));
+        return new JsValue(GetSortedFlags(RequireRegExp(thisValue)));
     }
 
     [JsHostGetter("source")]
     public JsValue Source(JsValue thisValue)
     {
         var resolved = RequireRegExp(thisValue);
-        return string.IsNullOrEmpty(resolved.Pattern) ? "(?:)" : resolved.Pattern;
+        var result = string.IsNullOrEmpty(resolved.Pattern) ? "(?:)" : resolved.Pattern;
+        return new JsValue(result);
     }
 
     [JsHostGetter("global")]
     public JsValue Global(JsValue thisValue)
     {
-        return RequireRegExp(thisValue).Global;
+        return new JsValue(RequireRegExp(thisValue).Global);
     }
 
     [JsHostGetter("ignoreCase")]
     public JsValue IgnoreCase(JsValue thisValue)
     {
-        return RequireRegExp(thisValue).IgnoreCase;
+        return new JsValue(RequireRegExp(thisValue).IgnoreCase);
     }
 
     [JsHostGetter("multiline")]
     public JsValue Multiline(JsValue thisValue)
     {
-        return RequireRegExp(thisValue).Multiline;
+        return new JsValue(RequireRegExp(thisValue).Multiline);
     }
 
     [JsHostGetter("dotAll")]
     public JsValue DotAll(JsValue thisValue)
     {
-        return RequireRegExp(thisValue).DotAll;
+        return new JsValue(RequireRegExp(thisValue).DotAll);
     }
 
     [JsHostGetter("unicode")]
     public JsValue Unicode(JsValue thisValue)
     {
-        return RequireRegExp(thisValue).Unicode;
+        return new JsValue(RequireRegExp(thisValue).Unicode);
     }
 
     [JsHostGetter("sticky")]
     public JsValue Sticky(JsValue thisValue)
     {
-        return RequireRegExp(thisValue).Sticky;
+        return new JsValue(RequireRegExp(thisValue).Sticky);
     }
 
     protected override void ConfigurePrototype()

@@ -275,16 +275,16 @@ public static partial class StandardLibrary
         return false;
     }
 
-    internal static bool TryGetArrayForFlatten(object? candidate, RealmState? realm, string operation,
+    internal static bool TryGetArrayForFlatten(JsValue candidate, RealmState? realm, string operation,
         out IJsPropertyAccessor accessor)
     {
         accessor = null!;
-        if (candidate is null || ReferenceEquals(candidate, Symbol.Undefined))
+        if (candidate.IsNullOrUndefined)
         {
             return false;
         }
 
-        if (candidate is IJsPropertyAccessor propertyAccessor)
+        if (candidate.TryGetObject<IJsPropertyAccessor>(out var propertyAccessor))
         {
             accessor = propertyAccessor;
         }
@@ -305,28 +305,28 @@ public static partial class StandardLibrary
         return true;
     }
 
-    internal static object? UnwrapProxy(object? candidate, RealmState? realm, string operation)
+    internal static JsValue UnwrapProxy(JsValue candidate, RealmState? realm, string operation)
     {
         var inspected = candidate;
-        while (inspected is JsProxy proxy)
+        while (inspected.TryGetObject<JsProxy>(out var proxy))
         {
             if (proxy.Handler is null)
             {
                 throw ThrowTypeError($"{operation} called on revoked proxy", realm: realm);
             }
 
-            inspected = proxy.Target;
+            inspected = JsValue.FromObject(proxy.Target);
         }
 
         return inspected;
     }
 
-    internal static bool IsArrayObject(object? candidate, RealmState? realm, string operation)
+    internal static bool IsArrayObject(JsValue candidate, RealmState? realm, string operation)
     {
         var inspected = candidate;
-        while (inspected is not null)
+        while (!inspected.IsNull)
         {
-            if (inspected is JsArray array)
+            if (inspected.TryGetObject<JsArray>(out var array))
             {
                 if (array.TryGetProperty("__arguments__", out var isArgs) && isArgs is true)
                 {
@@ -336,14 +336,15 @@ public static partial class StandardLibrary
                 return true;
             }
 
-            if (inspected is JsProxy proxy)
+            if (inspected.TryGetObject<JsProxy>(out var proxy))
             {
-                inspected = proxy.Target;
+                inspected = JsValue.FromObject(proxy.Target);
                 continue;
             }
 
             if (realm?.ArrayPrototype is not null &&
-                ReferenceEquals(inspected, realm.ArrayPrototype))
+                inspected.TryGetObject(out var inspectedObj) &&
+                ReferenceEquals(inspectedObj, realm.ArrayPrototype))
             {
                 return true;
             }

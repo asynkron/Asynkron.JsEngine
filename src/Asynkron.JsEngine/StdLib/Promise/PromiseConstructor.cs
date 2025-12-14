@@ -417,8 +417,8 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             if (item.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
                 thenMethod is IJsCallable thenCallable)
             {
-                var thenArgs = new JsValue[] { new JsValue((JsObject)CreateResolve()), new JsValue((JsObject)CreateReject()) };
-                thenCallable.Invoke(thenArgs, new JsValue(itemObj));
+                var thenArgs = new JsValue[] { JsValue.FromObject(CreateResolve()), JsValue.FromObject(CreateReject()) };
+                thenCallable.Invoke(thenArgs, JsValue.FromObject(itemObj));
             }
             else
             {

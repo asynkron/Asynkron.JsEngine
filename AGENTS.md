@@ -1,103 +1,168 @@
-# Agent Guidance
+# Agent Guidelines for Asynkron.JsEngine
 
-## .NET installation
-To ensure the correct .NET runtime/SDK is available when working on this repository, use the official `dotnet-install` script.
+## Coding Standards
 
-On Linux/macOS:
-```
-curl -sSL https://dot.net/v1/dotnet-install.sh -o dotnet-install.sh
-chmod +x dotnet-install.sh
-./dotnet-install.sh --channel 10.0
-export PATH="$HOME/.dotnet:$PATH"
-```
+### Invariant Culture for Number/String Conversions
 
-On Windows PowerShell:
-```
-irm https://dot.net/v1/dotnet-install.ps1 -OutFile dotnet-install.ps1
-./dotnet-install.ps1 -Channel 10.0
-$env:PATH = "$env:USERPROFILE\.dotnet;" + $env:PATH
-```
+**CRITICAL RULE**: All floating-point and double-precision number to/from string conversions **MUST** use `InvariantCulture`.
 
-These commands install the latest .NET 10 SDK (which includes the runtime) into the user profile so the repository can build and run tests without requiring global admin access.
+This ensures consistent behavior across different locales and prevents issues with decimal separators, thousands separators, and number formatting.
 
-## ECMAScript compliance
+#### Examples
 
-- All language and runtime behavior should follow the ECMAScript specification as closely as practical.
-- Do **not** introduce non-standard language extensions (e.g., accepting syntactically invalid constructs or changing specified semantics) unless there is an explicit, documented requirement and matching tests.
-- Both strict mode and non-strict (sloppy) mode must remain supported; changes should preserve their existing semantics and the spec-defined differences between them.
+**✅ CORRECT:**
+```csharp
+// Number to string
+double value = 3.14;
+string str = value.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
-## Parser and evaluator
+// Integer to string (when culture matters)
+long intValue = 1000;
+string intStr = intValue.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
-- Treat the parser and evaluator as locked. Only touch them to fix a demonstrated bug; all other behavioural changes must flow through built-in functions and types (and their generators), not the parser/evaluator paths.
-
-## Continue working
-
-Read the continue.md file fully, alanyze it and understad the next steps described there.
-Then continue working on the project as per the instructions given in that file.
-
-Whenever some task is completed, remove it from the continue.md file and update the file with the new next steps.
-So we get a form of rolling window of next steps to be done.
-
-## Avoid long-winded answers
-
-When answering, try to be concise and to the point. Avoid longwinded explanations and unnecessary details.
-
-Focus on producing code, not driving conversations.
-
-## Thread blocking
-
-You may never ever ever use thread blocking calls like Task.Wait(), Task.Result, or Thread.Sleep().
-If you ever think that is the way to go, then there is a larger design issue that needs to be resolved.
-
-## Shared State
-
-You may never ever ever use "thread static" or AsyncLocal<T> or any other mechanism that relies on shared state between different asynchronous calls.
-If anything needs to be passed around, it must be passed explicitly as a parameter, or part of a parameter, e.g. JsEnvironment or similar.
-
-## Unsupported features
-
-When you encounter an unsupported language/runtime feature or AST shape, fail fast by throwing a `NotSupportedException` (with a clear reason) instead of silently degrading behaviour or falling back to partial implementations. All such unsupported paths should be explicit so issues surface upfront and can be fixed properly.
-
-## Generated code
-
-- Never edit files with `.generated.` in their names. They are produced by tooling and will be regenerated, so any manual change will be lost (and may break future syncs). Always apply fixes by editing the non-generated partials/helpers instead.
-
-## Debugging
-
-You have access powerful visualizations and debug outputs, check the ActivityTracingTests.EvaluatorActivitiesAttachToTestRoot test to see how you can leverage System.Diagnostics.Activity for tracing code execution paths.
-
-When reasoning about code and execution paths, consider adding custom Activity sources to trace specific operations, and use the built-in tracing capabilities to analyze performance and behavior.
-This is a good way to present execution flows to the user (example):
-```
-await EnsureModuleEvaluatedAsync(mainEntry)
-└── EvaluateModuleBodyWithAsyncDependencies(mainEntry) (returns Task)
-    └── await evaluation (for fixture.js)
-    └── await DrainAsyncDependencies(...)  <-- This drains microtasks!
-    └── ExecuteModuleBody(mainEntry)  <-- main.js body runs here
-        └── Promise.resolve().then() queues microtask
+// Formatted numbers
+double num = 42.123;
+string formatted = num.ToString("F2", System.Globalization.CultureInfo.InvariantCulture); // "42.12"
+string exponential = num.ToString("e", System.Globalization.CultureInfo.InvariantCulture); // "4.212300e+001"
 ```
 
+**❌ INCORRECT:**
+```csharp
+// DO NOT use default culture
+double value = 3.14;
+string str = value.ToString(); // BAD: Uses current culture
 
-## Logging
+long intValue = 1000;
+string intStr = intValue.ToString(); // BAD: Uses current culture for formatting
+```
 
-- When adding evaluator logging, use the realm logger directly with null-propagation, e.g. `realm.Logger?.LogInformation(...)`. Do not wrap this in helper methods.
-- **NEVER** create wrapper methods with `params object?[] args` for logging - this allocates an array on every call even if logging is disabled.
-- Never use `Console.WriteLine`/`Console.Error.WriteLine` for runtime logging; route diagnostics through `realm.Logger?.Log...`.
+#### Where This Applies
 
-## Compilation
+- All Number.prototype methods (toString, toFixed, toExponential, toPrecision)
+- String constructor conversions
+- Any Math operations that produce string output
+- JSON serialization of numbers
+- Console output of numeric values
+- Date/time formatting when dealing with numeric components
 
-Never use "--no-build", always ensure you are working with the latest compiled code.
+#### Why This Matters
 
-## Performance Optimization Strategy
+Different cultures format numbers differently:
+- US: `3.14` (period as decimal separator)
+- Germany: `3,14` (comma as decimal separator)  
+- France: `3,14` with thousands separator
 
-When optimizing for performance, focus on **general optimizations** that benefit all code paths rather than specific fast paths for particular patterns. The goal is to improve the overall architecture and reduce allocations/overhead across the board, not to special-case specific constructs like `i++` or simple loops.
+JavaScript expects consistent number formatting (US/Invariant style with periods), so we must always use InvariantCulture to match JavaScript behavior.
 
-Avoid creating specialized fast paths that:
-- Add complexity and maintenance burden
-- Only benefit narrow use cases
-- Diverge from the general evaluation model
+## Memory Profiling
 
-Instead, prefer optimizations that:
-- Reduce allocations in core primitives (e.g., avoiding delegate allocations in hot paths)
-- Improve data structures used throughout evaluation
-- Benefit all JavaScript code equally
+> **Detailed Guide**: See [docs/memory-profiling.md](docs/memory-profiling.md) for comprehensive profiling techniques including dotnet-trace, GC dumps, and trace analysis.
+
+### Quick Start
+
+```bash
+cd benchmarks/Asynkron.JsEngine.Benchmarks
+dotnet run -c Release -- --filter "*Fibonacci*"
+```
+
+### Capture Detailed Allocation Trace
+
+```bash
+# Trace what's being allocated (with call stacks)
+dotnet-trace collect \
+  --profile gc-verbose \
+  --format NetTrace \
+  -o trace.nettrace \
+  -- dotnet run -c Release \
+     --project benchmarks/Asynkron.JsEngine.Benchmarks \
+     --filter "JintComparisonBenchmarks.Asynkron_ForLoop"
+
+# Analyze the trace
+dotnet-trace report trace.nettrace topN -n 30
+
+# Or convert to Speedscope/Chromium format for visualization
+dotnet-trace convert trace.nettrace --format Speedscope
+```
+
+### Known Allocation Hotspots
+
+**Fibonacci Benchmark Results (as of Dec 2024):**
+
+*Before optimizations:*
+| Engine | Time | Allocated | Gen0 Collections |
+|--------|------|-----------|------------------|
+| Jint | 56ms | 50.11 MB | 8,000 |
+| Asynkron | 172ms | 322.37 MB | 53,000 |
+
+*After optimizations (Round 1):*
+| Engine | Time | Allocated | Gen0 Collections |
+|--------|------|-----------|------------------|
+| Jint | ~55ms | 50.11 MB | 8,000 |
+| Asynkron | ~150ms | **173.25 MB** | **28,000** |
+
+*After optimizations (Round 2 - lazy init & lock-free pools):*
+| Engine | Time | Allocated | Gen0 Collections |
+|--------|------|-----------|------------------|
+| Jint | 52.58 ms | 50.11 MB | 8,000 |
+| Asynkron | **134.51 ms** | **168.62 MB** | 28,000 |
+
+**Cumulative Improvement:**
+- Allocations: 322 MB → 168.62 MB = **~48% reduction**
+- Speed: ~172 ms → 134.51 ms = **~22% faster**
+
+### Implemented Optimizations
+
+#### Round 2 (Dec 2024)
+
+4. **Lock-free JsEnvironmentPool** (`JsEnvironmentPool.cs`)
+   - Replaced `ConcurrentBag` with fixed-size array using `Interlocked.CompareExchange`
+   - 32 pool slots for JsEnvironment reuse
+   - Reduces pool access contention in hot loops
+
+5. **Lazy `_values` dictionary in JsEnvironment** (`JsEnvironment.cs`)
+   - `SymbolHybridDictionary<Binding>` now allocated only when first binding is added
+   - Environments without bindings (some block scopes) skip allocation entirely
+   - All read paths check `_values is not null` before access
+
+6. **Lock-free argument array pooling** (`JsValueCache.cs`)
+   - Replaced `ConcurrentBag` pools with lock-free `ObjectPool<T>`
+   - 15 slots per size (1-4 element arrays)
+   - Uses `Interlocked.CompareExchange` for thread-safe, contention-free pooling
+
+#### Round 1
+
+1. **JsEnvironment pooling** (`TypedAstEvaluator.TypedFunction.cs`)
+   - Added `ContainsInnerFunctionExpression` to `ScopeDynamicnessAnalyzer.cs` to detect functions that create closures
+   - Added `_canPoolInvocationEnvironment` flag - true when function is simple AND has no inner functions
+   - Modified `InvokeSimpleFast` to use `RentEnvironment`/`ReturnEnvironment` when safe
+   - Note: Cannot pool environments for functions with inner closures (they capture the environment reference)
+
+2. **SymbolHybridDictionary** (`Collections/SymbolHybridDictionary.cs`)
+   - Array-based storage for small binding counts (< 8 bindings)
+   - Uses reference equality for fast Symbol lookups
+   - Switches to full Dictionary only when > 8 bindings
+   - `JsEnvironment._values` now uses this instead of `Dictionary<Symbol, Binding>`
+
+3. **Cached function description string** (`TypedAstEvaluator.TypedFunction.cs`)
+   - `_functionDescription` field cached in constructor
+   - Eliminates string allocation (`$"function {name.Name}"`) per function call
+
+### Already Optimized Areas
+
+- **Argument array pooling** - Small argument arrays (1-4 elements) pooled via lock-free `ObjectPool<T>` in `JsValueCache` (15 slots per size, using `Interlocked.CompareExchange`)
+- **Number boxing cache** - Integers 0-10239 cached in `JsValueCache.CachedIntegers`
+- **Identifier binding cache** - `ResolvedIdentifierBinding` (struct) cached per environment
+- **EvaluationContext pooling** - Pooled via `RentContext`/`ReturnContext`
+- **ToPrimitive fast path** - Primitives return immediately without object checks
+
+### Remaining Gap Analysis
+
+The remaining gap (168.62 MB vs Jint's 50.11 MB ≈ 3.4x allocations, 134 ms vs 52 ms ≈ 2.6x time) likely comes from:
+- Architectural differences in environment/scope management
+- `EvaluationContext` as class (required for async/await) vs Jint's `readonly struct ExecutionContext`
+- AST node caching strategies
+- Per-invocation Binding struct creation (even though structs, they go into collections)
+
+## Other Guidelines
+
+(Add additional coding guidelines here as needed)

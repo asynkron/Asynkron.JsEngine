@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Parser;
 
@@ -6,11 +6,14 @@ namespace Asynkron.JsEngine;
 
 /// <summary>
 /// Simple pool for JsEnvironment instances to reduce per-iteration allocations in hot loops.
+/// Uses a lock-free fixed-size array with Interlocked operations for thread-safety.
 /// </summary>
 internal static class JsEnvironmentPool
 {
-    private static readonly ConcurrentBag<JsEnvironment> Pool = new();
+    private const int PoolSize = 32;
+    private static readonly JsEnvironment?[] Pool = new JsEnvironment?[PoolSize];
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static JsEnvironment Rent(
         JsEnvironment? enclosing,
         bool isFunctionScope,
@@ -20,21 +23,36 @@ internal static class JsEnvironmentPool
         bool isParameterEnvironment = false,
         bool isBodyEnvironment = false)
     {
-        if (Pool.TryTake(out var env))
+        // Try to get from pool using lock-free compare-exchange
+        for (var i = 0; i < PoolSize; i++)
         {
-            env.Reset(enclosing, isFunctionScope, isStrict, creatingSource, description, isParameterEnvironment,
-                isBodyEnvironment);
-            return env;
+            var env = Pool[i];
+            if (env is not null && Interlocked.CompareExchange(ref Pool[i], null, env) == env)
+            {
+                env.Reset(enclosing, isFunctionScope, isStrict, creatingSource, description,
+                    isParameterEnvironment, isBodyEnvironment);
+                return env;
+            }
         }
 
         return new JsEnvironment(enclosing, isFunctionScope, isStrict, creatingSource, description, null,
             isParameterEnvironment, isBodyEnvironment);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void Return(JsEnvironment environment)
     {
-        // Clear to a neutral state; Realm/ModulePath will be re-set on next rent.
+        // Clear to a neutral state
         environment.Reset(null, false, false);
-        Pool.Add(environment);
+
+        // Try to return to pool using lock-free compare-exchange
+        for (var i = 0; i < PoolSize; i++)
+        {
+            if (Pool[i] is null && Interlocked.CompareExchange(ref Pool[i], environment, null) is null)
+            {
+                return;
+            }
+        }
+        // Pool full, environment will be GC'd
     }
 }

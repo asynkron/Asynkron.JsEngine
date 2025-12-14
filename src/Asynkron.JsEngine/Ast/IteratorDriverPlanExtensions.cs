@@ -126,7 +126,7 @@ public static partial class TypedAstEvaluator
                             throw new ThrowSignal(context.FlowValue);
                         }
                     }
-                    catch (ThrowSignal sig)
+                    catch (ThrowSignal)
                     {
                         if (state.IteratorObject is not null && !iteratorDone)
                         {
@@ -138,38 +138,39 @@ public static partial class TypedAstEvaluator
                 }
                 else
                 {
-                if (state.IteratorObject is not null)
-                {
-                    var typeError = StandardLibrary.CreateTypeError(
-                        "Iterator.next() did not return an object", context, context.RealmState);
-                    context.RealmState.Logger?.LogInformation(
-                        "Iterator.next non-object result; throwing TypeError (label={Label})",
-                        loopLabel?.Name ?? "<none>");
-                    context.SetThrow(typeError);
-                    iteratorDone = false; // force IteratorClose on exit for abrupt completion paths that require it
-                    throw new ThrowSignal(typeError);
-                }
+                    if (state.IteratorObject is not null)
+                    {
+                        var typeError = StandardLibrary.CreateTypeError(
+                            "Iterator.next() did not return an object", context, context.RealmState);
+                        context.RealmState.Logger?.LogInformation(
+                            "Iterator.next non-object result; throwing TypeError (label={Label})",
+                            loopLabel?.Name ?? "<none>");
+                        context.SetThrow(typeError);
+                        iteratorDone =
+                            false; // force IteratorClose on exit for abrupt completion paths that require it
+                        throw new ThrowSignal(typeError);
+                    }
 
-                // Enumerator path (non-object next)
-                var iterationEnvironment = plan.DeclarationKind is VariableKind.Let or VariableKind.Const
-                    or VariableKind.Using or VariableKind.AwaitUsing
-                    ? rentIterationEnvironment?.Invoke() ?? new JsEnvironment(loopEnvironment,
-                        creatingSource: plan.Body.Source, description: "for-each-iteration")
-                    : loopEnvironment;
+                    // Enumerator path (non-object next)
+                    var iterationEnvironment = plan.DeclarationKind is VariableKind.Let or VariableKind.Const
+                        or VariableKind.Using or VariableKind.AwaitUsing
+                        ? rentIterationEnvironment?.Invoke() ?? new JsEnvironment(loopEnvironment,
+                            creatingSource: plan.Body.Source, description: "for-each-iteration")
+                        : loopEnvironment;
 
-                AssignLoopBinding(plan.Target, nextResult, iterationEnvironment, outerEnvironment, context,
-                    plan.DeclarationKind);
-                if (context.IsThrow)
-                {
-                    throw new ThrowSignal(context.FlowValue);
-                }
+                    AssignLoopBinding(plan.Target, nextResult, iterationEnvironment, outerEnvironment, context,
+                        plan.DeclarationKind);
+                    if (context.IsThrow)
+                    {
+                        throw new ThrowSignal(context.FlowValue);
+                    }
 
-                lastValue = EvaluateStatement(plan.Body, iterationEnvironment, context, loopLabel);
-                if (context.IsThrow)
-                {
-                    throw new ThrowSignal(context.FlowValue);
+                    lastValue = EvaluateStatement(plan.Body, iterationEnvironment, context, loopLabel);
+                    if (context.IsThrow)
+                    {
+                        throw new ThrowSignal(context.FlowValue);
+                    }
                 }
-            }
 
                 if (context.IsReturn || context.IsThrow)
                 {

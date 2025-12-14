@@ -522,16 +522,16 @@ public static partial class StandardLibrary
         }
 
         if (realm.Engine?.GlobalObject is not JsObject global ||
-            !global.TryGetProperty("Intl", out var intlVal) || !intlVal.IsObject ||
-            !intlVal.AsObject().TryGetProperty("DateTimeFormat", out var ctorVal) ||
-            !ctorVal.IsObject || ctorVal.AsObject() is not IJsCallable ctor)
+            !global.TryGetProperty("Intl", out var intlVal) || intlVal is not JsObject intlObj ||
+            !intlObj.TryGetProperty("DateTimeFormat", out var ctorVal) ||
+            ctorVal is not IJsCallable ctor)
         {
             return new JsValue("Invalid Date");
         }
 
         var ctorArgs = new JsValue[] { localesArg, effectiveOptionsArg };
         var instance = new JsObject();
-        if (ctorVal.AsObject() is IJsPropertyAccessor ctorAccessor &&
+        if (ctorVal is IJsPropertyAccessor ctorAccessor &&
             ctorAccessor.TryGetProperty("prototype", out var proto) &&
             proto is IJsPropertyAccessor protoAccessor)
         {
@@ -549,13 +549,14 @@ public static partial class StandardLibrary
             instance.EndConstruction();
         }
 
-        var formatter = constructed.IsObject && constructed.AsObject() is IJsPropertyAccessor or IJsCallable
+        var formatter = constructed.IsObject &&
+                        (constructed.AsObject() is IJsPropertyAccessor || constructed.AsObject() is IJsCallable)
             ? constructed
             : new JsValue(instance);
 
         if (!formatter.IsObject || formatter.AsObject() is not IJsPropertyAccessor accessor ||
             !accessor.TryGetProperty("format", formatter.AsObject(), out var formatVal) ||
-            !formatVal.IsObject || formatVal.AsObject() is not IJsCallable formatCallable)
+            formatVal is not IJsCallable formatCallable)
         {
             return new JsValue("Invalid Date");
         }

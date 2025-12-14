@@ -44,7 +44,7 @@ public sealed partial class RegExpPrototype : JsPrototype
 
         var input = JsOps.ToJsString(args[0].ToObject()) ?? string.Empty;
         var result = resolved.Exec(input);
-        return result is null ? JsValue.Null : new JsValue(result);
+        return result is null ? JsValue.Null : JsValue.FromObject(result);
     }
 
     [JsHostMethod("toString", Length = 0d)]
@@ -280,7 +280,7 @@ public sealed partial class RegExpPrototype : JsPrototype
         var resultArray = new JsArray(Realm);
         if (limit == 0)
         {
-            return new JsValue(resultArray);
+            return JsValue.FromObject(resultArray);
         }
 
         var position = 0;
@@ -332,6 +332,6 @@ public sealed partial class RegExpPrototype : JsPrototype
             resultArray.Push(input[position..]);
         }
 
-        return new JsValue(resultArray);
+        return JsValue.FromObject(resultArray);
     }
 }

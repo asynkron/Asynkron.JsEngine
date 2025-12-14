@@ -309,8 +309,8 @@ public static partial class StandardLibrary
                 {
                     var value = srcTypedArray switch
                     {
-                        JsBigInt64Array bi64 => bi64.GetBigIntElement(i),
-                        JsBigUint64Array bu64 => bu64.GetBigIntElement(i),
+                        JsBigInt64Array bi64 => JsValue.FromObject(bi64.GetBigIntElement(i)),
+                        JsBigUint64Array bu64 => JsValue.FromObject(bu64.GetBigIntElement(i)),
                         _ => srcTypedArray.GetValueForIndex(i)
                     };
                     if (i < 8)
@@ -513,9 +513,10 @@ public static partial class StandardLibrary
                 if (errorValue.TryGetObject<JsObject>(out var errorObj))
                 {
                     errorObj.SetProperty("constructor", typeErrorCtor);
+                    return errorObj;
                 }
 
-                return errorValue.ToObject() ?? new InvalidOperationException(message);
+                return new InvalidOperationException(message);
             }
 
             TypedArrayBase CreateTarget(int length)
@@ -762,7 +763,7 @@ public static partial class StandardLibrary
         return filtered;
     }
 
-    private static object? TypedArrayReduce(object? thisValue, IReadOnlyList<object?> args, RealmState? realm,
+    private static object? TypedArrayReduce(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm,
         string methodName, bool fromRight)
     {
         if (thisValue is not TypedArrayBase typedArray)
@@ -770,8 +771,7 @@ public static partial class StandardLibrary
             throw ThrowTypeError($"{methodName} called on incompatible receiver", realm: realm);
         }
 
-        var argsJsValue = args.Select(a => JsValue.FromObject(a)).ToList();
-        if (argsJsValue.Count == 0 || !argsJsValue[0].TryGetObject<IJsCallable>(out var callback))
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
         {
             throw ThrowTypeError($"{methodName} requires a callable accumulator", realm: realm);
         }
@@ -792,9 +792,9 @@ public static partial class StandardLibrary
 
         object? accumulator = Symbol.Undefined;
         var hasAccumulator = false;
-        if (argsJsValue.Count > 1 && !argsJsValue[1].IsUndefined)
+        if (args.Count > 1 && !args[1].IsUndefined)
         {
-            accumulator = argsJsValue[1];
+            accumulator = args[1];
             hasAccumulator = true;
         }
 
@@ -1454,34 +1454,34 @@ public static partial class StandardLibrary
             new PropertyDescriptor { Value = fn, Writable = true, Enumerable = false, Configurable = true });
     }
 
-    private static object? TypedArrayIndexOf(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    private static object? TypedArrayIndexOf(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typed)
         {
             throw ThrowTypeError("TypedArray.prototype.indexOf called on incompatible receiver", realm: realm);
         }
 
-        return TypedArrayBase.IndexOfInternal(typed, args.Select(a => JsValue.FromObject(a)).ToList());
+        return TypedArrayBase.IndexOfInternal(typed, args);
     }
 
-    private static object? TypedArrayLastIndexOf(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    private static object? TypedArrayLastIndexOf(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typed)
         {
             throw ThrowTypeError("TypedArray.prototype.lastIndexOf called on incompatible receiver", realm: realm);
         }
 
-        return TypedArrayBase.LastIndexOfInternal(typed, args.Select(a => JsValue.FromObject(a)).ToList());
+        return TypedArrayBase.LastIndexOfInternal(typed, args);
     }
 
-    private static object? TypedArrayIncludes(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    private static object? TypedArrayIncludes(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typed)
         {
             throw ThrowTypeError("TypedArray.prototype.includes called on incompatible receiver", realm: realm);
         }
 
-        return TypedArrayBase.IncludesInternal(typed, args.Select(a => JsValue.FromObject(a)).ToList());
+        return TypedArrayBase.IncludesInternal(typed, args);
     }
 
     private static TypedArrayBase ValidateTypedArrayReceiver(object? thisValue, string methodName, RealmState? realm)

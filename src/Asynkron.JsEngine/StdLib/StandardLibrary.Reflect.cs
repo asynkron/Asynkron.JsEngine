@@ -85,7 +85,7 @@ public static partial class StandardLibrary
              ReferenceEquals(hostCtor, realm.SharedArrayBufferConstructor)))
         {
             var constructContext = realm.CreateContext(pushScope: false);
-            return hostCtor.InvokeWithContext(argList, JsValue.Undefined, constructContext, new JsValue(newTarget));
+            return hostCtor.InvokeWithContext(argList, JsValue.Undefined, constructContext, JsValue.FromObject(newTarget));
         }
 
         var proto = ResolveConstructPrototype(newTarget, target, realm);

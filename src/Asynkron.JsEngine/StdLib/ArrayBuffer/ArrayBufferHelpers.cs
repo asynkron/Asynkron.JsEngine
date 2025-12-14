@@ -73,25 +73,26 @@ public static partial class StandardLibrary
         return callable;
     }
 
-    internal static object? ArrayBufferIsView(object? _, IReadOnlyList<JsValue> args, RealmState? __)
+    internal static JsValue ArrayBufferIsView(object? _, IReadOnlyList<JsValue> args, RealmState? __)
     {
-        if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
+        if (args.Count == 0 || args[0].IsNullOrUndefined)
         {
-            return false;
+            return JsValue.False;
         }
 
-        if (args[0] is TypedArrayBase or JsDataView)
+        var arg = args[0];
+        if (arg.TryGetObject<TypedArrayBase>(out _) || arg.TryGetObject<JsDataView>(out _))
         {
-            return true;
+            return JsValue.True;
         }
 
-        if (args[0] is IJsPropertyAccessor accessor &&
+        if (arg.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
             accessor.TryGetProperty("_internalDataView", out var dv) &&
             dv is JsDataView)
         {
-            return true;
+            return JsValue.True;
         }
 
-        return false;
+        return JsValue.False;
     }
 }

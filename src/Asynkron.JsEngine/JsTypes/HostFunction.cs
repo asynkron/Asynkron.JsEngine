@@ -382,7 +382,7 @@ namespace Asynkron.JsEngine.JsTypes;
 
             if (!newTarget.IsUndefined)
             {
-                if (!targetIsConstructor || !newTarget.TryGetObject(out var newTargetObj) || newTargetObj is not IJsCallable newTargetCtor)
+                if (!targetIsConstructor || !newTarget.TryGetObject<IJsCallable>(out var newTargetCtor))
                 {
                     var error = StandardLibrary.CreateTypeError(
                         "Target is not a constructor",

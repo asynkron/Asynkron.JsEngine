@@ -11,30 +11,19 @@ public static partial class StandardLibrary
         var parts = new List<string>();
         foreach (var arg in args)
         {
-            if (arg is null)
+            if (arg.IsNull)
             {
                 parts.Add("null");
             }
-            else if (ReferenceEquals(arg, Symbol.Undefined))
+            else if (arg.IsUndefined)
             {
                 parts.Add("undefined");
             }
-            else if (arg is string s)
+            else if (arg.TryGetString(out var s))
             {
                 parts.Add(s);
             }
-            else if (arg is JsObject obj)
-            {
-                try
-                {
-                    parts.Add(StringifyValue(obj));
-                }
-                catch
-                {
-                    parts.Add("[object Object]");
-                }
-            }
-            else if (arg is JsArray arr)
+            else if (arg.TryGetObject<JsArray>(out var arr))
             {
                 try
                 {
@@ -45,7 +34,18 @@ public static partial class StandardLibrary
                     parts.Add("[Array]");
                 }
             }
-            else if (arg is IJsCallable)
+            else if (arg.TryGetObject<JsObject>(out var obj))
+            {
+                try
+                {
+                    parts.Add(StringifyValue(obj));
+                }
+                catch
+                {
+                    parts.Add("[object Object]");
+                }
+            }
+            else if (arg.TryGetObject<IJsCallable>(out _))
             {
                 parts.Add("[Function]");
             }

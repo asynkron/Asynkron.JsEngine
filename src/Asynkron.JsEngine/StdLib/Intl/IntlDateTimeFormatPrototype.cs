@@ -26,7 +26,7 @@ public sealed partial class IntlDateTimeFormatPrototype
     }
 
     [JsHostMethod("formatToParts", Length = 1d)]
-    private JsArray FormatToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue FormatToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var slotData = ValidateReceiver(thisValue, out _);
         var formatted = FormatInternal(args.GetArgument(0), slotData);
@@ -35,7 +35,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         part.SetProperty("value", formatted.ToObject());
         var parts = new JsArray(Realm);
         parts.Push(part);
-        return parts;
+        return new JsValue(parts);
     }
 
     [JsHostMethod("formatRange", Length = 2d)]
@@ -48,7 +48,7 @@ public sealed partial class IntlDateTimeFormatPrototype
     }
 
     [JsHostMethod("formatRangeToParts", Length = 2d)]
-    private JsArray FormatRangeToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue FormatRangeToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var slotData = ValidateReceiver(thisValue, out _);
         var start = FormatInternal(args.GetArgument(0), slotData);
@@ -57,7 +57,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         parts.Push(CreateRangePart("startRange", (string)start.ObjectValue!));
         parts.Push(CreateRangePart("separator", " – "));
         parts.Push(CreateRangePart("endRange", (string)end.ObjectValue!));
-        return parts;
+        return new JsValue(parts);
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]

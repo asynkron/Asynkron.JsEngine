@@ -65,14 +65,14 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("reduce", Length = 1d)]
     public JsValue Reduce(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return ReduceLike(thisValue, args, Realm, "Array.prototype.reduce", false);
+        return JsValue.FromObject(ReduceLike(thisValue, args, Realm, "Array.prototype.reduce", false));
     }
 
     [JsHostMethod("reduceRight", Length = 1d)]
     public JsValue ReduceRight(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
-        return ReduceLike(thisValue, args, realm, "Array.prototype.reduceRight", true);
+        return JsValue.FromObject(ReduceLike(thisValue, args, realm, "Array.prototype.reduceRight", true));
     }
 
     [JsHostMethod("forEach", Length = 1d)]
@@ -145,7 +145,7 @@ public sealed partial class ArrayPrototype
     public JsValue Some(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
-        return SomeLike(thisValue, args, realm, "Array.prototype.some");
+        return JsValue.FromObject(SomeLike(thisValue, args, realm, "Array.prototype.some"));
     }
 
     [JsHostMethod("every", Length = 1d)]

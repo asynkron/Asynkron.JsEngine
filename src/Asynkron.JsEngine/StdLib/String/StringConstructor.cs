@@ -87,12 +87,12 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
 
     private void AttachStatics(HostFunction constructor)
     {
-        constructor.SetHostedProperty("fromCodePoint", new HostFunction(args => JsValue.FromObject(StringFromCodePoint(args.Select(a => a.ToObject()).ToList())), Realm, isConstructor: false),
+        constructor.SetHostedProperty("fromCodePoint", new HostFunction(args => JsValue.FromObject(StringFromCodePoint(args)), Realm, isConstructor: false),
             Realm);
-        constructor.SetHostedProperty("fromCharCode", new HostFunction(args => JsValue.FromObject(StringFromCharCode(args.Select(a => a.ToObject()).ToList())), Realm, isConstructor: false),
+        constructor.SetHostedProperty("fromCharCode", new HostFunction(args => JsValue.FromObject(StringFromCharCode(args)), Realm, isConstructor: false),
             Realm);
-        constructor.SetHostedProperty("raw", new HostFunction(args => JsValue.FromObject(StringRaw(args.Select(a => a.ToObject()).ToList())), Realm, isConstructor: false), Realm);
-        constructor.SetHostedProperty("escape", new HostFunction(args => JsValue.FromObject(StringEscape(args.Select(a => a.ToObject()).ToList())), Realm, isConstructor: false), Realm);
+        constructor.SetHostedProperty("raw", new HostFunction(args => JsValue.FromObject(StringRaw(args)), Realm, isConstructor: false), Realm);
+        constructor.SetHostedProperty("escape", new HostFunction(args => JsValue.FromObject(StringEscape(args)), Realm, isConstructor: false), Realm);
     }
 
     private HostFunction ConstructFallback =>

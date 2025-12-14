@@ -32,7 +32,7 @@ public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState
             });
 
         DefineBuiltinFunction(constructor.PropertiesObject, "revocable",
-            new HostFunction(Revocable, Realm, isConstructor: false), 2);
+            new HostFunction(args => Revocable(args), Realm, isConstructor: false), 2);
 
         // Marker to make class heritage resolution reject Proxy as a base.
         constructor.DefineProperty("__proxyHasNoPrototype__", new PropertyDescriptor
@@ -58,7 +58,7 @@ public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState
         return obj;
     }
 
-    private object? Revocable(object? _, IReadOnlyList<JsValue> args)
+    private JsValue Revocable(IReadOnlyList<JsValue> args)
     {
         var target = RequireObject(args.GetArgument(0), "Proxy target must be an object");
         var handler = RequireObject(args.GetArgument(1), "Proxy handler must be an object");
@@ -70,9 +70,9 @@ public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState
         container.SetHostedProperty("revoke", (__, _) =>
         {
             proxy.Handler = null;
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         });
 
-        return container;
+        return new JsValue(container);
     }
 }

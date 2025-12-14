@@ -787,10 +787,10 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                     result.SetProperty("done", true);
                 }
 
-                return result;
+                return new JsValue(result);
             }));
 
-            return iterator;
+            return new JsValue(iterator);
         });
 
         _properties.SetProperty(iteratorKey, iteratorFunction);

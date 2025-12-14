@@ -19,14 +19,14 @@ public sealed partial class IntlNumberFormatPrototype
     }
 
     [JsHostGetter("format", DisplayName = "get format")]
-    public HostFunction GetFormat(JsValue thisValue)
+    public JsValue GetFormat(JsValue thisValue)
     {
         var nf = ValidateNumberFormatReceiver(thisValue);
-        return CreateBoundFormatFunction(value => new JsValue(FormatNumberValue(nf, value)));
+        return new JsValue(CreateBoundFormatFunction(value => new JsValue(FormatNumberValue(nf, value))));
     }
 
     [JsHostMethod("formatToParts", Length = 0d)]
-    public JsArray FormatToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue FormatToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var nf = ValidateNumberFormatReceiver(thisValue);
         var value = args.GetArgument(0);
@@ -44,7 +44,7 @@ public sealed partial class IntlNumberFormatPrototype
             partsArray.Push(entry);
         }
 
-        return partsArray;
+        return new JsValue(partsArray);
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]

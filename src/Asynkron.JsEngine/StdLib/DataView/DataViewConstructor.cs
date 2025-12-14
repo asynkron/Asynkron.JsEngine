@@ -27,8 +27,9 @@ public sealed partial class DataViewConstructor(IJsObjectLike prototype, RealmSt
         constructor.SetInvokeWithContext((args, thisVal, _, newTarget) =>
         {
             var target = _constructor ?? constructor;
-            var effectiveNewTarget = newTarget as IJsCallable ?? target;
-            return ConstructDataView(args, effectiveNewTarget, thisVal as JsObject);
+            var effectiveNewTarget = newTarget.TryGetObject<IJsCallable>(out var callable) ? callable : target;
+            var thisObject = thisVal.TryGetObject<JsObject>(out var jsObj) ? jsObj : null;
+            return JsValue.FromObject(ConstructDataView(args, effectiveNewTarget, thisObject));
         });
     }
 

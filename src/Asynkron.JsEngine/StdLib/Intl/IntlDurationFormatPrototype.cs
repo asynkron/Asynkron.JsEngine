@@ -16,17 +16,17 @@ public sealed partial class IntlDurationFormatPrototype
     }
 
     [JsHostMethod("format", Length = 0d)]
-    private string Format(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue Format(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         ValidateReceiver(thisValue);
-        return "PT0S";
+        return new JsValue("PT0S");
     }
 
     [JsHostMethod("formatToParts", Length = 0d)]
-    private JsArray FormatToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue FormatToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         ValidateReceiver(thisValue);
-        return new JsArray(Realm);
+        return new JsValue(new JsArray(Realm));
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]

@@ -16,7 +16,7 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var target = _constructor ?? ConstructFallback;
-        return new JsValue(ConstructBuffer(args, target));
+        return JsValue.FromObject(ConstructBuffer(args, target));
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -27,14 +27,14 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
 
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
-            if (newTarget is null)
+            if (newTarget.IsUndefined)
             {
                 throw ThrowTypeError("SharedArrayBuffer constructor requires 'new'", realm: Realm);
             }
 
             var target = _constructor ?? constructor;
-            var effectiveNewTarget = newTarget as IJsCallable ?? target;
-            return ConstructBuffer(args, effectiveNewTarget);
+            var effectiveNewTarget = newTarget.TryGetObject<IJsCallable>(out var callable) ? callable : target;
+            return JsValue.FromObject(ConstructBuffer(args, effectiveNewTarget));
         });
 
         var speciesKey = SymbolKeys.GetSpecies(Realm);

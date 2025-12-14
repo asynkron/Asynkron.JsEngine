@@ -29,14 +29,14 @@ public sealed partial class BooleanConstructor(IJsObjectLike prototype, RealmSta
 
         constructor.SetInvokeWithContext((args, thisArg, _, newTarget) =>
         {
-            if (newTarget is null)
+            if (newTarget.IsUndefined)
             {
                 return JsOps.ToBoolean(args.GetArgument(0));
             }
 
             var target = _constructor ?? constructor;
-            var newTargetCallable = newTarget as IJsCallable ?? target;
-            return ConstructWithNewTarget(args, newTargetCallable);
+            var newTargetCallable = newTarget.TryGetObject<IJsCallable>(out var callable) ? callable : target;
+            return JsValue.FromObject(ConstructWithNewTarget(args, newTargetCallable));
         });
     }
 

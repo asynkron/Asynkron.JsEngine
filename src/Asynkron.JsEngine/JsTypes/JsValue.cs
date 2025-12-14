@@ -500,29 +500,34 @@ public readonly struct JsValue : IEquatable<JsValue>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static JsValue FromNumber(double value)
     {
-        // Fast path for common values
-        if (value == 0.0) return Zero;
-        if (value == 1.0) return One;
-        if (value == -1.0) return NegativeOne;
-        return new JsValue(value);
+        return value switch
+        {
+            // Fast path for common values
+            0.0 => Zero,
+            1.0 => One,
+            -1.0 => NegativeOne,
+            _ => new JsValue(value)
+        };
     }
 
     /// <summary>Creates a number JsValue from an integer.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static JsValue FromNumber(int value)
     {
-        if (value == 0) return Zero;
-        if (value == 1) return One;
-        if (value == -1) return NegativeOne;
-        return new JsValue((double)value);
+        return value switch
+        {
+            0 => Zero,
+            1 => One,
+            -1 => NegativeOne,
+            _ => new JsValue((double)value)
+        };
     }
 
     /// <summary>Creates a string JsValue.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static JsValue FromString(string value)
     {
-        if (value.Length == 0) return EmptyString;
-        return new JsValue(value);
+        return value.Length == 0 ? EmptyString : new JsValue(value);
     }
 
     #endregion
@@ -573,8 +578,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             JsValueKind.Number => NumberValue.Equals(other.NumberValue), // Handles NaN correctly
             JsValueKind.String => string.Equals((string)ObjectValue!, (string)other.ObjectValue!, StringComparison.Ordinal),
             JsValueKind.BigInt => ((JsBigInt)ObjectValue!).Equals((JsBigInt)other.ObjectValue!),
-            JsValueKind.Symbol => ReferenceEquals(ObjectValue, other.ObjectValue),
-            JsValueKind.Object => ReferenceEquals(ObjectValue, other.ObjectValue),
+            JsValueKind.Symbol or JsValueKind.Object => ReferenceEquals(ObjectValue, other.ObjectValue),
             _ => false
         };
     }
@@ -590,9 +594,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             JsValueKind.Boolean => NumberValue != 0.0 ? 3 : 2,
             JsValueKind.Number => NumberValue.GetHashCode(),
             JsValueKind.String => ((string)ObjectValue!).GetHashCode(StringComparison.Ordinal),
-            JsValueKind.BigInt => ObjectValue!.GetHashCode(),
-            JsValueKind.Symbol => ObjectValue!.GetHashCode(),
-            JsValueKind.Object => ObjectValue!.GetHashCode(),
+            JsValueKind.BigInt or JsValueKind.Symbol or JsValueKind.Object => ObjectValue!.GetHashCode(),
             _ => 0
         };
     }

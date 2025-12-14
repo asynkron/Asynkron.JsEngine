@@ -380,7 +380,7 @@ public static partial class StandardLibrary
                 {
                     if (!args[1].TryGetObject<IJsCallable>(out var callableMap))
                     {
-                        throw new ThrowSignal(WrapTypeError("mapfn is not callable", callingEnv));
+                        throw new ThrowSignal(JsValue.FromObject(WrapTypeError("mapfn is not callable", callingEnv)));
                     }
 
                     mapFn = callableMap;
@@ -425,19 +425,19 @@ public static partial class StandardLibrary
             {
                 if (!methodVal.TryGetObject<IJsCallable>(out var callableIterator))
                 {
-                    throw new ThrowSignal(WrapTypeError("Iterator method is not callable", callingEnv));
+                    throw new ThrowSignal(JsValue.FromObject(WrapTypeError("Iterator method is not callable", callingEnv)));
                 }
 
                 var iteratorObj = callableIterator.Invoke([], source);
                 if (!iteratorObj.TryGetObject<IJsPropertyAccessor>(out var iteratorAccessor))
                 {
-                    throw new ThrowSignal(WrapTypeError("Iterator method did not return an object", callingEnv));
+                    throw new ThrowSignal(JsValue.FromObject(WrapTypeError("Iterator method did not return an object", callingEnv)));
                 }
 
                 if (!iteratorAccessor.TryGetProperty("next", out var nextVal) ||
                     !nextVal.TryGetObject<IJsCallable>(out var nextCallable))
                 {
-                    throw new ThrowSignal(WrapTypeError("Iterator result does not expose next", callingEnv));
+                    throw new ThrowSignal(JsValue.FromObject(WrapTypeError("Iterator result does not expose next", callingEnv)));
                 }
 
                 var collected = new List<object?>();
@@ -446,7 +446,7 @@ public static partial class StandardLibrary
                     var nextResult = nextCallable.Invoke([], iteratorObj);
                     if (!nextResult.TryGetObject<IJsPropertyAccessor>(out var nextResultAccessor))
                     {
-                        throw new ThrowSignal(WrapTypeError("Iterator result is not an object", callingEnv));
+                        throw new ThrowSignal(JsValue.FromObject(WrapTypeError("Iterator result is not an object", callingEnv)));
                     }
 
                     var done = nextResultAccessor.TryGetProperty("done", out var doneVal) &&

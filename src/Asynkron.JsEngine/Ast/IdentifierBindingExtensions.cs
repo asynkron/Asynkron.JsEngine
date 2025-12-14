@@ -21,8 +21,8 @@ public static partial class TypedAstEvaluator
 
             if (mode == BindingMode.Assign && environment.IsConstBinding(identifier.Name))
             {
-                throw new ThrowSignal(StandardLibrary.CreateTypeError(
-                    $"Cannot reassign constant '{identifier.Name.Name}'.", context, context.RealmState));
+                throw new ThrowSignal(JsValue.FromObject(StandardLibrary.CreateTypeError(
+                    $"Cannot reassign constant '{identifier.Name.Name}'.", context, context.RealmState)));
             }
 
             switch (mode)

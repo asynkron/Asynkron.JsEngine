@@ -163,7 +163,7 @@ public static partial class StandardLibrary
         }
         catch (ThrowSignal signal)
         {
-            promise.Reject(JsValue.FromObject(signal.ThrownValue ?? signal));
+            promise.Reject(signal.ThrownValue);
             return promise.JsObject;
         }
 
@@ -189,7 +189,7 @@ public static partial class StandardLibrary
         }
         catch (ThrowSignal signal)
         {
-            promise.Reject(JsValue.FromObject(signal.ThrownValue ?? signal));
+            promise.Reject(signal.ThrownValue);
         }
 
         return promise.JsObject;
@@ -308,7 +308,7 @@ public static partial class StandardLibrary
                     }
                     catch (ThrowSignal signal)
                     {
-                        onRejected(signal.ThrownValue ?? signal);
+                        onRejected(signal.ThrownValue.ToObject());
                         return true;
                     }
                 }
@@ -487,7 +487,7 @@ public static partial class StandardLibrary
                 }
                 catch (ThrowSignal signal)
                 {
-                    RejectWithClose(signal.ThrownValue ?? signal);
+                    RejectWithClose(signal.ThrownValue.ToObject());
                     return false;
                 }
 
@@ -523,7 +523,7 @@ public static partial class StandardLibrary
             }
             catch (ThrowSignal signal)
             {
-                RejectWithClose(signal.ThrownValue ?? signal);
+                RejectWithClose(signal.ThrownValue.ToObject());
                 return false;
             }
 
@@ -595,7 +595,7 @@ public static partial class StandardLibrary
                 }
                 catch (ThrowSignal signal)
                 {
-                    RejectFailure(signal.ThrownValue ?? signal);
+                    RejectFailure(signal.ThrownValue.ToObject());
                     return false;
                 }
 
@@ -631,7 +631,7 @@ public static partial class StandardLibrary
             }
             catch (ThrowSignal signal)
             {
-                RejectFailure(signal.ThrownValue ?? signal);
+                RejectFailure(signal.ThrownValue.ToObject());
                 return false;
             }
 
@@ -641,7 +641,7 @@ public static partial class StandardLibrary
 
         private void RejectSignal(ThrowSignal signal)
         {
-            RejectFailure(signal.ThrownValue ?? signal);
+            RejectFailure(signal.ThrownValue.ToObject());
         }
 
         private void RejectFailure(object? reason)
@@ -665,7 +665,7 @@ public static partial class StandardLibrary
                 }
                 catch (ThrowSignal signal)
                 {
-                    reason = signal.ThrownValue ?? signal;
+                    reason = signal.ThrownValue.ToObject();
                 }
             }
 

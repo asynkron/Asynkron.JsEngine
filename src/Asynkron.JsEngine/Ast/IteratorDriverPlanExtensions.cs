@@ -123,13 +123,13 @@ public static partial class TypedAstEvaluator
                             plan.DeclarationKind);
                         if (context.IsThrow)
                         {
-                            throw new ThrowSignal(context.FlowValue);
+                            throw new ThrowSignal(JsValue.FromObject(context.FlowValue));
                         }
 
                         lastValue = EvaluateStatement(plan.Body, iterationEnvironment, context, loopLabel);
                         if (context.IsThrow)
                         {
-                            throw new ThrowSignal(context.FlowValue);
+                            throw new ThrowSignal(JsValue.FromObject(context.FlowValue));
                         }
                     }
                     catch (ThrowSignal)
@@ -168,13 +168,13 @@ public static partial class TypedAstEvaluator
                         plan.DeclarationKind);
                     if (context.IsThrow)
                     {
-                        throw new ThrowSignal(context.FlowValue);
+                        throw new ThrowSignal(JsValue.FromObject(context.FlowValue));
                     }
 
                     lastValue = EvaluateStatement(plan.Body, iterationEnvironment, context, loopLabel);
                     if (context.IsThrow)
                     {
-                        throw new ThrowSignal(context.FlowValue);
+                        throw new ThrowSignal(JsValue.FromObject(context.FlowValue));
                     }
                 }
 

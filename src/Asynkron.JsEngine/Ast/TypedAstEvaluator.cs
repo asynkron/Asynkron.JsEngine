@@ -1071,8 +1071,8 @@ public static partial class TypedAstEvaluator
     {
         if (right is not IJsPropertyAccessor)
         {
-            context.SetThrow(StandardLibrary.CreateTypeError("Right-hand side of 'instanceof' is not an object",
-                context));
+            context.SetThrow(JsValue.FromObject(StandardLibrary.CreateTypeError("Right-hand side of 'instanceof' is not an object",
+                context)));
             return false;
         }
 
@@ -1089,7 +1089,7 @@ public static partial class TypedAstEvaluator
             {
                 if (hasInstance is not IJsCallable callable)
                 {
-                    context.SetThrow(StandardLibrary.CreateTypeError("@@hasInstance is not callable", context));
+                    context.SetThrow(JsValue.FromObject(StandardLibrary.CreateTypeError("@@hasInstance is not callable", context)));
                     return false;
                 }
 
@@ -1115,8 +1115,8 @@ public static partial class TypedAstEvaluator
             return OrdinaryHasInstance(left, right, context);
         }
 
-        context.SetThrow(StandardLibrary.CreateTypeError("Right-hand side of 'instanceof' is not callable",
-            context));
+        context.SetThrow(JsValue.FromObject(StandardLibrary.CreateTypeError("Right-hand side of 'instanceof' is not callable",
+            context)));
         return false;
     }
 
@@ -1135,8 +1135,8 @@ public static partial class TypedAstEvaluator
         if (!TryGetPropertyValue(constructor, "prototype", out var prototype, context) ||
             prototype is not IJsPropertyAccessor prototypeObject)
         {
-            context.SetThrow(
-                StandardLibrary.CreateTypeError("Function has non-object prototype in instanceof check", context));
+            context.SetThrow(JsValue.FromObject(
+                StandardLibrary.CreateTypeError("Function has non-object prototype in instanceof check", context)));
             return false;
         }
 

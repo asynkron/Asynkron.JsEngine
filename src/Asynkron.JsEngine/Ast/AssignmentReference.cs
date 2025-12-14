@@ -196,16 +196,16 @@ internal readonly struct AssignmentReference
                 WriteDeclarativeBinding(value);
                 break;
             case ReferenceKind.GlobalBinding:
-                WriteGlobalBinding(value.ToObject());
+                WriteGlobalBinding(value);
                 break;
             case ReferenceKind.WithBinding:
-                WriteWithBinding(value.ToObject());
+                WriteWithBinding(value);
                 break;
             case ReferenceKind.Unresolvable:
-                WriteUnresolvable(value.ToObject());
+                WriteUnresolvable(value);
                 break;
             case ReferenceKind.Delegate:
-                _delegateSetter!(value.ToObject());
+                _delegateSetter!(ConvertJsValueToObject(value));
                 break;
             default:
                 throw new InvalidOperationException($"Unknown reference kind: {_kind}");
@@ -261,9 +261,9 @@ internal readonly struct AssignmentReference
         }
     }
 
-    private void WriteGlobalBinding(object? value)
+    private void WriteGlobalBinding(JsValue value)
     {
-        JsEnvironment.TrySetWithBindingValue(_globalBinding, value, _context.RealmState);
+        JsEnvironment.TrySetWithBindingValue(_globalBinding, ConvertJsValueToObject(value), _context.RealmState);
     }
 
     private object? ReadWithBinding()
@@ -280,7 +280,7 @@ internal readonly struct AssignmentReference
         }
     }
 
-    private void WriteWithBinding(object? value)
+    private void WriteWithBinding(JsValue value)
     {
         if (_isStrict && IsStrictRestrictedName(_name))
         {
@@ -289,9 +289,10 @@ internal readonly struct AssignmentReference
                 _context.RealmState));
         }
 
-        if (!JsEnvironment.TrySetWithBindingValue(_globalBinding, value, _context.RealmState))
+        var objValue = ConvertJsValueToObject(value);
+        if (!JsEnvironment.TrySetWithBindingValue(_globalBinding, objValue, _context.RealmState))
         {
-            _withFallbackEnvironment!.Assign(_name, value);
+            _withFallbackEnvironment!.Assign(_name, objValue);
         }
     }
 
@@ -309,15 +310,35 @@ internal readonly struct AssignmentReference
         }
     }
 
-    private void WriteUnresolvable(object? value)
+    private void WriteUnresolvable(JsValue value)
     {
-        JsEnvironment.AssignUnresolvable(_name, value, _isStrict, _context, _withFallbackEnvironment);
+        JsEnvironment.AssignUnresolvable(_name, ConvertJsValueToObject(value), _isStrict, _context, _withFallbackEnvironment);
     }
 
     private static bool IsStrictRestrictedName(Symbol name)
     {
         return string.Equals(name.Name, "eval", StringComparison.Ordinal) ||
                string.Equals(name.Name, "arguments", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Converts JsValue to object? for compatibility with methods that haven't been migrated yet.
+    /// This manually expands the logic from ToObject() to avoid calling the obsolete method.
+    /// </summary>
+    private static object? ConvertJsValueToObject(JsValue value)
+    {
+        return value.Kind switch
+        {
+            JsValueKind.Undefined => Symbol.Undefined,
+            JsValueKind.Null => null,
+            JsValueKind.Boolean => JsValueCache.GetBoolean(value.NumberValue != 0.0),
+            JsValueKind.Number => JsValueCache.GetNumber(value.NumberValue),
+            JsValueKind.BigInt => value.ObjectValue,
+            JsValueKind.String => value.ObjectValue,
+            JsValueKind.Symbol => value.ObjectValue,
+            JsValueKind.Object => value.ObjectValue,
+            _ => Symbol.Undefined
+        };
     }
 }
 
@@ -613,7 +634,7 @@ internal static class AssignmentReferenceResolver
                 return;
             }
 
-            target.SetProperty(propertyName, value, receiver);
+            target.SetProperty(propertyName, JsValue.FromObject(value), JsValue.FromObject(receiver));
             return;
         }
 
@@ -733,11 +754,11 @@ internal static class AssignmentReferenceResolver
                     return;
                 }
 
-                prototypeAccessor.SetProperty(propertyName, value, receiver);
+                prototypeAccessor.SetProperty(propertyName, JsValue.FromObject(value), JsValue.FromObject(receiver));
                 return;
             }
 
-            prototypeAccessor.SetProperty(propertyName, value, receiver);
+            prototypeAccessor.SetProperty(propertyName, JsValue.FromObject(value), JsValue.FromObject(receiver));
             return;
         }
 
@@ -752,6 +773,6 @@ internal static class AssignmentReferenceResolver
             return;
         }
 
-        target.SetProperty(propertyName, value, receiver);
+        target.SetProperty(propertyName, JsValue.FromObject(value), JsValue.FromObject(receiver));
     }
 }

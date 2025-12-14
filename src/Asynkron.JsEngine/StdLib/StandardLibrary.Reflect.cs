@@ -150,14 +150,12 @@ public static partial class StandardLibrary
             throw new InvalidOperationException("Realm is required for Reflect.defineProperty.");
         }
 
-        var arg0 = args.Count > 0 ? args[0].ToObject() : null;
-        if (args.Count < 3 || !TryGetObject(arg0, realm, out var target))
+        if (args.Count < 3 || !args[0].TryGetObject<IJsObjectLike>(out var target))
         {
             throw new Exception("Reflect.defineProperty: target must be an object.");
         }
 
-        var arg1 = args.Count > 1 ? args[1].ToObject() : null;
-        var propertyKey = JsOps.ToPropertyName(arg1) ?? string.Empty;
+        var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1].ToObject()) ?? string.Empty : string.Empty;
         var descriptor = ToPropertyDescriptor(args[2], realm);
 
         return JsValue.FromObject(TryDefinePropertyOnTarget(target, propertyKey, descriptor, realm, false));
@@ -170,14 +168,12 @@ public static partial class StandardLibrary
             throw new InvalidOperationException("Realm is required for Reflect.deleteProperty.");
         }
 
-        var arg0 = args.Count > 0 ? args[0].ToObject() : null;
-        if (args.Count < 2 || !TryGetObject(arg0, realm, out var target))
+        if (args.Count < 2 || !args[0].TryGetObject<IJsObjectLike>(out var target))
         {
             throw new Exception("Reflect.deleteProperty: target must be an object.");
         }
 
-        var arg1 = args.Count > 1 ? args[1].ToObject() : null;
-        var propertyKey = JsOps.ToPropertyName(arg1) ?? string.Empty;
+        var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1].ToObject()) ?? string.Empty : string.Empty;
         var result = target switch
         {
             ModuleNamespace moduleNamespace => moduleNamespace.Delete(propertyKey),
@@ -195,16 +191,14 @@ public static partial class StandardLibrary
             throw new InvalidOperationException("Realm is required for Reflect.get.");
         }
 
-        var arg0 = args.Count > 0 ? args[0].ToObject() : null;
-        if (args.Count < 2 || !TryGetObject(arg0, realm, out var target))
+        if (args.Count < 2 || !args[0].TryGetObject<IJsObjectLike>(out var target))
         {
             throw new Exception("Reflect.get: target must be an object.");
         }
 
-        var receiver = args.Count > 2 ? args[2].ToObject() : target;
-        var arg1 = args.Count > 1 ? args[1].ToObject() : null;
-        var propertyKey = JsOps.ToPropertyName(arg1) ?? string.Empty;
-        return target.TryGetProperty(propertyKey, receiver, out var value) ? JsValue.FromObject(value) : JsValue.Undefined;
+        var receiver = args.Count > 2 ? args[2] : JsValue.FromObject(target);
+        var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1].ToObject()) ?? string.Empty : string.Empty;
+        return target.TryGetProperty(propertyKey, receiver, out var value) ? value : JsValue.Undefined;
     }
 
     internal static JsValue ReflectGetOwnPropertyDescriptor(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
@@ -214,14 +208,12 @@ public static partial class StandardLibrary
             throw new InvalidOperationException("Realm is required for Reflect.getOwnPropertyDescriptor.");
         }
 
-        var arg0 = args.Count > 0 ? args[0].ToObject() : null;
-        if (args.Count < 2 || !TryGetObject(arg0, realm, out var target))
+        if (args.Count < 2 || !args[0].TryGetObject<IJsObjectLike>(out var target))
         {
             throw new Exception("Reflect.getOwnPropertyDescriptor: target must be an object.");
         }
 
-        var arg1 = args.Count > 1 ? args[1].ToObject() : null;
-        var propertyKey = JsOps.ToPropertyName(arg1) ?? string.Empty;
+        var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1].ToObject()) ?? string.Empty : string.Empty;
         var descriptor = target.GetOwnPropertyDescriptor(propertyKey);
         var result = FromPropertyDescriptor(descriptor, realm);
         return result is not null ? JsValue.FromObject(result) : JsValue.Undefined;
@@ -234,8 +226,7 @@ public static partial class StandardLibrary
             throw new InvalidOperationException("Realm is required for Reflect.getPrototypeOf.");
         }
 
-        var arg0 = args.Count > 0 ? args[0].ToObject() : null;
-        if (args.Count == 0 || !TryGetObject(arg0, realm, out var target))
+        if (args.Count == 0 || !args[0].TryGetObject<IJsObjectLike>(out var target))
         {
             throw new Exception("Reflect.getPrototypeOf: target must be an object.");
         }
@@ -255,14 +246,12 @@ public static partial class StandardLibrary
             throw new InvalidOperationException("Realm is required for Reflect.has.");
         }
 
-        var arg0 = args.Count > 0 ? args[0].ToObject() : null;
-        if (args.Count < 2 || !TryGetObject(arg0, realm, out var target))
+        if (args.Count < 2 || !args[0].TryGetObject<IJsObjectLike>(out var target))
         {
             throw new Exception("Reflect.has: target must be an object.");
         }
 
-        var arg1 = args.Count > 1 ? args[1].ToObject() : null;
-        var propertyKey = JsOps.ToPropertyName(arg1) ?? string.Empty;
+        var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1].ToObject()) ?? string.Empty : string.Empty;
         if (target is ModuleNamespace moduleNamespace)
         {
             // Use HasProperty which triggers evaluation for deferred namespaces per ES spec
@@ -279,8 +268,7 @@ public static partial class StandardLibrary
             throw new InvalidOperationException("Realm is required for Reflect.isExtensible.");
         }
 
-        var arg0 = args.Count > 0 ? args[0].ToObject() : null;
-        if (args.Count == 0 || !TryGetObject(arg0, realm, out var target))
+        if (args.Count == 0 || !args[0].TryGetObject<IJsObjectLike>(out var target))
         {
             throw new Exception("Reflect.isExtensible: target must be an object.");
         }
@@ -295,8 +283,7 @@ public static partial class StandardLibrary
             throw new InvalidOperationException("Realm is required for Reflect.ownKeys.");
         }
 
-        var arg0 = args.Count > 0 ? args[0].ToObject() : null;
-        if (args.Count == 0 || !TryGetObject(arg0, realm, out var target))
+        if (args.Count == 0 || !args[0].TryGetObject<IJsObjectLike>(out var target))
         {
             throw new Exception("Reflect.ownKeys: target must be an object.");
         }
@@ -339,8 +326,7 @@ public static partial class StandardLibrary
             throw new InvalidOperationException("Realm is required for Reflect.preventExtensions.");
         }
 
-        var arg0 = args.Count > 0 ? args[0].ToObject() : null;
-        if (args.Count == 0 || !TryGetObject(arg0, realm, out var target))
+        if (args.Count == 0 || !args[0].TryGetObject<IJsObjectLike>(out var target))
         {
             throw new Exception("Reflect.preventExtensions: target must be an object.");
         }
@@ -356,16 +342,14 @@ public static partial class StandardLibrary
             throw new InvalidOperationException("Realm is required for Reflect.set.");
         }
 
-        var arg0 = args.Count > 0 ? args[0].ToObject() : null;
-        if (args.Count < 2 || !TryGetObject(arg0, realm, out var target))
+        if (args.Count < 2 || !args[0].TryGetObject<IJsObjectLike>(out var target))
         {
             throw new Exception("Reflect.set: target must be an object.");
         }
 
-        var arg1 = args.Count > 1 ? args[1].ToObject() : null;
-        var propertyKey = JsOps.ToPropertyName(arg1) ?? string.Empty;
-        var value = args.Count > 2 ? args[2].ToObject() : null;
-        var receiver = args.Count > 3 ? args[3].ToObject() : target;
+        var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1].ToObject()) ?? string.Empty : string.Empty;
+        var value = args.Count > 2 ? args[2] : JsValue.Undefined;
+        var receiver = args.Count > 3 ? args[3] : JsValue.FromObject(target);
         switch (target)
         {
             case ModuleNamespace moduleNamespace:
@@ -380,7 +364,7 @@ public static partial class StandardLibrary
 
                 return new JsValue(false);
             case JsArray jsArray when string.Equals(propertyKey, "length", StringComparison.Ordinal):
-                return JsValue.FromObject(jsArray.SetLength(value, null, false));
+                return JsValue.FromObject(jsArray.SetLength(value.ToObject(), null, false));
             default:
                 target.SetProperty(propertyKey, value, receiver);
                 return new JsValue(true);
@@ -394,8 +378,7 @@ public static partial class StandardLibrary
             throw new InvalidOperationException("Realm is required for Reflect.setPrototypeOf.");
         }
 
-        var arg0 = args.Count > 0 ? args[0].ToObject() : null;
-        if (args.Count < 2 || !TryGetObject(arg0, realm, out var target))
+        if (args.Count < 2 || !args[0].TryGetObject<IJsObjectLike>(out var target))
         {
             throw new Exception("Reflect.setPrototypeOf: target must be an object.");
         }
@@ -418,7 +401,7 @@ public static partial class StandardLibrary
         // Step 1: use newTarget.prototype if it is an object
         if (newTarget is IJsPropertyAccessor accessor &&
             accessor.TryGetProperty("prototype", out var protoVal) &&
-            protoVal is IJsObjectLike protoObj)
+            protoVal.TryGetObject<IJsObjectLike>(out var protoObj))
         {
             return protoObj;
         }
@@ -436,7 +419,7 @@ public static partial class StandardLibrary
 
             if (newTargetRealmObject is JsObject &&
                 newTargetRealmObject.TryGetProperty("Array", out var realmArrayCtor) &&
-                TryGetPrototype(realmArrayCtor!, out var realmArrayProto))
+                TryGetPrototype(realmArrayCtor.ToObject()!, out var realmArrayProto))
             {
                 return realmArrayProto;
             }
@@ -474,10 +457,12 @@ public static partial class StandardLibrary
 
         if (target is not IJsPropertyAccessor accessor ||
             !accessor.TryGetProperty("name", out var nameValue) ||
-            nameValue is not string ctorName)
+            !nameValue.IsString)
         {
             return false;
         }
+
+        var ctorName = nameValue.AsString();
 
         if (realmState is not null &&
             TryGetPrototypeFromRealmState(ctorName, realmState, out prototype))
@@ -498,8 +483,8 @@ public static partial class StandardLibrary
 
         if (realmObject is not null &&
             realmObject.TryGetProperty(ctorName, out var realmCtor) &&
-            realmCtor is not null &&
-            TryGetPrototype(realmCtor, out var realmProto))
+            !realmCtor.IsUndefined &&
+            TryGetPrototype(realmCtor.ToObject()!, out var realmProto))
         {
             prototype = realmProto;
             return true;
@@ -507,8 +492,8 @@ public static partial class StandardLibrary
 
         if (realmObject is not null &&
             realmObject.TryGetProperty("Object", out var objectCtor) &&
-            objectCtor is not null &&
-            TryGetPrototype(objectCtor, out var objectProto))
+            !objectCtor.IsUndefined &&
+            TryGetPrototype(objectCtor.ToObject()!, out var objectProto))
         {
             prototype = objectProto;
             return true;
@@ -560,7 +545,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        return TryGetPrototype(ctorValue!, out prototype);
+        return TryGetPrototype(ctorValue.ToObject()!, out prototype);
     }
 
     private static bool IsIntlConstructor(string ctorName)
@@ -573,14 +558,14 @@ public static partial class StandardLibrary
     {
         if (realmObject is not null &&
             realmObject.TryGetProperty("Intl", out var intlValue) &&
-            intlValue is JsObject intlObj)
+            intlValue.TryGetObject<JsObject>(out var intlObj))
         {
             return intlObj;
         }
 
         var engine = realmState?.Engine;
         if (engine?.GlobalObject.TryGetProperty("Intl", out var globalIntl) == true &&
-            globalIntl is JsObject globalIntlObj)
+            globalIntl.TryGetObject<JsObject>(out var globalIntlObj))
         {
             return globalIntlObj;
         }
@@ -616,7 +601,7 @@ public static partial class StandardLibrary
         // lives on the .prototype data property).
         if (candidate is IJsPropertyAccessor accessor &&
             accessor.TryGetProperty("prototype", out var protoProperty) &&
-            protoProperty is IJsObjectLike protoObj)
+            protoProperty.TryGetObject<IJsObjectLike>(out var protoObj))
         {
             prototype = protoObj;
             return true;

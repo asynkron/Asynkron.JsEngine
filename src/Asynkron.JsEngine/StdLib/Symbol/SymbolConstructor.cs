@@ -49,20 +49,20 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
         constructor.SetHostedProperty("for", new HostFunction(SymbolFor, Realm, isConstructor: false), Realm);
         constructor.SetHostedProperty("keyFor", new HostFunction(SymbolKeyFor, Realm, isConstructor: false), Realm);
 
-        constructor.SetProperty("hasInstance", Symbols.HasInstance);
-        constructor.SetProperty("iterator", Symbols.Iterator);
-        constructor.SetProperty("asyncIterator", Symbols.AsyncIterator);
-        constructor.SetProperty("toPrimitive", Symbols.ToPrimitive);
-        constructor.SetProperty("toStringTag", Symbols.ToStringTag);
-        constructor.SetProperty("unscopables", Symbols.Unscopables);
-        constructor.SetProperty("match", Symbols.Match);
-        constructor.SetProperty("matchAll", Symbols.MatchAll);
-        constructor.SetProperty("replace", Symbols.Replace);
-        constructor.SetProperty("replaceAll", Symbols.ReplaceAll);
-        constructor.SetProperty("search", Symbols.Search);
-        constructor.SetProperty("split", Symbols.Split);
-        constructor.SetProperty("species", Symbols.Species);
-        constructor.SetProperty("isConcatSpreadable", Symbols.IsConcatSpreadable);
+        constructor.SetProperty("hasInstance", JsValue.FromObject(Symbols.HasInstance));
+        constructor.SetProperty("iterator", JsValue.FromObject(Symbols.Iterator));
+        constructor.SetProperty("asyncIterator", JsValue.FromObject(Symbols.AsyncIterator));
+        constructor.SetProperty("toPrimitive", JsValue.FromObject(Symbols.ToPrimitive));
+        constructor.SetProperty("toStringTag", JsValue.FromObject(Symbols.ToStringTag));
+        constructor.SetProperty("unscopables", JsValue.FromObject(Symbols.Unscopables));
+        constructor.SetProperty("match", JsValue.FromObject(Symbols.Match));
+        constructor.SetProperty("matchAll", JsValue.FromObject(Symbols.MatchAll));
+        constructor.SetProperty("replace", JsValue.FromObject(Symbols.Replace));
+        constructor.SetProperty("replaceAll", JsValue.FromObject(Symbols.ReplaceAll));
+        constructor.SetProperty("search", JsValue.FromObject(Symbols.Search));
+        constructor.SetProperty("split", JsValue.FromObject(Symbols.Split));
+        constructor.SetProperty("species", JsValue.FromObject(Symbols.Species));
+        constructor.SetProperty("isConcatSpreadable", JsValue.FromObject(Symbols.IsConcatSpreadable));
     }
 
     private JsValue SymbolFor(IReadOnlyList<JsValue> args)
@@ -78,7 +78,7 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
 
     private JsValue SymbolKeyFor(IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || !(args[0].IsSymbol && args[0].ObjectValue is TypedAstSymbol sym))
+        if (args.Count == 0 || !args[0].IsSymbol || args[0].ObjectValue is not TypedAstSymbol sym)
         {
             return JsValue.Undefined;
         }

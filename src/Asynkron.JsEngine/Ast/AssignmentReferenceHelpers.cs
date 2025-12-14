@@ -152,7 +152,7 @@ public static partial class TypedAstEvaluator
                     return;
                 }
 
-                accessor.SetProperty(propertyName, JsValue.FromObject(value), target);
+                accessor.SetProperty(propertyName, JsValue.FromObject(value), JsValue.FromObject(target));
                 return;
             }
 
@@ -346,7 +346,7 @@ public static partial class TypedAstEvaluator
             obj.SetPrototype(realm.BooleanPrototype);
         }
 
-        obj.SetProperty("__value__", value);
+        obj.SetProperty("__value__", JsValue.FromObject(value));
         return obj;
     }
 
@@ -358,7 +358,7 @@ public static partial class TypedAstEvaluator
             obj.SetPrototype(realm.SymbolPrototype);
         }
 
-        obj.SetProperty("__value__", symbol);
+        obj.SetProperty("__value__", JsValue.FromObject(symbol));
         return obj;
     }
 

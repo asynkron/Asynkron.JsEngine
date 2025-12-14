@@ -47,28 +47,26 @@ public static partial class StandardLibrary
 
         if (descriptorObject.TryGetProperty("get", out var getterValue))
         {
-            var getterJsValue = JsValue.FromObject(getterValue);
-            if (!getterJsValue.IsUndefined && !getterJsValue.TryGetObject<IJsCallable>(out _))
+            if (!getterValue.IsUndefined && !getterValue.TryGetObject<IJsCallable>(out _))
             {
                 throw ThrowTypeError("Getter must be a function", realm: realm);
             }
 
-            descriptor.Get = getterJsValue.IsUndefined
+            descriptor.Get = getterValue.IsUndefined
                 ? null
-                : getterValue as IJsCallable;
+                : getterValue.TryGetObject<IJsCallable>(out var getter) ? getter : null;
         }
 
         if (descriptorObject.TryGetProperty("set", out var setterValue))
         {
-            var setterJsValue = JsValue.FromObject(setterValue);
-            if (!setterJsValue.IsUndefined && !setterJsValue.TryGetObject<IJsCallable>(out _))
+            if (!setterValue.IsUndefined && !setterValue.TryGetObject<IJsCallable>(out _))
             {
                 throw ThrowTypeError("Setter must be a function", realm: realm);
             }
 
-            descriptor.Set = setterJsValue.IsUndefined
+            descriptor.Set = setterValue.IsUndefined
                 ? null
-                : setterValue as IJsCallable;
+                : setterValue.TryGetObject<IJsCallable>(out var setter) ? setter : null;
         }
 
         if (descriptor is { IsAccessorDescriptor: true, IsDataDescriptor: true })
@@ -93,18 +91,18 @@ public static partial class StandardLibrary
         if (descriptor.IsAccessorDescriptor)
         {
             result.SetProperty("get",
-                descriptor is { HasGet: true, Get: not null } ? descriptor.Get : JsValue.Undefined.ToObject());
+                descriptor is { HasGet: true, Get: not null } ? JsValue.FromObject(descriptor.Get) : JsValue.Undefined);
             result.SetProperty("set",
-                descriptor is { HasSet: true, Set: not null } ? descriptor.Set : JsValue.Undefined.ToObject());
+                descriptor is { HasSet: true, Set: not null } ? JsValue.FromObject(descriptor.Set) : JsValue.Undefined);
         }
         else
         {
-            result.SetProperty("value", descriptor.HasValue ? descriptor.Value : JsValue.Undefined.ToObject());
-            result.SetProperty("writable", descriptor.HasWritable ? descriptor.Writable : false);
+            result.SetProperty("value", descriptor.HasValue ? JsValue.FromObject(descriptor.Value) : JsValue.Undefined);
+            result.SetProperty("writable", new JsValue(descriptor.HasWritable ? descriptor.Writable : false));
         }
 
-        result.SetProperty("enumerable", descriptor.HasEnumerable ? descriptor.Enumerable : false);
-        result.SetProperty("configurable", descriptor.HasConfigurable ? descriptor.Configurable : false);
+        result.SetProperty("enumerable", new JsValue(descriptor.HasEnumerable ? descriptor.Enumerable : false));
+        result.SetProperty("configurable", new JsValue(descriptor.HasConfigurable ? descriptor.Configurable : false));
         return result;
     }
 
@@ -154,7 +152,7 @@ public static partial class StandardLibrary
                 (!descriptor.HasEnumerable || descriptor.Enumerable == current.Enumerable) &&
                 (!descriptor.HasWritable || descriptor.Writable == current.Writable))
             {
-                jsObject.SetProperty(propertyKey, descriptor.Value);
+                jsObject.SetProperty(propertyKey, JsValue.FromObject(descriptor.Value));
                 return true;
             }
 
@@ -684,7 +682,7 @@ public static partial class StandardLibrary
                 continue;
             }
 
-            descriptors.SetProperty(key, FromPropertyDescriptor(descriptor, realmState) ?? new JsObject());
+            descriptors.SetProperty(key, JsValue.FromObject(FromPropertyDescriptor(descriptor, realmState) ?? new JsObject()));
         }
 
         return descriptors;
@@ -745,9 +743,9 @@ public static partial class StandardLibrary
         if (proto is not IJsPropertyAccessor &&
             obj is HostFunction { Realm: JsObject fnRealm } &&
             fnRealm.TryGetProperty("Function", out var fnVal) &&
-            fnVal is IJsPropertyAccessor fnAccessor &&
+            fnVal.TryGetObject<IJsPropertyAccessor>(out var fnAccessor) &&
             fnAccessor.TryGetProperty("prototype", out var fnProtoObj) &&
-            fnProtoObj is JsObject fnProto)
+            fnProtoObj.TryGetObject<JsObject>(out var fnProto))
         {
             proto = fnProto;
         }

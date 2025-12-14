@@ -44,7 +44,7 @@ public sealed partial class IntlLocalePrototype
     private JsValue GetLanguage(JsValue thisValue)
     {
         var locale = ValidateLocaleReceiver(thisValue);
-        var language = locale.TryGetProperty(LanguageSlot, out var value) && value is string lang && lang.Length > 0
+        var language = locale.TryGetProperty(LanguageSlot, out var value) && value.TryGetString(out var lang) && lang.Length > 0
             ? lang
             : "und";
         return language;
@@ -54,7 +54,7 @@ public sealed partial class IntlLocalePrototype
     private JsValue GetScript(JsValue thisValue)
     {
         var locale = ValidateLocaleReceiver(thisValue);
-        if (locale.TryGetProperty(ScriptSlot, out var value) && value is string script && script.Length > 0)
+        if (locale.TryGetProperty(ScriptSlot, out var value) && value.TryGetString(out var script) && script.Length > 0)
         {
             return script;
         }
@@ -66,7 +66,7 @@ public sealed partial class IntlLocalePrototype
     private JsValue GetRegion(JsValue thisValue)
     {
         var locale = ValidateLocaleReceiver(thisValue);
-        if (locale.TryGetProperty(RegionSlot, out var value) && value is string region && region.Length > 0)
+        if (locale.TryGetProperty(RegionSlot, out var value) && value.TryGetString(out var region) && region.Length > 0)
         {
             return region;
         }
@@ -229,11 +229,11 @@ public sealed partial class IntlLocalePrototype
     private JsValue GetTextInfo(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
-        var direction = locale.TryGetProperty(TextDirectionSlot, out var value) && value is string dir && dir.Length > 0
+        var direction = locale.TryGetProperty(TextDirectionSlot, out var value) && value.TryGetString(out var dir) && dir.Length > 0
             ? dir
             : "ltr";
         var info = new JsObject(Realm.ObjectPrototype);
-        info.SetProperty("direction", direction);
+        info.SetProperty("direction", JsValue.FromObject(direction));
         return JsValue.FromObject(info);
     }
 
@@ -241,7 +241,7 @@ public sealed partial class IntlLocalePrototype
     private JsValue GetTimeZones(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
-        var hasRegion = locale.TryGetProperty(RegionSlot, out var regionValue) && regionValue is string region &&
+        var hasRegion = locale.TryGetProperty(RegionSlot, out var regionValue) && regionValue.TryGetString(out var region) &&
                         region.Length > 0;
         if (!hasRegion)
         {
@@ -269,11 +269,11 @@ public sealed partial class IntlLocalePrototype
         var locale = ValidateLocaleReceiver(thisValue);
         var info = new JsObject(Realm.ObjectPrototype);
         var firstDay = ResolveFirstDayOfWeek(locale);
-        info.SetProperty("firstDay", ConvertWeekdayToNumber(firstDay));
+        info.SetProperty("firstDay", JsValue.FromObject(ConvertWeekdayToNumber(firstDay)));
 
         var weekend = ResolveWeekendDays(locale);
-        info.SetProperty("weekend", CreateWeekendArray(weekend));
-        info.SetProperty("minimalDays", ResolveMinimalDays(locale));
+        info.SetProperty("weekend", JsValue.FromObject(CreateWeekendArray(weekend)));
+        info.SetProperty("minimalDays", JsValue.FromObject(ResolveMinimalDays(locale)));
         return JsValue.FromObject(info);
     }
 
@@ -305,12 +305,12 @@ public sealed partial class IntlLocalePrototype
     internal static bool TryBuildLocaleIdentifier(JsObject candidate, out string identifier)
     {
         identifier = string.Empty;
-        if (!candidate.TryGetProperty(BrandKey, out var marker) || marker is not true)
+        if (!candidate.TryGetProperty(BrandKey, out var marker) || !marker.TryGetBoolean(out var isBranded) || !isBranded)
         {
             return false;
         }
 
-        if (!candidate.TryGetProperty(TagSlot, out var baseTagValue) || baseTagValue is not string tag ||
+        if (!candidate.TryGetProperty(TagSlot, out var baseTagValue) || !baseTagValue.TryGetString(out var tag) ||
             string.IsNullOrWhiteSpace(tag))
         {
             return false;
@@ -322,7 +322,7 @@ public sealed partial class IntlLocalePrototype
 
     private JsObject ValidateLocaleReceiver(JsValue thisValue)
     {
-        if (thisValue.TryGetObject<JsObject>(out var obj) && obj.TryGetProperty(BrandKey, out var marker) && marker is true)
+        if (thisValue.TryGetObject<JsObject>(out var obj) && obj.TryGetProperty(BrandKey, out var marker) && marker.TryGetBoolean(out var isBranded) && isBranded)
         {
             return obj;
         }
@@ -345,43 +345,43 @@ public sealed partial class IntlLocalePrototype
 
     internal static Dictionary<string, string> GetLocaleKeywords(JsObject locale)
     {
-        if (locale.TryGetProperty(KeywordsSlot, out var value) && value is Dictionary<string, string> dictionary)
+        if (locale.TryGetProperty(KeywordsSlot, out var value) && value.TryGetObject<Dictionary<string, string>>(out var dictionary))
         {
             return dictionary;
         }
 
         var empty = new Dictionary<string, string>(StringComparer.Ordinal);
-        locale.SetProperty(KeywordsSlot, empty);
+        locale.SetProperty(KeywordsSlot, JsValue.FromObject(empty));
         return empty;
     }
 
     internal static List<string> GetLocaleVariants(JsObject locale)
     {
-        if (locale.TryGetProperty(VariantsSlot, out var value) && value is List<string> list)
+        if (locale.TryGetProperty(VariantsSlot, out var value) && value.TryGetObject<List<string>>(out var list))
         {
             return list;
         }
 
         var variants = new List<string>();
-        locale.SetProperty(VariantsSlot, variants);
+        locale.SetProperty(VariantsSlot, JsValue.FromObject(variants));
         return variants;
     }
 
     internal static string BuildBaseName(JsObject locale)
     {
-        var language = locale.TryGetProperty(LanguageSlot, out var langValue) && langValue is string lang && lang.Length > 0
+        var language = locale.TryGetProperty(LanguageSlot, out var langValue) && langValue.TryGetString(out var lang) && lang.Length > 0
             ? lang
             : "und";
 
         var result = language;
 
-        if (locale.TryGetProperty(ScriptSlot, out var scriptValue) && scriptValue is string script &&
+        if (locale.TryGetProperty(ScriptSlot, out var scriptValue) && scriptValue.TryGetString(out var script) &&
             script.Length > 0)
         {
             result += "-" + script;
         }
 
-        if (locale.TryGetProperty(RegionSlot, out var regionValue) && regionValue is string region &&
+        if (locale.TryGetProperty(RegionSlot, out var regionValue) && regionValue.TryGetString(out var region) &&
             region.Length > 0)
         {
             result += "-" + region;
@@ -473,7 +473,7 @@ public sealed partial class IntlLocalePrototype
 
     private string ResolveLocaleRegion(JsObject locale)
     {
-        if (locale.TryGetProperty(RegionSlot, out var value) && value is string region && region.Length > 0)
+        if (locale.TryGetProperty(RegionSlot, out var value) && value.TryGetString(out var region) && region.Length > 0)
         {
             return region;
         }
@@ -487,7 +487,7 @@ public sealed partial class IntlLocalePrototype
 
     private string GetCanonicalTag(JsObject locale)
     {
-        if (locale.TryGetProperty(TagSlot, out var tag) && tag is string canonical && canonical.Length > 0)
+        if (locale.TryGetProperty(TagSlot, out var tag) && tag.TryGetString(out var canonical) && canonical.Length > 0)
         {
             return canonical;
         }

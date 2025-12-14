@@ -30,7 +30,7 @@ public static partial class StandardLibrary
             }
 
             var arr = new JsArray(realm);
-            arr.SetProperty("length", (double)length);
+            arr.SetProperty("length", new JsValue((double)length));
             return arr;
         }
 
@@ -57,7 +57,7 @@ public static partial class StandardLibrary
         }
 
         if (!useDefaultConstructor &&
-            constructorValue is HostFunction hostCtor &&
+            constructorValue.TryGetObject<HostFunction>(out var hostCtor) &&
             hostCtor.RealmState is { } ctorRealm &&
             !ReferenceEquals(ctorRealm, realm) &&
             ReferenceEquals(hostCtor, ctorRealm.ArrayConstructor))
@@ -67,15 +67,15 @@ public static partial class StandardLibrary
 
         var constructor = constructorValue;
 
-        if (!useDefaultConstructor && constructor is IJsPropertyAccessor ctorAccessor)
+        if (!useDefaultConstructor && constructorValue.TryGetObject<IJsPropertyAccessor>(out var ctorAccessor))
         {
-            object? species = null;
+            JsValue species = JsValue.Undefined;
             if (ctorAccessor.TryGetProperty(SymbolSpeciesKey, out var speciesValue))
             {
                 species = speciesValue;
             }
 
-            if (species is null || ReferenceEquals(species, Symbol.Undefined))
+            if (species.IsNullOrUndefined)
             {
                 useDefaultConstructor = true;
             }
@@ -90,7 +90,7 @@ public static partial class StandardLibrary
             return CreateDefaultArray();
         }
 
-        if (constructor is not IJsCallable callable || !JsOps.IsConstructor(callable))
+        if (!constructor.TryGetObject<IJsCallable>(out var callable) || !JsOps.IsConstructor(callable))
         {
             throw ThrowTypeError("Array species constructor must be a constructor", realm: realm);
         }
@@ -149,7 +149,7 @@ public static partial class StandardLibrary
         }
 
         var array = new JsArray(realm);
-        array.SetProperty("length", passLengthToConstructor ? Math.Max(length, 0) : 0d);
+        array.SetProperty("length", new JsValue(passLengthToConstructor ? Math.Max(length, 0) : 0d));
         return array;
     }
 
@@ -180,7 +180,7 @@ public static partial class StandardLibrary
             receiver.SetPrototype(proto);
         }
 
-        receiver.SetProperty("length", (double)Math.Max(length, 0));
+        receiver.SetProperty("length", new JsValue((double)Math.Max(length, 0)));
         return receiver;
     }
 
@@ -257,7 +257,7 @@ public static partial class StandardLibrary
         var inspected = UnwrapProxy(candidate, realm, "Array.isArray");
         if (inspected.TryGetObject<JsArray>(out var jsArray))
         {
-            if (jsArray.TryGetProperty("__arguments__", out var isArgs) && isArgs is true)
+            if (jsArray.TryGetProperty("__arguments__", out var isArgs) && isArgs.TryGetBoolean(out var isArgsValue) && isArgsValue)
             {
                 return false;
             }
@@ -328,7 +328,7 @@ public static partial class StandardLibrary
         {
             if (inspected.TryGetObject<JsArray>(out var array))
             {
-                if (array.TryGetProperty("__arguments__", out var isArgs) && isArgs is true)
+                if (array.TryGetProperty("__arguments__", out var isArgs) && isArgs.TryGetBoolean(out var isArgsValue) && isArgsValue)
                 {
                     return false;
                 }
@@ -367,7 +367,7 @@ public static partial class StandardLibrary
             return;
         }
 
-        var value = source.TryGetProperty(sourceKey, out var obtained) ? obtained : Symbol.Undefined;
+        var value = source.TryGetProperty(sourceKey, out var obtained) ? obtained : JsValue.Undefined;
         target.SetProperty(targetKey, value);
     }
 
@@ -407,7 +407,7 @@ public static partial class StandardLibrary
                     throw ThrowTypeError("Array operation result exceeds 2^32 - 1 elements", realm: realm);
                 }
 
-                target.SetProperty(ToIndexString(targetIndex), mapped.ToObject());
+                target.SetProperty(ToIndexString(targetIndex), mapped);
                 targetIndex++;
             }
         }

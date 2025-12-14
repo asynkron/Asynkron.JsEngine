@@ -14,8 +14,8 @@ public sealed partial class IntlNumberFormatPrototype
 
     internal static void InitializeInternalSlots(JsObject instance, IntlNumberFormatInternalSlots slots)
     {
-        instance.SetProperty(NumberFormatBrand, true);
-        instance.SetProperty(SlotsKey, slots);
+        instance.SetProperty(NumberFormatBrand, JsValue.FromObject(true));
+        instance.SetProperty(SlotsKey, JsValue.FromObject(slots));
     }
 
     [JsHostGetter("format", DisplayName = "get format")]
@@ -39,8 +39,8 @@ public sealed partial class IntlNumberFormatPrototype
         foreach (var part in parts)
         {
             var entry = new JsObject(Realm.ObjectPrototype);
-            entry.SetProperty("type", part.Type);
-            entry.SetProperty("value", part.Value);
+            entry.SetProperty("type", JsValue.FromObject(part.Type));
+            entry.SetProperty("value", JsValue.FromObject(part.Value));
             partsArray.Push(entry);
         }
 
@@ -97,41 +97,41 @@ public sealed partial class IntlNumberFormatPrototype
     {
         var slots = GetSlots(nf);
         var obj = new JsObject(Realm.ObjectPrototype);
-        obj.SetProperty("locale", slots.Locale);
-        obj.SetProperty("numberingSystem", slots.NumberingSystem);
-        obj.SetProperty("style", slots.Style);
-        obj.SetProperty("currency", slots.Currency is { Length: > 0 } currencyValue ? currencyValue : Symbol.Undefined);
+        obj.SetProperty("locale", JsValue.FromObject(slots.Locale));
+        obj.SetProperty("numberingSystem", JsValue.FromObject(slots.NumberingSystem));
+        obj.SetProperty("style", JsValue.FromObject(slots.Style));
+        obj.SetProperty("currency", slots.Currency is { Length: > 0 } currencyValue ? JsValue.FromObject(currencyValue) : JsValue.FromObject(Symbol.Undefined));
         obj.SetProperty("currencyDisplay",
-            slots.Style == "currency" ? slots.CurrencyDisplay : Symbol.Undefined);
+            slots.Style == "currency" ? JsValue.FromObject(slots.CurrencyDisplay) : JsValue.FromObject(Symbol.Undefined));
         obj.SetProperty("currencySign",
-            slots.Style == "currency" ? slots.CurrencySign : "standard");
-        obj.SetProperty("minimumIntegerDigits", (double)slots.MinimumIntegerDigits);
+            JsValue.FromObject(slots.Style == "currency" ? slots.CurrencySign : "standard"));
+        obj.SetProperty("minimumIntegerDigits", JsValue.FromObject((double)slots.MinimumIntegerDigits));
         if (slots.UseSignificantDigits)
         {
-            obj.SetProperty("minimumSignificantDigits", (double)(slots.MinimumSignificantDigits ?? 1));
-            obj.SetProperty("maximumSignificantDigits", (double)(slots.MaximumSignificantDigits ?? 21));
-            obj.SetProperty("minimumFractionDigits", Symbol.Undefined);
-            obj.SetProperty("maximumFractionDigits", Symbol.Undefined);
+            obj.SetProperty("minimumSignificantDigits", JsValue.FromObject((double)(slots.MinimumSignificantDigits ?? 1)));
+            obj.SetProperty("maximumSignificantDigits", JsValue.FromObject((double)(slots.MaximumSignificantDigits ?? 21)));
+            obj.SetProperty("minimumFractionDigits", JsValue.FromObject(Symbol.Undefined));
+            obj.SetProperty("maximumFractionDigits", JsValue.FromObject(Symbol.Undefined));
         }
         else
         {
-            obj.SetProperty("minimumSignificantDigits", Symbol.Undefined);
-            obj.SetProperty("maximumSignificantDigits", Symbol.Undefined);
-            obj.SetProperty("minimumFractionDigits", (double)slots.MinimumFractionDigits);
-            obj.SetProperty("maximumFractionDigits", (double)slots.MaximumFractionDigits);
+            obj.SetProperty("minimumSignificantDigits", JsValue.FromObject(Symbol.Undefined));
+            obj.SetProperty("maximumSignificantDigits", JsValue.FromObject(Symbol.Undefined));
+            obj.SetProperty("minimumFractionDigits", JsValue.FromObject((double)slots.MinimumFractionDigits));
+            obj.SetProperty("maximumFractionDigits", JsValue.FromObject((double)slots.MaximumFractionDigits));
         }
-        obj.SetProperty("useGrouping", slots.UseGrouping ? "auto" : "never");
-        obj.SetProperty("notation", slots.Notation);
-        obj.SetProperty("signDisplay", slots.SignDisplay);
+        obj.SetProperty("useGrouping", JsValue.FromObject(slots.UseGrouping ? "auto" : "never"));
+        obj.SetProperty("notation", JsValue.FromObject(slots.Notation));
+        obj.SetProperty("signDisplay", JsValue.FromObject(slots.SignDisplay));
         if (slots.Style == "unit")
         {
-            obj.SetProperty("unit", slots.Unit is { Length: > 0 } unitValue ? unitValue : Symbol.Undefined);
-            obj.SetProperty("unitDisplay", slots.UnitDisplay);
+            obj.SetProperty("unit", slots.Unit is { Length: > 0 } unitValue ? JsValue.FromObject(unitValue) : JsValue.FromObject(Symbol.Undefined));
+            obj.SetProperty("unitDisplay", JsValue.FromObject(slots.UnitDisplay));
         }
         else
         {
-            obj.SetProperty("unit", Symbol.Undefined);
-            obj.SetProperty("unitDisplay", Symbol.Undefined);
+            obj.SetProperty("unit", JsValue.FromObject(Symbol.Undefined));
+            obj.SetProperty("unitDisplay", JsValue.FromObject(Symbol.Undefined));
         }
 
         return obj;
@@ -139,7 +139,7 @@ public sealed partial class IntlNumberFormatPrototype
 
     private IntlNumberFormatInternalSlots GetSlots(JsObject nf)
     {
-        if (nf.TryGetProperty(SlotsKey, out var slotsValue) && slotsValue is IntlNumberFormatInternalSlots slots)
+        if (nf.TryGetProperty(SlotsKey, out var slotsValue) && slotsValue.TryGetObject<IntlNumberFormatInternalSlots>(out var slots))
         {
             return slots;
         }
@@ -157,14 +157,14 @@ public sealed partial class IntlNumberFormatPrototype
     {
         function.DefineProperty("length", new PropertyDescriptor
         {
-            Value = 1d,
+            Value = JsValue.FromObject(1d),
             Writable = false,
             Enumerable = false,
             Configurable = true
         });
         function.DefineProperty("name", new PropertyDescriptor
         {
-            Value = string.Empty,
+            Value = JsValue.FromObject(string.Empty),
             Writable = false,
             Enumerable = false,
             Configurable = true

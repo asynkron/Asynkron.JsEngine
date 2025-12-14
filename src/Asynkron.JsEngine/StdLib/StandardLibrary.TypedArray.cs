@@ -151,9 +151,9 @@ public static partial class StandardLibrary
         constructor.SetInvokeWithContext(
             (args, _, _, newTarget) => JsValue.FromObject(ConstructTypedArray(args, newTarget.IsNullish ? JsValue.FromObject(constructor) : newTarget)));
 
-        constructor.SetProperty("BYTES_PER_ELEMENT", (double)bytesPerElement);
+        constructor.SetProperty("BYTES_PER_ELEMENT", JsValue.FromNumber((double)bytesPerElement));
         prototype.SetPrototype(realm.ObjectPrototype);
-        prototype.SetProperty("constructor", constructor);
+        prototype.SetProperty("constructor", JsValue.FromObject(constructor));
         var toStringTagKey = SymbolKeys.GetToStringTag(realm);
         prototype.DefineProperty(toStringTagKey,
             new PropertyDescriptor
@@ -204,7 +204,7 @@ public static partial class StandardLibrary
         prototype.DeleteOwnProperty("lastIndexOf");
         prototype.DeleteOwnProperty("includes");
 
-        constructor.SetProperty("prototype", prototype);
+        constructor.SetProperty("prototype", JsValue.FromObject(prototype));
         constructor.Properties.SetPrototype(sharedTypedArrayCtor.PropertiesObject);
 
         return constructor;
@@ -213,7 +213,7 @@ public static partial class StandardLibrary
         {
             if (newTarget.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
                 accessor.TryGetProperty("prototype", out var protoVal) &&
-                protoVal is IJsPropertyAccessor protoObj)
+                protoVal.TryGetObject<IJsPropertyAccessor>(out var protoObj))
             {
                 return protoObj;
             }
@@ -224,9 +224,9 @@ public static partial class StandardLibrary
                 var realmGlobal = newTargetRealmObject ?? newTargetRealmState?.Engine?.GlobalObject;
                 if (realmGlobal is not null &&
                     realmGlobal.TryGetProperty(constructorName, out var realmCtor) &&
-                    realmCtor is IJsPropertyAccessor realmCtorAccessor &&
+                    realmCtor.TryGetObject<IJsPropertyAccessor>(out var realmCtorAccessor) &&
                     realmCtorAccessor.TryGetProperty("prototype", out var realmProtoVal) &&
-                    realmProtoVal is IJsPropertyAccessor realmProto)
+                    realmProtoVal.TryGetObject<IJsPropertyAccessor>(out var realmProto))
                 {
                     return realmProto;
                 }
@@ -395,7 +395,7 @@ public static partial class StandardLibrary
                 var target = CreateTarget(jsArray.Items.Count);
                 for (var i = 0; i < jsArray.Items.Count; i++)
                 {
-                    target.SetValue(i, ApplyMap(i, jsArray.Items[i]));
+                    target.SetValue(i, JsValue.FromObject(ApplyMap(i, jsArray.Items[i])));
                 }
 
                 return target;
@@ -412,7 +412,7 @@ public static partial class StandardLibrary
                         JsBigUint64Array bu64 => bu64.GetBigIntElement(i),
                         _ => typedSource.GetElement(i)
                     };
-                    target.SetValue(i, ApplyMap(i, value));
+                    target.SetValue(i, JsValue.FromObject(ApplyMap(i, value)));
                 }
 
                 return target;
@@ -421,9 +421,9 @@ public static partial class StandardLibrary
             var iteratorKey = SymbolKeys.Iterator;
             if (source.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
                 accessor.TryGetProperty(iteratorKey, out var methodVal) &&
-                !ReferenceEquals(methodVal, Symbol.Undefined))
+                !methodVal.IsUndefined)
             {
-                if (methodVal is not IJsCallable callableIterator)
+                if (!methodVal.TryGetObject<IJsCallable>(out var callableIterator))
                 {
                     throw new ThrowSignal(WrapTypeError("Iterator method is not callable", callingEnv));
                 }
@@ -435,7 +435,7 @@ public static partial class StandardLibrary
                 }
 
                 if (!iteratorAccessor.TryGetProperty("next", out var nextVal) ||
-                    nextVal is not IJsCallable nextCallable)
+                    !nextVal.TryGetObject<IJsCallable>(out var nextCallable))
                 {
                     throw new ThrowSignal(WrapTypeError("Iterator result does not expose next", callingEnv));
                 }
@@ -456,7 +456,7 @@ public static partial class StandardLibrary
                         var target = CreateTarget(collected.Count);
                         for (var i = 0; i < collected.Count; i++)
                         {
-                            target.SetValue(i, ApplyMap(i, collected[i]));
+                            target.SetValue(i, JsValue.FromObject(ApplyMap(i, collected[i])));
                         }
 
                         return target;
@@ -464,7 +464,7 @@ public static partial class StandardLibrary
 
                     var value = nextResultAccessor.TryGetProperty("value", out var valueVal)
                         ? valueVal
-                        : Symbol.Undefined;
+                        : JsValue.Undefined;
                     collected.Add(value);
                 }
             }
@@ -481,7 +481,7 @@ public static partial class StandardLibrary
                 {
                     var key = i.ToString(CultureInfo.InvariantCulture);
                     var hasElement = arrayLike.TryGetProperty(key, out var element);
-                    target.SetValue(i, ApplyMap(i, hasElement ? element : Symbol.Undefined));
+                    target.SetValue(i, JsValue.FromObject(ApplyMap(i, hasElement ? element : JsValue.Undefined)));
                 }
 
                 return target;
@@ -512,7 +512,7 @@ public static partial class StandardLibrary
                 var errorValue = typeErrorCtor.Invoke([JsValue.FromObject(message)], JsValue.Undefined);
                 if (errorValue.TryGetObject<JsObject>(out var errorObj))
                 {
-                    errorObj.SetProperty("constructor", typeErrorCtor);
+                    errorObj.SetProperty("constructor", JsValue.FromObject(typeErrorCtor));
                     return errorObj;
                 }
 
@@ -758,7 +758,7 @@ public static partial class StandardLibrary
         var filtered = TypedArraySpeciesCreate(typedArray, kept.Count, realm);
         for (var i = 0; i < kept.Count; i++)
         {
-            filtered.SetValue(i, kept[i]);
+            filtered.SetValue(i, JsValue.FromObject(kept[i]));
         }
 
         return filtered;
@@ -915,15 +915,15 @@ public static partial class StandardLibrary
         for (var k = 0; k < length; k++)
         {
             var key = k.ToString(CultureInfo.InvariantCulture);
-            var value = typedArray.TryGetProperty(key, typedArray, out var candidate) ? candidate : Symbol.Undefined;
-            var match = callback.Invoke([JsValue.FromObject(value), JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
+            var value = typedArray.TryGetProperty(key, JsValue.FromObject(typedArray), out var candidate) ? candidate : JsValue.Undefined;
+            var match = callback.Invoke([value, JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
             if (IsTruthy(match))
             {
                 return value;
             }
         }
 
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     private static object? TypedArrayFindIndex(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
@@ -953,8 +953,8 @@ public static partial class StandardLibrary
         for (var k = 0; k < length; k++)
         {
             var key = k.ToString(CultureInfo.InvariantCulture);
-            var value = typedArray.TryGetProperty(key, typedArray, out var candidate) ? candidate : Symbol.Undefined;
-            var match = callback.Invoke([JsValue.FromObject(value), JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
+            var value = typedArray.TryGetProperty(key, JsValue.FromObject(typedArray), out var candidate) ? candidate : JsValue.Undefined;
+            var match = callback.Invoke([value, JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
             if (IsTruthy(match))
             {
                 return (double)k;
@@ -991,15 +991,15 @@ public static partial class StandardLibrary
         for (var k = length - 1; k >= 0; k--)
         {
             var key = k.ToString(CultureInfo.InvariantCulture);
-            var value = typedArray.TryGetProperty(key, typedArray, out var candidate) ? candidate : Symbol.Undefined;
-            var match = callback.Invoke([JsValue.FromObject(value), JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
+            var value = typedArray.TryGetProperty(key, JsValue.FromObject(typedArray), out var candidate) ? candidate : JsValue.Undefined;
+            var match = callback.Invoke([value, JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
             if (IsTruthy(match))
             {
                 return value;
             }
         }
 
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     private static object? TypedArrayFindLastIndex(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
@@ -1029,8 +1029,8 @@ public static partial class StandardLibrary
         for (var k = length - 1; k >= 0; k--)
         {
             var key = k.ToString(CultureInfo.InvariantCulture);
-            var value = typedArray.TryGetProperty(key, typedArray, out var candidate) ? candidate : Symbol.Undefined;
-            var match = callback.Invoke([JsValue.FromObject(value), JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
+            var value = typedArray.TryGetProperty(key, JsValue.FromObject(typedArray), out var candidate) ? candidate : JsValue.Undefined;
+            var match = callback.Invoke([value, JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
             if (IsTruthy(match))
             {
                 return (double)k;
@@ -1285,7 +1285,7 @@ public static partial class StandardLibrary
         var result = TypedArraySpeciesCreate(typedArray, length, realm);
         for (var i = 0; i < values.Count; i++)
         {
-            result.SetValue(i, values[i]);
+            result.SetValue(i, JsValue.FromObject(values[i]));
         }
 
         return result;
@@ -1511,7 +1511,7 @@ public static partial class StandardLibrary
         length = Math.Max(length, 0);
         object? constructorValue = null;
 
-        if (exemplar.TryGetProperty("constructor", exemplar, out var ctorValue))
+        if (exemplar.TryGetProperty("constructor", JsValue.FromObject(exemplar), out var ctorValue))
         {
             constructorValue = ctorValue;
         }

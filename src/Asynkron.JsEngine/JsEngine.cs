@@ -270,16 +270,16 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("__awaitHelper", StandardLibrary.CreateAwaitHelper(this));
         SetGlobal("$DETACHBUFFER", new HostFunction((_, args) =>
         {
-            if (args.Count > 0 && args[0] is TypedArrayBase view)
+            if (args.Count > 0 && args[0].TryGetObject<TypedArrayBase>(out var view))
             {
                 view.Buffer.Detach();
             }
-            else if (args.Count > 0 && args[0] is JsArrayBuffer buffer)
+            else if (args.Count > 0 && args[0].TryGetObject<JsArrayBuffer>(out var buffer))
             {
                 buffer.Detach();
             }
 
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }));
 
         // Register timer functions
@@ -2291,13 +2291,13 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     ///     Implements dynamic import() - loads a module and returns a Promise that resolves to the module's exports.
     /// </summary>
-    private object? DynamicImport(IReadOnlyList<object?> args)
+    private JsValue DynamicImport(IReadOnlyList<JsValue> args)
     {
         return DynamicImport(args, null, ImportPhase.Module, null);
     }
 
-    private object? DynamicImport(
-        IReadOnlyList<object?> args,
+    private JsValue DynamicImport(
+        IReadOnlyList<JsValue> args,
         EvaluationContext? context,
         ImportPhase phase,
         HostFunction? callee)
@@ -2322,7 +2322,7 @@ public sealed class JsEngine : IAsyncDisposable
         // Run async module loading on threadpool, then schedule sync completion to event loop
         _ = RunDynamicImportAsync(args, context, phase, capturedReferrerPath, promise);
 
-        return promiseObj;
+        return new JsValue(promiseObj);
 
         IJsPropertyAccessor? ResolvePromisePrototype() => ResolvePromisePrototypeInternal();
     }
@@ -2332,7 +2332,7 @@ public sealed class JsEngine : IAsyncDisposable
     ///     then schedules sync completion callbacks to the event loop.
     /// </summary>
     private async Task RunDynamicImportAsync(
-        IReadOnlyList<object?> args,
+        IReadOnlyList<JsValue> args,
         EvaluationContext? context,
         ImportPhase phase,
         string? capturedReferrerPath,
@@ -2348,20 +2348,20 @@ public sealed class JsEngine : IAsyncDisposable
                         "import() requires a module specifier",
                         context,
                         RealmState);
-                    promise.Reject(typeError);
+                    promise.Reject(new JsValue(typeError));
                 });
                 return;
             }
 
-            object? specifierStringObj;
+            JsValue specifierStringValue;
             try
             {
                 var specifier = args.GetArgument(0);
-                specifierStringObj = JsOps.ToJsString(specifier, context);
+                specifierStringValue = JsOps.ToJsString(specifier, context);
             }
             catch (ThrowSignal signal)
             {
-                ScheduleTask(() => promise.Reject(signal.ThrownValue));
+                ScheduleTask(() => promise.Reject(new JsValue(signal.ThrownValue)));
                 return;
             }
 
@@ -2371,11 +2371,11 @@ public sealed class JsEngine : IAsyncDisposable
                 // Clear the throw signal since we're handling it by rejecting the promise
                 // This prevents the throw from propagating to EvaluateProgram
                 context.Clear();
-                ScheduleTask(() => promise.Reject(flowValue));
+                ScheduleTask(() => promise.Reject(new JsValue(flowValue)));
                 return;
             }
 
-            var specifierString = specifierStringObj?.ToString() ?? string.Empty;
+            var specifierString = specifierStringValue.ToString();
             if (phase == ImportPhase.Source)
             {
                 ScheduleTask(() =>
@@ -2384,7 +2384,7 @@ public sealed class JsEngine : IAsyncDisposable
                         "Source phase imports are not supported",
                         context,
                         RealmState);
-                    promise.Reject(syntaxError);
+                    promise.Reject(new JsValue(syntaxError));
                 });
                 return;
             }

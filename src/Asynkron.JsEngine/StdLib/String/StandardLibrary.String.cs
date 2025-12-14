@@ -180,10 +180,10 @@ public static partial class StandardLibrary
             return result;
         }
 
-        object? CharAt(object? thisValue, IReadOnlyList<object?> args)
+        JsValue CharAt(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
-            var value = ResolveString(thisValue);
-            var index = args.Count > 0 && args[0] is double d ? (int)d : 0;
+            var value = ResolveString(thisValue.ToObject());
+            var index = args.Count > 0 && args[0].TryGetDouble(out var d) ? (int)d : 0;
             if (index < 0 || index >= value.Length)
             {
                 return "";
@@ -192,10 +192,10 @@ public static partial class StandardLibrary
             return value[index].ToString();
         }
 
-        object? CharCodeAt(object? thisValue, IReadOnlyList<object?> args)
+        JsValue CharCodeAt(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
-            var value = ResolveString(thisValue);
-            var index = args.Count > 0 && args[0] is double d ? (int)d : 0;
+            var value = ResolveString(thisValue.ToObject());
+            var index = args.Count > 0 && args[0].TryGetDouble(out var d) ? (int)d : 0;
             if (index < 0 || index >= value.Length)
             {
                 return double.NaN;
@@ -204,46 +204,46 @@ public static partial class StandardLibrary
             return (double)value[index];
         }
 
-        object? IndexOf(object? thisValue, IReadOnlyList<object?> args)
+        JsValue IndexOf(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
-            var value = ResolveString(thisValue);
+            var value = ResolveString(thisValue.ToObject());
             if (args.Count == 0)
             {
                 return -1d;
             }
 
-            var searchStr = args[0]?.ToString() ?? "";
-            var position = args.Count > 1 && args[1] is double d ? Math.Max(0, (int)d) : 0;
+            var searchStr = args[0].TryGetString(out var s) ? s : args[0].ToObject()?.ToString() ?? "";
+            var position = args.Count > 1 && args[1].TryGetDouble(out var d) ? Math.Max(0, (int)d) : 0;
             var result = value.IndexOf(searchStr, position, StringComparison.Ordinal);
             return (double)result;
         }
 
-        object? LastIndexOf(object? thisValue, IReadOnlyList<object?> args)
+        JsValue LastIndexOf(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
-            var value = ResolveString(thisValue);
+            var value = ResolveString(thisValue.ToObject());
             if (args.Count == 0)
             {
                 return -1d;
             }
 
-            var searchStr = args[0]?.ToString() ?? "";
-            var position = args.Count > 1 && args[1] is double d
+            var searchStr = args[0].TryGetString(out var s) ? s : args[0].ToObject()?.ToString() ?? "";
+            var position = args.Count > 1 && args[1].TryGetDouble(out var d)
                 ? Math.Min((int)d, value.Length - 1)
                 : value.Length - 1;
             var result = position >= 0 ? value.LastIndexOf(searchStr, position, StringComparison.Ordinal) : -1;
             return (double)result;
         }
 
-        object? Substring(object? thisValue, IReadOnlyList<object?> args)
+        JsValue Substring(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
-            var value = ResolveString(thisValue);
+            var value = ResolveString(thisValue.ToObject());
             if (args.Count == 0)
             {
                 return value;
             }
 
-            var start = args[0] is double d1 ? Math.Max(0, Math.Min((int)d1, value.Length)) : 0;
-            var end = args.Count > 1 && args[1] is double d2
+            var start = args[0].TryGetDouble(out var d1) ? Math.Max(0, Math.Min((int)d1, value.Length)) : 0;
+            var end = args.Count > 1 && args[1].TryGetDouble(out var d2)
                 ? Math.Max(0, Math.Min((int)d2, value.Length))
                 : value.Length;
 
@@ -255,16 +255,16 @@ public static partial class StandardLibrary
             return value.Substring(start, end - start);
         }
 
-        object? Slice(object? thisValue, IReadOnlyList<object?> args)
+        JsValue Slice(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
-            var value = ResolveString(thisValue);
+            var value = ResolveString(thisValue.ToObject());
             if (args.Count == 0)
             {
                 return value;
             }
 
-            var start = args[0] is double d1 ? (int)d1 : 0;
-            var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : value.Length;
+            var start = args[0].TryGetDouble(out var d1) ? (int)d1 : 0;
+            var end = args.Count > 1 && args[1].TryGetDouble(out var d2) ? (int)d2 : value.Length;
 
             if (start < 0)
             {
@@ -292,9 +292,9 @@ public static partial class StandardLibrary
             return value.Substring(start, end - start);
         }
 
-        object? Substr(object? thisValue, IReadOnlyList<object?> args)
+        JsValue Substr(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
-            var value = ResolveString(thisValue);
+            var value = ResolveString(thisValue.ToObject());
             var length = value.Length;
             if (args.Count == 0)
             {
@@ -319,7 +319,7 @@ public static partial class StandardLibrary
             double lengthNumber;
             if (args.Count > 1)
             {
-                if (ReferenceEquals(args[1], Symbol.Undefined))
+                if (args[1].IsUndefined)
                 {
                     lengthNumber = double.PositiveInfinity;
                 }
@@ -363,16 +363,16 @@ public static partial class StandardLibrary
             var substrLength = (int)Math.Min(lengthNumber, Math.Max(0, length - start));
             return value.Substring(start, substrLength);
 
-            double ConvertToNumber(object? input)
+            double ConvertToNumber(JsValue input)
             {
-                if (input is Symbol or TypedAstSymbol)
+                if (input.TryGetObject<Symbol>(out _) || input.TryGetObject<TypedAstSymbol>(out _))
                 {
                     throw new ThrowSignal(CreateTypeError("Cannot convert a Symbol value to a number",
                         null, realm));
                 }
 
                 var numericContext = realm?.CreateContext();
-                var primitive = JsOps.ToPrimitive(input, ToPrimitiveHint.Number, numericContext);
+                var primitive = JsOps.ToPrimitive(input.ToObject(), ToPrimitiveHint.Number, numericContext);
                 if (numericContext?.IsThrow == true)
                 {
                     throw new ThrowSignal(numericContext.FlowValue);

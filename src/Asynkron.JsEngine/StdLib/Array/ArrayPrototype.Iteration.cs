@@ -20,8 +20,10 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            var mapped = callback.Invoke([value, (double)k, accessor], thisArg);
-            result.SetProperty(ToIndexString(k), mapped);
+            var mapped = callback.Invoke([JsValue.FromObject(value), new JsValue((double)k), new JsValue(accessor)], JsValue.FromObject(thisArg));
+#pragma warning disable CS0618 // ToObject is obsolete but needed here for property access
+            result.SetProperty(ToIndexString(k), mapped.ToObject());
+#pragma warning restore CS0618
         }
 
         SetArrayLikeLength(result, length);
@@ -44,8 +46,10 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            var keep = callback.Invoke([value, (double)k, accessor], thisArg);
-            if (!IsTruthy(keep))
+            var keep = callback.Invoke([JsValue.FromObject(value), new JsValue((double)k), new JsValue(accessor)], JsValue.FromObject(thisArg));
+#pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
+            if (!IsTruthy(keep.ToObject()))
+#pragma warning restore CS0618
             {
                 continue;
             }
@@ -83,7 +87,7 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            callback.Invoke([value, (double)k, accessor], thisArg);
+            callback.Invoke([JsValue.FromObject(value), new JsValue((double)k), new JsValue(accessor)], JsValue.FromObject(thisArg));
         }
 
         return Symbol.Undefined;

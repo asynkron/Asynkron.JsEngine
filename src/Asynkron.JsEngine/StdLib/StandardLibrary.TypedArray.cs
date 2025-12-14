@@ -34,8 +34,8 @@ public static partial class StandardLibrary
 
             var valuesIterator = new HostFunction((thisValue, _) =>
             {
-                var typedArray = ValidateTypedArrayReceiver(thisValue, "%TypedArray%.prototype.values", realm);
-                return CreateArrayIteratorObject(typedArray, idx => typedArray.GetValueForIndex((int)idx), realm);
+                var typedArray = ValidateTypedArrayReceiver(thisValue.ToObject(), "%TypedArray%.prototype.values", realm);
+                return JsValue.FromObject(CreateArrayIteratorObject(typedArray, idx => typedArray.GetValueForIndex((int)idx), realm));
             }, realm, isConstructor: false);
             valuesIterator.DefineProperty("name",
                 new PropertyDescriptor { Value = "values", Writable = false, Enumerable = false, Configurable = true });
@@ -44,8 +44,8 @@ public static partial class StandardLibrary
 
             var keysIterator = new HostFunction((thisValue, _) =>
             {
-                var typedArray = ValidateTypedArrayReceiver(thisValue, "%TypedArray%.prototype.keys", realm);
-                return CreateArrayIteratorObject(typedArray, idx => (double)idx, realm);
+                var typedArray = ValidateTypedArrayReceiver(thisValue.ToObject(), "%TypedArray%.prototype.keys", realm);
+                return JsValue.FromObject(CreateArrayIteratorObject(typedArray, idx => (double)idx, realm));
             }, realm, isConstructor: false);
             keysIterator.DefineProperty("name",
                 new PropertyDescriptor { Value = "keys", Writable = false, Enumerable = false, Configurable = true });
@@ -54,8 +54,8 @@ public static partial class StandardLibrary
 
             var entriesIterator = new HostFunction((thisValue, _) =>
             {
-                var typedArray = ValidateTypedArrayReceiver(thisValue, "%TypedArray%.prototype.entries", realm);
-                return CreateArrayIteratorObject(
+                var typedArray = ValidateTypedArrayReceiver(thisValue.ToObject(), "%TypedArray%.prototype.entries", realm);
+                return JsValue.FromObject(CreateArrayIteratorObject(
                     typedArray,
                     idx =>
                     {
@@ -64,7 +64,7 @@ public static partial class StandardLibrary
                         pair.Push(typedArray.GetValueForIndex((int)idx));
                         return pair;
                     },
-                    realm);
+                    realm));
             }, realm, isConstructor: false);
             entriesIterator.DefineProperty("name",
                 new PropertyDescriptor { Value = "entries", Writable = false, Enumerable = false, Configurable = true });
@@ -143,10 +143,10 @@ public static partial class StandardLibrary
         var prototype = new JsObject();
 
         HostFunction constructor = null!;
-        constructor = new HostFunction((thisValue, args) => ConstructTypedArray(args, thisValue ?? constructor));
+        constructor = new HostFunction((thisValue, args) => JsValue.FromObject(ConstructTypedArray(args, (thisValue.IsNullish ? JsValue.FromObject(constructor) : thisValue).ToObject())));
         constructor.RealmState = realm;
         constructor.SetInvokeWithContext(
-            (args, _, _, newTarget) => ConstructTypedArray(args, newTarget ?? constructor));
+            (args, _, _, newTarget) => JsValue.FromObject(ConstructTypedArray(args, (newTarget.IsNullish ? JsValue.FromObject(constructor) : newTarget).ToObject())));
 
         constructor.SetProperty("BYTES_PER_ELEMENT", (double)bytesPerElement);
         prototype.SetPrototype(realm.ObjectPrototype);
@@ -168,7 +168,7 @@ public static partial class StandardLibrary
         constructor.DefineProperty("of",
             new PropertyDescriptor
             {
-                Value = new HostFunction(TypedArrayOf, isConstructor: false),
+                Value = new HostFunction((thisValue, args) => JsValue.FromObject(TypedArrayOf(thisValue.ToObject(), args)), isConstructor: false),
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -176,7 +176,7 @@ public static partial class StandardLibrary
         constructor.DefineProperty("from",
             new PropertyDescriptor
             {
-                Value = new HostFunction(TypedArrayFrom, isConstructor: false),
+                Value = new HostFunction((thisValue, args) => JsValue.FromObject(TypedArrayFrom(thisValue.ToObject(), args)), isConstructor: false),
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -244,7 +244,7 @@ public static partial class StandardLibrary
             return target;
         }
 
-        object? ConstructTypedArray(IReadOnlyList<object?> args, object? newTarget)
+        object? ConstructTypedArray(IReadOnlyList<JsValue> args, object? newTarget)
         {
             if (args.Count == 0)
             {
@@ -255,17 +255,17 @@ public static partial class StandardLibrary
             realm.Logger?.LogInformation(
                 "TypedArray ctor entry {Ctor} arg0Type={ArgType} newTargetType={NewTargetType}",
                 constructorName,
-                firstArg?.GetType().Name ?? "null",
+                firstArg.ToObject()?.GetType().Name ?? "null",
                 newTarget?.GetType().Name ?? "null");
 
             // TypedArray(length)
-            if (firstArg is double d)
+            if (firstArg.TryGetDouble(out var d))
             {
                 return CreateTargetFromLength((int)d, newTarget);
             }
 
             // TypedArray(array)
-            if (firstArg is JsArray array)
+            if (firstArg.TryGetObject<JsArray>(out var array))
             {
                 var ta = fromArray(array, realm);
                 ta.SetPrototype(ResolvePrototype(newTarget));
@@ -273,7 +273,7 @@ public static partial class StandardLibrary
             }
 
             // TypedArray(typedArray)
-            if (firstArg is TypedArrayBase srcTypedArray)
+            if (firstArg.TryGetObject<TypedArrayBase>(out var srcTypedArray))
             {
                 if (srcTypedArray.IsDetachedOrOutOfBounds())
                 {
@@ -321,13 +321,13 @@ public static partial class StandardLibrary
             }
 
             // TypedArray(buffer, byteOffset, length)
-            if (firstArg is JsArrayBuffer buffer)
+            if (firstArg.TryGetObject<JsArrayBuffer>(out var buffer))
             {
-                var byteOffset = args.Count > 1 && args[1] is double d1 ? (int)d1 : 0;
+                var byteOffset = args.Count > 1 && args[1].TryGetDouble(out var d1) ? (int)d1 : 0;
 
-                var lengthProvided = args.Count > 2 && args[2] is double;
+                var lengthProvided = args.Count > 2 && args[2].TryGetDouble(out var _);
                 var length = lengthProvided
-                    ? (int)(double)args[2]!
+                    ? (int)args[2].ToNumber()
                     : (buffer.ByteLength - byteOffset) / bytesPerElement;
                 var isLengthTracking = buffer.Resizable && !lengthProvided;
 
@@ -339,7 +339,7 @@ public static partial class StandardLibrary
             return CreateTargetFromLength(0, newTarget);
         }
 
-        object? TypedArrayOf(object? thisValue, IReadOnlyList<object?> args)
+        object? TypedArrayOf(object? thisValue, IReadOnlyList<JsValue> args)
         {
             if (thisValue is not HostFunction ctor)
             {
@@ -347,34 +347,34 @@ public static partial class StandardLibrary
             }
 
             var length = args.Count;
-            var taObj = ctor.Invoke([(double)length], ctor);
-            if (taObj is not TypedArrayBase typed)
+            var taObj = ctor.Invoke([JsValue.FromNumber((double)length)], JsValue.FromObject(ctor));
+            if (!taObj.TryGetObject<TypedArrayBase>(out var typed))
             {
                 throw ThrowTypeError("%TypedArray%.of constructor did not return a typed array");
             }
 
             for (var i = 0; i < length; i++)
             {
-                typed.SetValue(i, args[i]);
+                typed.SetValue(i, args[i].ToObject());
             }
 
             return typed;
         }
 
-        object? TypedArrayFrom(object? thisValue, IReadOnlyList<object?> args)
+        object? TypedArrayFrom(object? thisValue, IReadOnlyList<JsValue> args)
         {
             var callingEnv = (thisValue as HostFunction)?.CallingJsEnvironment;
             var targetProtoSource = thisValue ?? constructor;
             IJsCallable? mapFn = null;
-            object? mapThis = Symbol.Undefined;
+            JsValue mapThis = JsValue.Undefined;
 
             switch (args.Count)
             {
                 case 0:
                     return CreateTarget(0);
-                case > 1 when !ReferenceEquals(args[1], Symbol.Undefined):
+                case > 1 when !args[1].IsUndefined:
                 {
-                    if (args[1] is not IJsCallable callableMap)
+                    if (!args[1].TryGetObject<IJsCallable>(out var callableMap))
                     {
                         throw new ThrowSignal(WrapTypeError("mapfn is not callable", callingEnv));
                     }
@@ -386,48 +386,46 @@ public static partial class StandardLibrary
             }
 
             var source = args[0];
-            switch (source)
+            if (source.TryGetObject<JsArray>(out var jsArray))
             {
-                case JsArray jsArray:
+                var target = CreateTarget(jsArray.Items.Count);
+                for (var i = 0; i < jsArray.Items.Count; i++)
                 {
-                    var target = CreateTarget(jsArray.Items.Count);
-                    for (var i = 0; i < jsArray.Items.Count; i++)
-                    {
-                        target.SetValue(i, ApplyMap(i, jsArray.Items[i]));
-                    }
-
-                    return target;
+                    target.SetValue(i, ApplyMap(i, jsArray.Items[i]));
                 }
-                case TypedArrayBase typedSource:
+
+                return target;
+            }
+
+            if (source.TryGetObject<TypedArrayBase>(out var typedSource))
+            {
+                var target = CreateTarget(typedSource.Length);
+                for (var i = 0; i < typedSource.Length; i++)
                 {
-                    var target = CreateTarget(typedSource.Length);
-                    for (var i = 0; i < typedSource.Length; i++)
+                    object? value = typedSource switch
                     {
-                        object? value = typedSource switch
-                        {
-                            JsBigInt64Array bi64 => bi64.GetBigIntElement(i),
-                            JsBigUint64Array bu64 => bu64.GetBigIntElement(i),
-                            _ => typedSource.GetElement(i)
-                        };
-                        target.SetValue(i, ApplyMap(i, value));
-                    }
-
-                    return target;
+                        JsBigInt64Array bi64 => bi64.GetBigIntElement(i),
+                        JsBigUint64Array bu64 => bu64.GetBigIntElement(i),
+                        _ => typedSource.GetElement(i)
+                    };
+                    target.SetValue(i, ApplyMap(i, value));
                 }
+
+                return target;
             }
 
             var iteratorKey = SymbolKeys.Iterator;
-            if (source is IJsPropertyAccessor accessor &&
+            if (source.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
                 accessor.TryGetProperty(iteratorKey, out var methodVal) &&
-                !ReferenceEquals(methodVal, Symbol.Undefined))
+                !methodVal.IsUndefined)
             {
-                if (methodVal is not IJsCallable callableIterator)
+                if (!methodVal.TryGetObject<IJsCallable>(out var callableIterator))
                 {
                     throw new ThrowSignal(WrapTypeError("Iterator method is not callable", callingEnv));
                 }
 
                 var iteratorObj = callableIterator.Invoke([], source);
-                if (iteratorObj is not IJsPropertyAccessor iteratorAccessor)
+                if (!iteratorObj.TryGetObject<IJsPropertyAccessor>(out var iteratorAccessor))
                 {
                     throw new ThrowSignal(WrapTypeError("Iterator method did not return an object", callingEnv));
                 }

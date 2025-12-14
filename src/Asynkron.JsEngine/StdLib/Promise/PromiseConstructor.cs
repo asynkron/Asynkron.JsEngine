@@ -54,22 +54,22 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         var resolve = new HostFunction((_, resolveArgs) =>
         {
             promise.Resolve(resolveArgs.GetArgument(0));
-            return null;
+            return JsValue.Undefined;
         }, Realm, isConstructor: false);
 
         var reject = new HostFunction((_, rejectArgs) =>
         {
             promise.Reject(rejectArgs.GetArgument(0));
-            return null;
+            return JsValue.Undefined;
         }, Realm, isConstructor: false);
 
         try
         {
-            executor.Invoke([resolve, reject], null);
+            executor.Invoke([new JsValue(resolve), new JsValue(reject)], null);
         }
         catch (Exception ex)
         {
-            promise.Reject(ex.Message);
+            promise.Reject(new JsValue(ex.Message));
         }
 
         return promise.JsObject;
@@ -85,11 +85,11 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         constructor.SetHostedProperty("any", (thisValue, args, _) => PromiseAny(thisValue, args), Realm);
     }
 
-    private object? PromiseResolve(object? _, IReadOnlyList<object?> args)
+    private JsValue PromiseResolve(JsValue _, IReadOnlyList<JsValue> args)
     {
         var value = args.GetArgument(0);
 
-        if (value is JsObject jsObj &&
+        if (value.TryGetObject<JsObject>(out var jsObj) &&
             JsPromise.TryGetInternalPromise(jsObj, out JsPromise? _) &&
             jsObj.TryGetProperty("constructor", out var ctor) &&
             ReferenceEquals(ctor, _constructor ?? ConstructFallback))
@@ -99,46 +99,46 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         var promise = CreatePromise(Realm);
         promise.Resolve(value);
-        return promise.JsObject;
+        return new JsValue(promise.JsObject);
     }
 
-    private object? PromiseReject(object? _, IReadOnlyList<object?> args)
+    private JsValue PromiseReject(JsValue _, IReadOnlyList<JsValue> args)
     {
         var reason = args.GetArgument(0);
         var promise = CreatePromise(Realm);
         promise.Reject(reason);
-        return promise.JsObject;
+        return new JsValue(promise.JsObject);
     }
 
-    private object? PromiseAll(object? _, IReadOnlyList<object?> args)
+    private JsValue PromiseAll(JsValue _, IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || args[0] is not JsArray array)
+        if (args.Count == 0 || !args[0].TryGetObject<JsArray>(out var array))
         {
-            return null;
+            return JsValue.Undefined;
         }
 
         var resultPromise = CreatePromise(Realm);
         var remaining = array.Items.Count;
-        var results = new object?[remaining];
+        var results = new JsValue[remaining];
 
         if (remaining == 0)
         {
-            resultPromise.Resolve(new JsArray(Realm));
-            return resultPromise.JsObject;
+            resultPromise.Resolve(new JsValue(new JsArray(Realm)));
+            return new JsValue(resultPromise.JsObject);
         }
 
         HostFunction CreateAllResolve(int index)
         {
-            object? Resolve(object? __, IReadOnlyList<object?> resolveArgs)
+            JsValue Resolve(JsValue __, IReadOnlyList<JsValue> resolveArgs)
             {
                 results[index] = resolveArgs.GetArgument(0);
                 remaining--;
                 if (remaining == 0)
                 {
-                    resultPromise.Resolve(new JsArray(results, Realm));
+                    resultPromise.Resolve(new JsValue(new JsArray(results, Realm)));
                 }
 
-                return null;
+                return JsValue.Undefined;
             }
 
             return new HostFunction(Resolve, Realm, isConstructor: false);
@@ -146,10 +146,10 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         HostFunction CreateAllReject()
         {
-            object? Reject(object? __, IReadOnlyList<object?> rejectArgs)
+            JsValue Reject(JsValue __, IReadOnlyList<JsValue> rejectArgs)
             {
                 resultPromise.Reject(rejectArgs.GetArgument(0));
-                return null;
+                return JsValue.Undefined;
             }
 
             return new HostFunction(Reject, Realm, isConstructor: false);
@@ -160,10 +160,10 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             var index = i;
             var item = array.Items[i];
 
-            if (item is JsObject itemObj && itemObj.TryGetProperty("then", out var thenMethod) &&
+            if (item.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
                 thenMethod is IJsCallable thenCallable)
             {
-                thenCallable.Invoke([CreateAllResolve(index), CreateAllReject()], itemObj);
+                thenCallable.Invoke([new JsValue(CreateAllResolve(index)), new JsValue(CreateAllReject())], itemObj);
             }
             else
             {
@@ -171,19 +171,19 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
                 remaining--;
                 if (remaining == 0)
                 {
-                    resultPromise.Resolve(new JsArray(results, Realm));
+                    resultPromise.Resolve(new JsValue(new JsArray(results, Realm)));
                 }
             }
         }
 
-        return resultPromise.JsObject;
+        return new JsValue(resultPromise.JsObject);
     }
 
-    private object? PromiseRace(object? _, IReadOnlyList<object?> args)
+    private JsValue PromiseRace(JsValue _, IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || args[0] is not JsArray array)
+        if (args.Count == 0 || !args[0].TryGetObject<JsArray>(out var array))
         {
-            return null;
+            return JsValue.Undefined;
         }
 
         var resultPromise = CreatePromise(Realm);
@@ -191,17 +191,17 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         HostFunction CreateRaceResolve()
         {
-            object? Resolve(object? __, IReadOnlyList<object?> resolveArgs)
+            JsValue Resolve(JsValue __, IReadOnlyList<JsValue> resolveArgs)
             {
                 if (settled)
                 {
-                    return null;
+                    return JsValue.Undefined;
                 }
 
                 settled = true;
                 resultPromise.Resolve(resolveArgs.GetArgument(0));
 
-                return null;
+                return JsValue.Undefined;
             }
 
             return new HostFunction(Resolve, Realm, isConstructor: false);
@@ -209,16 +209,16 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         HostFunction CreateRaceReject()
         {
-            object? Reject(object? __, IReadOnlyList<object?> rejectArgs)
+            JsValue Reject(JsValue __, IReadOnlyList<JsValue> rejectArgs)
             {
                 if (settled)
                 {
-                    return null;
+                    return JsValue.Undefined;
                 }
 
                 settled = true;
                 resultPromise.Reject(rejectArgs.GetArgument(0));
-                return null;
+                return JsValue.Undefined;
             }
 
             return new HostFunction(Reject, Realm, isConstructor: false);
@@ -226,10 +226,10 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         foreach (var item in array.Items)
         {
-            if (item is JsObject itemObj && itemObj.TryGetProperty("then", out var thenMethod) &&
+            if (item.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
                 thenMethod is IJsCallable thenCallable)
             {
-                thenCallable.Invoke([CreateRaceResolve(), CreateRaceReject()], itemObj);
+                thenCallable.Invoke([new JsValue(CreateRaceResolve()), new JsValue(CreateRaceReject())], itemObj);
             }
             else if (!settled)
             {
@@ -238,32 +238,32 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             }
         }
 
-        return resultPromise.JsObject;
+        return new JsValue(resultPromise.JsObject);
     }
 
-    private object? PromiseAllSettled(object? _, IReadOnlyList<object?> args)
+    private JsValue PromiseAllSettled(JsValue _, IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || args[0] is not JsArray array)
+        if (args.Count == 0 || !args[0].TryGetObject<JsArray>(out var array))
         {
-            return null;
+            return JsValue.Undefined;
         }
 
         var resultPromise = CreatePromise(Realm);
         var remaining = array.Items.Count;
-        var results = new object?[remaining];
+        var results = new JsValue[remaining];
 
         if (remaining == 0)
         {
-            resultPromise.Resolve(new JsArray(Realm));
-            return resultPromise.JsObject;
+            resultPromise.Resolve(new JsValue(new JsArray(Realm)));
+            return new JsValue(resultPromise.JsObject);
         }
 
         HostFunction CreateResolve(int index)
         {
-            object? ResolveWrapper(object? __, IReadOnlyList<object?> resolveArgs)
+            JsValue ResolveWrapper(JsValue __, IReadOnlyList<JsValue> resolveArgs)
             {
                 Resolve(index, resolveArgs.GetArgument(0), isRejected: false);
-                return null;
+                return JsValue.Undefined;
             }
 
             return new HostFunction(ResolveWrapper, Realm, isConstructor: false);
@@ -271,18 +271,18 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         HostFunction CreateReject(int index)
         {
-            object? RejectWrapper(object? __, IReadOnlyList<object?> rejectArgs)
+            JsValue RejectWrapper(JsValue __, IReadOnlyList<JsValue> rejectArgs)
             {
                 Resolve(index, rejectArgs.GetArgument(0), isRejected: true);
-                return null;
+                return JsValue.Undefined;
             }
 
             return new HostFunction(RejectWrapper, Realm, isConstructor: false);
         }
 
-        void Resolve(int index, object? value, bool isRejected)
+        void Resolve(int index, JsValue value, bool isRejected)
         {
-            results[index] = CreateAllSettledResult(value, isRejected);
+            results[index] = new JsValue(CreateAllSettledResult(value, isRejected));
             remaining--;
             if (remaining != 0)
             {
@@ -295,13 +295,13 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
                 resultArray.Push(result);
             }
 
-            resultPromise.Resolve(resultArray);
+            resultPromise.Resolve(new JsValue(resultArray));
         }
 
-        JsObject CreateAllSettledResult(object? value, bool isRejected)
+        JsObject CreateAllSettledResult(JsValue value, bool isRejected)
         {
             var result = new JsObject(Realm.ObjectPrototype) { RealmState = Realm };
-            result.SetProperty("status", isRejected ? "rejected" : "fulfilled");
+            result.SetProperty("status", new JsValue(isRejected ? "rejected" : "fulfilled"));
             result.SetProperty(isRejected ? "reason" : "value", value);
             return result;
         }
@@ -310,10 +310,10 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         {
             var index = i;
             var item = array.Items[i];
-            if (item is JsObject itemObj && itemObj.TryGetProperty("then", out var thenMethod) &&
+            if (item.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
                 thenMethod is IJsCallable thenCallable)
             {
-                thenCallable.Invoke([CreateResolve(index), CreateReject(index)], itemObj);
+                thenCallable.Invoke([new JsValue(CreateResolve(index)), new JsValue(CreateReject(index))], itemObj);
             }
             else
             {
@@ -321,14 +321,14 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             }
         }
 
-        return resultPromise.JsObject;
+        return new JsValue(resultPromise.JsObject);
     }
 
-    private object? PromiseAny(object? _, IReadOnlyList<object?> args)
+    private JsValue PromiseAny(JsValue _, IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || args[0] is not JsArray array)
+        if (args.Count == 0 || !args[0].TryGetObject<JsArray>(out var array))
         {
-            return null;
+            return JsValue.Undefined;
         }
 
         var resultPromise = CreatePromise(Realm);
@@ -338,16 +338,16 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         if (remaining == 0)
         {
-            resultPromise.Reject(CreateAggregateError(errors));
-            return resultPromise.JsObject;
+            resultPromise.Reject(new JsValue(CreateAggregateError(errors)));
+            return new JsValue(resultPromise.JsObject);
         }
 
         HostFunction CreateResolve()
         {
-            object? ResolveWrapper(object? __, IReadOnlyList<object?> resolveArgs)
+            JsValue ResolveWrapper(JsValue __, IReadOnlyList<JsValue> resolveArgs)
             {
                 Resolve(resolveArgs.GetArgument(0));
-                return null;
+                return JsValue.Undefined;
             }
 
             return new HostFunction(ResolveWrapper, Realm, isConstructor: false);
@@ -355,16 +355,16 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         HostFunction CreateReject()
         {
-            object? RejectWrapper(object? __, IReadOnlyList<object?> rejectArgs)
+            JsValue RejectWrapper(JsValue __, IReadOnlyList<JsValue> rejectArgs)
             {
                 Reject(rejectArgs.GetArgument(0));
-                return null;
+                return JsValue.Undefined;
             }
 
             return new HostFunction(RejectWrapper, Realm, isConstructor: false);
         }
 
-        void Resolve(object? value)
+        void Resolve(JsValue value)
         {
             if (resolved)
             {
@@ -375,7 +375,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             resultPromise.Resolve(value);
         }
 
-        void Reject(object? reason)
+        void Reject(JsValue reason)
         {
             if (resolved)
             {
@@ -386,17 +386,17 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             remaining--;
             if (remaining == 0)
             {
-                resultPromise.Reject(CreateAggregateError(errors));
+                resultPromise.Reject(new JsValue(CreateAggregateError(errors)));
             }
         }
 
         for (var i = 0; i < array.Items.Count; i++)
         {
             var item = array.Items[i];
-            if (item is JsObject itemObj && itemObj.TryGetProperty("then", out var thenMethod) &&
+            if (item.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
                 thenMethod is IJsCallable thenCallable)
             {
-                thenCallable.Invoke([CreateResolve(), CreateReject()], itemObj);
+                thenCallable.Invoke([new JsValue(CreateResolve()), new JsValue(CreateReject())], itemObj);
             }
             else
             {
@@ -404,7 +404,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             }
         }
 
-        return resultPromise.JsObject;
+        return new JsValue(resultPromise.JsObject);
     }
 
     private object CreateAggregateError(JsArray rejectionErrors)
@@ -414,7 +414,8 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         {
             try
             {
-                return callable.Invoke([rejectionErrors, "All promises were rejected"], null) ?? rejectionErrors;
+                var result = callable.Invoke([new JsValue(rejectionErrors), new JsValue("All promises were rejected")], null);
+                return result.IsNullish ? (object)rejectionErrors : result.AsObject() ?? rejectionErrors;
             }
             catch
             {

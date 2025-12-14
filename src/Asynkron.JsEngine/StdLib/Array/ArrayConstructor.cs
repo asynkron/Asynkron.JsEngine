@@ -27,7 +27,15 @@ public sealed partial class ArrayConstructor : JsConstructor
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
             var targetCtor = Realm.ArrayConstructor ?? constructor;
-            var newTargetCallable = newTarget as IJsCallable ?? targetCtor;
+            IJsCallable newTargetCallable;
+            if (newTarget.TryGetObject<IJsCallable>(out var callable))
+            {
+                newTargetCallable = callable;
+            }
+            else
+            {
+                newTargetCallable = targetCtor;
+            }
             var proto = StandardLibrary.ResolveConstructPrototype(newTargetCallable, targetCtor, Realm) ??
                         Prototype;
             var instanceRealm = ResolveInstanceRealm(proto, newTargetCallable);
@@ -38,7 +46,7 @@ public sealed partial class ArrayConstructor : JsConstructor
             }
 
             InitializeArrayLength(array, args);
-            return array;
+            return new JsValue(array);
         });
 
         AttachIsArray(constructor);
@@ -50,13 +58,13 @@ public sealed partial class ArrayConstructor : JsConstructor
 
     private JsArray AllocateArrayInstance(JsValue thisValue)
     {
-        if (thisValue.IsObject && thisValue.AsObject() is JsArray providedArray)
+        if (thisValue.TryGetObject<JsArray>(out var providedArray))
         {
             return providedArray;
         }
 
         var instance = new JsArray(Realm);
-        if (thisValue.IsObject && thisValue.AsObject() is JsObject { Prototype: JsObject providedProto })
+        if (thisValue.TryGetObject<JsObject>(out var obj) && obj.Prototype is JsObject providedProto)
         {
             instance.SetPrototype(providedProto);
         }
@@ -122,7 +130,7 @@ public sealed partial class ArrayConstructor : JsConstructor
 
     private static bool IsNumericPrimitive(JsValue value)
     {
-        return value.Type == JsValueType.Number;
+        return value.IsNumber;
     }
 
     private void AttachIsArray(HostFunction constructor)
@@ -141,8 +149,14 @@ public sealed partial class ArrayConstructor : JsConstructor
     private void AttachFrom(HostFunction constructor)
     {
         HostFunction arrayFrom = null!;
-        arrayFrom = new HostFunction((thisValue, args) => StandardLibrary.ArrayFrom(arrayFrom, thisValue, args, Realm),
-            Realm, isConstructor: false);
+        arrayFrom = new HostFunction((thisValue, args) =>
+        {
+#pragma warning disable CS0618 // ToObject is obsolete but needed here for StandardLibrary method signature
+            var argsObj = args.Select(a => a.ToObject()).ToList();
+            var result = StandardLibrary.ArrayFrom(arrayFrom, thisValue.ToObject(), argsObj, Realm);
+            return JsValue.FromObject(result);
+#pragma warning restore CS0618
+        }, Realm, isConstructor: false);
         StandardLibrary.AttachBuiltinMetadata(arrayFrom, "from", 1d);
         arrayFrom.Delete("prototype");
         constructor.DefineProperty("from",
@@ -155,9 +169,14 @@ public sealed partial class ArrayConstructor : JsConstructor
     private void AttachFromAsync(HostFunction constructor)
     {
         HostFunction arrayFromAsync = null!;
-        arrayFromAsync = new HostFunction(
-            (thisValue, args) => StandardLibrary.ArrayFromAsync(arrayFromAsync, thisValue, args, Realm),
-            Realm, isConstructor: false);
+        arrayFromAsync = new HostFunction((thisValue, args) =>
+        {
+#pragma warning disable CS0618 // ToObject is obsolete but needed here for StandardLibrary method signature
+            var argsObj = args.Select(a => a.ToObject()).ToList();
+            var result = StandardLibrary.ArrayFromAsync(arrayFromAsync, thisValue.ToObject(), argsObj, Realm);
+            return JsValue.FromObject(result);
+#pragma warning restore CS0618
+        }, Realm, isConstructor: false);
         StandardLibrary.AttachBuiltinMetadata(arrayFromAsync, "fromAsync", 1d);
         arrayFromAsync.Delete("prototype");
         constructor.DefineProperty("fromAsync",
@@ -170,8 +189,14 @@ public sealed partial class ArrayConstructor : JsConstructor
     private void AttachOf(HostFunction constructor)
     {
         HostFunction arrayOf = null!;
-        arrayOf = new HostFunction((thisValue, args) => StandardLibrary.ArrayOf(arrayOf, thisValue, args, Realm), Realm,
-            isConstructor: false);
+        arrayOf = new HostFunction((thisValue, args) =>
+        {
+#pragma warning disable CS0618 // ToObject is obsolete but needed here for StandardLibrary method signature
+            var argsObj = args.Select(a => a.ToObject()).ToList();
+            var result = StandardLibrary.ArrayOf(arrayOf, thisValue.ToObject(), argsObj, Realm);
+            return JsValue.FromObject(result);
+#pragma warning restore CS0618
+        }, Realm, isConstructor: false);
         StandardLibrary.AttachBuiltinMetadata(arrayOf, "of", 0d);
         arrayOf.Delete("prototype");
         constructor.DefineProperty("of",

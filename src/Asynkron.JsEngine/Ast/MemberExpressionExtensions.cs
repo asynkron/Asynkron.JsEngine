@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 
@@ -7,7 +8,7 @@ public static partial class TypedAstEvaluator
 {
     extension(MemberExpression expression)
     {
-        private object? EvaluateMember(JsEnvironment environment,
+        private JsValue EvaluateMember(JsEnvironment environment,
             EvaluationContext context)
         {
             // Fast-path well-known symbol properties so expressions like
@@ -19,9 +20,9 @@ public static partial class TypedAstEvaluator
             {
                 return symbolProp switch
                 {
-                    "iterator" => Symbols.Iterator,
-                    "asyncIterator" => Symbols.AsyncIterator,
-                    "toStringTag" => Symbols.ToStringTag,
+                    "iterator" => JsValue.FromObject(Symbols.Iterator),
+                    "asyncIterator" => JsValue.FromObject(Symbols.AsyncIterator),
+                    "toStringTag" => JsValue.FromObject(Symbols.ToStringTag),
                     _ => EvaluateDefaultMember(expression, environment, context)
                 };
             }
@@ -29,7 +30,7 @@ public static partial class TypedAstEvaluator
             return EvaluateDefaultMember(expression, environment, context);
         }
 
-        private object? EvaluateDefaultMember(JsEnvironment environment,
+        private JsValue EvaluateDefaultMember(JsEnvironment environment,
             EvaluationContext context)
         {
             if (expression.Target is ThisExpression && !context.IsThisInitialized)
@@ -43,24 +44,24 @@ public static partial class TypedAstEvaluator
             if (expression.Target is SuperExpression)
             {
                 var (memberValue, _) = ResolveSuperMember(expression, environment, context);
-                return context.ShouldStopEvaluation ? Symbol.Undefined : memberValue;
+                return context.ShouldStopEvaluation ? JsValue.Undefined : JsValue.FromObject(memberValue);
             }
 
             var targetJs = EvaluateExpression(expression.Target, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             var target = targetJs.ToObject();
             if (expression.IsOptional && IsNullish(target))
             {
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             if (IsNullish(target) && HasOptionalChaining(expression.Target))
             {
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             if (IsNullish(target))
@@ -70,29 +71,29 @@ public static partial class TypedAstEvaluator
                     context,
                     context.RealmState);
                 context.SetThrow(error);
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             var propertyValueJs = EvaluateExpression(expression.Property, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             var propertyName = JsOps.GetRequiredPropertyName(propertyValueJs.ToObject(), context);
             if (context.ShouldStopEvaluation)
             {
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             if (expression.IsComputed || !propertyName.IsPrivateName())
             {
                 if (JsOps.TryGetPropertyValue(target, propertyName, out var directValue, context))
                 {
-                    return context.ShouldStopEvaluation ? Symbol.Undefined : directValue;
+                    return context.ShouldStopEvaluation ? JsValue.Undefined : JsValue.FromObject(directValue);
                 }
 
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             var handle = PropertyHandle.Resolve(
@@ -102,7 +103,7 @@ public static partial class TypedAstEvaluator
                 context.CurrentScope.IsStrict,
                 allowPrivate: !expression.IsComputed);
             var value = handle.GetValue();
-            return context.ShouldStopEvaluation ? Symbol.Undefined : value;
+            return context.ShouldStopEvaluation ? JsValue.Undefined : JsValue.FromObject(value);
         }
 
         private (object? Value, SuperBinding Binding) ResolveSuperMember(JsEnvironment environment,

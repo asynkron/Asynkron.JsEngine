@@ -116,8 +116,8 @@ public static partial class TypedAstEvaluator
                 IndexAssignmentExpression indexAssignment =>
                     JsValue.FromObject(EvaluateIndexAssignment(indexAssignment, environment, context)),
                 SequenceExpression sequence => EvaluateSequence(sequence, environment, context),
-                MemberExpression member => JsValue.FromObject(EvaluateMember(member, environment, context)),
-                NewExpression newExpression => JsValue.FromObject(EvaluateNew(newExpression, environment, context)),
+                MemberExpression member => EvaluateMember(member, environment, context),
+                NewExpression newExpression => EvaluateNew(newExpression, environment, context),
                 NewTargetExpression => environment.TryGet(Symbol.NewTarget, out var newTarget)
                     ? JsValue.FromObject(newTarget)
                     : JsValue.Undefined,

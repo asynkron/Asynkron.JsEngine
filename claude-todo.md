@@ -31,9 +31,9 @@ After each file, run tests to ensure nothing breaks.
 - [x] `TemplateLiteralExpressionExtensions.cs` - EvaluateTemplateLiteral → JsValue
 - [x] `TaggedTemplateExpressionExtensions.cs` - EvaluateTaggedTemplate → JsValue
 
-### 1.2 Member Access (Medium Risk)
-- [ ] `MemberExpressionExtensions.cs` - EvaluateMember → JsValue
-- [ ] `NewExpressionExtensions.cs` - EvaluateNew → JsValue
+### 1.2 Member Access (Medium Risk) ✅ COMPLETE
+- [x] `MemberExpressionExtensions.cs` - EvaluateMember → JsValue
+- [x] `NewExpressionExtensions.cs` - EvaluateNew → JsValue
 
 ### 1.3 Assignment Expressions (Medium Risk)
 - [ ] `AssignmentExpressionExtensions.cs` - EvaluateAssignment → JsValue

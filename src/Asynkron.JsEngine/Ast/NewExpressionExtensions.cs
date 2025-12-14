@@ -10,13 +10,13 @@ public static partial class TypedAstEvaluator
 {
     extension(NewExpression expression)
     {
-        private object? EvaluateNew(JsEnvironment environment, EvaluationContext context)
+        private JsValue EvaluateNew(JsEnvironment environment, EvaluationContext context)
         {
             var realm = context.RealmState;
             var constructorJsValue = EvaluateExpression(expression.Constructor, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
             var constructor = constructorJsValue.ToObject();
 
@@ -46,7 +46,7 @@ public static partial class TypedAstEvaluator
                         argsArray[i] = EvaluateExpression(expression.Arguments[i].Expression, environment, context).ToObject();
                         if (context.ShouldStopEvaluation)
                         {
-                            return Symbol.Undefined;
+                            return JsValue.Undefined;
                         }
                     }
 
@@ -63,7 +63,7 @@ public static partial class TypedAstEvaluator
                         var spreadValueJs = EvaluateExpression(argument.Expression, environment, context);
                         if (context.ShouldStopEvaluation)
                         {
-                            return Symbol.Undefined;
+                            return JsValue.Undefined;
                         }
 
                         foreach (var item in EnumerateSpread(spreadValueJs.ToObject(), context))
@@ -73,7 +73,7 @@ public static partial class TypedAstEvaluator
 
                         if (context.ShouldStopEvaluation)
                         {
-                            return Symbol.Undefined;
+                            return JsValue.Undefined;
                         }
 
                         continue;
@@ -82,7 +82,7 @@ public static partial class TypedAstEvaluator
                     argsBuilder.Add(EvaluateExpression(argument.Expression, environment, context).ToObject());
                     if (context.ShouldStopEvaluation)
                     {
-                        return Symbol.Undefined;
+                        return JsValue.Undefined;
                     }
                 }
 
@@ -227,7 +227,7 @@ public static partial class TypedAstEvaluator
             catch (ThrowSignal signal)
             {
                 context.SetThrow(signal.ThrownValue);
-                return signal.ThrownValue;
+                return JsValue.FromObject(signal.ThrownValue);
             }
             finally
             {
@@ -339,7 +339,7 @@ public static partial class TypedAstEvaluator
                     DescribePrototype(constructed.PrototypeAccessor ?? constructed.Prototype));
             }
 
-            return constructedResult;
+            return JsValue.FromObject(constructedResult);
         }
     }
 }

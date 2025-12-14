@@ -139,13 +139,15 @@ public sealed partial class NumberPrototype
 
         if (optionsArg.TryGetObject(out JsObject? options) && options is not null)
         {
-            var style = options.TryGetProperty("style", out var styleVal) ? styleVal?.ToString() : null;
-            if (string.Equals(style, "unit", StringComparison.OrdinalIgnoreCase) &&
-                options.TryGetProperty("unit", out var unitVal) &&
-                unitVal is not null &&
-                !ReferenceEquals(unitVal, Symbol.Undefined))
+            if (options.TryGetProperty("style", out var styleVal) && !styleVal.IsNullOrUndefined)
             {
-                return $"{num.ToString(CultureInfo.InvariantCulture)} {unitVal}";
+                var style = JsOps.ToJsString(styleVal);
+                if (string.Equals(style, "unit", StringComparison.OrdinalIgnoreCase) &&
+                    options.TryGetProperty("unit", out var unitVal) &&
+                    !unitVal.IsNullOrUndefined)
+                {
+                    return $"{num.ToString(CultureInfo.InvariantCulture)} {JsOps.ToJsString(unitVal)}";
+                }
             }
         }
 
@@ -177,9 +179,9 @@ public sealed partial class NumberPrototype
         }
 
         // Check if it's a Number object (with __value__ property)
-        if (receiver.TryGetObject(out var obj) && obj is not null)
+        if (receiver.TryGetObject(out object? obj) && obj is not null)
         {
-            if (obj.TryGetProperty("__value__", out var inner))
+            if (obj is JsObject jsObj && jsObj.TryGetProperty("__value__", out var inner))
             {
                 return JsOps.ToNumber(inner);
             }

@@ -36,14 +36,22 @@ public sealed partial class BooleanPrototype
             return flag;
         }
 
-        if (receiver.TryGetObject<JsObject>(out var obj) && obj.TryGetProperty("__value__", out var inner) && inner is bool b)
+        if (receiver.TryGetObject<JsObject>(out var obj) && obj is not null && obj.TryGetProperty("__value__", out var inner))
         {
-            return b;
+            var innerJsValue = JsValue.FromObject(inner);
+            if (innerJsValue.TryGetBoolean(out var boolVal))
+            {
+                return boolVal;
+            }
         }
 
-        if (receiver.TryGetObject<IJsPropertyAccessor>(out var accessor) && accessor.TryGetProperty("__value__", out var innerVal) && innerVal is bool bVal)
+        if (receiver.TryGetObject<IJsPropertyAccessor>(out var accessor) && accessor is not null && accessor.TryGetProperty("__value__", out var innerVal))
         {
-            return bVal;
+            var innerJsValue = JsValue.FromObject(innerVal);
+            if (innerJsValue.TryGetBoolean(out var boolVal))
+            {
+                return boolVal;
+            }
         }
 
         throw ThrowTypeError("Boolean method called on non-boolean object", realm: Realm);

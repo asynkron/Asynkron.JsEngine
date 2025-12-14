@@ -220,7 +220,7 @@ public class DebugClassFieldTests
             Assert.That(thrown, Is.InstanceOf<JsObject>(), "Thrown value should be a JS error object");
             var error = (JsObject)thrown;
             error.TryGetProperty("name", out var name);
-            Assert.That(name?.ToString(), Is.EqualTo("TypeError"));
+            Assert.That(name.ToString(), Is.EqualTo("TypeError"));
         }
     }
 

@@ -230,7 +230,7 @@ try {
                 }
                 else if (args[0].TryGetObject<IJsPropertyAccessor>(out var accessor) &&
                          accessor.TryGetProperty("buffer", out var inner) &&
-                         inner is JsArrayBuffer innerBuffer)
+                         inner.TryGetObject<JsArrayBuffer>(out var innerBuffer))
                 {
                     innerBuffer.Detach();
                 }
@@ -545,9 +545,10 @@ try {
         // Prototype [[Prototype]] should be Object.prototype when available.
         var prototype = new JsObject();
         if (engine.GlobalObject.TryGetValue("Object", out var objectCtor) &&
-            objectCtor is IJsPropertyAccessor objAccessor &&
+            objectCtor is JsValue objectCtorValue &&
+            objectCtorValue.TryGetObject<IJsPropertyAccessor>(out var objAccessor) &&
             objAccessor.TryGetProperty("prototype", out var objectProto) &&
-            objectProto is JsObject protoObj)
+            objectProto.TryGetObject<JsObject>(out var protoObj))
         {
             prototype.SetPrototype(protoObj);
         }
@@ -555,12 +556,13 @@ try {
         var constructor = new HostFunction((_, _) =>
         {
             var error = JsValue.FromObject("%AbstractModuleSource% is not constructable");
-            if (engine.GlobalObject.TryGetValue("TypeError", out var typeErrorValue) &&
-                typeErrorValue is IJsCallable typeErrorCtor)
+            if (engine.GlobalObject.TryGetValue("TypeError", out var typeErrorObj) &&
+                typeErrorObj is JsValue typeErrorValue &&
+                typeErrorValue.TryGetObject<IJsCallable>(out var typeErrorCtor))
             {
                 try
                 {
-                    error = typeErrorCtor.Invoke([error], null);
+                    error = typeErrorCtor.Invoke([error], JsValue.Undefined);
                 }
                 catch (ThrowSignal signal)
                 {
@@ -615,7 +617,7 @@ try {
         {
             if (thisValue.TryGetObject(out var obj) &&
                 obj.TryGetProperty("__moduleSourceClassName__", out var name) &&
-                name is string tag)
+                name.TryGetObject<string>(out var tag))
             {
                 return tag;
             }
@@ -637,9 +639,10 @@ try {
         }
 
         if (engine.GlobalObject.TryGetValue("Function", out var functionCtor) &&
-            functionCtor is IJsPropertyAccessor fnAccessor &&
+            functionCtor is JsValue functionCtorValue &&
+            functionCtorValue.TryGetObject<IJsPropertyAccessor>(out var fnAccessor) &&
             fnAccessor.TryGetProperty("prototype", out var fnProto) &&
-            fnProto is JsObject fnProtoObj)
+            fnProto.TryGetObject<JsObject>(out var fnProtoObj))
         {
             constructor.SetPrototype(fnProtoObj);
         }

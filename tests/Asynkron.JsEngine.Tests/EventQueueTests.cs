@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.JsTypes;
+
 namespace Asynkron.JsEngine.Tests;
 
 public class EventQueueTests
@@ -93,7 +95,7 @@ public class EventQueueTests
         engine.SetGlobalFunction("capture", args =>
         {
             capturedValues.AddRange(args);
-            return null;
+            return JsValue.Null;
         });
 
         engine.ScheduleTask(() => capturedValues.Add("from-task"));

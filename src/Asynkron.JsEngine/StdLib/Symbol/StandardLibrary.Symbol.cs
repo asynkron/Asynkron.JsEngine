@@ -55,7 +55,7 @@ public static partial class StandardLibrary
 
     internal static TypedAstSymbol RequireSymbolReceiver(JsValue receiver, RealmState? realm = null)
     {
-        if (receiver.IsSymbol && receiver.ObjectValue is TypedAstSymbol sym)
+        if (receiver.IsSymbol && receiver.TryUnwrap<TypedAstSymbol>(out var sym))
         {
             return sym;
         }
@@ -63,13 +63,13 @@ public static partial class StandardLibrary
         if (receiver.TryGetObject<JsObject>(out var obj) &&
             obj.TryGetProperty("__value__", out var inner))
         {
-            // inner is object?, need to extract JsValue from it
-            if (inner is JsValue innerValue && innerValue.IsSymbol && innerValue.ObjectValue is TypedAstSymbol innerSym)
+            // inner is JsValue, need to extract TypedAstSymbol from it
+            if (inner.IsSymbol && inner.TryUnwrap<TypedAstSymbol>(out var innerSym))
             {
                 return innerSym;
             }
-            // Also check if inner is directly a TypedAstSymbol (backward compatibility)
-            if (inner is TypedAstSymbol directSym)
+            // Also check if inner.ToObject() is directly a TypedAstSymbol (backward compatibility)
+            if (inner.ToObject() is TypedAstSymbol directSym)
             {
                 return directSym;
             }

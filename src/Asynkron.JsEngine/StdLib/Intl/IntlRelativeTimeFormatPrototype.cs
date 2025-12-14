@@ -53,15 +53,15 @@ public sealed partial class IntlRelativeTimeFormatPrototype
         var instance = ValidateReceiver(thisValue);
         var obj = new JsObject(Realm.ObjectPrototype);
         obj.SetProperty("locale",
-            instance.TryGetProperty("__locale__", out var locale) ? locale ?? "en" : "en");
+            instance.TryGetProperty("__locale__", out var locale) && locale.TryGetString(out var localeStr) ? localeStr : "en");
         obj.SetProperty("numberingSystem",
-            instance.TryGetProperty("__numberingSystem__", out var numberingSystem)
-                ? numberingSystem ?? "latn"
+            instance.TryGetProperty("__numberingSystem__", out var numberingSystem) && numberingSystem.TryGetString(out var numSysStr)
+                ? numSysStr
                 : "latn");
         obj.SetProperty("numeric",
-            instance.TryGetProperty("__numeric__", out var numeric) ? numeric ?? "always" : "always");
+            instance.TryGetProperty("__numeric__", out var numeric) && numeric.TryGetString(out var numericStr) ? numericStr : "always");
         obj.SetProperty("style",
-            instance.TryGetProperty("__style__", out var style) ? style ?? "long" : "long");
+            instance.TryGetProperty("__style__", out var style) && style.TryGetString(out var styleStr) ? styleStr : "long");
         return new JsValue(obj);
     }
 

@@ -142,15 +142,19 @@ public static partial class StandardLibrary
                 return JsValue.FromObject(formatted);
             }
 
-            if (optionsArg.TryGetObject<JsObject>(out var options) && options is not null)
+            if (!optionsArg.TryGetObject<JsObject>(out var options) || options is null)
             {
-                var style = options.TryGetProperty("style", out var styleVal) ? styleVal?.ToString() : null;
+                return JsValue.FromObject(num.ToString(CultureInfo.InvariantCulture));
+            }
+
+            if (options.TryGetProperty("style", out var styleVal) && !styleVal.IsNullOrUndefined)
+            {
+                var style = JsOps.ToJsString(styleVal);
                 if (string.Equals(style, "unit", StringComparison.OrdinalIgnoreCase) &&
                     options.TryGetProperty("unit", out var unitVal) &&
-                    unitVal is not null &&
-                    !ReferenceEquals(unitVal, Symbol.Undefined))
+                    !unitVal.IsNullOrUndefined)
                 {
-                    return JsValue.FromObject($"{num.ToString(CultureInfo.InvariantCulture)} {unitVal}");
+                    return JsValue.FromObject($"{num.ToString(CultureInfo.InvariantCulture)} {JsOps.ToJsString(unitVal)}");
                 }
             }
 

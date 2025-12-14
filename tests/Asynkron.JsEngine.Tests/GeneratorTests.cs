@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -745,10 +746,9 @@ public class GeneratorTests
     private static void AssertIteratorResultTypeError(ThrowSignal signal)
     {
         if (signal.ThrownValue is Asynkron.JsEngine.JsTypes.JsObject obj &&
-            obj.TryGetProperty("message", out var message) &&
-            message is string msg)
+            obj.TryGetProperty("message", out var message))
         {
-            Assert.Equal("Iterator result is not an object.", msg);
+            Assert.Equal("Iterator result is not an object.", message.ToString());
             return;
         }
 
@@ -3155,14 +3155,14 @@ public class GeneratorTests
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             Console.WriteLine($"LOG: {message}");
-            return null;
+            return JsValue.Null;
         });
 
         engine.SetGlobalFunction("markError", _ =>
         {
             errorCaught = true;
             Console.WriteLine("LOG: Error caught!");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""
@@ -3263,7 +3263,7 @@ public class GeneratorTests
         engine.SetGlobalFunction("log", args =>
         {
             logs.Add(args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null");
-            return null;
+            return JsValue.Null;
         });
 
         var result = await engine.Evaluate("""

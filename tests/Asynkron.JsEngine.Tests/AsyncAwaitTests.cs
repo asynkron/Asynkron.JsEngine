@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.JsTypes;
+
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
@@ -89,7 +91,7 @@ public class AsyncAwaitTests
                 result = args[0].ToObject()?.ToString() ?? "";
             }
 
-            return null;
+            return JsValue.Null;
         });
 
         // Act
@@ -122,7 +124,7 @@ public class AsyncAwaitTests
             {
                 result = args[0].ToObject()?.ToString() ?? "";
             }
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""
@@ -153,7 +155,7 @@ public class AsyncAwaitTests
             {
                 result = args[0].ToObject()?.ToString() ?? "";
             }
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""
@@ -187,7 +189,7 @@ public class AsyncAwaitTests
             {
                 result = args[0].ToObject()?.ToString() ?? "";
             }
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""
@@ -218,7 +220,7 @@ public class AsyncAwaitTests
         engine.SetGlobalFunction("markCaught", _ =>
         {
             caught = true;
-            return null;
+            return JsValue.Null;
         });
 
         // Act
@@ -252,7 +254,7 @@ public class AsyncAwaitTests
                 result = args[0].ToObject()?.ToString() ?? "";
             }
 
-            return null;
+            return JsValue.Null;
         });
 
         // Act
@@ -290,7 +292,7 @@ public class AsyncAwaitTests
                 result = args[0].ToObject()?.ToString() ?? "";
             }
 
-            return null;
+            return JsValue.Null;
         });
 
         // Act
@@ -334,7 +336,7 @@ public class AsyncAwaitTests
                 result = args[0].ToObject()?.ToString() ?? "";
             }
 
-            return null;
+            return JsValue.Null;
         });
 
         // Act
@@ -439,7 +441,7 @@ public class AsyncAwaitTests
             {
                 result = args[0].ToObject()?.ToString() ?? "";
             }
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""
@@ -472,7 +474,7 @@ public class AsyncAwaitTests
         engine.SetGlobalFunction("markCalled", _ =>
         {
             wasCalled = true;
-            return null;
+            return JsValue.Null;
         });
 
         // Act
@@ -502,7 +504,7 @@ public class AsyncAwaitTests
         engine.SetGlobalFunction("markCalled", _ =>
         {
             wasCalled = true;
-            return null;
+            return JsValue.Null;
         });
 
         // Act
@@ -536,7 +538,7 @@ public class AsyncAwaitTests
                 result = args[0].ToObject()?.ToString() ?? "";
             }
 
-            return null;
+            return JsValue.Null;
         });
 
         // Act
@@ -576,7 +578,7 @@ public class AsyncAwaitTests
                 result = args[0].ToObject()?.ToString() ?? "";
             }
 
-            return null;
+            return JsValue.Null;
         });
 
         // Act
@@ -624,7 +626,7 @@ public class AsyncAwaitTests
                 result = args[0].ToObject()?.ToString() ?? "";
             }
 
-            return null;
+            return JsValue.Null;
         });
 
         // Act
@@ -669,7 +671,7 @@ public class AsyncAwaitTests
                 results.Add(args[0].ToObject()?.ToString() ?? "");
             }
 
-            return null;
+            return JsValue.Null;
         });
 
         // Act
@@ -716,7 +718,7 @@ public class AsyncAwaitTests
                 result = args[0].ToObject()?.ToString() ?? "";
             }
 
-            return null;
+            return JsValue.Null;
         });
 
         // Act
@@ -766,7 +768,7 @@ public class AsyncAwaitTests
             {
                 result = args[0].ToObject()?.ToString() ?? "";
             }
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""

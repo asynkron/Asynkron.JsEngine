@@ -1,5 +1,6 @@
 using Xunit.Abstractions;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine.Tests;
@@ -20,7 +21,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {message}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""
@@ -79,7 +80,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {message}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""
@@ -217,7 +218,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {message}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""
@@ -269,7 +270,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {message}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""
@@ -313,7 +314,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {message}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""
@@ -355,7 +356,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {message}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""
@@ -401,7 +402,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {message}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""
@@ -438,7 +439,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {message}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""

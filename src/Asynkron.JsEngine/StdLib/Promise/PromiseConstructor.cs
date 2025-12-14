@@ -138,7 +138,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         {
             JsValue Resolve(JsValue __, IReadOnlyList<JsValue> resolveArgs)
             {
-                results[index] = resolveArgs.GetArgument(0).ToObject();
+                results[index] = resolveArgs.GetArgument(0);
                 remaining--;
                 if (remaining == 0)
                 {
@@ -175,7 +175,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             }
             else
             {
-                results[index] = item.ToObject();
+                results[index] = item;
                 remaining--;
                 if (remaining == 0)
                 {
@@ -312,7 +312,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         {
             var result = new JsObject(Realm.ObjectPrototype) { RealmState = Realm };
             result.SetProperty("status", isRejected ? "rejected" : "fulfilled");
-            result.SetProperty(isRejected ? "reason" : "value", value.ToObject());
+            result.SetProperty(isRejected ? "reason" : "value", value);
             return result;
         }
 
@@ -393,7 +393,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
                 return;
             }
 
-            errors.Push(reason.ToObject());
+            errors.Push(reason);
             remaining--;
             if (remaining == 0)
             {

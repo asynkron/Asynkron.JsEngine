@@ -77,46 +77,40 @@ public static partial class StandardLibrary
     {
         if (!holder.TryGetProperty(name, out var value))
         {
-            value = null;
+            value = JsValue.Null;
         }
 
-        switch (value)
+        if (value.TryGetObject<JsObject>(out var jsObj) && jsObj is not null)
         {
-            case JsObject obj:
+            var obj = jsObj;
+            foreach (var key in obj.Keys.ToArray())
             {
-                foreach (var key in obj.Keys.ToArray())
+                var revived = ApplyJsonReviver(reviver, obj, key, context, realm);
+                if (ReferenceEquals(revived, Symbol.Undefined))
                 {
-                    var revived = ApplyJsonReviver(reviver, obj, key, context, realm);
-                    if (ReferenceEquals(revived, Symbol.Undefined))
-                    {
-                        obj.Delete(key);
-                    }
-                    else
-                    {
-                        obj.SetProperty(key, JsValue.FromObject(revived));
-                    }
+                    obj.Delete(key);
                 }
-
-                break;
+                else
+                {
+                    obj.SetProperty(key, JsValue.FromObject(revived));
+                }
             }
-            case JsArray arr:
+        }
+        else if (value.TryGetObject<JsArray>(out var arr) && arr is not null)
+        {
+            var length = (int)arr.Length;
+            for (var i = 0; i < length; i++)
             {
-                var length = (int)arr.Length;
-                for (var i = 0; i < length; i++)
+                var revived = ApplyJsonReviver(reviver, arr,
+                    i.ToString(CultureInfo.InvariantCulture), context, realm);
+                if (ReferenceEquals(revived, Symbol.Undefined))
                 {
-                    var revived = ApplyJsonReviver(reviver, arr,
-                        i.ToString(CultureInfo.InvariantCulture), context, realm);
-                    if (ReferenceEquals(revived, Symbol.Undefined))
-                    {
-                        arr.DeleteElement(i);
-                    }
-                    else
-                    {
-                        arr.SetElement(i, revived);
-                    }
+                    arr.DeleteElement(i);
                 }
-
-                break;
+                else
+                {
+                    arr.SetElement(i, revived);
+                }
             }
         }
 

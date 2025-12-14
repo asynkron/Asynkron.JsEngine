@@ -89,7 +89,7 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
 
         if (args.Count == 1 && args[0].IsObject && args[0].AsObject() is JsObject existingObj &&
             existingObj.TryGetProperty("__regex__", out var internalRegex) &&
-            internalRegex is JsRegExp existing)
+            internalRegex.TryGetObject<JsRegExp>(out var existing))
         {
             return CreateRegExpLiteral(existing.Pattern, existing.Flags, Realm, target);
         }

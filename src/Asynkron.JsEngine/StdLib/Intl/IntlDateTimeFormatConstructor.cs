@@ -98,12 +98,12 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
         string defaultValue)
     {
         if (options is null || !options.TryGetProperty(propertyName, out var rawValue) ||
-            ReferenceEquals(rawValue, Symbol.Undefined))
+            rawValue.IsUndefined)
         {
             return defaultValue;
         }
 
-        if (rawValue is not string strValue)
+        if (!rawValue.TryGetString(out var strValue))
         {
             throw StandardLibrary.ThrowTypeError(
                 $"Intl.DateTimeFormat {propertyName} option must be a string", realm: Realm);
@@ -121,12 +121,12 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
     private string ReadCalendarOption(JsObject? options)
     {
         if (options is null || !options.TryGetProperty("calendar", out var value) ||
-            ReferenceEquals(value, Symbol.Undefined))
+            value.IsUndefined)
         {
             return "gregory";
         }
 
-        if (value is not string calendar)
+        if (!value.TryGetString(out var calendar))
         {
             throw StandardLibrary.ThrowTypeError("Intl.DateTimeFormat calendar option must be a string", realm: Realm);
         }
@@ -142,12 +142,12 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
     private string ReadNumberingSystem(JsObject? options)
     {
         if (options is null || !options.TryGetProperty("numberingSystem", out var value) ||
-            ReferenceEquals(value, Symbol.Undefined))
+            value.IsUndefined)
         {
             return "latn";
         }
 
-        if (value is not string system)
+        if (!value.TryGetString(out var system))
         {
             throw StandardLibrary.ThrowTypeError(
                 "Intl.DateTimeFormat numberingSystem option must be a string", realm: Realm);
@@ -161,12 +161,12 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
     private string? ReadStyleOption(JsObject? options, string propertyName)
     {
         if (options is null || !options.TryGetProperty(propertyName, out var value) ||
-            ReferenceEquals(value, Symbol.Undefined))
+            value.IsUndefined)
         {
             return null;
         }
 
-        if (value is not string stringValue)
+        if (!value.TryGetString(out var stringValue))
         {
             throw StandardLibrary.ThrowTypeError(
                 $"Intl.DateTimeFormat {propertyName} option must be a string", realm: Realm);
@@ -178,25 +178,15 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
     private string? ReadComponentOption(JsObject? options, string propertyName)
     {
         if (options is null || !options.TryGetProperty(propertyName, out var value) ||
-            ReferenceEquals(value, Symbol.Undefined))
+            value.IsUndefined)
         {
             return null;
         }
 
-        if (value is not string component)
+        if (!value.TryGetString(out var component))
         {
             throw StandardLibrary.ThrowTypeError(
                 $"Intl.DateTimeFormat {propertyName} option must be a string", realm: Realm);
-        }
-
-        bool IsWidthAllowed(string value)
-        {
-            return value is "2-digit" or "numeric";
-        }
-
-        bool IsMonthAllowed(string value)
-        {
-            return value is "2-digit" or "numeric" or "narrow" or "short" or "long";
         }
 
         var isAllowed = propertyName switch
@@ -215,6 +205,16 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
         }
 
         return component;
+
+        bool IsWidthAllowed(string value)
+        {
+            return value is "2-digit" or "numeric";
+        }
+
+        bool IsMonthAllowed(string value)
+        {
+            return value is "2-digit" or "numeric" or "narrow" or "short" or "long";
+        }
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)

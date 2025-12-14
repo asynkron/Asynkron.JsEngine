@@ -1,5 +1,6 @@
 using Xunit.Abstractions;
 using System.Text;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -19,7 +20,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate(@"
@@ -50,7 +51,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate(@"
@@ -86,7 +87,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate(@"
@@ -125,7 +126,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate(@"
@@ -169,7 +170,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate(@"
@@ -220,7 +221,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate(@"
@@ -292,7 +293,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"[LOCAL] {msg}");
             localLogs.Append(msg).AppendLine();
-            return null;
+            return JsValue.Null;
         });
 
         await engine1.Evaluate(@"
@@ -330,7 +331,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"[GLOBAL] {msg}");
             globalLogs.Append(msg).AppendLine();
-            return null;
+            return JsValue.Null;
         });
 
         await engine2.Evaluate(@"
@@ -383,7 +384,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate(@"
@@ -434,7 +435,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate(@"
@@ -487,7 +488,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate(@"
@@ -543,7 +544,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate(@"
@@ -607,7 +608,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate(@"
@@ -687,7 +688,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate(@"
@@ -748,7 +749,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         engine.SetGlobalFunction("onRejection", args =>
@@ -756,7 +757,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"REJECTION: {msg}");
             rejectionsCaught.Add(msg);
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate(@"
@@ -841,7 +842,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate(@"

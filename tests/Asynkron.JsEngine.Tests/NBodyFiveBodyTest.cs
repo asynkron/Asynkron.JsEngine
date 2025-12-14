@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.JsTypes;
+
 namespace Asynkron.JsEngine.Tests;
 
 public class NBodyFiveBodyTest
@@ -6,7 +8,7 @@ public class NBodyFiveBodyTest
     public async Task FiveBodies_Energy_Works()
     {
         await using var engine = new JsEngine();
-        engine.SetGlobalFunction("__debug", _ => null);
+        engine.SetGlobalFunction("__debug", _ =>  JsValue.Null);
 
         var content = SunSpiderTests.GetEmbeddedFile("access-nbody.js");
 
@@ -17,7 +19,7 @@ public class NBodyFiveBodyTest
     public async Task FiveBodies_FullTest_Works()
     {
         await using var engine = new JsEngine();
-        engine.SetGlobalFunction("__debug", _ => null);
+        engine.SetGlobalFunction("__debug", _ =>  JsValue.Null);
 
         var content = SunSpiderTests.GetEmbeddedFile("access-nbody.js");
 

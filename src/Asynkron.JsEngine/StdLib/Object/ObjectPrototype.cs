@@ -13,18 +13,17 @@ public sealed partial class ObjectPrototype : JsPrototype
     public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var tagKey = SymbolKeys.GetToStringTag(Realm);
-        if (thisValue.TryGetObject<JsObject>(out var obj))
+        if (thisValue.TryGetObject<JsObject>(out var obj) && obj is not null)
         {
-            if (obj.TryGetProperty(tagKey, out var tagValue) && !ReferenceEquals(tagValue, Symbol.Undefined))
+            if (obj.TryGetProperty(tagKey, out var tagValue) && !tagValue.IsUndefined)
             {
                 var tagString = JsOps.ToJsString(tagValue);
                 return $"[object {tagString}]";
             }
         }
-        else if (thisValue.TryGetObject<IJsPropertyAccessor>(out var accessor))
+        else if (thisValue.TryGetObject<IJsPropertyAccessor>(out var accessor) && accessor is not null)
         {
-            if (accessor.TryGetProperty(tagKey, out var tagValue) &&
-                !ReferenceEquals(tagValue, Symbol.Undefined))
+            if (accessor.TryGetProperty(tagKey, out var tagValue) && !tagValue.IsUndefined)
             {
                 var tagString = JsOps.ToJsString(tagValue);
                 return $"[object {tagString}]";
@@ -89,15 +88,15 @@ public sealed partial class ObjectPrototype : JsPrototype
         }
 
         bool result = false;
-        if (thisValue.TryGetObject<JsObject>(out var obj))
+        if (thisValue.TryGetObject<JsObject>(out var obj) && obj is not null)
         {
             result = obj.GetOwnPropertyDescriptor(propertyName) is not null;
         }
-        else if (thisValue.TryGetObject<JsArray>(out var array))
+        else if (thisValue.TryGetObject<JsArray>(out var array) && array is not null)
         {
             result = array.GetOwnPropertyDescriptor(propertyName) is not null;
         }
-        else if (thisValue.TryGetObject<IJsObjectLike>(out var accessor))
+        else if (thisValue.TryGetObject<IJsObjectLike>(out var accessor) && accessor is not null)
         {
             result = accessor.GetOwnPropertyDescriptor(propertyName) is not null;
         }
@@ -119,7 +118,7 @@ public sealed partial class ObjectPrototype : JsPrototype
             return new JsValue(false);
         }
 
-        if (!thisValue.TryGetObject<IJsObjectLike>(out var accessor))
+        if (!thisValue.TryGetObject<IJsObjectLike>(out var accessor) || accessor is null)
         {
             return new JsValue(false);
         }
@@ -204,7 +203,7 @@ public sealed partial class ObjectPrototype : JsPrototype
             object error;
             if (Realm.TypeErrorConstructor is IJsCallable ctor)
             {
-                error = ctor.Invoke(["Object.prototype.isPrototypeOf called on null or undefined"], null);
+                error = ctor.Invoke(["Object.prototype.isPrototypeOf called on null or undefined"], JsValue.Null);
             }
             else
             {
@@ -255,11 +254,14 @@ public sealed partial class ObjectPrototype : JsPrototype
                 }
             }
 
-            if (candidate is JsObject jsObj && jsObj.TryGetProperty("__proto__", out var protoProp) &&
-                protoProp is IJsObjectLike protoFromProp)
+            if (candidate is JsObject jsObj && jsObj.TryGetProperty("__proto__", out var protoProp))
             {
-                prototype = protoFromProp;
-                return true;
+                var protoJsValue = JsValue.FromObject(protoProp);
+                if (protoJsValue.TryGetObject<IJsObjectLike>(out var protoFromProp))
+                {
+                    prototype = protoFromProp;
+                    return true;
+                }
             }
 
             return false;

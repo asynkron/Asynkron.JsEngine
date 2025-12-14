@@ -162,10 +162,8 @@ public class StrictModeTests
 
         var message = ex switch
         {
-            ThrowSignal signal when signal.ThrownValue is Exception inner => inner.Message,
-            ThrowSignal signal when signal.ThrownValue is IJsPropertyAccessor accessor &&
-                                     accessor.TryGetProperty("message", out var msg) &&
-                                     msg is string s1 => s1,
+            ThrowSignal { ThrownValue: Exception inner } => inner.Message,
+            ThrowSignal { ThrownValue: IJsPropertyAccessor accessor } when accessor.TryGetProperty("message", out var msg) => msg.ToString(),
             _ => ex.Message
         };
 

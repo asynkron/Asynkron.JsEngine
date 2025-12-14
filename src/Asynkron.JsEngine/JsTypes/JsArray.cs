@@ -1030,13 +1030,13 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         var ctor = realm?.RangeErrorConstructor ?? _rangeErrorCtor;
         if (ctor is IJsCallable)
         {
-            var errorObj = ctor.Invoke([message], null);
+            var errorObj = ctor.Invoke([JsValue.FromObject(message)], JsValue.Undefined);
             return new ThrowSignal(errorObj);
         }
 
         var fallback = new JsObject { ["name"] = "RangeError", ["message"] = message };
 
-        return new ThrowSignal(fallback);
+        return new ThrowSignal(JsValue.FromObject(fallback));
     }
 
     private ThrowSignal CreateTypeError(string message, EvaluationContext? context = null)
@@ -1045,13 +1045,13 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         var ctor = realm?.TypeErrorConstructor ?? _typeErrorCtor;
         if (ctor is IJsCallable)
         {
-            var errorObj = ctor.Invoke([message], null);
+            var errorObj = ctor.Invoke([JsValue.FromObject(message)], JsValue.Undefined);
             return new ThrowSignal(errorObj);
         }
 
         var fallback = new JsObject { ["name"] = "TypeError", ["message"] = message };
 
-        return new ThrowSignal(fallback);
+        return new ThrowSignal(JsValue.FromObject(fallback));
     }
 
     private bool FailRangeError(EvaluationContext? context)

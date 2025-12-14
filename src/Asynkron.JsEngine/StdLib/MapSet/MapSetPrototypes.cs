@@ -152,7 +152,7 @@ public sealed partial class MapPrototype
                     _ => CreateEntryPair(entry.Key, entry.Value)
                 };
 
-                result.SetProperty("value", value);
+                result.SetProperty("value", JsValue.FromObject(value));
                 result.SetProperty("done", false);
             }
             else

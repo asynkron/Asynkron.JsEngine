@@ -4214,7 +4214,7 @@ public sealed class JsEngine : IAsyncDisposable
             {
                 if (_completion.Task.IsCompleted)
                 {
-                    return null;
+                    return JsValue.Null;
                 }
 
                 try
@@ -4233,19 +4233,19 @@ public sealed class JsEngine : IAsyncDisposable
                     Fail(ex);
                 }
 
-                return null;
+                return JsValue.Null;
             });
 
             var onRejectedFn = new HostFunction(args =>
             {
                 if (_completion.Task.IsCompleted)
                 {
-                    return null;
+                    return JsValue.Null;
                 }
 
                 var reason = args.GetArgument(0);
                 Fail(new ThrowSignal(reason));
-                return null;
+                return JsValue.Null;
             });
 
             try
@@ -4577,7 +4577,7 @@ public sealed class JsEngine : IAsyncDisposable
             {
                 if (_completion.Task.IsCompleted)
                 {
-                    return null;
+                    return JsValue.Null;
                 }
 
                 try
@@ -4591,7 +4591,7 @@ public sealed class JsEngine : IAsyncDisposable
                         if (!ExecuteStatementWithAwait(whileStatement.Body, env, isStrict))
                         {
                             // Suspended in body, continuation will resume
-                            return null;
+                            return JsValue.Null;
                         }
 
                         // Check for break signal - exit the loop
@@ -4607,7 +4607,7 @@ public sealed class JsEngine : IAsyncDisposable
                             // Loop back - evaluate condition again
                             if (!TryEvaluateWhileStatementWithAwait(whileStatement, env, isStrict))
                             {
-                                return null;
+                                return JsValue.Null;
                             }
                         }
                         else
@@ -4617,7 +4617,7 @@ public sealed class JsEngine : IAsyncDisposable
                             if (!TryEvaluateWhileStatementWithAwait(whileStatement, env, isStrict))
                             {
                                 // Suspended awaiting next condition, its callback will handle completion
-                                return null;
+                                return JsValue.Null;
                             }
                         }
                         // Loop completed synchronously, fall through to increment/Run
@@ -4636,19 +4636,19 @@ public sealed class JsEngine : IAsyncDisposable
                     Fail(ex);
                 }
 
-                return null;
+                return JsValue.Null;
             });
 
             var onRejectedFn = new HostFunction(args =>
             {
                 if (_completion.Task.IsCompleted)
                 {
-                    return null;
+                    return JsValue.Null;
                 }
 
                 var reason = args.GetArgument(0);
                 Fail(new ThrowSignal(reason));
-                return null;
+                return JsValue.Null;
             });
 
             try
@@ -4791,7 +4791,7 @@ public sealed class JsEngine : IAsyncDisposable
             {
                 if (_completion.Task.IsCompleted)
                 {
-                    return null;
+                    return JsValue.Null;
                 }
 
                 try
@@ -4811,19 +4811,19 @@ public sealed class JsEngine : IAsyncDisposable
                     Fail(ex);
                 }
 
-                return null;
+                return JsValue.Null;
             });
 
             var onRejectedFn = new HostFunction(args =>
             {
                 if (_completion.Task.IsCompleted)
                 {
-                    return null;
+                    return JsValue.Null;
                 }
 
                 var reason = args.GetArgument(0);
                 Fail(new ThrowSignal(reason));
-                return null;
+                return JsValue.Null;
             });
 
             try

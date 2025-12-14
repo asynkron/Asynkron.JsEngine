@@ -34,7 +34,7 @@ public static partial class StandardLibrary
             JsBigInt bi => bi,
             JsObject obj when obj.TryGetValue("__value__", out var inner) && inner is JsBigInt wrapped => wrapped,
             IJsPropertyAccessor accessor when accessor.TryGetProperty("__value__", out var slot) &&
-                                              slot is JsBigInt wrapped => wrapped,
+                                              slot.TryGetObject<JsBigInt>(out var wrapped) => wrapped,
             _ => throw ThrowTypeError("BigInt.prototype method called on incompatible receiver", realm: realm)
         };
     }

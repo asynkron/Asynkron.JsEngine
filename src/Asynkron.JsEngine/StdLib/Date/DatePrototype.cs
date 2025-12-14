@@ -1,5 +1,4 @@
 using System.Globalization;
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -392,7 +391,13 @@ public sealed partial class DatePrototype : JsPrototype
             return JsValue.Null;
         }
 
-        if (!obj.TryGetProperty("toISOString", out var method) || method is not IJsCallable fn)
+        if (!obj.TryGetProperty("toISOString", out var method))
+        {
+            throw ThrowTypeError("toISOString is not callable", realm: Realm);
+        }
+
+        var methodJsValue = JsValue.FromObject(method);
+        if (!methodJsValue.TryGetObject<IJsCallable>(out var fn) || fn is null)
         {
             throw ThrowTypeError("toISOString is not callable", realm: Realm);
         }
@@ -548,15 +553,19 @@ public sealed partial class DatePrototype : JsPrototype
 
         Realm.DatePrototype ??= Prototype as JsObject;
 
-        if (Prototype is JsObject prototype &&
-            prototype.TryGetProperty("toUTCString", out var toUtc) &&
-            toUtc is not null)
+        if (Prototype is not JsObject prototype ||
+            !prototype.TryGetProperty("toUTCString", out var toUtc) ||
+            toUtc.IsNullOrUndefined)
         {
-            prototype.DefineProperty("toGMTString",
-                new PropertyDescriptor
-                {
-                    Value = toUtc, Writable = true, Enumerable = false, Configurable = true
-                });
+            return;
         }
+
+        // Convert JsValue to object for PropertyDescriptor
+        var toUtcObj = toUtc.TryGetObject<object>(out var obj) ? obj! : toUtc;
+        prototype.DefineProperty("toGMTString",
+            new PropertyDescriptor
+            {
+                Value = toUtcObj, Writable = true, Enumerable = false, Configurable = true
+            });
     }
 }

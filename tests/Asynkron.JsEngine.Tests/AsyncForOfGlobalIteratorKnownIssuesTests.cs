@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Xunit.Abstractions;
 
@@ -18,7 +19,7 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {message}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""
@@ -124,7 +125,7 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate(@"
@@ -196,7 +197,7 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate(@"
@@ -266,7 +267,7 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate(@"

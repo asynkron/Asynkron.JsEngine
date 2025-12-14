@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Xunit.Abstractions;
 
@@ -70,7 +71,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {message}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""
@@ -138,7 +139,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {message}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""
@@ -181,7 +182,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {message}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""
@@ -415,14 +416,14 @@ public class AsyncIterationTests(ITestOutputHelper output)
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {message}");
-            return null;
+            return JsValue.Null;
         });
 
         engine.SetGlobalFunction("markError", _ =>
         {
             errorCaught = true;
             output.WriteLine("LOG: Error caught!");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""
@@ -484,14 +485,14 @@ public class AsyncIterationTests(ITestOutputHelper output)
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {message}");
-            return null;
+            return JsValue.Null;
         });
 
         engine.SetGlobalFunction("markError", _ =>
         {
             errorCaught = true;
             output.WriteLine("LOG: Error caught!");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""

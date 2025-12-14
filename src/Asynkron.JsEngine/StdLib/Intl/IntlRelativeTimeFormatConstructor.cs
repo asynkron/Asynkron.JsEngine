@@ -68,12 +68,12 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
     private string ReadNumberingSystem(JsObject? options)
     {
         if (options is null || !options.TryGetProperty("numberingSystem", out var value) ||
-            ReferenceEquals(value, Symbol.Undefined))
+            value.IsUndefined)
         {
             return "latn";
         }
 
-        if (value is not string numberingSystem)
+        if (!value.TryGetString(out var numberingSystem))
         {
             throw StandardLibrary.ThrowTypeError(
                 "Intl.RelativeTimeFormat numberingSystem option must be a string", realm: Realm);
@@ -91,12 +91,12 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
         string defaultValue)
     {
         if (options is null || !options.TryGetProperty(propertyName, out var rawValue) ||
-            ReferenceEquals(rawValue, Symbol.Undefined))
+            rawValue.IsUndefined)
         {
             return defaultValue;
         }
 
-        if (rawValue is not string strValue)
+        if (!rawValue.TryGetString(out var strValue))
         {
             throw StandardLibrary.ThrowTypeError(
                 $"Intl.RelativeTimeFormat {propertyName} option must be a string", realm: Realm);

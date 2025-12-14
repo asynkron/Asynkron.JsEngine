@@ -35,8 +35,8 @@ public static partial class StandardLibrary
             if (exhausted)
             {
                 var doneResult = new JsObject(realm?.ObjectPrototype);
-                doneResult.SetProperty("value", Symbol.Undefined);
-                doneResult.SetProperty("done", true);
+                doneResult.SetProperty("value", JsValue.FromObject(Symbol.Undefined));
+                doneResult.SetProperty("done", JsValue.FromObject(true));
                 return new JsValue(doneResult);
             }
 
@@ -45,19 +45,19 @@ public static partial class StandardLibrary
                 throw typedAccessor.CreateOutOfBoundsTypeError();
             }
 
-            var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
+            var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
             var length = (uint)Math.Min(Math.Max(ToLengthOrZero(lengthValue), 0), uint.MaxValue);
             var result = new JsObject(realm?.ObjectPrototype);
             if (index < length)
             {
-                result.SetProperty("value", projector(index));
-                result.SetProperty("done", false);
+                result.SetProperty("value", JsValue.FromObject(projector(index)));
+                result.SetProperty("done", JsValue.FromObject(false));
                 index++;
             }
             else
             {
-                result.SetProperty("value", Symbol.Undefined);
-                result.SetProperty("done", true);
+                result.SetProperty("value", JsValue.FromObject(Symbol.Undefined));
+                result.SetProperty("done", JsValue.FromObject(true));
                 exhausted = true;
             }
 

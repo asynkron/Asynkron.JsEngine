@@ -134,7 +134,12 @@ public static partial class StandardLibrary
                     if (index < array.Length)
                     {
                         var propertyName = index.ToString(CultureInfo.InvariantCulture);
-                        if (!JsOps.TryGetPropertyValue(array, propertyName, out var value, context))
+                        JsValue value;
+                        if (JsOps.TryGetPropertyValue(array, propertyName, out var valueObj, context))
+                        {
+                            value = JsValue.FromObject(valueObj);
+                        }
+                        else
                         {
                             value = JsValue.Undefined;
                         }

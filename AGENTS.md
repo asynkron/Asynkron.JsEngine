@@ -49,7 +49,7 @@ string intStr = intValue.ToString(); // BAD: Uses current culture for formatting
 
 Different cultures format numbers differently:
 - US: `3.14` (period as decimal separator)
-- Germany: `3,14` (comma as decimal separator)  
+- Germany: `3,14` (comma as decimal separator)
 - France: `3,14` with thousands separator
 
 JavaScript expects consistent number formatting (US/Invariant style with periods), so we must always use InvariantCulture to match JavaScript behavior.
@@ -195,3 +195,10 @@ The remaining gap (113 MB vs Jint's 50 MB ≈ 2.3x allocations, 123 ms vs 52 ms 
 ## Other Guidelines
 
 (Add additional coding guidelines here as needed)
+
+## System.Object to JsValue
+
+Many bugs are a result of untyped `object` values being passed around instead of `JsValue`.
+Always ensure proper conversion when interfacing with JavaScript values.
+
+If a method receives `object`, do not add guards casting or checking for JsObject, update the method to accept `JsValue` directly.

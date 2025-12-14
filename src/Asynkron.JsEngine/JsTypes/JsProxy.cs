@@ -124,7 +124,9 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         if (name.IsPrivateSlotName())
         {
             object? tempValue;
-            var result = _privateStorage.TryGetProperty(name, receiver.IsUndefined ? this : receiver.AsObject(), out tempValue);
+#pragma warning disable CS0618 // Type or member is obsolete
+            var result = _privateStorage.TryGetProperty(name, receiver.IsUndefined ? this : receiver.ToObject(), out tempValue);
+#pragma warning restore CS0618 // Type or member is obsolete
             value = JsValue.FromObject(tempValue);
             return result;
         }
@@ -137,7 +139,9 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
 
         object? targetValue;
-        var targetResult = Target.TryGetProperty(name, receiver.IsUndefined ? this : receiver.AsObject(), out targetValue);
+#pragma warning disable CS0618 // Type or member is obsolete
+        var targetResult = Target.TryGetProperty(name, receiver.IsUndefined ? this : receiver.ToObject(), out targetValue);
+#pragma warning restore CS0618 // Type or member is obsolete
         value = JsValue.FromObject(targetValue);
         return targetResult;
     }
@@ -170,7 +174,9 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         if (name.IsPrivateSlotName())
         {
-            _privateStorage.SetProperty(name, value, receiver.IsUndefined ? this : receiver.AsObject());
+#pragma warning disable CS0618 // Type or member is obsolete
+            _privateStorage.SetProperty(name, value, receiver.IsUndefined ? this : receiver.ToObject());
+#pragma warning restore CS0618 // Type or member is obsolete
             return;
         }
 
@@ -186,7 +192,9 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return;
         }
 
-        Target.SetProperty(name, value, receiver.IsUndefined ? this : receiver.AsObject());
+#pragma warning disable CS0618 // Type or member is obsolete
+        Target.SetProperty(name, value, receiver.IsUndefined ? this : receiver.ToObject());
+#pragma warning restore CS0618 // Type or member is obsolete
     }
 
     public void SetProperty(string name, JsValue value)

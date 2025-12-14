@@ -27,10 +27,10 @@ public static partial class TypedAstEvaluator
             // Per ES spec 13.2.8.4 GetTemplateObject, template objects are cached by parse node.
             // Check the realm's template cache first.
             var realmState = context.RealmState;
-            object templateObject;
+            JsArray templateObject;
             if (realmState is not null && realmState.TemplateObjectCache.TryGetValue(expression, out var cachedTemplate))
             {
-                templateObject = cachedTemplate;
+                templateObject = (JsArray)cachedTemplate;
             }
             else
             {
@@ -56,7 +56,7 @@ public static partial class TypedAstEvaluator
                     throw new InvalidOperationException("Tagged template raw strings array is invalid.");
                 }
 
-                templateObject = CreateTemplateObject(stringsArray, rawStringsArray);
+                templateObject = (JsArray)CreateTemplateObject(stringsArray, rawStringsArray);
 
                 // Cache the template object for subsequent calls to the same parse node
                 realmState?.TemplateObjectCache[expression] = templateObject;

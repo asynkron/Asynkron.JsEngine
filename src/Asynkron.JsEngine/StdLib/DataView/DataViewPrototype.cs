@@ -151,7 +151,7 @@ public sealed partial class DataViewPrototype : JsPrototype
     {
         var dv = RequireDataView(thisValue, Realm);
         var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
-        var littleEndian = args.Count > 1 && args[1] is bool and true;
+        var littleEndian = args.Count > 1 && args[1].IsTruthy;
         return (double)dv.GetFloat32(offset, littleEndian);
     }
 
@@ -161,7 +161,7 @@ public sealed partial class DataViewPrototype : JsPrototype
         var dv = RequireDataView(thisValue, Realm);
         var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
         var value = args.Count > 1 ? (float)JsOps.ToNumber(args[1]) : 0f;
-        var littleEndian = args.Count > 2 && args[2] is bool and true;
+        var littleEndian = args.Count > 2 && args[2].IsTruthy;
         dv.SetFloat32(offset, value, littleEndian);
         return JsValue.Undefined;
     }
@@ -171,7 +171,7 @@ public sealed partial class DataViewPrototype : JsPrototype
     {
         var dv = RequireDataView(thisValue, Realm);
         var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
-        var littleEndian = args.Count > 1 && args[1] is bool and true;
+        var littleEndian = args.Count > 1 && args[1].IsTruthy;
         return dv.GetFloat64(offset, littleEndian);
     }
 
@@ -181,7 +181,7 @@ public sealed partial class DataViewPrototype : JsPrototype
         var dv = RequireDataView(thisValue, Realm);
         var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
         var value = args.Count > 1 ? JsOps.ToNumber(args[1]) : 0.0;
-        var littleEndian = args.Count > 2 && args[2] is bool and true;
+        var littleEndian = args.Count > 2 && args[2].IsTruthy;
         dv.SetFloat64(offset, value, littleEndian);
         return JsValue.Undefined;
     }

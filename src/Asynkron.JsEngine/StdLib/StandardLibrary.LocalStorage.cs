@@ -16,46 +16,46 @@ public static partial class StandardLibrary
 
         return storage;
 
-        JsValue GetItem(JsValue _, IReadOnlyList<JsValue> args)
+        object? GetItem(object? _, IReadOnlyList<object?> args)
         {
             if (args.Count == 0)
             {
-                return JsValue.Undefined;
+                return null;
             }
 
-            var key = args[0].ToString() ?? string.Empty;
-            return new JsValue(backing.GetValueOrDefault(key));
+            var key = args[0]?.ToString() ?? string.Empty;
+            return backing.GetValueOrDefault(key);
         }
 
-        JsValue SetItem(JsValue _, IReadOnlyList<JsValue> args)
+        object? SetItem(object? _, IReadOnlyList<object?> args)
         {
             if (args.Count < 2)
             {
-                return JsValue.Undefined;
+                return null;
             }
 
-            var key = args[0].ToString() ?? string.Empty;
-            var value = args[1].ToString() ?? string.Empty;
+            var key = args[0]?.ToString() ?? string.Empty;
+            var value = args[1]?.ToString() ?? string.Empty;
             backing[key] = value;
-            return JsValue.Undefined;
+            return null;
         }
 
-        JsValue RemoveItem(JsValue _, IReadOnlyList<JsValue> args)
+        object? RemoveItem(object? _, IReadOnlyList<object?> args)
         {
             if (args.Count == 0)
             {
-                return JsValue.Undefined;
+                return null;
             }
 
-            var key = args[0].ToString() ?? string.Empty;
+            var key = args[0]?.ToString() ?? string.Empty;
             backing.Remove(key);
-            return JsValue.Undefined;
+            return null;
         }
 
-        JsValue Clear(JsValue _, IReadOnlyList<JsValue> __)
+        object? Clear(object? _, IReadOnlyList<object?> __)
         {
             backing.Clear();
-            return JsValue.Undefined;
+            return null;
         }
     }
 }

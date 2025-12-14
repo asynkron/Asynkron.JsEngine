@@ -368,7 +368,7 @@ public static partial class TypedAstEvaluator
 
     private static void SaveArrayPatternState(Symbol stateKey, JsEnvironment environment,
         IJsObjectLike? iterator,
-        IEnumerator<object?>? enumerator,
+        IEnumerator<JsValue>? enumerator,
         bool iteratorDone,
         int nextElementIndex,
         object? pendingValue,
@@ -410,7 +410,7 @@ public static partial class TypedAstEvaluator
     {
         public bool ConsumingRest { get; set; }
 
-        public IEnumerator<object?>? Enumerator { get; set; }
+        public IEnumerator<JsValue>? Enumerator { get; set; }
 
         public bool HasPendingElement { get; set; }
 

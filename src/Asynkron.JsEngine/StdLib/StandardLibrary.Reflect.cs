@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    internal static object? ReflectApply(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    internal static JsValue ReflectApply(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (args.Count < 2 || !args[0].TryGetObject<IJsCallable>(out var callable))
         {
@@ -18,10 +18,10 @@ public static partial class StandardLibrary
             ? arr.Items.Select(JsValue.FromObject).ToArray()
             : [];
 
-        return callable.Invoke(argList, thisArg).ToObject();
+        return callable.Invoke(argList, thisArg);
     }
 
-    internal static object? ReflectConstruct(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    internal static JsValue ReflectConstruct(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (realm is null)
         {
@@ -34,7 +34,7 @@ public static partial class StandardLibrary
         }
 
         var argList = args.Count > 1 && args[1].TryGetObject<JsArray>(out var arr)
-            ? arr.Items.ToArray()
+            ? arr.Items.Select(JsValue.FromObject).ToArray()
             : [];
         IJsCallable newTarget;
         if (args.Count > 2)
@@ -42,10 +42,10 @@ public static partial class StandardLibrary
             if (!args[2].TryGetObject<IJsCallable>(out var ctor))
             {
                 const string message = "newTarget is not a constructor";
-                var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke([new JsValue(message)], JsValue.Undefined).ToObject()
-                    : new InvalidOperationException(message);
-                throw new ThrowSignal(error);
+                var errorResult = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
+                    ? typeErrorCtor.Invoke([new JsValue(message)], JsValue.Undefined)
+                    : JsValue.FromObject(new InvalidOperationException(message));
+                throw new ThrowSignal(errorResult.ToObject());
             }
 
             newTarget = ctor;
@@ -55,7 +55,7 @@ public static partial class StandardLibrary
             newTarget = target;
         }
 
-        return Construct(target, argList, newTarget, realm);
+        return JsValue.FromObject(Construct(target, argList, newTarget, realm));
     }
 
     internal static object? Construct(IJsCallable target, IReadOnlyList<object?> argList, IJsCallable newTarget,
@@ -65,19 +65,19 @@ public static partial class StandardLibrary
             (!hostTarget.IsConstructor || hostTarget.DisallowConstruct))
         {
             var message = hostTarget.ConstructErrorMessage ?? "Target is not a constructor";
-            var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                ? typeErrorCtor.Invoke([new JsValue(message)], JsValue.Undefined).ToObject()
-                : new InvalidOperationException(message);
-            throw new ThrowSignal(error);
+            var errorResult = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
+                ? typeErrorCtor.Invoke([new JsValue(message)], JsValue.Undefined)
+                : JsValue.FromObject(new InvalidOperationException(message));
+            throw new ThrowSignal(errorResult.ToObject());
         }
 
         if (newTarget is HostFunction { IsConstructor: false } hostNewTarget)
         {
             var message = hostNewTarget.ConstructErrorMessage ?? "newTarget is not a constructor";
-            var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor2
-                ? typeErrorCtor2.Invoke([new JsValue(message)], JsValue.Undefined).ToObject()
-                : new InvalidOperationException(message);
-            throw new ThrowSignal(error);
+            var errorResult = realm.TypeErrorConstructor is IJsCallable typeErrorCtor2
+                ? typeErrorCtor2.Invoke([new JsValue(message)], JsValue.Undefined)
+                : JsValue.FromObject(new InvalidOperationException(message));
+            throw new ThrowSignal(errorResult.ToObject());
         }
 
         if (target is HostFunction hostCtor &&
@@ -109,7 +109,7 @@ public static partial class StandardLibrary
             }
 
             var jsValueArgs = argList.Select(JsValue.FromObject).ToArray();
-            var result = target.Invoke(jsValueArgs, JsValue.FromObject(arrayInstance));
+            var result = target.Invoke(jsValueArgs, new JsValue(arrayInstance));
             return result.TryGetObject<JsObject>(out var jsObj) ? jsObj : arrayInstance;
         }
 
@@ -146,7 +146,7 @@ public static partial class StandardLibrary
         return constructed is IJsPropertyAccessor ? constructed : instance;
     }
 
-    internal static object? ReflectDefineProperty(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    internal static JsValue ReflectDefineProperty(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (realm is null)
         {
@@ -164,10 +164,10 @@ public static partial class StandardLibrary
         var arg2 = args.Count > 2 ? args[2].ToObject() : null;
         var descriptor = ToPropertyDescriptor(arg2, realm);
 
-        return TryDefinePropertyOnTarget(target, propertyKey, descriptor, realm, false);
+        return JsValue.FromObject(TryDefinePropertyOnTarget(target, propertyKey, descriptor, realm, false));
     }
 
-    internal static object? ReflectDeleteProperty(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    internal static JsValue ReflectDeleteProperty(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (realm is null)
         {
@@ -182,16 +182,17 @@ public static partial class StandardLibrary
 
         var arg1 = args.Count > 1 ? args[1].ToObject() : null;
         var propertyKey = JsOps.ToPropertyName(arg1) ?? string.Empty;
-        return target switch
+        var result = target switch
         {
             ModuleNamespace moduleNamespace => moduleNamespace.Delete(propertyKey),
             JsArray jsArray when JsOps.TryResolveArrayIndex(propertyKey, out var index) => jsArray.DeleteElement(index),
             JsArray jsArray => jsArray.DeleteProperty(propertyKey),
             _ => target is JsObject jsObj && jsObj.Remove(propertyKey)
         };
+        return JsValue.FromObject(result);
     }
 
-    internal static object? ReflectGet(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    internal static JsValue ReflectGet(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (realm is null)
         {
@@ -207,10 +208,10 @@ public static partial class StandardLibrary
         var receiver = args.Count > 2 ? args[2].ToObject() : target;
         var arg1 = args.Count > 1 ? args[1].ToObject() : null;
         var propertyKey = JsOps.ToPropertyName(arg1) ?? string.Empty;
-        return target.TryGetProperty(propertyKey, receiver, out var value) ? value : null;
+        return target.TryGetProperty(propertyKey, receiver, out var value) ? JsValue.FromObject(value) : JsValue.Undefined;
     }
 
-    internal static object? ReflectGetOwnPropertyDescriptor(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    internal static JsValue ReflectGetOwnPropertyDescriptor(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (realm is null)
         {
@@ -227,10 +228,10 @@ public static partial class StandardLibrary
         var propertyKey = JsOps.ToPropertyName(arg1) ?? string.Empty;
         var descriptor = target.GetOwnPropertyDescriptor(propertyKey);
         var result = FromPropertyDescriptor(descriptor, realm);
-        return result ?? (object)Symbol.Undefined;
+        return result is not null ? JsValue.FromObject(result) : JsValue.Undefined;
     }
 
-    internal static object? ReflectGetPrototypeOf(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    internal static JsValue ReflectGetPrototypeOf(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (realm is null)
         {
@@ -245,13 +246,13 @@ public static partial class StandardLibrary
 
         if (target is ModuleNamespace)
         {
-            return null;
+            return JsValue.Null;
         }
 
-        return target.Prototype;
+        return JsValue.FromObject(target.Prototype);
     }
 
-    internal static object? ReflectHas(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    internal static JsValue ReflectHas(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (realm is null)
         {
@@ -269,13 +270,13 @@ public static partial class StandardLibrary
         if (target is ModuleNamespace moduleNamespace)
         {
             // Use HasProperty which triggers evaluation for deferred namespaces per ES spec
-            return moduleNamespace.HasProperty(propertyKey);
+            return new JsValue(moduleNamespace.HasProperty(propertyKey));
         }
 
-        return target.TryGetProperty(propertyKey, out var _);
+        return new JsValue(target.TryGetProperty(propertyKey, out var _));
     }
 
-    internal static object? ReflectIsExtensible(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    internal static JsValue ReflectIsExtensible(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (realm is null)
         {
@@ -288,7 +289,7 @@ public static partial class StandardLibrary
             throw new Exception("Reflect.isExtensible: target must be an object.");
         }
 
-        return IsTargetExtensible(target);
+        return JsValue.FromObject(IsTargetExtensible(target));
     }
 
     internal static object? ReflectOwnKeys(object? _, IReadOnlyList<JsValue> args, RealmState? realm)

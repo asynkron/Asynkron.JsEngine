@@ -47,17 +47,17 @@ public static partial class StandardLibrary
 
         return functionConstructor;
 
-        object? FunctionConstructorBody(IReadOnlyList<JsValue> args, IJsCallable newTarget)
+        JsValue FunctionConstructorBody(IReadOnlyList<JsValue> args, IJsCallable newTarget)
         {
             var evalContext = realm.CreateContext();
             var argCount = args.Count;
-            var bodyValue = argCount > 0 ? args[argCount - 1] : string.Empty;
+            var bodyValue = argCount > 0 ? args[argCount - 1].ToObject() : string.Empty;
             var parameterCount = Math.Max(argCount - 1, 0);
 
             var parameters = new string[parameterCount];
             for (var i = 0; i < parameterCount; i++)
             {
-                var paramText = ToFunctionArgumentString(args[i], evalContext, realm);
+                var paramText = ToFunctionArgumentString(args[i].ToObject(), evalContext, realm);
                 parameters[i] = paramText;
             }
 
@@ -101,7 +101,7 @@ public static partial class StandardLibrary
                 }
             }
 
-            return created;
+            return JsValue.FromObject(created);
         }
     }
 

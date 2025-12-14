@@ -1490,12 +1490,12 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        private static object? FinishExternalCompletion(ResumeMode mode, object? value)
+        private static JsValue FinishExternalCompletion(ResumeMode mode, JsValue value)
         {
             return mode switch
             {
-                ResumeMode.Throw => throw new ThrowSignal(value),
-                _ => CreateIteratorResult(value, true)
+                ResumeMode.Throw => throw new ThrowSignal(value.ToObject()),
+                _ => new JsValue(CreateIteratorResult(value, true))
             };
         }
 
@@ -1600,7 +1600,7 @@ public static partial class TypedAstEvaluator
         }
 
 
-        private void PreparePendingResumeValue(ResumeMode mode, object? resumeValue, bool wasStart)
+        private void PreparePendingResumeValue(ResumeMode mode, JsValue resumeValue, bool wasStart)
         {
             if (wasStart)
             {
@@ -1608,7 +1608,7 @@ public static partial class TypedAstEvaluator
                 // This applies to both regular yield and yield* - the first call to inner iterator's
                 // next() receives undefined, not the outer generator's first next() argument.
                 _pendingResumeKind = ResumePayloadKind.None;
-                _pendingResumeValue = Symbol.Undefined;
+                _pendingResumeValue = JsValue.Undefined;
                 return;
             }
 
@@ -1631,7 +1631,7 @@ public static partial class TypedAstEvaluator
                 "PrepareResume yieldIndex={YieldIndex} kind={Kind} valueType={Type}",
                 _lastYieldIndex,
                 _pendingResumeKind,
-                resumeValue?.GetType().Name ?? "null");
+                resumeValue.ToObject()?.GetType().Name ?? "null");
 
             if (_lastYieldIndex < 0)
             {
@@ -1642,27 +1642,27 @@ public static partial class TypedAstEvaluator
             switch (_pendingResumeKind)
             {
                 case ResumePayloadKind.Throw:
-                    _resumeContext.SetException(resumeSlotIndex, resumeValue);
+                    _resumeContext.SetException(resumeSlotIndex, resumeValue.ToObject());
                     break;
                 case ResumePayloadKind.Return:
-                    _resumeContext.SetReturn(resumeSlotIndex, resumeValue);
+                    _resumeContext.SetReturn(resumeSlotIndex, resumeValue.ToObject());
                     break;
                 default:
-                    _resumeContext.SetValue(resumeSlotIndex, resumeValue);
+                    _resumeContext.SetValue(resumeSlotIndex, resumeValue.ToObject());
                     break;
             }
         }
 
-        private (ResumePayloadKind Kind, object? Value) ConsumeResumeValue()
+        private (ResumePayloadKind Kind, JsValue Value) ConsumeResumeValue()
         {
             var kind = _pendingResumeKind;
             var value = _pendingResumeValue;
             _pendingResumeKind = ResumePayloadKind.None;
-            _pendingResumeValue = Symbol.Undefined;
+            _pendingResumeValue = JsValue.Undefined;
 
             if (kind == ResumePayloadKind.None)
             {
-                return (ResumePayloadKind.Value, Symbol.Undefined);
+                return (ResumePayloadKind.Value, JsValue.Undefined);
             }
 
             return (kind, value);
@@ -1745,13 +1745,13 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        private object? CompleteReturn(object? value)
+        private JsValue CompleteReturn(object? value)
         {
             _programCounter = -1;
             _state = GeneratorState.Completed;
             _done = true;
             _tryStack.Clear();
-            return CreateIteratorResult(value, true);
+            return new JsValue(CreateIteratorResult(new JsValue(value), true));
         }
 
         private sealed class PendingAwaitException : Exception
@@ -1771,9 +1771,9 @@ public static partial class TypedAstEvaluator
         // state that surfaces promise-like values without blocking.
         internal readonly record struct AsyncGeneratorStepResult(
             AsyncGeneratorStepKind Kind,
-            object? Value,
+            JsValue Value,
             bool Done,
-            object? PendingPromise);
+            JsValue PendingPromise);
 
         internal enum AsyncGeneratorStepKind
         {

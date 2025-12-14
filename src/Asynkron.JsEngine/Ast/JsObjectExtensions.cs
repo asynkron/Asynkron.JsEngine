@@ -9,21 +9,21 @@ public static partial class TypedAstEvaluator
 {
     extension(IJsObjectLike iterator)
     {
-        private object? InvokeIteratorNext(object? sendValue = null, bool hasSendValue = false,
+        private JsValue InvokeIteratorNext(JsValue sendValue = default, bool hasSendValue = false,
             EvaluationContext? context = null, JsEnvironment? callingEnvironment = null)
         {
             var nextCallable = iterator.GetIteratorNextCallable(context);
             return iterator.InvokeIteratorNext(nextCallable, sendValue, hasSendValue, context, callingEnvironment);
         }
 
-        private object? InvokeIteratorNext(IJsCallable nextMethod,
-            object? sendValue = null,
+        private JsValue InvokeIteratorNext(IJsCallable nextMethod,
+            JsValue sendValue = default,
             bool hasSendValue = false,
             EvaluationContext? context = null,
             JsEnvironment? callingEnvironment = null)
         {
             var args = hasSendValue ? new[] { sendValue } : Array.Empty<JsValue>();
-            return InvokeCallable(nextMethod, args, iterator, context, callingEnvironment);
+            return nextMethod.Invoke(args, new JsValue(iterator));
         }
 
         private IJsCallable GetIteratorNextCallable(EvaluationContext? context)
@@ -49,12 +49,12 @@ public static partial class TypedAstEvaluator
         }
 
         private bool TryInvokeIteratorMethod(string methodName,
-            object? argument,
+            JsValue argument,
             EvaluationContext context,
-            out object? result,
+            out JsValue result,
             bool hasArgument = true)
         {
-            result = null;
+            result = JsValue.Undefined;
             // Use context-aware property access to propagate getter errors
             if (!iterator.TryGetProperty(methodName, out var methodValue))
             {
@@ -80,9 +80,8 @@ public static partial class TypedAstEvaluator
                     context.RealmState));
             }
 
-            var args = hasArgument ? new[] { argument } : Array.Empty<object?>();
-            var realm = (iterator as JsObject)?.RealmState ?? context.RealmState;
-            result = InvokeCallable(callable, args, iterator, context, realm?.Engine?.GlobalEnvironment);
+            var args = hasArgument ? new[] { argument } : Array.Empty<JsValue>();
+            result = callable.Invoke(args, new JsValue(iterator));
 
             // Check if the method threw an error
             if (context.IsThrow)
@@ -94,7 +93,7 @@ public static partial class TypedAstEvaluator
         }
 
         private void IteratorClose(EvaluationContext context, bool preserveExistingThrow = false,
-            object? existingThrowOverride = null)
+            JsValue existingThrowOverride = default)
         {
             var savedSignal = preserveExistingThrow ? context.CurrentSignal : null;
             context.RealmState.Logger?.LogInformation(
@@ -119,12 +118,12 @@ public static partial class TypedAstEvaluator
             }
 
             bool invokeSucceeded;
-            object? closeResult = null;
+            JsValue closeResult = JsValue.Undefined;
             try
             {
                 invokeSucceeded = iterator.TryInvokeIteratorMethod(
                     "return",
-                    Symbol.Undefined,
+                    new JsValue(Symbol.Undefined),
                     context,
                     out closeResult,
                     false);
@@ -154,7 +153,7 @@ public static partial class TypedAstEvaluator
 
             try
             {
-                if (closeResult is not IJsObjectLike returnObject)
+                if (!closeResult.TryGetObject<IJsObjectLike>(out var returnObject))
                 {
                     context.RealmState.Logger?.LogInformation(
                         "IteratorClose return non-object preserveExistingThrow={Preserve}",

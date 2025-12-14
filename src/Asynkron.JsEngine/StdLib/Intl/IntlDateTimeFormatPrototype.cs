@@ -61,7 +61,7 @@ public sealed partial class IntlDateTimeFormatPrototype
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    private JsObject ResolvedOptions(JsValue thisValue, IReadOnlyList<object?> _unused)
+    private JsObject ResolvedOptions(JsValue thisValue, IReadOnlyList<JsValue> _unused)
     {
         var slots = ValidateReceiver(thisValue, out _);
         var obj = new JsObject(Realm.ObjectPrototype);
@@ -107,7 +107,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         return obj;
     }
 
-    private HostFunction CreateBoundFormatFunction(Func<object?, object?> formatter)
+    private HostFunction CreateBoundFormatFunction(Func<JsValue, JsValue> formatter)
     {
         var function = new HostFunction((_, args) => formatter(args.GetArgument(0)), Realm, isConstructor: false);
         DefineFormatFunctionMetadata(function);
@@ -132,12 +132,12 @@ public sealed partial class IntlDateTimeFormatPrototype
         });
     }
 
-    private static string FormatInternal(object? value, DateTimeFormatInternalSlots slots)
+    private static JsValue FormatInternal(JsValue value, DateTimeFormatInternalSlots slots)
     {
         var epochMilliseconds = ToEpochMilliseconds(value);
         if (double.IsNaN(epochMilliseconds))
         {
-            return "Invalid Date";
+            return new JsValue("Invalid Date");
         }
 
         var truncated = Math.Truncate(epochMilliseconds);
@@ -146,23 +146,23 @@ public sealed partial class IntlDateTimeFormatPrototype
             var offset = DateTimeOffset.FromUnixTimeMilliseconds((long)truncated);
             var culture = CultureInfo.GetCultureInfo(slots.Locale);
             var format = slots.TimeStyle is "long" or "short" ? "G" : "f";
-            return offset.ToString(format, culture);
+            return new JsValue(offset.ToString(format, culture));
         }
         catch
         {
-            return DateTimeOffset.FromUnixTimeMilliseconds((long)truncated)
-                .ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture);
+            return new JsValue(DateTimeOffset.FromUnixTimeMilliseconds((long)truncated)
+                .ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture));
         }
     }
 
-    private static double ToEpochMilliseconds(object? value)
+    private static double ToEpochMilliseconds(JsValue value)
     {
-        if (value is null || ReferenceEquals(value, Symbol.Undefined))
+        if (value.IsNullOrUndefined)
         {
             return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         }
 
-        if (value is JsObject jsObject &&
+        if (value.Kind == JsValueKind.Object && value.ObjectValue is JsObject jsObject &&
             jsObject.TryGetProperty("_internalDate", out var stored) && stored is double storedMs)
         {
             return storedMs;
@@ -170,7 +170,7 @@ public sealed partial class IntlDateTimeFormatPrototype
 
         try
         {
-            return JsOps.ToNumber(value);
+            return JsOps.ToNumber(value.ToObject());
         }
         catch
         {

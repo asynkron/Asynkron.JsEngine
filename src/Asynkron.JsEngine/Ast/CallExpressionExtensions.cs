@@ -337,7 +337,7 @@ public static partial class TypedAstEvaluator
             }
 
             JsEnvironment? thisInitializationEnvironment = null;
-            object? thisInitializationValue = null;
+            JsValue thisInitializationValue = JsValue.Undefined;
             if (expression.Callee is SuperExpression)
             {
                 // First check if we're in an arrow function that has captured a lexical this environment.
@@ -349,7 +349,7 @@ public static partial class TypedAstEvaluator
                     thisInitializationEnvironment = lexicalThisEnv;
                     if (lexicalThisEnv.TryGet(Symbol.ThisInitialized, out var lexicalInitValue))
                     {
-                        thisInitializationValue = lexicalInitValue;
+                        thisInitializationValue = JsValue.FromObject(lexicalInitValue);
                     }
                 }
                 // Otherwise, prefer the environment that owns the current `this` binding; the [[ThisInitialized]]
@@ -359,7 +359,7 @@ public static partial class TypedAstEvaluator
                     thisInitializationEnvironment = thisEnv;
                     if (thisEnv.TryGet(Symbol.ThisInitialized, out var initValue))
                     {
-                        thisInitializationValue = initValue;
+                        thisInitializationValue = JsValue.FromObject(initValue);
                     }
                 }
 
@@ -368,7 +368,7 @@ public static partial class TypedAstEvaluator
                         out var foundValue))
                 {
                     thisInitializationEnvironment = foundEnv;
-                    thisInitializationValue = foundValue;
+                    thisInitializationValue = JsValue.FromObject(foundValue);
                 }
             }
 
@@ -394,10 +394,11 @@ public static partial class TypedAstEvaluator
 
                 if (expression.Callee is SuperExpression)
                 {
-                    var thisAfterSuper = callResult;
-                    if (callResult is not JsObject && callResult is not IJsObjectLike)
+                    var callResultObj = callResult.ToObject();
+                    var thisAfterSuper = callResultObj;
+                    if (callResultObj is not JsObject && callResultObj is not IJsObjectLike)
                     {
-                        thisAfterSuper = thisValue;
+                        thisAfterSuper = thisValue.ToObject();
                     }
 
                     if (context is not null)
@@ -409,20 +410,25 @@ public static partial class TypedAstEvaluator
                         "Super call produced this type={Type}",
                         thisAfterSuper?.GetType().Name ?? "null");
 
-                    if (thisInitializationEnvironment is not null &&
-                        (thisInitializationValue ??
-                         (thisInitializationEnvironment.TryGet(Symbol.ThisInitialized, out var initValue)
-                             ? initValue
-                             : null)) is { } alreadyInitialized)
+                    if (thisInitializationEnvironment is not null)
                     {
-                        context.RealmState?.Logger?.LogInformation(
-                            "Super call pre-check thisInit env={Env} value={Value}",
-                            thisInitializationEnvironment.GetHashCode(),
-                            alreadyInitialized);
-                        if (JsOps.ToBoolean(alreadyInitialized))
+                        var alreadyInitialized = thisInitializationValue.IsUndefined
+                            ? (thisInitializationEnvironment.TryGet(Symbol.ThisInitialized, out var initValue)
+                                ? JsValue.FromObject(initValue)
+                                : JsValue.Undefined)
+                            : thisInitializationValue;
+
+                        if (!alreadyInitialized.IsUndefined)
                         {
-                            throw StandardLibrary.ThrowReferenceError(
-                                "Super constructor may only be called once.", context, context.RealmState);
+                            context.RealmState?.Logger?.LogInformation(
+                                "Super call pre-check thisInit env={Env} value={Value}",
+                                thisInitializationEnvironment.GetHashCode(),
+                                alreadyInitialized.ToObject());
+                            if (JsOps.ToBoolean(alreadyInitialized.ToObject()))
+                            {
+                                throw StandardLibrary.ThrowReferenceError(
+                                    "Super constructor may only be called once.", context, context.RealmState);
+                            }
                         }
                     }
 
@@ -499,7 +505,7 @@ public static partial class TypedAstEvaluator
                 if (isAsyncCallable)
                 {
                     context.Clear();
-                    callResult = CreateRejectedPromise(signal.ThrownValue, environment);
+                    callResult = JsValue.FromObject(CreateRejectedPromise(signal.ThrownValue, environment));
                 }
                 else
                 {
@@ -512,7 +518,7 @@ public static partial class TypedAstEvaluator
                 // Any synchronous failure while invoking an async function should surface
                 // as a rejected promise rather than throwing out of the call.
                 context.Clear();
-                callResult = CreateRejectedPromise(ex, environment);
+                callResult = JsValue.FromObject(CreateRejectedPromise(ex, environment));
             }
             finally
             {
@@ -555,7 +561,7 @@ public static partial class TypedAstEvaluator
                     break;
             }
 
-            return JsValue.FromObject(callResult);
+            return callResult;
         }
 
         /// <summary>
@@ -745,6 +751,20 @@ public static partial class TypedAstEvaluator
         {
             set.Clear();
             return Symbol.Undefined;
+        }
+
+        /// <summary>
+        /// Wraps an object?[] array as IReadOnlyList&lt;JsValue&gt; for compatibility with IJsCallable.Invoke.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static IReadOnlyList<JsValue> WrapArgumentsAsJsValues(object?[] args)
+        {
+            var result = new JsValue[args.Length];
+            for (var i = 0; i < args.Length; i++)
+            {
+                result[i] = JsValue.FromObject(args[i]);
+            }
+            return result;
         }
     }
 }

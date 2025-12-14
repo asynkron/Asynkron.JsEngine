@@ -274,7 +274,7 @@ public sealed partial class IntlLocalePrototype
         var weekend = ResolveWeekendDays(locale);
         info.SetProperty("weekend", CreateWeekendArray(weekend));
         info.SetProperty("minimalDays", ResolveMinimalDays(locale));
-        return new JsValue(info);
+        return JsValue.FromObject(info);
     }
 
     [JsHostMethod("toString", Length = 0d)]
@@ -290,7 +290,7 @@ public sealed partial class IntlLocalePrototype
         var locale = ValidateLocaleReceiver(thisValue);
         var tag = GetCanonicalTag(locale);
         var maximized = IntlLocaleLikelySubtags.AddLikelySubtags(tag);
-        return new JsValue(IntlLocaleConstructor.CreateLocaleFromCanonical(maximized, Realm, locale.Prototype));
+        return JsValue.FromObject(IntlLocaleConstructor.CreateLocaleFromCanonical(maximized, Realm, locale.Prototype));
     }
 
     [JsHostMethod("minimize", Length = 0d)]
@@ -299,7 +299,7 @@ public sealed partial class IntlLocalePrototype
         var locale = ValidateLocaleReceiver(thisValue);
         var tag = GetCanonicalTag(locale);
         var minimized = IntlLocaleLikelySubtags.RemoveLikelySubtags(tag);
-        return new JsValue(IntlLocaleConstructor.CreateLocaleFromCanonical(minimized, Realm, locale.Prototype));
+        return JsValue.FromObject(IntlLocaleConstructor.CreateLocaleFromCanonical(minimized, Realm, locale.Prototype));
     }
 
     internal static bool TryBuildLocaleIdentifier(JsObject candidate, out string identifier)
@@ -322,7 +322,7 @@ public sealed partial class IntlLocalePrototype
 
     private JsObject ValidateLocaleReceiver(JsValue thisValue)
     {
-        if (thisValue is JsObject obj && obj.TryGetProperty(BrandKey, out var marker) && marker is true)
+        if (thisValue.TryGetObject<JsObject>(out var obj) && obj.TryGetProperty(BrandKey, out var marker) && marker is true)
         {
             return obj;
         }

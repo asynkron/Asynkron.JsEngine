@@ -1163,7 +1163,7 @@ public static partial class TypedAstEvaluator
 
     // Array/object destructuring uses iterator protocol (ECMA-262 §14.1.5).
     private static bool TryGetIteratorForDestructuring(object? value, EvaluationContext context,
-        out IJsObjectLike? iterator, [MustDisposeResource] out IEnumerator<object?>? enumerator)
+        out IJsObjectLike? iterator, [MustDisposeResource] out IEnumerator<JsValue>? enumerator)
     {
         iterator = null;
         enumerator = null;
@@ -1220,7 +1220,7 @@ public static partial class TypedAstEvaluator
             case string s:
                 enumerator = EnumerateStringCharacters(s);
                 return true;
-            case IEnumerable<object?> enumerable:
+            case IEnumerable<JsValue> enumerable:
                 enumerator = enumerable.GetEnumerator();
                 return true;
         }
@@ -1230,9 +1230,9 @@ public static partial class TypedAstEvaluator
 
 
     [MustDisposeResource]
-    private static IEnumerator<object?> EnumerateStringCharacters(string value)
+    private static IEnumerator<JsValue> EnumerateStringCharacters(string value)
     {
-        IEnumerable<object?> Enumerate()
+        IEnumerable<JsValue> Enumerate()
         {
             foreach (var ch in value)
             {
@@ -1244,14 +1244,14 @@ public static partial class TypedAstEvaluator
     }
 
     [MustDisposeResource]
-    private static IEnumerator<object?> EnumerateTypedArrayValues(TypedArrayBase typedArray)
+    private static IEnumerator<JsValue> EnumerateTypedArrayValues(TypedArrayBase typedArray)
     {
-        IEnumerable<object?> Enumerate()
+        IEnumerable<JsValue> Enumerate()
         {
             var length = typedArray.Length;
             for (var i = 0; i < length; i++)
             {
-                yield return typedArray.GetValueForIndex(i);
+                yield return JsValue.FromObject(typedArray.GetValueForIndex(i));
             }
         }
 

@@ -139,6 +139,7 @@ public static partial class StandardLibrary
         }
 
         if (thisValue.TryGetObject<JsObject>(out var obj) &&
+            obj is not null &&
             obj.TryGetProperty("__regex__", out var internalRegex) &&
             internalRegex is JsRegExp stored)
         {

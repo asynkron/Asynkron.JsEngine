@@ -299,7 +299,7 @@ public sealed partial class ArrayPrototype
             return JsValue.FromObject(Symbol.Undefined);
         }
 
-        return GetElementOrUndefined(target, ToIndexString(index));
+        return JsValue.FromObject(GetElementOrUndefined(target, ToIndexString(index)));
     }
 
     [JsHostMethod("flat", Length = 0d)]
@@ -439,11 +439,11 @@ public sealed partial class ArrayPrototype
         {
             if (TryGetExistingElement(accessor, k, out var value))
             {
-                values.Add(value);
+                values.Add(JsValue.FromObject(value));
             }
         }
 
-        if (args.Count > 0 && args[0].HasValue && args[0].TryGetObject<IJsCallable>(out var compareFn))
+        if (args.Count > 0 && args[0].TryGetObject<IJsCallable>(out var compareFn))
         {
             values.Sort((a, b) =>
             {

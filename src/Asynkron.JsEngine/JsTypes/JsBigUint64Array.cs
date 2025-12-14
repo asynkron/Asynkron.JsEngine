@@ -69,20 +69,20 @@ public sealed class JsBigUint64Array(JsArrayBuffer buffer, int byteOffset, int l
         return new JsBigInt(new BigInteger(value));
     }
 
-    internal override object? GetValueForIndex(int index)
+    internal override JsValue GetValueForIndex(int index)
     {
         if (_buffer.IsDetached || IsDetachedOrOutOfBounds())
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
         var currentLength = Length;
         if (index < 0 || index >= currentLength)
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
-        return GetBigIntElement(index);
+        return new JsValue(GetBigIntElement(index));
     }
 
     public override TypedArrayBase Subarray(int begin, int end)

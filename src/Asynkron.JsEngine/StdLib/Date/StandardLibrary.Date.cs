@@ -542,7 +542,7 @@ public static partial class StandardLibrary
         JsValue constructed;
         try
         {
-            constructed = ctor.Invoke(ctorArgs, instance);
+            constructed = ctor.Invoke(ctorArgs, new JsValue(instance));
         }
         finally
         {
@@ -560,7 +560,7 @@ public static partial class StandardLibrary
             return new JsValue("Invalid Date");
         }
 
-        return formatCallable.Invoke(new JsValue[] { new JsValue(dateObj) }, formatter.AsObject());
+        return formatCallable.Invoke(new JsValue[] { new JsValue(dateObj) }, formatter);
     }
 
     internal static JsObject CreateDefaultDateTimeOptions(RealmState realm)

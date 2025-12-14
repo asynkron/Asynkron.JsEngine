@@ -381,10 +381,10 @@ public static partial class StandardLibrary
                 continue;
             }
 
-            var mapped = element;
+            var mapped = JsValue.FromObject(element);
             if (mapper is not null)
             {
-                mapped = mapper.Invoke([element, (double)k, source], thisArg);
+                mapped = mapper.Invoke([JsValue.FromObject(element), new JsValue((double)k), new JsValue(source)], thisArg);
             }
 
         IJsPropertyAccessor? mappedAccessor = null;
@@ -396,7 +396,7 @@ public static partial class StandardLibrary
                 var elementLengthValue = mappedAccessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
                 var elementLength = (long)ToLengthOrZero(elementLengthValue);
                 var nextMapper = mapper is not null ? null : mapper;
-                var nextThisArg = mapper is not null ? null : thisArg;
+                var nextThisArg = mapper is not null ? JsValue.Undefined : thisArg;
                 targetIndex = FlattenIntoArray(target, mappedAccessor, elementLength, targetIndex, newDepth,
                     nextMapper, nextThisArg, realm, operation);
             }
@@ -407,7 +407,7 @@ public static partial class StandardLibrary
                     throw ThrowTypeError("Array operation result exceeds 2^32 - 1 elements", realm: realm);
                 }
 
-                target.SetProperty(ToIndexString(targetIndex), mapped);
+                target.SetProperty(ToIndexString(targetIndex), mapped.ToObject());
                 targetIndex++;
             }
         }

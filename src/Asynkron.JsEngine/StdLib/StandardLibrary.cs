@@ -397,7 +397,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var formatter = constructor.Invoke([new JsValue(localesArg), new JsValue(optionsArg)], JsValue.Null);
+        var formatter = constructor.Invoke([JsValue.FromObject(localesArg), JsValue.FromObject(optionsArg)], JsValue.Null);
         if (!formatter.TryGetObject<IJsPropertyAccessor>(out var accessor) ||
             !accessor.TryGetProperty("format", out var formatValue) ||
             formatValue is not IJsCallable formatFn)
@@ -405,7 +405,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var result = formatFn.Invoke([new JsValue(numericValue)], formatter);
+        var result = formatFn.Invoke([JsValue.FromObject(numericValue)], formatter);
         formatted = result.ToObject();
         return true;
     }

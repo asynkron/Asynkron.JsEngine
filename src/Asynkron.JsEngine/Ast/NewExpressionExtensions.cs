@@ -300,18 +300,19 @@ public static partial class TypedAstEvaluator
             // expose their members through IJsPropertyAccessor/IJsCallable. Treat any
             // such object-like result as the constructed value; otherwise fall back to
             // the auto-created instance.
-            var constructedResult = result switch
+            var resultObject = result.IsObject ? result.ObjectValue : null;
+            var constructedResultObject = resultObject switch
             {
-                IJsPropertyAccessor => result,
-                IJsCallable => result,
-                _ => instance ?? result
+                IJsPropertyAccessor => resultObject,
+                IJsCallable => resultObject,
+                _ => instance ?? resultObject
             };
 
             // If the constructor did not supply its own object, ensure the returned
             // instance carries the constructor's current prototype object.
             if (!isDerivedClassCtor &&
                 typedConstructor is not null &&
-                constructedResult is JsObject constructedJsObj &&
+                constructedResultObject is JsObject constructedJsObj &&
                 ReferenceEquals(constructedJsObj, instance))
             {
                 // Use TryGetPrototypeValue to get any object-like prototype (including functions)
@@ -332,14 +333,14 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            if (logger is not null && constructedResult is JsObject constructed)
+            if (logger is not null && constructedResultObject is JsObject constructed)
             {
                 logger.LogInformation("new: returning instance={Instance} proto={Proto}",
                     DescribeInstance(constructed),
                     DescribePrototype(constructed.PrototypeAccessor ?? constructed.Prototype));
             }
 
-            return JsValue.FromObject(constructedResult);
+            return JsValue.FromObject(constructedResultObject);
         }
     }
 }

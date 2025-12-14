@@ -771,16 +771,16 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         SetElement(index, numeric);
     }
 
-    internal virtual object? GetValueForIndex(int index)
+    internal virtual JsValue GetValueForIndex(int index)
     {
         if (index < 0)
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
         if (_buffer.IsDetached)
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
         if (IsDetachedOrOutOfBounds())
@@ -791,10 +791,10 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         var currentLength = ComputeLength();
         if (index >= currentLength)
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
-        return GetElement(index);
+        return new JsValue(GetElement(index));
     }
 
     /// <summary>

@@ -60,12 +60,12 @@ public sealed partial class IntlNumberFormatPrototype
             "Intl.NumberFormat method called on incompatible receiver");
     }
 
-    private string FormatNumberValue(JsObject nf, object? value)
+    private string FormatNumberValue(JsObject nf, JsValue value)
     {
         return FormatNumberResult(nf, value).Formatted;
     }
 
-    private IntlNumberFormatResult FormatNumberResult(JsObject nf, object? value)
+    private IntlNumberFormatResult FormatNumberResult(JsObject nf, JsValue value)
     {
         var context = Realm.CreateContext();
         object numericValue;
@@ -146,7 +146,7 @@ public sealed partial class IntlNumberFormatPrototype
 
         throw ThrowTypeError("Intl.NumberFormat instance is missing internal slots", realm: Realm);
     }
-    private HostFunction CreateBoundFormatFunction(Func<object?, object?> formatter)
+    private HostFunction CreateBoundFormatFunction(Func<JsValue, JsValue> formatter)
     {
         var function = new HostFunction((_, args) => formatter(args.GetArgument(0)), Realm, isConstructor: false);
         DefineFormatFunctionMetadata(function);

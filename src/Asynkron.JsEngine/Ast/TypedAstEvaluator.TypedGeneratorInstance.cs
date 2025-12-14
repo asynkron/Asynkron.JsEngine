@@ -503,7 +503,7 @@ public static partial class TypedAstEvaluator
                                     continue;
                                 }
 
-                                return CompleteReturn(returnSignalValue);
+                                return CompleteReturn(new JsValue(returnSignalValue));
                             }
 
                             if (context.IsYield)
@@ -600,7 +600,7 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
-                                    return CompleteReturn(pendingValue);
+                                    return CompleteReturn(new JsValue(pendingValue));
                                 }
                             }
 
@@ -755,7 +755,7 @@ public static partial class TypedAstEvaluator
                                         break;
                                     }
 
-                                    return CompleteReturn(abruptValue);
+                                    return CompleteReturn(new JsValue(abruptValue));
                                 }
 
                                 // If the delegated iterator's throw method completed (done=true),
@@ -847,7 +847,7 @@ public static partial class TypedAstEvaluator
                                     continue;
                                 }
 
-                                return CompleteReturn(resumeReturnValue);
+                                return CompleteReturn(new JsValue(resumeReturnValue));
                             }
 
                             _programCounter = storeResumeValueInstruction.Next;
@@ -1512,7 +1512,7 @@ public static partial class TypedAstEvaluator
                     return awaitedValueSync;
                 }
 
-                if (!TryAwaitPromise(awaitedValueSync, context, out var resolvedSync))
+                if (!TryAwaitPromise(new JsValue(awaitedValueSync), context, out var resolvedSync))
                 {
                     return resolvedSync;
                 }
@@ -1558,12 +1558,12 @@ public static partial class TypedAstEvaluator
 
             // Async-aware mode: surface promise-like values as pending steps
             // so AsyncGeneratorInstance can resume via the event queue.
-            if (TryAwaitPromiseOrSchedule(awaitedValue, context, out var resolved))
+            if (TryAwaitPromiseOrSchedule(new JsValue(awaitedValue), context, out var resolved))
             {
                 return resolved;
             }
 
-            if (_pendingPromise is not JsObject || awaitKey is null)
+            if (!_pendingPromise.TryGetObject<JsObject>(out _) || awaitKey is null)
             {
                 return resolved;
             }
@@ -1579,12 +1579,13 @@ public static partial class TypedAstEvaluator
             // let the caller observe the pending throw/return.
         }
 
-        private bool TryAwaitPromiseOrSchedule(JsValue candidate, EvaluationContext context, out object? resolvedValue)
+        private bool TryAwaitPromiseOrSchedule(JsValue candidate, EvaluationContext context, out JsValue resolvedValue)
         {
             var pendingPromise = _pendingPromise;
             var result = AwaitScheduler.TryAwaitPromiseOrSchedule(candidate, _asyncStepMode, ref pendingPromise,
-                context, out resolvedValue);
+                context, out var resolvedObj);
             _pendingPromise = pendingPromise;
+            resolvedValue = new JsValue(resolvedObj);
             return result;
         }
 
@@ -1745,13 +1746,13 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        private JsValue CompleteReturn(object? value)
+        private JsValue CompleteReturn(JsValue value)
         {
             _programCounter = -1;
             _state = GeneratorState.Completed;
             _done = true;
             _tryStack.Clear();
-            return new JsValue(CreateIteratorResult(new JsValue(value), true));
+            return new JsValue(CreateIteratorResult(value, true));
         }
 
         private sealed class PendingAwaitException : Exception

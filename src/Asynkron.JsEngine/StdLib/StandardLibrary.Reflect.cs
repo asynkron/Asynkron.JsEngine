@@ -306,7 +306,7 @@ public static partial class StandardLibrary
 
         if (target is ModuleNamespace moduleNamespace)
         {
-            return new JsValue(new JsArray(moduleNamespace.OwnKeys(), realm));
+            return JsValue.FromObject(new JsArray(moduleNamespace.OwnKeys(), realm));
         }
 
         if (target is IJsPropertyAccessor accessor)
@@ -324,7 +324,7 @@ public static partial class StandardLibrary
                 ordered.Push(key);
             }
 
-            return new JsValue(ordered);
+            return JsValue.FromObject(ordered);
         }
 
         var keys = target.Keys
@@ -332,7 +332,7 @@ public static partial class StandardLibrary
                         !k.StartsWith("__setter__", StringComparison.Ordinal) &&
                         !string.Equals(k, "__proto__", StringComparison.Ordinal))
             .ToArray();
-        return new JsValue(new JsArray(keys, realm));
+        return JsValue.FromObject(new JsArray(keys, realm));
     }
 
     internal static JsValue ReflectPreventExtensions(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)

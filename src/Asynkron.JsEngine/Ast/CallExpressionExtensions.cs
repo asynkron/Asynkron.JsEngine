@@ -465,14 +465,14 @@ public static partial class TypedAstEvaluator
                         var constructorForSuper = superBindingForCall?.Constructor ?? binding.Constructor;
                         var prototypeForSuper = superBindingForCall?.Prototype ?? binding.Prototype;
                         targetEnvironment.Assign(Symbol.Super,
-                            new SuperBinding(constructorForSuper, prototypeForSuper, thisAfterSuper, true));
+                            new SuperBinding(constructorForSuper, prototypeForSuper, JsValue.FromObject(thisAfterSuper), true));
                     }
 
                     context.MarkThisInitialized();
                     SetThisInitializationStatus(targetEnvironment,
                         context.IsThisInitialized);
 
-                    if (thisAfterSuper.TryGetObject<IJsObjectLike>(out var initializedThis)  &&
+                    if (thisAfterSuper is IJsObjectLike initializedThis &&
                         context.TryPopClassFieldInitializer(out var pendingInitializer) &&
                         pendingInitializer.Constructor is TypedFunction pendingConstructor)
                     {

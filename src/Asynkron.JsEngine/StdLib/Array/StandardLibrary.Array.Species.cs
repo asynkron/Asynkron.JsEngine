@@ -113,7 +113,7 @@ public static partial class StandardLibrary
             receiver.SetPrototype(proto);
         }
 
-        var constructed = callable.Invoke([new JsValue((double)length)], new JsValue(receiver));
+        var constructed = callable.Invoke([new JsValue((double)length)], JsValue.FromObject(receiver));
         if (constructed.TryGetObject<IJsObjectLike>(out var objectLike))
         {
             return objectLike;
@@ -133,7 +133,7 @@ public static partial class StandardLibrary
             var args = passLengthToConstructor
                 ? new JsValue[] { new JsValue((double)Math.Max(length, 0)) }
                 : Array.Empty<JsValue>();
-            var constructed = callable.Invoke(args, new JsValue(receiver));
+            var constructed = callable.Invoke(args, JsValue.FromObject(receiver));
             var result = constructed.TryGetObject<IJsObjectLike>(out var constructedObj) ? constructedObj : receiver;
             if (!passLengthToConstructor)
             {
@@ -384,7 +384,7 @@ public static partial class StandardLibrary
             var mapped = JsValue.FromObject(element);
             if (mapper is not null)
             {
-                mapped = mapper.Invoke([JsValue.FromObject(element), new JsValue((double)k), new JsValue(source)], thisArg);
+                mapped = mapper.Invoke([JsValue.FromObject(element), new JsValue((double)k), JsValue.FromObject(source)], thisArg);
             }
 
         IJsPropertyAccessor? mappedAccessor = null;

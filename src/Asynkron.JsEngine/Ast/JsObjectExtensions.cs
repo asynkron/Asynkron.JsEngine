@@ -23,7 +23,7 @@ public static partial class TypedAstEvaluator
             JsEnvironment? callingEnvironment = null)
         {
             var args = hasSendValue ? new[] { sendValue } : Array.Empty<JsValue>();
-            return nextMethod.Invoke(args, new JsValue(iterator));
+            return nextMethod.Invoke(args, new JsValue((JsObject)iterator));
         }
 
         private IJsCallable GetIteratorNextCallable(EvaluationContext? context)
@@ -81,7 +81,7 @@ public static partial class TypedAstEvaluator
             }
 
             var args = hasArgument ? new[] { argument } : Array.Empty<JsValue>();
-            result = callable.Invoke(args, new JsValue(iterator));
+            result = callable.Invoke(args, new JsValue((JsObject)iterator));
 
             // Check if the method threw an error
             if (context.IsThrow)
@@ -172,10 +172,10 @@ public static partial class TypedAstEvaluator
                     return;
                 }
 
-                if (IsPromiseLike(returnObject))
+                if (IsPromiseLike(new JsValue((JsObject)returnObject)))
                 {
                     AwaitScheduler.TryAwaitPromiseSync(
-                        returnObject,
+                        new JsValue((JsObject)returnObject),
                         context,
                         out _,
                         context.DrainAwaitMicrotasks);

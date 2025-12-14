@@ -7,7 +7,7 @@ public static partial class TypedAstEvaluator
 {
     extension(AssignmentExpression expression)
     {
-        private object? EvaluateAssignment(JsEnvironment environment,
+        private JsValue EvaluateAssignment(JsEnvironment environment,
             EvaluationContext context)
         {
             var reference = AssignmentReferenceResolver.Resolve(
@@ -21,7 +21,7 @@ public static partial class TypedAstEvaluator
             {
                 if (context.ShouldStopEvaluation)
                 {
-                    return compoundValue;
+                    return JsValue.FromObject(compoundValue);
                 }
 
                 if (shouldAssignCompound)
@@ -29,19 +29,19 @@ public static partial class TypedAstEvaluator
                     reference.SetValue(compoundValue);
                 }
 
-                return compoundValue;
+                return JsValue.FromObject(compoundValue);
             }
 
             var targetValue = EvaluateAssignmentRhsWithNameHint(expression, expression.Value, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return targetValue;
+                return JsValue.FromObject(targetValue);
             }
 
             try
             {
                 reference.SetValue(targetValue);
-                return targetValue;
+                return JsValue.FromObject(targetValue);
             }
             catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                            StringComparison.Ordinal))
@@ -58,7 +58,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 context.SetThrow(errorObject);
-                return errorObject;
+                return JsValue.FromObject(errorObject);
             }
         }
     }

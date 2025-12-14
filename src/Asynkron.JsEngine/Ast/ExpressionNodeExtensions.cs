@@ -108,13 +108,13 @@ public static partial class TypedAstEvaluator
                 CallExpression call => JsValue.FromObject(EvaluateCall(call, environment, context)),
                 FunctionExpression functionExpression => JsValue.FromObject(CreateFunctionValue(functionExpression, environment, context,
                     createFunctionNameEnvironment: true)),
-                AssignmentExpression assignment => JsValue.FromObject(EvaluateAssignment(assignment, environment, context)),
+                AssignmentExpression assignment => EvaluateAssignment(assignment, environment, context),
                 DestructuringAssignmentExpression destructuringAssignment =>
-                    JsValue.FromObject(EvaluateDestructuringAssignment(destructuringAssignment, environment, context)),
+                    EvaluateDestructuringAssignment(destructuringAssignment, environment, context),
                 PropertyAssignmentExpression propertyAssignment =>
-                    JsValue.FromObject(EvaluatePropertyAssignment(propertyAssignment, environment, context)),
+                    EvaluatePropertyAssignment(propertyAssignment, environment, context),
                 IndexAssignmentExpression indexAssignment =>
-                    JsValue.FromObject(EvaluateIndexAssignment(indexAssignment, environment, context)),
+                    EvaluateIndexAssignment(indexAssignment, environment, context),
                 SequenceExpression sequence => EvaluateSequence(sequence, environment, context),
                 MemberExpression member => EvaluateMember(member, environment, context),
                 NewExpression newExpression => EvaluateNew(newExpression, environment, context),

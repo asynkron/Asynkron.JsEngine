@@ -35,11 +35,11 @@ After each file, run tests to ensure nothing breaks.
 - [x] `MemberExpressionExtensions.cs` - EvaluateMember → JsValue
 - [x] `NewExpressionExtensions.cs` - EvaluateNew → JsValue
 
-### 1.3 Assignment Expressions (Medium Risk)
-- [ ] `AssignmentExpressionExtensions.cs` - EvaluateAssignment → JsValue
-- [ ] `PropertyAssignmentExpressionExtensions.cs` - EvaluatePropertyAssignment → JsValue
-- [ ] `IndexAssignmentExpressionExtensions.cs` - EvaluateIndexAssignment → JsValue
-- [ ] `DestructuringAssignmentExpressionExtensions.cs` - EvaluateDestructuringAssignment → JsValue
+### 1.3 Assignment Expressions (Medium Risk) ✅ COMPLETE
+- [x] `AssignmentExpressionExtensions.cs` - EvaluateAssignment → JsValue
+- [x] `PropertyAssignmentExpressionExtensions.cs` - EvaluatePropertyAssignment → JsValue
+- [x] `IndexAssignmentExpressionExtensions.cs` - EvaluateIndexAssignment → JsValue
+- [x] `DestructuringAssignmentExpressionExtensions.cs` - EvaluateDestructuringAssignment → JsValue
 
 ### 1.4 Function/Class Expressions (Medium Risk)
 - [ ] `FunctionExpressionExtensions.cs` - CreateFunctionValue → JsValue

@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
@@ -8,7 +9,7 @@ public static partial class TypedAstEvaluator
 {
     extension(PropertyAssignmentExpression expression)
     {
-        private object? EvaluatePropertyAssignment(JsEnvironment environment,
+        private JsValue EvaluatePropertyAssignment(JsEnvironment environment,
             EvaluationContext context)
         {
             var superPropertyExpression = expression.Target switch
@@ -40,20 +41,20 @@ public static partial class TypedAstEvaluator
                 var propertyKeyJs = EvaluateExpression(superPropertyExpression, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
 
                 var superAssignedValueJs = EvaluateExpression(expression.Value, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return superAssignedValueJs.ToObject();
+                    return superAssignedValueJs;
                 }
 
                 var superAssignedValue = superAssignedValueJs.ToObject();
                 var superPropertyName = JsOps.GetRequiredPropertyName(propertyKeyJs.ToObject(), context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
 
                 var binding = ExpectSuperBinding(environment, context);
@@ -84,19 +85,19 @@ public static partial class TypedAstEvaluator
                         context.RealmState);
                 }
 
-                return superAssignedValue;
+                return JsValue.FromObject(superAssignedValue);
             }
 
             var targetJs = EvaluateExpression(expression.Target, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             var propertyJs = EvaluateExpression(expression.Property, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             var target = targetJs.ToObject();
@@ -107,7 +108,7 @@ public static partial class TypedAstEvaluator
                 var propertyName = JsOps.GetRequiredPropertyName(property, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
 
                 var reference = CreatePropertyReference(target, propertyName, context, allowPrivate: true);
@@ -116,7 +117,7 @@ public static partial class TypedAstEvaluator
                 {
                     if (context.ShouldStopEvaluation)
                     {
-                        return compoundValue;
+                        return JsValue.FromObject(compoundValue);
                     }
 
                     if (shouldAssign)
@@ -124,14 +125,14 @@ public static partial class TypedAstEvaluator
                         reference.SetValue(compoundValue);
                     }
 
-                    return compoundValue;
+                    return JsValue.FromObject(compoundValue);
                 }
             }
 
             var assignedValueJs = EvaluateExpression(expression.Value, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return assignedValueJs.ToObject();
+                return assignedValueJs;
             }
 
             var assignedValue = assignedValueJs.ToObject();
@@ -144,12 +145,12 @@ public static partial class TypedAstEvaluator
             var finalPropertyName = JsOps.GetRequiredPropertyName(property, context);
             if (context.ShouldStopEvaluation)
             {
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             var finalReference = CreatePropertyReference(target, finalPropertyName, context, allowPrivate: true);
             finalReference.SetValue(assignedValue);
-            return assignedValue;
+            return JsValue.FromObject(assignedValue);
         }
     }
 }

@@ -66,7 +66,7 @@ public static partial class TypedAstEvaluator
 
         if (prototypeValue is null)
         {
-            return new SuperBinding(null, null, constructorAccessor, true);
+            return new SuperBinding(null, null, JsValue.FromObject(constructorAccessor), true);
         }
 
         if (prototypeAccessor is null && superConstructor is null)
@@ -74,6 +74,6 @@ public static partial class TypedAstEvaluator
             return null;
         }
 
-        return new SuperBinding(superConstructor, prototypeAccessor, constructorAccessor, true);
+        return new SuperBinding(superConstructor, prototypeAccessor, JsValue.FromObject(constructorAccessor), true);
     }
 }

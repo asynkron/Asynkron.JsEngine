@@ -45,7 +45,7 @@ public static partial class TypedAstEvaluator
             var hasPendingElement = resumeState?.HasPendingElement == true;
             var pendingValue = resumeState?.PendingValue;
             var pendingDone = resumeState?.PendingDone ?? false;
-            void CloseIterator(bool preserveExistingThrow, object? existingThrowOverride = null)
+            void CloseIterator(bool preserveExistingThrow, JsValue existingThrowOverride = default)
             {
                 if (iterator is null)
                 {

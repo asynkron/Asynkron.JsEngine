@@ -37,7 +37,7 @@ public static partial class TypedAstEvaluator
                 result = InvokeCallable(
                     callable!,
                     Array.Empty<JsValue>(),
-                    thisArg,
+                    JsValue.FromObject(thisArg),
                     context,
                     context.RealmState?.Engine?.GlobalEnvironment);
                 realm?.Logger?.LogInformation("TryInvokeSymbolMethod completed stop={Stop} resultType={ResultType}",

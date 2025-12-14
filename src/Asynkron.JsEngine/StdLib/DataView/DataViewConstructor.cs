@@ -15,7 +15,7 @@ public sealed partial class DataViewConstructor(IJsObjectLike prototype, RealmSt
     {
         var target = _constructor ?? ConstructFallback;
         var providedThis = thisValue.IsObject ? thisValue.AsObject() as JsObject : null;
-        return new JsValue(ConstructDataView(args, target, providedThis));
+        return JsValue.FromObject(ConstructDataView(args, target, providedThis));
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)

@@ -375,7 +375,7 @@ public static partial class TypedAstEvaluator
         var iteratorTarget = NormalizeIterableTarget(iterable, context);
         if (context.ShouldStopEvaluation)
         {
-            return DelegatedYieldState.FromEnumerable(Array.Empty<object?>());
+            return DelegatedYieldState.FromEnumerable(Array.Empty<JsValue>());
         }
 
         if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
@@ -385,7 +385,7 @@ public static partial class TypedAstEvaluator
 
         if (context.ShouldStopEvaluation)
         {
-            return DelegatedYieldState.FromEnumerable(Array.Empty<object?>());
+            return DelegatedYieldState.FromEnumerable(Array.Empty<JsValue>());
         }
 
         throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);

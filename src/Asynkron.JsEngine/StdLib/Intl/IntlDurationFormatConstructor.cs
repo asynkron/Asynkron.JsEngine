@@ -12,7 +12,7 @@ public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototyp
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var localesArg = args.GetArgument(0);
-        var (_, resolvedLocale) = StandardLibrary.ResolveIntlLocales(localesArg.ToObject(), Realm);
+        var (_, resolvedLocale) = StandardLibrary.ResolveIntlLocales(localesArg, Realm);
         var instance = PrepareThisObject(thisValue);
         IntlDurationFormatPrototype.InitializeInternalSlots(instance, resolvedLocale);
         return new JsValue(instance);
@@ -39,8 +39,9 @@ public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototyp
         supportedLocales.Delete("prototype");
     }
 
-    private JsArray SupportedLocalesOf(IReadOnlyList<JsValue> args)
+    private JsValue SupportedLocalesOf(IReadOnlyList<JsValue> args)
     {
-        return StandardLibrary.ResolveSupportedLocales(args.GetArgument(0).ToObject(), args.GetArgument(1).ToObject(), Realm);
+        var result = StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
+        return JsValue.FromObject(result);
     }
 }

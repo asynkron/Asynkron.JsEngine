@@ -38,9 +38,10 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
         supportedLocalesOf.Delete("prototype");
     }
 
-    private JsArray SupportedLocalesOf(IReadOnlyList<JsValue> args)
+    private JsValue SupportedLocalesOf(IReadOnlyList<JsValue> args)
     {
-        return StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
+        var result = StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
+        return JsValue.FromObject(result);
     }
 
     private IntlCollatorInternalSlots CreateInternalSlots(JsValue localesArg, JsValue optionsArg)
@@ -94,8 +95,13 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
 
     private string ResolveCollationOption(IJsPropertyAccessor? options)
     {
-        if (options is null || !options.TryGetProperty("collation", out var value) ||
-            value.IsUndefined)
+        if (options is null || !options.TryGetProperty("collation", out var rawValue))
+        {
+            return string.Empty;
+        }
+
+        var value = JsValue.FromObject(rawValue);
+        if (value.IsUndefined)
         {
             return string.Empty;
         }

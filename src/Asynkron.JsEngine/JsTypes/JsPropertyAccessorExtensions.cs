@@ -8,30 +8,30 @@ namespace Asynkron.JsEngine.JsTypes;
 public static class JsPropertyAccessorExtensions
 {
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
-        Func<IReadOnlyList<object?>, object?> handler)
+        Func<IReadOnlyList<JsValue>, JsValue> handler)
     {
         var fn = new HostFunction(handler, isConstructor: false);
         accessor.SetProperty(name, fn);
     }
 
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
-        Func<IReadOnlyList<object?>, RealmState?, object?> handler, RealmState? realmState)
+        Func<IReadOnlyList<JsValue>, RealmState?, JsValue> handler, RealmState? realmState)
     {
         var fn = new HostFunction(args => handler(args, realmState), realmState, isConstructor: false);
         accessor.SetProperty(name, fn);
     }
 
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
-        Func<object?, IReadOnlyList<object?>, object?> handler)
+        Func<JsValue, IReadOnlyList<JsValue>, JsValue> handler)
     {
         var fn = new HostFunction(handler, isConstructor: false);
         accessor.SetProperty(name, fn);
     }
 
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
-        Func<object?, IReadOnlyList<object?>, RealmState?, object?> handler, RealmState? realmState)
+        Func<JsValue, IReadOnlyList<JsValue>, RealmState?, JsValue> handler, RealmState? realmState)
     {
-        var fn = new HostFunction(handler, realmState, isConstructor: false);
+        var fn = new HostFunction((thisVal, args) => handler(thisVal, args, realmState), realmState, isConstructor: false);
         accessor.SetProperty(name, fn);
     }
 

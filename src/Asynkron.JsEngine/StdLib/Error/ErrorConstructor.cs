@@ -33,8 +33,8 @@ public abstract partial class ErrorConstructorBase(IJsObjectLike prototype, Real
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
             var target = _constructor ?? constructor;
-            var newTargetCallable = newTarget as IJsCallable ?? target;
-            return ConstructWithNewTarget(args, newTargetCallable, target);
+            var newTargetCallable = newTarget.TryGetObject<IJsCallable>(out var callable) ? callable : target;
+            return JsValue.FromObject(ConstructWithNewTarget(args, newTargetCallable, target));
         });
 
         LinkPrototypeChain();

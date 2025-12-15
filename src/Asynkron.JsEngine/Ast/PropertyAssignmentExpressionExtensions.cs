@@ -112,20 +112,20 @@ public static partial class TypedAstEvaluator
                 }
 
                 var reference = CreatePropertyReference(target, propertyName, context, allowPrivate: true);
-                if (TryEvaluateCompoundAssignmentValue(null, expression.Value, reference, environment, context,
-                        out var compoundValue, out var shouldAssign))
+                if (TryEvaluateCompoundAssignmentJsValue(null, expression.Value, reference, environment, context,
+                        out var compoundValueJs, out var shouldAssign))
                 {
                     if (context.ShouldStopEvaluation)
                     {
-                        return JsValue.FromObject(compoundValue);
+                        return compoundValueJs;
                     }
 
                     if (shouldAssign)
                     {
-                        reference.SetValue(JsValue.FromObject(compoundValue));
+                        reference.SetValue(compoundValueJs);
                     }
 
-                    return JsValue.FromObject(compoundValue);
+                    return compoundValueJs;
                 }
             }
 

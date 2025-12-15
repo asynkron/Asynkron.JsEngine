@@ -50,21 +50,21 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             {
                 Value = _values[i], Writable = true, Enumerable = true, Configurable = true
             };
-            _backing.DefineProperty(name, descriptor);
-            TrackDescriptor(name, descriptor);
+            _backing.DefinePropertyDirect(name, descriptor);
+            TrackDescriptorDirect(name, descriptor);
         }
 
-        _backing.DefineProperty("length",
+        _backing.DefinePropertyDirect("length",
             new PropertyDescriptor
             {
                 Value = (double)_values.Length, Writable = true, Enumerable = false, Configurable = true
             });
 
-        _backing.DefineProperty("__arguments__",
+        _backing.DefinePropertyDirect("__arguments__",
             new PropertyDescriptor { Value = true, Writable = false, Enumerable = false, Configurable = false });
 
         var tagKey = SymbolKeys.GetToStringTag(realm);
-        _backing.DefineProperty(tagKey,
+        _backing.DefinePropertyDirect(tagKey,
             new PropertyDescriptor { Value = "Arguments", Writable = false, Enumerable = false, Configurable = true });
 
         if (callee is not null)
@@ -89,13 +89,13 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
                 };
             }
 
-            _backing.DefineProperty("callee", _calleeDescriptor);
+            _backing.DefinePropertyDirect("callee", _calleeDescriptor);
         }
 
         var iteratorKey = SymbolKeys.GetIterator(realm);
         if (TryGetArrayIterator(realm, iteratorKey, out var iteratorValue))
         {
-            _backing.DefineProperty(iteratorKey,
+            _backing.DefinePropertyDirect(iteratorKey,
                 new PropertyDescriptor
                 {
                     Value = iteratorValue, Writable = true, Enumerable = false, Configurable = true
@@ -462,6 +462,15 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
     private void TrackDescriptor(string name, PropertyDescriptor descriptor)
     {
         _ownDescriptors[name] = CloneDescriptor(descriptor);
+    }
+
+    /// <summary>
+    /// Tracks a descriptor by taking direct ownership without cloning.
+    /// Used in constructor where we create fresh descriptors.
+    /// </summary>
+    private void TrackDescriptorDirect(string name, PropertyDescriptor descriptor)
+    {
+        _ownDescriptors[name] = descriptor;
     }
 
     private PropertyDescriptor NormalizeDescriptor(string name, PropertyDescriptor descriptor,

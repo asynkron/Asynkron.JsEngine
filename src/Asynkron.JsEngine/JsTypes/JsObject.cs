@@ -482,6 +482,16 @@ namespace Asynkron.JsEngine.JsTypes;
         return DefinePropertyInternal(name, descriptor);
     }
 
+    /// <summary>
+    /// Defines a property by taking direct ownership of the descriptor without cloning.
+    /// Use this only when the descriptor is freshly created and won't be reused.
+    /// This avoids allocation overhead for internal operations.
+    /// </summary>
+    internal bool DefinePropertyDirect(string name, PropertyDescriptor descriptor)
+    {
+        return DefinePropertyInternalDirect(name, descriptor);
+    }
+
     private void TrackArrayWrite(string name, object? value)
     {
         if (!_trackArrayLength)
@@ -548,6 +558,98 @@ namespace Asynkron.JsEngine.JsTypes;
                     TrackLengthAssignment(newDescriptor.Value);
                 }
                 else if (!newDescriptor.IsAccessorDescriptor)
+                {
+                    TrackArrayIndexWriteIfNeeded(name);
+                }
+            }
+            return true;
+        }
+
+        if (!ValidateDescriptorChange(descriptor, currentDescriptor))
+        {
+            return false;
+        }
+
+        ApplyDescriptorChange(descriptor, currentDescriptor);
+
+        if (!hadStoredDescriptor)
+        {
+            _descriptors[name] = currentDescriptor;
+            if (!hadDataSlot)
+            {
+                TrackPropertyInsertion(name);
+            }
+        }
+
+        AssignDescriptorStorage(name, currentDescriptor);
+        if (_trackArrayLength)
+        {
+            if (string.Equals(name, "length", StringComparison.Ordinal))
+            {
+                TrackLengthAssignment(currentDescriptor.Value);
+            }
+            else if (!currentDescriptor.IsAccessorDescriptor)
+            {
+                TrackArrayIndexWriteIfNeeded(name);
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Internal method that takes direct ownership of the descriptor without cloning.
+    /// Used for internal operations where we know the descriptor is freshly created.
+    /// </summary>
+    private bool DefinePropertyInternalDirect(string name, PropertyDescriptor descriptor)
+    {
+        if (name.IsPrivateSlotName())
+        {
+            if (_privateFields.TryGetValue(name, out var existing) && existing is PropertyDescriptor existingDescriptor)
+            {
+                if (!ValidateDescriptorChange(descriptor, existingDescriptor))
+                {
+                    return false;
+                }
+
+                ApplyDescriptorChange(descriptor, existingDescriptor);
+                _privateFields[name] = existingDescriptor;
+                return true;
+            }
+
+            // Take ownership directly without cloning
+            CompleteDescriptorForNewProperty(descriptor);
+            _privateFields[name] = descriptor;
+            return true;
+        }
+
+        var hadStoredDescriptor = _descriptors.TryGetValue(name, out var storedDescriptor);
+        var hadDataSlot = TryGetValue(name, out var existingValue);
+        var currentDescriptor = storedDescriptor;
+
+        if (!hadStoredDescriptor && hadDataSlot)
+        {
+            currentDescriptor = CreateDataDescriptorFromExistingValue(existingValue);
+        }
+
+        if (currentDescriptor is null)
+        {
+            if (!IsExtensible)
+            {
+                return false;
+            }
+
+            // Take ownership directly without cloning
+            CompleteDescriptorForNewProperty(descriptor);
+            _descriptors[name] = descriptor;
+            TrackPropertyInsertion(name);
+            AssignDescriptorStorage(name, descriptor);
+            if (_trackArrayLength)
+            {
+                if (string.Equals(name, "length", StringComparison.Ordinal))
+                {
+                    TrackLengthAssignment(descriptor.Value);
+                }
+                else if (!descriptor.IsAccessorDescriptor)
                 {
                     TrackArrayIndexWriteIfNeeded(name);
                 }

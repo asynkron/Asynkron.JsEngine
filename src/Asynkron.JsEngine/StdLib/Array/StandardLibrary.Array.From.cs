@@ -481,7 +481,7 @@ public static partial class StandardLibrary
                 return false;
             }
 
-            var value = stepAccessor.TryGetProperty("value", out var entryValue) ? JsValue.FromObject(entryValue) : JsValue.FromObject(Symbol.Undefined);
+            var value = stepAccessor.TryGetProperty("value", out var entryValue) ? JsValue.FromObject(entryValue) : JsValue.Undefined;
             if (TryAwaitPromiseLike(value, realm,
                     resolved =>
                     {

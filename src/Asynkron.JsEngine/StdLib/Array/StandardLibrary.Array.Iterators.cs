@@ -35,7 +35,7 @@ public static partial class StandardLibrary
             if (exhausted)
             {
                 var doneResult = new JsObject(realm?.ObjectPrototype);
-                doneResult.SetProperty("value", JsValue.FromObject(Symbol.Undefined));
+                doneResult.SetProperty("value", JsValue.Undefined);
                 doneResult.SetProperty("done", JsValue.FromObject(true));
                 return new JsValue(doneResult);
             }
@@ -56,7 +56,7 @@ public static partial class StandardLibrary
             }
             else
             {
-                result.SetProperty("value", JsValue.FromObject(Symbol.Undefined));
+                result.SetProperty("value", JsValue.Undefined);
                 result.SetProperty("done", JsValue.FromObject(true));
                 exhausted = true;
             }

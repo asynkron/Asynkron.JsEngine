@@ -854,7 +854,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 }
                 else
                 {
-                    result.SetProperty("value", JsValue.FromObject(Symbol.Undefined));
+                    result.SetProperty("value", JsValue.Undefined);
                     result.SetProperty("done", true);
                 }
 

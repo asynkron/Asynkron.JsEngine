@@ -100,9 +100,9 @@ public sealed partial class IntlNumberFormatPrototype
         obj.SetProperty("locale", JsValue.FromObject(slots.Locale));
         obj.SetProperty("numberingSystem", JsValue.FromObject(slots.NumberingSystem));
         obj.SetProperty("style", JsValue.FromObject(slots.Style));
-        obj.SetProperty("currency", slots.Currency is { Length: > 0 } currencyValue ? JsValue.FromObject(currencyValue) : JsValue.FromObject(Symbol.Undefined));
+        obj.SetProperty("currency", slots.Currency is { Length: > 0 } currencyValue ? JsValue.FromObject(currencyValue) : JsValue.Undefined);
         obj.SetProperty("currencyDisplay",
-            slots.Style == "currency" ? JsValue.FromObject(slots.CurrencyDisplay) : JsValue.FromObject(Symbol.Undefined));
+            slots.Style == "currency" ? JsValue.FromObject(slots.CurrencyDisplay) : JsValue.Undefined);
         obj.SetProperty("currencySign",
             JsValue.FromObject(slots.Style == "currency" ? slots.CurrencySign : "standard"));
         obj.SetProperty("minimumIntegerDigits", JsValue.FromObject((double)slots.MinimumIntegerDigits));
@@ -110,13 +110,13 @@ public sealed partial class IntlNumberFormatPrototype
         {
             obj.SetProperty("minimumSignificantDigits", JsValue.FromObject((double)(slots.MinimumSignificantDigits ?? 1)));
             obj.SetProperty("maximumSignificantDigits", JsValue.FromObject((double)(slots.MaximumSignificantDigits ?? 21)));
-            obj.SetProperty("minimumFractionDigits", JsValue.FromObject(Symbol.Undefined));
-            obj.SetProperty("maximumFractionDigits", JsValue.FromObject(Symbol.Undefined));
+            obj.SetProperty("minimumFractionDigits", JsValue.Undefined);
+            obj.SetProperty("maximumFractionDigits", JsValue.Undefined);
         }
         else
         {
-            obj.SetProperty("minimumSignificantDigits", JsValue.FromObject(Symbol.Undefined));
-            obj.SetProperty("maximumSignificantDigits", JsValue.FromObject(Symbol.Undefined));
+            obj.SetProperty("minimumSignificantDigits", JsValue.Undefined);
+            obj.SetProperty("maximumSignificantDigits", JsValue.Undefined);
             obj.SetProperty("minimumFractionDigits", JsValue.FromObject((double)slots.MinimumFractionDigits));
             obj.SetProperty("maximumFractionDigits", JsValue.FromObject((double)slots.MaximumFractionDigits));
         }
@@ -125,13 +125,13 @@ public sealed partial class IntlNumberFormatPrototype
         obj.SetProperty("signDisplay", JsValue.FromObject(slots.SignDisplay));
         if (slots.Style == "unit")
         {
-            obj.SetProperty("unit", slots.Unit is { Length: > 0 } unitValue ? JsValue.FromObject(unitValue) : JsValue.FromObject(Symbol.Undefined));
+            obj.SetProperty("unit", slots.Unit is { Length: > 0 } unitValue ? JsValue.FromObject(unitValue) : JsValue.Undefined);
             obj.SetProperty("unitDisplay", JsValue.FromObject(slots.UnitDisplay));
         }
         else
         {
-            obj.SetProperty("unit", JsValue.FromObject(Symbol.Undefined));
-            obj.SetProperty("unitDisplay", JsValue.FromObject(Symbol.Undefined));
+            obj.SetProperty("unit", JsValue.Undefined);
+            obj.SetProperty("unitDisplay", JsValue.Undefined);
         }
 
         return obj;

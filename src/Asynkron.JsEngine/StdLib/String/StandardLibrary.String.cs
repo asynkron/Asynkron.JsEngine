@@ -1137,7 +1137,7 @@ public static partial class StandardLibrary
                 }
                 else
                 {
-                    result.SetProperty("value", JsValue.FromObject(Symbol.Undefined));
+                    result.SetProperty("value", JsValue.Undefined);
                     result.SetProperty("done", true);
                 }
 

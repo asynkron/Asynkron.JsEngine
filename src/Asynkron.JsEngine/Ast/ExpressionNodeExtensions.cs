@@ -308,7 +308,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 var superThis = ReferenceEquals(binding.thisValue, JsEnvironment.Uninitialized)
-                    ? JsValue.FromObject(Symbol.Undefined)
+                    ? JsValue.Undefined
                     : binding.thisValue;
                 return (dynamicSuperConstructor, superThis, false);
             }
@@ -429,11 +429,11 @@ public static partial class TypedAstEvaluator
                     return (Symbol.Undefined, JsValue.Undefined, true);
                 }
 
-                return (calleeValue, JsValue.FromObject(Symbol.Undefined), false);
+                return (calleeValue, JsValue.Undefined, false);
             }
 
             var directCallee = EvaluateExpression(callee, environment, context);
-            return (directCallee.ToObject(), JsValue.FromObject(Symbol.Undefined), false);
+            return (directCallee.ToObject(), JsValue.Undefined, false);
         }
     }
 

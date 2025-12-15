@@ -23,7 +23,7 @@ public static partial class TypedAstEvaluator
                 {
                     try
                     {
-                        errorObject = callable.Invoke([new JsValue(ex.Message)], JsValue.FromObject(Symbol.Undefined)).ToObject();
+                        errorObject = callable.Invoke([new JsValue(ex.Message)], JsValue.Undefined).ToObject();
                     }
                     catch (ThrowSignal signal)
                     {

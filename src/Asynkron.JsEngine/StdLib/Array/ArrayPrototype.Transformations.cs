@@ -61,7 +61,7 @@ public sealed partial class ArrayPrototype
         var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.includes", realm);
 
-        var searchElement = args.Count > 0 ? args[0] : JsValue.FromObject(Symbol.Undefined);
+        var searchElement = args.Count > 0 ? args[0] : JsValue.Undefined;
         var fromIndexArg = args.Count > 1 ? args[1] : JsValue.FromObject(0d);
         var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal) : 0d;
 
@@ -160,7 +160,7 @@ public sealed partial class ArrayPrototype
         var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.lastIndexOf", realm);
         var evalContext = realm?.CreateContext();
-        var searchElement = args.Count > 0 ? args[0] : JsValue.FromObject(Symbol.Undefined);
+        var searchElement = args.Count > 0 ? args[0] : JsValue.Undefined;
         if (accessor is TypedArrayBase typed)
         {
             // Align Array.prototype.lastIndexOf with TypedArray semantics.
@@ -217,8 +217,8 @@ public sealed partial class ArrayPrototype
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toLocaleString", Realm);
 
-        var locales = args.Count > 0 ? args[0] : JsValue.FromObject(Symbol.Undefined);
-        var options = args.Count > 1 ? args[1] : JsValue.FromObject(Symbol.Undefined);
+        var locales = args.Count > 0 ? args[0] : JsValue.Undefined;
+        var options = args.Count > 1 ? args[1] : JsValue.Undefined;
         var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal) : 0d;
         var parts = new List<string>((int)length);
 
@@ -294,14 +294,14 @@ public sealed partial class ArrayPrototype
         var relativeIndex = ToIntegerOrInfinity(indexArg, numericContext);
         if (double.IsPositiveInfinity(relativeIndex) || double.IsNegativeInfinity(relativeIndex))
         {
-            return JsValue.FromObject(Symbol.Undefined);
+            return JsValue.Undefined;
         }
 
         var index = relativeIndex < 0 ? length + (long)relativeIndex : (long)relativeIndex;
 
         if (index < 0 || index >= length)
         {
-            return JsValue.FromObject(Symbol.Undefined);
+            return JsValue.Undefined;
         }
 
         return JsValue.FromObject(GetElementOrUndefined(target, ToIndexString(index)));
@@ -344,7 +344,7 @@ public sealed partial class ArrayPrototype
         {
             throw ThrowTypeError("Array.prototype.flatMap expects a callable mapper", realm: Realm);
         }
-        var thisArg = args.Count > 1 ? args[1] : JsValue.FromObject(Symbol.Undefined);
+        var thisArg = args.Count > 1 ? args[1] : JsValue.Undefined;
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
         var sourceLength = (long)ToLengthOrZero(lengthValue);
         var result = ArraySpeciesCreate(thisValue, 0, Realm);
@@ -607,7 +607,7 @@ public sealed partial class ArrayPrototype
             throw ThrowRangeError("Array.prototype.with index out of range", realm: Realm);
         }
 
-        var value = args.Count > 1 ? args[1] : JsValue.FromObject(Symbol.Undefined);
+        var value = args.Count > 1 ? args[1] : JsValue.Undefined;
         var result = ArraySpeciesCreate(thisValue, length, Realm);
 
         for (long k = 0; k < length; k++)

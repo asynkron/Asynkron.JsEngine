@@ -156,8 +156,11 @@ public static partial class TypedAstEvaluator
                     }
 
                     var usedDefault = false;
-                    if (element.DefaultValue is not null &&
-                        ReferenceEquals(elementValue, Symbol.Undefined))
+                    // Check for undefined: could be Symbol.Undefined, JsValue.Undefined, or null
+                    var isUndefined = ReferenceEquals(elementValue, Symbol.Undefined) ||
+                                      (elementValue is JsValue jsVal && jsVal.IsUndefined) ||
+                                      elementValue is null;
+                    if (element.DefaultValue is not null && isUndefined)
                     {
                         usedDefault = true;
                         elementValue = EvaluateExpression(element.DefaultValue, environment, context).ToObject();

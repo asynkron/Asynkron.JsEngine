@@ -68,8 +68,6 @@
         EvalCode_direct("language/eval-code/direct/lex-env-no-init-const.js",True)
         EvalCode_direct("language/eval-code/direct/lex-env-no-init-let.js",False)
         EvalCode_direct("language/eval-code/direct/lex-env-no-init-let.js",True)
-        EvalCode_direct("language/eval-code/direct/super-call-method.js",False)
-        EvalCode_direct("language/eval-code/direct/super-call-method.js",True)
         EvalCode_direct("language/eval-code/direct/switch-case-decl-eval-source-is-strict-nostrict.js",False)
         EvalCode_direct("language/eval-code/direct/switch-case-decl-eval-source-is-strict-onlystrict.js",True)
         EvalCode_direct("language/eval-code/direct/switch-case-decl-onlystrict.js",True)
@@ -1277,6 +1275,7 @@
        Expressions_dynamicImport
         Expressions_dynamicImport("language/expressions/dynamic-import/assign-expr-get-value-abrupt-throws.js",False)
         Expressions_dynamicImport("language/expressions/dynamic-import/assign-expr-get-value-abrupt-throws.js",True)
+        Expressions_dynamicImport("language/expressions/dynamic-import/for-await-resolution-and-error-agen-yield.js",False)
         Expressions_dynamicImport("language/expressions/dynamic-import/usage-from-eval.js",False)
         Expressions_dynamicImport("language/expressions/dynamic-import/usage-from-eval.js",True)
        Expressions_dynamicImport_assignmentExpression
@@ -1872,7 +1871,6 @@
        ModuleCode_topLevelAwait
         ModuleCode_topLevelAwait("language/module-code/top-level-await/await-awaits-thenables.js",True)
         ModuleCode_topLevelAwait("language/module-code/top-level-await/await-dynamic-import-resolution.js",True)
-        ModuleCode_topLevelAwait("language/module-code/top-level-await/module-graphs-does-not-hang.js",True)
         ModuleCode_topLevelAwait("language/module-code/top-level-await/module-import-resolution.js",True)
         ModuleCode_topLevelAwait("language/module-code/top-level-await/module-import-unwrapped.js",True)
         ModuleCode_topLevelAwait("language/module-code/top-level-await/module-self-import-async-resolution-ticks.js",True)

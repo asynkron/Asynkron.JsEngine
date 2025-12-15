@@ -974,6 +974,10 @@ internal static class JsOps
             {
                 case null:
                     return "null";
+                case JsValue jsValue:
+                    // Unwrap JsValue and continue with the inner value
+                    value = jsValue.ToObject();
+                    continue;
                 case string s:
                     return s;
                 case JsBigInt bigInt:

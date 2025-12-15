@@ -128,13 +128,22 @@ public static partial class StandardLibrary
         if (constructorCandidate.TryGetObject<IJsCallable>(out var callable) && JsOps.IsConstructor(callable))
         {
             var constructorRealm = GetConstructorRealm(callable, realm) ?? realm;
-            var receiver =
-                CreateArrayLikeReceiverForConstructor(callable, constructorRealm, passLengthToConstructor ? length : 0);
+            if (constructorRealm is null)
+            {
+                throw new InvalidOperationException($"{methodName} requires an active realm.");
+            }
+
             var args = passLengthToConstructor
                 ? new JsValue[] { new JsValue((double)Math.Max(length, 0)) }
                 : Array.Empty<JsValue>();
-            var constructed = callable.Invoke(args, JsValue.FromObject(receiver));
-            var result = constructed.TryGetObject<IJsObjectLike>(out var constructedObj) ? constructedObj : receiver;
+            // Use Construct to properly invoke the constructor with new.target semantics
+            var constructed = Construct(callable, args, callable, constructorRealm);
+            var result = constructed.TryGetObject<IJsObjectLike>(out var constructedObj) ? constructedObj : null;
+            if (result is null)
+            {
+                throw ThrowTypeError($"{methodName}: constructor did not return an object", realm: realm);
+            }
+
             if (!passLengthToConstructor)
             {
                 SetArrayLikeLength(result, 0);

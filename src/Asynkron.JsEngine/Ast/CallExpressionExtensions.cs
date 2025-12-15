@@ -328,7 +328,7 @@ public static partial class TypedAstEvaluator
             {
                 evalHost = evalHostFunction;
                 var isDirectEvalCall = expression is { IsOptional: false, Callee: IdentifierExpression { Name.Name: "eval" } } &&
-                                       ReferenceEquals(thisValue, Symbol.Undefined) &&
+                                       thisValue.IsUndefined &&
                                        ReferenceEquals(evalHostFunction.Engine, environment.RealmState?.Engine);
                 evalHost.IsDirectCall = isDirectEvalCall;
                 evalHost.InClassFieldInitializer = context.InClassFieldInitializer;

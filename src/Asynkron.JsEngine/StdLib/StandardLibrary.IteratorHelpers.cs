@@ -127,17 +127,18 @@ public static partial class StandardLibrary
             {
                 var iteratorObj = new JsObject();
                 var index = 0;
-                var next = new HostFunction((_, _) => JsValue.Undefined, isConstructor: false);
-                next.SetInvokeWithContext((_, __, context, _) =>
+                // Use _handler directly instead of _invokeWithContext because
+                // CreateIteratorNextHelper uses Invoke() which only calls _handler
+                var next = new HostFunction((_, _) =>
                 {
                     var result = new JsObject();
                     if (index < array.Length)
                     {
                         var propertyName = index.ToString(CultureInfo.InvariantCulture);
                         JsValue value;
-                        if (JsOps.TryGetPropertyValue(array, propertyName, out var valueObj, context))
+                        if (array.TryGetProperty(propertyName, out var val))
                         {
-                            value = JsValue.FromObject(valueObj);
+                            value = val;
                         }
                         else
                         {
@@ -153,8 +154,8 @@ public static partial class StandardLibrary
                     }
 
                     return new JsValue(result);
-                });
-                iteratorObj.SetHostedProperty("next", next);
+                }, isConstructor: false);
+                iteratorObj.SetProperty("next", JsValue.FromObject(next));
                 return iteratorObj;
             }
 

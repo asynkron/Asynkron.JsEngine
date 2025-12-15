@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
@@ -210,13 +211,22 @@ public static partial class TypedAstEvaluator
                     return currentIterationEnvironment;
                 }
 
+                const int StackAllocLimit = 8;
+
                 var outerEnvironment = currentIterationEnvironment.Enclosing ?? currentIterationEnvironment;
 
                 // Snapshot current values before we reset the environment instance.
-                // Use JsValue[] to avoid boxing primitives.
+                // Use pooled buffers to avoid per-iteration heap allocations.
                 var count = bindings.Length;
-                var values = new JsValue[count];
-                var constFlags = new bool[count];
+
+                // JsValue is a managed type (contains object reference) and cannot be stack-allocated
+                var rentedValues = ArrayPool<JsValue>.Shared.Rent(count);
+                var valueSpan = rentedValues.AsSpan(0, count);
+
+                bool[]? rentedConstFlags = null;
+                var constFlagSpan = count <= StackAllocLimit
+                    ? stackalloc bool[StackAllocLimit]
+                    : (rentedConstFlags = ArrayPool<bool>.Shared.Rent(count)).AsSpan(0, count);
 
                 for (var i = 0; i < count; i++)
                 {
@@ -248,8 +258,8 @@ public static partial class TypedAstEvaluator
                         currentValue = JsValue.FromObject(errorObject);
                     }
 
-                    values[i] = currentValue;
-                    constFlags[i] = currentIterationEnvironment.IsConstBinding(bindingName);
+                    valueSpan[i] = currentValue;
+                    constFlagSpan[i] = currentIterationEnvironment.IsConstBinding(bindingName);
                 }
 
                 // Reset the environment in place to mimic a fresh per-iteration lexical environment,
@@ -268,12 +278,19 @@ public static partial class TypedAstEvaluator
                     var bindingName = bindings[i];
                     currentIterationEnvironment.DefineJsValue(
                         bindingName,
-                        values[i],
-                        isConst: constFlags[i],
+                        valueSpan[i],
+                        isConst: constFlagSpan[i],
                         isGlobalConstant: false,
                         isLexical: true,
                         blocksFunctionScopeOverride: false,
                         canDelete: false);
+                }
+
+                ArrayPool<JsValue>.Shared.Return(rentedValues, clearArray: true);
+
+                if (rentedConstFlags is not null)
+                {
+                    ArrayPool<bool>.Shared.Return(rentedConstFlags, clearArray: true);
                 }
 
                 return currentIterationEnvironment;

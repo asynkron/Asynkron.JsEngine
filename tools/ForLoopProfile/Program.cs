@@ -15,6 +15,7 @@ await engine.Evaluate(parsed);
 for (var iter = 0; iter < 20; iter++)
 {
     await engine.Evaluate(parsed);
+    Console.Write(".");
 }
 
 Console.WriteLine("Done");

@@ -696,7 +696,7 @@ public class AsyncAwaitTests
                                          addResult(values[2]);
                                      }
 
-                                     test();
+                                     test().then(function() {});
 
                          """);
 

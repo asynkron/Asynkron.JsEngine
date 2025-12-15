@@ -54,18 +54,64 @@ Different cultures format numbers differently:
 
 JavaScript expects consistent number formatting (US/Invariant style with periods), so we must always use InvariantCulture to match JavaScript behavior.
 
-## Memory Profiling
+## Profiling
 
-> **Detailed Guide**: See [docs/memory-profiling.md](docs/memory-profiling.md) for comprehensive profiling techniques including dotnet-trace, GC dumps, and trace analysis.
+### Python Profiler Script (Recommended)
 
-### Quick Start
+The easiest way to profile JsEngine is using the unified Python profiler script:
+
+```bash
+cd tools
+
+# Profile fibonacci (CPU + memory)
+python3 profile.py fib
+
+# Profile forloop (CPU + memory)
+python3 profile.py forloop
+
+# Profile all benchmarks
+python3 profile.py all
+
+# CPU profiling only
+python3 profile.py fib --cpu
+
+# Memory profiling only
+python3 profile.py fib --memory
+
+# Run Jint comparison benchmarks
+python3 profile.py --compare
+```
+
+The script automatically:
+1. Builds the profile projects
+2. Runs `dotnet-trace` for CPU profiling
+3. Converts traces to speedscope format
+4. Parses the JSON and outputs hot functions
+5. Runs allocation profiling with GC stats
+
+#### Output Example
+
+```
+=== JSENGINE HOT FUNCTIONS ===
+   Time (ms)      Calls  Function
+--------------------------------------------------------------------------------------------------------------
+    38805.39      19533  Asynkron.JsEngine.Ast.TypedAstEvaluator.EvaluateExpression...
+    19769.23       9897  Asynkron.JsEngine.Ast.TypedAstEvaluator+TypedFunction.Invoke...
+    19753.25       9961  Asynkron.JsEngine.Ast.TypedAstEvaluator.EvaluateCall...
+
+JsEngine time: 166928.10 ms (91.8% of total)
+```
+
+### Manual Profiling
+
+#### Quick Start with BenchmarkDotNet
 
 ```bash
 cd benchmarks/Asynkron.JsEngine.Benchmarks
 dotnet run -c Release -- --filter "*Fibonacci*"
 ```
 
-### Capture Detailed Allocation Trace
+#### Capture Detailed Allocation Trace
 
 ```bash
 # Trace what's being allocated (with call stacks)
@@ -83,6 +129,8 @@ dotnet-trace report trace.nettrace topN -n 30
 # Or convert to Speedscope/Chromium format for visualization
 dotnet-trace convert trace.nettrace --format Speedscope
 ```
+
+> **Detailed Guide**: See [docs/memory-profiling.md](docs/memory-profiling.md) for comprehensive profiling techniques including dotnet-trace, GC dumps, and trace analysis.
 
 ### Known Allocation Hotspots
 

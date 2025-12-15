@@ -15,7 +15,7 @@ public sealed partial class ArrayPrototype
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls push
         const string ReentrancyKey = "__inPush__";
-        if (accessor.TryGetProperty(ReentrancyKey, out var inPushFlag) && !ReferenceEquals(inPushFlag, Symbol.Undefined))
+        if (accessor.TryGetProperty(ReentrancyKey, out var inPushFlag) && !inPushFlag.IsUndefined)
         {
             // Already in push, return current length to break recursion
             return new JsValue(0d);
@@ -44,7 +44,7 @@ public sealed partial class ArrayPrototype
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, JsValue.FromObject(Symbol.Undefined));
+            accessor.SetProperty(ReentrancyKey, JsValue.Undefined);
         }
     }
 
@@ -54,14 +54,14 @@ public sealed partial class ArrayPrototype
         const string MethodName = "Array.prototype.pop";
         var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), MethodName, Realm);
         // Re-entrancy: if sorting in progress, avoid mutating length/elements
-        if (accessor.TryGetProperty("__sorting__", out var sortingFlag) && !ReferenceEquals(sortingFlag, Symbol.Undefined))
+        if (accessor.TryGetProperty("__sorting__", out var sortingFlag) && !sortingFlag.IsUndefined)
         {
             return JsValue.Undefined;
         }
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls pop
         const string ReentrancyKey = "__inPop__";
-        if (accessor.TryGetProperty(ReentrancyKey, out var inPopFlag) && !ReferenceEquals(inPopFlag, Symbol.Undefined))
+        if (accessor.TryGetProperty(ReentrancyKey, out var inPopFlag) && !inPopFlag.IsUndefined)
         {
             // Already in pop, return undefined to break recursion
             return JsValue.Undefined;
@@ -88,7 +88,7 @@ public sealed partial class ArrayPrototype
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, JsValue.FromObject(Symbol.Undefined));
+            accessor.SetProperty(ReentrancyKey, JsValue.Undefined);
         }
     }
 
@@ -98,14 +98,14 @@ public sealed partial class ArrayPrototype
         const string MethodName = "Array.prototype.shift";
         var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), MethodName, Realm);
         // Re-entrancy: if sorting in progress, avoid mutating length/elements
-        if (accessor.TryGetProperty("__sorting__", out var sortingFlag) && !ReferenceEquals(sortingFlag, Symbol.Undefined))
+        if (accessor.TryGetProperty("__sorting__", out var sortingFlag) && !sortingFlag.IsUndefined)
         {
             return JsValue.Undefined;
         }
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls shift
         const string ReentrancyKey = "__inShift__";
-        if (accessor.TryGetProperty(ReentrancyKey, out var inShiftFlag) && !ReferenceEquals(inShiftFlag, Symbol.Undefined))
+        if (accessor.TryGetProperty(ReentrancyKey, out var inShiftFlag) && !inShiftFlag.IsUndefined)
         {
             // Already in shift, return undefined to break recursion
             return JsValue.Undefined;
@@ -154,7 +154,7 @@ public sealed partial class ArrayPrototype
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, JsValue.FromObject(Symbol.Undefined));
+            accessor.SetProperty(ReentrancyKey, JsValue.Undefined);
         }
     }
 
@@ -167,7 +167,7 @@ public sealed partial class ArrayPrototype
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls unshift
         const string ReentrancyKey = "__inUnshift__";
-        if (accessor.TryGetProperty(ReentrancyKey, out var inUnshiftFlag) && !ReferenceEquals(inUnshiftFlag, Symbol.Undefined))
+        if (accessor.TryGetProperty(ReentrancyKey, out var inUnshiftFlag) && !inUnshiftFlag.IsUndefined)
         {
             // Already in unshift, return 0 to break recursion
             return new JsValue(0d);
@@ -213,7 +213,7 @@ public sealed partial class ArrayPrototype
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, JsValue.FromObject(Symbol.Undefined));
+            accessor.SetProperty(ReentrancyKey, JsValue.Undefined);
         }
     }
 
@@ -225,7 +225,7 @@ public sealed partial class ArrayPrototype
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls splice
         const string ReentrancyKey = "__inSplice__";
-        if (accessor.TryGetProperty(ReentrancyKey, out var inSpliceFlag) && !ReferenceEquals(inSpliceFlag, Symbol.Undefined))
+        if (accessor.TryGetProperty(ReentrancyKey, out var inSpliceFlag) && !inSpliceFlag.IsUndefined)
         {
             // Already in splice, return empty array to break recursion
             return JsValue.FromObject(ArraySpeciesCreate(thisValue, 0, Realm));
@@ -345,7 +345,7 @@ public sealed partial class ArrayPrototype
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, JsValue.FromObject(Symbol.Undefined));
+            accessor.SetProperty(ReentrancyKey, JsValue.Undefined);
         }
     }
 
@@ -357,7 +357,7 @@ public sealed partial class ArrayPrototype
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls reverse
         const string ReentrancyKey = "__inReverse__";
-        if (accessor.TryGetProperty(ReentrancyKey, out var inReverseFlag) && !ReferenceEquals(inReverseFlag, Symbol.Undefined))
+        if (accessor.TryGetProperty(ReentrancyKey, out var inReverseFlag) && !inReverseFlag.IsUndefined)
         {
             // Already in reverse, return the array to break recursion
             return JsValue.FromObject(accessor);
@@ -418,7 +418,7 @@ public sealed partial class ArrayPrototype
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, JsValue.FromObject(Symbol.Undefined));
+            accessor.SetProperty(ReentrancyKey, JsValue.Undefined);
         }
     }
 
@@ -573,12 +573,12 @@ public sealed partial class ArrayPrototype
         {
             for (var k = index; k < length; k++)
             {
-                accessor.SetProperty(ToIndexString(k), JsValue.FromObject(Symbol.Undefined));
+                accessor.SetProperty(ToIndexString(k), JsValue.Undefined);
             }
         }
 
         // Clear re-entrancy guard
-        accessor.SetProperty("__sorting__", JsValue.FromObject(Symbol.Undefined));
+        accessor.SetProperty("__sorting__", JsValue.Undefined);
 
         return JsValue.FromObject(accessor);
     }

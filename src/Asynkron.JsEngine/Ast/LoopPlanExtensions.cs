@@ -82,8 +82,10 @@ public static partial class TypedAstEvaluator
 
                 if (context.TryClearContinue(loopLabel))
                 {
-                    // Create new per-iteration environment before increment
-                    if (hasPerIterationBindings)
+                    // Create new per-iteration environment before increment, but only if there are closures
+                    // that might capture loop variable values. When allowIterationEnvPooling is true, no closures
+                    // exist, so we can skip the expensive environment refresh and just mutate bindings in place.
+                    if (hasPerIterationBindings && !allowIterationEnvPooling)
                     {
                         iterationEnvironment = plan.CreateNextIterationEnvironment(iterationEnvironment, context);
                     }
@@ -111,8 +113,10 @@ public static partial class TypedAstEvaluator
                     break;
                 }
 
-                // Create new per-iteration environment before increment
-                if (hasPerIterationBindings)
+                // Create new per-iteration environment before increment, but only if there are closures
+                // that might capture loop variable values. When allowIterationEnvPooling is true, no closures
+                // exist, so we can skip the expensive environment refresh and just mutate bindings in place.
+                if (hasPerIterationBindings && !allowIterationEnvPooling)
                 {
                     iterationEnvironment = plan.CreateNextIterationEnvironment(iterationEnvironment, context);
                 }

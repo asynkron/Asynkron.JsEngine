@@ -49,8 +49,8 @@ public class NBodyDiagnosticTest
         Assert.IsType<JsArray>(result);
         var arr = (JsArray)result;
         Assert.Equal(2, arr.Length);
-        Assert.IsType<JsObject>(arr.Get(0));
-        Assert.IsType<JsObject>(arr.Get(1));
+        Assert.IsType<JsObject>(arr.Get(0).ToObject());
+        Assert.IsType<JsObject>(arr.Get(1).ToObject());
     }
 
     [Fact]

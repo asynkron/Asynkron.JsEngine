@@ -2357,7 +2357,7 @@ public sealed class JsEngine : IAsyncDisposable
             }
             catch (ThrowSignal signal)
             {
-                ScheduleTask(() => promise.Reject(JsValue.FromObject(signal.ThrownValue)));
+                ScheduleTask(() => promise.Reject(signal.ThrownValue));
                 return;
             }
 
@@ -2403,7 +2403,7 @@ public sealed class JsEngine : IAsyncDisposable
                             }
                             catch (ThrowSignal signal)
                             {
-                                promise.Reject(JsValue.FromObject(signal.ThrownValue));
+                                promise.Reject(signal.ThrownValue);
                             }
                             catch (Exception ex)
                             {
@@ -2421,7 +2421,7 @@ public sealed class JsEngine : IAsyncDisposable
                     }
                     catch (ThrowSignal signal)
                     {
-                        ScheduleTask(() => promise.Reject(JsValue.FromObject(signal.ThrownValue)));
+                        ScheduleTask(() => promise.Reject(signal.ThrownValue));
                         return;
                     }
                     catch (Exception ex)
@@ -2447,7 +2447,7 @@ public sealed class JsEngine : IAsyncDisposable
                         }
                         catch (ThrowSignal signal)
                         {
-                            promise.Reject(JsValue.FromObject(signal.ThrownValue));
+                            promise.Reject(signal.ThrownValue);
                         }
                         catch (Exception ex)
                         {
@@ -2468,7 +2468,7 @@ public sealed class JsEngine : IAsyncDisposable
                     }
                     catch (ThrowSignal signal)
                     {
-                        promise.Reject(JsValue.FromObject(signal.ThrownValue));
+                        promise.Reject(signal.ThrownValue);
                     }
                     catch (Exception ex)
                     {

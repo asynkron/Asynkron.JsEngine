@@ -1059,7 +1059,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         var signal = CreateRangeError("Invalid array length", context);
         if (context is not null)
         {
-            context.SetThrow(JsValue.FromObject(signal.ThrownValue));
+            context.SetThrow(signal.ThrownValue);
             return false;
         }
 
@@ -1076,7 +1076,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         var signal = CreateTypeError("Invalid array length", context);
         if (context is not null)
         {
-            context.SetThrow(JsValue.FromObject(signal.ThrownValue));
+            context.SetThrow(signal.ThrownValue);
             return false;
         }
 

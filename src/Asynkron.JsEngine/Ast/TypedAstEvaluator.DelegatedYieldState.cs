@@ -181,7 +181,7 @@ public static partial class TypedAstEvaluator
                 catch (ThrowSignal signal)
                 {
                     // Convert ThrowSignal to delegated completion so generator's try/catch can handle it
-                    return (JsValue.FromObject(signal.ThrownValue), true, true, true, null);
+                    return (signal.ThrownValue, true, true, true, null);
                 }
 
                 // Use JsOps for context-aware property access to propagate getter errors
@@ -189,7 +189,7 @@ public static partial class TypedAstEvaluator
                 if (gotDone && context?.IsThrow == true)
                 {
                     // Getter threw - return as delegated completion to be handled by generator's try/catch
-                    return (JsValue.FromObject(context.FlowValue), true, true, true, null);
+                    return (context.FlowValue, true, true, true, null);
                 }
                 var done = gotDone && JsOps.ToBoolean(doneValue);
                 // Per ES spec 14.4.14, only read `value` when iteration is complete (done is true).
@@ -202,7 +202,7 @@ public static partial class TypedAstEvaluator
                     if (gotValue && context?.IsThrow == true)
                     {
                         // Getter threw - return as delegated completion to be handled by generator's try/catch
-                        return (JsValue.FromObject(context.FlowValue), true, true, true, null);
+                        return (context.FlowValue, true, true, true, null);
                     }
                     value = gotValue ? JsValue.FromObject(yielded) : JsValue.Undefined;
                 }
@@ -225,7 +225,7 @@ public static partial class TypedAstEvaluator
             {
                 if (propagateThrow)
                 {
-                    throw new ThrowSignal(JsValue.FromObject(sendValue));
+                    throw new ThrowSignal(sendValue);
                 }
 
                 return (JsValue.Undefined, true, propagateReturn, false, null);
@@ -233,7 +233,7 @@ public static partial class TypedAstEvaluator
 
             if (propagateThrow)
             {
-                throw new ThrowSignal(JsValue.FromObject(sendValue));
+                throw new ThrowSignal(sendValue);
             }
 
             if (propagateReturn)

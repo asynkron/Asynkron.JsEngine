@@ -87,7 +87,7 @@ public static partial class TypedAstEvaluator
                     state = CreateDelegatedState(iterableJs.ToObject(), context);
                     if (context.ShouldStopEvaluation)
                     {
-                        return JsValue.FromObject(context.FlowValue);
+                        return context.FlowValue;
                     }
 
                     StoreDelegatedState(stateKey, environment, state);

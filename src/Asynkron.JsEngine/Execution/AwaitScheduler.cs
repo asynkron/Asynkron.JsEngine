@@ -196,7 +196,7 @@ internal static class AwaitScheduler
             catch (ThrowSignal signal)
             {
                 ReturnState(awaitState);
-                context.SetThrow(JsValue.FromObject(signal.ThrownValue));
+                context.SetThrow(signal.ThrownValue);
                 resolvedValue = JsValue.Undefined;
                 return false;
             }
@@ -231,7 +231,7 @@ internal static class AwaitScheduler
             catch (ThrowSignal signal)
             {
                 ReturnState(awaitState);
-                context.SetThrow(JsValue.FromObject(signal.ThrownValue));
+                context.SetThrow(signal.ThrownValue);
                 resolvedValue = JsValue.Undefined;
                 return false;
             }

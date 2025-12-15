@@ -94,7 +94,7 @@ public sealed class JsPromise
             // If then() throws, reject the promise
             if (_state == PromiseState.Pending)
             {
-                Reject(JsValue.FromObject(signal.ThrownValue));
+                Reject(signal.ThrownValue);
             }
         }
         catch (Exception)

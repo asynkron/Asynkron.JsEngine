@@ -42,7 +42,7 @@ public static partial class TypedAstEvaluator
                         var oldNumeric = JsOps.ToNumeric(currentValue, context);
                         if (context.ShouldStopEvaluation)
                         {
-                            return JsValue.FromObject(context.FlowValue);
+                            return context.FlowValue;
                         }
 
                         // Calculate new value (increment/decrement the already-converted numeric value)

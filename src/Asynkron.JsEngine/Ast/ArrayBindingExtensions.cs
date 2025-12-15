@@ -319,12 +319,12 @@ public static partial class TypedAstEvaluator
             {
                 if (!context.IsThrow)
                 {
-                    context.SetThrow(JsValue.FromObject(signal.ThrownValue));
+                    context.SetThrow(signal.ThrownValue);
                 }
 
                 if (iterator is not null && !iteratorThrew && !iteratorDone)
                 {
-                    CloseIterator(true, JsValue.FromObject(signal.ThrownValue));
+                    CloseIterator(true, signal.ThrownValue);
                 }
 
                 throw;

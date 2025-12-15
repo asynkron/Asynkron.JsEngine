@@ -310,7 +310,7 @@ internal static class JsOps
                 }
                 catch (ThrowSignal signal) when (context is not null)
                 {
-                    context.SetThrow(JsValue.FromObject(signal.ThrownValue));
+                    context.SetThrow(signal.ThrownValue);
                     return false;
                 }
             }
@@ -470,7 +470,7 @@ internal static class JsOps
                             throw signal;
                         }
 
-                        context.SetThrow(JsValue.FromObject(signal.ThrownValue));
+                        context.SetThrow(signal.ThrownValue);
                         return value;
                     }
 
@@ -478,7 +478,7 @@ internal static class JsOps
                 }
                 catch (ThrowSignal signal) when (context is not null)
                 {
-                    context.SetThrow(JsValue.FromObject(signal.ThrownValue));
+                    context.SetThrow(signal.ThrownValue);
                     return value;
                 }
             }
@@ -1152,7 +1152,7 @@ internal static class JsOps
         {
             if (context is not null)
             {
-                context.SetThrow(JsValue.FromObject(signal.ThrownValue));
+                context.SetThrow(signal.ThrownValue);
                 return false;
             }
 
@@ -1577,7 +1577,7 @@ internal static class JsOps
             {
                 if (context is not null)
                 {
-                    context.SetThrow(JsValue.FromObject(signal.ThrownValue));
+                    context.SetThrow(signal.ThrownValue);
                     value = signal.ThrownValue;
                     return true;
                 }
@@ -1712,7 +1712,7 @@ internal static class JsOps
         {
             if (context is not null)
             {
-                context.SetThrow(JsValue.FromObject(signal.ThrownValue));
+                context.SetThrow(signal.ThrownValue);
                 value = signal.ThrownValue;
                 return true;
             }
@@ -1792,7 +1792,7 @@ internal static class JsOps
         {
             if (context is not null)
             {
-                context.SetThrow(JsValue.FromObject(signal.ThrownValue));
+                context.SetThrow(signal.ThrownValue);
                 return;
             }
 

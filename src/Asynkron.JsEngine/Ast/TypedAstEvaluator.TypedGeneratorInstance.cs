@@ -515,7 +515,7 @@ public static partial class TypedAstEvaluator
                                     continue;
                                 }
 
-                                return CompleteReturn(JsValue.FromObject(returnSignalValue));
+                                return CompleteReturn(returnSignalValue);
                             }
 
                             if (context.IsYield)
@@ -555,7 +555,7 @@ public static partial class TypedAstEvaluator
 
                                 if (context.IsYield)
                                 {
-                                    yieldedValue = JsValue.FromObject(context.FlowValue);
+                                    yieldedValue = context.FlowValue;
                                     // Check if the yield signal includes an original iterator result object (from yield* in operand)
                                     var nestedIteratorResult = (context.CurrentSignal as YieldCompletionSignal)?.IteratorResultObject;
                                     context.Clear();
@@ -744,7 +744,7 @@ public static partial class TypedAstEvaluator
                                         _programCounter = currentIndex;
                                         _state = GeneratorState.Suspended;
                                         // Use original iterator result object to preserve done/value properties
-                                        return JsValue.FromObject(iteratorResult.IteratorResultObject ?? CreateIteratorResult(JsValue.FromObject(iteratorResult.Value), false));
+                                        return JsValue.FromObject(iteratorResult.IteratorResultObject ?? CreateIteratorResult(iteratorResult.Value, false));
                                     }
 
                                     yieldStarState.State = null;
@@ -767,7 +767,7 @@ public static partial class TypedAstEvaluator
                                         break;
                                     }
 
-                                    return CompleteReturn(JsValue.FromObject(abruptValue));
+                                    return CompleteReturn(abruptValue);
                                 }
 
                                 // If the delegated iterator's throw method completed (done=true),
@@ -809,7 +809,7 @@ public static partial class TypedAstEvaluator
                                     return JsValue.FromObject(originalResult);
                                 }
                                 var resultDone = propagateReturn ? iteratorResult.Done : false;
-                                return JsValue.FromObject(CreateIteratorResult(JsValue.FromObject(iteratorResult.Value), resultDone));
+                                return JsValue.FromObject(CreateIteratorResult(iteratorResult.Value, resultDone));
                             }
 
                             continue;
@@ -1476,7 +1476,7 @@ public static partial class TypedAstEvaluator
                     context.Clear();
                     _state = GeneratorState.Suspended;
                     // If we have an original iterator result object, return it to preserve done property
-                    return iteratorResultObject ?? CreateIteratorResult(JsValue.FromObject(yielded), false);
+                    return iteratorResultObject ?? CreateIteratorResult(yielded, false);
                 }
 
                 if (context.IsReturn)
@@ -1486,7 +1486,7 @@ public static partial class TypedAstEvaluator
                     _state = GeneratorState.Completed;
                     _done = true;
                     _resumeContext.Clear();
-                    return CreateIteratorResult(JsValue.FromObject(returnValue), true);
+                    return CreateIteratorResult(returnValue, true);
                 }
 
                 _state = GeneratorState.Completed;

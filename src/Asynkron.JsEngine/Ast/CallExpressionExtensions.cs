@@ -489,7 +489,7 @@ public static partial class TypedAstEvaluator
                                 throw new ThrowSignal(thrownDuringInitialization);
                             }
 
-                            return JsValue.FromObject(context.FlowValue);
+                            return context.FlowValue;
                         }
                     }
                 }

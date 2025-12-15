@@ -23,7 +23,7 @@ public static partial class TypedAstEvaluator
             {
                 // Normalize abrupt throws into the current context so catch/finally
                 // handling runs in the standard completion-flow path.
-                context.SetThrow(JsValue.FromObject(signal.ThrownValue));
+                context.SetThrow(signal.ThrownValue);
                 result = signal.ThrownValue;
             }
             if (context.IsThrow && statement.Catch is not null)

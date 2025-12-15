@@ -1305,7 +1305,7 @@ namespace Asynkron.JsEngine.JsTypes;
                             {
                                 if (context is not null)
                                 {
-                                    context.SetThrow(JsValue.FromObject(signal.ThrownValue));
+                                    context.SetThrow(signal.ThrownValue);
                                     value = signal.ThrownValue;
                                     return true;
                                 }
@@ -1417,7 +1417,7 @@ namespace Asynkron.JsEngine.JsTypes;
                 {
                     if (context is not null)
                     {
-                        context.SetThrow(JsValue.FromObject(signal.ThrownValue));
+                        context.SetThrow(signal.ThrownValue);
                         value = signal.ThrownValue;
                         return true;
                     }
@@ -1449,7 +1449,7 @@ namespace Asynkron.JsEngine.JsTypes;
                     {
                         if (context is not null)
                         {
-                            context.SetThrow(JsValue.FromObject(signal.ThrownValue));
+                            context.SetThrow(signal.ThrownValue);
                             value = signal.ThrownValue;
                             return true;
                         }

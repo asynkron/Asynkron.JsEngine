@@ -473,6 +473,136 @@ class Profiler:
         else:
             print(results.get('output', 'No output'))
 
+    def heap_profile(self, profile_key):
+        """Capture heap snapshot using dotnet-gcdump"""
+        profile = self.profiles[profile_key]
+        exe_path = self.get_executable(profile_key)
+
+        if not exe_path:
+            print(f"{Colors.RED}Executable not found. Run build first.{Colors.END}")
+            return None
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        gcdump_file = self.output_dir / f"{profile['name']}_{timestamp}.gcdump"
+
+        print(f"Capturing heap snapshot...")
+        print(f"Starting {exe_path} and collecting gcdump...")
+
+        # Start the process and capture its PID, then collect gcdump
+        # We need to run the app and collect while it's running
+        import subprocess
+        import time
+
+        # Start the process
+        proc = subprocess.Popen([str(exe_path)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        time.sleep(0.5)  # Give it time to start and allocate
+
+        # Collect gcdump
+        success, stdout, stderr = run_command(
+            f"dotnet-gcdump collect -p {proc.pid} -o {gcdump_file}",
+            timeout=60
+        )
+
+        # Wait for process to finish
+        proc.wait()
+
+        if not success or not gcdump_file.exists():
+            print(f"{Colors.RED}GC dump collection failed: {stderr}{Colors.END}")
+            return None
+
+        # Analyze the gcdump using dotnet-gcdump report
+        print(f"Analyzing heap snapshot...")
+        success, stdout, stderr = run_command(
+            f"dotnet-gcdump report {gcdump_file}",
+            timeout=60
+        )
+
+        if success:
+            return self._parse_gcdump_report(stdout)
+        else:
+            print(f"{Colors.YELLOW}Could not parse gcdump, showing raw output{Colors.END}")
+            return {'raw_output': stdout}
+
+    def _parse_gcdump_report(self, output):
+        """Parse dotnet-gcdump report output"""
+        results = {
+            'types': [],
+            'raw_output': output
+        }
+
+        lines = output.split('\n')
+        in_table = False
+
+        for line in lines:
+            # Look for the type table (format: Size Count Type)
+            if 'Size' in line and 'Count' in line and 'Type' in line:
+                in_table = True
+                continue
+
+            if in_table and line.strip():
+                parts = line.split()
+                if len(parts) >= 3:
+                    try:
+                        size = int(parts[0].replace(',', ''))
+                        count = int(parts[1].replace(',', ''))
+                        type_name = ' '.join(parts[2:])
+                        results['types'].append({
+                            'size': size,
+                            'count': count,
+                            'type': type_name
+                        })
+                    except ValueError:
+                        continue
+
+        return results
+
+    def print_heap_results(self, results, profile_key):
+        """Print heap profiling results"""
+        if not results:
+            print(f"{Colors.RED}No results to display{Colors.END}")
+            return
+
+        profile = self.profiles[profile_key]
+
+        print_section(f"HEAP SNAPSHOT: {profile['name']}")
+        print(f"Description: {profile['description']}")
+        print()
+
+        if 'types' in results and results['types']:
+            # Show all types
+            print(f"{'Size (bytes)':>14} {'Count':>10}  {'Type'}")
+            print("-" * 90)
+
+            for entry in results['types'][:40]:
+                type_name = entry['type']
+                if len(type_name) > 60:
+                    type_name = type_name[:57] + "..."
+                print(f"{entry['size']:>14,} {entry['count']:>10,}  {type_name}")
+
+            # Show JsEngine types specifically
+            print()
+            print_section("JSENGINE TYPES ONLY")
+            print(f"{'Size (bytes)':>14} {'Count':>10}  {'Type'}")
+            print("-" * 90)
+
+            jsengine_types = [t for t in results['types']
+                            if 'Asynkron' in t['type'] or 'JsEngine' in t['type']]
+
+            total_size = 0
+            total_count = 0
+            for entry in jsengine_types[:30]:
+                type_name = entry['type']
+                if len(type_name) > 60:
+                    type_name = type_name[:57] + "..."
+                print(f"{entry['size']:>14,} {entry['count']:>10,}  {type_name}")
+                total_size += entry['size']
+                total_count += entry['count']
+
+            print()
+            print(f"{Colors.BOLD}Total JsEngine: {total_size:,} bytes, {total_count:,} instances{Colors.END}")
+        else:
+            print(results.get('raw_output', 'No output'))
+
     def run_benchmarks(self):
         """Run BenchmarkDotNet comparison with Jint"""
         print_header("RUNNING JINT COMPARISON BENCHMARKS")
@@ -507,6 +637,7 @@ def main():
                         help='Profile to run (default: fib)')
     parser.add_argument('--cpu', action='store_true', help='Run CPU profiling only')
     parser.add_argument('--memory', action='store_true', help='Run memory profiling only')
+    parser.add_argument('--heap', action='store_true', help='Capture heap snapshot (instance counts by type)')
     parser.add_argument('--compare', action='store_true', help='Run Jint comparison benchmarks')
 
     args = parser.parse_args()
@@ -524,13 +655,17 @@ def main():
 
     # Determine what to profile
     profiles_to_run = ['fib', 'forloop'] if args.profile == 'all' else [args.profile]
-    run_cpu = args.cpu or (not args.cpu and not args.memory)
-    run_memory = args.memory or (not args.cpu and not args.memory)
+
+    # If specific flags are set, only run those; otherwise run cpu+memory by default
+    run_cpu = args.cpu or (not args.cpu and not args.memory and not args.heap)
+    run_memory = args.memory or (not args.cpu and not args.memory and not args.heap)
+    run_heap = args.heap
 
     print_header("JSENGINE PROFILER")
     print(f"Profiles: {', '.join(profiles_to_run)}")
     print(f"CPU profiling: {'Yes' if run_cpu else 'No'}")
     print(f"Memory profiling: {'Yes' if run_memory else 'No'}")
+    print(f"Heap snapshot: {'Yes' if run_heap else 'No'}")
 
     for profile_key in profiles_to_run:
         print_header(f"PROFILING: {profiler.profiles[profile_key]['name']}")
@@ -548,6 +683,11 @@ def main():
         if run_memory:
             results = profiler.memory_profile(profile_key)
             profiler.print_memory_results(results, profile_key)
+
+        # Heap snapshot
+        if run_heap:
+            results = profiler.heap_profile(profile_key)
+            profiler.print_heap_results(results, profile_key)
 
     print()
     print(f"{Colors.GREEN}Profiling complete!{Colors.END}")

@@ -81,10 +81,11 @@ public static partial class TypedAstEvaluator
             // A simple function has: no async, no defaults, no destructuring, no body lexicals, no hoisting needed
             // Note: _hasFunctionNameEnvironment being true is fine - it just means the function name binding is
             // in the outer scope, not that we need extra environment setup during invocation.
-            // IMPORTANT: Must be strict mode - non-strict functions have mapped arguments object that links
-            // argument values to parameter bindings, which the fast-path doesn't support.
+            // For non-strict mode: can use fast path if the function doesn't use 'arguments' identifier,
+            // since mapped arguments object (which links argument values to parameter bindings) is not needed.
             var hasSimpleParams = HasOnlySimpleIdentifierParameters(function);
-            _isSimpleFunction = _isStrict &&
+            var canUseFastPathForStrictness = _isStrict || !_usesArguments;
+            _isSimpleFunction = canUseFastPathForStrictness &&
                                !function.IsAsync &&
                                !_wasAsyncFunction &&
                                !_hasParameterExpressions &&
@@ -793,15 +794,18 @@ public static partial class TypedAstEvaluator
 
             try
             {
-                if (!IsArrowFunction)
+                // Convert JsValue arguments to object? once - reused for both arguments object and parameter binding
+                var argumentValues = new object?[arguments.Count];
+                for (var i = 0; i < arguments.Count; i++)
+                {
+                    argumentValues[i] = arguments[i].ToObject();
+                }
+
+                // Only create arguments object if the function actually uses it
+                // This saves significant allocations for functions like fib(n) that don't reference 'arguments'
+                if (!IsArrowFunction && _usesArguments)
                 {
                     // Create the `arguments` binding up front so parameter default expressions can reference it.
-                    // Convert JsValue arguments to object? for the arguments object
-                    var argumentValues = new object?[arguments.Count];
-                    for (var i = 0; i < arguments.Count; i++)
-                    {
-                        argumentValues[i] = arguments[i].ToObject();
-                    }
                     var argumentsObject =
                         CreateArgumentsObject(_function, argumentValues, parameterEnvironment, _realmState, this,
                             _isStrict);
@@ -818,13 +822,8 @@ public static partial class TypedAstEvaluator
                     parameterEnvironment.DefineJsValue(functionName, JsValue.FromObject(this), isConst: true, isLexical: true, blocksFunctionScopeOverride: true);
                 }
 
-                // Convert JsValue arguments to object? for parameter binding
-                var argumentValues2 = new object?[arguments.Count];
-                for (var i = 0; i < arguments.Count; i++)
-                {
-                    argumentValues2[i] = arguments[i].ToObject();
-                }
-                BindFunctionParameters(_function, argumentValues2, parameterEnvironment, context);
+                // Bind parameters using the same converted array
+                BindFunctionParameters(_function, argumentValues, parameterEnvironment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     if (context.IsThrow)
@@ -1577,7 +1576,8 @@ public static partial class TypedAstEvaluator
         private JsValue InvokeSimpleFast(IReadOnlyList<JsValue> arguments, JsValue thisValue, EvaluationContext? callingContext)
         {
             // Rent context from pool - avoids allocation per call
-            var context = _realmState.RentContext(ScopeKind.Function, ScopeMode.Strict, pushScope: false);
+            var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
+            var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: false);
             context.AllowIdentifierCache = true;
 
             if (callingContext is not null)
@@ -1591,12 +1591,33 @@ public static partial class TypedAstEvaluator
                 ? _realmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription)
                 : new JsEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
 
-            // Bind this - in strict mode (which fast path requires), this is passed through unchanged.
-            // null should remain null, undefined should remain undefined - no coercion.
-            var boundThis = !IsArrowFunction
-                ? thisValue.ToObject()
-                : _lexicalThis.ToObject() ?? Symbol.Undefined;
-            functionEnvironment.DefineJsValue(Symbol.This, JsValue.FromObject(boundThis));
+            // Bind this - keep as JsValue to avoid unnecessary boxing/unboxing
+            JsValue boundThisValue;
+            if (IsArrowFunction)
+            {
+                boundThisValue = _lexicalThis.IsUndefined ? JsValue.Undefined : _lexicalThis;
+            }
+            else if (_isStrict)
+            {
+                // In strict mode, this is passed through unchanged - null/undefined stay as-is
+                boundThisValue = thisValue;
+            }
+            else
+            {
+                // In sloppy mode: null/undefined become global object
+                if (thisValue.IsNullish)
+                {
+                    boundThisValue = _realmState.Engine is { GlobalObject: { } globalObj }
+                        ? JsValue.FromObject(globalObj)
+                        : JsValue.Undefined;
+                }
+                else
+                {
+                    // Primitives could be boxed, but for simple numeric operations we'll pass through
+                    boundThisValue = thisValue;
+                }
+            }
+            functionEnvironment.DefineJsValue(Symbol.This, boundThisValue);
 
             // Bind parameters directly - simple identifiers only (not lexical, can be reassigned)
             for (var i = 0; i < _parameterNames.Length; i++)
@@ -1644,7 +1665,7 @@ public static partial class TypedAstEvaluator
                 {
                     var value = context.FlowValue;
                     context.ClearReturn();
-                    return JsValue.FromObject(value);
+                    return value; // FlowValue already returns JsValue, no need to wrap
                 }
 
                 return JsValue.Undefined;

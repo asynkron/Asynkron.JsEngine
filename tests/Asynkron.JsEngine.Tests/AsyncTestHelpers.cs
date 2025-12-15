@@ -36,7 +36,7 @@ internal static class AsyncTestHelpers
                     return JsValue.Undefined;
                 }
 
-                engine.ScheduleTask(async () =>
+                engine.ScheduleTask((Func<Task>)(async () =>
                 {
                     try
                     {
@@ -49,7 +49,7 @@ internal static class AsyncTestHelpers
                     }
 
                     await Task.CompletedTask.ConfigureAwait(false);
-                });
+                }));
 
                 return JsValue.Undefined;
             });

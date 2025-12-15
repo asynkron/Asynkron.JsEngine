@@ -252,9 +252,10 @@ public static partial class TypedAstEvaluator
         private static bool IsGeneratorObject(IJsObjectLike iterator)
         {
             // brand is a JsValue - we need to unwrap it to compare with GeneratorBrandMarker
+            // GeneratorBrandMarker is a plain System.Object, not a JsObject, so we compare ObjectValue directly
             return iterator.TryGetProperty(GeneratorBrandPropertyName, out var brand) &&
-                   brand.TryGetObject(out var brandObj) &&
-                   ReferenceEquals(brandObj, GeneratorBrandMarker);
+                   brand.Kind == JsValueKind.Object &&
+                   ReferenceEquals(brand.ObjectValue, GeneratorBrandMarker);
         }
     }
 }

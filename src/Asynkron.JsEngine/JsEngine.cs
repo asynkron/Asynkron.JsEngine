@@ -66,7 +66,7 @@ public sealed class JsEngine : IAsyncDisposable
     private readonly TypedCpsTransformer _typedCpsTransformer = new();
     private Task? _eventLoopTask;
     private int? _eventLoopThreadId;
-    private Channel<Action>? _eventQueue;
+    private Channel<Func<ValueTask>>? _eventQueue;
 
     // Synchronous microtask queue for top-level await support.
     // JsEngine is single-threaded by design, so microtask bookkeeping does not use locks.
@@ -534,13 +534,7 @@ public sealed class JsEngine : IAsyncDisposable
         // Note: Don't reset _activeTimerCount or _pendingTaskCount here!
         // Timers may have been scheduled during sync evaluation that we need to wait for.
 
-        // Reset drain completion source for new event loop
-        lock (_drainLock)
-        {
-            _drainCompletionSource = null;
-        }
-
-        _eventQueue = Channel.CreateUnbounded<Action>(new UnboundedChannelOptions
+        _eventQueue = Channel.CreateUnbounded<Func<ValueTask>>(new UnboundedChannelOptions
         {
             SingleReader = true,
             SingleWriter = false
@@ -566,7 +560,10 @@ public sealed class JsEngine : IAsyncDisposable
                 return;
             }
 
-            _drainCompletionSource ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (_drainCompletionSource is null || _drainCompletionSource.Task.IsCompleted)
+            {
+                _drainCompletionSource = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
             drainTask = _drainCompletionSource.Task;
         }
 
@@ -1899,12 +1896,26 @@ public sealed class JsEngine : IAsyncDisposable
     /// <param name="task">The synchronous task to schedule</param>
     public void ScheduleTask(Action task)
     {
+        ScheduleTask(() =>
+        {
+            task();
+            return ValueTask.CompletedTask;
+        });
+    }
+
+    /// <summary>
+    ///     Schedules an asynchronous task to be executed on the event queue.
+    ///     Pending task bookkeeping is held until the returned <see cref="ValueTask"/> completes.
+    /// </summary>
+    /// <param name="task">The asynchronous task to execute.</param>
+    public void ScheduleTask(Func<ValueTask> task)
+    {
         StartEventLoop();
         var queue = _eventQueue ?? throw new InvalidOperationException("Event loop is not running.");
         var capturedActivity = Activity.Current;
 
         Interlocked.Increment(ref _pendingTaskCount);
-        queue.Writer.TryWrite(() =>
+        queue.Writer.TryWrite(async () =>
         {
             var previousActivity = Activity.Current;
             var activityChanged = !ReferenceEquals(previousActivity, capturedActivity);
@@ -1915,7 +1926,7 @@ public sealed class JsEngine : IAsyncDisposable
 
             try
             {
-                task();
+                await task().ConfigureAwait(false);
             }
             finally
             {
@@ -1928,21 +1939,31 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
+    ///     Convenience overload that accepts a <see cref="Task"/> returning delegate.
+    /// </summary>
+    public void ScheduleTask(Func<Task> task)
+    {
+        ScheduleTask(() => new ValueTask(task()));
+    }
+
+    /// <summary>
     ///     Processes all events in the event queue until it's empty.
     ///     Each event is executed synchronously and any new events scheduled during execution
     ///     will also be processed.
     ///     Exceptions from individual tasks are caught and logged to prevent the event loop from stopping.
     /// </summary>
-    private async Task ProcessEventQueue(Channel<Action> queue)
+    private async Task ProcessEventQueue(Channel<Func<ValueTask>> queue)
     {
         _eventLoopThreadId = Environment.CurrentManagedThreadId;
         try
         {
             await foreach (var task in queue.Reader.ReadAllAsync().ConfigureAwait(false))
             {
+                _eventLoopThreadId = Environment.CurrentManagedThreadId;
                 try
                 {
-                    task();
+                    await task().ConfigureAwait(false);
+                    _eventLoopThreadId = Environment.CurrentManagedThreadId;
                 }
                 catch (OutOfMemoryException)
                 {

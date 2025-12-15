@@ -120,65 +120,69 @@ public static partial class StandardLibrary
 
     internal static string StringifyValue(object? value, int depth = 0)
     {
-        if (depth > 100)
+        while (true)
         {
-            return "null"; // Prevent stack overflow
-        }
+            if (depth > 100)
+            {
+                return "null"; // Prevent stack overflow
+            }
 
-        switch (value)
-        {
-            case null:
-                return "null";
-
-            case JsValue jsValue:
-                // Unwrap JsValue and recursively stringify the inner value
-                return StringifyValue(jsValue.ToObject(), depth);
-
-            case bool b:
-                return b ? "true" : "false";
-
-            case double d:
-                if (double.IsNaN(d) || double.IsInfinity(d))
-                {
+            switch (value)
+            {
+                case null:
                     return "null";
-                }
 
-                return d.ToString(CultureInfo.InvariantCulture);
+                case JsValue jsValue:
+                    // Unwrap JsValue and recursively stringify the inner value
+                    value = jsValue.ToObject();
+                    continue;
 
-            case string s:
-                return JsonSerializer.Serialize(s);
+                case bool b:
+                    return b ? "true" : "false";
 
-            case JsArray arr:
-                var arrItems = new List<string>();
-                foreach (var item in arr.Items)
-                {
-                    arrItems.Add(StringifyValue(item, depth + 1));
-                }
-
-                return "[" + string.Join(",", arrItems) + "]";
-
-            case JsObject obj:
-                var objProps = new List<string>();
-                foreach (var kvp in obj)
-                {
-                    // Skip functions and internal properties
-                    if (kvp.Value is IJsCallable || kvp.Key.StartsWith("_", StringComparison.Ordinal))
+                case double d:
+                    if (double.IsNaN(d) || double.IsInfinity(d))
                     {
-                        continue;
+                        return "null";
                     }
 
-                    var key = JsonSerializer.Serialize(kvp.Key);
-                    var val = StringifyValue(kvp.Value, depth + 1);
-                    objProps.Add($"{key}:{val}");
-                }
+                    return d.ToString(CultureInfo.InvariantCulture);
 
-                return "{" + string.Join(",", objProps) + "}";
+                case string s:
+                    return JsonSerializer.Serialize(s);
 
-            case IJsCallable:
-                return "undefined";
+                case JsArray arr:
+                    var arrItems = new List<string>();
+                    foreach (var item in arr.Items)
+                    {
+                        arrItems.Add(StringifyValue(item, depth + 1));
+                    }
 
-            default:
-                return JsonSerializer.Serialize(value?.ToString() ?? "");
+                    return "[" + string.Join(",", arrItems) + "]";
+
+                case JsObject obj:
+                    var objProps = new List<string>();
+                    foreach (var kvp in obj)
+                    {
+                        // Skip functions and internal properties
+                        if (kvp.Value is IJsCallable || kvp.Key.StartsWith("_", StringComparison.Ordinal))
+                        {
+                            continue;
+                        }
+
+                        var key = JsonSerializer.Serialize(kvp.Key);
+                        var val = StringifyValue(kvp.Value, depth + 1);
+                        objProps.Add($"{key}:{val}");
+                    }
+
+                    return "{" + string.Join(",", objProps) + "}";
+
+                case IJsCallable:
+                    return "undefined";
+
+                default:
+                    return JsonSerializer.Serialize(value?.ToString() ?? "");
+            }
         }
     }
 }

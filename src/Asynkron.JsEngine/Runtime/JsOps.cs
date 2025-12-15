@@ -132,58 +132,41 @@ internal static class JsOps
 
     public static object ToNumeric(object? value, EvaluationContext? context = null)
     {
-        return ToNumericResult(value, context).ToObject();
+        var result = ToNumericAsJsValue(value, context);
+        object returnValue = result.IsNumber ? result : result.IsBigInt ? result.AsBigInt() : result;
+        Console.WriteLine($"ToNumeric: input={value?.GetType().Name ?? "null"}, result.Kind={result.Kind}, IsNumber={result.IsNumber}, IsBigInt={result.IsBigInt}, returnType={returnValue?.GetType().Name ?? "null"}");
+        return returnValue;
     }
 
     /// <summary>
-    /// Converts a value to numeric without boxing. Use this for internal arithmetic operations.
-    /// Only call ToObject() on the result when you need to return to JS.
+    /// Converts a value to numeric as JsValue without boxing. Use this for internal arithmetic operations.
+    /// Returns JsValue with Number or BigInt kind. On error, returns JsValue.Undefined (check context.IsThrow).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static NumericResult ToNumericResult(JsValue value, EvaluationContext? context = null)
-    {
-        switch (value.Kind)
-        {
-            case JsValueKind.Undefined:
-                return new NumericResult(double.NaN);
-            case JsValueKind.Null:
-                return new NumericResult(0d);
-            case JsValueKind.Boolean:
-            case JsValueKind.Number:
-                return new NumericResult(value.NumberValue);
-            case JsValueKind.BigInt when value.ObjectValue is JsBigInt jsBigInt:
-                return new NumericResult(jsBigInt);
-            case JsValueKind.String:
-            case JsValueKind.Symbol:
-            case JsValueKind.Object:
-                return ToNumericResult(value.ObjectValue, context);
-            default:
-                return new NumericResult(double.NaN);
-        }
-    }
-
-    internal static NumericResult ToNumericResult(object? value, EvaluationContext? context = null)
+    internal static JsValue ToNumericAsJsValue(object? value, EvaluationContext? context = null)
     {
         // Fast paths for already-numeric types (avoid full conversion)
-        if (value is double d) return new NumericResult(d);
-        if (value is JsBigInt bi) return new NumericResult(bi);
-        if (value is int i) return new NumericResult(i);
+        if (value is double d) return new JsValue(d);
+        if (value is JsBigInt bi) return new JsValue(bi);
+        if (value is int i) return new JsValue((double)i);
+        if (value is JsValue jsv)
+        {
+            if (jsv.IsNumber || jsv.IsBigInt) return jsv;
+            return ToNumericCore(jsv.ObjectValue, context);
+        }
 
         return ToNumericCore(value, context);
     }
 
     public static double ToNumberWithContext(object? value, EvaluationContext? context = null)
     {
-        var result = ToNumericCore(value, context);
-        return result.Kind switch
-        {
-            NumericKind.Number => result.NumberValue,
-            NumericKind.BigInt => (double)result.BigIntValue!.Value,
-            _ => double.NaN
-        };
+        var result = ToNumericAsJsValue(value, context);
+        if (result.IsNumber) return result.NumberValue;
+        if (result.IsBigInt) return (double)result.AsBigInt().Value;
+        return double.NaN;
     }
 
-    private static NumericResult ToNumericCore(
+    private static JsValue ToNumericCore(
         object? value,
         EvaluationContext? context)
     {
@@ -192,29 +175,29 @@ internal static class JsOps
         {
             if (++iterations > 20)
             {
-                return new NumericResult(double.NaN);
+                return JsValue.NaN;
             }
 
             switch (value)
             {
                 case null:
-                    return new NumericResult(0d);
+                    return JsValue.Zero;
                 case JsValue jsValue:
                     switch (jsValue.Kind)
                     {
                         case JsValueKind.Undefined:
-                            return new NumericResult(double.NaN);
+                            return JsValue.NaN;
                         case JsValueKind.Null:
-                            return new NumericResult(0d);
+                            return JsValue.Zero;
                         case JsValueKind.Boolean:
                         case JsValueKind.Number:
-                            return new NumericResult(jsValue.NumberValue);
+                            return new JsValue(jsValue.NumberValue);
                         case JsValueKind.BigInt:
                             if (jsValue.ObjectValue is JsBigInt jsBigInt)
                             {
-                                return new NumericResult(jsBigInt);
+                                return new JsValue(jsBigInt);
                             }
-                            return new NumericResult(double.NaN);
+                            return JsValue.NaN;
                         case JsValueKind.String:
                         case JsValueKind.Symbol:
                         case JsValueKind.Object:
@@ -226,7 +209,7 @@ internal static class JsOps
                     }
                 case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
                 case IIsHtmlDda:
-                    return new NumericResult(double.NaN);
+                    return JsValue.NaN;
                 case Symbol:
                 case TypedAstSymbol:
                 {
@@ -237,36 +220,36 @@ internal static class JsOps
                     }
 
                     context.SetThrow(JsValue.FromObject(error));
-                    return NumericResult.Error;
+                    return JsValue.Undefined; // Error state - caller should check context.IsThrow
                 }
                 case JsBigInt bigInt:
-                    return new NumericResult(bigInt);
+                    return new JsValue(bigInt);
                 case double d:
-                    return new NumericResult(d);
+                    return new JsValue(d);
                 case float f:
-                    return new NumericResult(f);
+                    return new JsValue(f);
                 case decimal m:
-                    return new NumericResult((double)m);
+                    return new JsValue((double)m);
                 case int i:
-                    return new NumericResult(i);
+                    return new JsValue((double)i);
                 case uint ui:
-                    return new NumericResult(ui);
+                    return new JsValue(ui);
                 case long l:
-                    return new NumericResult(l);
+                    return new JsValue(l);
                 case ulong ul:
-                    return new NumericResult(ul);
+                    return new JsValue(ul);
                 case short s:
-                    return new NumericResult(s);
+                    return new JsValue(s);
                 case ushort us:
-                    return new NumericResult(us);
+                    return new JsValue(us);
                 case byte b:
-                    return new NumericResult(b);
+                    return new JsValue(b);
                 case sbyte sb:
-                    return new NumericResult(sb);
+                    return new JsValue(sb);
                 case bool flag:
-                    return new NumericResult(flag ? 1d : 0d);
+                    return flag ? JsValue.One : JsValue.Zero;
                 case string str:
-                    return new NumericResult(NumericStringParser.ParseJsNumber(str));
+                    return new JsValue(NumericStringParser.ParseJsNumber(str));
             }
 
             switch (value)
@@ -299,7 +282,7 @@ internal static class JsOps
 
                     if (context?.IsThrow == true)
                     {
-                        return NumericResult.Error;
+                        return JsValue.Undefined; // Error state - caller should check context.IsThrow
                     }
 
                     var error = CreateTypeError("Cannot convert object to primitive value", context);
@@ -309,7 +292,7 @@ internal static class JsOps
                     }
 
                     context.SetThrow(JsValue.FromObject(error));
-                    return NumericResult.Error;
+                    return JsValue.Undefined; // Error state - caller should check context.IsThrow
                 }
                 default:
                     throw new InvalidOperationException($"Cannot convert value '{value}' to a number.");
@@ -2062,66 +2045,4 @@ internal static class JsOps
         return true;
     }
 
-    internal enum NumericKind
-    {
-        Number,
-        BigInt,
-        Error
-    }
-
-    /// <summary>
-    /// Result struct for numeric operations that avoids boxing doubles.
-    /// The double value is stored directly in the struct, not as object.
-    /// Use this internally for arithmetic operations to avoid boxing/unboxing.
-    /// </summary>
-    internal readonly struct NumericResult
-    {
-        public readonly NumericKind Kind;
-        public readonly double NumberValue;
-        public readonly JsBigInt? BigIntValue;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public NumericResult(double value)
-        {
-            Kind = NumericKind.Number;
-            NumberValue = value;
-            BigIntValue = null;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public NumericResult(JsBigInt value)
-        {
-            Kind = NumericKind.BigInt;
-            NumberValue = 0;
-            BigIntValue = value;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private NumericResult(NumericKind kind)
-        {
-            Kind = kind;
-            NumberValue = double.NaN;
-            BigIntValue = null;
-        }
-
-        public static NumericResult Error => new(NumericKind.Error);
-
-        public bool IsNumber => Kind == NumericKind.Number;
-        public bool IsBigInt => Kind == NumericKind.BigInt;
-        public bool IsError => Kind == NumericKind.Error;
-
-        /// <summary>
-        /// Boxes the result to object. Only call this when you need to return to JS.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public object ToObject()
-        {
-            return Kind switch
-            {
-                NumericKind.BigInt => BigIntValue!,
-                NumericKind.Number => JsValueCache.GetNumber(NumberValue),
-                _ => JsValueCache.BoxedNaN
-            };
-        }
-    }
 }

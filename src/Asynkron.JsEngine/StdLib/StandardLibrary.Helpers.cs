@@ -8,35 +8,39 @@ public static partial class StandardLibrary
 {
     internal static bool TryGetObject(object? candidate, RealmState realm, out IJsObjectLike accessor)
     {
-        switch (candidate)
+        while (true)
         {
-            case null:
-            case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
-                accessor = null!;
-                return false;
-            case JsValue jsValue:
-                return TryGetObject(jsValue.ToObject(), realm, out accessor);
-            case IJsObjectLike objectLike:
-                accessor = objectLike;
-                return true;
-            case TypedAstSymbol symbol:
-                accessor = CreateSymbolWrapper(symbol, realm: realm);
-                return true;
-            case bool b:
-                accessor = CreateBooleanWrapper(b, realm: realm);
-                return true;
-            case string s:
-                accessor = CreateStringWrapper(s, realm: realm);
-                return true;
-            case JsBigInt bigInt:
-                accessor = CreateBigIntWrapper(bigInt, realm: realm);
-                return true;
-            case double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte:
-                accessor = CreateNumberWrapper(JsOps.ToNumber(candidate), realm: realm);
-                return true;
-            default:
-                accessor = null!;
-                return false;
+            switch (candidate)
+            {
+                case null:
+                case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
+                    accessor = null!;
+                    return false;
+                case JsValue jsValue:
+                    candidate = jsValue.ToObject();
+                    continue;
+                case IJsObjectLike objectLike:
+                    accessor = objectLike;
+                    return true;
+                case TypedAstSymbol symbol:
+                    accessor = CreateSymbolWrapper(symbol, realm: realm);
+                    return true;
+                case bool b:
+                    accessor = CreateBooleanWrapper(b, realm: realm);
+                    return true;
+                case string s:
+                    accessor = CreateStringWrapper(s, realm: realm);
+                    return true;
+                case JsBigInt bigInt:
+                    accessor = CreateBigIntWrapper(bigInt, realm: realm);
+                    return true;
+                case double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte:
+                    accessor = CreateNumberWrapper(JsOps.ToNumber(candidate), realm: realm);
+                    return true;
+                default:
+                    accessor = null!;
+                    return false;
+            }
         }
     }
 

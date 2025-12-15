@@ -491,7 +491,7 @@ public static partial class TypedAstEvaluator
                     switch (instruction)
                     {
                         case StatementInstruction statementInstruction:
-                            EvaluateStatement(statementInstruction.Statement, environment, context);
+                            _ = EvaluateStatementJsValue(statementInstruction.Statement, environment, context);
                             if (context.IsThrow)
                             {
                                 var thrown = context.FlowValue;
@@ -1450,7 +1450,7 @@ public static partial class TypedAstEvaluator
                     DetermineGeneratorScopeMode());
                 _executionEnvironment.Define(Symbol.YieldTrackerSymbol, new YieldTracker(_consumedYieldIndices));
 
-                var result = EvaluateBlock(
+                _ = EvaluateBlockJsValue(
                     _function.Body,
                     _executionEnvironment,
                     context);

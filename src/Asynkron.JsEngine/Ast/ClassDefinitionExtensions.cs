@@ -301,6 +301,6 @@ public static partial class TypedAstEvaluator
     {
         using var privateScope = privateScopeFactory?.Invoke();
         var blockEnvironment = CreateStaticInitializationEnvironment(constructorAccessor, environment, out _);
-        EvaluateStatement(block.Body, blockEnvironment, context);
+        _ = EvaluateStatementJsValue(block.Body, blockEnvironment, context);
     }
 }

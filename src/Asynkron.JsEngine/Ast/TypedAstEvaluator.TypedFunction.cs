@@ -868,7 +868,7 @@ public static partial class TypedAstEvaluator
 
                 try
                 {
-                    var result = EvaluateBlock(
+                    _ = EvaluateBlockJsValue(
                         _function.Body,
                         executionEnvironment,
                         context);
@@ -1650,7 +1650,7 @@ public static partial class TypedAstEvaluator
 
             try
             {
-                var result = EvaluateBlock(_function.Body, functionEnvironment, context);
+                _ = EvaluateBlockJsValue(_function.Body, functionEnvironment, context);
 
                 if (context.IsThrow)
                 {

@@ -6,13 +6,6 @@ public static partial class TypedAstEvaluator
 {
     extension(ReturnStatement statement)
     {
-        private object? EvaluateReturn(
-            JsEnvironment environment,
-            EvaluationContext context)
-        {
-            return EvaluateReturnJsValue(statement, environment, context).ToObject();
-        }
-
         private JsValue EvaluateReturnJsValue(
             JsEnvironment environment,
             EvaluationContext context)

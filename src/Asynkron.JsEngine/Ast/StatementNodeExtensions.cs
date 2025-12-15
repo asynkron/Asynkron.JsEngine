@@ -7,16 +7,8 @@ public static partial class TypedAstEvaluator
 {
     extension(StatementNode statement)
     {
-        private object? EvaluateStatement(
-            JsEnvironment environment,
-            EvaluationContext context,
-            Symbol? activeLabel = null)
-        {
-            return EvaluateStatementJsValue(statement, environment, context, activeLabel).ToObject();
-        }
-
         /// <summary>
-        /// JsValue-returning version of EvaluateStatement for use in hot loops.
+        /// Evaluates a statement and returns the completion value as JsValue.
         /// Handles the common cases without boxing.
         /// </summary>
         private JsValue EvaluateStatementJsValue(

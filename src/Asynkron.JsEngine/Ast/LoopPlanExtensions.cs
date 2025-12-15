@@ -320,7 +320,7 @@ public static partial class TypedAstEvaluator
             {
                 foreach (var statement in plan.ConditionPrologue)
                 {
-                    _ = EvaluateStatement(statement, environment, context);
+                    _ = EvaluateStatementJsValue(statement, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return false;
@@ -355,7 +355,7 @@ public static partial class TypedAstEvaluator
                 }
                 else
                 {
-                    _ = EvaluateStatement(statement, environment, context);
+                    _ = EvaluateStatementJsValue(statement, environment, context);
                 }
                 if (context.ShouldStopEvaluation)
                 {

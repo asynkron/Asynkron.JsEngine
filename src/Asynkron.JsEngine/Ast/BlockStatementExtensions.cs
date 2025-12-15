@@ -7,16 +7,9 @@ public static partial class TypedAstEvaluator
 {
     extension(BlockStatement block)
     {
-        private object? EvaluateBlock(
-            JsEnvironment environment,
-            EvaluationContext context)
-        {
-            return EvaluateBlockJsValue(block, environment, context).ToObject();
-        }
-
         /// <summary>
-        /// JsValue-returning version of EvaluateBlock for use in hot loops.
-        /// Avoids boxing on each iteration by returning JsValue directly.
+        /// Evaluates a block statement and returns the completion value as JsValue.
+        /// Returns JsValue.Undefined for empty blocks to match browser behavior.
         /// </summary>
         private JsValue EvaluateBlockJsValue(
             JsEnvironment environment,

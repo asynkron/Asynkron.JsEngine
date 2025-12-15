@@ -20,10 +20,11 @@ public sealed partial class ErrorPrototype : JsPrototype
         var hasName = accessor.TryGetProperty("name", out var nameValue);
         var hasMessage = accessor.TryGetProperty("message", out var messageValue);
 
-        var nameString = !hasName || ReferenceEquals(nameValue, Symbol.Undefined)
+        // nameValue and messageValue are JsValue structs - use IsUndefined to check
+        var nameString = !hasName || nameValue.IsUndefined
             ? "Error"
             : JsOps.ToJsString(nameValue);
-        var messageString = !hasMessage || ReferenceEquals(messageValue, Symbol.Undefined)
+        var messageString = !hasMessage || messageValue.IsUndefined
             ? string.Empty
             : JsOps.ToJsString(messageValue);
 

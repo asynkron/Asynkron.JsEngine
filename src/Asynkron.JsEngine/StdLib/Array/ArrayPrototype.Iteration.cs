@@ -102,14 +102,15 @@ public sealed partial class ArrayPrototype
         for (long k = 0; k < length; k++)
         {
             var key = ToIndexString(k);
-            var value = accessor.TryGetProperty(key, out var candidate) ? JsValue.FromObject(candidate) : JsValue.Undefined;
+            // candidate is already a JsValue from TryGetProperty
+            var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
-            var match = callback.Invoke([JsValue.FromObject(value), new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.FromObject(thisArg));
+            var match = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.FromObject(thisArg));
 #pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
             if (IsTruthy(match.ToObject()))
 #pragma warning restore CS0618
             {
-                return JsValue.FromObject(value);
+                return value;
             }
         }
 
@@ -125,9 +126,10 @@ public sealed partial class ArrayPrototype
         for (long k = 0; k < length; k++)
         {
             var key = ToIndexString(k);
-            var value = accessor.TryGetProperty(key, out var candidate) ? JsValue.FromObject(candidate) : JsValue.Undefined;
+            // candidate is already a JsValue from TryGetProperty
+            var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
-            var match = callback.Invoke([JsValue.FromObject(value), new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.FromObject(thisArg));
+            var match = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.FromObject(thisArg));
 #pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
             if (IsTruthy(match.ToObject()))
 #pragma warning restore CS0618
@@ -181,14 +183,15 @@ public sealed partial class ArrayPrototype
         for (var k = length - 1; k >= 0; k--)
         {
             var key = ToIndexString(k);
-            var value = accessor.TryGetProperty(key, out var candidate) ? JsValue.FromObject(candidate) : JsValue.Undefined;
+            // candidate is already a JsValue from TryGetProperty
+            var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
-            var matches = callback.Invoke([JsValue.FromObject(value), new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.FromObject(thisArg));
+            var matches = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.FromObject(thisArg));
 #pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
             if (IsTruthy(matches.ToObject()))
 #pragma warning restore CS0618
             {
-                return JsValue.FromObject(value);
+                return value;
             }
         }
 
@@ -204,9 +207,10 @@ public sealed partial class ArrayPrototype
         for (var k = length - 1; k >= 0; k--)
         {
             var key = ToIndexString(k);
-            var value = accessor.TryGetProperty(key, out var candidate) ? JsValue.FromObject(candidate) : JsValue.Undefined;
+            // candidate is already a JsValue from TryGetProperty
+            var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
-            var matches = callback.Invoke([JsValue.FromObject(value), new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.FromObject(thisArg));
+            var matches = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.FromObject(thisArg));
 #pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
             if (IsTruthy(matches.ToObject()))
 #pragma warning restore CS0618

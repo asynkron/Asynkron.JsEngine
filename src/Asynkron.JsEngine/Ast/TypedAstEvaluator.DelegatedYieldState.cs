@@ -251,8 +251,10 @@ public static partial class TypedAstEvaluator
 
         private static bool IsGeneratorObject(IJsObjectLike iterator)
         {
+            // brand is a JsValue - we need to unwrap it to compare with GeneratorBrandMarker
             return iterator.TryGetProperty(GeneratorBrandPropertyName, out var brand) &&
-                   ReferenceEquals(brand, GeneratorBrandMarker);
+                   brand.TryGetObject(out var brandObj) &&
+                   ReferenceEquals(brandObj, GeneratorBrandMarker);
         }
     }
 }

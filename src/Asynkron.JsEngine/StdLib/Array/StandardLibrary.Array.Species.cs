@@ -50,8 +50,9 @@ public static partial class StandardLibrary
         }
 
         var useDefaultConstructor = false;
+        // constructorValue is a JsValue struct - use IsUndefined to check
         if (!accessor.TryGetProperty("constructor", out var constructorValue) ||
-            ReferenceEquals(constructorValue, Symbol.Undefined))
+            constructorValue.IsUndefined)
         {
             useDefaultConstructor = true;
         }

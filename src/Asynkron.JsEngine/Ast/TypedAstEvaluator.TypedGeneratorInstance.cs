@@ -124,8 +124,8 @@ public static partial class TypedAstEvaluator
             if (_callable is IJsPropertyAccessor accessor &&
                 accessor.TryGetProperty("prototype", out var protoValue))
             {
-                var protoJsValue = JsValue.FromObject(protoValue);
-                if (protoJsValue.TryGetObject<JsObject>(out var prototypeObject))
+                // protoValue is already a JsValue from TryGetProperty
+                if (protoValue.TryGetObject<JsObject>(out var prototypeObject))
                 {
                     return prototypeObject;
                 }
@@ -158,11 +158,10 @@ public static partial class TypedAstEvaluator
 
                 if (result.TryGetObject<JsObject>(out var obj) &&
                     obj.TryGetProperty("done", out var doneRaw) &&
-                    obj.TryGetProperty("value", out var valueRaw))
+                    obj.TryGetProperty("value", out var value))
                 {
-                    var doneJsValue = JsValue.FromObject(doneRaw);
-                    var done = doneJsValue.IsTruthy;
-                    var value = JsValue.FromObject(valueRaw);
+                    // doneRaw and value are already JsValue from TryGetProperty
+                    var done = doneRaw.IsTruthy;
                     return done
                         ? new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Completed, value, true, JsValue.Undefined)
                         : new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Yield, value, false, JsValue.Undefined);

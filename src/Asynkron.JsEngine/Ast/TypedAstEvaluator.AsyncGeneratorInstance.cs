@@ -174,13 +174,13 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            if (!pendingPromise.TryGetProperty("then", out var thenValueObj))
+            if (!pendingPromise.TryGetProperty("then", out var thenValue))
             {
                 reject.Invoke([JsValue.FromObject("Awaited value has no 'then' method")], JsValue.Undefined);
                 return;
             }
 
-            var thenValue = JsValue.FromObject(thenValueObj);
+            // thenValue is already a JsValue from TryGetProperty
             if (!thenValue.TryUnwrap(out IJsCallable? thenCallable))
             {
                 reject.Invoke([JsValue.FromObject("'then' is not callable")], JsValue.Undefined);

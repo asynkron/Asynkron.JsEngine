@@ -258,7 +258,8 @@ public static partial class StandardLibrary
                 throw ThrowTypeError("Array.from result exceeds 2^32 - 1 elements", realm: realm);
             }
 
-            var value = stepAccessor.TryGetProperty("value", out var entryValue) ? JsValue.FromObject(entryValue) : JsValue.Undefined;
+            // entryValue is already a JsValue from TryGetProperty
+            var value = stepAccessor.TryGetProperty("value", out var entryValue) ? entryValue : JsValue.Undefined;
             var mappedValue = value;
             if (mapping && mapper is not null)
             {
@@ -490,7 +491,8 @@ public static partial class StandardLibrary
                 return false;
             }
 
-            var value = stepAccessor.TryGetProperty("value", out var entryValue) ? JsValue.FromObject(entryValue) : JsValue.Undefined;
+            // entryValue is already a JsValue from TryGetProperty
+            var value = stepAccessor.TryGetProperty("value", out var entryValue) ? entryValue : JsValue.Undefined;
             if (TryAwaitPromiseLike(value, realm,
                     resolved =>
                     {

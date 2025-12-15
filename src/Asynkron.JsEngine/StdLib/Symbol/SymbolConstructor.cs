@@ -72,7 +72,7 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
             return JsValue.Undefined;
         }
 
-        var key = args[0].ToString() ?? "";
+        var key = JsOps.ToJsString(args[0].ToObject());
         return new JsValue(JsValueKind.Symbol, 0.0, TypedAstSymbol.For(key));
     }
 

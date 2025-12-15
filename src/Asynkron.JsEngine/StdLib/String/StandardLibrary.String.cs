@@ -1224,22 +1224,51 @@ public static partial class StandardLibrary
             return "";
         }
 
-        if (!args[0].TryGetObject<JsObject>(out var template))
+        if (!args[0].TryGetObject<IJsPropertyAccessor>(out var template))
         {
             return "";
         }
 
-        if (!template.TryGetProperty("raw", out var rawValue) || !rawValue.TryGetObject<JsArray>(out var rawStrings))
+        if (!template.TryGetProperty("raw", out var rawValue) || !rawValue.TryGetObject<IJsPropertyAccessor>(out var rawAccessor))
+        {
+            return "";
+        }
+
+        // Get items from the raw accessor - could be JsArray or JsObject
+        IReadOnlyList<JsValue>? rawItems = null;
+        if (rawAccessor is JsArray rawArray)
+        {
+            rawItems = rawArray.Items;
+        }
+        else if (rawAccessor is JsObject rawObj && rawObj.TryGetProperty("length", out var lengthVal))
+        {
+            var length = (int)JsOps.ToNumber(lengthVal.ToObject());
+            var items = new List<JsValue>(length);
+            for (var i = 0; i < length; i++)
+            {
+                if (rawObj.TryGetProperty(i.ToString(), out var item))
+                {
+                    items.Add(item);
+                }
+                else
+                {
+                    items.Add(JsValue.Undefined);
+                }
+            }
+            rawItems = items;
+        }
+
+        if (rawItems == null)
         {
             return "";
         }
 
         var result = new StringBuilder();
-        var rawCount = rawStrings.Items.Count;
+        var rawCount = rawItems.Count;
 
         for (var i = 0; i < rawCount; i++)
         {
-            var rawPart = rawStrings.GetElement(i).ToObject()?.ToString() ?? "";
+            var rawPart = rawItems[i].ToObject()?.ToString() ?? "";
             result.Append(rawPart);
 
             if (i >= args.Count - 1)

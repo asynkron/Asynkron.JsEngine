@@ -897,6 +897,60 @@ public sealed class JsEnvironment
         return JsValue.FromObject(ReadUnresolvable(name));
     }
 
+    /// <summary>
+    /// Direct identifier assignment that avoids creating AssignmentReference structs.
+    /// This is the fast path for simple identifier assignments in loops.
+    /// </summary>
+    internal void SetIdentifierJsValue(Symbol name, JsValue value, EvaluationContext context)
+    {
+        var isStrictContext = context.CurrentScope.IsStrict;
+
+        if (TryGetCachedDeclarativeBinding(name, context, out var cached))
+        {
+            cached.WriteJsValue(name, value, isStrictContext);
+            return;
+        }
+
+        if (TryResolveWithBinding(name, context, out var withBinding))
+        {
+            if (isStrictContext && IsStrictRestrictedName(name))
+            {
+                throw new ThrowSignal(JsValue.FromObject(StdLib.StandardLibrary.CreateSyntaxError(
+                    "Assignment to eval or arguments is not allowed in strict mode.", context,
+                    context.RealmState)));
+            }
+
+            var objValue = value.ToObject();
+            if (!TrySetWithBindingValue(withBinding, objValue, context.RealmState))
+            {
+                Assign(name, objValue);
+            }
+            return;
+        }
+
+        if (TryLocateBinding(name, out var bindingEnvironment, out _))
+        {
+            var cachedBinding = new ResolvedIdentifierBinding(bindingEnvironment, name);
+            CacheDeclarativeBinding(name, cachedBinding, context);
+            cachedBinding.WriteJsValue(name, value, isStrictContext);
+            return;
+        }
+
+        if (TryResolveGlobalObjectBinding(name, context, out var globalBinding))
+        {
+            TrySetWithBindingValue(globalBinding, value.ToObject(), context.RealmState);
+            return;
+        }
+
+        AssignUnresolvable(name, value.ToObject(), isStrictContext, context, this);
+    }
+
+    private static bool IsStrictRestrictedName(Symbol name)
+    {
+        return string.Equals(name.Name, "eval", StringComparison.Ordinal) ||
+               string.Equals(name.Name, "arguments", StringComparison.Ordinal);
+    }
+
     private bool TryGetCachedDeclarativeBinding(
         Symbol name,
         EvaluationContext context,

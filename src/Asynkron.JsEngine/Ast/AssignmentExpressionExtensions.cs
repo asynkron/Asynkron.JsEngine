@@ -10,15 +10,56 @@ public static partial class TypedAstEvaluator
         private JsValue EvaluateAssignment(JsEnvironment environment,
             EvaluationContext context)
         {
-            // Resolve identifier directly without creating a new IdentifierExpression object
+            // Fast path for compound assignments on simple identifiers
+            // This avoids creating AssignmentReference structs entirely
+            if (expression.IsCompoundAssignment &&
+                TryEvaluateCompoundAssignmentDirectJsValue(expression, expression.Value, expression.Target,
+                    environment, context, out var compoundJsValue, out var shouldAssignCompound))
+            {
+                if (context.ShouldStopEvaluation)
+                {
+                    return compoundJsValue;
+                }
+
+                if (shouldAssignCompound)
+                {
+                    environment.SetIdentifierJsValue(expression.Target, compoundJsValue, context);
+                }
+
+                return compoundJsValue;
+            }
+
+            // Fast path for simple identifier assignments (not compound)
+            // This avoids creating AssignmentReference structs entirely
+            if (!expression.IsCompoundAssignment)
+            {
+                var targetValueJs = EvaluateAssignmentRhsWithNameHintJsValue(expression, expression.Value, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return targetValueJs;
+                }
+
+                try
+                {
+                    environment.SetIdentifierJsValue(expression.Target, targetValueJs, context);
+                    return targetValueJs;
+                }
+                catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
+                                                               StringComparison.Ordinal))
+                {
+                    return HandleReferenceError(ex, environment, context);
+                }
+            }
+
+            // Fallback to AssignmentReference path for other cases
             var reference = AssignmentReferenceResolver.ResolveIdentifierDirect(
                 expression.Target, environment, context);
 
             // Use JsValue version of compound assignment to avoid boxing
             if (expression.IsCompoundAssignment &&
                 TryEvaluateCompoundAssignmentJsValue(expression, expression.Value, reference, environment, context,
-                    out var compoundJsValue,
-                    out var shouldAssignCompound))
+                    out compoundJsValue,
+                    out shouldAssignCompound))
             {
                 if (context.ShouldStopEvaluation)
                 {
@@ -34,34 +75,39 @@ public static partial class TypedAstEvaluator
             }
 
             // Use JsValue version to avoid boxing
-            var targetValueJs = EvaluateAssignmentRhsWithNameHintJsValue(expression, expression.Value, environment, context);
+            var valueJs = EvaluateAssignmentRhsWithNameHintJsValue(expression, expression.Value, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return targetValueJs;
+                return valueJs;
             }
 
             try
             {
-                reference.SetValue(targetValueJs);
-                return targetValueJs;
+                reference.SetValue(valueJs);
+                return valueJs;
             }
             catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                            StringComparison.Ordinal))
             {
-                object? errorObject = ex.Message;
-
-                // If a ReferenceError constructor is available, use it to
-                // create a proper JS error instance so user code can catch
-                // and inspect it.
-                if (environment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
-                    ctor is IJsCallable callable)
-                {
-                    errorObject = callable.Invoke([JsValue.FromObject(ex.Message)], JsValue.Undefined).ToObject();
-                }
-
-                context.SetThrow(JsValue.FromObject(errorObject));
-                return JsValue.FromObject(errorObject);
+                return HandleReferenceError(ex, environment, context);
             }
+        }
+
+        private static JsValue HandleReferenceError(InvalidOperationException ex, JsEnvironment environment, EvaluationContext context)
+        {
+            object? errorObject = ex.Message;
+
+            // If a ReferenceError constructor is available, use it to
+            // create a proper JS error instance so user code can catch
+            // and inspect it.
+            if (environment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
+                ctor is IJsCallable callable)
+            {
+                errorObject = callable.Invoke([JsValue.FromObject(ex.Message)], JsValue.Undefined).ToObject();
+            }
+
+            context.SetThrow(JsValue.FromObject(errorObject));
+            return JsValue.FromObject(errorObject);
         }
     }
 
@@ -83,6 +129,112 @@ public static partial class TypedAstEvaluator
         }
 
         return index >= 0 && source[index] == '(';
+    }
+
+    /// <summary>
+    /// Fast path for compound assignment using direct identifier access (avoids AssignmentReference).
+    /// </summary>
+    private static bool TryEvaluateCompoundAssignmentDirectJsValue(
+        AssignmentExpression? assignment,
+        ExpressionNode candidate,
+        Symbol target,
+        JsEnvironment environment,
+        EvaluationContext context,
+        out JsValue value,
+        out bool shouldAssign)
+    {
+        if (candidate is not BinaryExpression binary)
+        {
+            value = JsValue.Undefined;
+            shouldAssign = false;
+            return false;
+        }
+
+        // Use direct identifier access to avoid creating AssignmentReference
+        var leftJs = environment.GetIdentifierJsValue(target, context);
+        if (context.ShouldStopEvaluation)
+        {
+            value = JsValue.Undefined;
+            shouldAssign = false;
+            return true;
+        }
+
+        switch (binary.Operator)
+        {
+            case "&&":
+                if (!leftJs.IsTruthy)
+                {
+                    value = leftJs;
+                    shouldAssign = false;
+                    return true;
+                }
+
+                value = EvaluateAssignmentRhsWithNameHintJsValue(assignment, binary.Right, environment, context);
+                shouldAssign = !context.ShouldStopEvaluation;
+                return true;
+            case "||":
+                if (leftJs.IsTruthy)
+                {
+                    value = leftJs;
+                    shouldAssign = false;
+                    return true;
+                }
+
+                value = EvaluateAssignmentRhsWithNameHintJsValue(assignment, binary.Right, environment, context);
+                shouldAssign = !context.ShouldStopEvaluation;
+                return true;
+            case "??":
+                if (!leftJs.IsNullish)
+                {
+                    value = leftJs;
+                    shouldAssign = false;
+                    return true;
+                }
+
+                value = EvaluateAssignmentRhsWithNameHintJsValue(assignment, binary.Right, environment, context);
+                shouldAssign = !context.ShouldStopEvaluation;
+                return true;
+        }
+
+        var rightJs = EvaluateAssignmentRhsWithNameHintJsValue(assignment, binary.Right, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            value = JsValue.Undefined;
+            shouldAssign = false;
+            return true;
+        }
+
+        // Use JsValue arithmetic operations to avoid boxing
+        value = binary.Operator switch
+        {
+            "+" => AddValue(leftJs, rightJs, context),
+            "-" => SubtractValue(leftJs, rightJs, context),
+            "*" => MultiplyValue(leftJs, rightJs, context),
+            "/" => DivideValue(leftJs, rightJs, context),
+            "%" => ModuloValue(leftJs, rightJs, context),
+            "**" => PowerValue(leftJs, rightJs, context),
+            "==" => LooseEqualsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
+            "!=" => !LooseEqualsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
+            "===" => StrictEqualsValue(leftJs, rightJs) ? JsValue.True : JsValue.False,
+            "!==" => !StrictEqualsValue(leftJs, rightJs) ? JsValue.True : JsValue.False,
+            "<" => LessThanValue(leftJs, rightJs, context),
+            "<=" => LessThanOrEqualValue(leftJs, rightJs, context),
+            ">" => GreaterThanValue(leftJs, rightJs, context),
+            ">=" => GreaterThanOrEqualValue(leftJs, rightJs, context),
+            "&" => BitwiseAndValue(leftJs, rightJs, context),
+            "|" => BitwiseOrValue(leftJs, rightJs, context),
+            "^" => BitwiseXorValue(leftJs, rightJs, context),
+            "<<" => LeftShiftValue(leftJs, rightJs, context),
+            ">>" => RightShiftValue(leftJs, rightJs, context),
+            ">>>" => UnsignedRightShiftValue(leftJs, rightJs, context),
+            "in" => InOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
+            "instanceof" => InstanceofOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
+            _ => throw new NotSupportedException(
+                $"Compound assignment operator '{binary.Operator}' is not supported yet.")
+        };
+        shouldAssign = true;
+
+        return true;
     }
 
     /// <summary>

@@ -17,29 +17,61 @@ public static partial class TypedAstEvaluator
                 {
                     case "++" or "--":
                     {
-                        // Fast path: use ResolveIdentifierDirect for simple identifiers to avoid allocations
-                        // Member expressions (obj.x++) need the full Resolve with delegate for property evaluation
+                        // Fast path: for simple identifiers, use direct environment access
+                        // This avoids creating AssignmentReference structs entirely
                         var targetOperand = expression.Operand;
                         while (targetOperand is UnaryExpression { Operator: "++" or "--" } nested)
                         {
                             targetOperand = nested.Operand;
                         }
 
-                        var reference = targetOperand is IdentifierExpression identifier
-                            ? AssignmentReferenceResolver.ResolveIdentifierDirect(identifier.Name, environment, context)
-                            : AssignmentReferenceResolver.Resolve(
-                                expression.Operand,
-                                environment,
-                                context,
-                                static (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
+                        if (targetOperand is IdentifierExpression identifier)
+                        {
+                            // Direct path for simple identifiers (most common case in loops)
+                            var currentJsValue = environment.GetIdentifierJsValue(identifier.Name, context);
+                            if (context.ShouldStopEvaluation)
+                            {
+                                return context.FlowValue;
+                            }
+
+                            // Fast path for Number (most common case) - avoid boxing entirely
+                            if (currentJsValue.Kind == JsValueKind.Number)
+                            {
+                                var d = currentJsValue.NumberValue;
+                                var updatedValue = d + (expression.Operator == "++" ? 1 : -1);
+                                environment.SetIdentifierJsValue(identifier.Name, new JsValue(updatedValue), context);
+                                return expression.IsPrefix ? new JsValue(updatedValue) : new JsValue(d);
+                            }
+
+                            // Fall back to JsValue path for non-numeric values (e.g., BigInt, strings)
+                            var oldNumeric = ToNumericValue(currentJsValue, context);
+                            if (context.ShouldStopEvaluation)
+                            {
+                                return context.FlowValue;
+                            }
+
+                            var updated = expression.Operator == "++"
+                                ? IncrementValue(oldNumeric, context)
+                                : DecrementValue(oldNumeric, context);
+                            environment.SetIdentifierJsValue(identifier.Name, updated, context);
+
+                            return expression.IsPrefix ? updated : oldNumeric;
+                        }
+
+                        // Member expressions (obj.x++) need the full Resolve with delegate for property evaluation
+                        var reference = AssignmentReferenceResolver.Resolve(
+                            expression.Operand,
+                            environment,
+                            context,
+                            static (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
 
                         // Use GetJsValue() to avoid boxing for declarative bindings
-                        var currentJsValue = reference.GetJsValue();
+                        var refCurrentJsValue = reference.GetJsValue();
 
                         // Fast path for Number (most common case) - avoid boxing entirely
-                        if (currentJsValue.Kind == JsValueKind.Number)
+                        if (refCurrentJsValue.Kind == JsValueKind.Number)
                         {
-                            var d = currentJsValue.NumberValue;
+                            var d = refCurrentJsValue.NumberValue;
                             var updatedValue = d + (expression.Operator == "++" ? 1 : -1);
                             reference.SetValue(new JsValue(updatedValue));
                             return expression.IsPrefix ? new JsValue(updatedValue) : new JsValue(d);
@@ -47,21 +79,21 @@ public static partial class TypedAstEvaluator
 
                         // Fall back to JsValue path for non-numeric values (e.g., BigInt, strings)
                         // This avoids boxing by staying in JsValue land throughout
-                        var oldNumeric = ToNumericValue(currentJsValue, context);
+                        var refOldNumeric = ToNumericValue(refCurrentJsValue, context);
                         if (context.ShouldStopEvaluation)
                         {
                             return context.FlowValue;
                         }
 
                         // Calculate new value (increment/decrement the already-converted numeric value)
-                        var updated = expression.Operator == "++"
-                            ? IncrementValue(oldNumeric, context)
-                            : DecrementValue(oldNumeric, context);
-                        reference.SetValue(updated);
+                        var refUpdated = expression.Operator == "++"
+                            ? IncrementValue(refOldNumeric, context)
+                            : DecrementValue(refOldNumeric, context);
+                        reference.SetValue(refUpdated);
 
                         // Postfix returns the old numeric value (after conversion but before increment/decrement)
                         // Prefix returns the new value (after increment/decrement)
-                        return expression.IsPrefix ? updated : oldNumeric;
+                        return expression.IsPrefix ? refUpdated : refOldNumeric;
                     }
                     case "delete":
                         return EvaluateDelete(expression.Operand, environment, context) ? JsValue.True : JsValue.False;

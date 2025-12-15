@@ -47,20 +47,34 @@ public static partial class TypedAstEvaluator
                 ? plan.CreatePerIterationEnvironment(environment, context)
                 : environment;
 
+            // Fast path: if body is a single statement without block environment needs,
+            // we can skip block dispatch overhead entirely (like Jint's ProbablyBlockStatement)
+            var singleStatement = plan.SingleBodyStatement;
+
             while (true)
             {
                 context.ThrowIfCancellationRequested();
 
-            if (!plan.ConditionAfterBody)
-            {
-                if (!ExecuteCondition(plan, iterationEnvironment, context))
+                if (!plan.ConditionAfterBody)
                 {
-                    break;
+                    if (!ExecuteCondition(plan, iterationEnvironment, context))
+                    {
+                        break;
+                    }
                 }
-            }
 
-                // Use JsValue version to avoid boxing on each iteration
-                lastValueJs = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
+                // Fast path: execute single statement directly without block overhead
+                // Note: We do NOT pass loopLabel to inner statements - the block evaluation doesn't either.
+                // Inner loops get their own labels via LabeledStatement. Passing our loopLabel would cause
+                // inner loops to incorrectly handle labeled breaks/continues meant for the outer loop.
+                if (singleStatement is not null)
+                {
+                    lastValueJs = EvaluateStatementJsValue(singleStatement, iterationEnvironment, context);
+                }
+                else
+                {
+                    lastValueJs = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
+                }
                 if (context.IsReturn || context.IsThrow)
                 {
                     break;

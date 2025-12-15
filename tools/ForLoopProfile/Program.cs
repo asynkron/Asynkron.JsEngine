@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 
@@ -12,10 +13,12 @@ var parsed = engine.ParseProgram(script);
 await engine.Evaluate(parsed);
 
 // Run multiple times to accumulate allocation samples.
+var sw = Stopwatch.StartNew();
 for (var iter = 0; iter < 20; iter++)
 {
     await engine.Evaluate(parsed);
     Console.Write(".");
 }
+sw.Stop();
 
-Console.WriteLine("Done");
+Console.WriteLine($"Done in {sw.ElapsedMilliseconds}ms (avg {sw.ElapsedMilliseconds / 20}ms per iteration)");

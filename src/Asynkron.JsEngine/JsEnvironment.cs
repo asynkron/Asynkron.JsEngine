@@ -847,7 +847,8 @@ public sealed class JsEnvironment
             return cached.Read(name, context);
         }
 
-        if (TryResolveWithBinding(name, context, out var withBinding))
+        // Fast path: skip TryResolveWithBinding when AllowIdentifierCache is true (no with/eval in scope)
+        if (!context.AllowIdentifierCache && TryResolveWithBinding(name, context, out var withBinding))
         {
             return GetWithBindingValue(withBinding);
         }
@@ -877,7 +878,9 @@ public sealed class JsEnvironment
             return cached.ReadJsValue(name, context);
         }
 
-        if (TryResolveWithBinding(name, context, out var withBinding))
+        // Fast path: when AllowIdentifierCache is true, we know there's no with/eval in scope,
+        // so skip the expensive TryResolveWithBinding check entirely
+        if (!context.AllowIdentifierCache && TryResolveWithBinding(name, context, out var withBinding))
         {
             return JsValue.FromObject(GetWithBindingValue(withBinding));
         }
@@ -911,7 +914,8 @@ public sealed class JsEnvironment
             return true;
         }
 
-        if (TryResolveWithBinding(name, context, out var withBinding))
+        // Fast path: skip TryResolveWithBinding when AllowIdentifierCache is true (no with/eval in scope)
+        if (!context.AllowIdentifierCache && TryResolveWithBinding(name, context, out var withBinding))
         {
             value = JsValue.FromObject(GetWithBindingValue(withBinding));
             return true;
@@ -949,7 +953,8 @@ public sealed class JsEnvironment
             return;
         }
 
-        if (TryResolveWithBinding(name, context, out var withBinding))
+        // Fast path: skip TryResolveWithBinding when AllowIdentifierCache is true (no with/eval in scope)
+        if (!context.AllowIdentifierCache && TryResolveWithBinding(name, context, out var withBinding))
         {
             if (isStrictContext && IsStrictRestrictedName(name))
             {

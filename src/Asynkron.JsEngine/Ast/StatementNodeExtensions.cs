@@ -12,40 +12,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             Symbol? activeLabel = null)
         {
-            context.SourceReference = statement.Source;
-            context.ThrowIfCancellationRequested();
-            using var statementActivity = Activity.Current?
-                .StartEvaluatorActivity($"Statement:{statement.GetType().Name}", context, statement.Source);
-
-            return statement switch
-            {
-                BlockStatement block => EvaluateBlock(block, environment, context),
-                ExpressionStatement expressionStatement => EvaluateExpression(expressionStatement.Expression,
-                    environment,
-                    context).ToObject(),
-                ReturnStatement returnStatement => EvaluateReturn(returnStatement, environment, context),
-                ThrowStatement throwStatement => EvaluateThrow(throwStatement, environment, context),
-                VariableDeclaration declaration => EvaluateVariableDeclaration(declaration, environment, context),
-                FunctionDeclaration functionDeclaration => EvaluateFunctionDeclaration(functionDeclaration, environment,
-                    context),
-                IfStatement ifStatement => EvaluateIf(ifStatement, environment, context),
-                WhileStatement whileStatement => EvaluateWhile(whileStatement, environment, context, activeLabel),
-                DoWhileStatement doWhileStatement => EvaluateDoWhile(doWhileStatement, environment, context,
-                    activeLabel),
-                ForStatement forStatement => EvaluateFor(forStatement, environment, context, activeLabel),
-                ForEachStatement forEachStatement => EvaluateForEach(forEachStatement, environment, context,
-                    activeLabel),
-                BreakStatement breakStatement => EvaluateBreak(breakStatement, context),
-                ContinueStatement continueStatement => EvaluateContinue(continueStatement, context),
-                LabeledStatement labeledStatement => EvaluateLabeled(labeledStatement, environment, context),
-                TryStatement tryStatement => EvaluateTry(tryStatement, environment, context),
-                SwitchStatement switchStatement => EvaluateSwitch(switchStatement, environment, context, activeLabel),
-                ClassDeclaration classDeclaration => EvaluateClass(classDeclaration, environment, context),
-                WithStatement withStatement => EvaluateWith(withStatement, environment, context),
-                EmptyStatement => EmptyCompletion,
-                _ => throw new NotSupportedException(
-                    $"Typed evaluator does not yet support '{statement.GetType().Name}'.")
-            };
+            return EvaluateStatementJsValue(statement, environment, context, activeLabel).ToObject();
         }
 
         /// <summary>
@@ -85,33 +52,26 @@ public static partial class TypedAstEvaluator
                     return JsValue.Undefined;
             }
 
-            // Slow path for less common statement types - need to box
+            // Slow path for less common statement types
             using var statementActivity = Activity.Current?
                 .StartEvaluatorActivity($"Statement:{statement.GetType().Name}", context, statement.Source);
 
-            var result = statement switch
+            return statement switch
             {
-                ReturnStatement returnStatement => EvaluateReturn(returnStatement, environment, context),
-                ThrowStatement throwStatement => EvaluateThrow(throwStatement, environment, context),
-                VariableDeclaration declaration => EvaluateVariableDeclaration(declaration, environment, context),
-                FunctionDeclaration functionDeclaration => EvaluateFunctionDeclaration(functionDeclaration, environment,
+                ReturnStatement returnStatement => EvaluateReturnJsValue(returnStatement, environment, context),
+                ThrowStatement throwStatement => EvaluateThrowJsValue(throwStatement, environment, context),
+                VariableDeclaration declaration => EvaluateVariableDeclarationJsValue(declaration, environment, context),
+                FunctionDeclaration functionDeclaration => EvaluateFunctionDeclarationJsValue(functionDeclaration, environment,
                     context),
-                ForEachStatement forEachStatement => EvaluateForEach(forEachStatement, environment, context,
+                ForEachStatement forEachStatement => EvaluateForEachJsValue(forEachStatement, environment, context,
                     activeLabel),
-                BreakStatement breakStatement => EvaluateBreak(breakStatement, context),
-                ContinueStatement continueStatement => EvaluateContinue(continueStatement, context),
-                ClassDeclaration classDeclaration => EvaluateClass(classDeclaration, environment, context),
-                WithStatement withStatement => EvaluateWith(withStatement, environment, context),
+                BreakStatement breakStatement => EvaluateBreakJsValue(breakStatement, context),
+                ContinueStatement continueStatement => EvaluateContinueJsValue(continueStatement, context),
+                ClassDeclaration classDeclaration => EvaluateClassJsValue(classDeclaration, environment, context),
+                WithStatement withStatement => EvaluateWithJsValue(withStatement, environment, context),
                 _ => throw new NotSupportedException(
                     $"Typed evaluator does not yet support '{statement.GetType().Name}'.")
             };
-
-            return JsValue.FromObject(result);
-        }
-
-        private bool IsStrictBlock()
-        {
-            return statement is BlockStatement { IsStrict: true };
         }
 
         private void HoistFromStatement(JsEnvironment environment,

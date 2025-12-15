@@ -127,8 +127,22 @@ public static partial class StandardLibrary
             if (invokeWithContext is not null)
             {
                 var constructContext = realm.CreateContext(pushScope: false);
-                var invokeResult = invokeWithContext.Invoke(target, [argList, new JsValue(instance), constructContext, JsValue.FromObject(newTarget)]);
-                constructed = invokeResult is JsValue jsv ? jsv : JsValue.FromObject(invokeResult);
+                try
+                {
+                    var invokeResult = invokeWithContext.Invoke(target, [argList, new JsValue(instance), constructContext, JsValue.FromObject(newTarget)]);
+                    constructed = invokeResult is JsValue jsv ? jsv : JsValue.FromObject(invokeResult);
+                }
+                catch (System.Reflection.TargetInvocationException tie) when (tie.InnerException is ThrowSignal)
+                {
+                    throw tie.InnerException;
+                }
+
+                // Check if the constructor set a throw on the context (InvokeWithContext doesn't throw
+                // when it has a calling context, it sets the throw state instead)
+                if (constructContext.IsThrow)
+                {
+                    throw new ThrowSignal(constructContext.FlowValue);
+                }
             }
             else
             {

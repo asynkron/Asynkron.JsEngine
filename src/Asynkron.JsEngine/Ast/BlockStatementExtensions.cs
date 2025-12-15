@@ -11,9 +11,7 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment,
             EvaluationContext context)
         {
-            // Delegate to JsValue version and box only at the end
-            var (jsResult, hasJsResult, objResult) = EvaluateBlockCore(block, environment, context);
-            return hasJsResult ? jsResult.ToObject() : objResult;
+            return EvaluateBlockJsValue(block, environment, context).ToObject();
         }
 
         /// <summary>

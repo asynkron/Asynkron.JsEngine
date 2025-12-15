@@ -207,25 +207,24 @@ public static partial class TypedAstEvaluator
                 catchParameterNames: catchParameterNames,
                 simpleCatchParameterNames: simpleCatchParameterNames);
 
-            var resultJs = JsValue.Undefined;
-            var hasResult = false;
+            var result = EmptyCompletion;
             foreach (var statement in program.Body)
             {
                 context.ThrowIfCancellationRequested();
-                var completionJs = EvaluateStatementJsValue(statement, executionEnvironment, context);
+                var completion = EvaluateStatement(statement, executionEnvironment, context);
                 var shouldStop = context.ShouldStopEvaluation;
                 var shouldCapture =
-                    !shouldStop ||
-                    context.IsReturn ||
-                    context.IsThrow ||
-                    context.IsYield ||
-                    context.IsBreak ||
-                    context.IsContinue;
+                    !ReferenceEquals(completion, EmptyCompletion) &&
+                    (!shouldStop ||
+                     context.IsReturn ||
+                     context.IsThrow ||
+                     context.IsYield ||
+                     context.IsBreak ||
+                     context.IsContinue);
 
                 if (shouldCapture)
                 {
-                    resultJs = completionJs;
-                    hasResult = true;
+                    result = completion;
                 }
 
                 if (shouldStop)
@@ -239,7 +238,7 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(context.FlowValue);
             }
 
-            return hasResult ? resultJs.ToObject() : Symbol.Undefined;
+            return ReferenceEquals(result, EmptyCompletion) ? Symbol.Undefined : result;
         }
     }
 

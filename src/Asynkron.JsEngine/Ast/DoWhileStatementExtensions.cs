@@ -11,8 +11,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             Symbol? loopLabel)
         {
-            var plan = ((IAstCacheable<LoopPlan>)statement).GetOrCreateCache();
-            return EvaluateLoopPlan(plan, environment, context, loopLabel);
+            return EvaluateDoWhileJsValue(statement, environment, context, loopLabel).ToObject();
         }
 
         /// <summary>

@@ -30,7 +30,7 @@ public static partial class TypedAstEvaluator
                         if (targetOperand is IdentifierExpression identifier)
                         {
                             // Direct path for simple identifiers (most common case in loops)
-                            var currentJsValue = environment.GetIdentifierJsValue(identifier.Name, context);
+                            var currentJsValue = context.GetIdentifier(environment, identifier.Name);
                             if (context.ShouldStopEvaluation)
                             {
                                 return context.FlowValue;

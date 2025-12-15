@@ -151,7 +151,7 @@ public static partial class TypedAstEvaluator
         }
 
         // Use direct identifier access to avoid creating AssignmentReference
-        var leftJs = environment.GetIdentifierJsValue(target, context);
+        var leftJs = context.GetIdentifier(environment, target);
         if (context.ShouldStopEvaluation)
         {
             value = JsValue.Undefined;

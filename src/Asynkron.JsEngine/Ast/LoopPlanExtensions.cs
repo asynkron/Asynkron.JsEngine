@@ -177,7 +177,7 @@ public static partial class TypedAstEvaluator
                 JsValue currentValue;
                 try
                 {
-                    currentValue = currentIterationEnvironment.GetIdentifierJsValue(bindingName, context);
+                    currentValue = context.GetIdentifier(currentIterationEnvironment, bindingName);
                 }
                 catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                            StringComparison.Ordinal))
@@ -254,7 +254,7 @@ public static partial class TypedAstEvaluator
                     JsValue currentValue;
                     try
                     {
-                        currentValue = currentIterationEnvironment.GetIdentifierJsValue(bindingName, context);
+                        currentValue = context.GetIdentifier(currentIterationEnvironment, bindingName);
                     }
                     catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                                StringComparison.Ordinal))

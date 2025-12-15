@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
@@ -38,6 +39,18 @@ public sealed class EvaluationContext(
     ///     Disabled by default for safety; set by the caller.
     /// </summary>
     internal bool AllowIdentifierCache { get; set; }
+
+    /// <summary>
+    /// Resolves an identifier using the appropriate path based on whether 'with' statements
+    /// are in scope. This branches once instead of checking per-identifier access.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal JsValue GetIdentifier(JsEnvironment environment, Symbol name)
+    {
+        return AllowIdentifierCache
+            ? environment.GetIdentifierJsValueDirect(name, this)
+            : environment.GetIdentifierJsValueWithScope(name, this);
+    }
 
     /// <summary>
     ///     Realm-specific state (prototypes/constructors) for the current execution.

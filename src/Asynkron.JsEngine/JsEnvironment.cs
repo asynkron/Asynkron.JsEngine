@@ -870,19 +870,45 @@ public sealed class JsEnvironment
 
     /// <summary>
     /// Direct identifier resolution that returns JsValue, avoiding boxing for primitives.
+    /// This is the slow path that checks for 'with' statement bindings.
     /// </summary>
-    internal JsValue GetIdentifierJsValue(Symbol name, EvaluationContext context)
+    internal JsValue GetIdentifierJsValueWithScope(Symbol name, EvaluationContext context)
     {
         if (TryGetCachedDeclarativeBinding(name, context, out var cached))
         {
             return cached.ReadJsValue(name, context);
         }
 
-        // Fast path: when AllowIdentifierCache is true, we know there's no with/eval in scope,
-        // so skip the expensive TryResolveWithBinding check entirely
-        if (!context.AllowIdentifierCache && TryResolveWithBinding(name, context, out var withBinding))
+        if (TryResolveWithBinding(name, context, out var withBinding))
         {
             return JsValue.FromObject(GetWithBindingValue(withBinding));
+        }
+
+        if (TryLocateBinding(name, out var bindingEnvironment, out _))
+        {
+            var cachedBinding = new ResolvedIdentifierBinding(bindingEnvironment, name);
+            CacheDeclarativeBinding(name, cachedBinding, context);
+            return cachedBinding.ReadJsValue(name, context);
+        }
+
+        if (TryResolveGlobalObjectBinding(name, context, out var globalBinding))
+        {
+            return JsValue.FromObject(GetWithBindingValue(globalBinding));
+        }
+
+        return JsValue.FromObject(ReadUnresolvable(name));
+    }
+
+    /// <summary>
+    /// Fast path identifier resolution - no 'with' statement check.
+    /// Only use when AllowIdentifierCache is true (no with/eval in scope).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal JsValue GetIdentifierJsValueDirect(Symbol name, EvaluationContext context)
+    {
+        if (TryGetCachedDeclarativeBinding(name, context, out var cached))
+        {
+            return cached.ReadJsValue(name, context);
         }
 
         if (TryLocateBinding(name, out var bindingEnvironment, out _))

@@ -12,6 +12,16 @@ public static partial class TypedAstEvaluator
         private object? EvaluateLoopPlan(JsEnvironment environment, EvaluationContext context,
             Symbol? loopLabel)
         {
+            return EvaluateLoopPlanJsValue(plan, environment, context, loopLabel).ToObject();
+        }
+
+        /// <summary>
+        /// JsValue-returning version of EvaluateLoopPlan for use in hot paths.
+        /// Avoids boxing on each iteration and at the final return.
+        /// </summary>
+        private JsValue EvaluateLoopPlanJsValue(JsEnvironment environment, EvaluationContext context,
+            Symbol? loopLabel)
+        {
             // Use JsValue to track the loop body result to avoid boxing on each iteration
             var lastValueJs = JsValue.Undefined;
 
@@ -28,7 +38,7 @@ public static partial class TypedAstEvaluator
                     lastValueJs = EvaluateStatementJsValue(statement, environment, context, loopLabel);
                     if (context.ShouldStopEvaluation)
                     {
-                        return NormalizeLoopCompletionJsValue(lastValueJs);
+                        return lastValueJs;
                     }
                 }
             }
@@ -125,18 +135,7 @@ public static partial class TypedAstEvaluator
                 // Otherwise keep the final iteration environment alive for any closures that captured it.
             }
 
-            // Only box at the final return
-            return NormalizeLoopCompletionJsValue(lastValueJs);
-        }
-
-        /// <summary>
-        /// JsValue version of NormalizeLoopCompletion - boxes only at the end.
-        /// </summary>
-        private static object? NormalizeLoopCompletionJsValue(JsValue completion)
-        {
-            // EmptyCompletion is represented as JsValue.Undefined with a special check
-            // For JsValue, we just return the boxed value
-            return completion.ToObject();
+            return lastValueJs;
         }
 
         private JsEnvironment CreatePerIterationEnvironment(JsEnvironment currentIterationEnvironment,

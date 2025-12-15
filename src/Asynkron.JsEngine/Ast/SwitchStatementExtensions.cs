@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.JsTypes;
+
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
@@ -8,10 +10,20 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             Symbol? targetLabel)
         {
+            return EvaluateSwitchJsValue(statement, environment, context, targetLabel).ToObject();
+        }
+
+        /// <summary>
+        /// JsValue-returning version for use in hot paths.
+        /// </summary>
+        private JsValue EvaluateSwitchJsValue(JsEnvironment environment,
+            EvaluationContext context,
+            Symbol? targetLabel)
+        {
             var discriminantJs = EvaluateExpression(statement.Discriminant, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             var instantiationPlan = ((IAstCacheable<SwitchInstantiationPlan>)statement).GetOrCreateCache();
@@ -28,7 +40,7 @@ public static partial class TypedAstEvaluator
             InstantiateSwitchLexicalDeclarations(statement, instantiationPlan, switchEnv, context);
 
             // V = undefined (spec step 1)
-            object? completionValue = Symbol.Undefined;
+            var completionValue = JsValue.Undefined;
 
             // First pass: Find the index of the matching case or default
             int? matchedCaseIndex = null;
@@ -62,7 +74,7 @@ public static partial class TypedAstEvaluator
             if (startIndex is null)
             {
                 // No match and no default, return undefined
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             // Second pass: Execute from the matched/default case onwards
@@ -72,13 +84,13 @@ public static partial class TypedAstEvaluator
 
                 // Evaluate the case clause body statements in the switch environment
                 // We evaluate the statements directly without creating a new block environment
-                var caseCompletion = EvaluateCaseClauseBody(statement, switchCase.Body, switchEnv, context);
+                var (caseCompletionJs, hasCaseJs) = EvaluateCaseClauseBodyJsValue(statement, switchCase.Body, switchEnv, context);
 
                 // If R.[[value]] is not empty, let V = R.[[value]] (spec step 4.b.ii)
                 // UpdateEmpty semantics: only update V if the completion is not empty
-                if (!ReferenceEquals(caseCompletion, EmptyCompletion))
+                if (hasCaseJs)
                 {
-                    completionValue = caseCompletion;
+                    completionValue = caseCompletionJs;
                 }
 
                 if (context.TryClearBreak(targetLabel))
@@ -140,9 +152,19 @@ public static partial class TypedAstEvaluator
 
         private object? EvaluateCaseClauseBody(BlockStatement body, JsEnvironment switchEnv, EvaluationContext context)
         {
+            var (jsResult, hasJsResult) = EvaluateCaseClauseBodyJsValue(statement, body, switchEnv, context);
+            return hasJsResult ? jsResult.ToObject() : EmptyCompletion;
+        }
+
+        /// <summary>
+        /// JsValue-returning version for use in hot paths. Returns tuple with value and whether it has a value.
+        /// </summary>
+        private (JsValue result, bool hasResult) EvaluateCaseClauseBodyJsValue(BlockStatement body, JsEnvironment switchEnv, EvaluationContext context)
+        {
             // Evaluate statements in the case clause body without creating a new environment
             // The statements are evaluated in the shared switch environment
-            var result = EmptyCompletion;
+            var hasResult = false;
+            var result = JsValue.Undefined;
 
             foreach (var stmt in body.Statements)
             {
@@ -162,20 +184,21 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
-                var completion = EvaluateStatement(stmt, switchEnv, context);
+                var completion = EvaluateStatementJsValue(stmt, switchEnv, context);
                 var shouldStop = context.ShouldStopEvaluation;
+                // JsValue.Undefined is our equivalent of "not empty" for JsValue tracking
                 var shouldCapture =
-                    !ReferenceEquals(completion, EmptyCompletion) &&
-                    (!shouldStop ||
+                    !shouldStop ||
                      context.IsReturn ||
                      context.IsThrow ||
                      context.IsYield ||
                      context.IsBreak ||
-                     context.IsContinue);
+                     context.IsContinue;
 
                 if (shouldCapture)
                 {
                     result = completion;
+                    hasResult = true;
                 }
 
                 if (shouldStop)
@@ -184,7 +207,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            return result;
+            return (result, hasResult);
         }
 
         // Strictness is precomputed in the instantiation plan.

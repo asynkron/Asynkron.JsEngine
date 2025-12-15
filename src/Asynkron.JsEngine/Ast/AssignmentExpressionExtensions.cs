@@ -33,16 +33,17 @@ public static partial class TypedAstEvaluator
                 return compoundJsValue;
             }
 
-            var targetValue = EvaluateAssignmentRhsWithNameHint(expression, expression.Value, environment, context);
+            // Use JsValue version to avoid boxing
+            var targetValueJs = EvaluateAssignmentRhsWithNameHintJsValue(expression, expression.Value, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return JsValue.FromObject(targetValue);
+                return targetValueJs;
             }
 
             try
             {
-                reference.SetValue(JsValue.FromObject(targetValue));
-                return JsValue.FromObject(targetValue);
+                reference.SetValue(targetValueJs);
+                return targetValueJs;
             }
             catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                            StringComparison.Ordinal))

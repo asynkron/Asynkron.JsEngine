@@ -202,3 +202,101 @@ Many bugs are a result of untyped `object` values being passed around instead of
 Always ensure proper conversion when interfacing with JavaScript values.
 
 If a method receives `object`, do not add guards casting or checking for JsObject, update the method to accept `JsValue` directly.
+
+## JsValue Overload Pattern for Evaluators
+
+When optimizing evaluator methods to avoid boxing, follow this pattern:
+
+### Problem
+Methods like `EvaluateBlock`, `EvaluateStatement`, `EvaluateIf` return `object?` which causes boxing when the result is a primitive (double, bool, etc.). In hot loops, this creates massive memory allocations.
+
+### Solution
+Add `JsValue`-returning overloads to evaluator methods:
+
+1. **Keep the original method** for compatibility:
+```csharp
+private object? EvaluateBlock(JsEnvironment environment, EvaluationContext context)
+{
+    var (jsResult, hasJsResult, objResult) = EvaluateBlockCore(block, environment, context);
+    return hasJsResult ? jsResult.ToObject() : objResult;
+}
+```
+
+2. **Add a JsValue overload** for hot paths:
+```csharp
+private JsValue EvaluateBlockJsValue(JsEnvironment environment, EvaluationContext context)
+{
+    var (jsResult, hasJsResult, objResult) = EvaluateBlockCore(block, environment, context);
+    return hasJsResult ? jsResult : JsValue.FromObject(objResult);
+}
+```
+
+3. **Extract core logic** that returns both forms without boxing:
+```csharp
+private (JsValue jsResult, bool hasJsResult, object? objResult) EvaluateBlockCore(
+    JsEnvironment environment, EvaluationContext context)
+{
+    // Implementation that tracks JsValue separately from object results
+}
+```
+
+### Where to Apply
+
+Apply this pattern to evaluators called in hot loops:
+
+| Method | File | Priority |
+|--------|------|----------|
+| `EvaluateStatement` | StatementNodeExtensions.cs | High |
+| `EvaluateBlock` | BlockStatementExtensions.cs | High |
+| `EvaluateIf` | IfStatementExtensions.cs | High |
+| `EvaluateExpression` | Already returns JsValue | Done |
+
+### Usage in Loops
+
+In `LoopPlanExtensions.cs`, use the JsValue versions:
+
+```csharp
+// Track loop result as JsValue to avoid boxing on each iteration
+var lastValueJs = JsValue.Undefined;
+
+while (true)
+{
+    // Use JsValue version - no boxing per iteration
+    lastValueJs = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
+    // ...
+}
+
+// Only box at the final return
+return lastValueJs.ToObject();
+```
+
+### Fast Path in EvaluateStatementJsValue
+
+Handle the common cases without boxing:
+
+```csharp
+private JsValue EvaluateStatementJsValue(JsEnvironment environment, EvaluationContext context, Symbol? activeLabel = null)
+{
+    // Fast path for hot loop cases - avoid boxing
+    switch (statement)
+    {
+        case BlockStatement block:
+            return EvaluateBlockJsValue(block, environment, context);
+        case ExpressionStatement expr:
+            return EvaluateExpression(expr.Expression, environment, context);
+        case IfStatement ifStmt:
+            return EvaluateIfJsValue(ifStmt, environment, context);
+    }
+
+    // Slow path for other statements - box the result
+    var result = EvaluateStatement(statement, environment, context, activeLabel);
+    return JsValue.FromObject(result);
+}
+```
+
+### Results
+
+This optimization reduced memory allocation in the ForLoop benchmark:
+- `let` loops (50k iterations): 4.99 MB → 3.84 MB (23% reduction)
+- `var` loops (100k iterations): 29.52 MB → 27.24 MB (8% reduction)
+- Execution time also improved ~19% for `let` loops

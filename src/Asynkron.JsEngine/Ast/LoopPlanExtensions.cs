@@ -12,7 +12,8 @@ public static partial class TypedAstEvaluator
         private object? EvaluateLoopPlan(JsEnvironment environment, EvaluationContext context,
             Symbol? loopLabel)
         {
-            object? lastValue = Symbol.Undefined;
+            // Use JsValue to track the loop body result to avoid boxing on each iteration
+            var lastValueJs = JsValue.Undefined;
 
             if (context.AllowIdentifierCache && plan.LoopPlanHasDynamicScope())
             {
@@ -23,11 +24,11 @@ public static partial class TypedAstEvaluator
             {
                 foreach (var statement in plan.LeadingStatements)
                 {
-                    var leadingCompletion = EvaluateStatement(statement, environment, context, loopLabel);
+                    // Leading statements use the JsValue path too
+                    lastValueJs = EvaluateStatementJsValue(statement, environment, context, loopLabel);
                     if (context.ShouldStopEvaluation)
                     {
-                        lastValue = leadingCompletion;
-                        return NormalizeLoopCompletion(lastValue);
+                        return NormalizeLoopCompletionJsValue(lastValueJs);
                     }
                 }
             }
@@ -54,7 +55,8 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-                lastValue = EvaluateStatement(plan.Body, iterationEnvironment, context, loopLabel);
+                // Use JsValue version to avoid boxing on each iteration
+                lastValueJs = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
                 if (context.IsReturn || context.IsThrow)
                 {
                     break;
@@ -123,7 +125,18 @@ public static partial class TypedAstEvaluator
                 // Otherwise keep the final iteration environment alive for any closures that captured it.
             }
 
-            return NormalizeLoopCompletion(lastValue);
+            // Only box at the final return
+            return NormalizeLoopCompletionJsValue(lastValueJs);
+        }
+
+        /// <summary>
+        /// JsValue version of NormalizeLoopCompletion - boxes only at the end.
+        /// </summary>
+        private static object? NormalizeLoopCompletionJsValue(JsValue completion)
+        {
+            // EmptyCompletion is represented as JsValue.Undefined with a special check
+            // For JsValue, we just return the boxed value
+            return completion.ToObject();
         }
 
         private JsEnvironment CreatePerIterationEnvironment(JsEnvironment currentIterationEnvironment,

@@ -206,10 +206,10 @@ public class JintComparisonBenchmarks
             fib(25);
             """;
 
-        // For loop intensive (using var to avoid per-iteration environment allocation)
+        // For loop intensive
         _forLoop = """
-            var sum = 0;
-            for (var i = 0; i < 100000; i++) {
+            let sum = 0;
+            for (let i = 0; i < 100000; i++) {
                 sum += i;
             }
             sum;

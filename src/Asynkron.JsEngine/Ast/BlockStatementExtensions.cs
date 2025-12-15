@@ -11,6 +11,32 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment,
             EvaluationContext context)
         {
+            // Delegate to JsValue version and box only at the end
+            var (jsResult, hasJsResult, objResult) = EvaluateBlockCore(block, environment, context);
+            return hasJsResult ? jsResult.ToObject() : objResult;
+        }
+
+        /// <summary>
+        /// JsValue-returning version of EvaluateBlock for use in hot loops.
+        /// Avoids boxing on each iteration by returning JsValue directly.
+        /// </summary>
+        private JsValue EvaluateBlockJsValue(
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            var (jsResult, hasJsResult, objResult) = EvaluateBlockCore(block, environment, context);
+            return hasJsResult ? jsResult : JsValue.FromObject(objResult);
+        }
+
+        /// <summary>
+        /// Core block evaluation that returns both JsValue and object results without boxing.
+        /// Returns: (jsResult, hasJsResult, objResult)
+        /// If hasJsResult is true, use jsResult; otherwise use objResult.
+        /// </summary>
+        private (JsValue jsResult, bool hasJsResult, object? objResult) EvaluateBlockCore(
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
             if (context.AllowIdentifierCache)
             {
                 context.AllowIdentifierCache = AllowsIdentifierCaching(block);
@@ -79,8 +105,7 @@ public static partial class TypedAstEvaluator
                     }
                 }
 
-                // Only box the JsValue at the very end if we have an expression result
-                return hasExpressionResult ? lastExpressionResult.ToObject() : fastResult;
+                return (lastExpressionResult, hasExpressionResult, fastResult);
             }
 
             var scope = new JsEnvironment(environment, false, block.IsStrict);
@@ -167,8 +192,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            // Only box the JsValue at the very end if we have an expression result
-            return hasExpressionResult ? lastExpressionResult.ToObject() : result;
+            return (lastExpressionResult, hasExpressionResult, result);
         }
 
         private void InstantiateLexicalBlockFunctions(

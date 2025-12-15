@@ -467,7 +467,7 @@ public sealed class TypedConstantExpressionTransformer
         if (TryGetLiteralValue(left, out var leftValue) && TryGetLiteralValue(right, out var rightValue) &&
             TryFoldBinary(expression.Operator, leftValue, rightValue, out var foldedValue))
         {
-            return new LiteralExpression(expression.Source, foldedValue);
+            return new LiteralExpression(expression.Source, ToJsValue(foldedValue));
         }
 
         if (ReferenceEquals(left, expression.Left) && ReferenceEquals(right, expression.Right))
@@ -484,7 +484,7 @@ public sealed class TypedConstantExpressionTransformer
         if (TryGetLiteralValue(operand, out var operandValue) &&
             TryFoldUnary(expression.Operator, operandValue, out var foldedValue))
         {
-            return new LiteralExpression(expression.Source, foldedValue);
+            return new LiteralExpression(expression.Source, ToJsValue(foldedValue));
         }
 
         return ReferenceEquals(operand, expression.Operand) ? expression : expression with { Operand = operand };
@@ -698,7 +698,15 @@ public sealed class TypedConstantExpressionTransformer
     {
         if (expression is LiteralExpression literal && IsFoldableLiteral(literal.Value))
         {
-            value = literal.Value;
+            // Extract the underlying value from JsValue for constant folding
+            value = literal.Value.Kind switch
+            {
+                JsTypes.JsValueKind.Null => null,
+                JsTypes.JsValueKind.Boolean => literal.Value.IsBoolean && literal.Value.NumberValue != 0,
+                JsTypes.JsValueKind.Number => literal.Value.NumberValue,
+                JsTypes.JsValueKind.String => literal.Value.AsString(),
+                _ => null
+            };
             return true;
         }
 
@@ -706,9 +714,25 @@ public sealed class TypedConstantExpressionTransformer
         return false;
     }
 
-    private static bool IsFoldableLiteral(object? value)
+    private static bool IsFoldableLiteral(JsTypes.JsValue value)
     {
-        return value is double || value is string || value is bool || value is null;
+        return value.Kind is JsTypes.JsValueKind.Number
+            or JsTypes.JsValueKind.String
+            or JsTypes.JsValueKind.Boolean
+            or JsTypes.JsValueKind.Null;
+    }
+
+    private static JsTypes.JsValue ToJsValue(object? value)
+    {
+        return value switch
+        {
+            null => JsTypes.JsValue.Null,
+            true => JsTypes.JsValue.True,
+            false => JsTypes.JsValue.False,
+            double d => new JsTypes.JsValue(d),
+            string s => new JsTypes.JsValue(s),
+            _ => JsTypes.JsValue.FromObject(value)
+        };
     }
 
     private static bool TryFoldBinary(string op, object? left, object? right, out object? value)

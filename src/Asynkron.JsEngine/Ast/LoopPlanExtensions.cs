@@ -340,7 +340,17 @@ public static partial class TypedAstEvaluator
 
             foreach (var statement in plan.PostIteration)
             {
-                _ = EvaluateStatement(statement, environment, context);
+                // Post-iteration steps usually contain a simple expression (e.g., i++).
+                // We don't need its completion value, so evaluate expression statements
+                // directly to avoid ToObject/GetNumber boxing on every iteration.
+                if (statement is ExpressionStatement expr)
+                {
+                    _ = EvaluateExpression(expr.Expression, environment, context);
+                }
+                else
+                {
+                    _ = EvaluateStatement(statement, environment, context);
+                }
                 if (context.ShouldStopEvaluation)
                 {
                     return false;

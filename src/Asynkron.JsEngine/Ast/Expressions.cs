@@ -1,12 +1,18 @@
 using System.Collections.Immutable;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine.Ast;
 
 /// <summary>
-///     Represents a literal (number, string, boolean, null, etc.).
+///     Represents a literal (number, string, boolean, null, undefined, BigInt).
 /// </summary>
-public sealed record LiteralExpression(SourceReference? Source, object? Value) : ExpressionNode(Source);
+public sealed record LiteralExpression(SourceReference? Source, JsValue Value) : ExpressionNode(Source);
+
+/// <summary>
+///     Represents a regex literal. Kept separate because regex objects require RealmState at runtime.
+/// </summary>
+public sealed record RegexLiteralExpression(SourceReference? Source, string Pattern, string Flags) : ExpressionNode(Source);
 
 /// <summary>
 ///     Represents a reference to an identifier.

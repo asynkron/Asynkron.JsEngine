@@ -99,6 +99,7 @@ public static partial class TypedAstEvaluator
             {
                 // Converted to native JsValue
                 LiteralExpression literal => EvaluateLiteral(literal, context),
+                RegexLiteralExpression regex => EvaluateRegexLiteral(regex, context),
                 IdentifierExpression identifier => EvaluateIdentifier(identifier, environment, context),
                 BinaryExpression binary => EvaluateBinary(binary, environment, context),
                 UnaryExpression unary => EvaluateUnary(unary, environment, context),
@@ -373,7 +374,7 @@ public static partial class TypedAstEvaluator
                     propertyName = member.Property switch
                     {
                         IdentifierExpression id => id.Name.Name,
-                        LiteralExpression { Value: string s } => s,
+                        LiteralExpression { Value.IsString: true } lit => lit.Value.AsString()!,
                         _ => JsOps.GetRequiredPropertyName(EvaluateExpression(member.Property, environment, context).ToObject(),
                             context)
                     };
@@ -497,7 +498,7 @@ public static partial class TypedAstEvaluator
         {
             return property switch
             {
-                LiteralExpression { Value: string s } => s,
+                LiteralExpression { Value.IsString: true } lit => lit.Value.AsString()!,
                 IdentifierExpression id => id.Name.Name,
                 _ => property.GetType().Name
             };

@@ -199,8 +199,9 @@ public static partial class TypedAstEvaluator
                 if (expression.Callee is MemberExpression member)
                 {
                     if (thisValue.TryGetObject<IJsCallable>(out var targetFunction) &&
-                        member.Property is LiteralExpression { Value: string propertyName })
+                        member.Property is LiteralExpression { Value.IsString: true } propLit)
                     {
+                        var propertyName = propLit.Value.AsString();
                         if (string.Equals(propertyName, "apply", StringComparison.Ordinal))
                         {
                             return JsValue.FromObject(InvokeWithApply(targetFunction, expression.Arguments, environment, context));
@@ -219,11 +220,11 @@ public static partial class TypedAstEvaluator
                     // `this` value and arguments instead of throwing.
                     if (member is
                         {
-                            Property: LiteralExpression { Value: "call" }, Target: MemberExpression
+                            Property: LiteralExpression { Value.IsString: true } callLit, Target: MemberExpression
                             {
-                                Property: LiteralExpression { Value: "formatArgs" }
+                                Property: LiteralExpression { Value.IsString: true } formatArgsLit
                             } inner
-                        })
+                        } && callLit.Value.AsString() == "call" && formatArgsLit.Value.AsString() == "formatArgs")
                     {
                         var targetJs = EvaluateExpression(inner.Target, environment, context);
                         if (context.ShouldStopEvaluation)
@@ -589,7 +590,7 @@ public static partial class TypedAstEvaluator
             string? methodName = member.Property switch
             {
                 IdentifierExpression id => id.Name.Name,
-                LiteralExpression { Value: string s } => s,
+                LiteralExpression { Value.IsString: true } lit => lit.Value.AsString(),
                 _ => null
             };
 

@@ -2349,7 +2349,7 @@ public sealed class TypedAstParser(
             {
                 var token = Previous();
                 EnsureNumericLiteralAllowed(token);
-                expr = new LiteralExpression(CreateSourceReference(token), token.Literal);
+                expr = new LiteralExpression(CreateSourceReference(token), new JsValue((double)token.Literal!));
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
@@ -2357,13 +2357,15 @@ public sealed class TypedAstParser(
             {
                 var token = Previous();
                 EnsureNumericLiteralAllowed(token);
-                expr = new LiteralExpression(CreateSourceReference(token), token.Literal);
+                expr = new LiteralExpression(CreateSourceReference(token), new JsValue((JsBigInt)token.Literal!));
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
             if (Match(TokenType.RegexLiteral))
             {
-                expr = new LiteralExpression(CreateSourceReference(Previous()), Previous().Literal);
+                var token = Previous();
+                var regex = (RegexLiteralValue)token.Literal!;
+                expr = new RegexLiteralExpression(CreateSourceReference(token), regex.Pattern, regex.Flags);
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
@@ -2371,7 +2373,7 @@ public sealed class TypedAstParser(
             {
                 var token = Previous();
                 var literalValue = GetStringLiteralValue(token);
-                expr = new LiteralExpression(CreateSourceReference(token), literalValue);
+                expr = new LiteralExpression(CreateSourceReference(token), new JsValue(literalValue));
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
@@ -2383,19 +2385,19 @@ public sealed class TypedAstParser(
 
             if (Match(TokenType.True))
             {
-                expr = new LiteralExpression(CreateSourceReference(Previous()), true);
+                expr = new LiteralExpression(CreateSourceReference(Previous()), JsValue.True);
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
             if (Match(TokenType.False))
             {
-                expr = new LiteralExpression(CreateSourceReference(Previous()), false);
+                expr = new LiteralExpression(CreateSourceReference(Previous()), JsValue.False);
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
             if (Match(TokenType.Null))
             {
-                expr = new LiteralExpression(CreateSourceReference(Previous()), null);
+                expr = new LiteralExpression(CreateSourceReference(Previous()), JsValue.Null);
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
@@ -3059,9 +3061,8 @@ public sealed class TypedAstParser(
             foreach (var text in values)
             {
                 // If text is null, the cooked value is undefined (ES2018 tagged template literal revision)
-                // Use Symbol.Undefined to represent JavaScript's undefined value
-                object? value = text is null ? Symbol.Undefined : text;
-                var literal = new LiteralExpression(null, value);
+                var jsValue = text is null ? JsValue.Undefined : new JsValue(text);
+                var literal = new LiteralExpression(null, jsValue);
                 elements.Add(new ArrayElement(null, literal, false));
             }
 

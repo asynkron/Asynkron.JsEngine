@@ -590,13 +590,13 @@ public static partial class TypedAstEvaluator
         }
 
         // Use NumericResult to avoid boxing
-        var leftNumeric = JsOps.ToNumericResult(leftPrimitive, context);
+        var leftNumeric = leftPrimitive is JsValue leftJs ? JsOps.ToNumericResult(leftJs, context) : JsOps.ToNumericResult(leftPrimitive, context);
         if (context.ShouldStopEvaluation)
         {
             return context.FlowValue;
         }
 
-        var rightNumeric = JsOps.ToNumericResult(rightPrimitive, context);
+        var rightNumeric = rightPrimitive is JsValue rightJs ? JsOps.ToNumericResult(rightJs, context) : JsOps.ToNumericResult(rightPrimitive, context);
         if (context.ShouldStopEvaluation)
         {
             return context.FlowValue;
@@ -699,13 +699,13 @@ public static partial class TypedAstEvaluator
         EvaluationContext context)
     {
         // Use NumericResult to avoid boxing during the operation
-        var leftNumeric = JsOps.ToNumericResult(left, context);
+        var leftNumeric = left is JsValue ljs ? JsOps.ToNumericResult(ljs, context) : JsOps.ToNumericResult(left, context);
         if (context.ShouldStopEvaluation)
         {
             return context.FlowValue;
         }
 
-        var rightNumeric = JsOps.ToNumericResult(right, context);
+        var rightNumeric = right is JsValue rjs ? JsOps.ToNumericResult(rjs, context) : JsOps.ToNumericResult(right, context);
         if (context.ShouldStopEvaluation)
         {
             return context.FlowValue;

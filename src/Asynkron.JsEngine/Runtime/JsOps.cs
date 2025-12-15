@@ -140,6 +140,28 @@ internal static class JsOps
     /// Only call ToObject() on the result when you need to return to JS.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static NumericResult ToNumericResult(JsValue value, EvaluationContext? context = null)
+    {
+        switch (value.Kind)
+        {
+            case JsValueKind.Undefined:
+                return new NumericResult(double.NaN);
+            case JsValueKind.Null:
+                return new NumericResult(0d);
+            case JsValueKind.Boolean:
+            case JsValueKind.Number:
+                return new NumericResult(value.NumberValue);
+            case JsValueKind.BigInt when value.ObjectValue is JsBigInt jsBigInt:
+                return new NumericResult(jsBigInt);
+            case JsValueKind.String:
+            case JsValueKind.Symbol:
+            case JsValueKind.Object:
+                return ToNumericResult(value.ObjectValue, context);
+            default:
+                return new NumericResult(double.NaN);
+        }
+    }
+
     internal static NumericResult ToNumericResult(object? value, EvaluationContext? context = null)
     {
         // Fast paths for already-numeric types (avoid full conversion)
@@ -178,8 +200,30 @@ internal static class JsOps
                 case null:
                     return new NumericResult(0d);
                 case JsValue jsValue:
-                    value = jsValue.ToObject();
-                    continue;
+                    switch (jsValue.Kind)
+                    {
+                        case JsValueKind.Undefined:
+                            return new NumericResult(double.NaN);
+                        case JsValueKind.Null:
+                            return new NumericResult(0d);
+                        case JsValueKind.Boolean:
+                        case JsValueKind.Number:
+                            return new NumericResult(jsValue.NumberValue);
+                        case JsValueKind.BigInt:
+                            if (jsValue.ObjectValue is JsBigInt jsBigInt)
+                            {
+                                return new NumericResult(jsBigInt);
+                            }
+                            return new NumericResult(double.NaN);
+                        case JsValueKind.String:
+                        case JsValueKind.Symbol:
+                        case JsValueKind.Object:
+                            value = jsValue.ObjectValue;
+                            continue;
+                        default:
+                            value = jsValue.ToObject();
+                            continue;
+                    }
                 case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
                 case IIsHtmlDda:
                     return new NumericResult(double.NaN);

@@ -49,7 +49,7 @@ public static partial class TypedAstEvaluator
                         // WITHOUT calling IteratorClose.
                         var thrown = context.FlowValue;
                         context.Clear();
-                        throw new ThrowSignal(JsValue.FromObject(thrown));
+                        throw new ThrowSignal(thrown);
                     }
                 }
                 else if (state.Enumerator is not null)
@@ -70,7 +70,7 @@ public static partial class TypedAstEvaluator
                     if (state.IteratorObject is not null && !iteratorDone)
                     {
                         IteratorClose(state.IteratorObject, context, preserveExistingThrow: true,
-                            existingThrowOverride: JsValue.FromObject(thrown));
+                            existingThrowOverride: thrown);
 
                         if (context.IsThrow)
                         {
@@ -79,7 +79,7 @@ public static partial class TypedAstEvaluator
                         }
                     }
 
-                    throw new ThrowSignal(JsValue.FromObject(thrown));
+                    throw new ThrowSignal(thrown);
                 }
 
                 // Unwrap JsValue struct if present

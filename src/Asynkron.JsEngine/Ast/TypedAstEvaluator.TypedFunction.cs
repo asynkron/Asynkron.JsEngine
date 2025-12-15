@@ -891,7 +891,7 @@ public static partial class TypedAstEvaluator
                     if (callingContext is not null)
                     {
                         callingContext.SetThrow(thrown);
-                        return JsValue.FromObject(thrown);
+                        return thrown;
                     }
 
                     throw new ThrowSignal(thrown);
@@ -1659,7 +1659,7 @@ public static partial class TypedAstEvaluator
                     if (callingContext is not null)
                     {
                         callingContext.SetThrow(thrown);
-                        return JsValue.FromObject(thrown);
+                        return thrown;
                     }
                     throw new ThrowSignal(thrown);
                 }

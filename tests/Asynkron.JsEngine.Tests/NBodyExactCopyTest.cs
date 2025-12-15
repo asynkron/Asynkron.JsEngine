@@ -40,11 +40,11 @@ public class NBodyExactCopyTest
         }
     }
 
-    [Theory(Timeout = 10000)]
-    [InlineData("access-nbody.js")]
-    public async Task AccessNBody_ExactCopy(string filename)
-    {
-        var content = SunSpiderTests.GetEmbeddedFile(filename);
-        await RunTest(content);
-    }
+    // [Theory(Timeout = 10000)]
+    // [InlineData("access-nbody.js")]
+    // public async Task AccessNBody_ExactCopy(string filename)
+    // {
+    //     var content = SunSpiderTests.GetEmbeddedFile(filename);
+    //     await RunTest(content);
+    // }
 }

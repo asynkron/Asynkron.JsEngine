@@ -527,7 +527,7 @@ public static partial class TypedAstEvaluator
                                 context.Clear();
                                 _state = GeneratorState.Suspended;
                                 // If we have an original iterator result object, return it to preserve done property
-                                return JsValue.FromObject(iteratorResultObject ?? CreateIteratorResult(JsValue.FromObject(yieldedSignalValue), false));
+                                return JsValue.FromObject(iteratorResultObject ?? CreateIteratorResult(yieldedSignalValue, false));
                             }
 
                             _programCounter = statementInstruction.Next;

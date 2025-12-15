@@ -150,23 +150,23 @@ public static partial class TypedAstEvaluator
                 {
                     if (iteratorResult.PropagateThrow)
                     {
-                        context.SetThrow(JsValue.FromObject(iteratorResult.Value));
+                        context.SetThrow(iteratorResult.Value);
                         ClearDelegatedState(stateKey, environment);
-                        return JsValue.FromObject(iteratorResult.Value);
+                        return iteratorResult.Value;
                     }
 
                     // For return propagation (when inner iterator has no return method),
                     // signal a return completion to the outer generator
                     ClearDelegatedState(stateKey, environment);
-                    context.SetReturn(JsValue.FromObject(iteratorResult.Value));
-                    return JsValue.FromObject(iteratorResult.Value);
+                    context.SetReturn(iteratorResult.Value);
+                    return iteratorResult.Value;
                 }
 
                 var (value, done) = (iteratorResult.Value, iteratorResult.Done);
                 if (done)
                 {
                     ClearDelegatedState(stateKey, environment);
-                    return JsValue.FromObject(value);
+                    return value;
                 }
 
                 if (!tracker.ShouldYield(out var yieldIndex))

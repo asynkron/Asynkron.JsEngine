@@ -147,6 +147,7 @@ class Profiler:
         # Calculate time spent in each frame
         frame_times = defaultdict(float)
         frame_counts = defaultdict(int)
+        caller_callee = defaultdict(lambda: defaultdict(int))  # caller -> callee -> count
         stack = []
 
         for event in profile.get('events', []):
@@ -155,6 +156,10 @@ class Profiler:
             at = event['at']
 
             if event_type == 'O':  # Open
+                # Track caller -> callee relationship
+                if stack:
+                    caller_idx = stack[-1][0]
+                    caller_callee[caller_idx][frame_idx] += 1
                 stack.append((frame_idx, at))
                 frame_counts[frame_idx] += 1
             elif event_type == 'C':  # Close
@@ -169,7 +174,10 @@ class Profiler:
             'all_functions': [],
             'jsengine_functions': [],
             'total_time': sum(frame_times.values()),
-            'jsengine_time': 0
+            'jsengine_time': 0,
+            'frames': frames,
+            'caller_callee': caller_callee,
+            'frame_counts': frame_counts
         }
 
         for frame_idx, time_spent in sorted_frames:
@@ -179,7 +187,8 @@ class Profiler:
             entry = {
                 'name': name,
                 'time_ms': time_spent,
-                'calls': count
+                'calls': count,
+                'frame_idx': frame_idx
             }
 
             results['all_functions'].append(entry)
@@ -259,7 +268,7 @@ class Profiler:
         results['raw_output'] = output
         return results
 
-    def print_cpu_results(self, results, profile_key):
+    def print_cpu_results(self, results, profile_key, show_call_graph=True):
         """Print CPU profiling results"""
         if not results:
             print(f"{Colors.RED}No results to display{Colors.END}")
@@ -293,6 +302,156 @@ class Profiler:
         js_pct = 100 * results['jsengine_time'] / results['total_time'] if results['total_time'] > 0 else 0
         print(f"{Colors.BOLD}JsEngine time: {results['jsengine_time']:.2f} ms ({js_pct:.1f}% of total){Colors.END}")
         print(f"{Colors.BOLD}Total time: {results['total_time']:.2f} ms{Colors.END}")
+
+        # Call graph for hot JsEngine functions
+        if show_call_graph and 'caller_callee' in results:
+            self.print_call_graph(results)
+
+    def print_call_graph(self, results, top_n=10):
+        """Print call graph showing callers and callees for hot functions"""
+        # Call the allocation-focused call graph
+        self.print_allocation_callgraph(results, top_n=15)
+
+    def print_allocation_callgraph(self, results, top_n=15):
+        """Print call graph as a hierarchical tree starting from hottest functions"""
+        frames = results.get('frames', [])
+        caller_callee = results.get('caller_callee', {})
+        frame_counts = results.get('frame_counts', {})
+
+        if not caller_callee:
+            print("No call graph data available")
+            return
+
+        jsengine_keywords = ['Asynkron', 'JsEngine']
+
+        def shorten(name, max_len=55):
+            short = name.split('!')[-1] if '!' in name else name
+            # Extract just the method name for cleaner output
+            if '(' in short:
+                short = short.split('(')[0]
+            if len(short) > max_len:
+                short = short[:max_len-3] + "..."
+            return short
+
+        def is_jsengine(name):
+            return any(kw in name for kw in jsengine_keywords)
+
+        # Get the hottest JsEngine functions
+        hot_functions = []
+        for idx, frame in enumerate(frames):
+            name = frame['name']
+            if not is_jsengine(name):
+                continue
+            count = frame_counts.get(idx, 0)
+            if count >= 100:
+                hot_functions.append((idx, name, count))
+
+        hot_functions.sort(key=lambda x: -x[2])
+
+        print_section("CALL HIERARCHY (top functions → what they call)")
+        print()
+
+        # Show top hot functions with what they call (3 levels)
+        shown = set()
+        for root_idx, root_name, root_count in hot_functions[:8]:
+            if root_idx in shown:
+                continue
+            shown.add(root_idx)
+
+            print(f"{Colors.BOLD}{shorten(root_name, 65)}{Colors.END} ({root_count:,} calls)")
+
+            # Level 1: what this function calls
+            children = caller_callee.get(root_idx, {})
+            sorted_children = sorted(
+                [(idx, cnt) for idx, cnt in children.items()
+                 if idx < len(frames) and is_jsengine(frames[idx]['name'])],
+                key=lambda x: -x[1]
+            )[:4]
+
+            for i, (child_idx, child_count) in enumerate(sorted_children):
+                child_name = frames[child_idx]['name']
+                is_last_child = (i == len(sorted_children) - 1)
+                prefix1 = "└── " if is_last_child else "├── "
+
+                print(f"  {prefix1}{shorten(child_name)} ({child_count:,})")
+
+                # Level 2: what the child calls
+                grandchildren = caller_callee.get(child_idx, {})
+                sorted_gc = sorted(
+                    [(idx, cnt) for idx, cnt in grandchildren.items()
+                     if idx < len(frames) and is_jsengine(frames[idx]['name'])],
+                    key=lambda x: -x[1]
+                )[:3]
+
+                for j, (gc_idx, gc_count) in enumerate(sorted_gc):
+                    gc_name = frames[gc_idx]['name']
+                    is_last_gc = (j == len(sorted_gc) - 1)
+                    connector = "    " if is_last_child else "│   "
+                    prefix2 = connector + ("└── " if is_last_gc else "├── ")
+
+                    print(f"  {prefix2}{shorten(gc_name)} ({gc_count:,})")
+
+                    # Level 3: what grandchild calls
+                    ggc = caller_callee.get(gc_idx, {})
+                    sorted_ggc = sorted(
+                        [(idx, cnt) for idx, cnt in ggc.items()
+                         if idx < len(frames) and is_jsengine(frames[idx]['name'])],
+                        key=lambda x: -x[1]
+                    )[:2]
+
+                    for k, (ggc_idx, ggc_count) in enumerate(sorted_ggc):
+                        ggc_name = frames[ggc_idx]['name']
+                        is_last_ggc = (k == len(sorted_ggc) - 1)
+                        c2 = "    " if is_last_child else "│   "
+                        c3 = "    " if is_last_gc else "│   "
+                        prefix3 = c2 + c3 + ("└── " if is_last_ggc else "├── ")
+                        print(f"  {prefix3}{shorten(ggc_name)} ({ggc_count:,})")
+
+            print()
+
+    def find_allocation_paths(self, results, target_function):
+        """Find all call paths leading to a specific function (e.g., an allocator)"""
+        frames = results.get('frames', [])
+        caller_callee = results.get('caller_callee', {})
+
+        # Find frame index for target
+        target_idx = None
+        for idx, frame in enumerate(frames):
+            if target_function.lower() in frame['name'].lower():
+                target_idx = idx
+                break
+
+        if target_idx is None:
+            print(f"Function '{target_function}' not found")
+            return []
+
+        # Build reverse map
+        callee_callers = defaultdict(set)
+        for caller_idx, callees in caller_callee.items():
+            for callee_idx in callees:
+                callee_callers[callee_idx].add(caller_idx)
+
+        # BFS to find paths
+        paths = []
+        queue = [(target_idx, [target_idx])]
+        visited = set()
+
+        while queue and len(paths) < 20:
+            current, path = queue.pop(0)
+            if current in visited:
+                continue
+            visited.add(current)
+
+            callers = callee_callers.get(current, set())
+            if not callers:
+                # Root - this is a complete path
+                paths.append(list(reversed(path)))
+            else:
+                for caller in callers:
+                    if caller not in visited:
+                        queue.append((caller, path + [caller]))
+
+        return paths
 
     def print_memory_results(self, results, profile_key):
         """Print memory profiling results"""

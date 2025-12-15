@@ -88,6 +88,7 @@ The script automatically:
 3. Converts traces to speedscope format
 4. Parses the JSON and outputs hot functions
 5. Runs allocation profiling with GC stats
+6. Shows allocation call graphs (who triggered each allocation)
 
 #### Output Example
 
@@ -101,6 +102,28 @@ The script automatically:
 
 JsEngine time: 166928.10 ms (91.8% of total)
 ```
+
+#### Allocation Call Graph
+
+The profiler also outputs allocation hotspots with call graphs showing the code paths that triggered allocations:
+
+```
+=== ALLOCATION HOTSPOTS (constructors & allocators) ===
+
+CreateNextIterationEnvironment
+  Calls: 1048
+  Allocated by:
+    <- EvaluateLoopPlanJsValue (1048x, 100%)
+         <- EvaluateForJsValue (4x)
+
+JsArgumentsObject..ctor
+  Calls: 208
+  Allocated by:
+    <- CreateArgumentsObject (208x, 100%)
+         <- TypedFunction.Invoke (362x)
+```
+
+This helps identify which code paths cause the most memory allocations.
 
 ### Manual Profiling
 

@@ -1265,7 +1265,7 @@ public sealed class JsEnvironment
         var globalObject = environment.GetRootGlobalObject();
         if (globalObject is null)
         {
-            globalScope.Define(name, value, isLexical: false, canDelete: true);
+            globalScope.DefineJsValue(name, JsValue.FromObject(value), isLexical: false, canDelete: true);
             return;
         }
 
@@ -1812,7 +1812,7 @@ public sealed class JsEnvironment
                 }
 
                 // Non-strict mode: Create the variable in the global scope (this environment)
-                current.Define(name, value);
+                current.DefineJsValue(name, JsValue.FromObject(value));
                 globalObject?.SetProperty(name.Name, JsValue.FromObject(value));
                 return;
             }

@@ -2525,7 +2525,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 continue;
             }
 
-            lexicalEnvironment.Define(name, JsEnvironment.Uninitialized, isConst, isLexical: true,
+            lexicalEnvironment.DefineJsValue(name, JsValue.FromObject(JsEnvironment.Uninitialized), isConst, isLexical: true,
                 blocksFunctionScopeOverride: true);
         }
     }

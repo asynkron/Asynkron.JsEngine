@@ -589,14 +589,14 @@ public static partial class TypedAstEvaluator
             return JsOps.ToJsString(leftPrimitive, context) + JsOps.ToJsString(rightPrimitive, context);
         }
 
-        // Use NumericResult to avoid boxing
-        var leftNumeric = leftPrimitive is JsValue leftJs ? JsOps.ToNumericResult(leftJs, context) : JsOps.ToNumericResult(leftPrimitive, context);
+        // Use JsValue-based conversion to avoid boxing
+        var leftNumeric = ToNumericValue(leftPrimitive is JsValue leftJs ? leftJs : JsValue.FromObject(leftPrimitive), context);
         if (context.ShouldStopEvaluation)
         {
             return context.FlowValue;
         }
 
-        var rightNumeric = rightPrimitive is JsValue rightJs ? JsOps.ToNumericResult(rightJs, context) : JsOps.ToNumericResult(rightPrimitive, context);
+        var rightNumeric = ToNumericValue(rightPrimitive is JsValue rightJs ? rightJs : JsValue.FromObject(rightPrimitive), context);
         if (context.ShouldStopEvaluation)
         {
             return context.FlowValue;
@@ -605,13 +605,13 @@ public static partial class TypedAstEvaluator
         // Both are numbers - most common case
         if (leftNumeric.IsNumber && rightNumeric.IsNumber)
         {
-            return JsValueCache.GetNumber(leftNumeric.NumberValue + rightNumeric.NumberValue);
+            return new JsValue(leftNumeric.NumberValue + rightNumeric.NumberValue);
         }
 
         // Both are BigInt
         if (leftNumeric.IsBigInt && rightNumeric.IsBigInt)
         {
-            return leftNumeric.BigIntValue! + rightNumeric.BigIntValue!;
+            return new JsValue(leftNumeric.AsBigInt() + rightNumeric.AsBigInt());
         }
 
         // Mixed types - error
@@ -622,7 +622,7 @@ public static partial class TypedAstEvaluator
         }
 
         // Fallback
-        return JsValueCache.GetNumber(leftNumeric.NumberValue + rightNumeric.NumberValue);
+        return new JsValue(leftNumeric.NumberValue + rightNumeric.NumberValue);
     }
 
     private static object Subtract(object? left, object? right, EvaluationContext context)
@@ -698,14 +698,14 @@ public static partial class TypedAstEvaluator
         Func<double, double, double> numericOp,
         EvaluationContext context)
     {
-        // Use NumericResult to avoid boxing during the operation
-        var leftNumeric = left is JsValue ljs ? JsOps.ToNumericResult(ljs, context) : JsOps.ToNumericResult(left, context);
+        // Use JsValue-based conversion to avoid boxing during the operation
+        var leftNumeric = ToNumericValue(left is JsValue ljs ? ljs : JsValue.FromObject(left), context);
         if (context.ShouldStopEvaluation)
         {
             return context.FlowValue;
         }
 
-        var rightNumeric = right is JsValue rjs ? JsOps.ToNumericResult(rjs, context) : JsOps.ToNumericResult(right, context);
+        var rightNumeric = ToNumericValue(right is JsValue rjs ? rjs : JsValue.FromObject(right), context);
         if (context.ShouldStopEvaluation)
         {
             return context.FlowValue;
@@ -714,13 +714,13 @@ public static partial class TypedAstEvaluator
         // Both are numbers - most common case
         if (leftNumeric.IsNumber && rightNumeric.IsNumber)
         {
-            return JsValueCache.GetNumber(numericOp(leftNumeric.NumberValue, rightNumeric.NumberValue));
+            return new JsValue(numericOp(leftNumeric.NumberValue, rightNumeric.NumberValue));
         }
 
         // Both are BigInt
         if (leftNumeric.IsBigInt && rightNumeric.IsBigInt)
         {
-            return bigIntOp(leftNumeric.BigIntValue!, rightNumeric.BigIntValue!, context);
+            return bigIntOp(leftNumeric.AsBigInt(), rightNumeric.AsBigInt(), context);
         }
 
         // Mixed types - error
@@ -731,7 +731,7 @@ public static partial class TypedAstEvaluator
         }
 
         // Fallback (shouldn't reach here normally)
-        return JsValueCache.GetNumber(numericOp(leftNumeric.NumberValue, rightNumeric.NumberValue));
+        return new JsValue(numericOp(leftNumeric.NumberValue, rightNumeric.NumberValue));
     }
 
     private static bool LooseEquals(object? left, object? right, EvaluationContext context)

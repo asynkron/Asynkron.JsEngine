@@ -35,11 +35,9 @@ public static partial class TypedAstEvaluator
                             return expression.IsPrefix ? new JsValue(updatedValue) : new JsValue(d);
                         }
 
-                        // Fall back to object path for non-numeric values
-                        var currentValue = currentJsValue.ToObject();
-
-                        // Per ES spec, convert to numeric first (handles both Number and BigInt)
-                        var oldNumeric = JsOps.ToNumeric(currentValue, context);
+                        // Fall back to JsValue path for non-numeric values (e.g., BigInt, strings)
+                        // This avoids boxing by staying in JsValue land throughout
+                        var oldNumeric = ToNumericValue(currentJsValue, context);
                         if (context.ShouldStopEvaluation)
                         {
                             return context.FlowValue;
@@ -47,13 +45,13 @@ public static partial class TypedAstEvaluator
 
                         // Calculate new value (increment/decrement the already-converted numeric value)
                         var updated = expression.Operator == "++"
-                            ? IncrementValue(JsValue.FromObject(oldNumeric), context)
-                            : DecrementValue(JsValue.FromObject(oldNumeric), context);
+                            ? IncrementValue(oldNumeric, context)
+                            : DecrementValue(oldNumeric, context);
                         reference.SetValue(updated);
 
                         // Postfix returns the old numeric value (after conversion but before increment/decrement)
                         // Prefix returns the new value (after increment/decrement)
-                        return expression.IsPrefix ? updated : JsValue.FromObject(oldNumeric);
+                        return expression.IsPrefix ? updated : oldNumeric;
                     }
                     case "delete":
                         return EvaluateDelete(expression.Operand, environment, context) ? JsValue.True : JsValue.False;

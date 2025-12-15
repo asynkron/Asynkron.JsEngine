@@ -1947,6 +1947,77 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
+    ///     Schedules a continuation to run on the event queue after an external task completes.
+    ///     The pending task count is incremented immediately, ensuring the event loop waits
+    ///     for the external task to complete. The external task runs on the thread pool,
+    ///     not blocking the event loop.
+    /// </summary>
+    /// <param name="taskToAwait">The external task to wait for (e.g., Task.Delay, IO operation).</param>
+    /// <param name="continuation">The continuation to run on the event queue after the task completes.</param>
+    public void ScheduleAfterTask(Task taskToAwait, Action continuation)
+    {
+        StartEventLoop();
+        var queue = _eventQueue ?? throw new InvalidOperationException("Event loop is not running.");
+        var capturedActivity = Activity.Current;
+
+        // Increment immediately to track pending work
+        Interlocked.Increment(ref _pendingTaskCount);
+
+        taskToAwait.ContinueWith(_ =>
+        {
+            // Task completed on thread pool, now schedule continuation on event loop
+            // Write directly to queue - don't use ScheduleTask as that would increment again
+            queue.Writer.TryWrite(() =>
+            {
+                var previousActivity = Activity.Current;
+                var activityChanged = !ReferenceEquals(previousActivity, capturedActivity);
+                if (activityChanged)
+                {
+                    Activity.Current = capturedActivity;
+                }
+
+                try
+                {
+                    continuation();
+                }
+                finally
+                {
+                    if (activityChanged)
+                    {
+                        Activity.Current = previousActivity;
+                    }
+                }
+
+                return ValueTask.CompletedTask;
+            });
+            // ProcessEventQueue will decrement _pendingTaskCount when this completes
+        }, TaskScheduler.Default);
+    }
+
+    /// <summary>
+    ///     Tracks a pending async task without scheduling any event queue callbacks.
+    ///     The pending task count is incremented immediately, ensuring the event loop waits
+    ///     for the task to complete. When the task completes, the count is decremented.
+    ///     Use this when the task itself will schedule its own callbacks via ScheduleTask.
+    /// </summary>
+    /// <param name="task">The async task to track.</param>
+    public void TrackPendingAsyncWork(Task task)
+    {
+        StartEventLoop();
+
+        // Increment immediately to track pending work
+        Interlocked.Increment(ref _pendingTaskCount);
+
+        task.ContinueWith(_ =>
+        {
+            // Task completed - decrement the counter
+            // The task's internal ScheduleTask calls will have their own increment/decrement cycle
+            Interlocked.Decrement(ref _pendingTaskCount);
+            TrySignalDrainComplete();
+        }, TaskScheduler.Default);
+    }
+
+    /// <summary>
     ///     Processes all events in the event queue until it's empty.
     ///     Each event is executed synchronously and any new events scheduled during execution
     ///     will also be processed.
@@ -2371,7 +2442,9 @@ public sealed class JsEngine : IAsyncDisposable
         var capturedReferrerPath = callee?.CallingJsEnvironment is JsEnvironment env ? env.ModulePath : _currentModulePath;
 
         // Run async module loading on threadpool, then schedule sync completion to event loop
-        _ = RunDynamicImportAsync(args, context, phase, capturedReferrerPath, promise);
+        // Track the async work to ensure the event loop waits for it to complete
+        var importTask = RunDynamicImportAsync(args, context, phase, capturedReferrerPath, promise);
+        TrackPendingAsyncWork(importTask);
 
         return new JsValue(promiseObj);
 
@@ -2426,7 +2499,19 @@ public sealed class JsEngine : IAsyncDisposable
                 return;
             }
 
-            var specifierString = specifierStringValue.ToString();
+            // Use TryGetString to get the raw string value, not ToString() which adds quotes
+            if (!specifierStringValue.TryGetString(out var specifierString))
+            {
+                ScheduleTask(() =>
+                {
+                    var typeError = StandardLibrary.CreateTypeError(
+                        "import() specifier must be a string",
+                        context,
+                        RealmState);
+                    promise.Reject(JsValue.FromObject(typeError));
+                });
+                return;
+            }
             if (phase == ImportPhase.Source)
             {
                 ScheduleTask(() =>

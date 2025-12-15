@@ -36,30 +36,31 @@ internal static class AsyncTestHelpers
                     return JsValue.Undefined;
                 }
 
+                void ResolveContinuation()
+                {
+                    try
+                    {
+                        resolve.Invoke([value], JsValue.Undefined);
+                    }
+                    catch (Exception ex)
+                    {
+                        reject.Invoke([new JsValue(ex.Message)], JsValue.Undefined);
+                    }
+                }
 
                 if (ms == 0)
-                    ContinuationFunction(Task.CompletedTask);
+                {
+                    // Zero delay - schedule directly on event queue
+                    engine.ScheduleTask(ResolveContinuation);
+                }
                 else
-                    Task.Delay(ms).ContinueWith(ContinuationFunction);
+                {
+                    // Non-zero delay - use ScheduleAfterTask to track pending work
+                    // while the delay runs on the thread pool
+                    engine.ScheduleAfterTask(Task.Delay(ms), ResolveContinuation);
+                }
 
                 return JsValue.Undefined;
-
-                void ContinuationFunction(Task _)
-                {
-                    engine.ScheduleTask((Func<Task>)(async () =>
-                    {
-                        try
-                        {
-                            resolve.Invoke([value], JsValue.Undefined);
-                        }
-                        catch (Exception ex)
-                        {
-                            reject.Invoke([new JsValue(ex.Message)], JsValue.Undefined);
-                        }
-
-                        await Task.CompletedTask.ConfigureAwait(false);
-                    }));
-                }
             });
 
             if (promiseCtor is HostFunction hostCtor)

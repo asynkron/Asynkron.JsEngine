@@ -212,13 +212,25 @@ public static partial class TypedAstEvaluator
                     // if needed. Pass JsValue.Undefined here; the caller will use the nextResult object directly.
                     value = JsValue.Undefined;
                 }
+
+                // When we awaited a Promise from return() and got done: true, report done: false
+                // to allow the generator to suspend and continue on the next call. The actual iterator
+                // result object (nextResult) still has done: true so the caller sees the correct result.
+                // On the next g.next() call, inner.next() will be called to continue iteration.
+                var reportedDone = done;
+                if (awaitedPromise && propagateReturn && done)
+                {
+                    reportedDone = false;
+                }
+
                 // Delegated completion occurs when:
                 // 1. Inner iterator is a generator AND we propagated throw/return, OR
                 // 2. We propagated return AND inner iterator completed (done: true) - even for non-generator iterators
+                // Use reportedDone for delegated completion check to avoid early completion when Promise was awaited
                 var delegatedCompletion = (_isGeneratorObject && (propagateThrow || propagateReturn)) ||
-                                         (propagateReturn && done);
-                var propagateThrowResult = propagateThrow && done;
-                return (value, done, delegatedCompletion, propagateThrowResult, nextResult);
+                                         (propagateReturn && reportedDone);
+                var propagateThrowResult = propagateThrow && reportedDone;
+                return (value, reportedDone, delegatedCompletion, propagateThrowResult, nextResult);
             }
 
             if (_enumerator is null)

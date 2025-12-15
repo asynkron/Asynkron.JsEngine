@@ -1509,25 +1509,26 @@ public static partial class StandardLibrary
     private static TypedArrayBase TypedArraySpeciesCreate(TypedArrayBase exemplar, int length, RealmState? realm)
     {
         length = Math.Max(length, 0);
-        object? constructorValue = null;
+        JsValue constructorValue = JsValue.Undefined;
 
         if (exemplar.TryGetProperty("constructor", JsValue.FromObject(exemplar), out var ctorValue))
         {
             constructorValue = ctorValue;
         }
 
-        if (constructorValue is IJsPropertyAccessor ctorAccessor &&
+        // Check if constructor value is an object with [Symbol.species]
+        if (constructorValue.TryGetObject<IJsPropertyAccessor>(out var ctorAccessor) &&
             ctorAccessor.TryGetProperty(SymbolSpeciesKey, out var speciesValue))
         {
             constructorValue = speciesValue;
         }
 
-        if (constructorValue is null || ReferenceEquals(constructorValue, Symbol.Undefined))
+        if (constructorValue.IsNullOrUndefined)
         {
             return CreateDefaultTypedArray(exemplar, length);
         }
 
-        if (!JsOps.IsConstructor(constructorValue) || constructorValue is not IJsCallable callable)
+        if (!JsOps.IsConstructor(constructorValue) || !constructorValue.TryGetObject<IJsCallable>(out var callable))
         {
             throw ThrowTypeError("TypedArray species constructor must be a constructor", realm: realm);
         }

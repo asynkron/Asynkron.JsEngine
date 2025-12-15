@@ -1727,6 +1727,9 @@ internal static class JsOps
         {
             switch (value)
             {
+                case JsValue jsValue:
+                    value = jsValue.ToObject();
+                    continue;
                 case JsProxy proxy:
                     value = proxy.Target;
                     continue;

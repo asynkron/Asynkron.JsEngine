@@ -17,7 +17,7 @@ public static partial class TypedAstEvaluator
                 {
                     case "++" or "--":
                     {
-                        // Fast path: use ResolveIdentifierFast for simple identifiers to avoid delegate allocation
+                        // Fast path: use ResolveIdentifierDirect for simple identifiers to avoid allocations
                         // Member expressions (obj.x++) need the full Resolve with delegate for property evaluation
                         var targetOperand = expression.Operand;
                         while (targetOperand is UnaryExpression { Operator: "++" or "--" } nested)
@@ -25,8 +25,8 @@ public static partial class TypedAstEvaluator
                             targetOperand = nested.Operand;
                         }
 
-                        var reference = targetOperand is IdentifierExpression
-                            ? AssignmentReferenceResolver.ResolveIdentifierFast(expression.Operand, environment, context)
+                        var reference = targetOperand is IdentifierExpression identifier
+                            ? AssignmentReferenceResolver.ResolveIdentifierDirect(identifier.Name, environment, context)
                             : AssignmentReferenceResolver.Resolve(
                                 expression.Operand,
                                 environment,

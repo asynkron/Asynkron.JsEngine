@@ -279,9 +279,9 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            functionEnvironment.Define(Symbol.This, boundThis.ToObject());
-            functionEnvironment.Define(Symbol.YieldResumeContextSymbol, _resumeContext);
-            functionEnvironment.Define(Symbol.GeneratorInstanceSymbol, this);
+            functionEnvironment.DefineJsValue(Symbol.This, boundThis);
+            functionEnvironment.DefineJsValue(Symbol.YieldResumeContextSymbol, JsValue.FromObject(_resumeContext));
+            functionEnvironment.DefineJsValue(Symbol.GeneratorInstanceSymbol, JsValue.FromObject(this));
 
             var superPrototype = _homeObject?.Prototype;
             if (superPrototype is null && boundThis.TryGetObject<JsObject>(out var thisObj))
@@ -292,7 +292,7 @@ public static partial class TypedAstEvaluator
             if (superPrototype is not null)
             {
                 var superBinding = new SuperBinding(null, superPrototype, boundThis, true);
-                functionEnvironment.Define(Symbol.Super, superBinding);
+                functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObject(superBinding));
             }
 
             // Convert JsValue arguments to object? for CreateArgumentsObject and BindFunctionParameters
@@ -305,15 +305,15 @@ public static partial class TypedAstEvaluator
             var argumentsObject =
                 CreateArgumentsObject(_function, argumentValues, parameterEnvironment, _realmState, _callable,
                     _isStrict);
-            parameterEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
+            parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObject(argumentsObject), isLexical: false);
             if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
             {
-                functionEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
+                functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObject(argumentsObject), isLexical: false);
             }
 
             if (_function.Name is { } functionName && !_hasFunctionNameEnvironment)
             {
-                parameterEnvironment.Define(functionName, _callable, isConst: true, isLexical: true, blocksFunctionScopeOverride: true);
+                parameterEnvironment.DefineJsValue(functionName, JsValue.FromObject(_callable), isConst: true, isLexical: true, blocksFunctionScopeOverride: true);
             }
 
             HoistVarDeclarations(_function.Body, executionEnvironment, generatorContext,
@@ -375,7 +375,7 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                environment.Define(symbol, value);
+                environment.DefineJsValue(symbol, JsValue.FromObject(value));
             }
         }
 
@@ -474,7 +474,7 @@ public static partial class TypedAstEvaluator
                         }
                         else
                         {
-                            environment.Define(awaitKey, newState);
+                            environment.DefineJsValue(awaitKey, JsValue.FromObject(newState));
                         }
                     }
                 }
@@ -832,7 +832,7 @@ public static partial class TypedAstEvaluator
                                 }
                                 else
                                 {
-                                    environment.Define(resumeSymbol, resumePayload.ToObject());
+                                    environment.DefineJsValue(resumeSymbol, resumePayload);
                                 }
                             }
 
@@ -1465,7 +1465,7 @@ public static partial class TypedAstEvaluator
                 }
                 else
                 {
-                    environment.Define(awaitKey, existingState);
+                    environment.DefineJsValue(awaitKey, JsValue.FromObject(existingState));
                 }
             }
 
@@ -1587,7 +1587,7 @@ public static partial class TypedAstEvaluator
             var frame = new TryFrame(instruction.HandlerIndex, instruction.CatchSlotSymbol, instruction.FinallyIndex);
             if (instruction.CatchSlotSymbol is { } slot && !environment.TryGet(slot, out _))
             {
-                environment.Define(slot, Symbol.Undefined);
+                environment.DefineJsValue(slot, JsValue.Undefined);
             }
 
             _tryStack.Push(frame);
@@ -1630,7 +1630,7 @@ public static partial class TypedAstEvaluator
                         }
                         else
                         {
-                            environment.Define(slot, value);
+                            environment.DefineJsValue(slot, JsValue.FromObject(value));
                         }
                     }
 

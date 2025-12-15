@@ -93,7 +93,7 @@ public static partial class TypedAstEvaluator
 
             foreach (var name in parameterNames)
             {
-                environment.Define(name, JsEnvironment.Uninitialized, isLexical: false,
+                environment.DefineJsValue(name, JsValue.FromObject(JsEnvironment.Uninitialized), isLexical: false,
                     blocksFunctionScopeOverride: true);
             }
 
@@ -125,7 +125,7 @@ public static partial class TypedAstEvaluator
                             throw new InvalidOperationException("Rest parameter must have an identifier.");
                         }
 
-                        environment.Define(parameter.Name, restArray, isLexical: false);
+                        environment.DefineJsValue(parameter.Name, JsValue.FromObject(restArray), isLexical: false);
                     }
 
                     continue;
@@ -169,7 +169,7 @@ public static partial class TypedAstEvaluator
                         "Parameter must have an identifier when no pattern is provided.");
                 }
 
-                environment.Define(parameter.Name, value, isLexical: false);
+                environment.DefineJsValue(parameter.Name, JsValue.FromObject(value), isLexical: false);
             }
 
             return;
@@ -414,7 +414,7 @@ public static partial class TypedAstEvaluator
             {
                 // Named function expression bindings are immutable but silently fail
                 // assignment in non-strict mode (unlike const which always throws)
-                functionNameEnvironment.Define(functionExpression.Name!, callable,
+                functionNameEnvironment.DefineJsValue(functionExpression.Name!, JsValue.FromObject(callable),
                     isConst: false,
                     isLexical: true,
                     blocksFunctionScopeOverride: true,

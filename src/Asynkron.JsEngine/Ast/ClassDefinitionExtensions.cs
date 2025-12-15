@@ -236,7 +236,7 @@ public static partial class TypedAstEvaluator
         }
 
         var classScope = new JsEnvironment(environment, isStrict: true, creatingSource: source, description: "class scope");
-        classScope.Define(className, JsEnvironment.Uninitialized, isConst: true, blocksFunctionScopeOverride: true);
+        classScope.DefineJsValue(className, JsValue.FromObject(JsEnvironment.Uninitialized), isConst: true, blocksFunctionScopeOverride: true);
         return (classScope, classScope);
     }
 

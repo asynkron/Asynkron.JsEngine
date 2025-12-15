@@ -32,10 +32,10 @@ public static partial class TypedAstEvaluator
                     environment.Assign(identifier.Name, value);
                     break;
                 case BindingMode.DefineLet:
-                    environment.Define(identifier.Name, value, isLexical: true, blocksFunctionScopeOverride: true);
+                    environment.DefineJsValue(identifier.Name, JsValue.FromObject(value), isLexical: true, blocksFunctionScopeOverride: true);
                     break;
                 case BindingMode.DefineConst:
-                    environment.Define(identifier.Name, value, true, blocksFunctionScopeOverride: true);
+                    environment.DefineJsValue(identifier.Name, JsValue.FromObject(value), true, blocksFunctionScopeOverride: true);
                     break;
                 case BindingMode.DefineVar:
                 {
@@ -91,7 +91,7 @@ public static partial class TypedAstEvaluator
                     }
                     else
                     {
-                        environment.Define(identifier.Name, value, isLexical: false);
+                        environment.DefineJsValue(identifier.Name, JsValue.FromObject(value), isLexical: false);
                     }
 
                     break;

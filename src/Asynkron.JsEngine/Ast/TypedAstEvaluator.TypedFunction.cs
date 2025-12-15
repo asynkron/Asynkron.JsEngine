@@ -589,7 +589,7 @@ public static partial class TypedAstEvaluator
                 {
                     context.MarkThisUninitialized();
                 }
-                functionEnvironment.Define(Symbol.This, boundThis);
+                functionEnvironment.DefineJsValue(Symbol.This, JsValue.FromObject(boundThis));
 
                 // Store a reference to the original environment that owns the `this` binding.
                 // This is needed for super() calls in arrow functions - super() must update
@@ -597,7 +597,7 @@ public static partial class TypedAstEvaluator
                 if (_lexicalThisEnvironment is not null &&
                     _lexicalThisEnvironment.TryFindBinding(Symbol.This, allowUninitialized: true, out var originalThisEnv, out _))
                 {
-                    functionEnvironment.Define(Symbol.LexicalThisEnvironment, originalThisEnv, false, isLexical: true);
+                    functionEnvironment.DefineJsValue(Symbol.LexicalThisEnvironment, JsValue.FromObject(originalThisEnv), false, isLexical: true);
                 }
 
                 var hasCopiedInitialization = false;
@@ -630,7 +630,7 @@ public static partial class TypedAstEvaluator
                         "SuperBinding: define lexical for arrow/lexical this protoNull={ProtoNull} thisInit={ThisInit}",
                         lexicalSuperBinding.Prototype is null,
                         lexicalSuperBinding.IsThisInitialized);
-                    functionEnvironment.Define(Symbol.Super, lexicalSuperBinding, false, isLexical: true,
+                    functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObject(lexicalSuperBinding), false, isLexical: true,
                         blocksFunctionScopeOverride: true);
                     if (!hasCopiedInitialization)
                     {
@@ -710,7 +710,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 SetThisInitializationStatus(functionEnvironment, initialThisInitialized);
-                functionEnvironment.Define(Symbol.This, initialThisValue);
+                functionEnvironment.DefineJsValue(Symbol.This, JsValue.FromObject(initialThisValue));
 
                 if (_isClassConstructor && initialThisValue is JsObject ctorThis)
                 {
@@ -762,7 +762,7 @@ public static partial class TypedAstEvaluator
                         _isDerivedClassConstructor,
                         prototypeForSuper is null,
                         initialThisInitialized);
-                    functionEnvironment.Define(Symbol.Super, binding);
+                    functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObject(binding));
                 }
 
                 if (_isClassConstructor && boundThis is JsObject thisInstance)
@@ -805,17 +805,17 @@ public static partial class TypedAstEvaluator
                     var argumentsObject =
                         CreateArgumentsObject(_function, argumentValues, parameterEnvironment, _realmState, this,
                             _isStrict);
-                    parameterEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
+                    parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObject(argumentsObject), isLexical: false);
                     if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
                     {
-                        functionEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
+                        functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObject(argumentsObject), isLexical: false);
                     }
                 }
 
                 // Named function expressions should see their name inside the body.
                 if (!IsArrowFunction && _function.Name is { } functionName && !_hasFunctionNameEnvironment)
                 {
-                    parameterEnvironment.Define(functionName, this, isConst: true, isLexical: true, blocksFunctionScopeOverride: true);
+                    parameterEnvironment.DefineJsValue(functionName, JsValue.FromObject(this), isConst: true, isLexical: true, blocksFunctionScopeOverride: true);
                 }
 
                 // Convert JsValue arguments to object? for parameter binding
@@ -1250,27 +1250,27 @@ public static partial class TypedAstEvaluator
 
                 using var classFieldInitScope = context.EnterClassFieldInitializer();
                 var initEnv = new JsEnvironment(environment, isStrict: true);
-                initEnv.Define(EvalHostFunction.FieldInitializerEvalFlag, true, isConst: true, isLexical: true,
+                initEnv.DefineJsValue(EvalHostFunction.FieldInitializerEvalFlag, JsValue.True, isConst: true, isLexical: true,
                     blocksFunctionScopeOverride: true);
-                initEnv.Define(Symbol.This, instance);
+                initEnv.DefineJsValue(Symbol.This, JsValue.FromObject(instance));
 
                 var fieldSuperBinding = ResolveInstanceFieldSuperBinding(environment, instance);
                 if (fieldSuperBinding is not null)
                 {
-                    initEnv.Define(Symbol.Super, fieldSuperBinding, true, isLexical: true,
+                    initEnv.DefineJsValue(Symbol.Super, JsValue.FromObject(fieldSuperBinding), true, isLexical: true,
                         blocksFunctionScopeOverride: true);
                 }
 
                 if (environment.TryGet(Symbol.NewTarget, out var newTargetValue))
                 {
                     // Class field initializers execute outside of any function body; shadow new.target with undefined.
-                    initEnv.Define(Symbol.NewTarget, Symbol.Undefined, true, isLexical: true,
+                    initEnv.DefineJsValue(Symbol.NewTarget, JsValue.Undefined, true, isLexical: true,
                         blocksFunctionScopeOverride: true);
                 }
 
                 if (environment.TryGet(Symbol.Arguments, out var argumentsValue))
                 {
-                    initEnv.Define(Symbol.Arguments, argumentsValue, isLexical: false);
+                    initEnv.DefineJsValue(Symbol.Arguments, JsValue.FromObject(argumentsValue), isLexical: false);
                 }
 
                 var propertyName = field.Name;
@@ -1596,13 +1596,13 @@ public static partial class TypedAstEvaluator
             var boundThis = !IsArrowFunction
                 ? thisValue.ToObject()
                 : _lexicalThis.ToObject() ?? Symbol.Undefined;
-            functionEnvironment.Define(Symbol.This, boundThis);
+            functionEnvironment.DefineJsValue(Symbol.This, JsValue.FromObject(boundThis));
 
             // Bind parameters directly - simple identifiers only (not lexical, can be reassigned)
             for (var i = 0; i < _parameterNames.Length; i++)
             {
-                var value = i < arguments.Count ? arguments[i].ToObject() : Symbol.Undefined;
-                functionEnvironment.Define(_parameterNames[i], value, isLexical: false);
+                var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                functionEnvironment.DefineJsValue(_parameterNames[i], value, isLexical: false);
             }
 
             // Only create arguments object if the function body actually references it
@@ -1621,7 +1621,7 @@ public static partial class TypedAstEvaluator
                     _realmState,
                     this,
                     isStrict: true);
-                functionEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
+                functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObject(argumentsObject), isLexical: false);
             }
 
             try

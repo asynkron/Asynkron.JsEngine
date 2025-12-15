@@ -113,9 +113,9 @@ public static partial class TypedAstEvaluator
             {
                 if (!funcBinding.InitializeNow)
                 {
-                    switchEnv.Define(
+                    switchEnv.DefineJsValue(
                         funcBinding.Name,
-                        JsEnvironment.Uninitialized,
+                        JsValue.FromObject(JsEnvironment.Uninitialized),
                         isConst: true,
                         isLexical: true,
                         blocksFunctionScopeOverride: true);
@@ -124,9 +124,9 @@ public static partial class TypedAstEvaluator
 
                 var functionValue = CreateFunctionValue(funcBinding.Function, switchEnv, context,
                     skipInternalNameBinding: true);
-                switchEnv.Define(
+                switchEnv.DefineJsValue(
                     funcBinding.Name,
-                    functionValue,
+                    JsValue.FromObject(functionValue),
                     isConst: true,
                     isLexical: true,
                     blocksFunctionScopeOverride: true);
@@ -134,9 +134,9 @@ public static partial class TypedAstEvaluator
 
             foreach (var className in plan.ClassBindings)
             {
-                switchEnv.Define(
+                switchEnv.DefineJsValue(
                     className,
-                    Symbol.Undefined,
+                    JsValue.Undefined,
                     isConst: true,
                     isLexical: true,
                     blocksFunctionScopeOverride: false);

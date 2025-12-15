@@ -15,7 +15,7 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            environment.Define(declaration.Name, constructorValue, isLexical: true, blocksFunctionScopeOverride: true);
+            environment.DefineJsValue(declaration.Name, JsValue.FromObject(constructorValue), isLexical: true, blocksFunctionScopeOverride: true);
             return JsValue.Undefined;
         }
     }

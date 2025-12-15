@@ -50,8 +50,7 @@ public static partial class TypedAstEvaluator
 
         /// <summary>
         /// JsValue-returning version of EvaluateStatement for use in hot loops.
-        /// Handles the common cases (BlockStatement, ExpressionStatement) without boxing.
-        /// For other statement types, boxes the result.
+        /// Handles the common cases without boxing.
         /// </summary>
         private JsValue EvaluateStatementJsValue(
             JsEnvironment environment,
@@ -61,7 +60,7 @@ public static partial class TypedAstEvaluator
             context.SourceReference = statement.Source;
             context.ThrowIfCancellationRequested();
 
-            // Fast path for the hot loop cases - avoid boxing
+            // Fast path - all these return JsValue directly without boxing
             switch (statement)
             {
                 case BlockStatement block:
@@ -70,9 +69,23 @@ public static partial class TypedAstEvaluator
                     return EvaluateExpression(expressionStatement.Expression, environment, context);
                 case IfStatement ifStatement:
                     return EvaluateIfJsValue(ifStatement, environment, context);
+                case WhileStatement whileStatement:
+                    return EvaluateWhileJsValue(whileStatement, environment, context, activeLabel);
+                case DoWhileStatement doWhileStatement:
+                    return EvaluateDoWhileJsValue(doWhileStatement, environment, context, activeLabel);
+                case ForStatement forStatement:
+                    return EvaluateForJsValue(forStatement, environment, context, activeLabel);
+                case SwitchStatement switchStatement:
+                    return EvaluateSwitchJsValue(switchStatement, environment, context, activeLabel);
+                case TryStatement tryStatement:
+                    return EvaluateTryJsValue(tryStatement, environment, context);
+                case LabeledStatement labeledStatement:
+                    return EvaluateLabeledJsValue(labeledStatement, environment, context);
+                case EmptyStatement:
+                    return JsValue.Undefined;
             }
 
-            // Slow path for other statement types - need to box
+            // Slow path for less common statement types - need to box
             using var statementActivity = Activity.Current?
                 .StartEvaluatorActivity($"Statement:{statement.GetType().Name}", context, statement.Source);
 
@@ -83,20 +96,12 @@ public static partial class TypedAstEvaluator
                 VariableDeclaration declaration => EvaluateVariableDeclaration(declaration, environment, context),
                 FunctionDeclaration functionDeclaration => EvaluateFunctionDeclaration(functionDeclaration, environment,
                     context),
-                WhileStatement whileStatement => EvaluateWhile(whileStatement, environment, context, activeLabel),
-                DoWhileStatement doWhileStatement => EvaluateDoWhile(doWhileStatement, environment, context,
-                    activeLabel),
-                ForStatement forStatement => EvaluateFor(forStatement, environment, context, activeLabel),
                 ForEachStatement forEachStatement => EvaluateForEach(forEachStatement, environment, context,
                     activeLabel),
                 BreakStatement breakStatement => EvaluateBreak(breakStatement, context),
                 ContinueStatement continueStatement => EvaluateContinue(continueStatement, context),
-                LabeledStatement labeledStatement => EvaluateLabeled(labeledStatement, environment, context),
-                TryStatement tryStatement => EvaluateTry(tryStatement, environment, context),
-                SwitchStatement switchStatement => EvaluateSwitch(switchStatement, environment, context, activeLabel),
                 ClassDeclaration classDeclaration => EvaluateClass(classDeclaration, environment, context),
                 WithStatement withStatement => EvaluateWith(withStatement, environment, context),
-                EmptyStatement => EmptyCompletion,
                 _ => throw new NotSupportedException(
                     $"Typed evaluator does not yet support '{statement.GetType().Name}'.")
             };

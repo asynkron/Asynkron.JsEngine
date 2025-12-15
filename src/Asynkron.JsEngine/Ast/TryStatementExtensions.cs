@@ -9,15 +9,24 @@ public static partial class TypedAstEvaluator
     {
         private object? EvaluateTry(JsEnvironment environment, EvaluationContext context)
         {
+            return EvaluateTryJsValue(statement, environment, context).ToObject();
+        }
+
+        /// <summary>
+        /// JsValue-returning version for use in hot paths.
+        /// </summary>
+        private JsValue EvaluateTryJsValue(JsEnvironment environment, EvaluationContext context)
+        {
             context.RealmState.Logger?.LogInformation(
                 "EvaluateTry enter (catch={HasCatch}, finally={HasFinally}) throwFlag={ThrowFlag}",
                 statement.Catch is not null,
                 statement.Finally is not null,
                 context.IsThrow);
-            object? result;
+
+            JsValue result;
             try
             {
-                result = EvaluateBlock(statement.TryBlock, environment, context);
+                result = EvaluateBlockJsValue(statement.TryBlock, environment, context);
             }
             catch (ThrowSignal signal)
             {
@@ -48,7 +57,7 @@ public static partial class TypedAstEvaluator
                     DefineBindingTarget(statement.Catch.Binding, thrownValue, catchEnv, context, false);
                 }
 
-                result = EvaluateBlock(statement.Catch.Body, catchEnv, context);
+                result = EvaluateBlockJsValue(statement.Catch.Body, catchEnv, context);
             }
 
             if (statement.Finally is null)
@@ -56,8 +65,7 @@ public static partial class TypedAstEvaluator
                 context.RealmState.Logger?.LogInformation(
                     "EvaluateTry exit (no finally) throwFlag={ThrowFlag}",
                     context.IsThrow);
-                // Per ES spec 13.15.8 step 6: If C.[[value]] is empty, return undefined
-                return ReferenceEquals(result, EmptyCompletion) ? Symbol.Undefined : result;
+                return result;
             }
 
             var savedSignal = context.CurrentSignal;
@@ -85,12 +93,11 @@ public static partial class TypedAstEvaluator
             }
 
             context.Clear();
-            var finallyResult = EvaluateBlock(statement.Finally, environment, context);
+            var finallyResult = EvaluateBlockJsValue(statement.Finally, environment, context);
             if (context.CurrentSignal is not null)
             {
                 // Per ES spec: When finally has an abrupt completion, use its completion value
-                // with UpdateEmpty(F, undefined) - if the value is empty, it becomes undefined.
-                return ReferenceEquals(finallyResult, EmptyCompletion) ? Symbol.Undefined : finallyResult;
+                return finallyResult;
             }
 
             if (isGenerator && pending?.HasValue == true)
@@ -117,8 +124,7 @@ public static partial class TypedAstEvaluator
             context.RealmState.Logger?.LogInformation(
                 "EvaluateTry exit (with finally) throwFlag={ThrowFlag}",
                 context.IsThrow);
-            // Per ES spec 13.15.8 step 6: If C.[[value]] is empty, return undefined
-            return ReferenceEquals(result, EmptyCompletion) ? Symbol.Undefined : result;
+            return result;
         }
     }
 }

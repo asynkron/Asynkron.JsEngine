@@ -36,6 +36,6 @@ o.bar = 2;
 ");
         });
 
-        Assert.IsType<JsTypes.JsObject>(ex.ThrownValue);
+        Assert.IsType<JsTypes.JsObject>(ex.ThrownValue.ToObject());
     }
 }

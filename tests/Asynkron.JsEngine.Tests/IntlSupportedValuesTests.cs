@@ -35,7 +35,7 @@ public class IntlSupportedValuesTests
 
         var array = Assert.IsType<JsArray>(result);
         Assert.True(array.Items.Count >= 1, "Result array should expose at least the length slot.");
-        var length = Assert.IsType<double>(array.Items[0]!);
+        var length = Assert.IsType<double>(array.Items[0].ToObject()!);
         Assert.True(length >= 0, "Currency list length should be non-negative.");
         if (length == 0)
         {
@@ -43,13 +43,13 @@ public class IntlSupportedValuesTests
         }
 
         Assert.Equal(5, array.Items.Count);
-        var currencyCode = Assert.IsType<string>(array.Items[1]!);
+        var currencyCode = Assert.IsType<string>(array.Items[1].ToObject()!);
         Assert.Equal(3, currencyCode.Length);
-        var displayType = Assert.IsType<string>(array.Items[2]!);
+        var displayType = Assert.IsType<string>(array.Items[2].ToObject()!);
         Assert.Equal("string", displayType);
-        var resolvedCurrency = Assert.IsType<string>(array.Items[3]!);
+        var resolvedCurrency = Assert.IsType<string>(array.Items[3].ToObject()!);
         Assert.Equal(currencyCode, resolvedCurrency);
-        var fallbackUndefined = Assert.IsType<bool>(array.Items[4]!);
+        var fallbackUndefined = Assert.IsType<bool>(array.Items[4].ToObject()!);
         Assert.True(fallbackUndefined);
     }
 

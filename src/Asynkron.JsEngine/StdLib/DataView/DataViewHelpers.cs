@@ -12,6 +12,12 @@ public static partial class StandardLibrary
 
     internal static JsDataView RequireDataView(object? thisVal, RealmState realm)
     {
+        // Handle boxed JsValue struct first - unwrap to get the underlying object
+        if (thisVal is JsValue jsVal)
+        {
+            thisVal = jsVal.ToObject();
+        }
+
         if (thisVal is JsDataView directDv)
         {
             return directDv;
@@ -23,6 +29,11 @@ public static partial class StandardLibrary
             if (descriptor?.Value is JsDataView internalDv)
             {
                 return internalDv;
+            }
+            // Handle case where value is boxed JsValue struct
+            if (descriptor?.Value is JsValue dvJsVal && dvJsVal.TryGetObject<JsDataView>(out var dvFromJsValue))
+            {
+                return dvFromJsValue;
             }
         }
 

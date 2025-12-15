@@ -90,7 +90,7 @@ public class EventQueueTests
     public async Task Run_AllowsInteractionWithHostFunctions()
     {
         await using var engine = new JsEngine();
-        var capturedValues = new List<object?>();
+        var capturedValues = new List<JsValue>();
 
         engine.SetGlobalFunction("capture", args =>
         {

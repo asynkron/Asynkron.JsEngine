@@ -13,6 +13,12 @@ public static partial class StandardLibrary
 
     internal static JsArrayBuffer RequireArrayBuffer(object? thisVal, RealmState realm)
     {
+        // Handle boxed JsValue struct first - unwrap to get the underlying object
+        if (thisVal is JsValue jsVal)
+        {
+            thisVal = jsVal.ToObject();
+        }
+
         if (thisVal is JsArrayBuffer directBuffer)
         {
             return directBuffer;
@@ -24,6 +30,11 @@ public static partial class StandardLibrary
             if (descriptor?.Value is JsArrayBuffer internalBuffer)
             {
                 return internalBuffer;
+            }
+            // Handle case where value is boxed JsValue struct
+            if (descriptor?.Value is JsValue bufJsVal && bufJsVal.TryGetObject<JsArrayBuffer>(out var bufferFromJsValue))
+            {
+                return bufferFromJsValue;
             }
         }
 
@@ -39,6 +50,12 @@ public static partial class StandardLibrary
 
     internal static IJsCallable ArrayBufferSpeciesCreate(object? thisVal, RealmState realm, HostFunction defaultConstructor)
     {
+        // Handle boxed JsValue struct first - unwrap to get the underlying object
+        if (thisVal is JsValue jsVal)
+        {
+            thisVal = jsVal.ToObject();
+        }
+
         if (thisVal is not IJsPropertyAccessor accessor ||
             !accessor.TryGetProperty("constructor", out var ctorVal))
         {

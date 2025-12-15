@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -88,28 +89,38 @@ public static partial class TypedAstEvaluator
 
     extension(ExpressionNode expression)
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue EvaluateExpression(JsEnvironment environment,
             EvaluationContext context)
         {
+            // Fast path for the most common expression types - no Activity overhead
+            switch (expression)
+            {
+                case LiteralExpression literal:
+                    return literal.Value;
+                case IdentifierExpression identifier:
+                    return EvaluateIdentifier(identifier, environment, context);
+                case BinaryExpression binary:
+                    return EvaluateBinary(binary, environment, context);
+                case UnaryExpression unary:
+                    return EvaluateUnary(unary, environment, context);
+                case AssignmentExpression assignment:
+                    return EvaluateAssignment(assignment, environment, context);
+                case MemberExpression member:
+                    return EvaluateMember(member, environment, context);
+                case CallExpression call:
+                    return EvaluateCall(call, environment, context);
+            }
+
+            // Slow path - set source reference and optionally trace
             context.SourceReference = expression.Source;
-            using var expressionActivity = Activity.Current?
-                .StartEvaluatorActivity($"Expression:{expression.GetType().Name}", context, expression.Source);
 
             return expression switch
             {
-                // Converted to native JsValue
-                LiteralExpression literal => EvaluateLiteral(literal, context),
                 RegexLiteralExpression regex => EvaluateRegexLiteral(regex, context),
-                IdentifierExpression identifier => EvaluateIdentifier(identifier, environment, context),
-                BinaryExpression binary => EvaluateBinary(binary, environment, context),
-                UnaryExpression unary => EvaluateUnary(unary, environment, context),
-
-                // Converted to native JsValue (Batch A)
                 ConditionalExpression conditional => EvaluateConditional(conditional, environment, context),
-                CallExpression call => EvaluateCall(call, environment, context),
                 FunctionExpression functionExpression => JsValue.FromObject(CreateFunctionValue(functionExpression, environment, context,
                     createFunctionNameEnvironment: true)),
-                AssignmentExpression assignment => EvaluateAssignment(assignment, environment, context),
                 DestructuringAssignmentExpression destructuringAssignment =>
                     EvaluateDestructuringAssignment(destructuringAssignment, environment, context),
                 PropertyAssignmentExpression propertyAssignment =>
@@ -117,7 +128,6 @@ public static partial class TypedAstEvaluator
                 IndexAssignmentExpression indexAssignment =>
                     EvaluateIndexAssignment(indexAssignment, environment, context),
                 SequenceExpression sequence => EvaluateSequence(sequence, environment, context),
-                MemberExpression member => EvaluateMember(member, environment, context),
                 NewExpression newExpression => EvaluateNew(newExpression, environment, context),
                 NewTargetExpression => environment.TryGet(Symbol.NewTarget, out var newTarget)
                     ? JsValue.FromObject(newTarget)

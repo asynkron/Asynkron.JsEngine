@@ -1,4 +1,6 @@
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -6,34 +8,28 @@ public static partial class TypedAstEvaluator
 {
     extension(IdentifierExpression identifier)
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue EvaluateIdentifier(JsEnvironment environment,
             EvaluationContext context)
         {
-            try
+            // Fast path: use TryGetIdentifierJsValue to avoid exception overhead
+            if (environment.TryGetIdentifierJsValue(identifier.Name, context, out var value))
             {
-                return environment.GetIdentifierJsValue(identifier.Name, context);
+                return value;
             }
-            catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
-                                                           StringComparison.Ordinal))
-            {
-                object? errorObject = ex.Message;
 
-                if (environment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
-                    ctor is IJsCallable callable)
-                {
-                    try
-                    {
-                        errorObject = callable.Invoke([new JsValue(ex.Message)], JsValue.Undefined).ToObject();
-                    }
-                    catch (ThrowSignal signal)
-                    {
-                        errorObject = signal.ThrownValue;
-                    }
-                }
-
-                context.SetThrow(JsValue.FromObject(errorObject));
-                return JsValue.FromObject(errorObject);
-            }
+            // Slow path: identifier not found - create proper error
+            return HandleIdentifierNotFound(identifier.Name, environment, context);
         }
+    }
+
+    private static JsValue HandleIdentifierNotFound(Symbol name, JsEnvironment environment, EvaluationContext context)
+    {
+        var errorObject = StandardLibrary.CreateReferenceError(
+            $"{name.Name} is not defined",
+            context,
+            context.RealmState);
+        context.SetThrow(JsValue.FromObject(errorObject));
+        return JsValue.FromObject(errorObject);
     }
 }

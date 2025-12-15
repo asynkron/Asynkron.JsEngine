@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -8,6 +9,7 @@ public static partial class TypedAstEvaluator
 {
     extension(UnaryExpression expression)
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue EvaluateUnary(JsEnvironment environment,
             EvaluationContext context)
         {

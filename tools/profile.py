@@ -68,12 +68,127 @@ class Profiler:
             "fib": {
                 "name": "FibonacciProfile",
                 "dir": self.tools_dir / "FibonacciProfile",
-                "description": "Recursive fibonacci(20) - tests function calls"
+                "description": "Recursive fibonacci(25) - tests recursion"
             },
             "forloop": {
                 "name": "ForLoopProfile",
                 "dir": self.tools_dir / "ForLoopProfile",
                 "description": "For loop with 1M iterations - tests loop performance"
+            },
+            "simplearithmetic": {
+                "name": "SimpleArithmeticProfile",
+                "dir": self.tools_dir / "SimpleArithmeticProfile",
+                "description": "Simple math operations - tests arithmetic"
+            },
+            "whileloop": {
+                "name": "WhileLoopProfile",
+                "dir": self.tools_dir / "WhileLoopProfile",
+                "description": "While loop with 100K iterations"
+            },
+            "objectcreation": {
+                "name": "ObjectCreationProfile",
+                "dir": self.tools_dir / "ObjectCreationProfile",
+                "description": "Create 10K objects with nested properties"
+            },
+            "arrayops": {
+                "name": "ArrayOperationsProfile",
+                "dir": self.tools_dir / "ArrayOperationsProfile",
+                "description": "Array map/filter/reduce operations"
+            },
+            "stringops": {
+                "name": "StringOperationsProfile",
+                "dir": self.tools_dir / "StringOperationsProfile",
+                "description": "String concat/split/join operations"
+            },
+            "functioncalls": {
+                "name": "FunctionCallsProfile",
+                "dir": self.tools_dir / "FunctionCallsProfile",
+                "description": "20K function calls in a loop"
+            },
+            "closures": {
+                "name": "ClosuresProfile",
+                "dir": self.tools_dir / "ClosuresProfile",
+                "description": "Closure creation and invocation"
+            },
+            "recursion": {
+                "name": "RecursionProfile",
+                "dir": self.tools_dir / "RecursionProfile",
+                "description": "Factorial and sum recursion"
+            },
+            "propertyaccess": {
+                "name": "PropertyAccessProfile",
+                "dir": self.tools_dir / "PropertyAccessProfile",
+                "description": "Deep property access in loops"
+            },
+            "classdef": {
+                "name": "ClassDefinitionProfile",
+                "dir": self.tools_dir / "ClassDefinitionProfile",
+                "description": "Class definition with inheritance"
+            },
+            "destructuring": {
+                "name": "DestructuringProfile",
+                "dir": self.tools_dir / "DestructuringProfile",
+                "description": "Object and array destructuring"
+            },
+            "spread": {
+                "name": "SpreadOperatorProfile",
+                "dir": self.tools_dir / "SpreadOperatorProfile",
+                "description": "Spread operator usage"
+            },
+            "mapset": {
+                "name": "MapSetProfile",
+                "dir": self.tools_dir / "MapSetProfile",
+                "description": "Map and Set operations"
+            },
+            "json": {
+                "name": "JsonOperationsProfile",
+                "dir": self.tools_dir / "JsonOperationsProfile",
+                "description": "JSON.stringify/parse operations"
+            },
+            "regex": {
+                "name": "RegexOperationsProfile",
+                "dir": self.tools_dir / "RegexOperationsProfile",
+                "description": "Regex match and replace"
+            },
+            "promise": {
+                "name": "PromiseBasicProfile",
+                "dir": self.tools_dir / "PromiseBasicProfile",
+                "description": "Promise.resolve and chaining"
+            },
+            "asyncawait": {
+                "name": "AsyncAwaitProfile",
+                "dir": self.tools_dir / "AsyncAwaitProfile",
+                "description": "Async/await with function calls"
+            },
+            "generator": {
+                "name": "GeneratorFunctionProfile",
+                "dir": self.tools_dir / "GeneratorFunctionProfile",
+                "description": "Generator function iteration"
+            },
+            "asyncgen": {
+                "name": "AsyncGeneratorFunctionProfile",
+                "dir": self.tools_dir / "AsyncGeneratorFunctionProfile",
+                "description": "Async generator function"
+            },
+            "asyncforof": {
+                "name": "AsyncForOfProfile",
+                "dir": self.tools_dir / "AsyncForOfProfile",
+                "description": "for await...of iteration"
+            },
+            "asyncresolved": {
+                "name": "AsyncAwaitResolvedProfile",
+                "dir": self.tools_dir / "AsyncAwaitResolvedProfile",
+                "description": "Await on resolved promises"
+            },
+            "asyncpending": {
+                "name": "AsyncAwaitPendingProfile",
+                "dir": self.tools_dir / "AsyncAwaitPendingProfile",
+                "description": "Await on pending promises"
+            },
+            "forofiteration": {
+                "name": "ForOfIterationProfile",
+                "dir": self.tools_dir / "ForOfIterationProfile",
+                "description": "Regular for...of iteration"
             }
         }
 

@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -8,6 +9,7 @@ public static partial class TypedAstEvaluator
 {
     extension(BinaryExpression expression)
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue EvaluateBinary(JsEnvironment environment,
             EvaluationContext context)
         {

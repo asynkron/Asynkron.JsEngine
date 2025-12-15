@@ -898,6 +898,44 @@ public sealed class JsEnvironment
     }
 
     /// <summary>
+    /// Tries to resolve an identifier and return its value as JsValue.
+    /// Returns false if the identifier is not found (instead of throwing).
+    /// This is the fast path for identifier evaluation in hot loops.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryGetIdentifierJsValue(Symbol name, EvaluationContext context, out JsValue value)
+    {
+        if (TryGetCachedDeclarativeBinding(name, context, out var cached))
+        {
+            value = cached.ReadJsValue(name, context);
+            return true;
+        }
+
+        if (TryResolveWithBinding(name, context, out var withBinding))
+        {
+            value = JsValue.FromObject(GetWithBindingValue(withBinding));
+            return true;
+        }
+
+        if (TryLocateBinding(name, out var bindingEnvironment, out _))
+        {
+            var cachedBinding = new ResolvedIdentifierBinding(bindingEnvironment, name);
+            CacheDeclarativeBinding(name, cachedBinding, context);
+            value = cachedBinding.ReadJsValue(name, context);
+            return true;
+        }
+
+        if (TryResolveGlobalObjectBinding(name, context, out var globalBinding))
+        {
+            value = JsValue.FromObject(GetWithBindingValue(globalBinding));
+            return true;
+        }
+
+        value = default;
+        return false;
+    }
+
+    /// <summary>
     /// Direct identifier assignment that avoids creating AssignmentReference structs.
     /// This is the fast path for simple identifier assignments in loops.
     /// </summary>

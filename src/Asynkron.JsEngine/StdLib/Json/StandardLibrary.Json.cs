@@ -130,6 +130,10 @@ public static partial class StandardLibrary
             case null:
                 return "null";
 
+            case JsValue jsValue:
+                // Unwrap JsValue and recursively stringify the inner value
+                return StringifyValue(jsValue.ToObject(), depth);
+
             case bool b:
                 return b ? "true" : "false";
 

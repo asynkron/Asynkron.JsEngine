@@ -50,7 +50,7 @@ public class JsEvaluatorTests
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("collect", args =>
         {
-            captured.AddRange(args);
+            captured.AddRange(args.Select(a => a.ToObject()));
             return args.Count;
         });
 
@@ -505,7 +505,7 @@ public class JsEvaluatorTests
 
         var ctorValue = Assert.IsAssignableFrom<IJsPropertyAccessor>(await engine.Evaluate("C"));
         Assert.True(ctorValue.TryGetProperty("prototype", out var ctorProto));
-        var ctorProtoObject = Assert.IsAssignableFrom<JsObject>(ctorProto);
+        var ctorProtoObject = Assert.IsAssignableFrom<JsObject>(ctorProto.ToObject());
         var ctorProtoHasX = ctorProtoObject.TryGetProperty("x", out _);
         Assert.True(ctorProtoHasX);
         var ctorProtoHash = RuntimeHelpers.GetHashCode(ctorProtoObject);

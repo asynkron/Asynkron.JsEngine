@@ -42,7 +42,7 @@ public static partial class TypedAstEvaluator
                 throw new InvalidOperationException($"Exceeded maximum call depth of {context.MaxCallDepth}.");
             }
 
-            if (expression.IsOptional && IsNullish(callee))
+            if (expression.IsOptional && callee.IsNullOrUndefined)
             {
                 context.CallDepth--;
                 return JsValue.Undefined;
@@ -192,7 +192,7 @@ public static partial class TypedAstEvaluator
                 frozenArguments = FreezeArguments(argsBuilder);
             }
 
-            if (callee is not IJsCallable callable)
+            if (!callee.TryGetObject<IJsCallable>(out var callable))
             {
                 // Special-case Function.prototype.apply / call patterns such as
                 // Object.prototype.hasOwnProperty.apply(target, args).
@@ -240,9 +240,10 @@ public static partial class TypedAstEvaluator
                     }
                 }
 
-                var typeName = callee?.GetType().Name ?? "null";
+                var calleeObj = callee.ToObject();
+                var typeName = calleeObj?.GetType().Name ?? "null";
                 var sourceInfo = GetSourceInfo(context, expression.Source);
-                var symbolName = callee is Symbol sym ? sym.Name : null;
+                var symbolName = calleeObj is Symbol sym ? sym.Name : null;
                 var symbolSuffix = symbolName is null ? string.Empty : $" (symbol '{symbolName}')";
                 var calleeDescription = DescribeCallee(expression.Callee);
                 context.RealmState.Logger?.LogInformation(

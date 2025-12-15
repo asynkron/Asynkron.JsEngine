@@ -269,7 +269,7 @@ public static partial class TypedAstEvaluator
 
     extension(ExpressionNode callee)
     {
-        private (object? Callee, JsValue thisValue, bool SkippedOptional) EvaluateCallTarget(JsEnvironment environment,
+        private (JsValue Callee, JsValue thisValue, bool SkippedOptional) EvaluateCallTarget(JsEnvironment environment,
             EvaluationContext context)
         {
             if (callee is SuperExpression superExpression)
@@ -311,7 +311,7 @@ public static partial class TypedAstEvaluator
                 var superThis = ReferenceEquals(binding.thisValue, JsEnvironment.Uninitialized)
                     ? JsValue.Undefined
                     : binding.thisValue;
-                return (dynamicSuperConstructor, superThis, false);
+                return (JsValue.FromObject(dynamicSuperConstructor), superThis, false);
             }
 
             if (callee is MemberExpression member)
@@ -321,52 +321,52 @@ public static partial class TypedAstEvaluator
                     var (memberValue, binding) = ResolveSuperMember(member, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
-                        return (Symbol.Undefined, binding.thisValue, true);
+                        return (JsValue.Undefined, binding.thisValue, true);
                     }
 
-                    return (memberValue.ToObject(), binding.thisValue, false);
+                    return (memberValue, binding.thisValue, false);
                 }
 
                 var targetJs = EvaluateExpression(member.Target, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return (Symbol.Undefined, JsValue.Undefined, true);
+                    return (JsValue.Undefined, JsValue.Undefined, true);
                 }
 
-                var target = targetJs.ToObject();
-                if (member.IsOptional && IsNullish(target))
+                if (member.IsOptional && targetJs.IsNullOrUndefined)
                 {
-                    return (null, JsValue.Undefined, true);
+                    return (JsValue.Undefined, JsValue.Undefined, true);
                 }
 
-                if (IsNullish(target) && HasOptionalChaining(member.Target))
+                if (targetJs.IsNullOrUndefined && HasOptionalChaining(member.Target))
                 {
-                    return (Symbol.Undefined, JsValue.Undefined, true);
+                    return (JsValue.Undefined, JsValue.Undefined, true);
                 }
 
-                if (IsNullish(target))
+                if (targetJs.IsNullOrUndefined)
                 {
                     var error = StandardLibrary.CreateTypeError(
                         "Cannot read properties of null or undefined",
                         context,
                         context.RealmState);
                     context.SetThrow(JsValue.FromObject(error));
-                    return (Symbol.Undefined, JsValue.Undefined, true);
+                    return (JsValue.Undefined, JsValue.Undefined, true);
                 }
 
+                var target = targetJs.ToObject();
                 string propertyName;
                 if (member.IsComputed)
                 {
                     var propertyJs = EvaluateExpression(member.Property, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
-                        return (Symbol.Undefined, JsValue.Undefined, true);
+                        return (JsValue.Undefined, JsValue.Undefined, true);
                     }
 
                     propertyName = JsOps.GetRequiredPropertyName(propertyJs.ToObject(), context);
                     if (context.ShouldStopEvaluation)
                     {
-                        return (Symbol.Undefined, JsValue.Undefined, true);
+                        return (JsValue.Undefined, JsValue.Undefined, true);
                     }
                 }
                 else
@@ -386,18 +386,18 @@ public static partial class TypedAstEvaluator
                     {
                         if (context.ShouldStopEvaluation)
                         {
-                            return (Symbol.Undefined, JsValue.Undefined, true);
+                            return (JsValue.Undefined, JsValue.Undefined, true);
                         }
 
-                        return (directValue, JsValue.FromObject(target), false);
+                        return (JsValue.FromObject(directValue), targetJs, false);
                     }
 
                     if (context.ShouldStopEvaluation)
                     {
-                        return (Symbol.Undefined, JsValue.Undefined, true);
+                        return (JsValue.Undefined, JsValue.Undefined, true);
                     }
 
-                    return (Symbol.Undefined, JsValue.FromObject(target), false);
+                    return (JsValue.Undefined, targetJs, false);
                 }
 
                 var handle = PropertyHandle.Resolve(
@@ -409,10 +409,10 @@ public static partial class TypedAstEvaluator
                 var value = handle.GetValue();
                 if (context.ShouldStopEvaluation)
                 {
-                    return (Symbol.Undefined, JsValue.Undefined, true);
+                    return (JsValue.Undefined, JsValue.Undefined, true);
                 }
 
-                return (value, JsValue.FromObject(target), false);
+                return (JsValue.FromObject(value), targetJs, false);
             }
 
             if (callee is IdentifierExpression identifier)
@@ -420,21 +420,21 @@ public static partial class TypedAstEvaluator
                 if (environment.TryResolveWithBinding(identifier.Name, context, out var withBinding))
                 {
                     var withValue = JsEnvironment.GetWithBindingValue(withBinding);
-                    return (withValue, JsValue.FromObject(withBinding.BindingObject), false);
+                    return (JsValue.FromObject(withValue), JsValue.FromObject(withBinding.BindingObject), false);
                 }
 
                 var reference = environment.ResolveIdentifierAssignmentReference(identifier.Name, context);
                 var calleeValue = AssignmentReferenceResolver.ReadIdentifierValue(reference.GetValue, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return (Symbol.Undefined, JsValue.Undefined, true);
+                    return (JsValue.Undefined, JsValue.Undefined, true);
                 }
 
-                return (calleeValue, JsValue.Undefined, false);
+                return (JsValue.FromObject(calleeValue), JsValue.Undefined, false);
             }
 
             var directCallee = EvaluateExpression(callee, environment, context);
-            return (directCallee.ToObject(), JsValue.Undefined, false);
+            return (directCallee, JsValue.Undefined, false);
         }
     }
 

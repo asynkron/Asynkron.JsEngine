@@ -17,7 +17,7 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            if (tagValue is not IJsCallable callable)
+            if (!tagValue.TryGetObject<IJsCallable>(out var callable))
             {
                 var error = StandardLibrary.CreateTypeError("Tag in tagged template must be a function.",
                     context, environment.RealmState);

@@ -17,11 +17,21 @@ public static partial class TypedAstEvaluator
                 {
                     case "++" or "--":
                     {
-                        var reference = AssignmentReferenceResolver.Resolve(
-                            expression.Operand,
-                            environment,
-                            context,
-                            (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
+                        // Fast path: use ResolveIdentifierFast for simple identifiers to avoid delegate allocation
+                        // Member expressions (obj.x++) need the full Resolve with delegate for property evaluation
+                        var targetOperand = expression.Operand;
+                        while (targetOperand is UnaryExpression { Operator: "++" or "--" } nested)
+                        {
+                            targetOperand = nested.Operand;
+                        }
+
+                        var reference = targetOperand is IdentifierExpression
+                            ? AssignmentReferenceResolver.ResolveIdentifierFast(expression.Operand, environment, context)
+                            : AssignmentReferenceResolver.Resolve(
+                                expression.Operand,
+                                environment,
+                                context,
+                                static (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
 
                         // Use GetJsValue() to avoid boxing for declarative bindings
                         var currentJsValue = reference.GetJsValue();

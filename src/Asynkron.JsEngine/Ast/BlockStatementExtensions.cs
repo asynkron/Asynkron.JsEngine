@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -16,36 +17,70 @@ public static partial class TypedAstEvaluator
             }
             var hoistPlan = ((IAstCacheable<HoistPlan>)block).GetOrCreateCache();
 
+            // Track last expression result as JsValue to avoid boxing on every iteration
+            var lastExpressionResult = JsValue.Undefined;
+            var hasExpressionResult = false;
+
             // Fast path: if the block has no lexical/function decls, execute directly in the incoming environment
             if (!hoistPlan.NeedsEnvironment)
             {
-                var fastResult = EmptyCompletion;
+                object? fastResult = EmptyCompletion;
+
                 foreach (var statement in block.Statements)
                 {
                     context.ThrowIfCancellationRequested();
+
+                    // Fast path for ExpressionStatement: avoid ToObject() boxing
+                    if (statement is ExpressionStatement expr)
+                    {
+                        var jsCompletion = EvaluateExpression(expr.Expression, environment, context);
+                        var shouldStop = context.ShouldStopEvaluation;
+                        var shouldCapture = !shouldStop ||
+                                            context.IsReturn ||
+                                            context.IsThrow ||
+                                            context.IsYield ||
+                                            context.IsBreak ||
+                                            context.IsContinue;
+
+                        if (shouldCapture)
+                        {
+                            lastExpressionResult = jsCompletion;
+                            hasExpressionResult = true;
+                        }
+
+                        if (shouldStop)
+                        {
+                            break;
+                        }
+
+                        continue;
+                    }
+
                     var completion = EvaluateStatement(statement, environment, context);
-                    var shouldStop = context.ShouldStopEvaluation;
-                    var shouldCapture =
+                    var shouldStopOther = context.ShouldStopEvaluation;
+                    var shouldCaptureOther =
                         !ReferenceEquals(completion, EmptyCompletion) &&
-                        (!shouldStop ||
+                        (!shouldStopOther ||
                          context.IsReturn ||
                          context.IsThrow ||
                          context.IsYield ||
                          context.IsBreak ||
                          context.IsContinue);
 
-                    if (shouldCapture)
+                    if (shouldCaptureOther)
                     {
                         fastResult = completion;
+                        hasExpressionResult = false; // Non-expression overwrites expression result
                     }
 
-                    if (shouldStop)
+                    if (shouldStopOther)
                     {
                         break;
                     }
                 }
 
-                return fastResult;
+                // Only box the JsValue at the very end if we have an expression result
+                return hasExpressionResult ? lastExpressionResult.ToObject() : fastResult;
             }
 
             var scope = new JsEnvironment(environment, false, block.IsStrict);
@@ -82,29 +117,58 @@ public static partial class TypedAstEvaluator
             foreach (var statement in block.Statements)
             {
                 context.ThrowIfCancellationRequested();
+
+                // Fast path for ExpressionStatement: avoid ToObject() boxing
+                if (statement is ExpressionStatement expr)
+                {
+                    var jsCompletion = EvaluateExpression(expr.Expression, scope, context);
+                    var shouldStop = context.ShouldStopEvaluation;
+                    var shouldCapture = !shouldStop ||
+                                        context.IsReturn ||
+                                        context.IsThrow ||
+                                        context.IsYield ||
+                                        context.IsBreak ||
+                                        context.IsContinue;
+
+                    if (shouldCapture)
+                    {
+                        lastExpressionResult = jsCompletion;
+                        hasExpressionResult = true;
+                    }
+
+                    if (shouldStop)
+                    {
+                        break;
+                    }
+
+                    continue;
+                }
+
                 var completion = EvaluateStatement(statement, scope, context);
-                var shouldStop = context.ShouldStopEvaluation;
-                var shouldCapture =
+                var shouldStopOther = context.ShouldStopEvaluation;
+                var shouldCaptureOther =
                     !ReferenceEquals(completion, EmptyCompletion) &&
-                    (!shouldStop ||
+                    (!shouldStopOther ||
                      context.IsReturn ||
                      context.IsThrow ||
                      context.IsYield ||
                      context.IsBreak ||
                      context.IsContinue);
 
-                if (shouldCapture)
+                if (shouldCaptureOther)
                 {
                     result = completion;
+                    hasExpressionResult = false; // Non-expression overwrites expression result
                 }
 
-                if (shouldStop)
+                if (shouldStopOther)
                 {
                     break;
                 }
             }
 
-            return result;
+            // Only box the JsValue at the very end if we have an expression result
+            return hasExpressionResult ? lastExpressionResult.ToObject() : result;
         }
 
         private void InstantiateLexicalBlockFunctions(

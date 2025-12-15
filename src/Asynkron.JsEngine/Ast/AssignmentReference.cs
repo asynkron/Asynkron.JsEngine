@@ -344,6 +344,31 @@ internal readonly struct AssignmentReference
 
 internal static class AssignmentReferenceResolver
 {
+    /// <summary>
+    /// Fast path for resolving simple identifier expressions without allocating a delegate.
+    /// Use this when you know the expression is an IdentifierExpression or can be unwrapped to one.
+    /// </summary>
+    public static AssignmentReference ResolveIdentifierFast(
+        ExpressionNode expression,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        // Unwrap unary ++/-- expressions to get the underlying identifier
+        while (expression is UnaryExpression { Operator: "++" or "--" } unary)
+        {
+            expression = unary.Operand;
+        }
+
+        if (expression is IdentifierExpression identifier)
+        {
+            return ResolveIdentifier(identifier, environment, context);
+        }
+
+        // For non-identifier expressions, throw - caller should use full Resolve method
+        throw new InvalidOperationException(
+            $"ResolveIdentifierFast only supports identifier expressions, got {expression.GetType().Name}");
+    }
+
     public static AssignmentReference Resolve(
         ExpressionNode expression,
         JsEnvironment environment,

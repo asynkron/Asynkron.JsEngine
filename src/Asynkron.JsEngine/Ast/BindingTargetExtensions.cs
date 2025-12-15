@@ -151,11 +151,15 @@ public static partial class TypedAstEvaluator
                     break;
                 case AssignmentTargetBinding assignmentTarget:
                 {
-                    var reference = AssignmentReferenceResolver.Resolve(
-                        assignmentTarget.Expression,
-                        environment,
-                        context,
-                        (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
+                    // Use fast path for identifiers, slow path for member expressions
+                    var reference = assignmentTarget.Expression is IdentifierExpression
+                        ? AssignmentReferenceResolver.ResolveIdentifierFast(
+                            assignmentTarget.Expression, environment, context)
+                        : AssignmentReferenceResolver.Resolve(
+                            assignmentTarget.Expression,
+                            environment,
+                            context,
+                            static (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
                     if (context.ShouldStopEvaluation)
                     {
                         return;

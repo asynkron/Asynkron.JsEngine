@@ -823,7 +823,7 @@ public sealed class JsEnvironment
         if (TryLocateBinding(name, out var bindingEnvironment, out _))
         {
             var cachedBinding = new ResolvedIdentifierBinding(bindingEnvironment, name);
-            CacheDeclarativeBinding(name, cachedBinding, context, bindingEnvironment);
+            CacheDeclarativeBinding(name, cachedBinding, context);
             return AssignmentReference.ForDeclarativeBinding(cachedBinding, name, context, strictContext);
         }
 
@@ -855,7 +855,7 @@ public sealed class JsEnvironment
         if (TryLocateBinding(name, out var bindingEnvironment, out _))
         {
             var cachedBinding = new ResolvedIdentifierBinding(bindingEnvironment, name);
-            CacheDeclarativeBinding(name, cachedBinding, context, bindingEnvironment);
+            CacheDeclarativeBinding(name, cachedBinding, context);
             return cachedBinding.Read(name, context);
         }
 
@@ -885,7 +885,7 @@ public sealed class JsEnvironment
         if (TryLocateBinding(name, out var bindingEnvironment, out _))
         {
             var cachedBinding = new ResolvedIdentifierBinding(bindingEnvironment, name);
-            CacheDeclarativeBinding(name, cachedBinding, context, bindingEnvironment);
+            CacheDeclarativeBinding(name, cachedBinding, context);
             return cachedBinding.ReadJsValue(name, context);
         }
 
@@ -902,50 +902,28 @@ public sealed class JsEnvironment
         EvaluationContext context,
         out ResolvedIdentifierBinding binding)
     {
-        if (!context.AllowIdentifierCache)
+        if (!context.AllowIdentifierCache || _identifierBindingCache is null)
         {
             binding = default;
             return false;
         }
 
-        // Check current environment's cache
-        if (_identifierBindingCache is not null &&
-            _identifierBindingCache.TryGetValue(name, out binding))
-        {
-            return true;
-        }
-
-        // Check parent environments' caches (avoids re-walking when per-iteration envs are used)
-        var parent = Enclosing;
-        while (parent is not null)
-        {
-            if (parent._identifierBindingCache is not null &&
-                parent._identifierBindingCache.TryGetValue(name, out binding))
-            {
-                return true;
-            }
-            parent = parent.Enclosing;
-        }
-
-        binding = default;
-        return false;
+        return _identifierBindingCache.TryGetValue(name, out binding);
     }
 
-    private static void CacheDeclarativeBinding(
+    private void CacheDeclarativeBinding(
         Symbol name,
         ResolvedIdentifierBinding binding,
-        EvaluationContext context,
-        JsEnvironment targetEnvironment)
+        EvaluationContext context)
     {
         if (!context.AllowIdentifierCache)
         {
             return;
         }
 
-        // Cache on the environment where the binding actually lives
-        targetEnvironment._identifierBindingCache ??=
+        _identifierBindingCache ??=
             new Dictionary<Symbol, ResolvedIdentifierBinding>(ReferenceEqualityComparer<Symbol>.Instance);
-        targetEnvironment._identifierBindingCache[name] = binding;
+        _identifierBindingCache[name] = binding;
     }
 
     internal readonly struct ResolvedIdentifierBinding

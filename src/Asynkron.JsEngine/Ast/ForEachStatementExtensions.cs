@@ -13,9 +13,15 @@ public static partial class TypedAstEvaluator
         private object? EvaluateForEach(JsEnvironment environment,
             EvaluationContext context, Symbol? loopLabel)
         {
+            return EvaluateForEachJsValue(statement, environment, context, loopLabel).ToObject();
+        }
+
+        private JsValue EvaluateForEachJsValue(JsEnvironment environment,
+            EvaluationContext context, Symbol? loopLabel)
+        {
             if (statement.Kind == ForEachKind.AwaitOf)
             {
-                return EvaluateForAwaitOf(statement, environment, context, loopLabel);
+                return EvaluateForAwaitOfJsValue(statement, environment, context, loopLabel);
             }
 
             var iterableEnvironment = environment;
@@ -32,7 +38,7 @@ public static partial class TypedAstEvaluator
             var iterableJsValue = EvaluateExpression(statement.Iterable, iterableEnvironment, context);
             if (context.ShouldStopEvaluation)
             {
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             var iterable = iterableJsValue.ToObject();
@@ -59,7 +65,7 @@ public static partial class TypedAstEvaluator
 
             var loopEnvironment =
                 new JsEnvironment(environment, creatingSource: statement.Source, description: "for-each-loop");
-            object? lastValue = Symbol.Undefined;
+            var lastValueJs = JsValue.Undefined;
 
             if (statement.Kind == ForEachKind.Of)
             {
@@ -67,7 +73,7 @@ public static partial class TypedAstEvaluator
                 if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
                 {
                     var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
-                    var completion = ExecuteIteratorDriver(
+                    var completion = ExecuteIteratorDriverJsValue(
                         plan,
                         iterator,
                         enumerator: null,
@@ -75,7 +81,7 @@ public static partial class TypedAstEvaluator
                         environment,
                         context,
                         loopLabel);
-                    return ReferenceEquals(completion, EmptyCompletion) ? Symbol.Undefined : completion;
+                    return completion;
                 }
 
                 throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
@@ -103,7 +109,7 @@ public static partial class TypedAstEvaluator
                 AssignLoopBinding(statement.Target, value, iterationEnvironment, environment, context,
                     statement.DeclarationKind);
 
-                lastValue = EvaluateStatement(statement.Body, iterationEnvironment, context);
+                lastValueJs = EvaluateStatementJsValue(statement.Body, iterationEnvironment, context);
 
                 if (context.IsReturn || context.IsThrow)
                 {
@@ -121,10 +127,16 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            return ReferenceEquals(lastValue, EmptyCompletion) ? Symbol.Undefined : lastValue;
+            return lastValueJs;
         }
 
         private object? EvaluateForAwaitOf(JsEnvironment environment,
+            EvaluationContext context, Symbol? loopLabel)
+        {
+            return EvaluateForAwaitOfJsValue(statement, environment, context, loopLabel).ToObject();
+        }
+
+        private JsValue EvaluateForAwaitOfJsValue(JsEnvironment environment,
             EvaluationContext context, Symbol? loopLabel)
         {
             var iterableEnvironment = environment;
@@ -141,7 +153,7 @@ public static partial class TypedAstEvaluator
             var iterableJs = EvaluateExpression(statement.Iterable, iterableEnvironment, context);
             if (context.ShouldStopEvaluation)
             {
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             var iterable = iterableJs.ToObject();
@@ -150,14 +162,13 @@ public static partial class TypedAstEvaluator
 
             var loopEnvironment =
                 new JsEnvironment(environment, creatingSource: statement.Source, description: "for-await-of loop");
-            object? lastValue = Symbol.Undefined;
 
             if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
             {
                 var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
                 var completion =
-                    ExecuteIteratorDriver(plan, iterator!, null, loopEnvironment, environment, context, loopLabel);
-                return ReferenceEquals(completion, EmptyCompletion) ? Symbol.Undefined : completion;
+                    ExecuteIteratorDriverJsValue(plan, iterator!, null, loopEnvironment, environment, context, loopLabel);
+                return completion;
             }
 
             throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);

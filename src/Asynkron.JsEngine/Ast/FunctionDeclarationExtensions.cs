@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.JsTypes;
+
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
@@ -7,9 +9,15 @@ public static partial class TypedAstEvaluator
         private object? EvaluateFunctionDeclaration(JsEnvironment environment,
             EvaluationContext context)
         {
+            return EvaluateFunctionDeclarationJsValue(declaration, environment, context).ToObject();
+        }
+
+        private JsValue EvaluateFunctionDeclarationJsValue(JsEnvironment environment,
+            EvaluationContext context)
+        {
             // Function declarations are hoisted and instantiated during FunctionDeclarationInstantiation.
             // The actual declaration statement is a no-op at runtime.
-            return EmptyCompletion;
+            return JsValue.Undefined;
         }
     }
 }

@@ -19,7 +19,18 @@ public static partial class TypedAstEvaluator
             Symbol? loopLabel,
             Func<JsEnvironment>? rentIterationEnvironment = null)
         {
-            object? lastValue = Symbol.Undefined;
+            return ExecuteIteratorDriverJsValue(plan, iterator, enumerator, loopEnvironment, outerEnvironment, context, loopLabel, rentIterationEnvironment).ToObject();
+        }
+
+        private JsValue ExecuteIteratorDriverJsValue(IJsObjectLike iterator,
+            IEnumerator<object?>? enumerator,
+            JsEnvironment loopEnvironment,
+            JsEnvironment outerEnvironment,
+            EvaluationContext context,
+            Symbol? loopLabel,
+            Func<JsEnvironment>? rentIterationEnvironment = null)
+        {
+            var lastValueJs = JsValue.Undefined;
             var iteratorDone = false;
 
             var state = new IteratorDriverState
@@ -126,7 +137,7 @@ public static partial class TypedAstEvaluator
                             throw new ThrowSignal(context.FlowValue);
                         }
 
-                        lastValue = EvaluateStatement(plan.Body, iterationEnvironment, context, loopLabel);
+                        lastValueJs = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
                         if (context.IsThrow)
                         {
                             throw new ThrowSignal(context.FlowValue);
@@ -171,7 +182,7 @@ public static partial class TypedAstEvaluator
                         throw new ThrowSignal(context.FlowValue);
                     }
 
-                    lastValue = EvaluateStatement(plan.Body, iterationEnvironment, context, loopLabel);
+                    lastValueJs = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
                     if (context.IsThrow)
                     {
                         throw new ThrowSignal(context.FlowValue);
@@ -199,11 +210,11 @@ public static partial class TypedAstEvaluator
                 IteratorClose(state.IteratorObject, context, context.IsThrow);
                 if (context.IsThrow)
                 {
-                    return lastValue;
+                    return lastValueJs;
                 }
             }
 
-            return lastValue;
+            return lastValueJs;
         }
     }
 }

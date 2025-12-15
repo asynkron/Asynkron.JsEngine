@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.JsTypes;
+
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
@@ -5,6 +7,11 @@ public static partial class TypedAstEvaluator
     extension(ThrowStatement statement)
     {
         private object? EvaluateThrow(JsEnvironment environment, EvaluationContext context)
+        {
+            return EvaluateThrowJsValue(statement, environment, context).ToObject();
+        }
+
+        private JsValue EvaluateThrowJsValue(JsEnvironment environment, EvaluationContext context)
         {
             var jsValue = EvaluateExpression(statement.Expression, environment, context);
             // If evaluating the throw expression itself caused an abrupt completion
@@ -15,7 +22,7 @@ public static partial class TypedAstEvaluator
                 return context.FlowValue;
             }
             context.SetThrow(jsValue);
-            return jsValue.ToObject();
+            return jsValue;
         }
     }
 }

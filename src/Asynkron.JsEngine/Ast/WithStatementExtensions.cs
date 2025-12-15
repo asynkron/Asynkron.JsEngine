@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.JsTypes;
+
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
@@ -6,25 +8,28 @@ public static partial class TypedAstEvaluator
     {
         private object? EvaluateWith(JsEnvironment environment, EvaluationContext context)
         {
+            return EvaluateWithJsValue(statement, environment, context).ToObject();
+        }
+
+        private JsValue EvaluateWithJsValue(JsEnvironment environment, EvaluationContext context)
+        {
             var objValueJs = EvaluateExpression(statement.Object, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return objValueJs.ToObject();
+                return objValueJs;
             }
 
             var objValue = objValueJs.ToObject();
             if (!TryConvertToWithBindingObject(objValue, context, out var withObject))
             {
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             var withEnv = new JsEnvironment(environment, false, context.CurrentScope.IsStrict, statement.Source, "with",
                 withObject);
-            var completion = EvaluateStatement(statement.Body, withEnv, context);
+            var completion = EvaluateStatementJsValue(statement.Body, withEnv, context);
 
-            return ReferenceEquals(completion, EmptyCompletion)
-                ? Symbol.Undefined
-                : completion;
+            return completion;
         }
     }
 }

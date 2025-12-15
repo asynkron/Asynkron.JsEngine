@@ -133,9 +133,10 @@ internal static class JsOps
     public static object ToNumeric(object? value, EvaluationContext? context = null)
     {
         var result = ToNumericAsJsValue(value, context);
-        object returnValue = result.IsNumber ? result : result.IsBigInt ? result.AsBigInt() : result;
-        Console.WriteLine($"ToNumeric: input={value?.GetType().Name ?? "null"}, result.Kind={result.Kind}, IsNumber={result.IsNumber}, IsBigInt={result.IsBigInt}, returnType={returnValue?.GetType().Name ?? "null"}");
-        return returnValue;
+        // Important: explicit casts to object to avoid implicit JsValue conversions
+        if (result.IsNumber) return (object)result;
+        if (result.IsBigInt) return result.AsBigInt();
+        return (object)result;
     }
 
     /// <summary>

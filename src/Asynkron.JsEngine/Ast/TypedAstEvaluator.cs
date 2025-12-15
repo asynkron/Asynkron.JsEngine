@@ -948,23 +948,19 @@ public static partial class TypedAstEvaluator
         }
 
         var leftNumeric = JsOps.ToNumeric(left, context);
-        Console.WriteLine($"PerformBigIntOrInt32: left={left?.GetType().Name ?? "null"}, leftNumeric={leftNumeric?.GetType().Name ?? "null"}");
         if (context.IsThrow)
         {
             return context.FlowValue;
         }
 
         var rightNumeric = JsOps.ToNumeric(right, context);
-        Console.WriteLine($"PerformBigIntOrInt32: right={right?.GetType().Name ?? "null"}, rightNumeric={rightNumeric?.GetType().Name ?? "null"}");
         if (context.IsThrow)
         {
             return context.FlowValue;
         }
 
-        Console.WriteLine($"PerformBigIntOrInt32: leftNumeric is JsBigInt={leftNumeric is JsBigInt}, rightNumeric is JsBigInt={rightNumeric is JsBigInt}");
         if (leftNumeric is JsBigInt leftBigInt && rightNumeric is JsBigInt rightBigInt)
         {
-            Console.WriteLine($"PerformBigIntOrInt32: returning bigIntOp result");
             return bigIntOp(leftBigInt, rightBigInt);
         }
 

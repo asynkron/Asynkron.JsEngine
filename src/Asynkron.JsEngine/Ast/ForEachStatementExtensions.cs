@@ -10,12 +10,6 @@ public static partial class TypedAstEvaluator
 {
     extension(ForEachStatement statement)
     {
-        private object? EvaluateForEach(JsEnvironment environment,
-            EvaluationContext context, Symbol? loopLabel)
-        {
-            return EvaluateForEachJsValue(statement, environment, context, loopLabel).ToObject();
-        }
-
         private JsValue EvaluateForEachJsValue(JsEnvironment environment,
             EvaluationContext context, Symbol? loopLabel)
         {

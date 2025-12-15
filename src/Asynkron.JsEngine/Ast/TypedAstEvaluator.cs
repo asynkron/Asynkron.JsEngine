@@ -334,42 +334,6 @@ public static partial class TypedAstEvaluator
         throw new InvalidOperationException("Cannot iterate properties of non-object value.");
     }
 
-    private static IEnumerable<object?> EnumerateValues(object? value, EvaluationContext context)
-    {
-        switch (value)
-        {
-            case JsArray array:
-                foreach (var item in array.Items)
-                {
-                    yield return item;
-                }
-
-                yield break;
-            case string s:
-                foreach (var ch in s)
-                {
-                    yield return ch.ToString();
-                }
-
-                yield break;
-            case IEnumerable<object?> enumerable:
-                foreach (var item in enumerable)
-                {
-                    yield return item;
-                }
-
-                yield break;
-        }
-
-        throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
-    }
-
-
-    private static object? NormalizeLoopCompletion(object? completion)
-    {
-        return ReferenceEquals(completion, EmptyCompletion) ? Symbol.Undefined : completion;
-    }
-
     private static DelegatedYieldState CreateDelegatedState(object? iterable, EvaluationContext context)
     {
         var iteratorTarget = NormalizeIterableTarget(iterable, context);
@@ -421,7 +385,7 @@ public static partial class TypedAstEvaluator
 
     private static object? CreateResolvedPromise(object? value, JsEnvironment environment)
     {
-        JsValue resolveCandidate = JsValue.Undefined;
+        var resolveCandidate = JsValue.Undefined;
         if (!environment.TryGet(Symbol.PromiseIdentifier, out var promiseCtor) ||
             promiseCtor is not IJsPropertyAccessor accessor ||
             !accessor.TryGetProperty("resolve", out resolveCandidate) ||

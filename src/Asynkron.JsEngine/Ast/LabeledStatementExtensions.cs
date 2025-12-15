@@ -6,12 +6,6 @@ public static partial class TypedAstEvaluator
 {
     extension(LabeledStatement statement)
     {
-        private object? EvaluateLabeled(JsEnvironment environment,
-            EvaluationContext context)
-        {
-            return EvaluateLabeledJsValue(statement, environment, context).ToObject();
-        }
-
         /// <summary>
         /// JsValue-returning version for use in hot paths.
         /// </summary>

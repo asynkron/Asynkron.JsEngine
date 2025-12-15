@@ -27,7 +27,7 @@ public static partial class TypedAstEvaluator
 
         /// <summary>
         /// Core block evaluation that returns JsValue directly.
-        /// Uses JsValue.Unit to represent "no completion value".
+        /// Returns JsValue.Undefined for empty blocks to match browser behavior.
         /// </summary>
         private JsValue EvaluateBlockCore(
             JsEnvironment environment,
@@ -39,7 +39,8 @@ public static partial class TypedAstEvaluator
             }
             var hoistPlan = ((IAstCacheable<HoistPlan>)block).GetOrCreateCache();
 
-            var resultJs = JsValue.Unit;
+            // Start with Undefined (not Unit) to match browser behavior for empty blocks
+            var resultJs = JsValue.Undefined;
 
             // Fast path: if the block has no lexical/function decls, execute directly in the incoming environment
             if (!hoistPlan.NeedsEnvironment)

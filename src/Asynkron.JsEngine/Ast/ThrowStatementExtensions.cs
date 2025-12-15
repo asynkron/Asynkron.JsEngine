@@ -6,11 +6,6 @@ public static partial class TypedAstEvaluator
 {
     extension(ThrowStatement statement)
     {
-        private object? EvaluateThrow(JsEnvironment environment, EvaluationContext context)
-        {
-            return EvaluateThrowJsValue(statement, environment, context).ToObject();
-        }
-
         private JsValue EvaluateThrowJsValue(JsEnvironment environment, EvaluationContext context)
         {
             var jsValue = EvaluateExpression(statement.Expression, environment, context);

@@ -6,11 +6,6 @@ public static partial class TypedAstEvaluator
 {
     extension(WithStatement statement)
     {
-        private object? EvaluateWith(JsEnvironment environment, EvaluationContext context)
-        {
-            return EvaluateWithJsValue(statement, environment, context).ToObject();
-        }
-
         private JsValue EvaluateWithJsValue(JsEnvironment environment, EvaluationContext context)
         {
             var objValueJs = EvaluateExpression(statement.Object, environment, context);

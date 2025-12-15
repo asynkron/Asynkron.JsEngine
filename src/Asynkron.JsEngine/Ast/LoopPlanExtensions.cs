@@ -9,12 +9,6 @@ public static partial class TypedAstEvaluator
 {
     extension(LoopPlan plan)
     {
-        private object? EvaluateLoopPlan(JsEnvironment environment, EvaluationContext context,
-            Symbol? loopLabel)
-        {
-            return EvaluateLoopPlanJsValue(plan, environment, context, loopLabel).ToObject();
-        }
-
         /// <summary>
         /// JsValue-returning version of EvaluateLoopPlan for use in hot paths.
         /// Avoids boxing on each iteration and at the final return.

@@ -11,17 +11,6 @@ public static partial class TypedAstEvaluator
 {
     extension(IteratorDriverPlan plan)
     {
-        private object? ExecuteIteratorDriver(IJsObjectLike iterator,
-            IEnumerator<object?>? enumerator,
-            JsEnvironment loopEnvironment,
-            JsEnvironment outerEnvironment,
-            EvaluationContext context,
-            Symbol? loopLabel,
-            Func<JsEnvironment>? rentIterationEnvironment = null)
-        {
-            return ExecuteIteratorDriverJsValue(plan, iterator, enumerator, loopEnvironment, outerEnvironment, context, loopLabel, rentIterationEnvironment).ToObject();
-        }
-
         private JsValue ExecuteIteratorDriverJsValue(IJsObjectLike iterator,
             IEnumerator<object?>? enumerator,
             JsEnvironment loopEnvironment,

@@ -7,14 +7,6 @@ public static partial class TypedAstEvaluator
     extension(IfStatement statement)
     {
         /// <summary>
-        /// Object-returning version for compatibility with existing callers.
-        /// </summary>
-        private object? EvaluateIf(JsEnvironment environment, EvaluationContext context)
-        {
-            return EvaluateIfJsValue(statement, environment, context).ToObject();
-        }
-
-        /// <summary>
         /// JsValue-returning version for use in hot loops to avoid boxing.
         /// </summary>
         private JsValue EvaluateIfJsValue(JsEnvironment environment, EvaluationContext context)

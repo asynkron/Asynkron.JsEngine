@@ -6,13 +6,6 @@ public static partial class TypedAstEvaluator
 {
     extension(SwitchStatement statement)
     {
-        private object? EvaluateSwitch(JsEnvironment environment,
-            EvaluationContext context,
-            Symbol? targetLabel)
-        {
-            return EvaluateSwitchJsValue(statement, environment, context, targetLabel).ToObject();
-        }
-
         /// <summary>
         /// JsValue-returning version for use in hot paths.
         /// </summary>

@@ -7,11 +7,6 @@ public static partial class TypedAstEvaluator
 {
     extension(TryStatement statement)
     {
-        private object? EvaluateTry(JsEnvironment environment, EvaluationContext context)
-        {
-            return EvaluateTryJsValue(statement, environment, context).ToObject();
-        }
-
         /// <summary>
         /// JsValue-returning version for use in hot paths.
         /// </summary>

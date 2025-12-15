@@ -7,13 +7,6 @@ public static partial class TypedAstEvaluator
 {
     extension(DoWhileStatement statement)
     {
-        private object? EvaluateDoWhile(JsEnvironment environment,
-            EvaluationContext context,
-            Symbol? loopLabel)
-        {
-            return EvaluateDoWhileJsValue(statement, environment, context, loopLabel).ToObject();
-        }
-
         /// <summary>
         /// JsValue-returning version for use in hot paths.
         /// </summary>

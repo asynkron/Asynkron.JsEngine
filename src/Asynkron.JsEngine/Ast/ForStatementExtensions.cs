@@ -7,12 +7,6 @@ public static partial class TypedAstEvaluator
 {
     extension(ForStatement statement)
     {
-        private object? EvaluateFor(JsEnvironment environment, EvaluationContext context,
-            Symbol? loopLabel)
-        {
-            return EvaluateForJsValue(statement, environment, context, loopLabel).ToObject();
-        }
-
         /// <summary>
         /// JsValue-returning version for use in hot paths.
         /// </summary>

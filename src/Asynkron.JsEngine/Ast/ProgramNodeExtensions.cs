@@ -14,35 +14,51 @@ public static partial class TypedAstEvaluator
         public object? EvaluateProgram(
             JsEnvironment environment,
             RealmState realmState,
-        CancellationToken cancellationToken = default,
-        ExecutionKind executionKind = ExecutionKind.Script,
-        bool createStrictEnvironment = true,
-        Symbol? functionNameHint = null,
-        ImmutableArray<PrivateNameScope>? inheritedPrivateNameScopes = null,
-        bool drainAwaitMicrotasks = true)
-    {
-        var context = realmState.CreateContext(
-            ScopeKind.Program,
-            program.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy,
-            cancellationToken,
-            executionKind);
-        context.AllowIdentifierCache = AllowsIdentifierCaching(program);
-        context.DrainAwaitMicrotasks = drainAwaitMicrotasks;
-        if (inheritedPrivateNameScopes is { IsDefault: false, Length: > 0 } scopes)
+            CancellationToken cancellationToken = default,
+            ExecutionKind executionKind = ExecutionKind.Script,
+            bool createStrictEnvironment = true,
+            Symbol? functionNameHint = null,
+            ImmutableArray<PrivateNameScope>? inheritedPrivateNameScopes = null,
+            bool drainAwaitMicrotasks = true)
         {
-            context.EnterPrivateNameScopes(scopes);
-            context.RealmState.Logger?.LogInformation(
-                "Program inherited {PrivateScopeCount} private scopes",
-                scopes.Length);
+            var result = EvaluateProgramJsValue(program, environment, realmState, cancellationToken,
+                executionKind, createStrictEnvironment, functionNameHint, inheritedPrivateNameScopes,
+                drainAwaitMicrotasks);
+            return result.IsUnit ? Symbol.Undefined : result.ToObject();
         }
-        context.SourceReference = program.Source;
-        context.IsStrictSource = program.IsStrict;
-        using var nameHintHandle = functionNameHint is not null
-            ? context.EnterFunctionNameHint(functionNameHint)
-            : null;
-        using var programActivity =
-            Activity.Current?.StartEvaluatorActivity("Program", context, program.Source);
-        programActivity?.SetTag("js.program.strict", program.IsStrict);
+
+        public JsValue EvaluateProgramJsValue(
+            JsEnvironment environment,
+            RealmState realmState,
+            CancellationToken cancellationToken = default,
+            ExecutionKind executionKind = ExecutionKind.Script,
+            bool createStrictEnvironment = true,
+            Symbol? functionNameHint = null,
+            ImmutableArray<PrivateNameScope>? inheritedPrivateNameScopes = null,
+            bool drainAwaitMicrotasks = true)
+        {
+            var context = realmState.CreateContext(
+                ScopeKind.Program,
+                program.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy,
+                cancellationToken,
+                executionKind);
+            context.AllowIdentifierCache = AllowsIdentifierCaching(program);
+            context.DrainAwaitMicrotasks = drainAwaitMicrotasks;
+            if (inheritedPrivateNameScopes is { IsDefault: false, Length: > 0 } scopes)
+            {
+                context.EnterPrivateNameScopes(scopes);
+                context.RealmState.Logger?.LogInformation(
+                    "Program inherited {PrivateScopeCount} private scopes",
+                    scopes.Length);
+            }
+            context.SourceReference = program.Source;
+            context.IsStrictSource = program.IsStrict;
+            using var nameHintHandle = functionNameHint is not null
+                ? context.EnterFunctionNameHint(functionNameHint)
+                : null;
+            using var programActivity =
+                Activity.Current?.StartEvaluatorActivity("Program", context, program.Source);
+            programActivity?.SetTag("js.program.strict", program.IsStrict);
             var executionEnvironment = program.IsStrict && createStrictEnvironment
                 ? new JsEnvironment(environment, true, true,
                     treatAsGlobalFunctionScope: environment.IsGlobalFunctionScope)
@@ -238,7 +254,7 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(context.FlowValue);
             }
 
-            return resultJs.IsUnit ? Symbol.Undefined : resultJs.ToObject();
+            return resultJs;
         }
     }
 

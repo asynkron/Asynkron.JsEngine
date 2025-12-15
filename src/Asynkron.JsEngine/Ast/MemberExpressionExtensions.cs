@@ -16,8 +16,9 @@ public static partial class TypedAstEvaluator
             // values that can be used as keys (e.g. o[Symbol.iterator]).
             if (expression is { IsComputed: false, Target: IdentifierExpression symbolIdentifier } &&
                 string.Equals(symbolIdentifier.Name.Name, "Symbol", StringComparison.Ordinal) &&
-                expression.Property is LiteralExpression { Value: string symbolProp })
+                expression.Property is LiteralExpression { Value.IsString: true } symbolPropLit)
             {
+                var symbolProp = symbolPropLit.Value.AsString()!;
                 return symbolProp switch
                 {
                     "iterator" => JsValue.FromObject(Symbols.Iterator),

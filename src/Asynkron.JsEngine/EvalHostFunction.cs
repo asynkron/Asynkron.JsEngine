@@ -2879,16 +2879,19 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     // For non-computed member expressions with private names (e.g., this.#x),
                     // the Property is a LiteralExpression containing the private name string.
                     if (!memberExpression.IsComputed &&
-                        memberExpression.Property is LiteralExpression { Value: string propName } &&
-                        propName.IsPrivateName())
+                        memberExpression.Property is LiteralExpression { Value.IsString: true } propLit)
                     {
-                        // Check if this private name is valid in available scopes
-                        if (!IsPrivateNameValid(propName, availableScopes))
+                        var propName = propLit.Value.AsString()!;
+                        if (propName.IsPrivateName())
                         {
-                            return propName;
-                        }
+                            // Check if this private name is valid in available scopes
+                            if (!IsPrivateNameValid(propName, availableScopes))
+                            {
+                                return propName;
+                            }
 
-                        return null;
+                            return null;
+                        }
                     }
 
                     // For computed expressions, check the property expression

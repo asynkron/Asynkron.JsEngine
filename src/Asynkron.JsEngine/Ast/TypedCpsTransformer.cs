@@ -920,7 +920,7 @@ public sealed class TypedCpsTransformer
             return false;
         }
 
-        return member.Property is LiteralExpression { Value: "catch" };
+        return member.Property is LiteralExpression { Value.IsString: true } lit && lit.Value.AsString() == "catch";
     }
 
     private static ImmutableArray<StatementNode> NormalizeStatements(ImmutableArray<StatementNode> statements)

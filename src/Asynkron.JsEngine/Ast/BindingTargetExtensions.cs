@@ -35,7 +35,7 @@ public static partial class TypedAstEvaluator
         private void CreateUninitializedLexicalBindings(JsEnvironment environment, bool isConst)
         {
             WalkBindingTargets(target,
-                id => environment.Define(id.Name, JsEnvironment.Uninitialized, isConst,
+                id => environment.DefineJsValue(id.Name, JsValue.FromObject(JsEnvironment.Uninitialized), isConst,
                     isLexical: true, blocksFunctionScopeOverride: true));
         }
 

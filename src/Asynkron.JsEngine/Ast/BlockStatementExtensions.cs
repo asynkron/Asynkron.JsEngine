@@ -141,9 +141,9 @@ public static partial class TypedAstEvaluator
                 // const binding for its name (the binding is handled by blockEnvironment.Define below).
                 var functionValue = CreateFunctionValue(functionDeclaration.Function, blockEnvironment, context,
                     skipInternalNameBinding: true);
-                blockEnvironment.Define(
+                blockEnvironment.DefineJsValue(
                     functionDeclaration.Name,
-                    functionValue,
+                    JsValue.FromObject(functionValue),
                     isConst: true,
                     isLexical: true,
                     blocksFunctionScopeOverride: true);
@@ -157,7 +157,7 @@ public static partial class TypedAstEvaluator
                 case IdentifierBinding id:
                     if (!blockEnvironment.HasBinding(id.Name))
                     {
-                        blockEnvironment.Define(id.Name, JsEnvironment.Uninitialized, isLexical: true,
+                        blockEnvironment.DefineJsValue(id.Name, JsValue.FromObject(JsEnvironment.Uninitialized), isLexical: true,
                             blocksFunctionScopeOverride: true, isConst: isConst);
                     }
                     break;

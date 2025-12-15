@@ -400,7 +400,7 @@ public static partial class TypedAstEvaluator
         }
         else
         {
-            environment.Define(stateKey, state, isConst: false, isLexical: true, canDelete: true);
+            environment.DefineJsValue(stateKey, JsValue.FromObject(state), isConst: false, isLexical: true, canDelete: true);
         }
     }
 

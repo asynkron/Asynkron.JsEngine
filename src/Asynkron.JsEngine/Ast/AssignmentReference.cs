@@ -345,6 +345,43 @@ internal readonly struct AssignmentReference
 internal static class AssignmentReferenceResolver
 {
     /// <summary>
+    /// Fastest path - resolve a Symbol directly without any expression object allocation.
+    /// Use this when you already have the Symbol (e.g., from AssignmentExpression.Target).
+    /// </summary>
+    public static AssignmentReference ResolveIdentifierDirect(
+        Symbol name,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var isStrictTarget = context.CurrentScope.IsStrict &&
+                             (string.Equals(name.Name, "eval", StringComparison.Ordinal) ||
+                              string.Equals(name.Name, "arguments", StringComparison.Ordinal));
+
+        if (environment.TryResolveWithBinding(name, context, out var withBinding))
+        {
+            return AssignmentReference.ForWithBinding(
+                withBinding,
+                environment,
+                name,
+                context,
+                isStrictTarget);
+        }
+
+        var reference = environment.ResolveIdentifierAssignmentReference(name, context);
+        if (!isStrictTarget)
+        {
+            return reference;
+        }
+
+        // Wrap in delegate for strict restricted names (eval/arguments)
+        return AssignmentReference.ForDelegate(
+            reference.GetValue,
+            _ => throw new ThrowSignal(JsValue.FromObject(StandardLibrary.CreateSyntaxError(
+                "Assignment to eval or arguments is not allowed in strict mode.", context,
+                context.RealmState))));
+    }
+
+    /// <summary>
     /// Fast path for resolving simple identifier expressions without allocating a delegate.
     /// Use this when you know the expression is an IdentifierExpression or can be unwrapped to one.
     /// </summary>
@@ -361,7 +398,7 @@ internal static class AssignmentReferenceResolver
 
         if (expression is IdentifierExpression identifier)
         {
-            return ResolveIdentifier(identifier, environment, context);
+            return ResolveIdentifierDirect(identifier.Name, environment, context);
         }
 
         // For non-identifier expressions, throw - caller should use full Resolve method
@@ -408,32 +445,8 @@ internal static class AssignmentReferenceResolver
     private static AssignmentReference ResolveIdentifier(IdentifierExpression identifier, JsEnvironment environment,
         EvaluationContext context)
     {
-        var isStrictTarget = context.CurrentScope.IsStrict &&
-                             (string.Equals(identifier.Name.Name, "eval", StringComparison.Ordinal) ||
-                              string.Equals(identifier.Name.Name, "arguments", StringComparison.Ordinal));
-
-        if (environment.TryResolveWithBinding(identifier.Name, context, out var withBinding))
-        {
-            return AssignmentReference.ForWithBinding(
-                withBinding,
-                environment,
-                identifier.Name,
-                context,
-                isStrictTarget);
-        }
-
-        var reference = environment.ResolveIdentifierAssignmentReference(identifier.Name, context);
-        if (!isStrictTarget)
-        {
-            return reference;
-        }
-
-        // Wrap in delegate for strict restricted names (eval/arguments)
-        return AssignmentReference.ForDelegate(
-            reference.GetValue,
-            _ => throw new ThrowSignal(JsValue.FromObject(StandardLibrary.CreateSyntaxError(
-                "Assignment to eval or arguments is not allowed in strict mode.", context,
-                context.RealmState))));
+        // Delegate to the direct version to avoid code duplication
+        return ResolveIdentifierDirect(identifier.Name, environment, context);
     }
 
     private static AssignmentReference ResolveMember(

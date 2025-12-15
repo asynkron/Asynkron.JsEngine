@@ -10,9 +10,9 @@ public static partial class TypedAstEvaluator
         private JsValue EvaluateAssignment(JsEnvironment environment,
             EvaluationContext context)
         {
-            // Use fast path - AssignmentExpression.Target is always a Symbol (identifier)
-            var reference = AssignmentReferenceResolver.ResolveIdentifierFast(
-                new IdentifierExpression(expression.Source, expression.Target), environment, context);
+            // Resolve identifier directly without creating a new IdentifierExpression object
+            var reference = AssignmentReferenceResolver.ResolveIdentifierDirect(
+                expression.Target, environment, context);
 
             // Use JsValue version of compound assignment to avoid boxing
             if (expression.IsCompoundAssignment &&

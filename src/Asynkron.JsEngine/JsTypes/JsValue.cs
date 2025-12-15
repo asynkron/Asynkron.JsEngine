@@ -30,7 +30,13 @@ public enum JsValueKind : byte
     Symbol = 6,
 
     /// <summary>An object value (includes arrays, functions, etc.).</summary>
-    Object = 7
+    Object = 7,
+
+    /// <summary>
+    /// Unit/empty completion - represents "no value produced".
+    /// Used internally to distinguish "statement produced no completion value" from "statement produced undefined".
+    /// </summary>
+    Unit = 8
 }
 
 /// <summary>
@@ -97,6 +103,18 @@ public readonly struct JsValue : IEquatable<JsValue>
 
     /// <summary>The empty string.</summary>
     public static readonly JsValue EmptyString = new(string.Empty);
+
+    /// <summary>
+    /// Sentinel object returned by ToObject() for Unit values.
+    /// Used for backwards compatibility with code that checks ReferenceEquals against EmptyCompletion.
+    /// </summary>
+    internal static readonly object UnitSentinel = new();
+
+    /// <summary>
+    /// Unit/empty completion - represents "no value produced" by a statement.
+    /// Used to distinguish "statement produced no completion value" from "undefined".
+    /// </summary>
+    public static readonly JsValue Unit = new(JsValueKind.Unit, 0.0, UnitSentinel);
 
     #endregion
 
@@ -274,6 +292,13 @@ public readonly struct JsValue : IEquatable<JsValue>
         get => Kind != JsValueKind.Object;
     }
 
+    /// <summary>True if this is the Unit value (empty completion / no value).</summary>
+    public bool IsUnit
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => Kind == JsValueKind.Unit;
+    }
+
     #endregion
 
     #region Value Accessors
@@ -436,6 +461,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             JsValueKind.String => ObjectValue,
             JsValueKind.Symbol => ObjectValue,
             JsValueKind.Object => ObjectValue,
+            JsValueKind.Unit => ObjectValue, // Returns UnitSentinel
             _ => Symbol.Undefined
         };
     }
@@ -545,6 +571,7 @@ public readonly struct JsValue : IEquatable<JsValue>
         {
             JsValueKind.Undefined => false,
             JsValueKind.Null => false,
+            JsValueKind.Unit => false,
             JsValueKind.Boolean => NumberValue != 0.0,
             JsValueKind.Number => NumberValue != 0.0 && !double.IsNaN(NumberValue),
             JsValueKind.String => ((string)ObjectValue!).Length > 0,
@@ -574,6 +601,7 @@ public readonly struct JsValue : IEquatable<JsValue>
         {
             JsValueKind.Undefined => true,
             JsValueKind.Null => true,
+            JsValueKind.Unit => true,
             JsValueKind.Boolean => NumberValue == other.NumberValue,
             JsValueKind.Number => NumberValue.Equals(other.NumberValue), // Handles NaN correctly
             JsValueKind.String => string.Equals((string)ObjectValue!, (string)other.ObjectValue!, StringComparison.Ordinal),
@@ -591,6 +619,7 @@ public readonly struct JsValue : IEquatable<JsValue>
         {
             JsValueKind.Undefined => 0,
             JsValueKind.Null => 1,
+            JsValueKind.Unit => -1, // Distinct from other singletons
             JsValueKind.Boolean => NumberValue != 0.0 ? 3 : 2,
             JsValueKind.Number => NumberValue.GetHashCode(),
             JsValueKind.String => ((string)ObjectValue!).GetHashCode(StringComparison.Ordinal),
@@ -612,6 +641,7 @@ public readonly struct JsValue : IEquatable<JsValue>
         {
             JsValueKind.Undefined => "undefined",
             JsValueKind.Null => "null",
+            JsValueKind.Unit => "unit",
             JsValueKind.Boolean => NumberValue != 0.0 ? "true" : "false",
             JsValueKind.Number => NumberValue.ToString(System.Globalization.CultureInfo.InvariantCulture),
             JsValueKind.String => $"\"{ObjectValue}\"",

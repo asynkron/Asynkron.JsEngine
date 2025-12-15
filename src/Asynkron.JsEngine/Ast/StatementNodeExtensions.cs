@@ -49,7 +49,7 @@ public static partial class TypedAstEvaluator
                 case LabeledStatement labeledStatement:
                     return EvaluateLabeledJsValue(labeledStatement, environment, context);
                 case EmptyStatement:
-                    return JsValue.Undefined;
+                    return JsValue.Unit;
             }
 
             // Slow path for less common statement types

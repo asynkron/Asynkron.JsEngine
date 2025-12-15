@@ -33,7 +33,7 @@ public static partial class TypedAstEvaluator
     private static readonly string IteratorSymbolPropertyName = SymbolKeys.Iterator;
 
     private static readonly object GeneratorBrandMarker = new();
-    private static readonly object EmptyCompletion = new();
+    private static readonly object EmptyCompletion = JsValue.UnitSentinel;
 
     private static bool TryConvertToWithBindingObject(
         object? value,

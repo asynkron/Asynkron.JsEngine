@@ -114,16 +114,6 @@ public static partial class TypedAstEvaluator
             return JsValue.FromObject(instance.CreateGeneratorObject());
         }
 
-        private static IReadOnlyList<object?> ConvertArgumentsToObjectList(IReadOnlyList<JsValue> arguments)
-        {
-            var result = new object?[arguments.Count];
-            for (var i = 0; i < arguments.Count; i++)
-            {
-                result[i] = arguments[i].ToObject();
-            }
-            return result;
-        }
-
         public JsObject? Prototype => _properties.Prototype;
 
         public bool IsSealed => _properties.IsSealed;

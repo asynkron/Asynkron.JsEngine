@@ -2410,14 +2410,6 @@ public sealed class JsEngine : IAsyncDisposable
         Source
     }
 
-    /// <summary>
-    ///     Implements dynamic import() - loads a module and returns a Promise that resolves to the module's exports.
-    /// </summary>
-    private JsValue DynamicImport(IReadOnlyList<JsValue> args)
-    {
-        return DynamicImport(args, null, ImportPhase.Module, null);
-    }
-
     private JsValue DynamicImport(
         IReadOnlyList<JsValue> args,
         EvaluationContext? context,
@@ -5045,22 +5037,6 @@ public sealed class JsEngine : IAsyncDisposable
                 return false;
             }
         }
-    }
-
-    /// <summary>
-    ///     Evaluates a module program and populates the exports object.
-    ///     Returns the last evaluated value.
-    /// </summary>
-    private object? EvaluateModule(
-        ParsedProgram program,
-        JsEnvironment moduleEnv,
-        JsObject exports,
-        string? modulePath = null)
-    {
-        var typedProgram = EnsureStrictProgram(program);
-        PredeclareExportNames(typedProgram, moduleEnv, exports, modulePath, ImportPhase.Module,
-            new HashSet<string>(StringComparer.Ordinal));
-        return ExecuteModuleBody(typedProgram, moduleEnv, exports, modulePath);
     }
 
 	    private void WaitForAsyncModule(ModuleEntry moduleEntry)

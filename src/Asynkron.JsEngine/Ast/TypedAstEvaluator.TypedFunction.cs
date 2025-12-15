@@ -1059,30 +1059,6 @@ public static partial class TypedAstEvaluator
             SymbolSetPool.Add(set);
         }
 
-        private static HashSet<Symbol> CollectCatchParameterNamesPooled(BlockStatement body)
-        {
-            var set = RentSymbolSet();
-            var names = CollectCatchParameterNames(body);
-            if (names.Count > 0)
-            {
-                set.UnionWith(names);
-            }
-
-            return set;
-        }
-
-        private static HashSet<Symbol> CollectSimpleCatchParameterNamesPooled(BlockStatement body)
-        {
-            var set = RentSymbolSet();
-            var names = CollectSimpleCatchParameterNames(body);
-            if (names.Count > 0)
-            {
-                set.UnionWith(names);
-            }
-
-            return set;
-        }
-
         public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
         {
             var descriptor = _properties.GetOwnPropertyDescriptor(name);

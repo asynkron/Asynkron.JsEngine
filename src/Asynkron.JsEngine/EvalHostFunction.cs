@@ -1024,19 +1024,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         Switch
     }
 
-    private static bool ContainsIllegalReturn(ImmutableArray<StatementNode> statements)
-    {
-        foreach (var statement in statements)
-        {
-            if (IsIllegalReturn(statement))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private static bool CanDeclareGlobalFunction(JsEnvironment varEnv, Symbol name)
     {
         var descriptor = varEnv.GetGlobalOwnPropertyDescriptor(name, out var globalObject);
@@ -1053,58 +1040,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                  descriptor.Writable &&
                  descriptor.Enumerable
         };
-    }
-
-    private static bool IsIllegalReturn(StatementNode statement)
-    {
-        while (true)
-        {
-            switch (statement)
-            {
-                case ReturnStatement:
-                    return true;
-                case BlockStatement block:
-                    foreach (var stmt in block.Statements)
-                    {
-                        if (IsIllegalReturn(stmt))
-                        {
-                            return true;
-                        }
-                    }
-                    return false;
-                case IfStatement ifStatement:
-                    return IsIllegalReturn(ifStatement.Then) || (ifStatement.Else is not null && IsIllegalReturn(ifStatement.Else));
-                case WhileStatement whileStatement:
-                    statement = whileStatement.Body;
-                    continue;
-                case DoWhileStatement doWhileStatement:
-                    statement = doWhileStatement.Body;
-                    continue;
-                case ForStatement forStatement:
-                    statement = forStatement.Body;
-                    continue;
-                case ForEachStatement forEachStatement:
-                    statement = forEachStatement.Body;
-                    continue;
-                case WithStatement withStatement:
-                    statement = withStatement.Body;
-                    continue;
-                case SwitchStatement switchStatement:
-                    foreach (var c in switchStatement.Cases)
-                    {
-                        if (IsIllegalReturn(c.Body))
-                        {
-                            return true;
-                        }
-                    }
-                    return false;
-                case TryStatement tryStatement:
-                    return IsIllegalReturn(tryStatement.TryBlock) || (tryStatement.Catch is { Body: not null } catchClause && IsIllegalReturn(catchClause.Body)) || (tryStatement.Finally is not null && IsIllegalReturn(tryStatement.Finally));
-                // Function/class declarations create their own return-valid scope.
-                default:
-                    return false;
-            }
-        }
     }
 
     private static bool ContainsNewTarget(

@@ -143,14 +143,8 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        private object? EvaluateCaseClauseBody(BlockStatement body, JsEnvironment switchEnv, EvaluationContext context)
-        {
-            var (jsResult, hasJsResult) = EvaluateCaseClauseBodyJsValue(statement, body, switchEnv, context);
-            return hasJsResult ? jsResult.ToObject() : EmptyCompletion;
-        }
-
         /// <summary>
-        /// JsValue-returning version for use in hot paths. Returns tuple with value and whether it has a value.
+        /// Evaluates a case clause body and returns a tuple with the value and whether it produced a value.
         /// </summary>
         private (JsValue result, bool hasResult) EvaluateCaseClauseBodyJsValue(BlockStatement body, JsEnvironment switchEnv, EvaluationContext context)
         {

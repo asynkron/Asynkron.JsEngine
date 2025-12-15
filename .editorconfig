@@ -26,6 +26,9 @@ dotnet_sort_system_directives_first = true
 # roslynator rules
 dotnet_diagnostic.RCS1261.severity = warning
 
+# Meziantou.Analyzer - disable ConfigureAwait requirement (not needed for apps)
+dotnet_diagnostic.MA0004.severity = none
+dotnet_diagnostic.MA0049.severity = none
 # Don't use this. qualifier
 dotnet_style_qualification_for_field = false:suggestion
 dotnet_style_qualification_for_property = false:suggestion

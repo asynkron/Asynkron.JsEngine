@@ -124,12 +124,6 @@ public static partial class TypedAstEvaluator
             return lastValueJs;
         }
 
-        private object? EvaluateForAwaitOf(JsEnvironment environment,
-            EvaluationContext context, Symbol? loopLabel)
-        {
-            return EvaluateForAwaitOfJsValue(statement, environment, context, loopLabel).ToObject();
-        }
-
         private JsValue EvaluateForAwaitOfJsValue(JsEnvironment environment,
             EvaluationContext context, Symbol? loopLabel)
         {

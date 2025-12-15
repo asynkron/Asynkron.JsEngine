@@ -1146,11 +1146,6 @@ public sealed class TypedConstantExpressionTransformer
         return JsOps.LooseEquals(left, right);
     }
 
-    private static double StringToNumber(string str)
-    {
-        return NumericStringParser.ParseJsNumber(str);
-    }
-
     private static bool StrictEquals(object? left, object? right)
     {
         return JsOps.StrictEquals(left, right);

@@ -601,6 +601,12 @@ public readonly struct JsValue : IEquatable<JsValue>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static JsValue FromObjectUnsafe(object? value)
     {
+        // Check for JsEnvironment.Uninitialized sentinel before the switch
+        if (ReferenceEquals(value, JsEnvironment.Uninitialized))
+        {
+            return Uninitialized;
+        }
+
         return value switch
         {
             null => Null,
@@ -625,6 +631,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             // Interface-based fallbacks
             IJsObjectLike objLike => new JsValue(JsValueKind.Object, 0.0, objLike),
             IJsCallable callable => new JsValue(JsValueKind.Object, 0.0, callable),
+            IJsPropertyAccessor accessor => new JsValue(JsValueKind.Object, 0.0, accessor),
             // Numeric types
             float f => new JsValue(f),
             decimal dec => new JsValue((double)dec),
@@ -634,7 +641,8 @@ public readonly struct JsValue : IEquatable<JsValue>
             ushort ush => new JsValue((double)ush),
             byte by => new JsValue((double)by),
             sbyte sby => new JsValue((double)sby),
-            _ => throw new NotSupportedException($"Cannot convert {value.GetType().Name} to JsValue")
+            // Fallback: wrap unknown types as objects (for internal types like YieldResumeContext)
+            _ => new JsValue(JsValueKind.Object, 0.0, value)
         };
     }
 

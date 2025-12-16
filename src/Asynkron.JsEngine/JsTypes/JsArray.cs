@@ -17,7 +17,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     // Sentinel value to represent holes in sparse arrays (indices that have never been set)
     // We use a special JsValue kind or a unique object that we can identify
     private static readonly object ArrayHoleSentinel = new();
-    private static readonly JsValue ArrayHole = JsValue.FromObjectUnsafe(ArrayHoleSentinel);
+    private static readonly JsValue ArrayHole = new JsValue(JsValueKind.Object, 0.0, ArrayHoleSentinel);
 
     private static bool IsArrayHole(JsValue value) =>
         value.Kind == JsValueKind.Object && ReferenceEquals(value.ToObject(), ArrayHoleSentinel);

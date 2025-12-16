@@ -64,7 +64,8 @@ public static partial class TypedAstEvaluator
             }
 
             IReadOnlyList<JsValue> frozenArguments;
-            object?[]? pooledArgsArray = null; // Track if we used a pooled array
+            object?[]? pooledArgsArray = null; // Track if we used a pooled object array
+            JsValue[]? pooledJsValueArray = null; // Track if we used a pooled JsValue array
             if (!hasSpread)
             {
                 var argCount = expression.Arguments.Length;
@@ -82,9 +83,11 @@ public static partial class TypedAstEvaluator
                             return JsValue.Undefined;
                         }
 
-                        var arr = JsValueCache.CreateArgs(v0.ToObject());
-                        pooledArgsArray = arr;
-                        frozenArguments = WrapArgumentsAsJsValues(arr);
+                        // Use pooled JsValue[] directly - avoid boxing via ToObject()
+                        var jsArr = JsValueCache.RentJsValueArray(1);
+                        jsArr[0] = v0;
+                        pooledJsValueArray = jsArr;
+                        frozenArguments = jsArr;
                         break;
                     }
                     case 2:
@@ -103,38 +106,41 @@ public static partial class TypedAstEvaluator
                             return JsValue.Undefined;
                         }
 
-                        var arr = JsValueCache.CreateArgs(v0.ToObject(), v1.ToObject());
-                        pooledArgsArray = arr;
-                        frozenArguments = WrapArgumentsAsJsValues(arr);
+                        // Use pooled JsValue[] directly - avoid boxing via ToObject()
+                        var jsArr = JsValueCache.RentJsValueArray(2);
+                        jsArr[0] = v0;
+                        jsArr[1] = v1;
+                        pooledJsValueArray = jsArr;
+                        frozenArguments = jsArr;
                         break;
                     }
                     default:
                     {
-                        // Use pooled arrays for small argument counts (3-4)
-                        var argsArray = argCount <= 4
-                            ? JsValueCache.RentArgumentArray(argCount)
-                            : new object?[argCount];
+                        // Use pooled JsValue[] for small argument counts (3-4)
+                        var jsArgsArray = argCount <= 4
+                            ? JsValueCache.RentJsValueArray(argCount)
+                            : new JsValue[argCount];
 
                         if (argCount <= 4)
                         {
-                            pooledArgsArray = argsArray; // Remember to return it
+                            pooledJsValueArray = jsArgsArray;
                         }
 
                         for (var i = 0; i < argCount; i++)
                         {
-                            argsArray[i] = EvaluateExpression(expression.Arguments[i].Expression, environment, context).ToObject();
+                            jsArgsArray[i] = EvaluateExpression(expression.Arguments[i].Expression, environment, context);
                             if (context.ShouldStopEvaluation)
                             {
-                                if (pooledArgsArray is not null)
+                                if (pooledJsValueArray is not null)
                                 {
-                                    JsValueCache.ReturnArgumentArray(pooledArgsArray);
+                                    JsValueCache.ReturnJsValueArray(pooledJsValueArray);
                                 }
                                 context.CallDepth--;
                                 return JsValue.Undefined;
                             }
                         }
 
-                        frozenArguments = WrapArgumentsAsJsValues(argsArray);
+                        frozenArguments = jsArgsArray;
                         break;
                     }
                 }
@@ -536,10 +542,14 @@ public static partial class TypedAstEvaluator
                 envAwareHandle?.CallingJsEnvironment = null;
                 contextAwareHandle?.CallingContext = null;
 
-                // Return pooled argument array
+                // Return pooled argument arrays
                 if (pooledArgsArray is not null)
                 {
                     JsValueCache.ReturnArgumentArray(pooledArgsArray);
+                }
+                if (pooledJsValueArray is not null)
+                {
+                    JsValueCache.ReturnJsValueArray(pooledJsValueArray);
                 }
             }
 

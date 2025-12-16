@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -16,7 +15,7 @@ public sealed class ScopeAnalyzer
     public sealed class ScopeInfo
     {
         public ScopeInfo? Parent { get; }
-        public int Depth { get; }
+        private int Depth { get; }
         public bool IsFunctionScope { get; }
         public bool IsBlockScope { get; }
         public bool HasEval { get; set; }
@@ -499,11 +498,29 @@ public sealed class ScopeAnalyzer
                           !_currentFunctionScope.IsDynamic &&
                           !_currentFunctionScope.HasClosures;
 
-        // Resolve the expression, potentially marking calls for environment reuse
-        var resolvedExpr = canOptimize
-            ? ResolveReturnExpressionWithReuse(returnStmt.Expression)
-            : ResolveExpression(returnStmt.Expression);
+        if (!canOptimize)
+        {
+            return returnStmt with { Expression = ResolveExpression(returnStmt.Expression) };
+        }
 
+        // Check if we have a binary expression with exactly 2 direct call expressions
+        // In this case, we can use argument pre-evaluation to enable environment reuse for ALL calls
+        if (returnStmt.Expression is BinaryExpression binary &&
+            binary.Operator is not (BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing) &&
+            binary.Left is CallExpression leftCall &&
+            binary.Right is CallExpression rightCall &&
+            leftCall.Arguments.Length == 1 && !leftCall.Arguments[0].IsSpread &&
+            rightCall.Arguments.Length == 1 && !rightCall.Arguments[0].IsSpread)
+        {
+            // Mark both calls for environment reuse and set the pre-evaluation flag
+            var resolvedLeftCall = ResolveCallExpression(leftCall) with { CanReuseCallerEnvironment = true };
+            var resolvedRightCall = ResolveCallExpression(rightCall) with { CanReuseCallerEnvironment = true };
+            var resolvedBinary = binary with { Left = resolvedLeftCall, Right = resolvedRightCall };
+            return returnStmt with { Expression = resolvedBinary, UseArgumentPreEvaluation = true };
+        }
+
+        // Standard optimization path (marks only rightmost call for simple cases)
+        var resolvedExpr = ResolveReturnExpressionWithReuse(returnStmt.Expression);
         return returnStmt with { Expression = resolvedExpr };
     }
 
@@ -665,87 +682,95 @@ public sealed class ScopeAnalyzer
 
     private void CollectVariablesRecursive(ExpressionNode expression, HashSet<Symbol> variables)
     {
-        switch (expression)
+        while (true)
         {
-            case IdentifierExpression id:
-                variables.Add(id.Name);
-                break;
+            switch (expression)
+            {
+                case IdentifierExpression id:
+                    variables.Add(id.Name);
+                    break;
 
-            case BinaryExpression binary:
-                CollectVariablesRecursive(binary.Left, variables);
-                CollectVariablesRecursive(binary.Right, variables);
-                break;
+                case BinaryExpression binary:
+                    CollectVariablesRecursive(binary.Left, variables);
+                    expression = binary.Right;
+                    continue;
 
-            case UnaryExpression unary:
-                CollectVariablesRecursive(unary.Operand, variables);
-                break;
+                case UnaryExpression unary:
+                    expression = unary.Operand;
+                    continue;
 
-            case CallExpression call:
-                CollectVariablesRecursive(call.Callee, variables);
-                foreach (var arg in call.Arguments)
-                {
-                    CollectVariablesRecursive(arg.Expression, variables);
-                }
-                break;
-
-            case MemberExpression member:
-                CollectVariablesRecursive(member.Target, variables);
-                if (member.IsComputed)
-                {
-                    CollectVariablesRecursive(member.Property, variables);
-                }
-                break;
-
-            case ConditionalExpression cond:
-                CollectVariablesRecursive(cond.Test, variables);
-                CollectVariablesRecursive(cond.Consequent, variables);
-                CollectVariablesRecursive(cond.Alternate, variables);
-                break;
-
-            case ArrayExpression array:
-                foreach (var element in array.Elements)
-                {
-                    if (element.Expression is not null)
+                case CallExpression call:
+                    CollectVariablesRecursive(call.Callee, variables);
+                    foreach (var arg in call.Arguments)
                     {
-                        CollectVariablesRecursive(element.Expression, variables);
+                        CollectVariablesRecursive(arg.Expression, variables);
                     }
-                }
-                break;
 
-            case ObjectExpression obj:
-                foreach (var member in obj.Members)
-                {
-                    if (member.Value is not null)
+                    break;
+
+                case MemberExpression member:
+                    CollectVariablesRecursive(member.Target, variables);
+                    if (member.IsComputed)
                     {
-                        CollectVariablesRecursive(member.Value, variables);
+                        expression = member.Property;
+                        continue;
                     }
-                }
-                break;
 
-            case SequenceExpression seq:
-                CollectVariablesRecursive(seq.Left, variables);
-                CollectVariablesRecursive(seq.Right, variables);
-                break;
+                    break;
 
-            case AssignmentExpression assign:
-                variables.Add(assign.Target);
-                CollectVariablesRecursive(assign.Value, variables);
-                break;
+                case ConditionalExpression cond:
+                    CollectVariablesRecursive(cond.Test, variables);
+                    CollectVariablesRecursive(cond.Consequent, variables);
+                    expression = cond.Alternate;
+                    continue;
 
-            case AwaitExpression await:
-                CollectVariablesRecursive(await.Expression, variables);
-                break;
+                case ArrayExpression array:
+                    foreach (var element in array.Elements)
+                    {
+                        if (element.Expression is not null)
+                        {
+                            CollectVariablesRecursive(element.Expression, variables);
+                        }
+                    }
 
-            case YieldExpression yield when yield.Expression is not null:
-                CollectVariablesRecursive(yield.Expression, variables);
-                break;
+                    break;
 
-            // Literals and other expressions that don't reference variables
-            case LiteralExpression or ThisExpression or SuperExpression
-                or NewTargetExpression or ImportMetaExpression
-                or RegexLiteralExpression or FunctionExpression:
-                // These don't reference scope variables directly
-                break;
+                case ObjectExpression obj:
+                    foreach (var member in obj.Members)
+                    {
+                        if (member.Value is not null)
+                        {
+                            CollectVariablesRecursive(member.Value, variables);
+                        }
+                    }
+
+                    break;
+
+                case SequenceExpression seq:
+                    CollectVariablesRecursive(seq.Left, variables);
+                    expression = seq.Right;
+                    continue;
+
+                case AssignmentExpression assign:
+                    variables.Add(assign.Target);
+                    expression = assign.Value;
+                    continue;
+
+                case AwaitExpression await:
+                    expression = await.Expression;
+                    continue;
+
+                case YieldExpression yield when yield.Expression is not null:
+                    expression = yield.Expression;
+                    continue;
+
+                // Literals and other expressions that don't reference variables
+                case LiteralExpression or ThisExpression or SuperExpression or NewTargetExpression or ImportMetaExpression or RegexLiteralExpression or FunctionExpression:
+                    // These don't reference scope variables directly
+                    break;
+            }
+
+            break;
         }
     }
 

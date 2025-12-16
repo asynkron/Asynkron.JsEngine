@@ -12,9 +12,23 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment,
             EvaluationContext context)
         {
-            var jsValue = statement.Expression is null
-                ? JsValue.Undefined
-                : EvaluateExpression(statement.Expression, environment, context);
+            JsValue jsValue;
+
+            // Use specialized pre-evaluation path for binary expressions with multiple calls
+            if (statement.UseArgumentPreEvaluation &&
+                statement.Expression is BinaryExpression binary &&
+                binary.Left is CallExpression leftCall &&
+                binary.Right is CallExpression rightCall)
+            {
+                jsValue = EvaluateBinaryWithPreEvaluation(binary, leftCall, rightCall, environment, context);
+            }
+            else
+            {
+                jsValue = statement.Expression is null
+                    ? JsValue.Undefined
+                    : EvaluateExpression(statement.Expression, environment, context);
+            }
+
             if (context.ShouldStopEvaluation)
             {
                 return jsValue;

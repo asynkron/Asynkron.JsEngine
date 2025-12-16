@@ -1912,16 +1912,14 @@ public static partial class TypedAstEvaluator
 
         /// <summary>
         /// Ultra-fast 1-argument core invocation with environment reuse.
-        /// Reuses the provided environment instead of allocating a new one.
+        /// Reuses the provided environment AND the calling context - avoids all pooling allocations.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue InvokeSimpleFastCore1Reuse(JsValue arg0, JsValue thisValue, EvaluationContext callingContext, JsEnvironment reuseEnvironment)
         {
-            var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
-            var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: true);
-            context.AllowIdentifierCache = true;
-            context.CallDepth = callingContext.CallDepth;
-            context.MaxCallDepth = callingContext.MaxCallDepth;
+            // Use the calling context directly - no renting needed for simple recursive functions
+            // This avoids ConcurrentStack Node allocations from pool rent/return
+            var context = callingContext;
 
             // Reuse the provided environment instead of renting a new one
             // Use ResetForReuse which keeps the slots array to avoid allocation
@@ -1968,8 +1966,7 @@ public static partial class TypedAstEvaluator
             if (context.IsThrow)
             {
                 result = context.FlowValue;
-                context.Clear();
-                callingContext.SetThrow(result);
+                // Don't clear throw - let it propagate to caller
             }
             else if (context.IsReturn)
             {
@@ -1981,8 +1978,7 @@ public static partial class TypedAstEvaluator
                 result = JsValue.Undefined;
             }
 
-            _realmState.ReturnContext(context);
-            // Note: Do NOT return the reused environment - the caller still has a reference to it
+            // Note: Do NOT return context or environment - caller owns them
             return result;
         }
 

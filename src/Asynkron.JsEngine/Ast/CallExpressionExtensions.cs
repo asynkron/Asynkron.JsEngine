@@ -25,6 +25,15 @@ public static partial class TypedAstEvaluator
                 expression.Callee is IdentifierExpression calleeId &&
                 expression.Arguments.Length <= 2)
             {
+                // IMPORTANT: Check for 'with' binding first. If the identifier is resolved through
+                // a 'with' statement, we need to use the with-object as 'this', which the fast path
+                // doesn't handle. Fall through to the slow path which correctly sets thisValue.
+                if (environment.TryResolveWithBinding(calleeId.Name, context, out _))
+                {
+                    // Fall through to slow path which handles 'with' bindings correctly
+                    return expression.EvaluateCallSlow(environment, context);
+                }
+
                 // Check if all arguments are simple (no spread)
                 var hasSpread = false;
                 foreach (var arg in expression.Arguments)

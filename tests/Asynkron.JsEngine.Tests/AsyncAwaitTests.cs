@@ -824,4 +824,31 @@ public class AsyncAwaitTests
         // Final result should be correct
         Assert.Equal("30", result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task AsyncFunction_EvalInDefaultParam_ShouldReturnRejectedPromise()
+    {
+        // This tests ES2024 behavior: when eval tries to declare 'arguments'
+        // in a function with non-simple parameters, it should throw SyntaxError.
+        // For async functions, this should result in a rejected promise.
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            var result = 'initial';
+            async function f(p = eval("var arguments = 'param'"), arguments) {}
+            try {
+                var p = f();
+                result = typeof p;
+                if (p && typeof p.then === 'function') {
+                    result = 'promise';
+                }
+            } catch(e) {
+                result = 'sync_throw: ' + e.name;
+            }
+            result;
+            """);
+
+        // Should return "promise" - async function should return rejected promise
+        Assert.Equal("promise", result.ToString());
+    }
 }

@@ -881,9 +881,11 @@ public static partial class TypedAstEvaluator
                         if (IsAsyncFunction || _wasAsyncFunction)
                         {
                             // Async functions must reject instead of throwing synchronously.
+                            // Use CreateRejectedPromiseFromRealm which uses the RealmState's
+                            // PromiseConstructor, ensuring we always have access to Promise.
                             callingContext?.Clear();
 
-                            return JsValue.FromObject(CreateRejectedPromise(thrownDuringBinding, parameterEnvironment));
+                            return JsValue.FromObject(CreateRejectedPromiseFromRealm(thrownDuringBinding));
                         }
 
                         if (callingContext is not null)
@@ -1105,6 +1107,26 @@ public static partial class TypedAstEvaluator
         {
             set.Clear();
             SymbolSetPool.Add(set);
+        }
+
+        /// <summary>
+        /// Creates a rejected promise using the realm's Promise constructor.
+        /// Unlike CreateRejectedPromise which looks up Promise in the environment,
+        /// this method uses the RealmState's PromiseConstructor directly.
+        /// </summary>
+        private object? CreateRejectedPromiseFromRealm(JsValue reason)
+        {
+            var promiseCtor = _realmState.PromiseConstructor;
+            if (promiseCtor is IJsPropertyAccessor accessor &&
+                accessor.TryGetProperty("reject", out var rejectValue) &&
+                rejectValue.TryGetObject<IJsCallable>(out var rejectCallable))
+            {
+                return rejectCallable.Invoke([reason], JsValue.FromObject(promiseCtor)).ToObject();
+            }
+
+            // Fallback if Promise.reject isn't available - return the reason directly
+            // This shouldn't happen in normal operation since Promise is always registered
+            return reason.ToObject();
         }
 
         public PropertyDescriptor? GetOwnPropertyDescriptor(string name)

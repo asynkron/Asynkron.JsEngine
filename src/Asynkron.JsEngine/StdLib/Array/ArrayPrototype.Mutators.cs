@@ -150,7 +150,7 @@ public sealed partial class ArrayPrototype
             var lastExists = HasProperty(accessor, lastKey);
             DeletePropertyOrThrow(objectLike, lastKey, lastExists, MethodName, Realm);
             accessor.SetProperty("length", (double)(length - 1));
-            return JsValue.FromObject(firstElement);
+            return JsValue.FromObjectUnsafe(firstElement);
         }
         finally
         {
@@ -228,7 +228,7 @@ public sealed partial class ArrayPrototype
         if (accessor.TryGetProperty(ReentrancyKey, out var inSpliceFlag) && !inSpliceFlag.IsUndefined)
         {
             // Already in splice, return empty array to break recursion
-            return JsValue.FromObject(ArraySpeciesCreate(thisValue, 0, Realm));
+            return JsValue.FromObjectUnsafe(ArraySpeciesCreate(thisValue, 0, Realm));
         }
 
         try
@@ -341,7 +341,7 @@ public sealed partial class ArrayPrototype
             }
 
             accessor.SetProperty("length", (double)newLength);
-            return JsValue.FromObject(result);
+            return JsValue.FromObjectUnsafe(result);
         }
         finally
         {
@@ -360,7 +360,7 @@ public sealed partial class ArrayPrototype
         if (accessor.TryGetProperty(ReentrancyKey, out var inReverseFlag) && !inReverseFlag.IsUndefined)
         {
             // Already in reverse, return the array to break recursion
-            return JsValue.FromObject(accessor);
+            return JsValue.FromObjectUnsafe(accessor);
         }
 
         try
@@ -414,7 +414,7 @@ public sealed partial class ArrayPrototype
                 DeletePropertyOrThrow(objectLike, upperKey, upperExists, MethodName, Realm);
             }
 
-            return JsValue.FromObject(accessor);
+            return JsValue.FromObjectUnsafe(accessor);
         }
         finally
         {
@@ -432,7 +432,7 @@ public sealed partial class ArrayPrototype
         long resultIndex = 0;
 
         var sources = new JsValue[args.Count + 1];
-        sources[0] = JsValue.FromObject(accessor);
+        sources[0] = JsValue.FromObjectUnsafe(accessor);
         for (var i = 0; i < args.Count; i++)
         {
             sources[i + 1] = args[i];
@@ -474,7 +474,7 @@ public sealed partial class ArrayPrototype
         }
 
         SetArrayLikeLength(result, resultIndex);
-        return JsValue.FromObject(result);
+        return JsValue.FromObjectUnsafe(result);
     }
 
     [JsHostMethod("sort", Length = 1d)]
@@ -525,8 +525,8 @@ public sealed partial class ArrayPrototype
             if (compareFn is not null)
             {
                 // Handle case where values are already boxed JsValues
-                var aArg = aVal is JsValue ajv ? ajv : JsValue.FromObject(aVal);
-                var bArg = bVal is JsValue bjv ? bjv : JsValue.FromObject(bVal);
+                var aArg = aVal is JsValue ajv ? ajv : JsValue.FromObjectUnsafe(aVal);
+                var bArg = bVal is JsValue bjv ? bjv : JsValue.FromObjectUnsafe(bVal);
                 var raw = compareFn.Invoke([aArg, bArg], JsValue.Undefined).ToObject();
                 var ctx = realm?.CreateContext();
                 var num = JsOps.ToNumberWithContext(raw, ctx);
@@ -563,7 +563,7 @@ public sealed partial class ArrayPrototype
         foreach (var pair in elements)
         {
             // Handle case where value is already a boxed JsValue
-            var pairVal = pair.Value is JsValue pjv ? pjv : JsValue.FromObject(pair.Value);
+            var pairVal = pair.Value is JsValue pjv ? pjv : JsValue.FromObjectUnsafe(pair.Value);
             accessor.SetProperty(ToIndexString(index++), pairVal);
         }
 
@@ -585,6 +585,6 @@ public sealed partial class ArrayPrototype
         // Clear re-entrancy guard
         accessor.SetProperty("__sorting__", JsValue.Undefined);
 
-        return JsValue.FromObject(accessor);
+        return JsValue.FromObjectUnsafe(accessor);
     }
 }

@@ -13,7 +13,7 @@ public sealed partial class DataViewPrototype : JsPrototype
     public JsValue Buffer(JsValue thisValue)
     {
         var dv = RequireDataView(thisValue, Realm);
-        return JsValue.FromObject(dv.Buffer);
+        return JsValue.FromObjectUnsafe(dv.Buffer);
     }
 
     [JsHostGetter("byteLength")]

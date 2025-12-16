@@ -204,8 +204,8 @@ public static partial class TypedAstEvaluator
                         }
                     }
 
-                    context.SetThrow(JsValue.FromObject(errorObject));
-                    currentValue = JsValue.FromObject(errorObject);
+                    context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
+                    currentValue = JsValue.FromObjectUnsafe(errorObject);
                 }
 
                 var isConstBinding = currentIterationEnvironment.IsConstBinding(bindingName);
@@ -281,8 +281,8 @@ public static partial class TypedAstEvaluator
                             }
                         }
 
-                        context.SetThrow(JsValue.FromObject(errorObject));
-                        currentValue = JsValue.FromObject(errorObject);
+                        context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
+                        currentValue = JsValue.FromObjectUnsafe(errorObject);
                     }
 
                     valueSpan[i] = currentValue;

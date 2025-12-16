@@ -45,7 +45,7 @@ public static class JsPropertyAccessorExtensions
         {
             var result = handler(thisVal.ToObject(), args);
             // Handle case where handler returns a boxed JsValue
-            return result is JsValue jsv ? jsv : JsValue.FromObject(result);
+            return result is JsValue jsv ? jsv : JsValue.FromObjectUnsafe(result);
         }, isConstructor: false);
         accessor.SetProperty(name, (JsValue)fn);
     }
@@ -58,7 +58,7 @@ public static class JsPropertyAccessorExtensions
         {
             var result = handler(thisVal.ToObject(), args, realmState);
             // Handle case where handler returns a boxed JsValue
-            return result is JsValue jsv ? jsv : JsValue.FromObject(result);
+            return result is JsValue jsv ? jsv : JsValue.FromObjectUnsafe(result);
         }, realmState, isConstructor: false);
         accessor.SetProperty(name, (JsValue)fn);
     }

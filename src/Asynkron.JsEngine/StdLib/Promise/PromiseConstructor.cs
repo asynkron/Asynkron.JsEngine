@@ -15,7 +15,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true })
         {
             var target = _constructor ?? ConstructFallback;
-            return JsValue.FromObject(ConstructPromise(args, target, target));
+            return JsValue.FromObjectUnsafe(ConstructPromise(args, target, target));
         }
 
         throw ThrowTypeError("Constructor Promise requires 'new'", realm: Realm);
@@ -35,7 +35,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             }
 
             var target = _constructor ?? constructor;
-            return JsValue.FromObject(ConstructPromise(args, callable, target));
+            return JsValue.FromObjectUnsafe(ConstructPromise(args, callable, target));
         });
 
         AttachStatics(constructor);
@@ -130,7 +130,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         if (remaining == 0)
         {
-            resultPromise.Resolve(JsValue.FromObject(new JsArray(Realm)));
+            resultPromise.Resolve(JsValue.FromObjectUnsafe(new JsArray(Realm)));
             return new JsValue(resultPromise.JsObject);
         }
 
@@ -142,7 +142,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
                 remaining--;
                 if (remaining == 0)
                 {
-                    resultPromise.Resolve(JsValue.FromObject(new JsArray(results, Realm)));
+                    resultPromise.Resolve(JsValue.FromObjectUnsafe(new JsArray(results, Realm)));
                 }
 
                 return JsValue.Undefined;
@@ -182,7 +182,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
                 remaining--;
                 if (remaining == 0)
                 {
-                    resultPromise.Resolve(JsValue.FromObject(new JsArray(results, Realm)));
+                    resultPromise.Resolve(JsValue.FromObjectUnsafe(new JsArray(results, Realm)));
                 }
             }
         }
@@ -269,7 +269,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         if (remaining == 0)
         {
-            resultPromise.Resolve(JsValue.FromObject(new JsArray(Realm)));
+            resultPromise.Resolve(JsValue.FromObjectUnsafe(new JsArray(Realm)));
             return new JsValue(resultPromise.JsObject);
         }
 
@@ -310,7 +310,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
                 resultArray.Push(result);
             }
 
-            resultPromise.Resolve(JsValue.FromObject(resultArray));
+            resultPromise.Resolve(JsValue.FromObjectUnsafe(resultArray));
         }
 
         JsObject CreateAllSettledResult(JsValue value, bool isRejected)
@@ -356,7 +356,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         if (remaining == 0)
         {
-            resultPromise.Reject(JsValue.FromObject(CreateAggregateError(errors)));
+            resultPromise.Reject(JsValue.FromObjectUnsafe(CreateAggregateError(errors)));
             return new JsValue(resultPromise.JsObject);
         }
 
@@ -404,7 +404,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             remaining--;
             if (remaining == 0)
             {
-                resultPromise.Reject(JsValue.FromObject(CreateAggregateError(errors)));
+                resultPromise.Reject(JsValue.FromObjectUnsafe(CreateAggregateError(errors)));
             }
         }
 
@@ -436,7 +436,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         {
             try
             {
-                var args = new JsValue[] { JsValue.FromObject(rejectionErrors), new JsValue("All promises were rejected") };
+                var args = new JsValue[] { JsValue.FromObjectUnsafe(rejectionErrors), new JsValue("All promises were rejected") };
                 var result = callable.Invoke(args, JsValue.Undefined);
                 return result.IsNullish ? (object)rejectionErrors : (object?)result.AsObject() ?? rejectionErrors;
             }

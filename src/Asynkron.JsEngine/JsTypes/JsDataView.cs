@@ -195,7 +195,7 @@ public sealed class JsDataView : IJsPropertyAccessor
         switch (name)
         {
             case "buffer":
-                value = JsValue.FromObject(Buffer);
+                value = JsValue.FromObjectUnsafe(Buffer);
                 return true;
             case "byteLength":
                 value = new JsValue((double)ByteLength);

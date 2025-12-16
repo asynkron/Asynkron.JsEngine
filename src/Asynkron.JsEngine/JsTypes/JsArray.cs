@@ -17,7 +17,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     // Sentinel value to represent holes in sparse arrays (indices that have never been set)
     // We use a special JsValue kind or a unique object that we can identify
     private static readonly object ArrayHoleSentinel = new();
-    private static readonly JsValue ArrayHole = JsValue.FromObject(ArrayHoleSentinel);
+    private static readonly JsValue ArrayHole = JsValue.FromObjectUnsafe(ArrayHoleSentinel);
 
     private static bool IsArrayHole(JsValue value) =>
         value.Kind == JsValueKind.Object && ReferenceEquals(value.ToObject(), ArrayHoleSentinel);
@@ -71,7 +71,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         : this(realmState)
     {
         // Handle case where items contain already-boxed JsValue values
-        _items.AddRange(items.Select(item => item is JsValue js ? js : JsValue.FromObject(item)));
+        _items.AddRange(items.Select(item => item is JsValue js ? js : JsValue.FromObjectUnsafe(item)));
         _length = (uint)_items.Count;
     }
 
@@ -133,7 +133,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             // Accessor/data descriptors defined via Object.defineProperty on an
             // index should override the internal dense/sparse storage.
             if (_properties.GetOwnPropertyDescriptor(name) is not null &&
-                _properties.TryGetProperty(name, JsValue.FromObject(this), out value))
+                _properties.TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value))
             {
                 return true;
             }
@@ -145,10 +145,10 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             }
 
             // For holes, continue lookup on the prototype chain.
-            return _properties.TryGetProperty(name, JsValue.FromObject(this), out value);
+            return _properties.TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);
         }
 
-        return _properties.TryGetProperty(name, JsValue.FromObject(this), out value);
+        return _properties.TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);
     }
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
@@ -184,7 +184,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, JsValue.FromObject(this));
+        SetProperty(name, value, JsValue.FromObjectUnsafe(this));
     }
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
@@ -201,7 +201,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return;
         }
 
-        _properties.SetProperty(name, value, receiver.IsNull || receiver.IsUndefined ? JsValue.FromObject(this) : receiver);
+        _properties.SetProperty(name, value, receiver.IsNull || receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver);
     }
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
@@ -303,7 +303,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             {
                 var val = descriptor.HasValue ? descriptor.Value : Symbol.Undefined;
                 // Handle case where value is already a boxed JsValue
-                var jsVal = val is JsValue jv ? jv : JsValue.FromObject(val);
+                var jsVal = val is JsValue jv ? jv : JsValue.FromObjectUnsafe(val);
                 SetElement(index, jsVal);
             }
             else
@@ -515,7 +515,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         ArgumentOutOfRangeException.ThrowIfNegative(index);
 
-        SetElement((uint)index, JsValue.FromObject(value));
+        SetElement((uint)index, JsValue.FromObjectUnsafe(value));
     }
 
     /// <summary>
@@ -523,7 +523,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     /// </summary>
     public void SetElement(uint index, object? value)
     {
-        SetElement(index, JsValue.FromObject(value));
+        SetElement(index, JsValue.FromObjectUnsafe(value));
     }
 
     public void SetElement(uint index, JsValue value)
@@ -605,7 +605,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     public void Push(object? value)
     {
         // Handle case where value is already a boxed JsValue
-        var jsVal = value is JsValue jv ? jv : JsValue.FromObject(value);
+        var jsVal = value is JsValue jv ? jv : JsValue.FromObjectUnsafe(value);
         _items.Add(jsVal);
         BumpLength((uint)_items.Count);
     }

@@ -93,7 +93,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             var errorObject =
                 StandardLibrary.CreateSyntaxError(parseException.Message, CallingContext, environment.RealmState);
-            throw new ThrowSignal(JsValue.FromObject(errorObject));
+            throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
         }
 
         // Scripts evaluated via eval may not contain module syntax (export/import).
@@ -440,7 +440,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             var result = program.Typed.EvaluateProgram(evalEnvironment, _engine.RealmState, CancellationToken.None,
                 ExecutionKind.Eval, createStrictEnvironment: false, inheritedPrivateNameScopes: evalPrivateNameScopes);
 
-            return JsValue.FromObject(result);
+            return JsValue.FromObjectUnsafe(result);
         }
         catch (ThrowSignal)
         {
@@ -451,22 +451,22 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        return _properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObject(this) : receiver, out value);
+        return _properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver, out value);
     }
 
     public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, JsValue.FromObject(this), out value);
+        return TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);
     }
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
     {
-        _properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObject(this) : receiver);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver);
     }
 
     public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, JsValue.FromObject(this));
+        SetProperty(name, value, JsValue.FromObjectUnsafe(this));
     }
 
     private static void CollectVarDeclaredNames(
@@ -2526,7 +2526,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 continue;
             }
 
-            lexicalEnvironment.DefineJsValue(name, JsValue.FromObject(JsEnvironment.Uninitialized), isConst, isLexical: true,
+            lexicalEnvironment.DefineJsValue(name, JsValue.Uninitialized, isConst, isLexical: true,
                 blocksFunctionScopeOverride: true);
         }
     }

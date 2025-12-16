@@ -152,7 +152,7 @@ public sealed partial class ObjectPrototype : JsPrototype
                     return JsValue.Undefined;
                 }
 
-                return desc.Get is null ? JsValue.Undefined : JsValue.FromObject(desc.Get);
+                return desc.Get is null ? JsValue.Undefined : JsValue.FromObjectUnsafe(desc.Get);
             }
 
             cursor = cursor.Prototype;
@@ -186,7 +186,7 @@ public sealed partial class ObjectPrototype : JsPrototype
                     return JsValue.Undefined;
                 }
 
-                return desc.Set is null ? JsValue.Undefined : JsValue.FromObject(desc.Set);
+                return desc.Set is null ? JsValue.Undefined : JsValue.FromObjectUnsafe(desc.Set);
             }
 
             cursor = cursor.Prototype;
@@ -209,7 +209,7 @@ public sealed partial class ObjectPrototype : JsPrototype
             {
                 error = new InvalidOperationException("Object.prototype.isPrototypeOf called on null or undefined");
             }
-            throw new ThrowSignal(JsValue.FromObject(error));
+            throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
         }
 
         if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
@@ -323,7 +323,7 @@ public sealed partial class ObjectPrototype : JsPrototype
 
         if (obj is JsProxy proxy)
         {
-            return JsValue.FromObject(proxy.GetPrototypeWithTrap());
+            return JsValue.FromObjectUnsafe(proxy.GetPrototypeWithTrap());
         }
 
         object? proto = obj.Prototype;
@@ -332,7 +332,7 @@ public sealed partial class ObjectPrototype : JsPrototype
             proto = provider.PrototypeAccessor;
         }
 
-        return proto is null ? JsValue.Null : JsValue.FromObject(proto);
+        return proto is null ? JsValue.Null : JsValue.FromObjectUnsafe(proto);
     }
 
     private JsValue SetProto(JsValue thisValue, IReadOnlyList<JsValue> args)

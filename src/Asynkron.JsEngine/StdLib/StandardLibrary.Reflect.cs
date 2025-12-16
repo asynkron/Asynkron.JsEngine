@@ -44,7 +44,7 @@ public static partial class StandardLibrary
                 const string message = "newTarget is not a constructor";
                 var errorResult = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
                     ? typeErrorCtor.Invoke([new JsValue(message)], JsValue.Undefined)
-                    : JsValue.FromObject(new InvalidOperationException(message));
+                    : JsValue.FromObjectUnsafe(new InvalidOperationException(message));
                 throw new ThrowSignal(errorResult);
             }
 
@@ -67,7 +67,7 @@ public static partial class StandardLibrary
             var message = hostTarget.ConstructErrorMessage ?? "Target is not a constructor";
             var errorResult = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
                 ? typeErrorCtor.Invoke([new JsValue(message)], JsValue.Undefined)
-                : JsValue.FromObject(new InvalidOperationException(message));
+                : JsValue.FromObjectUnsafe(new InvalidOperationException(message));
             throw new ThrowSignal(errorResult);
         }
 
@@ -76,7 +76,7 @@ public static partial class StandardLibrary
             var message = hostNewTarget.ConstructErrorMessage ?? "newTarget is not a constructor";
             var errorResult = realm.TypeErrorConstructor is IJsCallable typeErrorCtor2
                 ? typeErrorCtor2.Invoke([new JsValue(message)], JsValue.Undefined)
-                : JsValue.FromObject(new InvalidOperationException(message));
+                : JsValue.FromObjectUnsafe(new InvalidOperationException(message));
             throw new ThrowSignal(errorResult);
         }
 
@@ -85,7 +85,7 @@ public static partial class StandardLibrary
              ReferenceEquals(hostCtor, realm.SharedArrayBufferConstructor)))
         {
             var constructContext = realm.CreateContext(pushScope: false);
-            return hostCtor.InvokeWithContext(argList, JsValue.Undefined, constructContext, JsValue.FromObject(newTarget));
+            return hostCtor.InvokeWithContext(argList, JsValue.Undefined, constructContext, JsValue.FromObjectUnsafe(newTarget));
         }
 
         var proto = ResolveConstructPrototype(newTarget, target, realm);
@@ -107,8 +107,8 @@ public static partial class StandardLibrary
                 arrayInstance.SetPrototype(proto);
             }
 
-            var result = target.Invoke(argList, JsValue.FromObject(arrayInstance));
-            return result.TryGetObject<JsObject>(out var jsObj) ? new JsValue(jsObj) : JsValue.FromObject(arrayInstance);
+            var result = target.Invoke(argList, JsValue.FromObjectUnsafe(arrayInstance));
+            return result.TryGetObject<JsObject>(out var jsObj) ? new JsValue(jsObj) : JsValue.FromObjectUnsafe(arrayInstance);
         }
 
         var instance = new JsObject();
@@ -129,8 +129,8 @@ public static partial class StandardLibrary
                 var constructContext = realm.CreateContext(pushScope: false);
                 try
                 {
-                    var invokeResult = invokeWithContext.Invoke(target, [argList, new JsValue(instance), constructContext, JsValue.FromObject(newTarget)]);
-                    constructed = invokeResult is JsValue jsv ? jsv : JsValue.FromObject(invokeResult);
+                    var invokeResult = invokeWithContext.Invoke(target, [argList, new JsValue(instance), constructContext, JsValue.FromObjectUnsafe(newTarget)]);
+                    constructed = invokeResult is JsValue jsv ? jsv : JsValue.FromObjectUnsafe(invokeResult);
                 }
                 catch (System.Reflection.TargetInvocationException tie) when (tie.InnerException is ThrowSignal)
                 {
@@ -210,7 +210,7 @@ public static partial class StandardLibrary
             throw new Exception("Reflect.get: target must be an object.");
         }
 
-        var receiver = args.Count > 2 ? args[2] : JsValue.FromObject(target);
+        var receiver = args.Count > 2 ? args[2] : JsValue.FromObjectUnsafe(target);
         var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1].ToObject()) ?? string.Empty : string.Empty;
         return target.TryGetProperty(propertyKey, receiver, out var value) ? value : JsValue.Undefined;
     }
@@ -304,7 +304,7 @@ public static partial class StandardLibrary
 
         if (target is ModuleNamespace moduleNamespace)
         {
-            return JsValue.FromObject(new JsArray(moduleNamespace.OwnKeys(), realm));
+            return JsValue.FromObjectUnsafe(new JsArray(moduleNamespace.OwnKeys(), realm));
         }
 
         if (target is IJsPropertyAccessor accessor)
@@ -322,7 +322,7 @@ public static partial class StandardLibrary
                 ordered.Push(key);
             }
 
-            return JsValue.FromObject(ordered);
+            return JsValue.FromObjectUnsafe(ordered);
         }
 
         var keys = target.Keys
@@ -330,7 +330,7 @@ public static partial class StandardLibrary
                         !k.StartsWith("__setter__", StringComparison.Ordinal) &&
                         !string.Equals(k, "__proto__", StringComparison.Ordinal))
             .ToArray();
-        return JsValue.FromObject(new JsArray(keys, realm));
+        return JsValue.FromObjectUnsafe(new JsArray(keys, realm));
     }
 
     internal static JsValue ReflectPreventExtensions(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
@@ -363,7 +363,7 @@ public static partial class StandardLibrary
 
         var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1].ToObject()) ?? string.Empty : string.Empty;
         var value = args.Count > 2 ? args[2] : JsValue.Undefined;
-        var receiver = args.Count > 3 ? args[3] : JsValue.FromObject(target);
+        var receiver = args.Count > 3 ? args[3] : JsValue.FromObjectUnsafe(target);
         switch (target)
         {
             case ModuleNamespace moduleNamespace:

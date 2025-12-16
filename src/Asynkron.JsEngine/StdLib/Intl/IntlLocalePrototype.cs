@@ -85,7 +85,7 @@ public sealed partial class IntlLocalePrototype
             result.Push(variant);
         }
 
-        return JsValue.FromObject(result);
+        return JsValue.FromObjectUnsafe(result);
     }
 
     [JsHostGetter("calendar", DisplayName = "get calendar")]
@@ -163,7 +163,7 @@ public sealed partial class IntlLocalePrototype
             result.Push(DefaultCalendars[0]);
         }
 
-        return JsValue.FromObject(result);
+        return JsValue.FromObjectUnsafe(result);
     }
 
     [JsHostMethod("getCollations", Length = 0d)]
@@ -178,7 +178,7 @@ public sealed partial class IntlLocalePrototype
         }
 
         result.Push("default");
-        return JsValue.FromObject(result);
+        return JsValue.FromObjectUnsafe(result);
     }
 
     [JsHostMethod("getHourCycles", Length = 0d)]
@@ -200,7 +200,7 @@ public sealed partial class IntlLocalePrototype
             }
         }
 
-        return JsValue.FromObject(result);
+        return JsValue.FromObjectUnsafe(result);
     }
 
     [JsHostMethod("getNumberingSystems", Length = 0d)]
@@ -222,7 +222,7 @@ public sealed partial class IntlLocalePrototype
             }
         }
 
-        return JsValue.FromObject(result);
+        return JsValue.FromObjectUnsafe(result);
     }
 
     [JsHostMethod("getTextInfo", Length = 0d)]
@@ -260,7 +260,7 @@ public sealed partial class IntlLocalePrototype
             result.Push("UTC");
         }
 
-        return JsValue.FromObject(result);
+        return JsValue.FromObjectUnsafe(result);
     }
 
     [JsHostMethod("getWeekInfo", Length = 0d)]
@@ -272,7 +272,7 @@ public sealed partial class IntlLocalePrototype
         info.SetProperty("firstDay", ConvertWeekdayToNumber(firstDay));
 
         var weekend = ResolveWeekendDays(locale);
-        info.SetProperty("weekend", JsValue.FromObject(CreateWeekendArray(weekend)));
+        info.SetProperty("weekend", JsValue.FromObjectUnsafe(CreateWeekendArray(weekend)));
         info.SetProperty("minimalDays", ResolveMinimalDays(locale));
         return (JsValue)info;
     }
@@ -351,7 +351,7 @@ public sealed partial class IntlLocalePrototype
         }
 
         var empty = new Dictionary<string, string>(StringComparer.Ordinal);
-        locale.SetProperty(KeywordsSlot, JsValue.FromObject(empty));
+        locale.SetProperty(KeywordsSlot, JsValue.FromObjectUnsafe(empty));
         return empty;
     }
 
@@ -363,7 +363,7 @@ public sealed partial class IntlLocalePrototype
         }
 
         var variants = new List<string>();
-        locale.SetProperty(VariantsSlot, JsValue.FromObject(variants));
+        locale.SetProperty(VariantsSlot, JsValue.FromObjectUnsafe(variants));
         return variants;
     }
 

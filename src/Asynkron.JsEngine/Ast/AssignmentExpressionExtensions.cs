@@ -157,8 +157,8 @@ public static partial class TypedAstEvaluator
                 errorObject = callable.Invoke([(JsValue)ex.Message], JsValue.Undefined).ToObject();
             }
 
-            context.SetThrow(JsValue.FromObject(errorObject));
-            return JsValue.FromObject(errorObject);
+            context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
+            return JsValue.FromObjectUnsafe(errorObject);
         }
     }
 

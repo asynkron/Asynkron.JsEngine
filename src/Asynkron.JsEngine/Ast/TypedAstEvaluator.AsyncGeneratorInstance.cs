@@ -42,17 +42,17 @@ public static partial class TypedAstEvaluator
                 args =>
                 {
                     var argValue = args.Count > 0 ? args[0] : JsValue.Undefined;
-                    return JsValue.FromObject(CreateStepPromise(TypedGeneratorInstance.ResumeMode.Next, argValue));
+                    return JsValue.FromObjectUnsafe(CreateStepPromise(TypedGeneratorInstance.ResumeMode.Next, argValue));
                 },
                 args =>
                 {
                     var argValue = args.Count > 0 ? args[0] : JsValue.Undefined;
-                    return JsValue.FromObject(CreateStepPromise(TypedGeneratorInstance.ResumeMode.Return, argValue));
+                    return JsValue.FromObjectUnsafe(CreateStepPromise(TypedGeneratorInstance.ResumeMode.Return, argValue));
                 },
                 args =>
                 {
                     var argValue = args.Count > 0 ? args[0] : JsValue.Undefined;
-                    return JsValue.FromObject(CreateStepPromise(TypedGeneratorInstance.ResumeMode.Throw, argValue));
+                    return JsValue.FromObjectUnsafe(CreateStepPromise(TypedGeneratorInstance.ResumeMode.Throw, argValue));
                 },
                 prototype);
 

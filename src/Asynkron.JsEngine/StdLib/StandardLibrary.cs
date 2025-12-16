@@ -58,25 +58,25 @@ public static partial class StandardLibrary
     internal static ThrowSignal ThrowTypeError(string message, EvaluationContext? context = null,
         RealmState? realm = null)
     {
-        return new ThrowSignal(JsValue.FromObject(CreateTypeError(message, context, realm)));
+        return new ThrowSignal(JsValue.FromObjectUnsafe(CreateTypeError(message, context, realm)));
     }
 
     internal static ThrowSignal ThrowRangeError(string message, EvaluationContext? context = null,
         RealmState? realm = null)
     {
-        return new ThrowSignal(JsValue.FromObject(CreateRangeError(message, context, realm)));
+        return new ThrowSignal(JsValue.FromObjectUnsafe(CreateRangeError(message, context, realm)));
     }
 
     internal static ThrowSignal ThrowReferenceError(string message, EvaluationContext? context = null,
         RealmState? realm = null)
     {
-        return new ThrowSignal(JsValue.FromObject(CreateReferenceError(message, context, realm)));
+        return new ThrowSignal(JsValue.FromObjectUnsafe(CreateReferenceError(message, context, realm)));
     }
 
     internal static ThrowSignal ThrowSyntaxError(string message, EvaluationContext? context = null,
         RealmState? realm = null)
     {
-        return new ThrowSignal(JsValue.FromObject(CreateSyntaxError(message, context, realm)));
+        return new ThrowSignal(JsValue.FromObjectUnsafe(CreateSyntaxError(message, context, realm)));
     }
 
     internal static void DefineConstantProperty(
@@ -108,7 +108,7 @@ public static partial class StandardLibrary
             return;
         }
 
-        target.SetProperty(name, JsValue.FromObject(value));
+        target.SetProperty(name, JsValue.FromObjectUnsafe(value));
     }
 
     internal static void DefineBuiltinFunction(
@@ -400,7 +400,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var formatter = constructor.Invoke([JsValue.FromObject(localesArg), JsValue.FromObject(optionsArg)], JsValue.Null);
+        var formatter = constructor.Invoke([JsValue.FromObjectUnsafe(localesArg), JsValue.FromObjectUnsafe(optionsArg)], JsValue.Null);
         if (!formatter.TryGetObject<IJsPropertyAccessor>(out var accessor) || accessor is null ||
             !accessor.TryGetProperty("format", out var formatValue) ||
             !formatValue.TryGetObject<IJsCallable>(out var formatFn) || formatFn is null)
@@ -408,7 +408,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var result = formatFn.Invoke([JsValue.FromObject(numericValue)], formatter);
+        var result = formatFn.Invoke([JsValue.FromObjectUnsafe(numericValue)], formatter);
         formatted = result.ToObject();
         return true;
     }

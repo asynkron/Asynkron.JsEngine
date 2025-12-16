@@ -114,7 +114,7 @@ public static partial class StandardLibrary
             receiver.SetPrototype(proto);
         }
 
-        var constructed = callable.Invoke([new JsValue((double)length)], JsValue.FromObject(receiver));
+        var constructed = callable.Invoke([new JsValue((double)length)], JsValue.FromObjectUnsafe(receiver));
         if (constructed.TryGetObject<IJsObjectLike>(out var objectLike))
         {
             return objectLike;
@@ -325,7 +325,7 @@ public static partial class StandardLibrary
                 throw ThrowTypeError($"{operation} called on revoked proxy", realm: realm);
             }
 
-            inspected = JsValue.FromObject(proxy.Target);
+            inspected = JsValue.FromObjectUnsafe(proxy.Target);
         }
 
         return inspected;
@@ -348,7 +348,7 @@ public static partial class StandardLibrary
 
             if (inspected.TryGetObject<JsProxy>(out var proxy))
             {
-                inspected = JsValue.FromObject(proxy.Target);
+                inspected = JsValue.FromObjectUnsafe(proxy.Target);
                 continue;
             }
 
@@ -395,7 +395,7 @@ public static partial class StandardLibrary
             var mapped = element;
             if (mapper is not null)
             {
-                mapped = mapper.Invoke([element, new JsValue((double)k), JsValue.FromObject(source)], thisArg);
+                mapped = mapper.Invoke([element, new JsValue((double)k), JsValue.FromObjectUnsafe(source)], thisArg);
             }
 
         IJsPropertyAccessor? mappedAccessor = null;

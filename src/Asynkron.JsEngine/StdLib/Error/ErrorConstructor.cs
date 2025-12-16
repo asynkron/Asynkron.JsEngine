@@ -34,7 +34,7 @@ public abstract partial class ErrorConstructorBase(IJsObjectLike prototype, Real
         {
             var target = _constructor ?? constructor;
             var newTargetCallable = newTarget.TryGetObject<IJsCallable>(out var callable) ? callable : target;
-            return JsValue.FromObject(ConstructWithNewTarget(args, newTargetCallable, target));
+            return JsValue.FromObjectUnsafe(ConstructWithNewTarget(args, newTargetCallable, target));
         });
 
         LinkPrototypeChain();

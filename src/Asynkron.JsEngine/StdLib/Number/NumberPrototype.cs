@@ -134,7 +134,7 @@ public sealed partial class NumberPrototype
 
         if (TryFormatWithIntlNumberFormat(num, localesArg, optionsArg, Realm, out var formatted))
         {
-            return JsValue.FromObject(formatted);
+            return JsValue.FromObjectUnsafe(formatted);
         }
 
         if (optionsArg.TryGetObject(out JsObject? options) && options is not null)

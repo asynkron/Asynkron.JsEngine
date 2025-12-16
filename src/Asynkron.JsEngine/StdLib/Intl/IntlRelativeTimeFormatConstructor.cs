@@ -29,7 +29,7 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
     protected override void ConfigureConstructor(HostFunction constructor)
     {
         var supportedLocalesOf = new HostFunction(
-            (_, args) => JsValue.FromObject(StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm)),
+            (_, args) => JsValue.FromObjectUnsafe(StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm)),
             isConstructor: false);
 
         supportedLocalesOf.DefineProperty("length",

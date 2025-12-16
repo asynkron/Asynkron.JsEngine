@@ -84,7 +84,7 @@ public static partial class StandardLibrary
             catch (ParseException parseException)
             {
                 var message = parseException.Message ?? "SyntaxError";
-                throw new ThrowSignal(JsValue.FromObject(CreateSyntaxError(message, evalContext, realm)));
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(CreateSyntaxError(message, evalContext, realm)));
             }
 
             var created = engine.ExecuteProgram(
@@ -101,7 +101,7 @@ public static partial class StandardLibrary
                 }
             }
 
-            return JsValue.FromObject(created);
+            return JsValue.FromObjectUnsafe(created);
         }
     }
 

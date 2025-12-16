@@ -47,12 +47,12 @@ public sealed partial class ArrayPrototype
         var target = ToObjectPropertyAccessor(thisValue, "Array.prototype.toString", Realm);
 
         if (JsOps.TryGetPropertyValue(target, "join", out var joinValue) &&
-            JsValue.FromObject(joinValue).TryGetObject<IJsCallable>(out var joinCallable))
+            JsValue.FromObjectUnsafe(joinValue).TryGetObject<IJsCallable>(out var joinCallable))
         {
-            return joinCallable.Invoke([], JsValue.FromObject(target));
+            return joinCallable.Invoke([], JsValue.FromObjectUnsafe(target));
         }
 
-        return JsValue.FromObject(InvokeDefaultObjectToString(target, Realm));
+        return JsValue.FromObjectUnsafe(InvokeDefaultObjectToString(target, Realm));
     }
 
     [JsHostMethod("includes", Length = 1d)]
@@ -281,7 +281,7 @@ public sealed partial class ArrayPrototype
         }
 
         SetArrayLikeLength(result, targetIndex);
-        return JsValue.FromObject(result);
+        return JsValue.FromObjectUnsafe(result);
     }
 
     [JsHostMethod("at", Length = 1d)]
@@ -308,7 +308,7 @@ public sealed partial class ArrayPrototype
 
         // Handle case where element is already a boxed JsValue
         var element = GetElementOrUndefined(target, ToIndexString(index));
-        return element is JsValue elemJs ? elemJs : JsValue.FromObject(element);
+        return element is JsValue elemJs ? elemJs : JsValue.FromObjectUnsafe(element);
     }
 
     [JsHostMethod("flat", Length = 0d)]
@@ -337,7 +337,7 @@ public sealed partial class ArrayPrototype
         var newLength = FlattenIntoArray(result, accessor, sourceLength, 0, depth, null, JsValue.Null, realm,
             "Array.prototype.flat");
         SetArrayLikeLength(result, newLength);
-        return JsValue.FromObject(result);
+        return JsValue.FromObjectUnsafe(result);
     }
 
     [JsHostMethod("flatMap", Length = 1d)]
@@ -355,7 +355,7 @@ public sealed partial class ArrayPrototype
         var newLength = FlattenIntoArray(result, accessor, sourceLength, 0, 1, callback, thisArg, Realm,
             "Array.prototype.flatMap");
         SetArrayLikeLength(result, newLength);
-        return JsValue.FromObject(result);
+        return JsValue.FromObjectUnsafe(result);
     }
 
     [JsHostMethod("fill", Length = 1d)]
@@ -377,7 +377,7 @@ public sealed partial class ArrayPrototype
             target.SetProperty(ToIndexString(k), value);
         }
 
-        return JsValue.FromObject(target);
+        return JsValue.FromObjectUnsafe(target);
     }
 
     [JsHostMethod("copyWithin", Length = 2d)]
@@ -399,7 +399,7 @@ public sealed partial class ArrayPrototype
         var count = Math.Min(final - from, length - to);
         if (count <= 0)
         {
-            return JsValue.FromObject(target);
+            return JsValue.FromObjectUnsafe(target);
         }
 
         long direction = 1;
@@ -432,7 +432,7 @@ public sealed partial class ArrayPrototype
             to += direction;
         }
 
-        return JsValue.FromObject(target);
+        return JsValue.FromObjectUnsafe(target);
     }
 
     [JsHostMethod("toSorted", Length = 1d)]
@@ -496,7 +496,7 @@ public sealed partial class ArrayPrototype
         }
 
         SetArrayLikeLength(result, length);
-        return JsValue.FromObject(result);
+        return JsValue.FromObjectUnsafe(result);
     }
 
     [JsHostMethod("toReversed", Length = 0d)]
@@ -514,7 +514,7 @@ public sealed partial class ArrayPrototype
         }
 
         SetArrayLikeLength(result, length);
-        return JsValue.FromObject(result);
+        return JsValue.FromObjectUnsafe(result);
     }
 
     [JsHostMethod("toSpliced", Length = 2d)]
@@ -575,7 +575,7 @@ public sealed partial class ArrayPrototype
         }
 
         SetArrayLikeLength(result, targetIndex);
-        return JsValue.FromObject(result);
+        return JsValue.FromObjectUnsafe(result);
     }
 
     [JsHostMethod("with", Length = 2d)]
@@ -627,6 +627,6 @@ public sealed partial class ArrayPrototype
         }
 
         SetArrayLikeLength(result, length);
-        return JsValue.FromObject(result);
+        return JsValue.FromObjectUnsafe(result);
     }
 }

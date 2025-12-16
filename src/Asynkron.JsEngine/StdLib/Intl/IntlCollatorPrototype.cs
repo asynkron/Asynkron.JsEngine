@@ -15,7 +15,7 @@ public sealed partial class IntlCollatorPrototype
     internal static void InitializeInternalSlots(JsObject instance, IntlCollatorInternalSlots slots)
     {
         instance.SetProperty(CollatorBrand, true);
-        instance.SetProperty(SlotsKey, JsValue.FromObject(slots));
+        instance.SetProperty(SlotsKey, JsValue.FromObjectUnsafe(slots));
     }
 
     [JsHostGetter("compare", DisplayName = "get compare")]

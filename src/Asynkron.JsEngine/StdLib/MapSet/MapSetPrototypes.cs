@@ -27,7 +27,7 @@ public sealed partial class MapPrototype
     public JsValue Get(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireMap(thisValue);
-        return JsValue.FromObject(map.Get(args.GetArgument(0).ToObject()));
+        return JsValue.FromObjectUnsafe(map.Get(args.GetArgument(0).ToObject()));
     }
 
     [JsHostMethod("has", Length = 1d)]
@@ -152,7 +152,7 @@ public sealed partial class MapPrototype
                     _ => CreateEntryPair(entry.Key, entry.Value)
                 };
 
-                result.SetProperty("value", JsValue.FromObject(value));
+                result.SetProperty("value", JsValue.FromObjectUnsafe(value));
                 result.SetProperty("done", false);
             }
             else

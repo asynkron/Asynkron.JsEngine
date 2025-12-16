@@ -34,7 +34,7 @@ public static partial class TypedAstEvaluator
 
             if (!JsOps.IsConstructor(baseValue))
             {
-                throw new ThrowSignal(JsValue.FromObject(StandardLibrary.CreateTypeError(
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
                     "Class extends value is not a constructor or null", context, context.RealmState)));
             }
 
@@ -43,7 +43,7 @@ public static partial class TypedAstEvaluator
                 TryGetPropertyValue(accessorWithMarker, "__proxyHasNoPrototype__", out var marker, context) &&
                 JsOps.ToBoolean(marker))
             {
-                throw new ThrowSignal(JsValue.FromObject(StandardLibrary.CreateTypeError(
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
                     "Class extends value does not have a valid prototype",
                     context,
                     context.RealmState)));
@@ -52,7 +52,7 @@ public static partial class TypedAstEvaluator
             if (baseValue is not IJsEnvironmentAwareCallable callable ||
                 baseValue is not IJsPropertyAccessor accessor)
             {
-                throw new ThrowSignal(JsValue.FromObject(StandardLibrary.CreateTypeError(
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
                     "Class extends value is not a constructor or null", context, context.RealmState)));
             }
 
@@ -64,7 +64,7 @@ public static partial class TypedAstEvaluator
 
             if (!hasPrototype)
             {
-                throw new ThrowSignal(JsValue.FromObject(StandardLibrary.CreateTypeError(
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
                     "Class extends value does not have a valid prototype",
                     context,
                     context.RealmState)));
@@ -80,7 +80,7 @@ public static partial class TypedAstEvaluator
                 return (callable, prototype);
             }
 
-            throw new ThrowSignal(JsValue.FromObject(StandardLibrary.CreateTypeError(
+            throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
                 "Class extends value does not have a valid prototype",
                 context,
                 context.RealmState)));
@@ -132,7 +132,7 @@ public static partial class TypedAstEvaluator
             {
                 RegexLiteralExpression regex => EvaluateRegexLiteral(regex, context),
                 ConditionalExpression conditional => EvaluateConditional(conditional, environment, context),
-                FunctionExpression functionExpression => JsValue.FromObject(CreateFunctionValue(functionExpression, environment, context,
+                FunctionExpression functionExpression => JsValue.FromObjectUnsafe(CreateFunctionValue(functionExpression, environment, context,
                     createFunctionNameEnvironment: true)),
                 DestructuringAssignmentExpression destructuringAssignment =>
                     EvaluateDestructuringAssignment(destructuringAssignment, environment, context),
@@ -143,7 +143,7 @@ public static partial class TypedAstEvaluator
                 SequenceExpression sequence => EvaluateSequence(sequence, environment, context),
                 NewExpression newExpression => EvaluateNew(newExpression, environment, context),
                 NewTargetExpression => environment.TryGet(Symbol.NewTarget, out var newTarget)
-                    ? JsValue.FromObject(newTarget)
+                    ? JsValue.FromObjectUnsafe(newTarget)
                     : JsValue.Undefined,
                 ImportMetaExpression => EvaluateImportMeta(environment, context),
                 ArrayExpression array => EvaluateArray(array, environment, context),
@@ -334,7 +334,7 @@ public static partial class TypedAstEvaluator
                 var superThis = ReferenceEquals(binding.thisValue, JsEnvironment.Uninitialized)
                     ? JsValue.Undefined
                     : binding.thisValue;
-                return (JsValue.FromObject(dynamicSuperConstructor), superThis, false);
+                return (JsValue.FromObjectUnsafe(dynamicSuperConstructor), superThis, false);
             }
 
             if (callee is MemberExpression member)
@@ -372,7 +372,7 @@ public static partial class TypedAstEvaluator
                         "Cannot read properties of null or undefined",
                         context,
                         context.RealmState);
-                    context.SetThrow(JsValue.FromObject(error));
+                    context.SetThrow(JsValue.FromObjectUnsafe(error));
                     return (JsValue.Undefined, JsValue.Undefined, true);
                 }
 
@@ -412,7 +412,7 @@ public static partial class TypedAstEvaluator
                             return (JsValue.Undefined, JsValue.Undefined, true);
                         }
 
-                        return (JsValue.FromObject(directValue), targetJs, false);
+                        return (JsValue.FromObjectUnsafe(directValue), targetJs, false);
                     }
 
                     if (context.ShouldStopEvaluation)
@@ -435,7 +435,7 @@ public static partial class TypedAstEvaluator
                     return (JsValue.Undefined, JsValue.Undefined, true);
                 }
 
-                return (JsValue.FromObject(value), targetJs, false);
+                return (JsValue.FromObjectUnsafe(value), targetJs, false);
             }
 
             if (callee is IdentifierExpression identifier)
@@ -443,7 +443,7 @@ public static partial class TypedAstEvaluator
                 if (environment.TryResolveWithBinding(identifier.Name, context, out var withBinding))
                 {
                     var withValue = JsEnvironment.GetWithBindingValue(withBinding);
-                    return (JsValue.FromObject(withValue), JsValue.FromObject(withBinding.BindingObject), false);
+                    return (JsValue.FromObjectUnsafe(withValue), JsValue.FromObjectUnsafe(withBinding.BindingObject), false);
                 }
 
                 // Fast path: use slot-based lookup when available
@@ -475,7 +475,7 @@ public static partial class TypedAstEvaluator
                     return (JsValue.Undefined, JsValue.Undefined, true);
                 }
 
-                return (JsValue.FromObject(calleeValue), JsValue.Undefined, false);
+                return (JsValue.FromObjectUnsafe(calleeValue), JsValue.Undefined, false);
             }
 
             var directCallee = EvaluateExpression(callee, environment, context);
@@ -561,15 +561,15 @@ public static partial class TypedAstEvaluator
             if (environment.TryFindBinding(Symbol.LexicalThisEnvironment, allowUninitialized: true, out _, out var lexicalEnvValue) &&
                 lexicalEnvValue is JsEnvironment lexicalThisEnv)
             {
-                return JsValue.FromObject(lexicalThisEnv.Get(Symbol.This));
+                return JsValue.FromObjectUnsafe(lexicalThisEnv.Get(Symbol.This));
             }
-            return JsValue.FromObject(environment.Get(Symbol.This));
+            return JsValue.FromObjectUnsafe(environment.Get(Symbol.This));
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                      StringComparison.Ordinal))
         {
             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
-            throw new ThrowSignal(JsValue.FromObject(errorObject));
+            throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
         }
     }
 
@@ -582,7 +582,7 @@ public static partial class TypedAstEvaluator
         // If running in module context, this should be set by the module loader
         if (environment.TryGet(Symbol.ImportMeta, out var importMeta))
         {
-            return JsValue.FromObject(importMeta);
+            return JsValue.FromObjectUnsafe(importMeta);
         }
 
         // Return a basic import.meta object with a url property

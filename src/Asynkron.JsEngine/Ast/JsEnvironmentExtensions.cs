@@ -83,14 +83,14 @@ public static partial class TypedAstEvaluator
             {
                 // Super access before 'this' is initialised (e.g. during synthetic ctor setup).
                 var placeholder = new SuperBinding(null, null, JsValue.Undefined, false);
-                environment.DefineJsValue(Symbol.Super, JsValue.FromObject(placeholder), isConst: false, isLexical: true, blocksFunctionScopeOverride: true);
+                environment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(placeholder), isConst: false, isLexical: true, blocksFunctionScopeOverride: true);
                 logger?.LogInformation("SuperBinding: synthesized placeholder after ReferenceError for 'this'");
                 return placeholder;
             }
 
             if (TryCreateSuperBindingFromThis(environment, context, out var synthesized))
             {
-                environment.DefineJsValue(Symbol.Super, JsValue.FromObject(synthesized), false, isLexical: true,
+                environment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(synthesized), false, isLexical: true,
                     blocksFunctionScopeOverride: true);
                 logger?.LogInformation("SuperBinding: synthesized from this protoNull={ProtoNull} thisInit={ThisInit}",
                     synthesized.Prototype is null,
@@ -111,7 +111,7 @@ public static partial class TypedAstEvaluator
                 logger?.LogInformation("SuperBinding: fallback with uninitialized 'this'");
             }
 
-            var thisValue = JsValue.FromObject(thisValueObj);
+            var thisValue = JsValue.FromObjectUnsafe(thisValueObj);
             IJsPropertyAccessor? prototypeGuess = null;
             if (thisValue.TryGetObject<IJsObjectLike>(out var thisObject))
             {
@@ -121,7 +121,7 @@ public static partial class TypedAstEvaluator
             }
 
             var fallbackBinding = new SuperBinding(null, prototypeGuess, thisValue, context.IsThisInitialized);
-            environment.DefineJsValue(Symbol.Super, JsValue.FromObject(fallbackBinding), false, isLexical: true, blocksFunctionScopeOverride: true);
+            environment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(fallbackBinding), false, isLexical: true, blocksFunctionScopeOverride: true);
             logger?.LogInformation("SuperBinding: placeholder created protoNull={ProtoNull} thisInit={ThisInit}",
                 fallbackBinding.Prototype is null,
                 fallbackBinding.IsThisInitialized);
@@ -150,7 +150,7 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            var thisValue = JsValue.FromObject(thisValueObj);
+            var thisValue = JsValue.FromObjectUnsafe(thisValueObj);
             if (!thisValue.TryGetObject<IJsObjectLike>(out var thisObject))
             {
                 logger?.LogInformation("SuperBinding: 'this' is not object-like type={Type}",

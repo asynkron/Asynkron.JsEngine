@@ -51,7 +51,7 @@ public static partial class TypedAstEvaluator
             {
                 var error = StandardLibrary.CreateTypeError("Cannot convert undefined or null to object", context,
                     context.RealmState);
-                context.SetThrow(JsValue.FromObject(error));
+                context.SetThrow(JsValue.FromObjectUnsafe(error));
                 bindingObject = null;
                 return false;
             }
@@ -108,7 +108,7 @@ public static partial class TypedAstEvaluator
             }
 
             var typeError = StandardLibrary.CreateTypeError("Iterator is not an object", context, context.RealmState);
-            context.SetThrow(JsValue.FromObject(typeError));
+            context.SetThrow(JsValue.FromObjectUnsafe(typeError));
             return false;
         }
 
@@ -129,7 +129,7 @@ public static partial class TypedAstEvaluator
             }
 
             var typeError = StandardLibrary.CreateTypeError("Iterator is not an object", context, context.RealmState);
-            context.SetThrow(JsValue.FromObject(typeError));
+            context.SetThrow(JsValue.FromObjectUnsafe(typeError));
             return false;
         }
 
@@ -376,8 +376,8 @@ public static partial class TypedAstEvaluator
         try
         {
             // Handle case where reason is already a boxed JsValue
-            var reasonArg = reason is JsValue reasonJs ? reasonJs : JsValue.FromObject(reason);
-            return rejectCallable.Invoke([reasonArg], JsValue.FromObject(promiseCtor)).ToObject();
+            var reasonArg = reason is JsValue reasonJs ? reasonJs : JsValue.FromObjectUnsafe(reason);
+            return rejectCallable.Invoke([reasonArg], JsValue.FromObjectUnsafe(promiseCtor)).ToObject();
         }
         catch (ThrowSignal signal)
         {
@@ -404,8 +404,8 @@ public static partial class TypedAstEvaluator
         try
         {
             // Handle case where value is already a boxed JsValue
-            var valueArg = value is JsValue valJs ? valJs : JsValue.FromObject(value);
-            return resolveCallable.Invoke([valueArg], JsValue.FromObject(promiseCtor)).ToObject();
+            var valueArg = value is JsValue valJs ? valJs : JsValue.FromObjectUnsafe(value);
+            return resolveCallable.Invoke([valueArg], JsValue.FromObjectUnsafe(promiseCtor)).ToObject();
         }
         catch (ThrowSignal signal)
         {
@@ -558,13 +558,13 @@ public static partial class TypedAstEvaluator
         }
 
         // Use JsValue-based conversion to avoid boxing
-        var leftNumeric = ToNumericValue(leftPrimitive is JsValue leftJs ? leftJs : JsValue.FromObject(leftPrimitive), context);
+        var leftNumeric = ToNumericValue(leftPrimitive is JsValue leftJs ? leftJs : JsValue.FromObjectUnsafe(leftPrimitive), context);
         if (context.ShouldStopEvaluation)
         {
             return context.FlowValue;
         }
 
-        var rightNumeric = ToNumericValue(rightPrimitive is JsValue rightJs ? rightJs : JsValue.FromObject(rightPrimitive), context);
+        var rightNumeric = ToNumericValue(rightPrimitive is JsValue rightJs ? rightJs : JsValue.FromObjectUnsafe(rightPrimitive), context);
         if (context.ShouldStopEvaluation)
         {
             return context.FlowValue;
@@ -667,13 +667,13 @@ public static partial class TypedAstEvaluator
         EvaluationContext context)
     {
         // Use JsValue-based conversion to avoid boxing during the operation
-        var leftNumeric = ToNumericValue(left is JsValue ljs ? ljs : JsValue.FromObject(left), context);
+        var leftNumeric = ToNumericValue(left is JsValue ljs ? ljs : JsValue.FromObjectUnsafe(left), context);
         if (context.ShouldStopEvaluation)
         {
             return context.FlowValue;
         }
 
-        var rightNumeric = ToNumericValue(right is JsValue rjs ? rjs : JsValue.FromObject(right), context);
+        var rightNumeric = ToNumericValue(right is JsValue rjs ? rjs : JsValue.FromObjectUnsafe(right), context);
         if (context.ShouldStopEvaluation)
         {
             return context.FlowValue;
@@ -1001,7 +1001,7 @@ public static partial class TypedAstEvaluator
         // Throw TypeError for primitives (boolean, number, string, null, undefined)
         if (target is not IJsPropertyAccessor)
         {
-            context.SetThrow(JsValue.FromObject(StandardLibrary.CreateTypeError(
+            context.SetThrow(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
                 "Right-hand side of 'in' is not an object",
                 context,
                 context.RealmState)));
@@ -1039,7 +1039,7 @@ public static partial class TypedAstEvaluator
     {
         if (right is not IJsPropertyAccessor)
         {
-            context.SetThrow(JsValue.FromObject(StandardLibrary.CreateTypeError("Right-hand side of 'instanceof' is not an object",
+            context.SetThrow(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError("Right-hand side of 'instanceof' is not an object",
                 context)));
             return false;
         }
@@ -1057,13 +1057,13 @@ public static partial class TypedAstEvaluator
             {
                 if (hasInstance is not IJsCallable callable)
                 {
-                    context.SetThrow(JsValue.FromObject(StandardLibrary.CreateTypeError("@@hasInstance is not callable", context)));
+                    context.SetThrow(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError("@@hasInstance is not callable", context)));
                     return false;
                 }
 
                 try
                 {
-                    var result = callable.Invoke([JsValue.FromObject(left)], JsValue.FromObject(right));
+                    var result = callable.Invoke([JsValue.FromObjectUnsafe(left)], JsValue.FromObjectUnsafe(right));
                     return JsOps.ToBoolean(result.ToObject());
                 }
                 catch (ThrowSignal signal)
@@ -1083,7 +1083,7 @@ public static partial class TypedAstEvaluator
             return OrdinaryHasInstance(left, right, context);
         }
 
-        context.SetThrow(JsValue.FromObject(StandardLibrary.CreateTypeError("Right-hand side of 'instanceof' is not callable",
+        context.SetThrow(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError("Right-hand side of 'instanceof' is not callable",
             context)));
         return false;
     }
@@ -1103,7 +1103,7 @@ public static partial class TypedAstEvaluator
         if (!TryGetPropertyValue(constructor, "prototype", out var prototype, context) ||
             prototype is not IJsPropertyAccessor prototypeObject)
         {
-            context.SetThrow(JsValue.FromObject(
+            context.SetThrow(JsValue.FromObjectUnsafe(
                 StandardLibrary.CreateTypeError("Function has non-object prototype in instanceof check", context)));
             return false;
         }

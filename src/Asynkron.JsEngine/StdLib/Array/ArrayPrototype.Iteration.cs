@@ -21,12 +21,12 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            var mapped = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], thisArg);
+            var mapped = callback.Invoke([value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], thisArg);
             result.SetProperty(ToIndexString(k), mapped);
         }
 
         SetArrayLikeLength(result, length);
-        return JsValue.FromObject(result);
+        return JsValue.FromObjectUnsafe(result);
     }
 
     [JsHostMethod("filter", Length = 1d)]
@@ -45,7 +45,7 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            var keep = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], thisArg);
+            var keep = callback.Invoke([value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], thisArg);
 #pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
             if (!IsTruthy(keep.ToObject()))
 #pragma warning restore CS0618
@@ -57,20 +57,20 @@ public sealed partial class ArrayPrototype
             toIndex++;
         }
 
-        return JsValue.FromObject(result);
+        return JsValue.FromObjectUnsafe(result);
     }
 
     [JsHostMethod("reduce", Length = 1d)]
     public JsValue Reduce(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObject(ReduceLike(thisValue, args, Realm, "Array.prototype.reduce", false));
+        return JsValue.FromObjectUnsafe(ReduceLike(thisValue, args, Realm, "Array.prototype.reduce", false));
     }
 
     [JsHostMethod("reduceRight", Length = 1d)]
     public JsValue ReduceRight(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
-        return JsValue.FromObject(ReduceLike(thisValue, args, realm, "Array.prototype.reduceRight", true));
+        return JsValue.FromObjectUnsafe(ReduceLike(thisValue, args, realm, "Array.prototype.reduceRight", true));
     }
 
     [JsHostMethod("forEach", Length = 1d)]
@@ -86,7 +86,7 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], thisArg);
+            callback.Invoke([value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], thisArg);
         }
 
         return JsValue.Undefined;
@@ -105,7 +105,7 @@ public sealed partial class ArrayPrototype
             // candidate is already a JsValue from TryGetProperty
             var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
-            var match = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], thisArg);
+            var match = callback.Invoke([value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], thisArg);
 #pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
             if (IsTruthy(match.ToObject()))
 #pragma warning restore CS0618
@@ -129,7 +129,7 @@ public sealed partial class ArrayPrototype
             // candidate is already a JsValue from TryGetProperty
             var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
-            var match = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], thisArg);
+            var match = callback.Invoke([value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], thisArg);
 #pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
             if (IsTruthy(match.ToObject()))
 #pragma warning restore CS0618
@@ -145,7 +145,7 @@ public sealed partial class ArrayPrototype
     public JsValue Some(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
-        return JsValue.FromObject(SomeLike(thisValue, args, realm, "Array.prototype.some"));
+        return JsValue.FromObjectUnsafe(SomeLike(thisValue, args, realm, "Array.prototype.some"));
     }
 
     [JsHostMethod("every", Length = 1d)]
@@ -161,7 +161,7 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            var result = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], thisArg);
+            var result = callback.Invoke([value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], thisArg);
 #pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
             if (!IsTruthy(result.ToObject()))
 #pragma warning restore CS0618
@@ -186,7 +186,7 @@ public sealed partial class ArrayPrototype
             // candidate is already a JsValue from TryGetProperty
             var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
-            var matches = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], thisArg);
+            var matches = callback.Invoke([value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], thisArg);
 #pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
             if (IsTruthy(matches.ToObject()))
 #pragma warning restore CS0618
@@ -210,7 +210,7 @@ public sealed partial class ArrayPrototype
             // candidate is already a JsValue from TryGetProperty
             var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
-            var matches = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], thisArg);
+            var matches = callback.Invoke([value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], thisArg);
 #pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
             if (IsTruthy(matches.ToObject()))
 #pragma warning restore CS0618

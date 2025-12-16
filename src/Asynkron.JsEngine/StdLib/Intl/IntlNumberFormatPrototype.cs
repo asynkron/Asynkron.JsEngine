@@ -15,7 +15,7 @@ public sealed partial class IntlNumberFormatPrototype
     internal static void InitializeInternalSlots(JsObject instance, IntlNumberFormatInternalSlots slots)
     {
         instance.SetProperty(NumberFormatBrand, true);
-        instance.SetProperty(SlotsKey, JsValue.FromObject(slots));
+        instance.SetProperty(SlotsKey, JsValue.FromObjectUnsafe(slots));
     }
 
     [JsHostGetter("format", DisplayName = "get format")]
@@ -44,7 +44,7 @@ public sealed partial class IntlNumberFormatPrototype
             partsArray.Push(entry);
         }
 
-        return JsValue.FromObject(partsArray);
+        return JsValue.FromObjectUnsafe(partsArray);
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]

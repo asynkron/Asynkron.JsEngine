@@ -206,7 +206,7 @@ public static partial class TypedAstEvaluator
                     }
                     // yielded might be a boxed JsValue from TryGetPropertyValue
                     value = gotValue
-                        ? (yielded is JsValue yjs ? yjs : JsValue.FromObject(yielded))
+                        ? (yielded is JsValue yjs ? yjs : JsValue.FromObjectUnsafe(yielded))
                         : JsValue.Undefined;
                 }
                 else

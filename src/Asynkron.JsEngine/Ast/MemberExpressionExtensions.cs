@@ -71,7 +71,7 @@ public static partial class TypedAstEvaluator
                     "Cannot read properties of null or undefined",
                     context,
                     context.RealmState);
-                context.SetThrow(JsValue.FromObject(error));
+                context.SetThrow(JsValue.FromObjectUnsafe(error));
                 return JsValue.Undefined;
             }
 
@@ -97,7 +97,7 @@ public static partial class TypedAstEvaluator
                     }
 
                     // Handle case where value is already a boxed JsValue
-                    return directValue is JsValue jsVal ? jsVal : JsValue.FromObject(directValue);
+                    return directValue is JsValue jsVal ? jsVal : JsValue.FromObjectUnsafe(directValue);
                 }
 
                 return JsValue.Undefined;
@@ -116,7 +116,7 @@ public static partial class TypedAstEvaluator
             }
 
             // Handle case where value is already a boxed JsValue
-            return value is JsValue jsv ? jsv : JsValue.FromObject(value);
+            return value is JsValue jsv ? jsv : JsValue.FromObjectUnsafe(value);
         }
 
         private (JsValue Value, SuperBinding Binding) ResolveSuperMember(JsEnvironment environment,
@@ -142,7 +142,7 @@ public static partial class TypedAstEvaluator
                     "Cannot read properties of null (reading from super)",
                     context,
                     context.RealmState);
-                context.SetThrow(JsValue.FromObject(error));
+                context.SetThrow(JsValue.FromObjectUnsafe(error));
                 return (JsValue.Undefined, binding);
             }
 

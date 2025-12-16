@@ -121,7 +121,7 @@ public static partial class TypedAstEvaluator
                 {
                     if (_closure.TryGet(Symbol.This, out var capturedThis))
                     {
-                        _lexicalThis = JsValue.FromObject(capturedThis);
+                        _lexicalThis = JsValue.FromObjectUnsafe(capturedThis);
                     }
                     else
                     {
@@ -131,7 +131,7 @@ public static partial class TypedAstEvaluator
                 catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                              StringComparison.Ordinal))
                 {
-                    _lexicalThis = JsValue.FromObject(JsEnvironment.Uninitialized);
+                    _lexicalThis = JsValue.Uninitialized;
                     _lexicalThisEnvironment = _closure;
                 }
             }
@@ -335,7 +335,7 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            if (_properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObject(this) : receiver, out value))
+            if (_properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver, out value))
             {
                 return true;
             }
@@ -397,17 +397,17 @@ public static partial class TypedAstEvaluator
 
         public bool TryGetProperty(string name, out JsValue value)
         {
-            return TryGetProperty(name, JsValue.FromObject(this), out value);
+            return TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);
         }
 
         public void SetProperty(string name, JsValue value)
         {
-            SetProperty(name, value, JsValue.FromObject(this));
+            SetProperty(name, value, JsValue.FromObjectUnsafe(this));
         }
 
         public void SetProperty(string name, JsValue value, JsValue receiver)
         {
-            _properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObject(this) : receiver);
+            _properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver);
         }
 
         PropertyDescriptor? IJsPropertyAccessor.GetOwnPropertyDescriptor(string name)
@@ -551,7 +551,7 @@ public static partial class TypedAstEvaluator
                     "Class constructor cannot be invoked without 'new'",
                     callingContext ?? context,
                     _realmState);
-                throw new ThrowSignal(JsValue.FromObject(error));
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
             }
 
             var hasParameterExpressions = _hasParameterExpressions;
@@ -657,7 +657,7 @@ public static partial class TypedAstEvaluator
                 {
                     context.MarkThisUninitialized();
                 }
-                functionEnvironment.DefineJsValue(Symbol.This, JsValue.FromObject(boundThis));
+                functionEnvironment.DefineJsValue(Symbol.This, JsValue.FromObjectUnsafe(boundThis));
 
                 // Store a reference to the original environment that owns the `this` binding.
                 // This is needed for super() calls in arrow functions - super() must update
@@ -665,7 +665,7 @@ public static partial class TypedAstEvaluator
                 if (_lexicalThisEnvironment is not null &&
                     _lexicalThisEnvironment.TryFindBinding(Symbol.This, allowUninitialized: true, out var originalThisEnv, out _))
                 {
-                    functionEnvironment.DefineJsValue(Symbol.LexicalThisEnvironment, JsValue.FromObject(originalThisEnv), false, isLexical: true);
+                    functionEnvironment.DefineJsValue(Symbol.LexicalThisEnvironment, JsValue.FromObjectUnsafe(originalThisEnv), false, isLexical: true);
                 }
 
                 var hasCopiedInitialization = false;
@@ -698,7 +698,7 @@ public static partial class TypedAstEvaluator
                         "SuperBinding: define lexical for arrow/lexical this protoNull={ProtoNull} thisInit={ThisInit}",
                         lexicalSuperBinding.Prototype is null,
                         lexicalSuperBinding.IsThisInitialized);
-                    functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObject(lexicalSuperBinding), false, isLexical: true,
+                    functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(lexicalSuperBinding), false, isLexical: true,
                         blocksFunctionScopeOverride: true);
                     if (!hasCopiedInitialization)
                     {
@@ -778,7 +778,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 SetThisInitializationStatus(functionEnvironment, initialThisInitialized);
-                functionEnvironment.DefineJsValue(Symbol.This, JsValue.FromObject(initialThisValue));
+                functionEnvironment.DefineJsValue(Symbol.This, JsValue.FromObjectUnsafe(initialThisValue));
 
                 if (_isClassConstructor && initialThisValue is JsObject ctorThis)
                 {
@@ -821,7 +821,7 @@ public static partial class TypedAstEvaluator
                         }
                     }
 
-                    var binding = new SuperBinding(runtimeSuperConstructor, prototypeForSuper, JsValue.FromObject(boundThis),
+                    var binding = new SuperBinding(runtimeSuperConstructor, prototypeForSuper, JsValue.FromObjectUnsafe(boundThis),
                         initialThisInitialized);
                     functionEnvironment.RealmState?.Logger?.LogInformation(
                         "SuperBinding: define in function env env={Env} isCtor={IsCtor} isDerivedCtor={IsDerivedCtor} protoNull={ProtoNull} thisInit={ThisInit}",
@@ -830,7 +830,7 @@ public static partial class TypedAstEvaluator
                         _isDerivedClassConstructor,
                         prototypeForSuper is null,
                         initialThisInitialized);
-                    functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObject(binding));
+                    functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(binding));
                 }
 
                 if (_isClassConstructor && boundThis is JsObject thisInstance)
@@ -876,17 +876,17 @@ public static partial class TypedAstEvaluator
                     var argumentsObject =
                         CreateArgumentsObject(_function, argumentValues, parameterEnvironment, _realmState, this,
                             _isStrict);
-                    parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObject(argumentsObject), isLexical: false);
+                    parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject), isLexical: false);
                     if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
                     {
-                        functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObject(argumentsObject), isLexical: false);
+                        functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject), isLexical: false);
                     }
                 }
 
                 // Named function expressions should see their name inside the body.
                 if (!IsArrowFunction && _function.Name is { } functionName && !_hasFunctionNameEnvironment)
                 {
-                    parameterEnvironment.DefineJsValue(functionName, JsValue.FromObject(this), isConst: true, isLexical: true, blocksFunctionScopeOverride: true);
+                    parameterEnvironment.DefineJsValue(functionName, JsValue.FromObjectUnsafe(this), isConst: true, isLexical: true, blocksFunctionScopeOverride: true);
                 }
 
                 // Wrap parameter binding and body evaluation in the same try-catch for async functions.
@@ -909,7 +909,7 @@ public static partial class TypedAstEvaluator
                             callingContext?.Clear();
 
                             var rejectedBindingResult = CreateRejectedPromiseFromRealm(thrownDuringBinding);
-                            return rejectedBindingResult is JsValue rejBindJs ? rejBindJs : JsValue.FromObject(rejectedBindingResult);
+                            return rejectedBindingResult is JsValue rejBindJs ? rejBindJs : JsValue.FromObjectUnsafe(rejectedBindingResult);
                         }
 
                         if (callingContext is not null)
@@ -958,7 +958,7 @@ public static partial class TypedAstEvaluator
                     if (IsAsyncFunction || _wasAsyncFunction)
                     {
                         var rejectedThrowResult = CreateRejectedPromise(thrown, executionEnvironment);
-                        return rejectedThrowResult is JsValue rejThrowJs ? rejThrowJs : JsValue.FromObject(rejectedThrowResult);
+                        return rejectedThrowResult is JsValue rejThrowJs ? rejThrowJs : JsValue.FromObjectUnsafe(rejectedThrowResult);
                     }
 
                     if (callingContext is not null)
@@ -985,7 +985,7 @@ public static partial class TypedAstEvaluator
                                 _realmState.Logger?.LogInformation(
                                     "Class constructor returning this={This}",
                                     DescribeValue(currentThis));
-                                return JsValue.FromObject(currentThis);
+                                return JsValue.FromObjectUnsafe(currentThis);
                             }
                         }
                         catch (InvalidOperationException ex) when (ex.Message.StartsWith(
@@ -994,7 +994,7 @@ public static partial class TypedAstEvaluator
                         {
                             // If `this` is uninitialized (e.g., derived ctor without super()), surface a JS ReferenceError.
                             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
-                            throw new ThrowSignal(JsValue.FromObject(errorObject));
+                            throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
                         }
                     }
 
@@ -1026,7 +1026,7 @@ public static partial class TypedAstEvaluator
                             {
                                 _realmState.Logger?.LogInformation(
                                     "Class constructor returning bound this instead of non-object return value");
-                                return JsValue.FromObject(currentThis);
+                                return JsValue.FromObjectUnsafe(currentThis);
                             }
 
                             // Per ES spec 9.2.2 [[Construct]] step 15:
@@ -1040,7 +1040,7 @@ public static partial class TypedAstEvaluator
                                     "ReferenceError: this is not defined - must call super() in derived class constructor",
                                     context,
                                     context.RealmState);
-                                throw new ThrowSignal(JsValue.FromObject(errorObject));
+                                throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
                             }
                         }
                         catch (InvalidOperationException ex) when (ex.Message.StartsWith(
@@ -1053,7 +1053,7 @@ public static partial class TypedAstEvaluator
                             if (_isDerivedClassConstructor)
                             {
                                 var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
-                                throw new ThrowSignal(JsValue.FromObject(errorObject));
+                                throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
                             }
                             _realmState.Logger?.LogInformation(
                                 "Class constructor missing initialized this; falling back to return value reason={Reason}",
@@ -1061,7 +1061,7 @@ public static partial class TypedAstEvaluator
                         }
                     }
 
-                    return JsValue.FromObject(valueObj);
+                    return JsValue.FromObjectUnsafe(valueObj);
                 }
 
                 object? completionValue;
@@ -1082,14 +1082,14 @@ public static partial class TypedAstEvaluator
                     _wasAsyncFunction,
                     completionValue?.GetType().Name ?? "null");
                 var resolvedResult = CreateResolvedPromise(completionValue, executionEnvironment);
-                return resolvedResult is JsValue resolvedJs ? resolvedJs : JsValue.FromObject(resolvedResult);
+                return resolvedResult is JsValue resolvedJs ? resolvedJs : JsValue.FromObjectUnsafe(resolvedResult);
             }
             catch (ThrowSignal signal) when (IsAsyncFunction || _wasAsyncFunction)
             {
                 // Use CreateRejectedPromiseFromRealm which uses the RealmState's PromiseConstructor
                 // directly, avoiding environment lookup that might fail during parameter binding.
                 var rejectedResult = CreateRejectedPromiseFromRealm(signal.ThrownValue);
-                return rejectedResult is JsValue rejectedJs ? rejectedJs : JsValue.FromObject(rejectedResult);
+                return rejectedResult is JsValue rejectedJs ? rejectedJs : JsValue.FromObjectUnsafe(rejectedResult);
             }
             finally
             {
@@ -1148,7 +1148,7 @@ public static partial class TypedAstEvaluator
                 accessor.TryGetProperty("reject", out var rejectValue) &&
                 rejectValue.TryGetObject<IJsCallable>(out var rejectCallable))
             {
-                return rejectCallable.Invoke([reason], JsValue.FromObject(promiseCtor)).ToObject();
+                return rejectCallable.Invoke([reason], JsValue.FromObjectUnsafe(promiseCtor)).ToObject();
             }
 
             // Fallback if Promise.reject isn't available - return the reason directly
@@ -1253,7 +1253,7 @@ public static partial class TypedAstEvaluator
             // (e.g., FooObj.prototype = anotherFunction). Per ES spec, if the prototype property
             // is not an object, we should use the intrinsic %Object.prototype% instead, but
             // this is handled at the call site.
-            if (_properties.TryGetProperty("prototype", JsValue.FromObject(this), out var value) && value.TryGetObject<IJsObjectLike>(out var objLike))
+            if (_properties.TryGetProperty("prototype", JsValue.FromObjectUnsafe(this), out var value) && value.TryGetObject<IJsObjectLike>(out var objLike))
             {
                 prototype = objLike;
                 // Also cache if it's a JsObject for backwards compatibility
@@ -1280,7 +1280,7 @@ public static partial class TypedAstEvaluator
             // Always check the current prototype property value first, in case it was reassigned
             // (e.g., FooObj.prototype = protoObj). The _prototypeObject cache is only used
             // as a fallback when the property hasn't been explicitly set.
-            if (_properties.TryGetProperty("prototype", JsValue.FromObject(this), out var value) && value.TryGetObject<JsObject>(out var jsObj))
+            if (_properties.TryGetProperty("prototype", JsValue.FromObjectUnsafe(this), out var value) && value.TryGetObject<JsObject>(out var jsObj))
             {
                 _prototypeObject = jsObj;
                 return jsObj;
@@ -1324,7 +1324,7 @@ public static partial class TypedAstEvaluator
                 return null;
             }
 
-            return new SuperBinding(_superConstructor, prototypeForSuper, JsValue.FromObject(instance), true);
+            return new SuperBinding(_superConstructor, prototypeForSuper, JsValue.FromObjectUnsafe(instance), true);
         }
 
         public void InitializeInstance(IJsObjectLike instance, JsEnvironment environment, EvaluationContext context)
@@ -1363,12 +1363,12 @@ public static partial class TypedAstEvaluator
                 var initEnv = new JsEnvironment(environment, isStrict: true);
                 initEnv.DefineJsValue(EvalHostFunction.FieldInitializerEvalFlag, JsValue.True, isConst: true, isLexical: true,
                     blocksFunctionScopeOverride: true);
-                initEnv.DefineJsValue(Symbol.This, JsValue.FromObject(instance));
+                initEnv.DefineJsValue(Symbol.This, JsValue.FromObjectUnsafe(instance));
 
                 var fieldSuperBinding = ResolveInstanceFieldSuperBinding(environment, instance);
                 if (fieldSuperBinding is not null)
                 {
-                    initEnv.DefineJsValue(Symbol.Super, JsValue.FromObject(fieldSuperBinding), true, isLexical: true,
+                    initEnv.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(fieldSuperBinding), true, isLexical: true,
                         blocksFunctionScopeOverride: true);
                 }
 
@@ -1381,7 +1381,7 @@ public static partial class TypedAstEvaluator
 
                 if (environment.TryGet(Symbol.Arguments, out var argumentsValue))
                 {
-                    initEnv.DefineJsValue(Symbol.Arguments, JsValue.FromObject(argumentsValue), isLexical: false);
+                    initEnv.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsValue), isLexical: false);
                 }
 
                 var propertyName = field.Name;
@@ -2144,7 +2144,7 @@ public static partial class TypedAstEvaluator
                     _realmState,
                     this,
                     isStrict: true);
-                functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObject(argumentsObject), isLexical: false);
+                functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject), isLexical: false);
             }
 
             try

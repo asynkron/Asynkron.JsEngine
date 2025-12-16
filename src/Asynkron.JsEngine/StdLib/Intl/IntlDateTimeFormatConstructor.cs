@@ -222,7 +222,7 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
         var supportedLocales = new HostFunction((_, args) =>
         {
             var result = StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
-            return JsValue.FromObject(result);
+            return JsValue.FromObjectUnsafe(result);
         }, isConstructor: false);
 
         supportedLocales.DefineProperty("length",

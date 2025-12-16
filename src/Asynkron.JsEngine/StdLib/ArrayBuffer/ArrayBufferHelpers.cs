@@ -8,7 +8,7 @@ public static partial class StandardLibrary
 {
     internal static void StoreInternalArrayBuffer(JsObject obj, JsArrayBuffer buffer)
     {
-        obj.SetProperty("_internalArrayBuffer", JsValue.FromObject(buffer));
+        obj.SetProperty("_internalArrayBuffer", JsValue.FromObjectUnsafe(buffer));
     }
 
     internal static JsArrayBuffer RequireArrayBuffer(object? thisVal, RealmState realm)

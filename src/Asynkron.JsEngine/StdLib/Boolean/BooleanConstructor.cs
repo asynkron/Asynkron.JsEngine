@@ -36,7 +36,7 @@ public sealed partial class BooleanConstructor(IJsObjectLike prototype, RealmSta
 
             var target = _constructor ?? constructor;
             var newTargetCallable = newTarget.TryGetObject<IJsCallable>(out var callable) ? callable : target;
-            return JsValue.FromObject(ConstructWithNewTarget(args, newTargetCallable));
+            return JsValue.FromObjectUnsafe(ConstructWithNewTarget(args, newTargetCallable));
         });
     }
 

@@ -541,10 +541,10 @@ public sealed class JsEnvironment
             {
                 if (hasInitializer)
                 {
-                    existing.JsValue = JsValue.FromObject(value);
+                    existing.JsValue = JsValue.FromObjectUnsafe(value);
                     if (isGlobalScope && globalThis is not null)
                     {
-                        globalThis.SetProperty(name.Name, JsValue.FromObject(value));
+                        globalThis.SetProperty(name.Name, JsValue.FromObjectUnsafe(value));
                     }
                 }
 
@@ -553,10 +553,10 @@ public sealed class JsEnvironment
 
             if (hasInitializer)
             {
-                existing.JsValue = JsValue.FromObject(value);
+                existing.JsValue = JsValue.FromObjectUnsafe(value);
                 if (isGlobalScope && globalThis is not null)
                 {
-                    globalThis.SetProperty(name.Name, JsValue.FromObject(value));
+                    globalThis.SetProperty(name.Name, JsValue.FromObjectUnsafe(value));
                 }
             }
 
@@ -651,7 +651,7 @@ public sealed class JsEnvironment
                 }
                 else
                 {
-                    globalThis.SetProperty(name.Name, JsValue.FromObject(initialValue));
+                    globalThis.SetProperty(name.Name, JsValue.FromObjectUnsafe(initialValue));
                 }
             }
         }
@@ -801,12 +801,12 @@ public sealed class JsEnvironment
                 ref var binding = ref current._values.GetValueRefOrNullRef(name);
                 if (!Unsafe.IsNullRef(ref binding) && binding.BlocksFunctionScopeOverride)
                 {
-                    binding.JsValue = JsValue.FromObject(value);
+                    binding.JsValue = JsValue.FromObjectUnsafe(value);
                     current.NotifyBindingObservers(name, value);
                     if (current.IsGlobalFunctionScope)
                     {
                         var globalObject = current.GetRootGlobalObject();
-                        globalObject?.SetProperty(name.Name, JsValue.FromObject(value));
+                        globalObject?.SetProperty(name.Name, JsValue.FromObjectUnsafe(value));
                     }
 
                     return true;
@@ -972,7 +972,7 @@ public sealed class JsEnvironment
 
         if (TryResolveWithBinding(name, context, out var withBinding))
         {
-            return JsValue.FromObject(GetWithBindingValue(withBinding));
+            return JsValue.FromObjectUnsafe(GetWithBindingValue(withBinding));
         }
 
         if (TryLocateBinding(name, out var bindingEnvironment, out _))
@@ -984,11 +984,11 @@ public sealed class JsEnvironment
 
         if (TryResolveGlobalObjectBinding(name, context, out var globalBinding))
         {
-            return JsValue.FromObject(GetWithBindingValue(globalBinding));
+            return JsValue.FromObjectUnsafe(GetWithBindingValue(globalBinding));
         }
 
         // Identifier not found - throw ReferenceError via ThrowSignal so JavaScript can catch it
-        throw new ThrowSignal(JsValue.FromObject(
+        throw new ThrowSignal(JsValue.FromObjectUnsafe(
             StdLib.StandardLibrary.CreateReferenceError(
                 $"{name.Name} is not defined",
                 context,
@@ -1016,11 +1016,11 @@ public sealed class JsEnvironment
 
         if (TryResolveGlobalObjectBinding(name, context, out var globalBinding))
         {
-            return JsValue.FromObject(GetWithBindingValue(globalBinding));
+            return JsValue.FromObjectUnsafe(GetWithBindingValue(globalBinding));
         }
 
         // Identifier not found - throw ReferenceError via ThrowSignal so JavaScript can catch it
-        throw new ThrowSignal(JsValue.FromObject(
+        throw new ThrowSignal(JsValue.FromObjectUnsafe(
             StdLib.StandardLibrary.CreateReferenceError(
                 $"{name.Name} is not defined",
                 context,
@@ -1042,7 +1042,7 @@ public sealed class JsEnvironment
             if (localBinding.IsUninitialized)
             {
                 // TDZ violation - throw ReferenceError
-                throw new ThrowSignal(JsValue.FromObject(
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(
                     StdLib.StandardLibrary.CreateReferenceError(
                         $"Cannot access '{name.Name}' before initialization",
                         context,
@@ -1075,7 +1075,7 @@ public sealed class JsEnvironment
         // Fast path: skip TryResolveWithBinding when AllowIdentifierCache is true (no with/eval in scope)
         if (!context.AllowIdentifierCache && TryResolveWithBinding(name, context, out var withBinding))
         {
-            value = JsValue.FromObject(GetWithBindingValue(withBinding));
+            value = JsValue.FromObjectUnsafe(GetWithBindingValue(withBinding));
             return true;
         }
 
@@ -1089,7 +1089,7 @@ public sealed class JsEnvironment
 
         if (TryResolveGlobalObjectBinding(name, context, out var globalBinding))
         {
-            value = JsValue.FromObject(GetWithBindingValue(globalBinding));
+            value = JsValue.FromObjectUnsafe(GetWithBindingValue(globalBinding));
             return true;
         }
 
@@ -1117,7 +1117,7 @@ public sealed class JsEnvironment
         {
             if (isStrictContext && IsStrictRestrictedName(name))
             {
-                throw new ThrowSignal(JsValue.FromObject(StdLib.StandardLibrary.CreateSyntaxError(
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(StdLib.StandardLibrary.CreateSyntaxError(
                     "Assignment to eval or arguments is not allowed in strict mode.", context,
                     context.RealmState)));
             }
@@ -1319,7 +1319,7 @@ public sealed class JsEnvironment
         // Check IsUninitialized before reading - this is a TDZ violation
         if (binding.IsUninitialized)
         {
-            throw new ThrowSignal(JsValue.FromObject(
+            throw new ThrowSignal(JsValue.FromObjectUnsafe(
                 StdLib.StandardLibrary.CreateReferenceError(
                     $"Cannot access '{name.Name}' before initialization",
                     context,
@@ -1329,7 +1329,7 @@ public sealed class JsEnvironment
         // Check for live export bindings
         if (binding.LiveExportBindingOrNull is { } liveBinding)
         {
-            return JsValue.FromObject(liveBinding.GetValue());
+            return JsValue.FromObjectUnsafe(liveBinding.GetValue());
         }
 
         if (bindingEnvironment.IsGlobalFunctionScope && !binding.IsLexical)
@@ -1373,7 +1373,7 @@ public sealed class JsEnvironment
         if (binding.IsConst)
         {
             // Per ES spec, assignment to const always throws TypeError regardless of strict mode
-            throw new ThrowSignal(JsValue.FromObject(StandardLibrary.CreateTypeError(
+            throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
                 $"Cannot reassign constant '{name.Name}'.", realm: realm)));
         }
 
@@ -1384,7 +1384,7 @@ public sealed class JsEnvironment
             var bindingIsStrict = bindingEnvironment.IsStrict || bindingEnvironment.GetFunctionScope().IsStrict;
             if (bindingIsStrict || isStrictContext)
             {
-                throw new ThrowSignal(JsValue.FromObject(StandardLibrary.CreateTypeError(
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
                     $"Cannot reassign constant '{name.Name}'.", realm: realm)));
             }
 
@@ -1395,17 +1395,17 @@ public sealed class JsEnvironment
         {
             if (isStrictContext)
             {
-                throw new ThrowSignal(JsValue.FromObject(
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(
                     StandardLibrary.CreateTypeError($"ReferenceError: {name.Name} is not writable", realm: realm)));
             }
 
             return;
         }
 
-        binding.JsValue = JsValue.FromObject(value);
+        binding.JsValue = JsValue.FromObjectUnsafe(value);
         if (!binding.IsLexical && bindingEnvironment.IsGlobalFunctionScope)
         {
-            bindingEnvironment.GetRootGlobalObject()?.SetProperty(name.Name, JsValue.FromObject(value));
+            bindingEnvironment.GetRootGlobalObject()?.SetProperty(name.Name, JsValue.FromObjectUnsafe(value));
         }
 
         bindingEnvironment.NotifyBindingObservers(name, value);
@@ -1440,7 +1440,7 @@ public sealed class JsEnvironment
         if (binding.IsConst)
         {
             // Per ES spec, assignment to const always throws TypeError regardless of strict mode
-            throw new ThrowSignal(JsValue.FromObject(StandardLibrary.CreateTypeError(
+            throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
                 $"Cannot reassign constant '{name.Name}'.", realm: realm)));
         }
 
@@ -1451,7 +1451,7 @@ public sealed class JsEnvironment
             var bindingIsStrict = bindingEnvironment.IsStrict || bindingEnvironment.GetFunctionScope().IsStrict;
             if (bindingIsStrict || isStrictContext)
             {
-                throw new ThrowSignal(JsValue.FromObject(StandardLibrary.CreateTypeError(
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
                     $"Cannot reassign constant '{name.Name}'.", realm: realm)));
             }
 
@@ -1462,7 +1462,7 @@ public sealed class JsEnvironment
         {
             if (isStrictContext)
             {
-                throw new ThrowSignal(JsValue.FromObject(
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(
                     StandardLibrary.CreateTypeError($"ReferenceError: {name.Name} is not writable", realm: realm)));
             }
 
@@ -1516,14 +1516,14 @@ public sealed class JsEnvironment
         var globalObject = environment.GetRootGlobalObject();
         if (globalObject is null)
         {
-            globalScope.DefineJsValue(name, JsValue.FromObject(value), isLexical: false, canDelete: true);
+            globalScope.DefineJsValue(name, JsValue.FromObjectUnsafe(value), isLexical: false, canDelete: true);
             return;
         }
 
         // Sloppy assignment to an unresolvable reference creates a new
         // configurable property on the global object rather than a declarative
         // binding so that `delete` can remove it (ES2024 9.1.1.3.4 SetMutableBinding).
-        globalObject.SetProperty(name.Name, JsValue.FromObject(value));
+        globalObject.SetProperty(name.Name, JsValue.FromObjectUnsafe(value));
         context.RealmState?.Logger?.LogInformation(
             "Sloppy assignment created unresolvable binding name={Name} valueType={ValueType}",
             name.Name,
@@ -1884,7 +1884,7 @@ public sealed class JsEnvironment
 
             if (current._withObject is not null && TryGetFromWith(current._withObject, name, out var withValue))
             {
-                value = JsValue.FromObject(withValue); // withValue is object?, needs FromObject
+                value = JsValue.FromObjectUnsafe(withValue); // withValue is object?, needs FromObject
                 return true;
             }
 
@@ -1981,7 +1981,7 @@ public sealed class JsEnvironment
 
                     if (binding.IsConst)
                     {
-                        throw new ThrowSignal(JsValue.FromObject(StandardLibrary.CreateTypeError($"Cannot reassign constant '{name.Name}'.",
+                        throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError($"Cannot reassign constant '{name.Name}'.",
                             realm: realm)));
                     }
 
@@ -1991,7 +1991,7 @@ public sealed class JsEnvironment
                         // but silently fail in non-strict mode
                         if (isStrictContext)
                         {
-                            throw new ThrowSignal(JsValue.FromObject(StandardLibrary.CreateTypeError($"Cannot reassign constant '{name.Name}'.",
+                            throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError($"Cannot reassign constant '{name.Name}'.",
                                 realm: realm)));
                         }
 
@@ -2002,7 +2002,7 @@ public sealed class JsEnvironment
                     {
                         if (isStrictContext)
                         {
-                            throw new ThrowSignal(JsValue.FromObject(
+                            throw new ThrowSignal(JsValue.FromObjectUnsafe(
                                 StandardLibrary.CreateTypeError($"ReferenceError: {name.Name} is not writable",
                                     realm: realm)));
                         }
@@ -2011,7 +2011,7 @@ public sealed class JsEnvironment
                     }
 
                     // Handle case where value is already a boxed JsValue
-                    var jsVal = value is JsValue jv ? jv : JsValue.FromObject(value);
+                    var jsVal = value is JsValue jv ? jv : JsValue.FromObjectUnsafe(value);
                     binding.JsValue = jsVal;
                     if (!binding.IsLexical)
                     {
@@ -2040,7 +2040,7 @@ public sealed class JsEnvironment
                 }
                 else
                 {
-                    current._withObject.SetProperty(name.Name, JsValue.FromObject(value));
+                    current._withObject.SetProperty(name.Name, JsValue.FromObjectUnsafe(value));
                 }
 
                 return;
@@ -2074,8 +2074,8 @@ public sealed class JsEnvironment
                 }
 
                 // Non-strict mode: Create the variable in the global scope (this environment)
-                current.DefineJsValue(name, JsValue.FromObject(value));
-                globalObject?.SetProperty(name.Name, JsValue.FromObject(value));
+                current.DefineJsValue(name, JsValue.FromObjectUnsafe(value));
+                globalObject?.SetProperty(name.Name, JsValue.FromObjectUnsafe(value));
                 return;
             }
 
@@ -2232,7 +2232,7 @@ public sealed class JsEnvironment
             return true;
         }
 
-        if (target.TryGetProperty(propertyName, JsValue.FromObject(target), out var receiverValue))
+        if (target.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), out var receiverValue))
         {
             value = receiverValue.ToObject();
             return true;
@@ -2601,7 +2601,7 @@ public sealed class JsEnvironment
             bool canDelete,
             bool isImmutableBinding = false)
         {
-            _jsValue = JsValue.FromObject(value);
+            _jsValue = JsValue.FromObjectUnsafe(value);
             _specialBinding = null;
             _flags = BindingFlags.None;
             if (isConst) _flags |= BindingFlags.IsConst;
@@ -2664,7 +2664,7 @@ public sealed class JsEnvironment
         public JsValue JsValue
         {
             readonly get => (_flags & BindingFlags.HasSpecialBinding) != 0
-                ? JsValue.FromObject(((ISpecialBinding)_specialBinding!).GetValue())
+                ? JsValue.FromObjectUnsafe(((ISpecialBinding)_specialBinding!).GetValue())
                 : _jsValue;
             set
             {
@@ -2752,7 +2752,7 @@ public sealed class JsEnvironment
 
             _resolved = true;
             _resolvedValue = value;
-            promise.Resolve(JsValue.FromObject(value));
+            promise.Resolve(JsValue.FromObjectUnsafe(value));
         }
 
         public bool IsConst { get; } = isConst;

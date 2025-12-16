@@ -16,7 +16,7 @@ public sealed partial class ArrayConstructor : JsConstructor
     {
         var array = AllocateArrayInstance(thisValue);
         InitializeArrayLength(array, args);
-        return JsValue.FromObject(array);
+        return JsValue.FromObjectUnsafe(array);
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -46,7 +46,7 @@ public sealed partial class ArrayConstructor : JsConstructor
             }
 
             InitializeArrayLength(array, args);
-            return JsValue.FromObject(array);
+            return JsValue.FromObjectUnsafe(array);
         });
 
         AttachIsArray(constructor);
@@ -155,7 +155,7 @@ var result = StandardLibrary.ArrayIsArray(args.GetArgument(0), Realm);
         arrayFrom = new HostFunction((thisValue, args) =>
         {
             var result = StandardLibrary.ArrayFrom(arrayFrom, thisValue, args, Realm);
-            return JsValue.FromObject(result);
+            return JsValue.FromObjectUnsafe(result);
         }, Realm, isConstructor: false);
         StandardLibrary.AttachBuiltinMetadata(arrayFrom, "from", 1d);
         arrayFrom.Delete("prototype");
@@ -172,7 +172,7 @@ var result = StandardLibrary.ArrayIsArray(args.GetArgument(0), Realm);
         arrayFromAsync = new HostFunction((thisValue, args) =>
         {
             var result = StandardLibrary.ArrayFromAsync(arrayFromAsync, thisValue, args, Realm);
-            return JsValue.FromObject(result);
+            return JsValue.FromObjectUnsafe(result);
         }, Realm, isConstructor: false);
         StandardLibrary.AttachBuiltinMetadata(arrayFromAsync, "fromAsync", 1d);
         arrayFromAsync.Delete("prototype");
@@ -189,7 +189,7 @@ var result = StandardLibrary.ArrayIsArray(args.GetArgument(0), Realm);
         arrayOf = new HostFunction((thisValue, args) =>
         {
             var result = StandardLibrary.ArrayOf(arrayOf, thisValue, args, Realm);
-            return JsValue.FromObject(result);
+            return JsValue.FromObjectUnsafe(result);
         }, Realm, isConstructor: false);
         StandardLibrary.AttachBuiltinMetadata(arrayOf, "of", 0d);
         arrayOf.Delete("prototype");

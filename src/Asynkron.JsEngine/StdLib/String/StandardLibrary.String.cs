@@ -362,7 +362,7 @@ public static partial class StandardLibrary
             {
                 if (input.TryGetObject<Symbol>(out _) || input.TryGetObject<TypedAstSymbol>(out _))
                 {
-                    throw new ThrowSignal(JsValue.FromObject(CreateTypeError("Cannot convert a Symbol value to a number",
+                    throw new ThrowSignal(JsValue.FromObjectUnsafe(CreateTypeError("Cannot convert a Symbol value to a number",
                         null, realm)));
                 }
 
@@ -379,7 +379,7 @@ public static partial class StandardLibrary
                     var flowValue = numericContext.FlowValue;
                     throw new ThrowSignal(!flowValue.IsUndefined
                         ? flowValue
-                        : JsValue.FromObject(CreateTypeError("Cannot convert object to primitive value", numericContext, realm)));
+                        : JsValue.FromObjectUnsafe(CreateTypeError("Cannot convert object to primitive value", numericContext, realm)));
                 }
 
                 return number;
@@ -427,7 +427,7 @@ public static partial class StandardLibrary
             var value = ResolveString(thisValue);
             if (args.Count == 0)
             {
-                return JsValue.FromObject(CreateArrayFromStrings([value], realmState ?? realm));
+                return JsValue.FromObjectUnsafe(CreateArrayFromStrings([value], realmState ?? realm));
             }
 
             var separatorValue = args[0];
@@ -446,7 +446,7 @@ public static partial class StandardLibrary
             if (separator is null or "")
             {
                 var chars = value.Select(c => c.ToString()).Take(limit).ToArray();
-                return JsValue.FromObject(CreateArrayFromStrings(chars, realmState ?? realm));
+                return JsValue.FromObjectUnsafe(CreateArrayFromStrings(chars, realmState ?? realm));
             }
 
             var parts = value.Split([separator], StringSplitOptions.None);
@@ -455,7 +455,7 @@ public static partial class StandardLibrary
                 parts = parts.Take(limit).ToArray();
             }
 
-            return JsValue.FromObject(CreateArrayFromStrings(parts, realmState ?? realm));
+            return JsValue.FromObjectUnsafe(CreateArrayFromStrings(parts, realmState ?? realm));
         }
 
         JsValue Replace(JsValue thisValue, IReadOnlyList<JsValue> args)
@@ -602,7 +602,7 @@ public static partial class StandardLibrary
             }
 
             var regex = ToRegExpValue(searchValue, string.Empty, false);
-            return JsValue.FromObject(regex.Global ? regex.MatchAll(value) : regex.Exec(value));
+            return JsValue.FromObjectUnsafe(regex.Global ? regex.MatchAll(value) : regex.Exec(value));
         }
 
         JsValue Search(JsValue thisValue, IReadOnlyList<JsValue> args)
@@ -932,7 +932,7 @@ public static partial class StandardLibrary
             }
 
             var regex = ToRegExpValue(matcher, "g", true);
-            return JsValue.FromObject(regex.MatchAll(value));
+            return JsValue.FromObjectUnsafe(regex.MatchAll(value));
         }
 
         JsValue Anchor(JsValue thisValue, IReadOnlyList<JsValue> args)

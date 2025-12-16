@@ -143,7 +143,7 @@ public sealed partial class SetPrototype
                     _ => current
                 };
 
-                result.SetProperty("value", JsValue.FromObject(value));
+                result.SetProperty("value", JsValue.FromObjectUnsafe(value));
                 result.SetProperty("done", false);
             }
             else

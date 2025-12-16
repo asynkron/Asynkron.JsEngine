@@ -10,7 +10,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext context)
         {
             var inferredName = expression.Name ?? context.CurrentFunctionNameHint;
-            return JsValue.FromObject(CreateClassValue(expression.Definition, environment, context, inferredName));
+            return JsValue.FromObjectUnsafe(CreateClassValue(expression.Definition, environment, context, inferredName));
         }
     }
 }

@@ -196,7 +196,7 @@ try {
             ["evalScript"] = new HostFunction(args => args.Count switch
             {
                 > 1 => throw new Exception("only script parsing supported"),
-                > 0 when args[0].ToObject() is string script => JsValue.FromObject(EvalScriptSync(engine, script)),
+                > 0 when args[0].ToObject() is string script => JsValue.FromObjectUnsafe(EvalScriptSync(engine, script)),
                 _ => JsValue.Undefined
             }),
 
@@ -243,7 +243,7 @@ try {
             {
                 var length = args.Count > 0 && args[0].TryGetDouble(out var d) ? (int)d : 0;
                 var max = args.Count > 1 && args[1].TryGetDouble(out var d2) ? (int)d2 : length;
-                return JsValue.FromObject(new JsArrayBuffer(length, max));
+                return JsValue.FromObjectUnsafe(new JsArrayBuffer(length, max));
             }),
 
             // gc function - triggers garbage collection

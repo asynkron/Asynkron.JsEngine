@@ -84,8 +84,8 @@ public static partial class TypedAstEvaluator
         }
 
         // Convert results back to JsValue
-        var leftVal = JsValue.FromObject(leftPrim);
-        var rightVal = JsValue.FromObject(rightPrim);
+        var leftVal = JsValue.FromObjectUnsafe(leftPrim);
+        var rightVal = JsValue.FromObjectUnsafe(rightPrim);
 
         // Per spec 12.8.3:
         // 7. If Type(lprim) is String or Type(rprim) is String, then
@@ -289,7 +289,7 @@ public static partial class TypedAstEvaluator
             return JsValue.Undefined;
         }
 
-        return ToNumericValue(JsValue.FromObject(primitive), context);
+        return ToNumericValue(JsValue.FromObjectUnsafe(primitive), context);
     }
 
     /// <summary>
@@ -507,7 +507,7 @@ public static partial class TypedAstEvaluator
         }
 
         // Fall back to object path
-        return JsValue.FromObject(Power(left.ToObject(), right.ToObject(), context));
+        return JsValue.FromObjectUnsafe(Power(left.ToObject(), right.ToObject(), context));
     }
 
     /// <summary>
@@ -570,7 +570,7 @@ public static partial class TypedAstEvaluator
             return JsValue.FromDouble((double)(JsNumericConversions.ToInt32(left.NumberValue) & JsNumericConversions.ToInt32(right.NumberValue)));
         }
 
-        return JsValue.FromObject(BitwiseAnd(left.ToObject(), right.ToObject(), context));
+        return JsValue.FromObjectUnsafe(BitwiseAnd(left.ToObject(), right.ToObject(), context));
     }
 
     /// <summary>
@@ -585,7 +585,7 @@ public static partial class TypedAstEvaluator
             return JsValue.FromDouble((double)(JsNumericConversions.ToInt32(left.NumberValue) | JsNumericConversions.ToInt32(right.NumberValue)));
         }
 
-        return JsValue.FromObject(BitwiseOr(left.ToObject(), right.ToObject(), context));
+        return JsValue.FromObjectUnsafe(BitwiseOr(left.ToObject(), right.ToObject(), context));
     }
 
     /// <summary>
@@ -600,7 +600,7 @@ public static partial class TypedAstEvaluator
             return JsValue.FromDouble((double)(JsNumericConversions.ToInt32(left.NumberValue) ^ JsNumericConversions.ToInt32(right.NumberValue)));
         }
 
-        return JsValue.FromObject(BitwiseXor(left.ToObject(), right.ToObject(), context));
+        return JsValue.FromObjectUnsafe(BitwiseXor(left.ToObject(), right.ToObject(), context));
     }
 
     /// <summary>
@@ -615,7 +615,7 @@ public static partial class TypedAstEvaluator
             return JsValue.FromDouble((double)(JsNumericConversions.ToInt32(left.NumberValue) << (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F)));
         }
 
-        return JsValue.FromObject(LeftShift(left.ToObject(), right.ToObject(), context));
+        return JsValue.FromObjectUnsafe(LeftShift(left.ToObject(), right.ToObject(), context));
     }
 
     /// <summary>
@@ -630,7 +630,7 @@ public static partial class TypedAstEvaluator
             return JsValue.FromDouble((double)(JsNumericConversions.ToInt32(left.NumberValue) >> (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F)));
         }
 
-        return JsValue.FromObject(RightShift(left.ToObject(), right.ToObject(), context));
+        return JsValue.FromObjectUnsafe(RightShift(left.ToObject(), right.ToObject(), context));
     }
 
     /// <summary>
@@ -645,6 +645,6 @@ public static partial class TypedAstEvaluator
             return JsValue.FromDouble((double)(JsNumericConversions.ToUInt32(left.NumberValue) >> (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F)));
         }
 
-        return JsValue.FromObject(UnsignedRightShift(left.ToObject(), right.ToObject(), context));
+        return JsValue.FromObjectUnsafe(UnsignedRightShift(left.ToObject(), right.ToObject(), context));
     }
 }

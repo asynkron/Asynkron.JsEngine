@@ -15,7 +15,7 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
     {
         if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true } constructing)
         {
-            return JsValue.FromObject(ConstructMap(args, _constructor ?? ConstructFallback, _constructor ?? ConstructFallback, constructing));
+            return JsValue.FromObjectUnsafe(ConstructMap(args, _constructor ?? ConstructFallback, _constructor ?? ConstructFallback, constructing));
         }
 
         throw ThrowTypeError("Constructor Map requires 'new'", realm: Realm);
@@ -35,7 +35,7 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
             }
 
             var target = _constructor ?? constructor;
-            return JsValue.FromObject(ConstructMap(args, callable, target));
+            return JsValue.FromObjectUnsafe(ConstructMap(args, callable, target));
         });
     }
 
@@ -115,7 +115,7 @@ public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState r
     {
         if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true } constructing)
         {
-            return JsValue.FromObject(ConstructSet(args, _constructor ?? ConstructFallback, _constructor ?? ConstructFallback, constructing));
+            return JsValue.FromObjectUnsafe(ConstructSet(args, _constructor ?? ConstructFallback, _constructor ?? ConstructFallback, constructing));
         }
 
         throw ThrowTypeError("Constructor Set requires 'new'", realm: Realm);
@@ -135,7 +135,7 @@ public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState r
             }
 
             var target = _constructor ?? constructor;
-            return JsValue.FromObject(ConstructSet(args, callable, target));
+            return JsValue.FromObjectUnsafe(ConstructSet(args, callable, target));
         });
     }
 
@@ -198,7 +198,7 @@ public sealed partial class WeakMapConstructor(IJsObjectLike prototype, RealmSta
     {
         if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true })
         {
-            return JsValue.FromObject(ConstructWeakMap(args, _constructor ?? ConstructFallback));
+            return JsValue.FromObjectUnsafe(ConstructWeakMap(args, _constructor ?? ConstructFallback));
         }
 
         throw ThrowTypeError("Constructor WeakMap requires 'new'", realm: Realm);
@@ -218,7 +218,7 @@ public sealed partial class WeakMapConstructor(IJsObjectLike prototype, RealmSta
             }
 
             var target = _constructor ?? constructor;
-            return JsValue.FromObject(ConstructWeakMap(args, callable, target));
+            return JsValue.FromObjectUnsafe(ConstructWeakMap(args, callable, target));
         });
     }
 
@@ -274,7 +274,7 @@ public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmSta
     {
         if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true })
         {
-            return JsValue.FromObject(ConstructWeakSet(args, _constructor ?? ConstructFallback));
+            return JsValue.FromObjectUnsafe(ConstructWeakSet(args, _constructor ?? ConstructFallback));
         }
 
         throw ThrowTypeError("Constructor WeakSet requires 'new'", realm: Realm);
@@ -294,7 +294,7 @@ public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmSta
             }
 
             var target = _constructor ?? constructor;
-            return JsValue.FromObject(ConstructWeakSet(args, callable, target));
+            return JsValue.FromObjectUnsafe(ConstructWeakSet(args, callable, target));
         });
     }
 

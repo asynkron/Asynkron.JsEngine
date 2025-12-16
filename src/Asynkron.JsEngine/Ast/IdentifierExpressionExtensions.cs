@@ -65,8 +65,8 @@ public static partial class TypedAstEvaluator
             $"{name.Name} is not defined",
             context,
             context.RealmState);
-        context.SetThrow(JsValue.FromObject(errorObject));
-        return JsValue.FromObject(errorObject);
+        context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
+        return JsValue.FromObjectUnsafe(errorObject);
     }
 
     private static JsValue HandleTdzError(Symbol name, EvaluationContext context)
@@ -75,7 +75,7 @@ public static partial class TypedAstEvaluator
             $"Cannot access '{name.Name}' before initialization",
             context,
             context.RealmState);
-        context.SetThrow(JsValue.FromObject(errorObject));
-        return JsValue.FromObject(errorObject);
+        context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
+        return JsValue.FromObjectUnsafe(errorObject);
     }
 }

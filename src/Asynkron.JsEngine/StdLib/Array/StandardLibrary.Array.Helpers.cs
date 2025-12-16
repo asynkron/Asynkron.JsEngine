@@ -201,7 +201,7 @@ public static partial class StandardLibrary
                 }
                 else
                 {
-                    accumulator = callback.Invoke([JsValue.FromObject(accumulator), value, new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.Undefined).ToObject();
+                    accumulator = callback.Invoke([JsValue.FromObjectUnsafe(accumulator), value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], JsValue.Undefined).ToObject();
                 }
             }
 
@@ -229,7 +229,7 @@ public static partial class StandardLibrary
                 continue;
             }
 
-            var result = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], thisArg).ToObject();
+            var result = callback.Invoke([value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], thisArg).ToObject();
             if (IsTruthy(result))
             {
                 return true;
@@ -358,7 +358,7 @@ public static partial class StandardLibrary
             throw ThrowTypeError($"{operation} iterator return is not callable", realm: realm);
         }
 
-        callable.Invoke(Array.Empty<JsValue>(), JsValue.FromObject(iterator));
+        callable.Invoke(Array.Empty<JsValue>(), JsValue.FromObjectUnsafe(iterator));
     }
 
     internal static void CreateDataPropertyOrThrow(IJsObjectLike target, string propertyKey, object? value,
@@ -414,7 +414,7 @@ public static partial class StandardLibrary
             objectPrototype.TryGetProperty("toString", out var toStringValue) &&
             toStringValue.TryGetObject<IJsCallable>(out var callable))
         {
-            return callable.Invoke([], JsValue.FromObject(target)).ToObject();
+            return callable.Invoke([], JsValue.FromObjectUnsafe(target)).ToObject();
         }
 
         return "[object Object]";

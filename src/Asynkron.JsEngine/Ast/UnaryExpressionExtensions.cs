@@ -220,8 +220,8 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            context.SetThrow(JsValue.FromObject(errorObject));
-            return JsValue.FromObject(errorObject);
+            context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
+            return JsValue.FromObjectUnsafe(errorObject);
         }
     }
 
@@ -269,6 +269,6 @@ public static partial class TypedAstEvaluator
             return new JsValue((double)~Converters.JsNumericConversions.ToInt32(operand.NumberValue));
         }
 
-        return JsValue.FromObject(BitwiseNot(operand.ToObject(), context));
+        return JsValue.FromObjectUnsafe(BitwiseNot(operand.ToObject(), context));
     }
 }

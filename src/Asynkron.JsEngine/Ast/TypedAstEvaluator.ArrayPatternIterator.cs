@@ -33,7 +33,7 @@ public static partial class TypedAstEvaluator
             }
 
             var value = JsOps.TryGetPropertyValue(result, "value", out var yielded, context)
-                ? JsValue.FromObject(yielded)
+                ? JsValue.FromObjectUnsafe(yielded)
                 : JsValue.Undefined;
 
             return (value, false);

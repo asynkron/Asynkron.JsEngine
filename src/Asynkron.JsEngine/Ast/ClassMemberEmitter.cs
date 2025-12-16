@@ -50,7 +50,7 @@ internal static class ClassMemberEmitter
                 }
                 else
                 {
-                    constructorAccessor.SetProperty(propertyName, JsValue.FromObject(callable));
+                    constructorAccessor.SetProperty(propertyName, JsValue.FromObjectUnsafe(callable));
                 }
 
                 return;
@@ -85,7 +85,7 @@ internal static class ClassMemberEmitter
                 return;
             }
 
-            constructorAccessor.SetProperty(propertyName, JsValue.FromObject(callable));
+            constructorAccessor.SetProperty(propertyName, JsValue.FromObjectUnsafe(callable));
         }
     }
 }

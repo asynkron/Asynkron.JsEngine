@@ -99,7 +99,7 @@ public static partial class TypedAstEvaluator
             if (isGenerator && pending?.HasValue == true)
             {
                 // pending.Value might be a boxed JsValue
-                var pendingValueJs = pending.Value is JsValue pjs ? pjs : JsValue.FromObject(pending.Value);
+                var pendingValueJs = pending.Value is JsValue pjs ? pjs : JsValue.FromObjectUnsafe(pending.Value);
 
                 if (pending.IsThrow)
                 {

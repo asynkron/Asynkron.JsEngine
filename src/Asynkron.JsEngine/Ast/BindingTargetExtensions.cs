@@ -35,7 +35,7 @@ public static partial class TypedAstEvaluator
         private void CreateUninitializedLexicalBindings(JsEnvironment environment, bool isConst)
         {
             WalkBindingTargets(target,
-                id => environment.DefineJsValue(id.Name, JsValue.FromObject(JsEnvironment.Uninitialized), isConst,
+                id => environment.DefineJsValue(id.Name, JsValue.Uninitialized, isConst,
                     isLexical: true, blocksFunctionScopeOverride: true));
         }
 
@@ -166,7 +166,7 @@ public static partial class TypedAstEvaluator
                     }
 
                     // value might be a boxed JsValue, handle it appropriately
-                    var valueJs = value is JsValue vjs ? vjs : JsValue.FromObject(value);
+                    var valueJs = value is JsValue vjs ? vjs : JsValue.FromObjectUnsafe(value);
                     reference.SetValue(valueJs);
                     break;
                 }

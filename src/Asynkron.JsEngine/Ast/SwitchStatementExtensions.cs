@@ -115,7 +115,7 @@ public static partial class TypedAstEvaluator
                 {
                     switchEnv.DefineJsValue(
                         funcBinding.Name,
-                        JsValue.FromObject(JsEnvironment.Uninitialized),
+                        JsValue.Uninitialized,
                         isConst: true,
                         isLexical: true,
                         blocksFunctionScopeOverride: true);
@@ -126,7 +126,7 @@ public static partial class TypedAstEvaluator
                     skipInternalNameBinding: true);
                 switchEnv.DefineJsValue(
                     funcBinding.Name,
-                    JsValue.FromObject(functionValue),
+                    JsValue.FromObjectUnsafe(functionValue),
                     isConst: true,
                     isLexical: true,
                     blocksFunctionScopeOverride: true);

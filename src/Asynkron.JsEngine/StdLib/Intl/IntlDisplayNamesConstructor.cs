@@ -65,7 +65,7 @@ public sealed partial class IntlDisplayNamesConstructor(IJsObjectLike prototype,
     private JsValue SupportedLocalesOf(IReadOnlyList<JsValue> args)
     {
         var result = StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
-        return JsValue.FromObject(result);
+        return JsValue.FromObjectUnsafe(result);
     }
 
     private IJsPropertyAccessor? NormalizeOptions(JsValue optionsArg)

@@ -237,7 +237,7 @@ public static partial class TypedAstEvaluator
             }
 
             // Fall back to properties lookup for all other properties
-            var receiverValue = receiver.IsUndefined ? JsValue.FromObject(this) : receiver;
+            var receiverValue = receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver;
             if (_properties.TryGetProperty(name, receiverValue, out var objValue))
             {
                 value = objValue;
@@ -250,19 +250,19 @@ public static partial class TypedAstEvaluator
 
         public bool TryGetProperty(string name, out JsValue value)
         {
-            return TryGetProperty(name, JsValue.FromObject(this), out value);
+            return TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);
         }
 
 
         public void SetProperty(string name, JsValue value)
         {
-            SetProperty(name, value, JsValue.FromObject(this));
+            SetProperty(name, value, JsValue.FromObjectUnsafe(this));
         }
 
 
         public void SetProperty(string name, JsValue value, JsValue receiver)
         {
-            var receiverValue = receiver.IsUndefined ? JsValue.FromObject(this) : receiver;
+            var receiverValue = receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver;
             _properties.SetProperty(name, value, receiverValue);
         }
 
@@ -438,7 +438,7 @@ public static partial class TypedAstEvaluator
             catch (Parser.ParseException parseException)
             {
                 var message = parseException.Message ?? "SyntaxError";
-                throw new ThrowSignal(JsValue.FromObject(StandardLibrary.CreateSyntaxError(message, evalContext, realm)));
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateSyntaxError(message, evalContext, realm)));
             }
 
             var createdObj = engine.ExecuteProgram(
@@ -446,7 +446,7 @@ public static partial class TypedAstEvaluator
                 engine.GlobalEnvironment,
                 CancellationToken.None);
 
-            var created = JsValue.FromObject(createdObj);
+            var created = JsValue.FromObjectUnsafe(createdObj);
 
             if (created.TryUnwrap(out IJsObjectLike? objectLike))
             {
@@ -471,7 +471,7 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(evalContext.FlowValue);
             }
 
-            var primitive = JsValue.FromObject(primitiveObj);
+            var primitive = JsValue.FromObjectUnsafe(primitiveObj);
 
             if (primitive.IsNull)
             {

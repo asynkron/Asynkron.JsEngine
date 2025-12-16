@@ -34,7 +34,7 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                environment.DefineJsValue(key, JsValue.FromObject(state));
+                environment.DefineJsValue(key, JsValue.FromObjectUnsafe(state));
             }
         }
 

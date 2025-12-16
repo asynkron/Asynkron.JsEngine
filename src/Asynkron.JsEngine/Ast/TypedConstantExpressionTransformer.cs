@@ -731,7 +731,7 @@ public sealed class TypedConstantExpressionTransformer
             false => JsTypes.JsValue.False,
             double d => new JsTypes.JsValue(d),
             string s => new JsTypes.JsValue(s),
-            _ => JsTypes.JsValue.FromObject(value)
+            _ => JsTypes.JsValue.FromObjectUnsafe(value)
         };
     }
 

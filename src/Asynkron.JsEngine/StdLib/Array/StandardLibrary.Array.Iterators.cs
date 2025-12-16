@@ -52,7 +52,7 @@ public static partial class StandardLibrary
             {
                 // Handle case where projector returns a boxed JsValue
                 var projectedVal = projector(index);
-                var valueJs = projectedVal is JsValue pjv ? pjv : JsValue.FromObject(projectedVal);
+                var valueJs = projectedVal is JsValue pjv ? pjv : JsValue.FromObjectUnsafe(projectedVal);
                 result.SetProperty("value", valueJs);
                 result.SetProperty("done", false);
                 index++;

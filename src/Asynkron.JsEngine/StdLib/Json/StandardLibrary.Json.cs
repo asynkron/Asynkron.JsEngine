@@ -27,7 +27,7 @@ public static partial class StandardLibrary
         }
 
         var holder = new JsObject();
-        holder.SetProperty("", JsValue.FromObject(parsed));
+        holder.SetProperty("", JsValue.FromObjectUnsafe(parsed));
 
         return ApplyJsonReviver(reviver, holder, "", context, realm);
     }
@@ -92,7 +92,7 @@ public static partial class StandardLibrary
                 }
                 else
                 {
-                    obj.SetProperty(key, JsValue.FromObject(revived));
+                    obj.SetProperty(key, JsValue.FromObjectUnsafe(revived));
                 }
             }
         }
@@ -114,7 +114,7 @@ public static partial class StandardLibrary
             }
         }
 
-        var replacement = reviver.Invoke([new JsValue(name), value], JsValue.FromObject(holder));
+        var replacement = reviver.Invoke([new JsValue(name), value], JsValue.FromObjectUnsafe(holder));
         return replacement.ToObject();
     }
 

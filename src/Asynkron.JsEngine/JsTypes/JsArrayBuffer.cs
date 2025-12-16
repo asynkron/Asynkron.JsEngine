@@ -37,7 +37,7 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvi
             var begin = args.Count > 0 && args[0].TryGetDouble(out var d1) ? (int)d1 : 0;
             var end = args.Count > 1 && args[1].TryGetDouble(out var d2) ? (int)d2 : target.ByteLength;
 
-            return JsValue.FromObject(target.Slice(begin, end));
+            return JsValue.FromObjectUnsafe(target.Slice(begin, end));
         });
 
         _resizeFunction = new HostFunction((thisValue, args) =>
@@ -124,7 +124,7 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvi
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        if (_properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObject(this) : receiver, out value))
+        if (_properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver, out value))
         {
             return true;
         }
@@ -135,7 +135,7 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvi
 
     public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, JsValue.FromObject(this), out value);
+        return TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);
     }
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
@@ -145,12 +145,12 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvi
             throw new InvalidOperationException("Cannot assign to read-only property 'byteLength' on ArrayBuffer.");
         }
 
-        _properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObject(this) : receiver);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver);
     }
 
     public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, JsValue.FromObject(this));
+        SetProperty(name, value, JsValue.FromObjectUnsafe(this));
     }
 
     /// <summary>

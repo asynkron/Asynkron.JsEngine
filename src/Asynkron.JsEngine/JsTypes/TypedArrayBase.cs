@@ -127,7 +127,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
                 end = (int)args[1].AsDouble();
             }
 
-            return JsValue.FromObject(CreateSlice(target, begin, end));
+            return JsValue.FromObjectUnsafe(CreateSlice(target, begin, end));
         });
 
         _indexOfFunction = new HostFunction((thisValue, args) => IndexOfInternal(ResolveThis(thisValue, this), args));
@@ -236,7 +236,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
                 value = new JsValue((double)ByteOffset);
                 return true;
             case "buffer":
-                value = JsValue.FromObject(Buffer);
+                value = JsValue.FromObjectUnsafe(Buffer);
                 return true;
             case "BYTES_PER_ELEMENT":
                 value = new JsValue((double)BytesPerElement);
@@ -376,7 +376,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             }
 
             var value = descriptor.HasValue ? descriptor.Value : Symbol.Undefined;
-            SetValue(index, JsValue.FromObject(value));
+            SetValue(index, JsValue.FromObjectUnsafe(value));
             return true;
         }
 

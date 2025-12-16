@@ -15,7 +15,7 @@ public sealed partial class IntlDateTimeFormatPrototype
     internal static void InitializeInternalSlots(JsObject instance, DateTimeFormatInternalSlots slots)
     {
         instance.SetProperty(BrandKey, true);
-        instance.SetProperty(SlotsKey, JsValue.FromObject(slots));
+        instance.SetProperty(SlotsKey, JsValue.FromObjectUnsafe(slots));
     }
 
     [JsHostGetter("format", DisplayName = "get format")]
@@ -35,7 +35,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         part.SetProperty("value", formatted);
         var parts = new JsArray(Realm);
         parts.Push(part);
-        return JsValue.FromObject(parts);
+        return JsValue.FromObjectUnsafe(parts);
     }
 
     [JsHostMethod("formatRange", Length = 2d)]
@@ -57,7 +57,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         parts.Push(CreateRangePart("startRange", (string)start.ObjectValue!));
         parts.Push(CreateRangePart("separator", " – "));
         parts.Push(CreateRangePart("endRange", (string)end.ObjectValue!));
-        return JsValue.FromObject(parts);
+        return JsValue.FromObjectUnsafe(parts);
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]

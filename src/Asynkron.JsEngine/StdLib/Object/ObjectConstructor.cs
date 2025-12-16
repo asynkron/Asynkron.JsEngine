@@ -17,10 +17,10 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true } constructing)
         {
             ApplyPrototype(constructing, targetCtor);
-            return JsValue.FromObject(ConstructCore(args, targetCtor, constructing));
+            return JsValue.FromObjectUnsafe(ConstructCore(args, targetCtor, constructing));
         }
 
-        return JsValue.FromObject(ConstructCore(args, targetCtor, null));
+        return JsValue.FromObjectUnsafe(ConstructCore(args, targetCtor, null));
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -33,9 +33,9 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             var target = _constructor ?? constructor;
             if (newTarget.TryGetObject<IJsCallable>(out var newTargetCallable))
             {
-                return JsValue.FromObject(ConstructCore(args, newTargetCallable!, null));
+                return JsValue.FromObjectUnsafe(ConstructCore(args, newTargetCallable!, null));
             }
-            return JsValue.FromObject(ConstructCore(args, target, null));
+            return JsValue.FromObjectUnsafe(ConstructCore(args, target, null));
         });
 
         AttachStatics(constructor);

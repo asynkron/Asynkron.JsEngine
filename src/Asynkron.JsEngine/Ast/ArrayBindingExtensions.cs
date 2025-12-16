@@ -193,7 +193,7 @@ public static partial class TypedAstEvaluator
 
                     if (preResolvedReference is { } resolvedReference)
                     {
-                        resolvedReference.SetValue(JsValue.FromObject(elementValue));
+                        resolvedReference.SetValue(JsValue.FromObjectUnsafe(elementValue));
                     }
                     else
                     {
@@ -309,7 +309,7 @@ public static partial class TypedAstEvaluator
 
                     if (preResolvedRest is { } resolvedRestReference)
                     {
-                        resolvedRestReference.SetValue(JsValue.FromObject(restArray));
+                        resolvedRestReference.SetValue(JsValue.FromObjectUnsafe(restArray));
                     }
                     else
                     {
@@ -400,7 +400,7 @@ public static partial class TypedAstEvaluator
         }
         else
         {
-            environment.DefineJsValue(stateKey, JsValue.FromObject(state), isConst: false, isLexical: true, canDelete: true);
+            environment.DefineJsValue(stateKey, JsValue.FromObjectUnsafe(state), isConst: false, isLexical: true, canDelete: true);
         }
     }
 

@@ -139,7 +139,7 @@ public static partial class StandardLibrary
             if (realm is not null &&
                 TryFormatWithIntlNumberFormat(num, localesArg.ToObject(), optionsArg.ToObject(), realm, out var formatted))
             {
-                return JsValue.FromObject(formatted);
+                return JsValue.FromObjectUnsafe(formatted);
             }
 
             if (!optionsArg.TryGetObject<JsObject>(out var options) || options is null)

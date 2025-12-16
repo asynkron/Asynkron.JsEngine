@@ -14,7 +14,7 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
     {
         var targetCtor = _constructor ?? ConstructFallback;
         var providedThis = thisValue.IsObject ? thisValue.AsObject() as JsObject : null;
-        return JsValue.FromObject(ConstructDate(args, targetCtor, targetCtor, providedThis, null));
+        return JsValue.FromObjectUnsafe(ConstructDate(args, targetCtor, targetCtor, providedThis, null));
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -34,7 +34,7 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
             var target = _constructor ?? constructor;
             var effectiveNewTarget = newTarget.TryGetObject<IJsCallable>(out var nt) ? nt : target;
             var thisObj = thisValue.TryGetObject(out JsObject? jsObj) ? jsObj : null;
-            return JsValue.FromObject(ConstructDate(args, effectiveNewTarget, target, thisObj, context));
+            return JsValue.FromObjectUnsafe(ConstructDate(args, effectiveNewTarget, target, thisObj, context));
         });
 
         AttachStatics(constructor);

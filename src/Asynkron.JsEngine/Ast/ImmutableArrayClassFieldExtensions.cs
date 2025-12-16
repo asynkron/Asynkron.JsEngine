@@ -34,19 +34,19 @@ public static partial class TypedAstEvaluator
         // Per ES spec, static blocks are evaluated like function bodies - var declarations
         // should be scoped to the block, not leak to outer environments
         var initEnv = new JsEnvironment(environment, isFunctionScope: true, isStrict: true);
-        initEnv.DefineJsValue(Symbol.This, JsValue.FromObject(constructorAccessor));
+        initEnv.DefineJsValue(Symbol.This, JsValue.FromObjectUnsafe(constructorAccessor));
         // Field/static initializers are evaluated outside any constructor body; shadow new.target with undefined.
         initEnv.DefineJsValue(Symbol.NewTarget, JsValue.Undefined, isConst: true, isLexical: true,
             blocksFunctionScopeOverride: true);
         if (environment.TryGet(Symbol.Arguments, out var argumentsValue))
         {
-            initEnv.DefineJsValue(Symbol.Arguments, JsValue.FromObject(argumentsValue), isLexical: false);
+            initEnv.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsValue), isLexical: false);
         }
 
         superBinding = ResolveStaticInitializationSuperBinding(constructorAccessor);
         if (superBinding is not null)
         {
-            initEnv.DefineJsValue(Symbol.Super, JsValue.FromObject(superBinding), isConst: true, isLexical: true,
+            initEnv.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(superBinding), isConst: true, isLexical: true,
                 blocksFunctionScopeOverride: true);
         }
 
@@ -66,7 +66,7 @@ public static partial class TypedAstEvaluator
 
         if (prototypeValue.IsNull)
         {
-            return new SuperBinding(null, null, JsValue.FromObject(constructorAccessor), true);
+            return new SuperBinding(null, null, JsValue.FromObjectUnsafe(constructorAccessor), true);
         }
 
         if (prototypeAccessor is null && superConstructor is null)
@@ -74,6 +74,6 @@ public static partial class TypedAstEvaluator
             return null;
         }
 
-        return new SuperBinding(superConstructor, prototypeAccessor, JsValue.FromObject(constructorAccessor), true);
+        return new SuperBinding(superConstructor, prototypeAccessor, JsValue.FromObjectUnsafe(constructorAccessor), true);
     }
 }

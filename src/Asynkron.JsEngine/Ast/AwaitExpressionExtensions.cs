@@ -20,7 +20,7 @@ public static partial class TypedAstEvaluator
             {
                 // EvaluateAwaitInGenerator returns object? which might be a boxed JsValue
                 var result = generator.EvaluateAwaitInGenerator(expression, environment, context);
-                return result is JsValue resultJs ? resultJs : JsValue.FromObject(result);
+                return result is JsValue resultJs ? resultJs : JsValue.FromObjectUnsafe(result);
             }
 
             var awaitedValue = EvaluateExpression(expression.Expression, environment, context);
@@ -39,7 +39,7 @@ public static partial class TypedAstEvaluator
                     accessor.TryGetProperty("resolve", out var resolveValue) &&
                     resolveValue.TryGetObject<IJsCallable>(out var resolveCallable))
                 {
-                    var resolveResult = resolveCallable.Invoke([awaitedValue], JsValue.FromObject(promiseCtor));
+                    var resolveResult = resolveCallable.Invoke([awaitedValue], JsValue.FromObjectUnsafe(promiseCtor));
                     if (resolveResult.IsObject)
                     {
                         wrappedPromise = resolveResult.AsObject();

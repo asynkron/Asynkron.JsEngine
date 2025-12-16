@@ -86,7 +86,7 @@ public sealed class JsPromise
             // Wrap callbacks in HostFunction so they can be passed as JsValue
             var resolveFn = new HostFunction(args => { resolveCallback.Invoke(args, JsValue.Undefined); return JsValue.Undefined; }, isConstructor: false);
             var rejectFn = new HostFunction(args => { rejectCallback.Invoke(args, JsValue.Undefined); return JsValue.Undefined; }, isConstructor: false);
-            var thenableValue = JsValue.FromObject(thenable);
+            var thenableValue = JsValue.FromObjectUnsafe(thenable);
             thenMethod.Invoke([(JsValue)resolveFn, (JsValue)rejectFn], thenableValue);
         }
         catch (ThrowSignal signal)

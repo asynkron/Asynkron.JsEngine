@@ -31,7 +31,7 @@ public sealed partial class StringPrototype : JsPrototype
         }
 
         var reviver = args.Count > 0 ? args[0].ToObject() : JsValue.Undefined.ToObject();
-        return JsValue.FromObject(ParseJsonWithReviver(source, Realm, context, reviver));
+        return JsValue.FromObjectUnsafe(ParseJsonWithReviver(source, Realm, context, reviver));
     }
 
     protected override void ConfigurePrototype()

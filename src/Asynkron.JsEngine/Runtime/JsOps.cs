@@ -264,10 +264,10 @@ internal static class JsOps
                     var error = CreateTypeError("Cannot convert a Symbol value to a number", context);
                     if (context is null)
                     {
-                        throw new ThrowSignal(JsValue.FromObject(error));
+                        throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
                     }
 
-                    context.SetThrow(JsValue.FromObject(error));
+                    context.SetThrow(JsValue.FromObjectUnsafe(error));
                     return JsValue.Undefined; // Error state - caller should check context.IsThrow
                 }
                 case JsBigInt bigInt:
@@ -336,10 +336,10 @@ internal static class JsOps
                     var error = CreateTypeError("Cannot convert object to primitive value", context);
                     if (context is null)
                     {
-                        throw new ThrowSignal(JsValue.FromObject(error));
+                        throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
                     }
 
-                    context.SetThrow(JsValue.FromObject(error));
+                    context.SetThrow(JsValue.FromObjectUnsafe(error));
                     return JsValue.Undefined; // Error state - caller should check context.IsThrow
                 }
                 default:
@@ -368,7 +368,7 @@ internal static class JsOps
                     var result = TypedAstEvaluator.InvokeCallable(
                         toPrimFn,
                         new JsValue[] { new JsValue("number") },
-                        JsValue.FromObject(accessor),
+                        JsValue.FromObjectUnsafe(accessor),
                         context,
                         accessor is JsObject obj ? obj.RealmState?.Engine?.GlobalEnvironment : null);
                     if (context?.IsThrow == true)
@@ -444,10 +444,10 @@ internal static class JsOps
         var error = CreateTypeError("Cannot convert object to primitive value", context);
         if (context is null)
         {
-            throw new ThrowSignal(JsValue.FromObject(error));
+            throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
         }
 
-        context.SetThrow(JsValue.FromObject(error));
+        context.SetThrow(JsValue.FromObjectUnsafe(error));
 
         return false;
     }
@@ -527,7 +527,7 @@ internal static class JsOps
                     var result = TypedAstEvaluator.InvokeCallable(
                         toPrimFn,
                         new JsValue[] { new JsValue(hintString) },
-                        JsValue.FromObject(accessor),
+                        JsValue.FromObjectUnsafe(accessor),
                         context,
                         accessor is JsObject obj ? obj.RealmState?.Engine?.GlobalEnvironment : null);
                     if (context?.IsThrow == true)
@@ -1192,7 +1192,7 @@ internal static class JsOps
 
         try
         {
-            result = TypedAstEvaluator.InvokeCallable(callable, Array.Empty<JsValue>(), JsValue.FromObject(accessor), context,
+            result = TypedAstEvaluator.InvokeCallable(callable, Array.Empty<JsValue>(), JsValue.FromObjectUnsafe(accessor), context,
                 accessor is JsObject obj ? obj.RealmState?.Engine?.GlobalEnvironment : null);
             return context?.IsThrow != true;
         }
@@ -1613,7 +1613,7 @@ internal static class JsOps
                     return false;
                 }
 
-                if (propertyAccessor.TryGetProperty(propertyName, JsValue.FromObject(target), out var jsVal))
+                if (propertyAccessor.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), out var jsVal))
                 {
                     value = jsVal.ToObject();
                     return true;
@@ -1855,7 +1855,7 @@ internal static class JsOps
     {
         if (target is IJsPropertyAccessor accessor)
         {
-            accessor.SetProperty(propertyName, JsValue.FromObject(value), JsValue.FromObject(target));
+            accessor.SetProperty(propertyName, JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(target));
             return;
         }
 
@@ -1906,7 +1906,7 @@ internal static class JsOps
                             return true;
                         }
 
-                        TypedAstEvaluator.InvokeCallable(ownDescriptor.Set, new JsValue[] { JsValue.FromObject(value) }, JsValue.FromObject(jsArray), context);
+                        TypedAstEvaluator.InvokeCallable(ownDescriptor.Set, new JsValue[] { JsValue.FromObjectUnsafe(value) }, JsValue.FromObjectUnsafe(jsArray), context);
                         return true;
                     }
 
@@ -1948,7 +1948,7 @@ internal static class JsOps
                                 return true;
                             }
 
-                            TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, new JsValue[] { JsValue.FromObject(value) }, JsValue.FromObject(jsArray), context);
+                            TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, new JsValue[] { JsValue.FromObjectUnsafe(value) }, JsValue.FromObjectUnsafe(jsArray), context);
                             return true;
                         }
 
@@ -1991,13 +1991,13 @@ internal static class JsOps
                 return true;
             }
 
-            jsArray.SetProperty(propertyName, JsValue.FromObject(value), JsValue.FromObject(jsArray));
+            jsArray.SetProperty(propertyName, JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(jsArray));
             return true;
         }
 
         if (target is TypedArrayBase typedArray && TryResolveArrayIndex(propertyKey, out var typedIndex, context))
         {
-            typedArray.SetValue(typedIndex, JsValue.FromObject(value));
+            typedArray.SetValue(typedIndex, JsValue.FromObjectUnsafe(value));
             return true;
         }
 

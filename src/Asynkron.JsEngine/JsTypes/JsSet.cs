@@ -220,7 +220,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         foreach (var value in _insertionOrder)
             // In Set.forEach, the value is passed as both the first and second argument
         {
-            callback.Invoke([JsValue.FromObject(value), JsValue.FromObject(value), (JsValue)this], JsValue.FromObject(thisArg));
+            callback.Invoke([JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(value), (JsValue)this], JsValue.FromObjectUnsafe(thisArg));
         }
     }
 

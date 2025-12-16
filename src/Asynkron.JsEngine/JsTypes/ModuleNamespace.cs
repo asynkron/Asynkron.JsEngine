@@ -67,7 +67,7 @@ internal sealed class ModuleNamespace : IJsObjectLike
         {
             if (_exportNames.Contains(name, StringComparer.Ordinal))
             {
-                value = JsValue.FromObject(_bindingLookup(name));
+                value = JsValue.FromObjectUnsafe(_bindingLookup(name));
                 return true;
             }
 
@@ -80,7 +80,7 @@ internal sealed class ModuleNamespace : IJsObjectLike
         {
             var lookedUp = _bindingLookup(name);
             EnsureInitialized(name, lookedUp);
-            value = JsValue.FromObject(lookedUp);
+            value = JsValue.FromObjectUnsafe(lookedUp);
             return true;
         }
 
@@ -97,7 +97,7 @@ internal sealed class ModuleNamespace : IJsObjectLike
 
     public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, JsValue.FromObject(this));
+        SetProperty(name, value, JsValue.FromObjectUnsafe(this));
     }
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)

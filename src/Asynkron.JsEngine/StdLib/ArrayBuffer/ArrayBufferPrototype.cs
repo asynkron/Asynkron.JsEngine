@@ -81,7 +81,7 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
             Array.Copy(buffer.Buffer, first, targetBuffer.Buffer, 0, newLen);
         }
 
-        return JsValue.FromObject(newBuffer);
+        return JsValue.FromObjectUnsafe(newBuffer);
     }
 
     [JsHostMethod("resize", Length = 1d)]
@@ -158,7 +158,7 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
         }
 
         buffer.Detach();
-        return JsValue.FromObject(target);
+        return JsValue.FromObjectUnsafe(target);
     }
 
     [JsHostMethod("transferToFixedLength", Length = 0d)]
@@ -185,7 +185,7 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
         }
 
         buffer.Detach();
-        return JsValue.FromObject(target);
+        return JsValue.FromObjectUnsafe(target);
     }
 
     protected override void ConfigurePrototype()

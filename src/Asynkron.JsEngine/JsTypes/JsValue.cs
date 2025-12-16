@@ -503,58 +503,142 @@ public readonly struct JsValue : IEquatable<JsValue>
         };
     }
 
+    #region Typed FromObject overloads - prefer these to avoid boxing
+
+    /// <summary>Creates a JsValue from a double.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue FromObject(double value) => new JsValue(value);
+
+    /// <summary>Creates a JsValue from an int.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue FromObject(int value) => new JsValue((double)value);
+
+    /// <summary>Creates a JsValue from a long.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue FromObject(long value) => new JsValue((double)value);
+
+    /// <summary>Creates a JsValue from a bool.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue FromObject(bool value) => value ? True : False;
+
+    /// <summary>Creates a JsValue from a string.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue FromObject(string? value) => value is null ? Null : new JsValue(value);
+
+    /// <summary>Creates a JsValue from a JsBigInt.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue FromObject(JsBigInt? value) => value is null ? Null : new JsValue(value);
+
+    /// <summary>Creates a JsValue from a Symbol.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue FromObject(Symbol? value) => value is null ? Null : ReferenceEquals(value, Symbol.Undefined) ? Undefined : new JsValue(value);
+
+    /// <summary>Creates a JsValue from a JsObject.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue FromObject(JsObject? value) => value is null ? Null : new JsValue(value);
+
+    /// <summary>Creates a JsValue from an IJsObjectLike.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue FromObject(IJsObjectLike? value) => value switch
+    {
+        null => Null,
+        JsObject obj => new JsValue(obj),
+        _ => new JsValue(JsValueKind.Object, 0.0, value)
+    };
+
+    /// <summary>Creates a JsValue from an IJsCallable (HostFunction, TypedFunction, etc.).</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue FromObject(IJsCallable? value) => value is null ? Null : new JsValue(JsValueKind.Object, 0.0, value);
+
+    /// <summary>Creates a JsValue from a TypedAstSymbol.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue FromObject(TypedAstSymbol? value) => value is null ? Null : new JsValue(JsValueKind.Symbol, 0.0, value);
+
+    /// <summary>Creates a JsValue from a float.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue FromObject(float value) => new JsValue(value);
+
+    /// <summary>Creates a JsValue from a decimal.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue FromObject(decimal value) => new JsValue((double)value);
+
+    /// <summary>Creates a JsValue from a uint.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue FromObject(uint value) => new JsValue((double)value);
+
+    /// <summary>Creates a JsValue from a ulong.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue FromObject(ulong value) => new JsValue(value);
+
+    /// <summary>Creates a JsValue from a short.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue FromObject(short value) => new JsValue((double)value);
+
+    /// <summary>Creates a JsValue from a ushort.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue FromObject(ushort value) => new JsValue((double)value);
+
+    /// <summary>Creates a JsValue from a byte.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue FromObject(byte value) => new JsValue((double)value);
+
+    /// <summary>Creates a JsValue from a sbyte.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue FromObject(sbyte value) => new JsValue((double)value);
+
     /// <summary>
-    /// Creates a JsValue from a boxed object representation.
-    /// Used for gradual migration from object? to JsValue.
+    /// Obsolete: Use typed overloads instead to avoid boxing.
+    /// This method only exists to catch untyped usages at compile time.
+    /// </summary>
+    [Obsolete("Use typed FromObject overloads or construct JsValue directly. This catches boxing at compile time.", true)]
+    public static JsValue FromObject(object? value) => throw new NotSupportedException("Use typed overloads");
+
+    /// <summary>
+    /// Runtime conversion from object? to JsValue. Use this ONLY when the source type
+    /// is genuinely unknown at compile time (e.g., values from dictionaries, reflection, etc.).
+    /// Prefer typed overloads when the type is known.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static JsValue FromObject(object? value)
+    public static JsValue FromObjectUnsafe(object? value)
     {
-        if (value is JsValue)
-        {
-            throw new ArgumentException("JsValue should not be boxed and passed to FromObject. Use the value directly.", nameof(value));
-        }
-
         return value switch
         {
             null => Null,
+            JsValue jsv => jsv, // Already a JsValue (was boxed)
+            JsObject jsObj => new JsValue(jsObj),
+            string s => new JsValue(s),
             double d => new JsValue(d),
             int i => new JsValue((double)i),
             long l => new JsValue((double)l),
             bool b => b ? True : False,
-            string s => new JsValue(s),
+            Symbol sym => ReferenceEquals(sym, Symbol.Undefined) ? Undefined : new JsValue(sym),
             JsBigInt bi => new JsValue(bi),
-            Symbol sym => sym == Symbol.Undefined ? Undefined : new JsValue(sym),
-            JsObject obj => new JsValue(obj),
-            _ => FromObjectSlow(value)
-        };
-    }
-
-    /// <summary>Slow path for less common types.</summary>
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static JsValue FromObjectSlow(object value)
-    {
-        // Handle other numeric types
-        return value switch
-        {
-            // Handle boxed JsValue - unwrap it instead of wrapping again
-            JsValue jsValue => jsValue,
-            // Handle JavaScript Symbol (TypedAstSymbol) - must come before JsObject check
-            TypedAstSymbol sym => new JsValue(JsValueKind.Symbol, 0.0, sym),
+            // Non-JsObject types that are wrapped as objects
+            JsPromise promise => new JsValue(JsValueKind.Object, 0.0, promise),
+            JsRegExp regExp => new JsValue(JsValueKind.Object, 0.0, regExp),
+            JsDataView dataView => new JsValue(JsValueKind.Object, 0.0, dataView),
+            JsMap map => new JsValue(JsValueKind.Object, 0.0, map),
+            JsSet set => new JsValue(JsValueKind.Object, 0.0, set),
+            JsWeakMap weakMap => new JsValue(JsValueKind.Object, 0.0, weakMap),
+            JsWeakSet weakSet => new JsValue(JsValueKind.Object, 0.0, weakSet),
+            TypedArrayBase typedArray => new JsValue(JsValueKind.Object, 0.0, typedArray),
+            // Interface-based fallbacks
+            IJsObjectLike objLike => new JsValue(JsValueKind.Object, 0.0, objLike),
+            IJsCallable callable => new JsValue(JsValueKind.Object, 0.0, callable),
+            // Numeric types
             float f => new JsValue(f),
             decimal dec => new JsValue((double)dec),
             uint ui => new JsValue((double)ui),
             ulong ul => new JsValue(ul),
-            short s => new JsValue((double)s),
-            ushort us => new JsValue((double)us),
-            byte b => new JsValue((double)b),
-            sbyte sb => new JsValue((double)sb),
-            // If it's a JsObject subclass, wrap it
-            _ when value is JsObject obj => new JsValue(obj),
-            // Unknown type - wrap as object (should rarely happen)
-            _ => new JsValue(JsValueKind.Object, 0.0, value)
+            short sh => new JsValue((double)sh),
+            ushort ush => new JsValue((double)ush),
+            byte by => new JsValue((double)by),
+            sbyte sby => new JsValue((double)sby),
+            _ => throw new NotSupportedException($"Cannot convert {value.GetType().Name} to JsValue")
         };
     }
+
+    #endregion
 
     #endregion
 
@@ -711,7 +795,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     public static implicit operator JsValue(bool value) => value ? True : False;
     public static implicit operator JsValue(string value) => new(value);
 
-    // Object type conversions - reduces JsValue.FromObject() boilerplate
+    // Object type conversions - reduces JsValue.FromObjectUnsafe() boilerplate
     public static implicit operator JsValue(JsObject value) => new(value);
     public static implicit operator JsValue(JsBigInt value) => new(value);
     public static implicit operator JsValue(Symbol value) => new(value);

@@ -168,7 +168,7 @@ public static partial class TypedAstEvaluator
                     skipInternalNameBinding: true);
                 blockEnvironment.DefineJsValue(
                     functionDeclaration.Name,
-                    JsValue.FromObject(functionValue),
+                    JsValue.FromObjectUnsafe(functionValue),
                     isConst: true,
                     isLexical: true,
                     blocksFunctionScopeOverride: true);
@@ -182,7 +182,7 @@ public static partial class TypedAstEvaluator
                 case IdentifierBinding id:
                     if (!blockEnvironment.HasBinding(id.Name))
                     {
-                        blockEnvironment.DefineJsValue(id.Name, JsValue.FromObject(JsEnvironment.Uninitialized), isLexical: true,
+                        blockEnvironment.DefineJsValue(id.Name, JsValue.Uninitialized, isLexical: true,
                             blocksFunctionScopeOverride: true, isConst: isConst);
                     }
                     break;

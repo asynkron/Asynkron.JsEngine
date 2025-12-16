@@ -252,7 +252,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         foreach (var key in _insertionOrder)
         {
             var value = Get(key);
-            callback.Invoke([JsValue.FromObject(value), JsValue.FromObject(key), (JsValue)this], JsValue.FromObject(thisArg));
+            callback.Invoke([JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(key), (JsValue)this], JsValue.FromObjectUnsafe(thisArg));
         }
     }
 

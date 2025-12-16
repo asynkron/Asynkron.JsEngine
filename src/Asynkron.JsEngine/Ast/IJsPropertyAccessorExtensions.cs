@@ -37,7 +37,7 @@ public static partial class TypedAstEvaluator
                 result = InvokeCallable(
                     callable!,
                     Array.Empty<JsValue>(),
-                    JsValue.FromObject(thisArg),
+                    JsValue.FromObjectUnsafe(thisArg),
                     context,
                     context.RealmState?.Engine?.GlobalEnvironment);
                 realm?.Logger?.LogInformation("TryInvokeSymbolMethod completed stop={Stop} resultType={ResultType}",
@@ -85,7 +85,7 @@ public static partial class TypedAstEvaluator
                 if (candidate is not null && !ReferenceEquals(candidate, Symbol.Undefined))
                 {
                     var error = StandardLibrary.CreateTypeError("Iterator method is not callable", context, realm);
-                    context.SetThrow(JsValue.FromObject(error));
+                    context.SetThrow(JsValue.FromObjectUnsafe(error));
                     callable = null;
                     return true;
                 }

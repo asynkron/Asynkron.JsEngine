@@ -84,7 +84,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         IEnumerable<object?> keys;
         if (TryGetTrap("ownKeys", out var trap))
         {
-            var trapResult = trap.Invoke([JsValue.FromObject(Target)], JsValue.FromObject(Handler));
+            var trapResult = trap.Invoke([JsValue.FromObjectUnsafe(Target)], JsValue.FromObjectUnsafe(Handler));
             keys = ExtractKeys(trapResult);
         }
         else
@@ -123,36 +123,36 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         if (name.IsPrivateSlotName())
         {
-            return _privateStorage.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObject(this) : receiver, out value);
+            return _privateStorage.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver, out value);
         }
 
         if (TryGetTrap("get", out var trap))
         {
-            var args = new[] { JsValue.FromObject(Target), JsValue.FromObject(DecodePropertyKey(name)), receiver.IsUndefined ? JsValue.FromObject(this) : receiver };
-            value = trap.Invoke(args, JsValue.FromObject(Handler));
+            var args = new[] { JsValue.FromObjectUnsafe(Target), JsValue.FromObjectUnsafe(DecodePropertyKey(name)), receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver };
+            value = trap.Invoke(args, JsValue.FromObjectUnsafe(Handler));
             return true;
         }
 
-        return Target.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObject(this) : receiver, out value);
+        return Target.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver, out value);
     }
 
     public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, JsValue.FromObject(this), out value);
+        return TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);
     }
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
     {
         if (name.IsPrivateSlotName())
         {
-            _privateStorage.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObject(this) : receiver);
+            _privateStorage.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver);
             return;
         }
 
         if (TryGetTrap("set", out var trap))
         {
-            var args = new[] { JsValue.FromObject(Target), JsValue.FromObject(DecodePropertyKey(name)), value, receiver.IsUndefined ? JsValue.FromObject(this) : receiver };
-            var result = trap.Invoke(args, JsValue.FromObject(Handler));
+            var args = new[] { JsValue.FromObjectUnsafe(Target), JsValue.FromObjectUnsafe(DecodePropertyKey(name)), value, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver };
+            var result = trap.Invoke(args, JsValue.FromObjectUnsafe(Handler));
             if (!JsOps.ToBoolean(result))
             {
                 throw StandardLibrary.ThrowTypeError("Proxy 'set' trap returned a falsy value", realm: _realm);
@@ -161,12 +161,12 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return;
         }
 
-        Target.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObject(this) : receiver);
+        Target.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver);
     }
 
     public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, JsValue.FromObject(this));
+        SetProperty(name, value, JsValue.FromObjectUnsafe(this));
     }
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
@@ -180,8 +180,8 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         if (TryGetTrap("defineProperty", out var trap))
         {
             var descriptorObject = CreateDescriptorObject(descriptor);
-            var args = new[] { JsValue.FromObject(Target), JsValue.FromObject(DecodePropertyKey(name)), (JsValue)descriptorObject };
-            var result = trap.Invoke(args, JsValue.FromObject(Handler));
+            var args = new[] { JsValue.FromObjectUnsafe(Target), JsValue.FromObjectUnsafe(DecodePropertyKey(name)), (JsValue)descriptorObject };
+            var result = trap.Invoke(args, JsValue.FromObjectUnsafe(Handler));
             if (!JsOps.ToBoolean(result))
             {
                 throw StandardLibrary.ThrowTypeError("Proxy 'defineProperty' trap returned a falsy value",
@@ -203,8 +203,8 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (TryGetTrap("getOwnPropertyDescriptor", out var trap))
         {
-            var args = new[] { JsValue.FromObject(Target), JsValue.FromObject(DecodePropertyKey(name)) };
-            var result = trap.Invoke(args, JsValue.FromObject(Handler));
+            var args = new[] { JsValue.FromObjectUnsafe(Target), JsValue.FromObjectUnsafe(DecodePropertyKey(name)) };
+            var result = trap.Invoke(args, JsValue.FromObjectUnsafe(Handler));
             return ConvertPropertyDescriptor(result, _realm);
         }
 
@@ -220,8 +220,8 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         if (TryGetTrap("setPrototypeOf", out var trap))
         {
-            var args = new[] { JsValue.FromObject(Target), JsValue.FromObject(candidate) };
-            var result = trap.Invoke(args, JsValue.FromObject(Handler));
+            var args = new[] { JsValue.FromObjectUnsafe(Target), JsValue.FromObjectUnsafe(candidate) };
+            var result = trap.Invoke(args, JsValue.FromObjectUnsafe(Handler));
             if (!JsOps.ToBoolean(result))
             {
                 throw StandardLibrary.ThrowTypeError("Proxy 'setPrototypeOf' trap returned a falsy value",
@@ -247,8 +247,8 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         if (TryGetTrap("deleteProperty", out var trap))
         {
-            var args = new[] { JsValue.FromObject(Target), JsValue.FromObject(DecodePropertyKey(name)) };
-            var result = trap.Invoke(args, JsValue.FromObject(Handler));
+            var args = new[] { JsValue.FromObjectUnsafe(Target), JsValue.FromObjectUnsafe(DecodePropertyKey(name)) };
+            var result = trap.Invoke(args, JsValue.FromObjectUnsafe(Handler));
             return JsOps.ToBoolean(result);
         }
 
@@ -265,8 +265,8 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         if (TryGetTrap("defineProperty", out var trap))
         {
             var descriptorObject = CreateDescriptorObject(descriptor);
-            var args = new[] { JsValue.FromObject(Target), JsValue.FromObject(DecodePropertyKey(name)), (JsValue)descriptorObject };
-            var result = trap.Invoke(args, JsValue.FromObject(Handler));
+            var args = new[] { JsValue.FromObjectUnsafe(Target), JsValue.FromObjectUnsafe(DecodePropertyKey(name)), (JsValue)descriptorObject };
+            var result = trap.Invoke(args, JsValue.FromObjectUnsafe(Handler));
             return JsOps.ToBoolean(result);
         }
 
@@ -285,8 +285,8 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         if (TryGetTrap("has", out var trap))
         {
-            var args = new[] { JsValue.FromObject(Target), JsValue.FromObject(DecodePropertyKey(name)) };
-            var result = trap.Invoke(args, JsValue.FromObject(Handler));
+            var args = new[] { JsValue.FromObjectUnsafe(Target), JsValue.FromObjectUnsafe(DecodePropertyKey(name)) };
+            var result = trap.Invoke(args, JsValue.FromObjectUnsafe(Handler));
             return JsOps.ToBoolean(result);
         }
 
@@ -331,8 +331,8 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         if (TryGetTrap("getPrototypeOf", out var trap))
         {
-            var args = new[] { JsValue.FromObject(Target) };
-            var result = trap.Invoke(args, JsValue.FromObject(Handler));
+            var args = new[] { JsValue.FromObjectUnsafe(Target) };
+            var result = trap.Invoke(args, JsValue.FromObjectUnsafe(Handler));
             if (result.IsNull)
             {
                 _meta.SetPrototype(null);
@@ -500,13 +500,13 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         if (descriptor.IsAccessorDescriptor)
         {
             result.SetProperty("get",
-                descriptor is { HasGet: true, Get: not null } ? JsValue.FromObject(descriptor.Get) : JsValue.Undefined);
+                descriptor is { HasGet: true, Get: not null } ? JsValue.FromObjectUnsafe(descriptor.Get) : JsValue.Undefined);
             result.SetProperty("set",
-                descriptor is { HasSet: true, Set: not null } ? JsValue.FromObject(descriptor.Set) : JsValue.Undefined);
+                descriptor is { HasSet: true, Set: not null } ? JsValue.FromObjectUnsafe(descriptor.Set) : JsValue.Undefined);
         }
         else
         {
-            result.SetProperty("value", JsValue.FromObject(descriptor.Value));
+            result.SetProperty("value", JsValue.FromObjectUnsafe(descriptor.Value));
             result.SetProperty("writable", descriptor is { HasWritable: true, Writable: true });
         }
 

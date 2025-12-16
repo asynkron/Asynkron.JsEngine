@@ -38,7 +38,7 @@ public static partial class TypedAstEvaluator
                     payload.Value?.GetType().Name ?? "null");
 
                 // payload.Value might be a boxed JsValue (from resumeValue.ToObject())
-                var payloadValueJs = payload.Value is JsValue pjs ? pjs : JsValue.FromObject(payload.Value);
+                var payloadValueJs = payload.Value is JsValue pjs ? pjs : JsValue.FromObjectUnsafe(payload.Value);
 
                 if (payload.IsThrow)
                 {
@@ -133,7 +133,7 @@ public static partial class TypedAstEvaluator
                 // or advances the iterator if not. This prevents skipping values
                 // when resuming a generator that has already yielded.
                 // pendingSend might be a boxed JsValue from ResumePayload
-                var pendingSendJs = pendingSend is JsValue psJs ? psJs : JsValue.FromObject(pendingSend);
+                var pendingSendJs = pendingSend is JsValue psJs ? psJs : JsValue.FromObjectUnsafe(pendingSend);
                 var iteratorResult = state.GetOrFetchNext(pendingSendJs,
                     hasPendingSend && !pendingThrow && !pendingReturn,
                     pendingThrow,

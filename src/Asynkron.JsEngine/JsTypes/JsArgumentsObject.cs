@@ -79,7 +79,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             else
             {
                 var thrower = new HostFunction((_, _) =>
-                    throw new ThrowSignal(JsValue.FromObject(StandardLibrary.CreateTypeError(
+                    throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
                         "Access to callee is not allowed in strict mode.", realm.CreateContext(), realm))),
                     isConstructor: false);
 
@@ -156,21 +156,21 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             index < _mappedParameters.Length &&
             _mappedParameters[index] is { } mappedSymbol)
         {
-            value = JsValue.FromObject(_environment.Get(mappedSymbol));
+            value = JsValue.FromObjectUnsafe(_environment.Get(mappedSymbol));
             return true;
         }
 
-        return _backing.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObject(this) : receiver, out value);
+        return _backing.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver, out value);
     }
 
     public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, JsValue.FromObject(this), out value);
+        return TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);
     }
 
     public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, JsValue.FromObject(this));
+        SetProperty(name, value, JsValue.FromObjectUnsafe(this));
     }
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
@@ -192,7 +192,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             WithSuppressedObserver(() => _environment.Assign(mappedSymbol, valueObj));
         }
 
-        _backing.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObject(this) : receiver);
+        _backing.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver);
     }
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
@@ -207,7 +207,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
             if (_mappedEnabled)
             {
-                _backing.TryGetProperty("callee", JsValue.FromObject(this), out var calleeValue);
+                _backing.TryGetProperty("callee", JsValue.FromObjectUnsafe(this), out var calleeValue);
                 return new PropertyDescriptor
                 {
                     Value = calleeValue.ToObject() ?? _calleeDescriptor.Value,
@@ -394,7 +394,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
     private ThrowSignal CreateDefineTypeError()
     {
-        return new ThrowSignal(JsValue.FromObject(StandardLibrary.CreateTypeError("Cannot redefine property", null, _realm)));
+        return new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError("Cannot redefine property", null, _realm)));
     }
 
     private static bool IsDescriptorCompatible(PropertyDescriptor current, PropertyDescriptor candidate)

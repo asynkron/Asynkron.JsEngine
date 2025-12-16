@@ -91,7 +91,7 @@ public static partial class TypedAstEvaluator
                 args => Throw(args.Count > 0 ? args[0] : JsValue.Undefined),
                 prototype);
             iterator.SetProperty(IteratorSymbolPropertyName, (JsValue)new HostFunction((_, _) => new JsValue(iterator)));
-            iterator.SetProperty(GeneratorBrandPropertyName, JsValue.FromObject(GeneratorBrandMarker));
+            iterator.SetProperty(GeneratorBrandPropertyName, JsValue.FromObjectUnsafe(GeneratorBrandMarker));
             return iterator;
         }
 
@@ -275,13 +275,13 @@ public static partial class TypedAstEvaluator
                          !boundThis.IsNullish &&
                          !boundThis.TryGetObject<IIsHtmlDda>(out _))
                 {
-                    boundThis = JsValue.FromObject(ToObjectForDestructuring(boundThis.ToObject(), generatorContext));
+                    boundThis = JsValue.FromObjectUnsafe(ToObjectForDestructuring(boundThis.ToObject(), generatorContext));
                 }
             }
 
             functionEnvironment.DefineJsValue(Symbol.This, boundThis);
-            functionEnvironment.DefineJsValue(Symbol.YieldResumeContextSymbol, JsValue.FromObject(_resumeContext));
-            functionEnvironment.DefineJsValue(Symbol.GeneratorInstanceSymbol, JsValue.FromObject(this));
+            functionEnvironment.DefineJsValue(Symbol.YieldResumeContextSymbol, JsValue.FromObjectUnsafe(_resumeContext));
+            functionEnvironment.DefineJsValue(Symbol.GeneratorInstanceSymbol, JsValue.FromObjectUnsafe(this));
 
             var superPrototype = _homeObject?.Prototype;
             if (superPrototype is null && boundThis.TryGetObject<JsObject>(out var thisObj))
@@ -292,7 +292,7 @@ public static partial class TypedAstEvaluator
             if (superPrototype is not null)
             {
                 var superBinding = new SuperBinding(null, superPrototype, boundThis, true);
-                functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObject(superBinding));
+                functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(superBinding));
             }
 
             // Convert JsValue arguments to object? for CreateArgumentsObject and BindFunctionParameters
@@ -305,15 +305,15 @@ public static partial class TypedAstEvaluator
             var argumentsObject =
                 CreateArgumentsObject(_function, argumentValues, parameterEnvironment, _realmState, _callable,
                     _isStrict);
-            parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObject(argumentsObject), isLexical: false);
+            parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject), isLexical: false);
             if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
             {
-                functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObject(argumentsObject), isLexical: false);
+                functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject), isLexical: false);
             }
 
             if (_function.Name is { } functionName && !_hasFunctionNameEnvironment)
             {
-                parameterEnvironment.DefineJsValue(functionName, JsValue.FromObject(_callable), isConst: true, isLexical: true, blocksFunctionScopeOverride: true);
+                parameterEnvironment.DefineJsValue(functionName, JsValue.FromObjectUnsafe(_callable), isConst: true, isLexical: true, blocksFunctionScopeOverride: true);
             }
 
             HoistVarDeclarations(_function.Body, executionEnvironment, generatorContext,
@@ -376,7 +376,7 @@ public static partial class TypedAstEvaluator
             else
             {
                 // Handle case where value is already a boxed JsValue
-                var jsVal = value is JsValue jv ? jv : JsValue.FromObject(value);
+                var jsVal = value is JsValue jv ? jv : JsValue.FromObjectUnsafe(value);
                 environment.DefineJsValue(symbol, jsVal);
             }
         }
@@ -476,7 +476,7 @@ public static partial class TypedAstEvaluator
                         }
                         else
                         {
-                            environment.DefineJsValue(awaitKey, JsValue.FromObject(newState));
+                            environment.DefineJsValue(awaitKey, JsValue.FromObjectUnsafe(newState));
                         }
                     }
                 }
@@ -528,7 +528,7 @@ public static partial class TypedAstEvaluator
                                 context.Clear();
                                 _state = GeneratorState.Suspended;
                                 // If we have an original iterator result object, return it to preserve done property
-                                return JsValue.FromObject(iteratorResultObject ?? CreateIteratorResult(yieldedSignalValue, false));
+                                return JsValue.FromObjectUnsafe(iteratorResultObject ?? CreateIteratorResult(yieldedSignalValue, false));
                             }
 
                             _programCounter = statementInstruction.Next;
@@ -564,7 +564,7 @@ public static partial class TypedAstEvaluator
                                     _programCounter = _currentInstructionIndex;
                                     RecordYield(context);
                                     _state = GeneratorState.Suspended;
-                                    return JsValue.FromObject(nestedIteratorResult ?? CreateIteratorResult(yieldedValue, false));
+                                    return JsValue.FromObjectUnsafe(nestedIteratorResult ?? CreateIteratorResult(yieldedValue, false));
                                 }
                             }
 
@@ -749,7 +749,7 @@ public static partial class TypedAstEvaluator
                                         _programCounter = currentIndex;
                                         _state = GeneratorState.Suspended;
                                         // Use original iterator result object to preserve done/value properties
-                                        return JsValue.FromObject(iteratorResult.IteratorResultObject ?? CreateIteratorResult(iteratorResult.Value, false));
+                                        return JsValue.FromObjectUnsafe(iteratorResult.IteratorResultObject ?? CreateIteratorResult(iteratorResult.Value, false));
                                     }
 
                                     yieldStarState.State = null;
@@ -811,7 +811,7 @@ public static partial class TypedAstEvaluator
                                 // Use original iterator result object to preserve done/value properties
                                 if (iteratorResult.IteratorResultObject is { } originalResult)
                                 {
-                                    return JsValue.FromObject(originalResult);
+                                    return JsValue.FromObjectUnsafe(originalResult);
                                 }
                                 var resultDone = propagateReturn ? iteratorResult.Done : false;
                                 return (JsValue)CreateIteratorResult(iteratorResult.Value, resultDone);
@@ -906,7 +906,7 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 // Handle case where pending.Value is already a boxed JsValue
-                                var pendingJs = pending.Value is JsValue pjs ? pjs : JsValue.FromObject(pending.Value);
+                                var pendingJs = pending.Value is JsValue pjs ? pjs : JsValue.FromObjectUnsafe(pending.Value);
                                 return CompleteReturn(pendingJs);
                             }
 
@@ -928,7 +928,7 @@ public static partial class TypedAstEvaluator
 
                             _tryStack.Clear();
                             // Handle case where pending.Value is already a boxed JsValue
-                            var throwJs = pending.Value is JsValue tjs ? tjs : JsValue.FromObject(pending.Value);
+                            var throwJs = pending.Value is JsValue tjs ? tjs : JsValue.FromObjectUnsafe(pending.Value);
                             throw new ThrowSignal(throwJs);
 
                         case IteratorInitInstruction iteratorInitInstruction:
@@ -1002,7 +1002,7 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
-                                    currentValue = JsValue.FromObject(enumerator.Current);
+                                    currentValue = JsValue.FromObjectUnsafe(enumerator.Current);
                                 }
                                 else
                                 {
@@ -1160,7 +1160,7 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 var enumerated = awaitEnumerator.Current;
-                                if (!TryAwaitPromiseOrSchedule(JsValue.FromObject(enumerated), context, out var awaitedEnumerated))
+                                if (!TryAwaitPromiseOrSchedule(JsValue.FromObjectUnsafe(enumerated), context, out var awaitedEnumerated))
                                 {
                                     if (_asyncStepMode && _pendingPromise.TryGetObject<JsObject>(out _))
                                     {
@@ -1483,7 +1483,7 @@ public static partial class TypedAstEvaluator
                 }
                 else
                 {
-                    environment.DefineJsValue(awaitKey, JsValue.FromObject(existingState));
+                    environment.DefineJsValue(awaitKey, JsValue.FromObjectUnsafe(existingState));
                 }
             }
 
@@ -1651,7 +1651,7 @@ public static partial class TypedAstEvaluator
                         else
                         {
                             // Handle case where value is already a boxed JsValue
-                            var valueJs = value is JsValue js ? js : JsValue.FromObject(value);
+                            var valueJs = value is JsValue js ? js : JsValue.FromObjectUnsafe(value);
                             environment.DefineJsValue(slot, valueJs);
                         }
                     }

@@ -219,7 +219,7 @@ public static partial class StandardLibrary
                 var rejectedPromise = new JsPromise(engine);
                 AddPromiseInstanceMethods(rejectedPromise.JsObject, rejectedPromise, engine);
                 var error = CreateTypeError("Iterator.next() did not return an object");
-                rejectedPromise.Reject(JsValue.FromObject(error));
+                rejectedPromise.Reject(JsValue.FromObjectUnsafe(error));
                 engine.WriteAsyncIteratorTrace("iteratorNext: rejected promise because next() returned non-object");
                 return new JsValue(rejectedPromise.JsObject);
             }

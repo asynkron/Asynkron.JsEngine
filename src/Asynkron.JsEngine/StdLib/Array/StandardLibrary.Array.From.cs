@@ -122,12 +122,12 @@ public static partial class StandardLibrary
             {
                 var mapperResult = InvokeArrayFromMapper(mapper, host, thisArg, value, k);
                 // Handle case where result is already a boxed JsValue
-                mapped = mapperResult is JsValue mrJs ? mrJs : JsValue.FromObject(mapperResult);
+                mapped = mapperResult is JsValue mrJs ? mrJs : JsValue.FromObjectUnsafe(mapperResult);
             }
             else
             {
                 // Handle case where value is already a boxed JsValue
-                mapped = value is JsValue vJs ? vJs : JsValue.FromObject(value);
+                mapped = value is JsValue vJs ? vJs : JsValue.FromObjectUnsafe(value);
             }
             CreateDataPropertyOrThrow(result, key, mapped, realm, MethodName);
             k++;
@@ -152,7 +152,7 @@ public static partial class StandardLibrary
 
         if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
         {
-            promise.Reject(JsValue.FromObject(CreateTypeError("Array.fromAsync requires an array-like or iterable", realm: realm)));
+            promise.Reject(JsValue.FromObjectUnsafe(CreateTypeError("Array.fromAsync requires an array-like or iterable", realm: realm)));
             return promise.JsObject;
         }
 
@@ -166,7 +166,7 @@ public static partial class StandardLibrary
         {
             if (!mapperCandidate.TryGetObject<IJsCallable>(out var callableMapper))
             {
-                promise.Reject(JsValue.FromObject(CreateTypeError("Array.fromAsync: when provided, the mapping callback must be callable",
+                promise.Reject(JsValue.FromObjectUnsafe(CreateTypeError("Array.fromAsync: when provided, the mapping callback must be callable",
                     realm: realm)));
                 return promise.JsObject;
             }
@@ -219,7 +219,7 @@ public static partial class StandardLibrary
         const string MethodName = "Array.from";
         var result = CreateArrayFromResult(thisValue, realm, 0, false, MethodName);
         // Handle case where items is already a boxed JsValue
-        var itemsArg = items is JsValue itemsJs ? itemsJs : JsValue.FromObject(items);
+        var itemsArg = items is JsValue itemsJs ? itemsJs : JsValue.FromObjectUnsafe(items);
         var iteratorValue = iteratorMethod.Invoke([], itemsArg);
         if (!iteratorValue.TryGetObject<IJsPropertyAccessor>(out var iterator))
         {
@@ -242,7 +242,7 @@ public static partial class StandardLibrary
             JsValue step;
             try
             {
-                step = nextFn.Invoke(Array.Empty<JsValue>(), JsValue.FromObject(iterator));
+                step = nextFn.Invoke(Array.Empty<JsValue>(), JsValue.FromObjectUnsafe(iterator));
             }
             catch (ThrowSignal)
             {
@@ -278,7 +278,7 @@ public static partial class StandardLibrary
                 {
                     var mapperResult = InvokeArrayFromMapper(mapper, host, thisArg, value, k);
                     // Handle case where result is already a boxed JsValue
-                    mappedValue = mapperResult is JsValue mrJs ? mrJs : JsValue.FromObject(mapperResult);
+                    mappedValue = mapperResult is JsValue mrJs ? mrJs : JsValue.FromObjectUnsafe(mapperResult);
                 }
                 catch (ThrowSignal)
                 {
@@ -304,7 +304,7 @@ public static partial class StandardLibrary
     internal static bool TryAwaitPromiseLike(object? candidate, RealmState? realm, Action<object?> onFulfilled,
         Action<object?> onRejected)
     {
-        var jsCandidate = candidate is JsValue value ? value : JsValue.FromObject(candidate);
+        var jsCandidate = candidate is JsValue value ? value : JsValue.FromObjectUnsafe(candidate);
 
         // Handle internal JsPromise instances (both raw and wrapped)
         if (jsCandidate.ObjectValue is JsPromise directPromise)
@@ -339,7 +339,7 @@ public static partial class StandardLibrary
                             return JsValue.Undefined;
                         }, isConstructor: false)
                     ],
-                    JsValue.FromObject(accessor));
+                    JsValue.FromObjectUnsafe(accessor));
                 return true;
             }
             catch (ThrowSignal signal)
@@ -377,8 +377,8 @@ public static partial class StandardLibrary
         }
 
         // Handle case where value and thisArg are already boxed JsValues
-        var valueArg = value is JsValue vJs ? vJs : JsValue.FromObject(value);
-        var thisArgJs = thisArg is JsValue taJs ? taJs : JsValue.FromObject(thisArg);
+        var valueArg = value is JsValue vJs ? vJs : JsValue.FromObjectUnsafe(value);
+        var thisArgJs = thisArg is JsValue taJs ? taJs : JsValue.FromObjectUnsafe(thisArg);
         return mapper.Invoke([valueArg, (double)index], thisArgJs).ToObject();
     }
 
@@ -405,7 +405,7 @@ public static partial class StandardLibrary
             try
             {
                 // Handle case where items is already a boxed JsValue
-                var itemsArg = items is JsValue itemsJs ? itemsJs : JsValue.FromObject(items);
+                var itemsArg = items is JsValue itemsJs ? itemsJs : JsValue.FromObjectUnsafe(items);
                 iteratorValue = iteratorMethod.Invoke(Array.Empty<JsValue>(), itemsArg);
             }
             catch (ThrowSignal signal)
@@ -454,7 +454,7 @@ public static partial class StandardLibrary
                 JsValue step;
                 try
                 {
-                    step = _nextFn.Invoke(Array.Empty<JsValue>(), JsValue.FromObject(_iterator));
+                    step = _nextFn.Invoke(Array.Empty<JsValue>(), JsValue.FromObjectUnsafe(_iterator));
                 }
                 catch (ThrowSignal signal)
                 {
@@ -708,7 +708,7 @@ public static partial class StandardLibrary
             }
 
             _settled = true;
-            promise.Reject(JsValue.FromObject(reason));
+            promise.Reject(JsValue.FromObjectUnsafe(reason));
         }
 
         private void RejectWithClose(object? reason)
@@ -736,7 +736,7 @@ public static partial class StandardLibrary
             }
 
             _settled = true;
-            promise.Resolve(JsValue.FromObject(result));
+            promise.Resolve(JsValue.FromObjectUnsafe(result));
         }
     }
 }

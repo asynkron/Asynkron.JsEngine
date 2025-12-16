@@ -185,7 +185,7 @@ namespace Asynkron.JsEngine.JsTypes;
                         realm: ResolveRealmState(receiver));
                 }
 
-                desc.Set.Invoke([JsValue.FromObject(value)], JsValue.FromObject(receiver ?? this));
+                desc.Set.Invoke([JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver ?? this));
 
                 return;
             }
@@ -220,7 +220,7 @@ namespace Asynkron.JsEngine.JsTypes;
                                 realm: ResolveRealmState(receiver));
                         }
 
-                        inheritedDesc.Set.Invoke([JsValue.FromObject(value)], JsValue.FromObject(receiver ?? this));
+                        inheritedDesc.Set.Invoke([JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver ?? this));
                         return;
                     }
 
@@ -258,7 +258,7 @@ namespace Asynkron.JsEngine.JsTypes;
         {
             if (descriptor!.IsAccessorDescriptor)
             {
-                descriptor.Set?.Invoke([JsValue.FromObject(value)], JsValue.FromObject(receiver ?? this));
+                descriptor.Set?.Invoke([JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver ?? this));
 
                 return;
             }
@@ -285,7 +285,7 @@ namespace Asynkron.JsEngine.JsTypes;
         var setter = GetSetter(name);
         if (setter != null)
         {
-            setter.Invoke([JsValue.FromObject(value)], JsValue.FromObject(receiver ?? this));
+            setter.Invoke([JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver ?? this));
             return;
         }
 
@@ -298,7 +298,7 @@ namespace Asynkron.JsEngine.JsTypes;
             var foundSetter = FindSetterInPrototypeChain(_prototypeAccessor, name);
             if (foundSetter != null)
             {
-                foundSetter.Invoke([JsValue.FromObject(value)], JsValue.FromObject(receiver ?? this));
+                foundSetter.Invoke([JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver ?? this));
                 return;
             }
         }
@@ -356,7 +356,7 @@ namespace Asynkron.JsEngine.JsTypes;
         if (TryGetPropertyInternal(name, out var objValue))
         {
             // Handle case where objValue is already a boxed JsValue
-            value = objValue is JsValue jsVal ? jsVal : JsValue.FromObject(objValue);
+            value = objValue is JsValue jsVal ? jsVal : JsValue.FromObjectUnsafe(objValue);
             return true;
         }
 
@@ -369,7 +369,7 @@ namespace Asynkron.JsEngine.JsTypes;
         if (TryGetPropertyInternal(name, receiver.ToObject(), out var objValue))
         {
             // Handle case where objValue is already a boxed JsValue
-            value = objValue is JsValue jsVal ? jsVal : JsValue.FromObject(objValue);
+            value = objValue is JsValue jsVal ? jsVal : JsValue.FromObjectUnsafe(objValue);
             return true;
         }
 
@@ -1279,7 +1279,7 @@ namespace Asynkron.JsEngine.JsTypes;
                         return true;
                     }
                 }
-                else if (prototype.TryGetProperty(name, JsValue.FromObject(effectiveReceiver), out var jsValue))
+                else if (prototype.TryGetProperty(name, JsValue.FromObjectUnsafe(effectiveReceiver), out var jsValue))
                 {
                     value = jsValue.ToObject();
                     return true;
@@ -1356,7 +1356,7 @@ namespace Asynkron.JsEngine.JsTypes;
                     return true;
                 }
             }
-            else if (prototype.TryGetProperty(name, JsValue.FromObject(receiver), out var jsValue))
+            else if (prototype.TryGetProperty(name, JsValue.FromObjectUnsafe(receiver), out var jsValue))
             {
                 value = jsValue.ToObject();
                 return true;
@@ -1401,7 +1401,7 @@ namespace Asynkron.JsEngine.JsTypes;
                                 value = TypedAstEvaluator.InvokeCallable(
                                     desc.Get,
                                     Array.Empty<JsValue>(),
-                                    JsValue.FromObject(receiver ?? this),
+                                    JsValue.FromObjectUnsafe(receiver ?? this),
                                     context,
                                     ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
                             }
@@ -1463,7 +1463,7 @@ namespace Asynkron.JsEngine.JsTypes;
                     return true;
                 }
             }
-            else if (prototype.TryGetProperty(name, JsValue.FromObject(receiver ?? this), out var jsValue))
+            else if (prototype.TryGetProperty(name, JsValue.FromObjectUnsafe(receiver ?? this), out var jsValue))
             {
                 value = jsValue.ToObject();
                 return true;
@@ -1513,7 +1513,7 @@ namespace Asynkron.JsEngine.JsTypes;
                     value = TypedAstEvaluator.InvokeCallable(
                         virtualDescriptor.Get,
                         Array.Empty<JsValue>(),
-                        JsValue.FromObject(receiver ?? this),
+                        JsValue.FromObjectUnsafe(receiver ?? this),
                         context,
                         ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
                 }
@@ -1545,7 +1545,7 @@ namespace Asynkron.JsEngine.JsTypes;
                         value = TypedAstEvaluator.InvokeCallable(
                             descriptor.Get,
                             Array.Empty<JsValue>(),
-                            JsValue.FromObject(receiver ?? this),
+                            JsValue.FromObjectUnsafe(receiver ?? this),
                             context,
                             ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
                     }

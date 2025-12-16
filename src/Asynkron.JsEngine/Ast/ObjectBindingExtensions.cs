@@ -86,7 +86,7 @@ public static partial class TypedAstEvaluator
 
                 if (preResolvedReference is { } resolvedReference)
                 {
-                    resolvedReference.SetValue(JsValue.FromObject(propertyValue));
+                    resolvedReference.SetValue(JsValue.FromObjectUnsafe(propertyValue));
                 }
                 else
                 {
@@ -121,7 +121,7 @@ public static partial class TypedAstEvaluator
 
                 if (JsOps.TryGetPropertyValue(obj, key, out var restValue, context))
                 {
-                    restObject.SetProperty(key, JsValue.FromObject(restValue));
+                    restObject.SetProperty(key, JsValue.FromObjectUnsafe(restValue));
                 }
                 else if (context.ShouldStopEvaluation)
                 {

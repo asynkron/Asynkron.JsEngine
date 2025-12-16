@@ -35,7 +35,7 @@ public static partial class StandardLibrary
             var valuesIterator = new HostFunction((thisValue, _) =>
             {
                 var typedArray = ValidateTypedArrayReceiver(thisValue, "%TypedArray%.prototype.values", realm);
-                return JsValue.FromObject(CreateArrayIteratorObject(typedArray, idx => typedArray.GetValueForIndex((int)idx), realm));
+                return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(typedArray, idx => typedArray.GetValueForIndex((int)idx), realm));
             }, realm, isConstructor: false);
             valuesIterator.DefineProperty("name",
                 new PropertyDescriptor { Value = "values", Writable = false, Enumerable = false, Configurable = true });
@@ -45,7 +45,7 @@ public static partial class StandardLibrary
             var keysIterator = new HostFunction((thisValue, _) =>
             {
                 var typedArray = ValidateTypedArrayReceiver(thisValue, "%TypedArray%.prototype.keys", realm);
-                return JsValue.FromObject(CreateArrayIteratorObject(typedArray, idx => (double)idx, realm));
+                return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(typedArray, idx => (double)idx, realm));
             }, realm, isConstructor: false);
             keysIterator.DefineProperty("name",
                 new PropertyDescriptor { Value = "keys", Writable = false, Enumerable = false, Configurable = true });
@@ -55,7 +55,7 @@ public static partial class StandardLibrary
             var entriesIterator = new HostFunction((thisValue, _) =>
             {
                 var typedArray = ValidateTypedArrayReceiver(thisValue, "%TypedArray%.prototype.entries", realm);
-                return JsValue.FromObject(CreateArrayIteratorObject(
+                return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(
                     typedArray,
                     idx =>
                     {
@@ -108,7 +108,7 @@ public static partial class StandardLibrary
                 (thisValue, args, realmState) => TypedArrayIncludes(thisValue, args, realmState), realm);
             proto.SetHostedProperty("some",
                 (thisValue, someArgs, realmState) =>
-                    SomeLike(JsValue.FromObject(thisValue), someArgs.Select(a => a).ToList(), realmState, "%TypedArray%.prototype.some"), realm);
+                    SomeLike(JsValue.FromObjectUnsafe(thisValue), someArgs.Select(a => a).ToList(), realmState, "%TypedArray%.prototype.some"), realm);
 
             realm.TypedArrayPrototype = proto;
         }
@@ -146,10 +146,10 @@ public static partial class StandardLibrary
         var prototype = new JsObject();
 
         HostFunction constructor = null!;
-        constructor = new HostFunction((thisValue, args) => JsValue.FromObject(ConstructTypedArray(args, thisValue.IsNullish ? (JsValue)constructor : thisValue)));
+        constructor = new HostFunction((thisValue, args) => JsValue.FromObjectUnsafe(ConstructTypedArray(args, thisValue.IsNullish ? (JsValue)constructor : thisValue)));
         constructor.RealmState = realm;
         constructor.SetInvokeWithContext(
-            (args, _, _, newTarget) => JsValue.FromObject(ConstructTypedArray(args, newTarget.IsNullish ? (JsValue)constructor : newTarget)));
+            (args, _, _, newTarget) => JsValue.FromObjectUnsafe(ConstructTypedArray(args, newTarget.IsNullish ? (JsValue)constructor : newTarget)));
 
         constructor.SetProperty("BYTES_PER_ELEMENT", JsValue.FromNumber((double)bytesPerElement));
         prototype.SetPrototype(realm.ObjectPrototype);
@@ -171,7 +171,7 @@ public static partial class StandardLibrary
         constructor.DefineProperty("of",
             new PropertyDescriptor
             {
-                Value = new HostFunction((thisValue, args) => JsValue.FromObject(TypedArrayOf(thisValue, args)), isConstructor: false),
+                Value = new HostFunction((thisValue, args) => JsValue.FromObjectUnsafe(TypedArrayOf(thisValue, args)), isConstructor: false),
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -179,7 +179,7 @@ public static partial class StandardLibrary
         constructor.DefineProperty("from",
             new PropertyDescriptor
             {
-                Value = new HostFunction((thisValue, args) => JsValue.FromObject(TypedArrayFrom(thisValue, args)), isConstructor: false),
+                Value = new HostFunction((thisValue, args) => JsValue.FromObjectUnsafe(TypedArrayFrom(thisValue, args)), isConstructor: false),
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -380,7 +380,7 @@ public static partial class StandardLibrary
                 {
                     if (!args[1].TryGetObject<IJsCallable>(out var callableMap))
                     {
-                        throw new ThrowSignal(JsValue.FromObject(WrapTypeError("mapfn is not callable", callingEnv)));
+                        throw new ThrowSignal(JsValue.FromObjectUnsafe(WrapTypeError("mapfn is not callable", callingEnv)));
                     }
 
                     mapFn = callableMap;
@@ -427,19 +427,19 @@ public static partial class StandardLibrary
             {
                 if (!methodVal.TryGetObject<IJsCallable>(out var callableIterator))
                 {
-                    throw new ThrowSignal(JsValue.FromObject(WrapTypeError("Iterator method is not callable", callingEnv)));
+                    throw new ThrowSignal(JsValue.FromObjectUnsafe(WrapTypeError("Iterator method is not callable", callingEnv)));
                 }
 
                 var iteratorObj = callableIterator.Invoke([], source);
                 if (!iteratorObj.TryGetObject<IJsPropertyAccessor>(out var iteratorAccessor))
                 {
-                    throw new ThrowSignal(JsValue.FromObject(WrapTypeError("Iterator method did not return an object", callingEnv)));
+                    throw new ThrowSignal(JsValue.FromObjectUnsafe(WrapTypeError("Iterator method did not return an object", callingEnv)));
                 }
 
                 if (!iteratorAccessor.TryGetProperty("next", out var nextVal) ||
                     !nextVal.TryGetObject<IJsCallable>(out var nextCallable))
                 {
-                    throw new ThrowSignal(JsValue.FromObject(WrapTypeError("Iterator result does not expose next", callingEnv)));
+                    throw new ThrowSignal(JsValue.FromObjectUnsafe(WrapTypeError("Iterator result does not expose next", callingEnv)));
                 }
 
                 // Use List<JsValue> to avoid boxing from TryGetProperty results
@@ -449,7 +449,7 @@ public static partial class StandardLibrary
                     var nextResult = nextCallable.Invoke([], iteratorObj);
                     if (!nextResult.TryGetObject<IJsPropertyAccessor>(out var nextResultAccessor))
                     {
-                        throw new ThrowSignal(JsValue.FromObject(WrapTypeError("Iterator result is not an object", callingEnv)));
+                        throw new ThrowSignal(JsValue.FromObjectUnsafe(WrapTypeError("Iterator result is not an object", callingEnv)));
                     }
 
                     var done = nextResultAccessor.TryGetProperty("done", out var doneVal) &&
@@ -517,7 +517,7 @@ public static partial class StandardLibrary
                 var errorValue = typeErrorCtor.Invoke([(JsValue)message], JsValue.Undefined);
                 if (errorValue.TryGetObject<JsObject>(out var errorObj))
                 {
-                    errorObj.SetProperty("constructor", JsValue.FromObject(typeErrorCtor));
+                    errorObj.SetProperty("constructor", JsValue.FromObjectUnsafe(typeErrorCtor));
                     return errorObj;
                 }
 
@@ -834,7 +834,7 @@ public static partial class StandardLibrary
             else
             {
                 // value is JsValue from GetValueForIndex, accumulator is JsValue from callback or initial value
-                var accumulatorJs = accumulator is JsValue accJs ? accJs : JsValue.FromObject(accumulator);
+                var accumulatorJs = accumulator is JsValue accJs ? accJs : JsValue.FromObjectUnsafe(accumulator);
                 accumulator = callback.Invoke([accumulatorJs, value, JsValue.FromNumber((double)k), (JsValue)typedArray], JsValue.Undefined);
             }
 
@@ -1464,7 +1464,7 @@ public static partial class StandardLibrary
     private static void DefineTypedArrayFunction(JsObject target, string name, double length,
         Func<object?, IReadOnlyList<JsValue>, RealmState?, object?> handler, RealmState realm)
     {
-        var fn = new HostFunction((thisValue, args) => JsValue.FromObject(handler(thisValue.ToObject(), args, realm)), realm, isConstructor: false);
+        var fn = new HostFunction((thisValue, args) => JsValue.FromObjectUnsafe(handler(thisValue.ToObject(), args, realm)), realm, isConstructor: false);
         fn.DefineProperty("name",
             new PropertyDescriptor { Value = name, Writable = false, Enumerable = false, Configurable = true });
         fn.DefineProperty("length",

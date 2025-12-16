@@ -330,12 +330,12 @@ public static partial class TypedAstEvaluator
                         var propertyName = propLit.Value.AsString();
                         if (string.Equals(propertyName, "apply", StringComparison.Ordinal))
                         {
-                            return JsValue.FromObject(InvokeWithApply(targetFunction, expression.Arguments, environment, context));
+                            return JsValue.FromObjectUnsafe(InvokeWithApply(targetFunction, expression.Arguments, environment, context));
                         }
 
                         if (string.Equals(propertyName, "call", StringComparison.Ordinal))
                         {
-                            return JsValue.FromObject(InvokeWithCall(targetFunction, expression.Arguments, environment, context));
+                            return JsValue.FromObjectUnsafe(InvokeWithCall(targetFunction, expression.Arguments, environment, context));
                         }
                     }
 
@@ -361,7 +361,7 @@ public static partial class TypedAstEvaluator
                         if (TryGetPropertyValue(targetJs.ToObject(), "formatArgs", out var innerValue) &&
                             innerValue is IJsCallable innerFunction)
                         {
-                            return JsValue.FromObject(InvokeWithCall(innerFunction, expression.Arguments, environment, context));
+                            return JsValue.FromObjectUnsafe(InvokeWithCall(innerFunction, expression.Arguments, environment, context));
                         }
                     }
                 }
@@ -383,7 +383,7 @@ public static partial class TypedAstEvaluator
                     $"Attempted to call a non-callable value '{calleeDescription}' of type '{typeName}'{symbolSuffix}.",
                     context,
                     context.RealmState);
-                context.SetThrow(JsValue.FromObject(error));
+                context.SetThrow(JsValue.FromObjectUnsafe(error));
                 context.CallDepth--;
                 return JsValue.Undefined;
             }
@@ -395,7 +395,7 @@ public static partial class TypedAstEvaluator
                     "Class constructor cannot be invoked without 'new'",
                     context,
                     context.RealmState);
-                context.SetThrow(JsValue.FromObject(error));
+                context.SetThrow(JsValue.FromObjectUnsafe(error));
                 context.CallDepth--;
                 return JsValue.Undefined;
             }
@@ -429,7 +429,7 @@ public static partial class TypedAstEvaluator
             if (expression.Callee is SuperExpression &&
                 environment.TryGet(Symbol.NewTarget, out var inheritedNewTarget))
             {
-                newTargetForCall = JsValue.FromObject(inheritedNewTarget);
+                newTargetForCall = JsValue.FromObjectUnsafe(inheritedNewTarget);
             }
 
             SuperBinding? superBindingForCall = null;
@@ -445,7 +445,7 @@ public static partial class TypedAstEvaluator
                         "Super constructor is not a constructor",
                         context,
                         context.RealmState);
-                    context.SetThrow(JsValue.FromObject(error));
+                    context.SetThrow(JsValue.FromObjectUnsafe(error));
                     context.CallDepth--;
                     return JsValue.Undefined;
                 }
@@ -475,7 +475,7 @@ public static partial class TypedAstEvaluator
                     thisInitializationEnvironment = lexicalThisEnv;
                     if (lexicalThisEnv.TryGet(Symbol.ThisInitialized, out var lexicalInitValue))
                     {
-                        thisInitializationValue = JsValue.FromObject(lexicalInitValue);
+                        thisInitializationValue = JsValue.FromObjectUnsafe(lexicalInitValue);
                     }
                 }
                 // Otherwise, prefer the environment that owns the current `this` binding; the [[ThisInitialized]]
@@ -485,7 +485,7 @@ public static partial class TypedAstEvaluator
                     thisInitializationEnvironment = thisEnv;
                     if (thisEnv.TryGet(Symbol.ThisInitialized, out var initValue))
                     {
-                        thisInitializationValue = JsValue.FromObject(initValue);
+                        thisInitializationValue = JsValue.FromObjectUnsafe(initValue);
                     }
                 }
 
@@ -494,7 +494,7 @@ public static partial class TypedAstEvaluator
                         out var foundValue))
                 {
                     thisInitializationEnvironment = foundEnv;
-                    thisInitializationValue = JsValue.FromObject(foundValue);
+                    thisInitializationValue = JsValue.FromObjectUnsafe(foundValue);
                 }
             }
 
@@ -540,7 +540,7 @@ public static partial class TypedAstEvaluator
                     {
                         var alreadyInitialized = thisInitializationValue.IsUndefined
                             ? (thisInitializationEnvironment.TryGet(Symbol.ThisInitialized, out var initValue)
-                                ? JsValue.FromObject(initValue)
+                                ? JsValue.FromObjectUnsafe(initValue)
                                 : JsValue.Undefined)
                             : thisInitializationValue;
 
@@ -593,7 +593,7 @@ public static partial class TypedAstEvaluator
                         var constructorForSuper = superBindingForCall?.Constructor ?? binding.Constructor;
                         var prototypeForSuper = superBindingForCall?.Prototype ?? binding.Prototype;
                         targetEnvironment.Assign(Symbol.Super,
-                            new SuperBinding(constructorForSuper, prototypeForSuper, JsValue.FromObject(thisAfterSuper), true));
+                            new SuperBinding(constructorForSuper, prototypeForSuper, JsValue.FromObjectUnsafe(thisAfterSuper), true));
                     }
 
                     context.MarkThisInitialized();
@@ -631,7 +631,7 @@ public static partial class TypedAstEvaluator
                 if (isAsyncCallable)
                 {
                     context.Clear();
-                    callResult = JsValue.FromObject(CreateRejectedPromise(signal.ThrownValue.ToObject(), environment));
+                    callResult = JsValue.FromObjectUnsafe(CreateRejectedPromise(signal.ThrownValue.ToObject(), environment));
                 }
                 else
                 {
@@ -644,7 +644,7 @@ public static partial class TypedAstEvaluator
                 // Any synchronous failure while invoking an async function should surface
                 // as a rejected promise rather than throwing out of the call.
                 context.Clear();
-                callResult = JsValue.FromObject(CreateRejectedPromise(ex, environment));
+                callResult = JsValue.FromObjectUnsafe(CreateRejectedPromise(ex, environment));
             }
             finally
             {
@@ -682,7 +682,7 @@ public static partial class TypedAstEvaluator
                 {
                     var reason = context.FlowValue;
                     context.Clear();
-                    return JsValue.FromObject(CreateRejectedPromise(reason, environment));
+                    return JsValue.FromObjectUnsafe(CreateRejectedPromise(reason, environment));
                 }
                 case true:
                     // Async functions should never propagate a throw signal; ensure the
@@ -824,7 +824,7 @@ public static partial class TypedAstEvaluator
         {
             var key = EvaluateExpression(args[0].Expression, env, ctx).ToObject();
             if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
-            return JsValue.FromObject(map.Get(key));
+            return JsValue.FromObjectUnsafe(map.Get(key));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -892,7 +892,7 @@ public static partial class TypedAstEvaluator
             var result = new JsValue[args.Length];
             for (var i = 0; i < args.Length; i++)
             {
-                result[i] = JsValue.FromObject(args[i]);
+                result[i] = JsValue.FromObjectUnsafe(args[i]);
             }
             return result;
         }

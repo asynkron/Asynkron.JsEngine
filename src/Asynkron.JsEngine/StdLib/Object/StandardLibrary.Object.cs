@@ -91,9 +91,9 @@ public static partial class StandardLibrary
         if (descriptor.IsAccessorDescriptor)
         {
             result.SetProperty("get",
-                descriptor is { HasGet: true, Get: not null } ? JsValue.FromObject(descriptor.Get) : JsValue.Undefined);
+                descriptor is { HasGet: true, Get: not null } ? JsValue.FromObjectUnsafe(descriptor.Get) : JsValue.Undefined);
             result.SetProperty("set",
-                descriptor is { HasSet: true, Set: not null } ? JsValue.FromObject(descriptor.Set) : JsValue.Undefined);
+                descriptor is { HasSet: true, Set: not null } ? JsValue.FromObjectUnsafe(descriptor.Set) : JsValue.Undefined);
         }
         else
         {
@@ -101,7 +101,7 @@ public static partial class StandardLibrary
             if (descriptor.HasValue)
             {
                 // Handle case where Value is already a boxed JsValue
-                valJs = descriptor.Value is JsValue v ? v : JsValue.FromObject(descriptor.Value);
+                valJs = descriptor.Value is JsValue v ? v : JsValue.FromObjectUnsafe(descriptor.Value);
             }
             else
             {
@@ -162,7 +162,7 @@ public static partial class StandardLibrary
                 (!descriptor.HasEnumerable || descriptor.Enumerable == current.Enumerable) &&
                 (!descriptor.HasWritable || descriptor.Writable == current.Writable))
             {
-                jsObject.SetProperty(propertyKey, JsValue.FromObject(descriptor.Value));
+                jsObject.SetProperty(propertyKey, JsValue.FromObjectUnsafe(descriptor.Value));
                 return true;
             }
 

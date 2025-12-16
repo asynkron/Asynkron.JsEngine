@@ -43,7 +43,7 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
     private JsValue SupportedLocalesOf(IReadOnlyList<JsValue> args)
     {
         var result = StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
-        return JsValue.FromObject(result);
+        return JsValue.FromObjectUnsafe(result);
     }
 
     private IntlNumberFormatInternalSlots CreateInternalSlots(string locale, IJsPropertyAccessor? options)

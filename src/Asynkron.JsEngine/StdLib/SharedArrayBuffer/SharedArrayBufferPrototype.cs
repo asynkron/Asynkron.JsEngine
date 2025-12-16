@@ -145,7 +145,7 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
             Array.Copy(buffer.Buffer, first, targetBuffer.Buffer, 0, newLen);
         }
 
-        return JsValue.FromObject(newBuffer);
+        return JsValue.FromObjectUnsafe(newBuffer);
     }
 
     protected override void ConfigurePrototype()

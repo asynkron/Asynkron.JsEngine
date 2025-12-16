@@ -19,7 +19,7 @@ public sealed partial class JsonPrototype : JsPrototype
         var context = Realm.CreateContext();
         var jsonStr = JsOps.ToJsString(args[0].ToObject(), context);
         var reviver = args.GetArgument(1).ToObject();
-        return JsValue.FromObject(ParseJsonWithReviver(jsonStr, Realm, context, reviver));
+        return JsValue.FromObjectUnsafe(ParseJsonWithReviver(jsonStr, Realm, context, reviver));
     }
 
     [JsHostMethod("stringify", Length = 3d)]

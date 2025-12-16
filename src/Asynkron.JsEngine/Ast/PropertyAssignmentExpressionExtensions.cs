@@ -76,7 +76,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 // Per ES spec 6.2.3.2 PutValue, if set fails in strict mode, throw TypeError
-                if (!binding.TrySetProperty(superPropertyName, JsValue.FromObject(superAssignedValue), out _) &&
+                if (!binding.TrySetProperty(superPropertyName, JsValue.FromObjectUnsafe(superAssignedValue), out _) &&
                     context.CurrentScope.IsStrict)
                 {
                     throw StandardLibrary.ThrowTypeError(
@@ -85,7 +85,7 @@ public static partial class TypedAstEvaluator
                         context.RealmState);
                 }
 
-                return JsValue.FromObject(superAssignedValue);
+                return JsValue.FromObjectUnsafe(superAssignedValue);
             }
 
             var targetJs = EvaluateExpression(expression.Target, environment, context);
@@ -149,8 +149,8 @@ public static partial class TypedAstEvaluator
             }
 
             var finalReference = CreatePropertyReference(target, finalPropertyName, context, allowPrivate: true);
-            finalReference.SetValue(JsValue.FromObject(assignedValue));
-            return JsValue.FromObject(assignedValue);
+            finalReference.SetValue(JsValue.FromObjectUnsafe(assignedValue));
+            return JsValue.FromObjectUnsafe(assignedValue);
         }
     }
 }

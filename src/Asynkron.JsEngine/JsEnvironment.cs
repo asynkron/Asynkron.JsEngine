@@ -2701,7 +2701,7 @@ public sealed class JsEnvironment
         /// </summary>
         public readonly bool IsUninitialized =>
             (_flags & BindingFlags.HasSpecialBinding) == 0 &&
-            ReferenceEquals(_jsValue.ObjectValue, Uninitialized);
+            (_jsValue.IsUninitialized || ReferenceEquals(_jsValue.ObjectValue, Uninitialized));
 
         /// <summary>
         /// Gets the LiveExportBinding if this is a live export, otherwise null.

@@ -226,6 +226,24 @@ public sealed class JsEnvironment
 
     internal bool IsObjectEnvironment => _withObject is not null;
 
+    /// <summary>
+    /// Checks if this environment or any of its enclosing environments has a with object.
+    /// Used to determine if identifier lookups need to check with bindings.
+    /// </summary>
+    internal bool HasWithObjectInChain()
+    {
+        var current = this;
+        while (current is not null)
+        {
+            if (current._withObject is not null)
+            {
+                return true;
+            }
+            current = current.Enclosing;
+        }
+        return false;
+    }
+
     internal bool IsParameterEnvironment { get; private set; }
 
     internal bool IsBodyEnvironment { get; private set; }

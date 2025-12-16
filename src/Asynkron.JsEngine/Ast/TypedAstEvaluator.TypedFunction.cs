@@ -77,7 +77,10 @@ public static partial class TypedAstEvaluator
             _bodyLexicalNames = CollectLexicalNames(function.Body).ToArray();
             _hasHoistableDeclarations = HasHoistableDeclarations(function.Body);
             _hasParameterExpressions = HasParameterExpressions(_function);
-            _allowIdentifierCache = AllowsIdentifierCaching(_function);
+            // Allow identifier caching only if the function body has no with/eval AND
+            // the closure chain has no with environments (functions defined inside with blocks
+            // need to check with bindings at runtime)
+            _allowIdentifierCache = AllowsIdentifierCaching(_function) && !closure.HasWithObjectInChain();
             _usesArguments = !IsArrowFunction && UsesArgumentsIdentifier(_function);
 
             // Detect simple functions for fast-path invocation
@@ -1748,7 +1751,7 @@ public static partial class TypedAstEvaluator
             // Rent context from pool
             var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
             var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: true);
-            context.AllowIdentifierCache = true;
+            context.AllowIdentifierCache = _allowIdentifierCache;
             context.CallDepth = callingContext.CallDepth;
             context.MaxCallDepth = callingContext.MaxCallDepth;
 
@@ -1834,7 +1837,7 @@ public static partial class TypedAstEvaluator
         {
             var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
             var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: true);
-            context.AllowIdentifierCache = true;
+            context.AllowIdentifierCache = _allowIdentifierCache;
             context.CallDepth = callingContext.CallDepth;
             context.MaxCallDepth = callingContext.MaxCallDepth;
 
@@ -1980,7 +1983,7 @@ public static partial class TypedAstEvaluator
         {
             var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
             var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: true);
-            context.AllowIdentifierCache = true;
+            context.AllowIdentifierCache = _allowIdentifierCache;
             context.CallDepth = callingContext.CallDepth;
             context.MaxCallDepth = callingContext.MaxCallDepth;
 
@@ -2057,7 +2060,7 @@ public static partial class TypedAstEvaluator
             // Rent context from pool - avoids allocation per call
             var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
             var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: false);
-            context.AllowIdentifierCache = true;
+            context.AllowIdentifierCache = _allowIdentifierCache;
 
             if (callingContext is not null)
             {

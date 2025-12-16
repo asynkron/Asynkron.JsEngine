@@ -288,55 +288,6 @@ public sealed class JsEnvironment
     internal bool IsGlobalFunctionScope => _treatAsGlobalFunctionScope || (IsFunctionScope && Enclosing is null);
 
     /// <summary>
-    /// Defines a binding with an object value. Consider using DefineJsValue instead to avoid boxing primitives.
-    /// </summary>
-    [Obsolete("Use DefineJsValue to avoid boxing primitives")]
-    public void Define(
-        Symbol name,
-        object? value,
-        bool isConst = false,
-        bool isGlobalConstant = false,
-        bool isLexical = true,
-        bool blocksFunctionScopeOverride = false,
-        bool canDelete = false,
-        bool isImmutableBinding = false)
-    {
-        if (_values is not null && _values.TryGetValue(name, out var existing) && existing.IsGlobalConstant)
-        {
-            return;
-        }
-
-        ref var binding = ref Values.GetValueRefOrNullRef(name);
-        if (!Unsafe.IsNullRef(ref binding))
-        {
-            if (binding.IsConst || binding.IsGlobalConstant)
-            {
-                // Generators can execute flattened blocks without recreating the
-                // lexical environment per iteration, which would normally allow
-                // a fresh const/let binding each time. If we see a lexical
-                // redeclaration request, replace the binding so loop iterations
-                // can observe the new value instead of sticking with the first.
-                if (isLexical && blocksFunctionScopeOverride)
-                {
-                    binding = new Binding(value, isConst, isGlobalConstant, isLexical,
-                        blocksFunctionScopeOverride, canDelete, isImmutableBinding);
-                }
-
-                return;
-            }
-
-            binding.JsValue = JsValue.FromObject(value);
-            binding.UpgradeLexical(isLexical, blocksFunctionScopeOverride);
-            NotifyBindingObservers(name, value);
-            return;
-        }
-
-        Values[name] = new Binding(value, isConst, isGlobalConstant, isLexical, blocksFunctionScopeOverride,
-            canDelete, isImmutableBinding);
-        NotifyBindingObservers(name, value);
-    }
-
-    /// <summary>
     /// Defines a binding with a JsValue directly, avoiding boxing for primitives.
     /// </summary>
     public void DefineJsValue(
@@ -971,6 +922,45 @@ public sealed class JsEnvironment
         return false;
     }
 
+    /// <summary>
+    /// Resolves a with binding for WRITE operations without checking unscopables.
+    /// Per ES spec, unscopables only affects reads (GetBindingValue), not writes (SetMutableBinding).
+    /// </summary>
+    internal bool TryResolveWithBindingForWrite(
+        Symbol name,
+        EvaluationContext context,
+        out ObjectEnvironmentBinding binding)
+    {
+        var current = this;
+        var hops = 0;
+        const int maxLookupDepth = 10_000;
+        var isStrictReference = IsStrict || context.CurrentScope.IsStrict || context.IsStrictSource;
+
+        while (current is not null && hops++ < maxLookupDepth)
+        {
+            // For writes, only check if property exists - DON'T check unscopables
+            if (current._withObject is not null && HasWithPropertyForAssignment(current._withObject, name))
+            {
+                binding = new ObjectEnvironmentBinding(
+                    current._withObject,
+                    name.Name,
+                    isStrictReference,
+                    AllowMissingAssignment: false);
+                return true;
+            }
+
+            if (current._values is not null && current._values.ContainsKey(name))
+            {
+                break;
+            }
+
+            current = current.Enclosing;
+        }
+
+        binding = default;
+        return false;
+    }
+
     internal AssignmentReference ResolveIdentifierAssignmentReference(Symbol name, EvaluationContext context)
     {
         var strictContext = context.CurrentScope.IsStrict;
@@ -1156,8 +1146,9 @@ public sealed class JsEnvironment
             return;
         }
 
-        // Fast path: skip TryResolveWithBinding when AllowIdentifierCache is true (no with/eval in scope)
-        if (!context.AllowIdentifierCache && TryResolveWithBinding(name, context, out var withBinding))
+        // For writes, use TryResolveWithBindingForWrite which skips unscopables check.
+        // Per ES spec, unscopables only affects reads, not writes.
+        if (!context.AllowIdentifierCache && TryResolveWithBindingForWrite(name, context, out var withBinding))
         {
             if (isStrictContext && IsStrictRestrictedName(name))
             {
@@ -2076,7 +2067,9 @@ public sealed class JsEnvironment
                 return;
             }
 
-            if (current._withObject is not null && HasVisibleWithBinding(current._withObject, name))
+            // For with objects, check if property exists but DON'T check unscopables.
+            // Per ES spec, unscopables only affects reads (GetBindingValue), not writes (SetMutableBinding).
+            if (current._withObject is not null && HasWithPropertyForAssignment(current._withObject, name))
             {
                 if (current._withObject is JsObject withObject)
                 {
@@ -2136,7 +2129,9 @@ public sealed class JsEnvironment
 
         while (current is not null && hops++ < maxLookupDepth)
         {
-            if (current._withObject is not null && HasVisibleWithBinding(current._withObject, name))
+            // For with objects, check if property exists but DON'T check unscopables.
+            // Per ES spec, unscopables only affects reads, not writes/deletes.
+            if (current._withObject is not null && HasWithPropertyForAssignment(current._withObject, name))
             {
                 return current._withObject.Delete(name.Name)
                     ? DeleteBindingResult.Deleted
@@ -2288,6 +2283,21 @@ public sealed class JsEnvironment
     private static bool HasVisibleWithBinding(IJsObjectLike target, Symbol name)
     {
         return TryResolveObjectBinding(target, name, out _, out _);
+    }
+
+    /// <summary>
+    /// Checks if the with object has a property WITHOUT checking unscopables.
+    /// Used for assignment - per ES spec, unscopables only affects reads, not writes.
+    /// </summary>
+    private static bool HasWithPropertyForAssignment(IJsObjectLike target, Symbol name)
+    {
+        var propertyName = name.Name;
+        if (string.IsNullOrEmpty(propertyName))
+        {
+            return false;
+        }
+
+        return HasProperty(target, propertyName);
     }
 
     private static bool TryResolveObjectBinding(

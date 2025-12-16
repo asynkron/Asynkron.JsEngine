@@ -42,7 +42,10 @@ public static partial class TypedAstEvaluator
                 program.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy,
                 cancellationToken,
                 executionKind);
-            context.AllowIdentifierCache = AllowsIdentifierCaching(program);
+            // For eval, always disable identifier caching because eval runs in the caller's
+            // lexical environment which may contain 'with' statements. The static analysis
+            // of the eval code alone doesn't tell us about the outer context.
+            context.AllowIdentifierCache = executionKind != ExecutionKind.Eval && AllowsIdentifierCaching(program);
             context.DrainAwaitMicrotasks = drainAwaitMicrotasks;
             if (inheritedPrivateNameScopes is { IsDefault: false, Length: > 0 } scopes)
             {

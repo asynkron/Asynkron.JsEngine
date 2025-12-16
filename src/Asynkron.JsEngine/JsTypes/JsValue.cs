@@ -4,7 +4,7 @@ using Asynkron.JsEngine.Ast;
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Represents the kind of a JavaScript value.
+/// Represents the kind of JavaScript value.
 /// </summary>
 public enum JsValueKind : byte
 {

@@ -3,29 +3,32 @@ using System;
 
 var engine = new JsEngine();
 
+// Test: with statement base object
 var test = @"
-var result = 'not_set';
+var obj = {
+  attr: 'attribute',
+  fn: function() {
+    return this;
+  }
+};
 
-async function f(x = y, y) {
-  return 'should not reach here';
+var viaCall;
+var viaMember;
+
+with (obj) {
+  // When called through 'with', 'this' should be the with-object
+  viaCall = fn();
+  viaMember = obj.fn();
 }
 
-f().then(
-  v => { result = 'resolved: ' + v; },
-  e => { result = 'rejected: ' + e.constructor.name; }
-);
-
-// Return a promise that waits for the rejection handler
-new Promise(resolve => {
-  setTimeout(() => resolve(result), 10);
-});
+(viaCall === obj) + ',' + (viaMember === obj);
 ";
 
-Console.WriteLine("Test: Async function TDZ in default params");
+Console.WriteLine("Test: with statement base object");
 try {
     var result = await engine.Evaluate(test).ConfigureAwait(false);
     Console.WriteLine($"  Result: {result}");
-    Console.WriteLine("  Expected: rejected: ReferenceError");
+    Console.WriteLine("  Expected: true,true");
 } catch (Exception ex) {
     Console.WriteLine($"  Exception: {ex.GetType().Name}: {ex.Message}");
 }

@@ -900,7 +900,7 @@ internal static class GeneratorYieldLowerer
             return true;
         }
 
-        private ImmutableArray<StatementNode> BuildReturnWithYield(
+        private static ImmutableArray<StatementNode> BuildReturnWithYield(
             YieldExpression yieldExpression,
             IdentifierBinding resumeIdentifier,
             SourceReference? returnSource)
@@ -986,10 +986,8 @@ internal static class GeneratorYieldLowerer
             }
 
             var declarator = declaration.Declarators[0];
-            if (declarator.Target is not IdentifierBinding identifierBinding ||
-                declarator.Initializer is not BinaryExpression binary ||
-                binary.Left is not YieldExpression leftYield ||
-                binary.Right is not YieldExpression rightYield)
+            if (declarator.Target is not IdentifierBinding ||
+                declarator.Initializer is not BinaryExpression { Left: YieldExpression leftYield, Right: YieldExpression rightYield } binary)
             {
                 replacement = default;
                 return false;
@@ -1035,9 +1033,8 @@ internal static class GeneratorYieldLowerer
         {
             if (statement is not ExpressionStatement
                 {
-                    Expression: AssignmentExpression assignment
-                } expressionStatement ||
-                assignment.Value is not YieldExpression yieldExpression)
+                    Expression: AssignmentExpression { Value: YieldExpression yieldExpression } assignment
+                } expressionStatement)
             {
                 replacement = default;
                 return false;

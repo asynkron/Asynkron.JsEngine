@@ -940,7 +940,12 @@ public sealed class JsEnvironment
             return JsValue.FromObject(GetWithBindingValue(globalBinding));
         }
 
-        return JsValue.FromObject(ReadUnresolvable(name));
+        // Identifier not found - throw ReferenceError via ThrowSignal so JavaScript can catch it
+        throw new ThrowSignal(JsValue.FromObject(
+            StdLib.StandardLibrary.CreateReferenceError(
+                $"{name.Name} is not defined",
+                context,
+                context.RealmState)));
     }
 
     /// <summary>
@@ -967,7 +972,12 @@ public sealed class JsEnvironment
             return JsValue.FromObject(GetWithBindingValue(globalBinding));
         }
 
-        return JsValue.FromObject(ReadUnresolvable(name));
+        // Identifier not found - throw ReferenceError via ThrowSignal so JavaScript can catch it
+        throw new ThrowSignal(JsValue.FromObject(
+            StdLib.StandardLibrary.CreateReferenceError(
+                $"{name.Name} is not defined",
+                context,
+                context.RealmState)));
     }
 
     /// <summary>

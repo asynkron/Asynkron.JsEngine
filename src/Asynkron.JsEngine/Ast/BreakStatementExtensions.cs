@@ -9,7 +9,8 @@ public static partial class TypedAstEvaluator
         private JsValue EvaluateBreakJsValue(EvaluationContext context)
         {
             context.SetBreak(statement.Label);
-            return JsValue.Undefined;
+            // Return Unit (empty completion) per ES spec - UpdateEmpty will preserve the previous value
+            return JsValue.Unit;
         }
     }
 }

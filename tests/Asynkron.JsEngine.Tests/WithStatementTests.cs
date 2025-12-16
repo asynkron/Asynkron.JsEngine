@@ -300,4 +300,22 @@ public class WithStatementTests
 
         Assert.True((bool)result!);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task While_BreakCompletionValue_EmptyBody()
+    {
+        // Test: eval('1; while (true) { break; }') should return undefined
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("eval('1; while (true) { break; }')");
+        Assert.Null(result); // undefined
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task While_BreakCompletionValue_WithValue()
+    {
+        // Test: eval('2; while (true) { 3; break; }') should return 3
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("eval('2; while (true) { 3; break; }')");
+        Assert.Equal(3.0, result);
+    }
 }

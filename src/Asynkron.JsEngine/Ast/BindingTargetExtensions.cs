@@ -165,7 +165,9 @@ public static partial class TypedAstEvaluator
                         return;
                     }
 
-                    reference.SetValue(JsValue.FromObject(value));
+                    // value might be a boxed JsValue, handle it appropriately
+                    var valueJs = value is JsValue vjs ? vjs : JsValue.FromObject(value);
+                    reference.SetValue(valueJs);
                     break;
                 }
                 default:

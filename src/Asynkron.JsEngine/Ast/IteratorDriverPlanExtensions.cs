@@ -98,12 +98,13 @@ public static partial class TypedAstEvaluator
                         break;
                     }
 
-                    object? value;
+                    JsValue value;
                     try
                     {
+                        // TryGetProperty returns JsValue, keep as JsValue to avoid boxing
                         value = resultObj.TryGetProperty("value", out var yielded)
                             ? yielded
-                            : Symbol.Undefined;
+                            : JsValue.Undefined;
                     }
                     catch (ThrowSignal)
                     {

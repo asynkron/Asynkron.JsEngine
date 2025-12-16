@@ -204,11 +204,12 @@ public static partial class TypedAstEvaluator
                         IReadOnlyList<JsValue> argList = ArgumentSlice.Empty;
                         if (args.Count > 1 && args[1].TryUnwrap(out JsArray? jsArray))
                         {
+                            // items[i] is already JsValue from JsArray.Items
                             var items = jsArray.Items;
                             var converted = new JsValue[items.Count];
                             for (var i = 0; i < items.Count; i++)
                             {
-                                converted[i] = JsValue.FromObject(items[i]);
+                                converted[i] = items[i];
                             }
                             argList = converted;
                         }

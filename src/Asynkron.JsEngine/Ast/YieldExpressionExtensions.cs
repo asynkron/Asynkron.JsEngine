@@ -37,19 +37,22 @@ public static partial class TypedAstEvaluator
                     payload.IsReturn,
                     payload.Value?.GetType().Name ?? "null");
 
+                // payload.Value might be a boxed JsValue (from resumeValue.ToObject())
+                var payloadValueJs = payload.Value is JsValue pjs ? pjs : JsValue.FromObject(payload.Value);
+
                 if (payload.IsThrow)
                 {
-                    context.SetThrow(JsValue.FromObject(payload.Value));
-                    return JsValue.FromObject(payload.Value);
+                    context.SetThrow(payloadValueJs);
+                    return payloadValueJs;
                 }
 
                 if (payload.IsReturn)
                 {
-                    context.SetReturn(JsValue.FromObject(payload.Value));
-                    return JsValue.FromObject(payload.Value);
+                    context.SetReturn(payloadValueJs);
+                    return payloadValueJs;
                 }
 
-                return JsValue.FromObject(payload.Value);
+                return payloadValueJs;
             }
 
             var yieldedValueJs = expression.Expression is null

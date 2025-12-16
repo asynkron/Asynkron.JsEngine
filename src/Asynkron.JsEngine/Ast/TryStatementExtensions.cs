@@ -75,13 +75,15 @@ public static partial class TypedAstEvaluator
                     pending.HasValue = true;
                     pending.IsThrow = false;
                     pending.IsReturn = true;
-                    pending.Value = savedState.ReturnValue.ToObject();
+                    // Store JsValue directly - will be boxed in object? but we handle unboxing later
+                    pending.Value = savedState.ReturnValue;
                 }
                 else if (savedState.Signal is ThrowFlowCompletionSignal throwSignal)
                 {
                     pending.HasValue = true;
                     pending.IsThrow = true;
                     pending.IsReturn = false;
+                    // Store JsValue directly - will be boxed in object? but we handle unboxing later
                     pending.Value = throwSignal.JsValue;
                 }
             }
@@ -96,13 +98,16 @@ public static partial class TypedAstEvaluator
 
             if (isGenerator && pending?.HasValue == true)
             {
+                // pending.Value might be a boxed JsValue
+                var pendingValueJs = pending.Value is JsValue pjs ? pjs : JsValue.FromObject(pending.Value);
+
                 if (pending.IsThrow)
                 {
-                    context.SetThrow(JsValue.FromObject(pending.Value));
+                    context.SetThrow(pendingValueJs);
                 }
                 else if (pending.IsReturn)
                 {
-                    context.SetReturn(JsValue.FromObject(pending.Value));
+                    context.SetReturn(pendingValueJs);
                 }
 
                 pending.HasValue = false;

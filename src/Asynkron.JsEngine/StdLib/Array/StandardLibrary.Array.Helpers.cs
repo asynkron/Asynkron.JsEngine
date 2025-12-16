@@ -196,12 +196,12 @@ public static partial class StandardLibrary
                 if (!accumulatorSet)
                 {
                     // No initialValue provided: first present element becomes accumulator
-                    accumulator = value;
+                    accumulator = value.ToObject();
                     accumulatorSet = true;
                 }
                 else
                 {
-                    accumulator = callback.Invoke([JsValue.FromObject(accumulator), JsValue.FromObject(value), new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.Undefined).ToObject();
+                    accumulator = callback.Invoke([JsValue.FromObject(accumulator), value, new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.Undefined).ToObject();
                 }
             }
 
@@ -229,7 +229,7 @@ public static partial class StandardLibrary
                 continue;
             }
 
-            var result = callback.Invoke([JsValue.FromObject(value), new JsValue((double)k), JsValue.FromObject(accessor)], thisArg).ToObject();
+            var result = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], thisArg).ToObject();
             if (IsTruthy(result))
             {
                 return true;
@@ -386,20 +386,20 @@ public static partial class StandardLibrary
         target.DefineProperty(propertyKey, descriptor);
     }
 
-    internal static bool TryGetExistingElement(IJsPropertyAccessor accessor, long index, out object? value)
+    internal static bool TryGetExistingElement(IJsPropertyAccessor accessor, long index, out JsValue value)
     {
         return TryGetExistingElement(accessor, ToIndexString(index), out value);
     }
 
-    internal static bool TryGetExistingElement(IJsPropertyAccessor accessor, string propertyKey, out object? value)
+    internal static bool TryGetExistingElement(IJsPropertyAccessor accessor, string propertyKey, out JsValue value)
     {
         if (!HasProperty(accessor, propertyKey))
         {
-            value = null;
+            value = JsValue.Undefined;
             return false;
         }
 
-        value = accessor.TryGetProperty(propertyKey, out var obtained) ? obtained : Symbol.Undefined;
+        value = accessor.TryGetProperty(propertyKey, out var obtained) ? obtained : JsValue.Undefined;
         return true;
     }
 

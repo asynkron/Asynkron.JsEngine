@@ -1311,12 +1311,6 @@ public sealed class JsEnvironment
         return binding.JsValue.ToObject();
     }
 
-    // Debug counters for ReadResolvedBindingJsValue paths
-    public static long PathUninitialized;
-    public static long PathLiveExport;
-    public static long PathGlobalScope;
-    public static long PathNormal;
-
     /// <summary>
     /// Reads a resolved binding value as JsValue, avoiding boxing for primitives.
     /// </summary>
@@ -1325,7 +1319,6 @@ public sealed class JsEnvironment
         // Check IsUninitialized before reading - this is a TDZ violation
         if (binding.IsUninitialized)
         {
-            Interlocked.Increment(ref PathUninitialized);
             throw new ThrowSignal(JsValue.FromObject(
                 StdLib.StandardLibrary.CreateReferenceError(
                     $"Cannot access '{name.Name}' before initialization",
@@ -1336,7 +1329,6 @@ public sealed class JsEnvironment
         // Check for live export bindings
         if (binding.LiveExportBindingOrNull is { } liveBinding)
         {
-            Interlocked.Increment(ref PathLiveExport);
             return JsValue.FromObject(liveBinding.GetValue());
         }
 
@@ -1345,12 +1337,10 @@ public sealed class JsEnvironment
             var globalObject = bindingEnvironment.GetRootGlobalObject();
             if (globalObject is not null && globalObject.TryGetProperty(name.Name, out var globalValue))
             {
-                Interlocked.Increment(ref PathGlobalScope);
                 return globalValue; // globalValue is already JsValue - don't box via FromObject!
             }
         }
 
-        Interlocked.Increment(ref PathNormal);
         return binding.JsValue;
     }
 
@@ -1876,7 +1866,7 @@ public sealed class JsEnvironment
                     if (globalObject is not null &&
                         globalObject.TryGetProperty(name.Name, out var globalValue))
                     {
-                        value = JsValue.FromObject(globalValue);
+                        value = globalValue; // globalValue is already JsValue - don't box via FromObject!
                         return true;
                     }
                 }
@@ -1894,7 +1884,7 @@ public sealed class JsEnvironment
 
             if (current._withObject is not null && TryGetFromWith(current._withObject, name, out var withValue))
             {
-                value = JsValue.FromObject(withValue);
+                value = JsValue.FromObject(withValue); // withValue is object?, needs FromObject
                 return true;
             }
 
@@ -1904,7 +1894,7 @@ public sealed class JsEnvironment
         var rootGlobal = GetRootGlobalObject();
         if (rootGlobal is not null && rootGlobal.TryGetProperty(name.Name, out var propertyValue))
         {
-            value = JsValue.FromObject(propertyValue);
+            value = propertyValue; // propertyValue is already JsValue - don't box via FromObject!
             return true;
         }
 

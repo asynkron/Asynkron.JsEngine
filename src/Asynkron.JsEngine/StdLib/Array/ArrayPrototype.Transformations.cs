@@ -416,7 +416,7 @@ public sealed partial class ArrayPrototype
             var fromExists = TryGetExistingElement(target, fromKey, out var value);
             if (fromExists)
             {
-                target.SetProperty(toKey, JsValue.FromObject(value));
+                target.SetProperty(toKey, value);
             }
             else
             {
@@ -444,7 +444,7 @@ public sealed partial class ArrayPrototype
         {
             if (TryGetExistingElement(accessor, k, out var value))
             {
-                values.Add(JsValue.FromObject(value));
+                values.Add(value);
             }
         }
 

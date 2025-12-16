@@ -84,7 +84,7 @@ public sealed partial class ArrayPrototype
             var elementExists = TryGetExistingElement(accessor, key, out var element);
             DeletePropertyOrThrow(objectLike, key, elementExists, MethodName, Realm);
             accessor.SetProperty("length", (double)newLength);
-            return elementExists ? JsValue.FromObject(element) : JsValue.Undefined;
+            return elementExists ? element : JsValue.Undefined;
         }
         finally
         {
@@ -127,7 +127,7 @@ public sealed partial class ArrayPrototype
             var firstExists = TryGetExistingElement(accessor, "0", out var firstValue);
             if (firstExists)
             {
-                firstElement = firstValue;
+                firstElement = firstValue.ToObject();
             }
 
             for (long k = 1; k < length; k++)
@@ -137,7 +137,7 @@ public sealed partial class ArrayPrototype
                 var fromExists = TryGetExistingElement(accessor, fromKey, out var fromValue);
                 if (fromExists)
                 {
-                    accessor.SetProperty(toKey, JsValue.FromObject(fromValue));
+                    accessor.SetProperty(toKey, fromValue);
                 }
                 else
                 {
@@ -193,7 +193,7 @@ public sealed partial class ArrayPrototype
                 var fromExists = TryGetExistingElement(accessor, fromKey, out var fromValue);
                 if (fromExists)
                 {
-                    accessor.SetProperty(toKey, JsValue.FromObject(fromValue));
+                    accessor.SetProperty(toKey, fromValue);
                 }
                 else
                 {
@@ -298,7 +298,7 @@ public sealed partial class ArrayPrototype
 
                     if (TryGetExistingElement(accessor, fromKey, out var fromValue))
                     {
-                        accessor.SetProperty(toKey, JsValue.FromObject(fromValue));
+                        accessor.SetProperty(toKey, fromValue);
                     }
                     else
                     {
@@ -325,7 +325,7 @@ public sealed partial class ArrayPrototype
 
                     if (TryGetExistingElement(accessor, fromKey, out var fromValue))
                     {
-                        accessor.SetProperty(toKey, JsValue.FromObject(fromValue));
+                        accessor.SetProperty(toKey, fromValue);
                     }
                     else
                     {
@@ -380,25 +380,25 @@ public sealed partial class ArrayPrototype
                 var lowerExists = TryGetExistingElement(accessor, lowerKey, out var lowerValue);
                 if (!lowerExists)
                 {
-                    lowerValue = Symbol.Undefined;
+                    lowerValue = JsValue.Undefined;
                 }
 
                 var upperExists = TryGetExistingElement(accessor, upperKey, out var upperValue);
                 if (!upperExists)
                 {
-                    upperValue = Symbol.Undefined;
+                    upperValue = JsValue.Undefined;
                 }
 
                 if (lowerExists && upperExists)
                 {
-                    accessor.SetProperty(lowerKey, JsValue.FromObject(upperValue));
-                    accessor.SetProperty(upperKey, JsValue.FromObject(lowerValue));
+                    accessor.SetProperty(lowerKey, upperValue);
+                    accessor.SetProperty(upperKey, lowerValue);
                     continue;
                 }
 
                 if (!lowerExists && upperExists)
                 {
-                    accessor.SetProperty(lowerKey, JsValue.FromObject(upperValue));
+                    accessor.SetProperty(lowerKey, upperValue);
                     DeletePropertyOrThrow(objectLike, upperKey, upperExists, MethodName, Realm);
                     continue;
                 }
@@ -406,7 +406,7 @@ public sealed partial class ArrayPrototype
                 if (lowerExists && !upperExists)
                 {
                     DeletePropertyOrThrow(objectLike, lowerKey, lowerExists, MethodName, Realm);
-                    accessor.SetProperty(upperKey, JsValue.FromObject(lowerValue));
+                    accessor.SetProperty(upperKey, lowerValue);
                     continue;
                 }
 

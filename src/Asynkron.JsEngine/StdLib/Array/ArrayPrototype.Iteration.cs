@@ -21,7 +21,7 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            var mapped = callback.Invoke([JsValue.FromObject(value), new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.FromObject(thisArg));
+            var mapped = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], thisArg);
             result.SetProperty(ToIndexString(k), mapped);
         }
 
@@ -45,7 +45,7 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            var keep = callback.Invoke([JsValue.FromObject(value), new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.FromObject(thisArg));
+            var keep = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], thisArg);
 #pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
             if (!IsTruthy(keep.ToObject()))
 #pragma warning restore CS0618
@@ -53,7 +53,7 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            result.SetProperty(ToIndexString(toIndex), JsValue.FromObject(value));
+            result.SetProperty(ToIndexString(toIndex), value);
             toIndex++;
         }
 
@@ -86,7 +86,7 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            callback.Invoke([JsValue.FromObject(value), new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.FromObject(thisArg));
+            callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], thisArg);
         }
 
         return JsValue.Undefined;
@@ -105,7 +105,7 @@ public sealed partial class ArrayPrototype
             // candidate is already a JsValue from TryGetProperty
             var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
-            var match = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.FromObject(thisArg));
+            var match = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], thisArg);
 #pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
             if (IsTruthy(match.ToObject()))
 #pragma warning restore CS0618
@@ -129,7 +129,7 @@ public sealed partial class ArrayPrototype
             // candidate is already a JsValue from TryGetProperty
             var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
-            var match = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.FromObject(thisArg));
+            var match = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], thisArg);
 #pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
             if (IsTruthy(match.ToObject()))
 #pragma warning restore CS0618
@@ -161,7 +161,7 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            var result = callback.Invoke([JsValue.FromObject(value), new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.FromObject(thisArg));
+            var result = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], thisArg);
 #pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
             if (!IsTruthy(result.ToObject()))
 #pragma warning restore CS0618
@@ -186,7 +186,7 @@ public sealed partial class ArrayPrototype
             // candidate is already a JsValue from TryGetProperty
             var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
-            var matches = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.FromObject(thisArg));
+            var matches = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], thisArg);
 #pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
             if (IsTruthy(matches.ToObject()))
 #pragma warning restore CS0618
@@ -210,7 +210,7 @@ public sealed partial class ArrayPrototype
             // candidate is already a JsValue from TryGetProperty
             var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
-            var matches = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], JsValue.FromObject(thisArg));
+            var matches = callback.Invoke([value, new JsValue((double)k), JsValue.FromObject(accessor)], thisArg);
 #pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
             if (IsTruthy(matches.ToObject()))
 #pragma warning restore CS0618

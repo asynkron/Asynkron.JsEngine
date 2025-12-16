@@ -307,7 +307,7 @@ public class WithStatementTests
         // Test: eval('1; while (true) { break; }') should return undefined
         await using var engine = new JsEngine();
         var result = await engine.Evaluate("eval('1; while (true) { break; }')");
-        Assert.Null(result); // undefined
+        Assert.True(ReferenceEquals(result, Symbol.Undefined)); // undefined
     }
 
     [Fact(Timeout = 2000)]

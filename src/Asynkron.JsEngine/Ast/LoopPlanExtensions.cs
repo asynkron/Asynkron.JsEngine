@@ -70,14 +70,24 @@ public static partial class TypedAstEvaluator
                 // Note: We do NOT pass loopLabel to inner statements - the block evaluation doesn't either.
                 // Inner loops get their own labels via LabeledStatement. Passing our loopLabel would cause
                 // inner loops to incorrectly handle labeled breaks/continues meant for the outer loop.
+                JsValue bodyResult;
                 if (singleStatement is not null)
                 {
-                    lastValueJs = EvaluateStatementJsValue(singleStatement, iterationEnvironment, context);
+                    bodyResult = EvaluateStatementJsValue(singleStatement, iterationEnvironment, context);
                 }
                 else
                 {
-                    lastValueJs = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
+                    bodyResult = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
                 }
+
+                // Apply UpdateEmpty semantics (ES spec 13.7.3.6 step 2.f):
+                // Only update the completion value if body returned a non-empty value.
+                // This preserves the previous completion value when break/continue has empty completion.
+                if (!bodyResult.IsUnit)
+                {
+                    lastValueJs = bodyResult;
+                }
+
                 if (context.IsReturn || context.IsThrow)
                 {
                     break;

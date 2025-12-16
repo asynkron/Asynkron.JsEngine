@@ -89,19 +89,36 @@ public static partial class TypedAstEvaluator
 
     extension(ExpressionNode expression)
     {
+        /// <summary>
+        /// Ultra-thin hot path for expression evaluation - designed to be inlined.
+        /// Only handles the 3 most common expression types to keep IL size minimal.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue EvaluateExpression(JsEnvironment environment,
             EvaluationContext context)
         {
-            // Fast path for the most common expression types - no Activity overhead
+            // Minimal hot path - explicit type checks for smallest IL footprint
+            if (expression is LiteralExpression literal)
+                return literal.Value;
+            if (expression is IdentifierExpression identifier)
+                return EvaluateIdentifier(identifier, environment, context);
+            if (expression is BinaryExpression binary)
+                return EvaluateBinary(binary, environment, context);
+
+            // Everything else goes through the slow path
+            return expression.EvaluateExpressionSlow(environment, context);
+        }
+
+        /// <summary>
+        /// Slow path for less common expression types. Marked NoInlining to keep hot path small.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private JsValue EvaluateExpressionSlow(JsEnvironment environment,
+            EvaluationContext context)
+        {
+            // Second tier of common expressions
             switch (expression)
             {
-                case LiteralExpression literal:
-                    return literal.Value;
-                case IdentifierExpression identifier:
-                    return EvaluateIdentifier(identifier, environment, context);
-                case BinaryExpression binary:
-                    return EvaluateBinary(binary, environment, context);
                 case UnaryExpression unary:
                     return EvaluateUnary(unary, environment, context);
                 case AssignmentExpression assignment:
@@ -112,7 +129,7 @@ public static partial class TypedAstEvaluator
                     return EvaluateCall(call, environment, context);
             }
 
-            // Slow path - set source reference and optionally trace
+            // Slowest path - set source reference and optionally trace
             context.SourceReference = expression.Source;
 
             return expression switch

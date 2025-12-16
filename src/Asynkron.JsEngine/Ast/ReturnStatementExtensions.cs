@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Ast;
@@ -6,6 +7,7 @@ public static partial class TypedAstEvaluator
 {
     extension(ReturnStatement statement)
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue EvaluateReturnJsValue(
             JsEnvironment environment,
             EvaluationContext context)

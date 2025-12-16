@@ -9,64 +9,76 @@ public static partial class TypedAstEvaluator
 {
     extension(BinaryExpression expression)
     {
+        /// <summary>
+        /// Hot path for binary expressions - handles common arithmetic and comparison operators.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue EvaluateBinary(JsEnvironment environment,
             EvaluationContext context)
         {
-            // ES2022: Handle private identifier in 'in' operator (#field in obj)
-            if (expression.Operator == BinaryOperator.In && expression.Left is PrivateIdentifierExpression privateId)
+            // Hot path: handle common operators directly
+            var op = expression.Operator;
+
+            // Logical operators evaluate left first and may short-circuit
+            if (op == BinaryOperator.LogicalAnd || op == BinaryOperator.LogicalOr || op == BinaryOperator.NullishCoalescing)
             {
-                var rightTarget = EvaluateExpression(expression.Right, environment, context);
+                var left = EvaluateExpression(expression.Left, environment, context);
                 if (context.ShouldStopEvaluation)
-                {
                     return JsValue.Undefined;
-                }
 
-                return PrivateFieldInOperator(privateId.Name, rightTarget.ToObject(), context) ? JsValue.True : JsValue.False;
+                if (op == BinaryOperator.LogicalAnd)
+                    return left.IsTruthy ? EvaluateExpression(expression.Right, environment, context) : left;
+                if (op == BinaryOperator.LogicalOr)
+                    return left.IsTruthy ? left : EvaluateExpression(expression.Right, environment, context);
+                // NullishCoalescing
+                return left.IsNullOrUndefined ? EvaluateExpression(expression.Right, environment, context) : left;
             }
 
-            var left = EvaluateExpression(expression.Left, environment, context);
+            // Slow path: private field In operator, In, InstanceOf
+            if (op == BinaryOperator.In || op == BinaryOperator.InstanceOf)
+                return expression.EvaluateBinarySlow(environment, context);
+
+            // Common case: evaluate both operands then apply operator
+            var leftVal = EvaluateExpression(expression.Left, environment, context);
             if (context.ShouldStopEvaluation)
-            {
                 return JsValue.Undefined;
-            }
 
-            switch (expression.Operator)
-            {
-                case BinaryOperator.LogicalAnd:
-                    return left.IsTruthy
-                        ? EvaluateExpression(expression.Right, environment, context)
-                        : left;
-                case BinaryOperator.LogicalOr:
-                    return left.IsTruthy
-                        ? left
-                        : EvaluateExpression(expression.Right, environment, context);
-                case BinaryOperator.NullishCoalescing:
-                    return left.IsNullOrUndefined
-                        ? EvaluateExpression(expression.Right, environment, context)
-                        : left;
-            }
-
-            var right = EvaluateExpression(expression.Right, environment, context);
+            var rightVal = EvaluateExpression(expression.Right, environment, context);
             if (context.ShouldStopEvaluation)
-            {
                 return JsValue.Undefined;
-            }
 
-            return expression.Operator switch
+            // Hot path operators - most common in loops and calculations
+            if (op == BinaryOperator.Add)
+                return AddValue(leftVal, rightVal, context);
+            if (op == BinaryOperator.Subtract)
+                return SubtractValue(leftVal, rightVal, context);
+            if (op == BinaryOperator.LessThan)
+                return LessThanValue(leftVal, rightVal, context);
+            if (op == BinaryOperator.LessThanOrEqual)
+                return LessThanOrEqualValue(leftVal, rightVal, context);
+            if (op == BinaryOperator.StrictEqual)
+                return StrictEqualsValue(leftVal, rightVal) ? JsValue.True : JsValue.False;
+            if (op == BinaryOperator.StrictNotEqual)
+                return StrictEqualsValue(leftVal, rightVal) ? JsValue.False : JsValue.True;
+
+            // Medium frequency operators
+            return EvaluateBinaryOperator(op, leftVal, rightVal, context);
+        }
+
+        /// <summary>
+        /// Handles medium frequency binary operators.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static JsValue EvaluateBinaryOperator(BinaryOperator op, JsValue left, JsValue right, EvaluationContext context)
+        {
+            return op switch
             {
-                BinaryOperator.Add => AddValue(left, right, context),
-                BinaryOperator.Subtract => SubtractValue(left, right, context),
                 BinaryOperator.Multiply => MultiplyValue(left, right, context),
                 BinaryOperator.Divide => DivideValue(left, right, context),
                 BinaryOperator.Modulo => ModuloValue(left, right, context),
                 BinaryOperator.Power => PowerValue(left, right, context),
                 BinaryOperator.Equal => LooseEqualsValue(left, right, context) ? JsValue.True : JsValue.False,
                 BinaryOperator.NotEqual => LooseEqualsValue(left, right, context) ? JsValue.False : JsValue.True,
-                BinaryOperator.StrictEqual => StrictEqualsValue(left, right) ? JsValue.True : JsValue.False,
-                BinaryOperator.StrictNotEqual => StrictEqualsValue(left, right) ? JsValue.False : JsValue.True,
-                BinaryOperator.LessThan => LessThanValue(left, right, context),
-                BinaryOperator.LessThanOrEqual => LessThanOrEqualValue(left, right, context),
                 BinaryOperator.GreaterThan => GreaterThanValue(left, right, context),
                 BinaryOperator.GreaterThanOrEqual => GreaterThanOrEqualValue(left, right, context),
                 BinaryOperator.BitwiseAnd => BitwiseAndValue(left, right, context),
@@ -75,9 +87,39 @@ public static partial class TypedAstEvaluator
                 BinaryOperator.LeftShift => LeftShiftValue(left, right, context),
                 BinaryOperator.RightShift => RightShiftValue(left, right, context),
                 BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(left, right, context),
+                _ => throw new NotSupportedException($"Operator '{op}' is not supported yet.")
+            };
+        }
+
+        /// <summary>
+        /// Slow path for In and InstanceOf operators.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private JsValue EvaluateBinarySlow(JsEnvironment environment, EvaluationContext context)
+        {
+            // ES2022: Handle private identifier in 'in' operator (#field in obj)
+            if (expression.Operator == BinaryOperator.In && expression.Left is PrivateIdentifierExpression privateId)
+            {
+                var rightTarget = EvaluateExpression(expression.Right, environment, context);
+                if (context.ShouldStopEvaluation)
+                    return JsValue.Undefined;
+
+                return PrivateFieldInOperator(privateId.Name, rightTarget.ToObject(), context) ? JsValue.True : JsValue.False;
+            }
+
+            var left = EvaluateExpression(expression.Left, environment, context);
+            if (context.ShouldStopEvaluation)
+                return JsValue.Undefined;
+
+            var right = EvaluateExpression(expression.Right, environment, context);
+            if (context.ShouldStopEvaluation)
+                return JsValue.Undefined;
+
+            return expression.Operator switch
+            {
                 BinaryOperator.In => InOperator(left.ToObject(), right.ToObject(), context) ? JsValue.True : JsValue.False,
                 BinaryOperator.InstanceOf => InstanceofOperator(left.ToObject(), right.ToObject(), context) ? JsValue.True : JsValue.False,
-                _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet.")
+                _ => JsValue.Undefined
             };
         }
     }

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Ast;
@@ -9,8 +10,9 @@ public static partial class TypedAstEvaluator
     {
         /// <summary>
         /// Evaluates a statement and returns the completion value as JsValue.
-        /// Handles the common cases without boxing.
+        /// Tiny hot path for inlining - only handles the most common cases.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue EvaluateStatementJsValue(
             JsEnvironment environment,
             EvaluationContext context,
@@ -19,34 +21,48 @@ public static partial class TypedAstEvaluator
             context.SourceReference = statement.Source;
             context.ThrowIfCancellationRequested();
 
-            // Fast path - all these return JsValue directly without boxing
+            // Hot path - explicit type checks for best inlining
+            if (statement is ExpressionStatement expressionStatement)
+                return EvaluateExpression(expressionStatement.Expression, environment, context);
+            if (statement is BlockStatement block)
+                return EvaluateBlockJsValue(block, environment, context);
+            if (statement is IfStatement ifStatement)
+                return EvaluateIfJsValue(ifStatement, environment, context);
+            if (statement is ReturnStatement returnStatement)
+                return EvaluateReturnJsValue(returnStatement, environment, context);
+            if (statement is ForStatement forStatement)
+                return EvaluateForJsValue(forStatement, environment, context, activeLabel);
+            if (statement is EmptyStatement)
+                return JsValue.Unit;
+
+            return statement.EvaluateStatementJsValueSlow(environment, context, activeLabel);
+        }
+
+        /// <summary>
+        /// Slow path for less common statement types - marked NoInlining to keep hot path small.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private JsValue EvaluateStatementJsValueSlow(
+            JsEnvironment environment,
+            EvaluationContext context,
+            Symbol? activeLabel)
+        {
+            // Medium frequency statements
             switch (statement)
             {
-                case BlockStatement block:
-                    return EvaluateBlockJsValue(block, environment, context);
-                case ExpressionStatement expressionStatement:
-                    return EvaluateExpression(expressionStatement.Expression, environment, context);
-                case IfStatement ifStatement:
-                    return EvaluateIfJsValue(ifStatement, environment, context);
                 case WhileStatement whileStatement:
                     return EvaluateWhileJsValue(whileStatement, environment, context, activeLabel);
                 case DoWhileStatement doWhileStatement:
                     return EvaluateDoWhileJsValue(doWhileStatement, environment, context, activeLabel);
-                case ForStatement forStatement:
-                    return EvaluateForJsValue(forStatement, environment, context, activeLabel);
                 case SwitchStatement switchStatement:
                     return EvaluateSwitchJsValue(switchStatement, environment, context, activeLabel);
                 case TryStatement tryStatement:
                     return EvaluateTryJsValue(tryStatement, environment, context);
                 case LabeledStatement labeledStatement:
                     return EvaluateLabeledJsValue(labeledStatement, environment, context);
-                case EmptyStatement:
-                    return JsValue.Unit;
-                case ReturnStatement returnStatement:
-                    return EvaluateReturnJsValue(returnStatement, environment, context);
             }
 
-            // Slow path for less common statement types
+            // Low frequency statements with activity tracking
             using var statementActivity = Activity.Current?
                 .StartEvaluatorActivity($"Statement:{statement.GetType().Name}", context, statement.Source);
 

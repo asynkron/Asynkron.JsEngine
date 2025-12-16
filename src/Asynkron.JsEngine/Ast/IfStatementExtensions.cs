@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Ast;
@@ -9,6 +10,7 @@ public static partial class TypedAstEvaluator
         /// <summary>
         /// JsValue-returning version for use in hot loops to avoid boxing.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue EvaluateIfJsValue(JsEnvironment environment, EvaluationContext context)
         {
             var test = EvaluateExpression(statement.Condition, environment, context);

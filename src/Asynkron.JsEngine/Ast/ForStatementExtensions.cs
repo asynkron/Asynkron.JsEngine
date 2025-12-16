@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 
@@ -10,6 +11,7 @@ public static partial class TypedAstEvaluator
         /// <summary>
         /// JsValue-returning version for use in hot paths.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue EvaluateForJsValue(JsEnvironment environment, EvaluationContext context,
             Symbol? loopLabel)
         {

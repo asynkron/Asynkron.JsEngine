@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Ast;
@@ -11,6 +12,7 @@ public static partial class TypedAstEvaluator
         /// Evaluates a block statement and returns the completion value as JsValue.
         /// Returns JsValue.Undefined for empty blocks to match browser behavior.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue EvaluateBlockJsValue(
             JsEnvironment environment,
             EvaluationContext context)

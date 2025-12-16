@@ -27,6 +27,19 @@ public sealed class JsEnvironment
     internal JsValue[]? _slots;
 
     /// <summary>
+    /// Fast storage for 'this' binding in slot-only environments (InvokeSimpleFast).
+    /// Only valid when _hasThisValue is true.
+    /// </summary>
+    internal JsValue _thisValue;
+    internal bool _hasThisValue;
+
+    /// <summary>
+    /// Unique ID for this scope, used to match variables to their declaring environment.
+    /// -1 means not set (use fallback to dictionary lookup).
+    /// </summary>
+    internal int ScopeId { get; set; } = -1;
+
+    /// <summary>
     /// Gets the values dictionary, creating it if necessary.
     /// Use this when you need to add bindings.
     /// </summary>
@@ -102,6 +115,45 @@ public sealed class JsEnvironment
             // Initialize all slots to undefined
             Array.Fill(_slots, JsValue.Undefined);
         }
+    }
+
+    /// <summary>
+    /// Initializes slot storage and scope ID for this environment.
+    /// Call this when creating an environment for a scope that has been analyzed.
+    /// </summary>
+    /// <param name="slotCount">Number of slots needed for this scope.</param>
+    /// <param name="scopeId">Unique ID for this scope from scope analysis.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void InitializeSlots(int slotCount, int scopeId)
+    {
+        ScopeId = scopeId;
+        if (slotCount > 0)
+        {
+            _slots = new JsValue[slotCount];
+            // Initialize all slots to undefined
+            Array.Fill(_slots, JsValue.Undefined);
+        }
+    }
+
+    /// <summary>
+    /// Finds the environment in the chain that has the specified scope ID.
+    /// Returns null if not found (caller should fall back to dictionary lookup).
+    /// </summary>
+    /// <param name="scopeId">The scope ID to find.</param>
+    /// <returns>The environment with matching ScopeId, or null if not found.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal JsEnvironment? FindByScopeId(int scopeId)
+    {
+        var env = this;
+        while (env is not null)
+        {
+            if (env.ScopeId == scopeId)
+            {
+                return env;
+            }
+            env = env.Enclosing;
+        }
+        return null;
     }
 
     /// <summary>
@@ -226,6 +278,11 @@ public sealed class JsEnvironment
         ModulePath = enclosing?.ModulePath;
         IsAsyncModule = enclosing?.IsAsyncModule ?? false;
         Depth = (enclosing?.Depth ?? -1) + 1;
+        // Reset slot-based state
+        _slots = null;
+        _thisValue = default;
+        _hasThisValue = false;
+        ScopeId = -1;
     }
 
     internal bool IsGlobalFunctionScope => _treatAsGlobalFunctionScope || (IsFunctionScope && Enclosing is null);
@@ -610,6 +667,12 @@ public sealed class JsEnvironment
         const int maxLookupDepth = 10_000;
         while (current is not null && hops++ < maxLookupDepth)
         {
+            // Fast path for 'this' in slot-only environments (InvokeSimpleFast)
+            if (Equals(name, Symbol.This) && current._hasThisValue)
+            {
+                return current._thisValue.ToObject();
+            }
+
             if (current._values is not null && current._values.TryGetValue(name, out var binding))
             {
                 if (binding.IsUninitialized)
@@ -785,6 +848,12 @@ public sealed class JsEnvironment
 
         while (current is not null && hops++ < maxLookupDepth)
         {
+            // Fast path for 'this' in slot-only environments (InvokeSimpleFast)
+            if (Equals(name, Symbol.This) && current._hasThisValue)
+            {
+                return true;
+            }
+
             if (current._values is not null && current._values.ContainsKey(name))
             {
                 return true;
@@ -1765,6 +1834,13 @@ public sealed class JsEnvironment
 
         while (current is not null && hops++ < maxLookupDepth)
         {
+            // Fast path for 'this' in slot-only environments (InvokeSimpleFast)
+            if (Equals(name, Symbol.This) && current._hasThisValue)
+            {
+                value = current._thisValue.ToObject();
+                return true;
+            }
+
             if (current._values is not null && current._values.TryGetValue(name, out var binding))
             {
                 // Check IsUninitialized before reading

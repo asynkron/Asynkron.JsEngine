@@ -29,35 +29,48 @@ public static partial class TypedAstEvaluator
 
                         if (targetOperand is IdentifierExpression identifier)
                         {
-                            // Fastest path: slot-based access when scope analysis resolved this identifier
-                            // to a local variable (ScopeDepth=0) AND the environment has slots initialized.
-                            // We only use slots for depth=0 because outer scopes (like global) may not have slots.
-                            if (identifier.SlotIndex >= 0 && identifier.ScopeDepth == 0 && environment.HasSlots)
+                            // Fast path: slot-based access using ScopeId to find the declaring environment.
+                            // This enables O(1) slot access for variables in any scope (local or closure).
+                            if (identifier.SlotIndex >= 0 && identifier.ScopeId >= 0)
                             {
-                                var slotValue = environment._slots![identifier.SlotIndex];
-
-                                // Fast path for Number (most common case in loops)
-                                if (slotValue.Kind == JsValueKind.Number)
+                                // Find the target environment by ScopeId
+                                JsEnvironment? targetEnv;
+                                if (environment.ScopeId == identifier.ScopeId)
                                 {
-                                    var d = slotValue.NumberValue;
-                                    var updatedValue = d + (expression.Operator == UnaryOperator.Increment ? 1 : -1);
-                                    environment._slots![identifier.SlotIndex] = new JsValue(updatedValue);
-                                    return expression.IsPrefix ? new JsValue(updatedValue) : new JsValue(d);
+                                    targetEnv = environment;
+                                }
+                                else
+                                {
+                                    targetEnv = environment.FindByScopeId(identifier.ScopeId);
                                 }
 
-                                // Fall back to JsValue path for non-numeric values
-                                var slotOldNumeric = ToNumericValue(slotValue, context);
-                                if (context.ShouldStopEvaluation)
+                                if (targetEnv?._slots is not null)
                                 {
-                                    return context.FlowValue;
+                                    var slotValue = targetEnv._slots[identifier.SlotIndex];
+
+                                    // Fast path for Number (most common case in loops)
+                                    if (slotValue.Kind == JsValueKind.Number)
+                                    {
+                                        var d = slotValue.NumberValue;
+                                        var updatedValue = d + (expression.Operator == UnaryOperator.Increment ? 1 : -1);
+                                        targetEnv._slots[identifier.SlotIndex] = new JsValue(updatedValue);
+                                        return expression.IsPrefix ? new JsValue(updatedValue) : new JsValue(d);
+                                    }
+
+                                    // Fall back to JsValue path for non-numeric values
+                                    var slotOldNumeric = ToNumericValue(slotValue, context);
+                                    if (context.ShouldStopEvaluation)
+                                    {
+                                        return context.FlowValue;
+                                    }
+
+                                    var slotUpdated = expression.Operator == UnaryOperator.Increment
+                                        ? IncrementValue(slotOldNumeric, context)
+                                        : DecrementValue(slotOldNumeric, context);
+                                    targetEnv._slots[identifier.SlotIndex] = slotUpdated;
+
+                                    return expression.IsPrefix ? slotUpdated : slotOldNumeric;
                                 }
-
-                                var slotUpdated = expression.Operator == UnaryOperator.Increment
-                                    ? IncrementValue(slotOldNumeric, context)
-                                    : DecrementValue(slotOldNumeric, context);
-                                environment._slots![identifier.SlotIndex] = slotUpdated;
-
-                                return expression.IsPrefix ? slotUpdated : slotOldNumeric;
                             }
 
                             // Direct path for simple identifiers (most common case in loops)

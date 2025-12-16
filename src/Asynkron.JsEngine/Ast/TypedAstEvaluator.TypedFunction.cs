@@ -515,11 +515,9 @@ public static partial class TypedAstEvaluator
                 functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-                // Initialize slots for O(1) variable access when scope analysis provided slot count
-                if (_function.SlotCount > 0)
-                {
-                    functionEnvironment.InitializeSlots(_function.SlotCount);
-                }
+                // Don't initialize slots for complex parameter expressions (destructuring, defaults)
+                // Values are bound via dictionary, not slots
+                functionEnvironment.ScopeId = _function.ScopeId;
 
                 parameterEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict, _function.Source,
                     _functionDescription, isParameterEnvironment: true);
@@ -534,11 +532,9 @@ public static partial class TypedAstEvaluator
                 functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-                // Initialize slots for O(1) variable access when scope analysis provided slot count
-                if (_function.SlotCount > 0)
-                {
-                    functionEnvironment.InitializeSlots(_function.SlotCount);
-                }
+                // Don't initialize slots in InvokeWithContext - values are bound via dictionary
+                // Only InvokeSimpleFast uses slot-based parameter binding
+                functionEnvironment.ScopeId = _function.ScopeId;
                 parameterEnvironment = functionEnvironment;
                 varEnvironment = functionEnvironment;
             }
@@ -1602,6 +1598,8 @@ public static partial class TypedAstEvaluator
                 : new JsEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
 
             // Initialize slots for O(1) variable access when scope analysis provided slot count
+            // Always set ScopeId since we use it as indicator for _thisValue validity
+            functionEnvironment.ScopeId = _function.ScopeId;
             if (_function.SlotCount > 0)
             {
                 functionEnvironment.InitializeSlots(_function.SlotCount);
@@ -1633,20 +1631,27 @@ public static partial class TypedAstEvaluator
                     boundThisValue = thisValue;
                 }
             }
-            // Use fast parameter binding - environment is fresh, no existing bindings
-            functionEnvironment.DefineParameterFast(Symbol.This, boundThisValue);
+            // Bind this using fast field access (avoids dictionary allocation)
+            functionEnvironment._thisValue = boundThisValue;
+            functionEnvironment._hasThisValue = true;
 
-            // Bind parameters directly - simple identifiers only (not lexical, can be reassigned)
-            // If slots are available, write parameter values directly to slots for O(1) access
+            // Bind parameters directly to slots for O(1) access (avoids dictionary allocation)
             var slots = functionEnvironment._slots;
-            for (var i = 0; i < _parameterNames.Length; i++)
+            if (slots is not null)
             {
-                var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
-                functionEnvironment.DefineParameterFast(_parameterNames[i], value);
-                // Also write to slot for O(1) access (parameters are slots 0, 1, 2, ...)
-                if (slots is not null)
+                // Fast path: use slots only, skip dictionary entirely
+                for (var i = 0; i < _parameterNames.Length; i++)
                 {
-                    slots[i] = value;
+                    slots[i] = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                }
+            }
+            else
+            {
+                // Fallback: use dictionary when slots not available
+                for (var i = 0; i < _parameterNames.Length; i++)
+                {
+                    var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                    functionEnvironment.DefineParameterFast(_parameterNames[i], value);
                 }
             }
 

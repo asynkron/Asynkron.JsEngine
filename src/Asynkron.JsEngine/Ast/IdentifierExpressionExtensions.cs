@@ -12,16 +12,31 @@ public static partial class TypedAstEvaluator
         private JsValue EvaluateIdentifier(JsEnvironment environment,
             EvaluationContext context)
         {
-            // Fastest path: slot-based access when scope analysis resolved this identifier
-            // to a local variable (ScopeDepth=0) AND the environment has slots initialized.
-            // We only use slots for depth=0 because outer scopes (like global) may not have slots.
-            var slots = environment._slots;
-            if (identifier.SlotIndex >= 0 && identifier.ScopeDepth == 0 && slots is not null)
+            // Fast path: slot-based access using ScopeId to find the declaring environment.
+            // This enables O(1) slot access for variables in any scope (local or closure).
+            if (identifier.SlotIndex >= 0 && identifier.ScopeId >= 0)
             {
-                return slots[identifier.SlotIndex];
+                // Fastest path: current environment matches (most common case for local variables)
+                if (environment.ScopeId == identifier.ScopeId)
+                {
+                    var slots = environment._slots;
+                    if (slots is not null)
+                    {
+                        return slots[identifier.SlotIndex];
+                    }
+                }
+                else
+                {
+                    // Traverse up to find the environment with matching ScopeId
+                    var targetEnv = environment.FindByScopeId(identifier.ScopeId);
+                    if (targetEnv?._slots is not null)
+                    {
+                        return targetEnv._slots[identifier.SlotIndex];
+                    }
+                }
             }
 
-            // Fast path: use TryGetIdentifierJsValue to avoid exception overhead
+            // Fallback: use dictionary-based lookup
             if (environment.TryGetIdentifierJsValue(identifier.Name, context, out var value))
             {
                 return value;

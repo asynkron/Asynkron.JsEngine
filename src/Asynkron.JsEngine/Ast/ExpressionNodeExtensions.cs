@@ -433,6 +433,28 @@ public static partial class TypedAstEvaluator
                     return (JsValue.FromObject(withValue), JsValue.FromObject(withBinding.BindingObject), false);
                 }
 
+                // Fast path: use slot-based lookup when available
+                if (identifier.SlotIndex >= 0 && identifier.ScopeId >= 0)
+                {
+                    if (environment.ScopeId == identifier.ScopeId)
+                    {
+                        var slots = environment._slots;
+                        if (slots is not null)
+                        {
+                            return (slots[identifier.SlotIndex], JsValue.Undefined, false);
+                        }
+                    }
+                    else
+                    {
+                        var targetEnv = environment.FindByScopeId(identifier.ScopeId);
+                        if (targetEnv?._slots is not null)
+                        {
+                            return (targetEnv._slots[identifier.SlotIndex], JsValue.Undefined, false);
+                        }
+                    }
+                }
+
+                // Fallback: dictionary-based lookup
                 var reference = environment.ResolveIdentifierAssignmentReference(identifier.Name, context);
                 var calleeValue = AssignmentReferenceResolver.ReadIdentifierValue(reference.GetValue, context);
                 if (context.ShouldStopEvaluation)

@@ -23,6 +23,11 @@ public sealed class ScopeAnalyzer
         public bool HasWith { get; set; }
         public bool IsDynamic => HasEval || HasWith || (Parent?.IsDynamic ?? false);
 
+        /// <summary>
+        /// Unique ID for this scope, used to match variables to their declaring scope at runtime.
+        /// </summary>
+        public int ScopeId { get; }
+
         private readonly Dictionary<Symbol, int> _variables = new(ReferenceEqualityComparer<Symbol>.Instance);
         private int _nextSlot;
 
@@ -31,12 +36,13 @@ public sealed class ScopeAnalyzer
         /// </summary>
         public int SlotCount => _nextSlot;
 
-        public ScopeInfo(ScopeInfo? parent, bool isFunctionScope, bool isBlockScope)
+        public ScopeInfo(ScopeInfo? parent, bool isFunctionScope, bool isBlockScope, int scopeId)
         {
             Parent = parent;
             Depth = parent is null ? 0 : parent.Depth + 1;
             IsFunctionScope = isFunctionScope;
             IsBlockScope = isBlockScope;
+            ScopeId = scopeId;
         }
 
         /// <summary>
@@ -70,14 +76,15 @@ public sealed class ScopeAnalyzer
     }
 
     private ScopeInfo? _currentScope;
+    private int _nextScopeId;
 
     /// <summary>
     /// Analyzes a program and returns a new program with resolved slot indices.
     /// </summary>
     public ProgramNode Analyze(ProgramNode program)
     {
-        // Start with global/module scope
-        _currentScope = new ScopeInfo(null, isFunctionScope: true, isBlockScope: false);
+        // Start with global/module scope (ScopeId 0 is reserved for global)
+        _currentScope = new ScopeInfo(null, isFunctionScope: true, isBlockScope: false, scopeId: _nextScopeId++);
 
         // First pass: collect all variable declarations
         CollectDeclarations(program);
@@ -97,7 +104,7 @@ public sealed class ScopeAnalyzer
     public FunctionExpression AnalyzeFunction(FunctionExpression function, bool isDeclaration = false)
     {
         var parentScope = _currentScope;
-        _currentScope = new ScopeInfo(parentScope, isFunctionScope: true, isBlockScope: false);
+        _currentScope = new ScopeInfo(parentScope, isFunctionScope: true, isBlockScope: false, scopeId: _nextScopeId++);
 
         // Declare parameters
         foreach (var param in function.Parameters)
@@ -126,12 +133,13 @@ public sealed class ScopeAnalyzer
         // Resolve the body
         var resolvedBody = ResolveBlockStatement(function.Body);
 
-        // Capture slot count before leaving scope
+        // Capture slot count and scope ID before leaving scope
         var slotCount = _currentScope!.IsDynamic ? -1 : _currentScope.SlotCount;
+        var scopeId = _currentScope!.IsDynamic ? -1 : _currentScope.ScopeId;
 
         _currentScope = parentScope;
 
-        return function with { Body = resolvedBody, SlotCount = slotCount };
+        return function with { Body = resolvedBody, SlotCount = slotCount, ScopeId = scopeId };
     }
 
     #region Declaration Collection
@@ -297,7 +305,7 @@ public sealed class ScopeAnalyzer
 
     #region Identifier Resolution
 
-    private (int depth, int slot) ResolveIdentifier(Symbol name)
+    private (int depth, int slot, int scopeId) ResolveIdentifier(Symbol name)
     {
         var scope = _currentScope;
         var depth = 0;
@@ -307,13 +315,13 @@ public sealed class ScopeAnalyzer
             // If we hit a dynamic scope, we can't resolve statically
             if (scope.IsDynamic)
             {
-                return (-1, -1);
+                return (-1, -1, -1);
             }
 
             var slot = scope.GetSlot(name);
             if (slot >= 0)
             {
-                return (depth, slot);
+                return (depth, slot, scope.ScopeId);
             }
 
             // Only increment depth when crossing function boundaries
@@ -326,7 +334,7 @@ public sealed class ScopeAnalyzer
         }
 
         // Not found - could be a global or undeclared
-        return (-1, -1);
+        return (-1, -1, -1);
     }
 
     private ImmutableArray<StatementNode> ResolveStatements(ImmutableArray<StatementNode> statements)
@@ -418,7 +426,7 @@ public sealed class ScopeAnalyzer
     {
         // Create block scope for let/const
         var parentScope = _currentScope;
-        _currentScope = new ScopeInfo(parentScope, isFunctionScope: false, isBlockScope: true);
+        _currentScope = new ScopeInfo(parentScope, isFunctionScope: false, isBlockScope: true, scopeId: _nextScopeId++);
 
         // Collect block-scoped declarations
         foreach (var stmt in block.Statements)
@@ -456,7 +464,7 @@ public sealed class ScopeAnalyzer
         var parentScope = _currentScope;
         if (needsScope)
         {
-            _currentScope = new ScopeInfo(parentScope, isFunctionScope: false, isBlockScope: true);
+            _currentScope = new ScopeInfo(parentScope, isFunctionScope: false, isBlockScope: true, scopeId: _nextScopeId++);
 
             // Collect the loop variable declaration
             if (forStmt.Initializer is VariableDeclaration initDecl)
@@ -499,7 +507,7 @@ public sealed class ScopeAnalyzer
         var parentScope = _currentScope;
         if (needsScope)
         {
-            _currentScope = new ScopeInfo(parentScope, isFunctionScope: false, isBlockScope: true);
+            _currentScope = new ScopeInfo(parentScope, isFunctionScope: false, isBlockScope: true, scopeId: _nextScopeId++);
             CollectBindingDeclarations(forEachStmt.Target);
         }
 
@@ -525,7 +533,7 @@ public sealed class ScopeAnalyzer
         if (tryStmt.Catch is not null)
         {
             var parentScope = _currentScope;
-            _currentScope = new ScopeInfo(parentScope, isFunctionScope: false, isBlockScope: true);
+            _currentScope = new ScopeInfo(parentScope, isFunctionScope: false, isBlockScope: true, scopeId: _nextScopeId++);
 
             if (tryStmt.Catch.Binding is not null)
             {
@@ -551,7 +559,7 @@ public sealed class ScopeAnalyzer
     private SwitchStatement ResolveSwitchStatement(SwitchStatement switchStmt)
     {
         var parentScope = _currentScope;
-        _currentScope = new ScopeInfo(parentScope, isFunctionScope: false, isBlockScope: true);
+        _currentScope = new ScopeInfo(parentScope, isFunctionScope: false, isBlockScope: true, scopeId: _nextScopeId++);
 
         // Collect declarations from all cases
         foreach (var switchCase in switchStmt.Cases)
@@ -700,18 +708,19 @@ public sealed class ScopeAnalyzer
 
     private IdentifierExpression ResolveIdentifierExpression(IdentifierExpression identifier)
     {
-        var (depth, slot) = ResolveIdentifier(identifier.Name);
-        return identifier with { ScopeDepth = depth, SlotIndex = slot };
+        var (depth, slot, scopeId) = ResolveIdentifier(identifier.Name);
+        return identifier with { ScopeDepth = depth, SlotIndex = slot, ScopeId = scopeId };
     }
 
     private AssignmentExpression ResolveAssignmentExpression(AssignmentExpression assignment)
     {
-        var (depth, slot) = ResolveIdentifier(assignment.Target);
+        var (depth, slot, scopeId) = ResolveIdentifier(assignment.Target);
         return assignment with
         {
             Value = ResolveExpression(assignment.Value),
             ScopeDepth = depth,
-            SlotIndex = slot
+            SlotIndex = slot,
+            ScopeId = scopeId
         };
     }
 

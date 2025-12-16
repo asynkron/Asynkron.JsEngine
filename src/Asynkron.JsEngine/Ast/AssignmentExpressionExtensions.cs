@@ -10,37 +10,50 @@ public static partial class TypedAstEvaluator
         private JsValue EvaluateAssignment(JsEnvironment environment,
             EvaluationContext context)
         {
-            // Fastest path: slot-based assignment when scope analysis resolved this identifier
-            // to a local variable (ScopeDepth=0) AND the environment has slots initialized.
-            // We only use slots for depth=0 because outer scopes (like global) may not have slots.
-            if (expression.SlotIndex >= 0 && expression.ScopeDepth == 0 && environment.HasSlots)
+            // Fast path: slot-based assignment using ScopeId to find the declaring environment.
+            // This enables O(1) slot access for variables in any scope (local or closure).
+            if (expression.SlotIndex >= 0 && expression.ScopeId >= 0)
             {
-                if (expression.IsCompoundAssignment &&
-                    TryEvaluateCompoundAssignmentSlotBased(expression, expression.Value, expression.SlotIndex,
-                        environment, context, out var compoundJsValue, out var shouldAssignCompound))
+                // Find the target environment by ScopeId
+                JsEnvironment? targetEnv;
+                if (environment.ScopeId == expression.ScopeId)
                 {
-                    if (context.ShouldStopEvaluation)
+                    targetEnv = environment;
+                }
+                else
+                {
+                    targetEnv = environment.FindByScopeId(expression.ScopeId);
+                }
+
+                if (targetEnv?._slots is not null)
+                {
+                    if (expression.IsCompoundAssignment &&
+                        TryEvaluateCompoundAssignmentSlotBased(expression, expression.Value, expression.SlotIndex,
+                            targetEnv, context, out var compoundJsValue, out var shouldAssignCompound))
                     {
+                        if (context.ShouldStopEvaluation)
+                        {
+                            return compoundJsValue;
+                        }
+
+                        if (shouldAssignCompound)
+                        {
+                            targetEnv._slots![expression.SlotIndex] = compoundJsValue;
+                        }
+
                         return compoundJsValue;
                     }
 
-                    if (shouldAssignCompound)
+                    // Simple slot-based assignment (not compound)
+                    var slotValueJs = EvaluateAssignmentRhsWithNameHintJsValue(expression, expression.Value, environment, context);
+                    if (context.ShouldStopEvaluation)
                     {
-                        environment._slots![expression.SlotIndex] = compoundJsValue;
+                        return slotValueJs;
                     }
 
-                    return compoundJsValue;
-                }
-
-                // Simple slot-based assignment (not compound)
-                var slotValueJs = EvaluateAssignmentRhsWithNameHintJsValue(expression, expression.Value, environment, context);
-                if (context.ShouldStopEvaluation)
-                {
+                    targetEnv._slots![expression.SlotIndex] = slotValueJs;
                     return slotValueJs;
                 }
-
-                environment._slots![expression.SlotIndex] = slotValueJs;
-                return slotValueJs;
             }
 
             // Fast path for compound assignments on simple identifiers

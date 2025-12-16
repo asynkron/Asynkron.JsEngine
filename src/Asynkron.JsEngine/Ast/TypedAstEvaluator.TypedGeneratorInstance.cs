@@ -588,9 +588,10 @@ public static partial class TypedAstEvaluator
                                 _pendingResumeKind is not ResumePayloadKind.Throw and not ResumePayloadKind.Return)
                             {
                                 var pendingKind = yieldStarState.PendingAbrupt;
+                                // PendingValue is now JsValue, no boxing/unboxing needed
                                 var pendingValue = yieldStarState.PendingValue;
                                 yieldStarState.PendingAbrupt = AbruptKind.None;
-                                yieldStarState.PendingValue = null;
+                                yieldStarState.PendingValue = JsValue.Undefined;
                                 yieldStarState.State = null;
                                 yieldStarState.AwaitingResume = false;
                                 environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
@@ -603,7 +604,8 @@ public static partial class TypedAstEvaluator
                                     }
 
                                     _tryStack.Clear();
-                                    throw new ThrowSignal(JsValue.FromObject(pendingValue));
+                                    // pendingValue is already JsValue
+                                    throw new ThrowSignal(pendingValue);
                                 }
 
                                 if (pendingKind == AbruptKind.Return)
@@ -613,7 +615,8 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
-                                    return CompleteReturn(JsValue.FromObject(pendingValue));
+                                    // pendingValue is already JsValue
+                                    return CompleteReturn(pendingValue);
                                 }
                             }
 
@@ -740,7 +743,8 @@ public static partial class TypedAstEvaluator
                                     if (!iteratorResult.Done)
                                     {
                                         yieldStarState.PendingAbrupt = pendingKind;
-                                        yieldStarState.PendingValue = sendValue.ToObject();
+                                        // sendValue is already JsValue, no boxing needed
+                                        yieldStarState.PendingValue = sendValue;
                                         yieldStarState.AwaitingResume = true;
                                         _programCounter = currentIndex;
                                         _state = GeneratorState.Suspended;
@@ -923,7 +927,9 @@ public static partial class TypedAstEvaluator
                             }
 
                             _tryStack.Clear();
-                            throw new ThrowSignal(JsValue.FromObject(pending.Value));
+                            // Handle case where pending.Value is already a boxed JsValue
+                            var throwJs = pending.Value is JsValue tjs ? tjs : JsValue.FromObject(pending.Value);
+                            throw new ThrowSignal(throwJs);
 
                         case IteratorInitInstruction iteratorInitInstruction:
                             var iterableValue = EvaluateExpression(iteratorInitInstruction.IterableExpression,
@@ -1765,7 +1771,8 @@ public static partial class TypedAstEvaluator
             public DelegatedYieldState? State { get; set; }
             public bool AwaitingResume { get; set; }
             public AbruptKind PendingAbrupt { get; set; }
-            public object? PendingValue { get; set; }
+            // Use JsValue instead of object? to avoid boxing
+            public JsValue PendingValue { get; set; }
         }
     }
 }

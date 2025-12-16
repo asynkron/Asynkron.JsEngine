@@ -1283,7 +1283,8 @@ public static partial class StandardLibrary
         }
 
         var length = typedArray.Length;
-        var values = new List<object?>(length);
+        // Use List<JsValue> to avoid boxing from GetValueForIndex
+        var values = new List<JsValue>(length);
         for (var i = 0; i < length; i++)
         {
             if (typedArray.IsDetachedOrOutOfBounds())
@@ -1294,29 +1295,33 @@ public static partial class StandardLibrary
             values.Add(typedArray.GetValueForIndex(i));
         }
 
-        values.Sort((Comparison<object?>)Comparer);
+        values.Sort(Comparer);
 
         var result = TypedArraySpeciesCreate(typedArray, length, realm);
         for (var i = 0; i < values.Count; i++)
         {
-            result.SetValue(i, JsValue.FromObject(values[i]));
+            // values[i] is already JsValue, no wrapping needed
+            result.SetValue(i, values[i]);
         }
 
         return result;
 
-        int Comparer(object? left, object? right)
+        int Comparer(JsValue left, JsValue right)
         {
             if (compareFn is not null)
             {
-                var result = compareFn.Invoke([JsValue.FromObject(left), JsValue.FromObject(right)], JsValue.Undefined);
+                // left and right are already JsValue, no wrapping needed
+                var result = compareFn.Invoke([left, right], JsValue.Undefined);
                 var numeric = JsOps.ToNumber(result);
                 return numeric > 0 ? 1 : numeric < 0 ? -1 : 0;
             }
 
             if (typedArray.IsBigIntArray)
             {
-                var leftBig = left as JsBigInt ?? ToBigInt(left, realmState: realm);
-                var rightBig = right as JsBigInt ?? ToBigInt(right, realmState: realm);
+                var leftObj = left.ToObject();
+                var rightObj = right.ToObject();
+                var leftBig = leftObj as JsBigInt ?? ToBigInt(leftObj, realmState: realm);
+                var rightBig = rightObj as JsBigInt ?? ToBigInt(rightObj, realmState: realm);
                 return leftBig.Value.CompareTo(rightBig.Value);
             }
 

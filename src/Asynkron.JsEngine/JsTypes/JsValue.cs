@@ -715,18 +715,18 @@ public readonly struct JsValue : IEquatable<JsValue>
     public static implicit operator JsValue(JsObject value) => new(value);
     public static implicit operator JsValue(JsBigInt value) => new(value);
     public static implicit operator JsValue(Symbol value) => new(value);
-    public static implicit operator JsValue(TypedAstSymbol value) => new JsValue(JsValueKind.Symbol, 0.0, value);
+    public static implicit operator JsValue(TypedAstSymbol value) => new(JsValueKind.Symbol, 0.0, value);
 
     // Non-JsObject types that implement IJsObjectLike or are wrapped as objects
-    public static implicit operator JsValue(HostFunction value) => new JsValue(JsValueKind.Object, 0.0, value);
-    public static implicit operator JsValue(TypedArrayBase value) => new JsValue(JsValueKind.Object, 0.0, value);
-    public static implicit operator JsValue(JsPromise value) => new JsValue(JsValueKind.Object, 0.0, value);
-    public static implicit operator JsValue(JsRegExp value) => new JsValue(JsValueKind.Object, 0.0, value);
-    public static implicit operator JsValue(JsDataView value) => new JsValue(JsValueKind.Object, 0.0, value);
-    public static implicit operator JsValue(JsMap value) => new JsValue(JsValueKind.Object, 0.0, value);
-    public static implicit operator JsValue(JsSet value) => new JsValue(JsValueKind.Object, 0.0, value);
-    public static implicit operator JsValue(JsWeakMap value) => new JsValue(JsValueKind.Object, 0.0, value);
-    public static implicit operator JsValue(JsWeakSet value) => new JsValue(JsValueKind.Object, 0.0, value);
+    public static implicit operator JsValue(HostFunction value) => new(JsValueKind.Object, 0.0, value);
+    public static implicit operator JsValue(TypedArrayBase value) => new(JsValueKind.Object, 0.0, value);
+    public static implicit operator JsValue(JsPromise value) => new(JsValueKind.Object, 0.0, value);
+    public static implicit operator JsValue(JsRegExp value) => new(JsValueKind.Object, 0.0, value);
+    public static implicit operator JsValue(JsDataView value) => new(JsValueKind.Object, 0.0, value);
+    public static implicit operator JsValue(JsMap value) => new(JsValueKind.Object, 0.0, value);
+    public static implicit operator JsValue(JsSet value) => new(JsValueKind.Object, 0.0, value);
+    public static implicit operator JsValue(JsWeakMap value) => new(JsValueKind.Object, 0.0, value);
+    public static implicit operator JsValue(JsWeakSet value) => new(JsValueKind.Object, 0.0, value);
 
     #endregion
 }

@@ -200,7 +200,8 @@ public static partial class TypedAstEvaluator
                             var converted = new JsValue[items.Count];
                             for (var i = 0; i < items.Count; i++)
                             {
-                                converted[i] = JsValue.FromObject(items[i]);
+                                // items[i] is already JsValue from JsArray.Items
+                                converted[i] = items[i];
                             }
                             argList = converted;
                         }

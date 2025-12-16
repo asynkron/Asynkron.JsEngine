@@ -1434,18 +1434,20 @@ public static partial class TypedAstEvaluator
             // legacy blocking helper so synchronous generators remain usable.
             if (!_asyncStepMode)
             {
-                var awaitedValueSync = EvaluateExpression(expression.Expression, environment, context).ToObject();
+                // Keep as JsValue to avoid boxing round trips
+                var awaitedValueSync = EvaluateExpression(expression.Expression, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return awaitedValueSync;
                 }
 
-                if (!TryAwaitPromise(JsValue.FromObject(awaitedValueSync), context, out var resolvedSync))
+                // awaitedValueSync is already JsValue
+                if (!TryAwaitPromise(awaitedValueSync, context, out var resolvedSync))
                 {
-                    return resolvedSync.ToObject();
+                    return resolvedSync;
                 }
 
-                return resolvedSync.ToObject();
+                return resolvedSync;
             }
 
             // Async-aware mode: use per-site await state so we don't re-run

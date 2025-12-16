@@ -70,7 +70,8 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     public JsArray(IEnumerable<object?> items, RealmState? realmState = null)
         : this(realmState)
     {
-        _items.AddRange(items.Select(JsValue.FromObject));
+        // Handle case where items contain already-boxed JsValue values
+        _items.AddRange(items.Select(item => item is JsValue js ? js : JsValue.FromObject(item)));
         _length = (uint)_items.Count;
     }
 

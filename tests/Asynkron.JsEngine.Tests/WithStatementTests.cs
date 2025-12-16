@@ -275,54 +275,29 @@ public class WithStatementTests
     }
 
     [Fact(Timeout = 2000)]
-    public async Task With_Test262_S12_10_A1_7_T1_Debug()
+    public async Task With_FunctionDefinedInsideWithBlockResolvesToWithObject()
     {
+        // This tests that functions defined inside a with block properly resolve
+        // identifiers through the with object, even though the function's own body
+        // doesn't contain any with statements.
         await using var engine = new JsEngine();
         var result = await engine.Evaluate("""
             var myObj = {
-                p1: 'a',
-                p2: 'b',
-                p3: 'c',
-                p4: 'd',
-                p5: 'e',
-                p6: 'f',
-                p7: 'g',
-                p8: 'h',
-                p9: 'i',
-                p10: 'j',
-                parseInt: 'obj_parseInt',
-                NaN: 'obj_NaN',
-                Infinity: 'obj_Infinity'
+                parseInt: function() { return 'obj_parseInt'; }
             };
 
             var st_parseInt;
-            var st_NaN;
-            var st_Infinity;
 
             with(myObj) {
-                st_parseInt = parseInt;
-                st_NaN = NaN;
-                st_Infinity = Infinity;
+                var f = function() {
+                    st_parseInt = parseInt;
+                };
+                f();
             }
 
-            var results = [];
-            results.push(["st_parseInt", st_parseInt, st_parseInt === 'obj_parseInt']);
-            results.push(["st_NaN", st_NaN, st_NaN === 'obj_NaN']);
-            results.push(["st_Infinity", st_Infinity, st_Infinity === 'obj_Infinity']);
-            results.push(["globalParseInt", typeof parseInt, typeof parseInt === 'function']);
-            results.push(["globalNaN", typeof NaN, typeof NaN === 'number']);
-            results.push(["check11", st_parseInt !== parseInt, "expected true"]);
-            results;
+            st_parseInt !== parseInt && typeof st_parseInt === 'function';
             """);
 
-        var arr = Assert.IsType<JsArray>(result);
-        for (var i = 0; i < (int)arr.Length; i++)
-        {
-            var item = Assert.IsType<JsArray>(arr.GetElement(i).ToObject());
-            var name = item.GetElement(0).ToObject()?.ToString();
-            var value = item.GetElement(1).ToObject();
-            var expected = item.GetElement(2).ToObject();
-            Console.WriteLine($"{name}: {value}, expected: {expected}");
-        }
+        Assert.True((bool)result!);
     }
 }

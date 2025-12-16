@@ -1,38 +1,31 @@
 using Asynkron.JsEngine;
+using System;
 
 var engine = new JsEngine();
-var script = @"
-function Body(x) {
-    this.x = x;
+
+var test = @"
+var result = 'not_set';
+
+async function f(x = y, y) {
+  return 'should not reach here';
 }
 
-Body.prototype.double = function() {
-    return this.x * 2;
-};
+f().then(
+  v => { result = 'resolved: ' + v; },
+  e => { result = 'rejected: ' + e.constructor.name; }
+);
 
-function Container(bodies){
-   this.bodies = bodies;
-}
-
-Container.prototype.sum = function(){
-    var total = 0;
-    for (var i = 0; i < this.bodies.length; i++) {
-       var b = this.bodies[i];
-       total += b.double();
-    }
-    return total;
-}
-
-var c = new Container( Array(new Body(5), new Body(10), new Body(15)) );
-c.sum();
+// Return a promise that waits for the rejection handler
+new Promise(resolve => {
+  setTimeout(() => resolve(result), 10);
+});
 ";
 
-try 
-{
-    var result = await engine.Evaluate(script).ConfigureAwait(false);
-    Console.WriteLine($"Success! Result: {result} (expected: 60)");
-}
-catch (Exception ex)
-{
-    Console.WriteLine($"Error: {ex.Message}");
+Console.WriteLine("Test: Async function TDZ in default params");
+try {
+    var result = await engine.Evaluate(test).ConfigureAwait(false);
+    Console.WriteLine($"  Result: {result}");
+    Console.WriteLine("  Expected: rejected: ReferenceError");
+} catch (Exception ex) {
+    Console.WriteLine($"  Exception: {ex.GetType().Name}: {ex.Message}");
 }

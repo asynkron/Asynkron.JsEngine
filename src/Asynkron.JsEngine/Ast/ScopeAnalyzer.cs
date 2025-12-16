@@ -714,10 +714,19 @@ public sealed class ScopeAnalyzer
 
     private AssignmentExpression ResolveAssignmentExpression(AssignmentExpression assignment)
     {
+        // IMPORTANT: Resolve the Value expression FIRST.
+        // This ensures that if the RHS contains an eval() call, HasEval is set
+        // BEFORE we resolve the Target identifier. Per ES spec 13.15.2, the LHS
+        // reference is resolved before evaluating RHS at runtime, but at static
+        // analysis time we need to know about eval to correctly mark the scope
+        // as dynamic (which disables slot-based optimization).
+        var resolvedValue = ResolveExpression(assignment.Value);
+
+        // Now resolve the target identifier - HasEval will be set correctly
         var (depth, slot, scopeId) = ResolveIdentifier(assignment.Target);
         return assignment with
         {
-            Value = ResolveExpression(assignment.Value),
+            Value = resolvedValue,
             ScopeDepth = depth,
             SlotIndex = slot,
             ScopeId = scopeId

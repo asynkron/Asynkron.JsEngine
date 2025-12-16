@@ -172,7 +172,7 @@ public static partial class StandardLibrary
         var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1].ToObject()) ?? string.Empty : string.Empty;
         var descriptor = ToPropertyDescriptor(args[2], realm);
 
-        return JsValue.FromObject(TryDefinePropertyOnTarget(target, propertyKey, descriptor, realm, false));
+        return TryDefinePropertyOnTarget(target, propertyKey, descriptor, realm, false);
     }
 
     internal static JsValue ReflectDeleteProperty(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
@@ -195,7 +195,7 @@ public static partial class StandardLibrary
             JsArray jsArray => jsArray.DeleteProperty(propertyKey),
             _ => target is JsObject jsObj && jsObj.Remove(propertyKey)
         };
-        return JsValue.FromObject(result);
+        return result;
     }
 
     internal static JsValue ReflectGet(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
@@ -230,7 +230,7 @@ public static partial class StandardLibrary
         var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1].ToObject()) ?? string.Empty : string.Empty;
         var descriptor = target.GetOwnPropertyDescriptor(propertyKey);
         var result = FromPropertyDescriptor(descriptor, realm);
-        return result is not null ? JsValue.FromObject(result) : JsValue.Undefined;
+        return result is not null ? (JsValue)result : JsValue.Undefined;
     }
 
     internal static JsValue ReflectGetPrototypeOf(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
@@ -250,7 +250,7 @@ public static partial class StandardLibrary
             return JsValue.Null;
         }
 
-        return JsValue.FromObject(target.Prototype);
+        return (JsValue)target.Prototype;
     }
 
     internal static JsValue ReflectHas(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
@@ -287,7 +287,7 @@ public static partial class StandardLibrary
             throw new Exception("Reflect.isExtensible: target must be an object.");
         }
 
-        return JsValue.FromObject(IsTargetExtensible(target));
+        return IsTargetExtensible(target);
     }
 
     internal static JsValue ReflectOwnKeys(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
@@ -378,7 +378,7 @@ public static partial class StandardLibrary
 
                 return new JsValue(false);
             case JsArray jsArray when string.Equals(propertyKey, "length", StringComparison.Ordinal):
-                return JsValue.FromObject(jsArray.SetLength(value.ToObject(), null, false));
+                return jsArray.SetLength(value.ToObject(), null, false);
             default:
                 target.SetProperty(propertyKey, value, receiver);
                 return new JsValue(true);

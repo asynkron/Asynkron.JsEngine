@@ -114,7 +114,7 @@ public static partial class StandardLibrary
             }
         }
 
-        var replacement = reviver.Invoke([new JsValue(name), JsValue.FromObject(value)], JsValue.FromObject(holder));
+        var replacement = reviver.Invoke([new JsValue(name), value], JsValue.FromObject(holder));
         return replacement.ToObject();
     }
 

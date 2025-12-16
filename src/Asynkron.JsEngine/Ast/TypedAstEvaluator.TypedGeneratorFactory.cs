@@ -111,7 +111,7 @@ public static partial class TypedAstEvaluator
                 _privateNameScope,
                 _capturedPrivateNameScopes);
             instance.Initialize();
-            return JsValue.FromObject(instance.CreateGeneratorObject());
+            return (JsValue)instance.CreateGeneratorObject();
         }
 
         public JsObject? Prototype => _properties.Prototype;
@@ -189,16 +189,16 @@ public static partial class TypedAstEvaluator
             switch (name)
             {
                 case "call":
-                    value = JsValue.FromObject(new HostFunction((_, args) =>
+                    value = (JsValue)new HostFunction((_, args) =>
                     {
                         var thisArg = args.GetArgument(0);
                         var callArgs = args.SliceFrom(1);
                         return callable.Invoke(callArgs, thisArg);
-                    }));
+                    });
                     return true;
 
                 case "apply":
-                    value = JsValue.FromObject(new HostFunction((_, args) =>
+                    value = (JsValue)new HostFunction((_, args) =>
                     {
                         var thisArg = args.GetArgument(0);
                         IReadOnlyList<JsValue> argList = ArgumentSlice.Empty;
@@ -214,18 +214,18 @@ public static partial class TypedAstEvaluator
                             argList = converted;
                         }
                         return callable.Invoke(argList, thisArg);
-                    }));
+                    });
                     return true;
 
                 case "bind":
-                    value = JsValue.FromObject(new HostFunction((_, args) =>
+                    value = (JsValue)new HostFunction((_, args) =>
                     {
                         var boundThis = args.GetArgument(0);
                         var boundArgs = args.SliceFrom(1);
 
                         // Generator functions are never constructors, so bound generator functions
                         // must also have DisallowConstruct = true per ES spec.
-                        return JsValue.FromObject(new HostFunction((_, innerArgs) =>
+                        return (JsValue)new HostFunction((_, innerArgs) =>
                         {
                             if (boundArgs.Count == 0)
                                 return callable.Invoke(innerArgs, boundThis);
@@ -239,8 +239,8 @@ public static partial class TypedAstEvaluator
                                 finalArgs[boundArgs.Count + i] = innerArgs[i];
 
                             return callable.Invoke(finalArgs, boundThis);
-                        }, _realmState, isConstructor: false) { DisallowConstruct = true });
-                    }));
+                        }, _realmState, isConstructor: false) { DisallowConstruct = true };
+                    });
                     return true;
             }
 
@@ -383,7 +383,7 @@ public static partial class TypedAstEvaluator
                     }
 
                     // GeneratorFunction.prototype = GeneratorFunctionPrototype
-                    generatorFunctionConstructor.SetProperty("prototype", JsValue.FromObject(genFuncProto));
+                    generatorFunctionConstructor.SetProperty("prototype", (JsValue)genFuncProto);
                 }
             }
         }
@@ -422,7 +422,7 @@ public static partial class TypedAstEvaluator
         {
             var evalContext = realm.CreateContext();
             var argCount = args.Count;
-            var bodyValue = argCount > 0 ? args[argCount - 1] : JsValue.FromObject(string.Empty);
+            var bodyValue = argCount > 0 ? args[argCount - 1] : (JsValue)string.Empty;
             var parameterCount = Math.Max(argCount - 1, 0);
 
             var parameters = new string[parameterCount];

@@ -591,6 +591,6 @@ public static partial class TypedAstEvaluator
         metaObject.SetPrototype(null);
         // Set a default URL if we can determine it from the environment
         metaObject.SetProperty("url", string.Empty);
-        return JsValue.FromObject(metaObject);
+        return (JsValue)metaObject;
     }
 }

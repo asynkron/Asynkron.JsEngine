@@ -154,7 +154,7 @@ public static partial class TypedAstEvaluator
             if (environment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
                 ctor is IJsCallable callable)
             {
-                errorObject = callable.Invoke([JsValue.FromObject(ex.Message)], JsValue.Undefined).ToObject();
+                errorObject = callable.Invoke([(JsValue)ex.Message], JsValue.Undefined).ToObject();
             }
 
             context.SetThrow(JsValue.FromObject(errorObject));

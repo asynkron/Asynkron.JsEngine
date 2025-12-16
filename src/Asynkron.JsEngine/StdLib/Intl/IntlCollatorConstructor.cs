@@ -100,7 +100,7 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
             return string.Empty;
         }
 
-        var value = JsValue.FromObject(rawValue);
+        var value = rawValue;
         if (value.IsUndefined)
         {
             return string.Empty;

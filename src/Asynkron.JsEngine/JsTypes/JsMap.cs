@@ -45,28 +45,28 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         // Handle special 'size' property
         if (!string.Equals(name, "size", StringComparison.Ordinal))
         {
-            return _properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObject(this) : receiver, out value);
+            return _properties.TryGetProperty(name, receiver.IsUndefined ? (JsValue)this : receiver, out value);
         }
 
-        value = JsValue.FromObject((double)Size);
+        value = (double)Size;
         return true;
 
     }
 
     public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, JsValue.FromObject(this), out value);
+        return TryGetProperty(name, (JsValue)this, out value);
     }
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
     {
         IsPlain = false;
-        _properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObject(this) : receiver);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? (JsValue)this : receiver);
     }
 
     public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, JsValue.FromObject(this));
+        SetProperty(name, value, (JsValue)this);
     }
 
     public JsObject? Prototype => _properties.Prototype;
@@ -252,7 +252,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         foreach (var key in _insertionOrder)
         {
             var value = Get(key);
-            callback.Invoke([JsValue.FromObject(value), JsValue.FromObject(key), JsValue.FromObject(this)], JsValue.FromObject(thisArg));
+            callback.Invoke([JsValue.FromObject(value), JsValue.FromObject(key), (JsValue)this], JsValue.FromObject(thisArg));
         }
     }
 

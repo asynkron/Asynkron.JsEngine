@@ -14,7 +14,7 @@ public sealed partial class IntlDateTimeFormatPrototype
 
     internal static void InitializeInternalSlots(JsObject instance, DateTimeFormatInternalSlots slots)
     {
-        instance.SetProperty(BrandKey, JsValue.FromObject(true));
+        instance.SetProperty(BrandKey, true);
         instance.SetProperty(SlotsKey, JsValue.FromObject(slots));
     }
 
@@ -22,7 +22,7 @@ public sealed partial class IntlDateTimeFormatPrototype
     private JsValue GetFormat(JsValue thisValue)
     {
         var slotData = ValidateReceiver(thisValue, out _);
-        return JsValue.FromObject(CreateBoundFormatFunction(value => FormatInternal(value, slotData)));
+        return (JsValue)CreateBoundFormatFunction(value => FormatInternal(value, slotData));
     }
 
     [JsHostMethod("formatToParts", Length = 1d)]

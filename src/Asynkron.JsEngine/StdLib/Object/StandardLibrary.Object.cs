@@ -221,7 +221,7 @@ public static partial class StandardLibrary
                 continue;
             }
 
-            var descriptor = ToPropertyDescriptor(JsValue.FromObject(descriptorValue), realmState);
+            var descriptor = ToPropertyDescriptor(descriptorValue, realmState);
             TryDefinePropertyOnTarget(target, key, descriptor, realmState, true);
         }
 
@@ -693,7 +693,7 @@ public static partial class StandardLibrary
                 continue;
             }
 
-            descriptors.SetProperty(key, JsValue.FromObject(FromPropertyDescriptor(descriptor, realmState) ?? new JsObject()));
+            descriptors.SetProperty(key, (JsValue)(FromPropertyDescriptor(descriptor, realmState) ?? new JsObject()));
         }
 
         return descriptors;

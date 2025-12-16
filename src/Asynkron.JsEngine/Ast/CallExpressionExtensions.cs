@@ -816,7 +816,7 @@ public static partial class TypedAstEvaluator
             if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
             var value = EvaluateExpression(args[1].Expression, env, ctx).ToObject();
             if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
-            return JsValue.FromObject(map.Set(key, value));
+            return (JsValue)map.Set(key, value);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -857,7 +857,7 @@ public static partial class TypedAstEvaluator
         {
             var value = EvaluateExpression(args[0].Expression, env, ctx).ToObject();
             if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
-            return JsValue.FromObject(set.Add(value));
+            return (JsValue)set.Add(value);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

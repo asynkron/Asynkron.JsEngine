@@ -57,7 +57,7 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
             ? jsObj
             : null;
         var instance = PrepareTargetInstance(provided, newTarget, targetCtor);
-        return JsValue.FromObject(InitializeRegExp(args, instance));
+        return (JsValue)InitializeRegExp(args, instance);
     }
 
     private JsObject PrepareTargetInstance(JsObject? provided, IJsCallable newTarget, IJsCallable targetCtor)

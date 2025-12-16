@@ -256,7 +256,7 @@ public sealed partial class ObjectPrototype : JsPrototype
 
             if (candidate is JsObject jsObj && jsObj.TryGetProperty("__proto__", out var protoProp))
             {
-                var protoJsValue = JsValue.FromObject(protoProp);
+                var protoJsValue = protoProp;
                 if (protoJsValue.TryGetObject<IJsObjectLike>(out var protoFromProp))
                 {
                     prototype = protoFromProp;

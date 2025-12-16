@@ -233,8 +233,8 @@ public sealed partial class IntlLocalePrototype
             ? dir
             : "ltr";
         var info = new JsObject(Realm.ObjectPrototype);
-        info.SetProperty("direction", JsValue.FromObject(direction));
-        return JsValue.FromObject(info);
+        info.SetProperty("direction", (JsValue)direction);
+        return (JsValue)info;
     }
 
     [JsHostMethod("getTimeZones", Length = 0d)]
@@ -269,12 +269,12 @@ public sealed partial class IntlLocalePrototype
         var locale = ValidateLocaleReceiver(thisValue);
         var info = new JsObject(Realm.ObjectPrototype);
         var firstDay = ResolveFirstDayOfWeek(locale);
-        info.SetProperty("firstDay", JsValue.FromObject(ConvertWeekdayToNumber(firstDay)));
+        info.SetProperty("firstDay", ConvertWeekdayToNumber(firstDay));
 
         var weekend = ResolveWeekendDays(locale);
         info.SetProperty("weekend", JsValue.FromObject(CreateWeekendArray(weekend)));
-        info.SetProperty("minimalDays", JsValue.FromObject(ResolveMinimalDays(locale)));
-        return JsValue.FromObject(info);
+        info.SetProperty("minimalDays", ResolveMinimalDays(locale));
+        return (JsValue)info;
     }
 
     [JsHostMethod("toString", Length = 0d)]
@@ -290,7 +290,7 @@ public sealed partial class IntlLocalePrototype
         var locale = ValidateLocaleReceiver(thisValue);
         var tag = GetCanonicalTag(locale);
         var maximized = IntlLocaleLikelySubtags.AddLikelySubtags(tag);
-        return JsValue.FromObject(IntlLocaleConstructor.CreateLocaleFromCanonical(maximized, Realm, locale.Prototype));
+        return (JsValue)IntlLocaleConstructor.CreateLocaleFromCanonical(maximized, Realm, locale.Prototype);
     }
 
     [JsHostMethod("minimize", Length = 0d)]
@@ -299,7 +299,7 @@ public sealed partial class IntlLocalePrototype
         var locale = ValidateLocaleReceiver(thisValue);
         var tag = GetCanonicalTag(locale);
         var minimized = IntlLocaleLikelySubtags.RemoveLikelySubtags(tag);
-        return JsValue.FromObject(IntlLocaleConstructor.CreateLocaleFromCanonical(minimized, Realm, locale.Prototype));
+        return (JsValue)IntlLocaleConstructor.CreateLocaleFromCanonical(minimized, Realm, locale.Prototype);
     }
 
     internal static bool TryBuildLocaleIdentifier(JsObject candidate, out string identifier)

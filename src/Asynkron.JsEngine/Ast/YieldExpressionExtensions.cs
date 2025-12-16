@@ -132,7 +132,9 @@ public static partial class TypedAstEvaluator
                 // Use GetOrFetchNext which returns cached result if available,
                 // or advances the iterator if not. This prevents skipping values
                 // when resuming a generator that has already yielded.
-                var iteratorResult = state.GetOrFetchNext(JsValue.FromObject(pendingSend),
+                // pendingSend might be a boxed JsValue from ResumePayload
+                var pendingSendJs = pendingSend is JsValue psJs ? psJs : JsValue.FromObject(pendingSend);
+                var iteratorResult = state.GetOrFetchNext(pendingSendJs,
                     hasPendingSend && !pendingThrow && !pendingReturn,
                     pendingThrow,
                     pendingReturn,
@@ -219,7 +221,8 @@ public static partial class TypedAstEvaluator
                 // the outer generator returns that same object instead of creating a new one with done: false
                 context.SetYieldWithIteratorResult(value, yieldIndex, iteratorResult.IteratorResultObject);
                 tracker.MarkConsumed(yieldIndex);
-                return JsValue.FromObject(value);
+                // value is already JsValue from iteratorResult.Value
+                return value;
             }
         }
 

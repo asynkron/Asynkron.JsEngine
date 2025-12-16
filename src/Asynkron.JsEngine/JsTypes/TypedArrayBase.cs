@@ -108,7 +108,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
                 end = (int)args[1].AsDouble();
             }
 
-            return JsValue.FromObject(target.Subarray(begin, end));
+            return (JsValue)target.Subarray(begin, end);
         });
 
         _sliceFunction = new HostFunction((thisValue, args) =>
@@ -219,7 +219,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
         // Allow dynamically assigned properties and prototype chain lookups first.
-        if (_properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObject(this) : receiver, out value))
+        if (_properties.TryGetProperty(name, receiver.IsUndefined ? (JsValue)this : receiver, out value))
         {
             return true;
         }
@@ -242,19 +242,19 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
                 value = new JsValue((double)BytesPerElement);
                 return true;
             case "set":
-                value = JsValue.FromObject(_setFunction);
+                value = (JsValue)_setFunction;
                 return true;
             case "subarray":
-                value = JsValue.FromObject(_subarrayFunction);
+                value = (JsValue)_subarrayFunction;
                 return true;
             case "slice":
-                value = JsValue.FromObject(_sliceFunction);
+                value = (JsValue)_sliceFunction;
                 return true;
             case "indexOf":
-                value = JsValue.FromObject(_indexOfFunction);
+                value = (JsValue)_indexOfFunction;
                 return true;
             case "includes":
-                value = JsValue.FromObject(_includesFunction);
+                value = (JsValue)_includesFunction;
                 return true;
         }
 
@@ -289,12 +289,12 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
     public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, JsValue.FromObject(this), out value);
+        return TryGetProperty(name, (JsValue)this, out value);
     }
 
     public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, JsValue.FromObject(this));
+        SetProperty(name, value, (JsValue)this);
     }
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
@@ -320,7 +320,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             return;
         }
 
-        _properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObject(this) : receiver);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? (JsValue)this : receiver);
     }
 
     /// <summary>

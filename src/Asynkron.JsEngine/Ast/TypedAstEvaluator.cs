@@ -1219,7 +1219,7 @@ public static partial class TypedAstEvaluator
             var length = typedArray.Length;
             for (var i = 0; i < length; i++)
             {
-                yield return JsValue.FromObject(typedArray.GetValueForIndex(i));
+                yield return typedArray.GetValueForIndex(i);
             }
         }
 
@@ -1277,9 +1277,9 @@ public static partial class TypedAstEvaluator
             iterator.SetPrototype(prototype);
         }
 
-        iterator.SetProperty("next", JsValue.FromObject(new HostFunction(next)));
-        iterator.SetProperty("return", JsValue.FromObject(new HostFunction(@return)));
-        iterator.SetProperty("throw", JsValue.FromObject(new HostFunction(@throw)));
+        iterator.SetProperty("next", (JsValue)new HostFunction(next));
+        iterator.SetProperty("return", (JsValue)new HostFunction(@return));
+        iterator.SetProperty("throw", (JsValue)new HostFunction(@throw));
         return iterator;
     }
 }

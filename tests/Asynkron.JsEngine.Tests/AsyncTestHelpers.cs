@@ -65,10 +65,10 @@ internal static class AsyncTestHelpers
 
             if (promiseCtor is HostFunction hostCtor)
             {
-                return hostCtor.InvokeWithContext([JsValue.FromObject(executor)], JsValue.Undefined, null, JsValue.FromObject(hostCtor));
+                return hostCtor.InvokeWithContext([(JsValue)executor], JsValue.Undefined, null, (JsValue)hostCtor);
             }
 
-            return promiseCtor.Invoke([JsValue.FromObject(executor)], JsValue.Undefined);
+            return promiseCtor.Invoke([(JsValue)executor], JsValue.Undefined);
         });
     }
 }

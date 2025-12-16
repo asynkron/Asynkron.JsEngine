@@ -68,7 +68,7 @@ public static partial class StandardLibrary
 
     internal static void SetArrayLikeLength(IJsPropertyAccessor target, long length)
     {
-        target.SetProperty("length", JsValue.FromObject((double)Math.Max(length, 0)));
+        target.SetProperty("length", (double)Math.Max(length, 0));
     }
 
     internal static long LengthOfArrayLike(object? target, RealmState? realm, string operation)

@@ -14,7 +14,7 @@ public sealed partial class IntlNumberFormatPrototype
 
     internal static void InitializeInternalSlots(JsObject instance, IntlNumberFormatInternalSlots slots)
     {
-        instance.SetProperty(NumberFormatBrand, JsValue.FromObject(true));
+        instance.SetProperty(NumberFormatBrand, true);
         instance.SetProperty(SlotsKey, JsValue.FromObject(slots));
     }
 
@@ -22,7 +22,7 @@ public sealed partial class IntlNumberFormatPrototype
     public JsValue GetFormat(JsValue thisValue)
     {
         var nf = ValidateNumberFormatReceiver(thisValue);
-        return JsValue.FromObject(CreateBoundFormatFunction(value => new JsValue(FormatNumberValue(nf, value))));
+        return (JsValue)CreateBoundFormatFunction(value => new JsValue(FormatNumberValue(nf, value)));
     }
 
     [JsHostMethod("formatToParts", Length = 0d)]
@@ -39,8 +39,8 @@ public sealed partial class IntlNumberFormatPrototype
         foreach (var part in parts)
         {
             var entry = new JsObject(Realm.ObjectPrototype);
-            entry.SetProperty("type", JsValue.FromObject(part.Type));
-            entry.SetProperty("value", JsValue.FromObject(part.Value));
+            entry.SetProperty("type", (JsValue)part.Type);
+            entry.SetProperty("value", (JsValue)part.Value);
             partsArray.Push(entry);
         }
 
@@ -97,19 +97,19 @@ public sealed partial class IntlNumberFormatPrototype
     {
         var slots = GetSlots(nf);
         var obj = new JsObject(Realm.ObjectPrototype);
-        obj.SetProperty("locale", JsValue.FromObject(slots.Locale));
-        obj.SetProperty("numberingSystem", JsValue.FromObject(slots.NumberingSystem));
-        obj.SetProperty("style", JsValue.FromObject(slots.Style));
-        obj.SetProperty("currency", slots.Currency is { Length: > 0 } currencyValue ? JsValue.FromObject(currencyValue) : JsValue.Undefined);
+        obj.SetProperty("locale", (JsValue)slots.Locale);
+        obj.SetProperty("numberingSystem", (JsValue)slots.NumberingSystem);
+        obj.SetProperty("style", (JsValue)slots.Style);
+        obj.SetProperty("currency", slots.Currency is { Length: > 0 } currencyValue ? (JsValue)currencyValue : JsValue.Undefined);
         obj.SetProperty("currencyDisplay",
-            slots.Style == "currency" ? JsValue.FromObject(slots.CurrencyDisplay) : JsValue.Undefined);
+            slots.Style == "currency" ? (JsValue)slots.CurrencyDisplay : JsValue.Undefined);
         obj.SetProperty("currencySign",
-            JsValue.FromObject(slots.Style == "currency" ? slots.CurrencySign : "standard"));
-        obj.SetProperty("minimumIntegerDigits", JsValue.FromObject((double)slots.MinimumIntegerDigits));
+            (JsValue)(slots.Style == "currency" ? slots.CurrencySign : "standard"));
+        obj.SetProperty("minimumIntegerDigits", (double)slots.MinimumIntegerDigits);
         if (slots.UseSignificantDigits)
         {
-            obj.SetProperty("minimumSignificantDigits", JsValue.FromObject((double)(slots.MinimumSignificantDigits ?? 1)));
-            obj.SetProperty("maximumSignificantDigits", JsValue.FromObject((double)(slots.MaximumSignificantDigits ?? 21)));
+            obj.SetProperty("minimumSignificantDigits", (double)(slots.MinimumSignificantDigits ?? 1));
+            obj.SetProperty("maximumSignificantDigits", (double)(slots.MaximumSignificantDigits ?? 21));
             obj.SetProperty("minimumFractionDigits", JsValue.Undefined);
             obj.SetProperty("maximumFractionDigits", JsValue.Undefined);
         }
@@ -117,16 +117,16 @@ public sealed partial class IntlNumberFormatPrototype
         {
             obj.SetProperty("minimumSignificantDigits", JsValue.Undefined);
             obj.SetProperty("maximumSignificantDigits", JsValue.Undefined);
-            obj.SetProperty("minimumFractionDigits", JsValue.FromObject((double)slots.MinimumFractionDigits));
-            obj.SetProperty("maximumFractionDigits", JsValue.FromObject((double)slots.MaximumFractionDigits));
+            obj.SetProperty("minimumFractionDigits", (double)slots.MinimumFractionDigits);
+            obj.SetProperty("maximumFractionDigits", (double)slots.MaximumFractionDigits);
         }
-        obj.SetProperty("useGrouping", JsValue.FromObject(slots.UseGrouping ? "auto" : "never"));
-        obj.SetProperty("notation", JsValue.FromObject(slots.Notation));
-        obj.SetProperty("signDisplay", JsValue.FromObject(slots.SignDisplay));
+        obj.SetProperty("useGrouping", (JsValue)(slots.UseGrouping ? "auto" : "never"));
+        obj.SetProperty("notation", (JsValue)slots.Notation);
+        obj.SetProperty("signDisplay", (JsValue)slots.SignDisplay);
         if (slots.Style == "unit")
         {
-            obj.SetProperty("unit", slots.Unit is { Length: > 0 } unitValue ? JsValue.FromObject(unitValue) : JsValue.Undefined);
-            obj.SetProperty("unitDisplay", JsValue.FromObject(slots.UnitDisplay));
+            obj.SetProperty("unit", slots.Unit is { Length: > 0 } unitValue ? (JsValue)unitValue : JsValue.Undefined);
+            obj.SetProperty("unitDisplay", (JsValue)slots.UnitDisplay);
         }
         else
         {
@@ -157,14 +157,14 @@ public sealed partial class IntlNumberFormatPrototype
     {
         function.DefineProperty("length", new PropertyDescriptor
         {
-            Value = JsValue.FromObject(1d),
+            Value = (JsValue)1d,
             Writable = false,
             Enumerable = false,
             Configurable = true
         });
         function.DefineProperty("name", new PropertyDescriptor
         {
-            Value = JsValue.FromObject(string.Empty),
+            Value = (JsValue)string.Empty,
             Writable = false,
             Enumerable = false,
             Configurable = true

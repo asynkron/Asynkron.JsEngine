@@ -42,27 +42,27 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         // Handle special 'size' property
         if (string.Equals(name, "size", StringComparison.Ordinal))
         {
-            value = JsValue.FromObject((double)Size);
+            value = (double)Size;
             return true;
         }
 
-        return _properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObject(this) : receiver, out value);
+        return _properties.TryGetProperty(name, receiver.IsUndefined ? (JsValue)this : receiver, out value);
     }
 
     public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, JsValue.FromObject(this), out value);
+        return TryGetProperty(name, (JsValue)this, out value);
     }
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
     {
         IsPlain = false;
-        _properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObject(this) : receiver);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? (JsValue)this : receiver);
     }
 
     public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, JsValue.FromObject(this));
+        SetProperty(name, value, (JsValue)this);
     }
 
     public JsObject? Prototype => _properties.Prototype;
@@ -220,7 +220,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         foreach (var value in _insertionOrder)
             // In Set.forEach, the value is passed as both the first and second argument
         {
-            callback.Invoke([JsValue.FromObject(value), JsValue.FromObject(value), JsValue.FromObject(this)], JsValue.FromObject(thisArg));
+            callback.Invoke([JsValue.FromObject(value), JsValue.FromObject(value), (JsValue)this], JsValue.FromObject(thisArg));
         }
     }
 

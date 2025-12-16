@@ -108,7 +108,7 @@ public static partial class StandardLibrary
                 (thisValue, args, realmState) => TypedArrayIncludes(thisValue, args, realmState), realm);
             proto.SetHostedProperty("some",
                 (thisValue, someArgs, realmState) =>
-                    SomeLike(JsValue.FromObject(thisValue), someArgs.Select(a => JsValue.FromObject(a)).ToList(), realmState, "%TypedArray%.prototype.some"), realm);
+                    SomeLike(JsValue.FromObject(thisValue), someArgs.Select(a => a).ToList(), realmState, "%TypedArray%.prototype.some"), realm);
 
             realm.TypedArrayPrototype = proto;
         }
@@ -146,14 +146,14 @@ public static partial class StandardLibrary
         var prototype = new JsObject();
 
         HostFunction constructor = null!;
-        constructor = new HostFunction((thisValue, args) => JsValue.FromObject(ConstructTypedArray(args, thisValue.IsNullish ? JsValue.FromObject(constructor) : thisValue)));
+        constructor = new HostFunction((thisValue, args) => JsValue.FromObject(ConstructTypedArray(args, thisValue.IsNullish ? (JsValue)constructor : thisValue)));
         constructor.RealmState = realm;
         constructor.SetInvokeWithContext(
-            (args, _, _, newTarget) => JsValue.FromObject(ConstructTypedArray(args, newTarget.IsNullish ? JsValue.FromObject(constructor) : newTarget)));
+            (args, _, _, newTarget) => JsValue.FromObject(ConstructTypedArray(args, newTarget.IsNullish ? (JsValue)constructor : newTarget)));
 
         constructor.SetProperty("BYTES_PER_ELEMENT", JsValue.FromNumber((double)bytesPerElement));
         prototype.SetPrototype(realm.ObjectPrototype);
-        prototype.SetProperty("constructor", JsValue.FromObject(constructor));
+        prototype.SetProperty("constructor", (JsValue)constructor);
         var toStringTagKey = SymbolKeys.GetToStringTag(realm);
         prototype.DefineProperty(toStringTagKey,
             new PropertyDescriptor
@@ -204,7 +204,7 @@ public static partial class StandardLibrary
         prototype.DeleteOwnProperty("lastIndexOf");
         prototype.DeleteOwnProperty("includes");
 
-        constructor.SetProperty("prototype", JsValue.FromObject(prototype));
+        constructor.SetProperty("prototype", (JsValue)prototype);
         constructor.Properties.SetPrototype(sharedTypedArrayCtor.PropertiesObject);
 
         return constructor;
@@ -309,8 +309,8 @@ public static partial class StandardLibrary
                 {
                     var value = srcTypedArray switch
                     {
-                        JsBigInt64Array bi64 => JsValue.FromObject(bi64.GetBigIntElement(i)),
-                        JsBigUint64Array bu64 => JsValue.FromObject(bu64.GetBigIntElement(i)),
+                        JsBigInt64Array bi64 => (JsValue)bi64.GetBigIntElement(i),
+                        JsBigUint64Array bu64 => (JsValue)bu64.GetBigIntElement(i),
                         _ => srcTypedArray.GetValueForIndex(i)
                     };
                     if (i < 8)
@@ -350,7 +350,7 @@ public static partial class StandardLibrary
             }
 
             var length = args.Count;
-            var taObj = ctor.Invoke([JsValue.FromNumber((double)length)], JsValue.FromObject(ctor));
+            var taObj = ctor.Invoke([JsValue.FromNumber((double)length)], (JsValue)ctor);
             if (!taObj.TryGetObject<TypedArrayBase>(out var typed))
             {
                 throw ThrowTypeError("%TypedArray%.of constructor did not return a typed array");
@@ -368,7 +368,7 @@ public static partial class StandardLibrary
         {
             thisValue.TryGetObject<HostFunction>(out var hostFunc);
             var callingEnv = hostFunc?.CallingJsEnvironment;
-            var targetProtoSource = thisValue.IsNullish ? JsValue.FromObject(constructor) : thisValue;
+            var targetProtoSource = thisValue.IsNullish ? (JsValue)constructor : thisValue;
             IJsCallable? mapFn = null;
             var mapThis = JsValue.Undefined;
 
@@ -395,7 +395,7 @@ public static partial class StandardLibrary
                 var target = CreateTarget(jsArray.Items.Count);
                 for (var i = 0; i < jsArray.Items.Count; i++)
                 {
-                    target.SetValue(i, JsValue.FromObject(ApplyMap(i, jsArray.Items[i])));
+                    target.SetValue(i, ApplyMap(i, jsArray.Items[i]));
                 }
 
                 return target;
@@ -409,9 +409,9 @@ public static partial class StandardLibrary
                     // GetElement/GetBigIntElement return raw numbers/BigInt, need to wrap
                     JsValue value = typedSource switch
                     {
-                        JsBigInt64Array bi64 => JsValue.FromObject(bi64.GetBigIntElement(i)),
-                        JsBigUint64Array bu64 => JsValue.FromObject(bu64.GetBigIntElement(i)),
-                        _ => JsValue.FromObject(typedSource.GetElement(i))
+                        JsBigInt64Array bi64 => (JsValue)bi64.GetBigIntElement(i),
+                        JsBigUint64Array bu64 => (JsValue)bu64.GetBigIntElement(i),
+                        _ => typedSource.GetElement(i)
                     };
                     // ApplyMap returns JsValue, no additional wrapping needed
                     target.SetValue(i, ApplyMap(i, value));
@@ -514,7 +514,7 @@ public static partial class StandardLibrary
                     return new InvalidOperationException(message);
                 }
 
-                var errorValue = typeErrorCtor.Invoke([JsValue.FromObject(message)], JsValue.Undefined);
+                var errorValue = typeErrorCtor.Invoke([(JsValue)message], JsValue.Undefined);
                 if (errorValue.TryGetObject<JsObject>(out var errorObj))
                 {
                     errorObj.SetProperty("constructor", JsValue.FromObject(typeErrorCtor));
@@ -709,7 +709,7 @@ public static partial class StandardLibrary
 
             // GetValueForIndex returns JsValue, no wrapping needed
             var value = typedArray.GetValueForIndex(k);
-            var mapped = callback.Invoke([value, JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
+            var mapped = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
             result.SetValue(k, mapped);
         }
 
@@ -756,7 +756,7 @@ public static partial class StandardLibrary
 
             // GetValueForIndex returns JsValue, no wrapping needed
             var value = typedArray.GetValueForIndex(k);
-            var result = callback.Invoke([value, JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
+            var result = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
             if (IsTruthy(result))
             {
                 kept.Add(value);
@@ -835,7 +835,7 @@ public static partial class StandardLibrary
             {
                 // value is JsValue from GetValueForIndex, accumulator is JsValue from callback or initial value
                 var accumulatorJs = accumulator is JsValue accJs ? accJs : JsValue.FromObject(accumulator);
-                accumulator = callback.Invoke([accumulatorJs, value, JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], JsValue.Undefined);
+                accumulator = callback.Invoke([accumulatorJs, value, JsValue.FromNumber((double)k), (JsValue)typedArray], JsValue.Undefined);
             }
 
             k += step;
@@ -891,7 +891,7 @@ public static partial class StandardLibrary
         {
             // GetValueForIndex returns JsValue, no wrapping needed
             var value = typedArray.GetValueForIndex(k);
-            var result = callback.Invoke([value, JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
+            var result = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
             if (!IsTruthy(result))
             {
                 return false;
@@ -928,8 +928,8 @@ public static partial class StandardLibrary
         for (var k = 0; k < length; k++)
         {
             var key = k.ToString(CultureInfo.InvariantCulture);
-            var value = typedArray.TryGetProperty(key, JsValue.FromObject(typedArray), out var candidate) ? candidate : JsValue.Undefined;
-            var match = callback.Invoke([value, JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
+            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate) ? candidate : JsValue.Undefined;
+            var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
             if (IsTruthy(match))
             {
                 return value;
@@ -966,8 +966,8 @@ public static partial class StandardLibrary
         for (var k = 0; k < length; k++)
         {
             var key = k.ToString(CultureInfo.InvariantCulture);
-            var value = typedArray.TryGetProperty(key, JsValue.FromObject(typedArray), out var candidate) ? candidate : JsValue.Undefined;
-            var match = callback.Invoke([value, JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
+            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate) ? candidate : JsValue.Undefined;
+            var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
             if (IsTruthy(match))
             {
                 return (double)k;
@@ -1004,8 +1004,8 @@ public static partial class StandardLibrary
         for (var k = length - 1; k >= 0; k--)
         {
             var key = k.ToString(CultureInfo.InvariantCulture);
-            var value = typedArray.TryGetProperty(key, JsValue.FromObject(typedArray), out var candidate) ? candidate : JsValue.Undefined;
-            var match = callback.Invoke([value, JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
+            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate) ? candidate : JsValue.Undefined;
+            var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
             if (IsTruthy(match))
             {
                 return value;
@@ -1042,8 +1042,8 @@ public static partial class StandardLibrary
         for (var k = length - 1; k >= 0; k--)
         {
             var key = k.ToString(CultureInfo.InvariantCulture);
-            var value = typedArray.TryGetProperty(key, JsValue.FromObject(typedArray), out var candidate) ? candidate : JsValue.Undefined;
-            var match = callback.Invoke([value, JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
+            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate) ? candidate : JsValue.Undefined;
+            var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
             if (IsTruthy(match))
             {
                 return (double)k;
@@ -1091,7 +1091,7 @@ public static partial class StandardLibrary
 
             // GetValueForIndex returns JsValue, no wrapping needed
             var value = typedArray.GetValueForIndex(k);
-            callback.Invoke([value, JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
+            callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
         }
 
         return Symbol.Undefined;
@@ -1530,7 +1530,7 @@ public static partial class StandardLibrary
         length = Math.Max(length, 0);
         JsValue constructorValue = JsValue.Undefined;
 
-        if (exemplar.TryGetProperty("constructor", JsValue.FromObject(exemplar), out var ctorValue))
+        if (exemplar.TryGetProperty("constructor", (JsValue)exemplar, out var ctorValue))
         {
             constructorValue = ctorValue;
         }

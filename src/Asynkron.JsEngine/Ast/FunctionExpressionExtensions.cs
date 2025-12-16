@@ -141,7 +141,7 @@ public static partial class TypedAstEvaluator
                     {
                         var error = StandardLibrary.ThrowReferenceError(
                             $"{parameter.Name.Name} is not initialized", context, context.RealmState);
-                        context.SetThrow(JsValue.FromObject(error.ThrownValue));
+                        context.SetThrow(error.ThrownValue);
                         return;
                     }
 

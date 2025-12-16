@@ -164,8 +164,8 @@ public static partial class StandardLibrary
             error.SetPrototype(realm.ErrorPrototype);
         }
 
-        error.SetProperty("name", JsValue.FromObject(name));
-        error.SetProperty("message", JsValue.FromObject(message));
+        error.SetProperty("name", (JsValue)name);
+        error.SetProperty("message", (JsValue)message);
         return error;
     }
 

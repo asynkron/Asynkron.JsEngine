@@ -187,7 +187,7 @@ public sealed class JsDataView : IJsPropertyAccessor
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        if (_properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObject(this) : receiver, out value))
+        if (_properties.TryGetProperty(name, receiver.IsUndefined ? (JsValue)this : receiver, out value))
         {
             return true;
         }
@@ -204,52 +204,52 @@ public sealed class JsDataView : IJsPropertyAccessor
                 value = new JsValue((double)ByteOffset);
                 return true;
             case "getInt8":
-                value = JsValue.FromObject(_getInt8);
+                value = (JsValue)_getInt8;
                 return true;
             case "setInt8":
-                value = JsValue.FromObject(_setInt8);
+                value = (JsValue)_setInt8;
                 return true;
             case "getUint8":
-                value = JsValue.FromObject(_getUint8);
+                value = (JsValue)_getUint8;
                 return true;
             case "setUint8":
-                value = JsValue.FromObject(_setUint8);
+                value = (JsValue)_setUint8;
                 return true;
             case "getInt16":
-                value = JsValue.FromObject(_getInt16);
+                value = (JsValue)_getInt16;
                 return true;
             case "setInt16":
-                value = JsValue.FromObject(_setInt16);
+                value = (JsValue)_setInt16;
                 return true;
             case "getUint16":
-                value = JsValue.FromObject(_getUint16);
+                value = (JsValue)_getUint16;
                 return true;
             case "setUint16":
-                value = JsValue.FromObject(_setUint16);
+                value = (JsValue)_setUint16;
                 return true;
             case "getInt32":
-                value = JsValue.FromObject(_getInt32);
+                value = (JsValue)_getInt32;
                 return true;
             case "setInt32":
-                value = JsValue.FromObject(_setInt32);
+                value = (JsValue)_setInt32;
                 return true;
             case "getUint32":
-                value = JsValue.FromObject(_getUint32);
+                value = (JsValue)_getUint32;
                 return true;
             case "setUint32":
-                value = JsValue.FromObject(_setUint32);
+                value = (JsValue)_setUint32;
                 return true;
             case "getFloat32":
-                value = JsValue.FromObject(_getFloat32);
+                value = (JsValue)_getFloat32;
                 return true;
             case "setFloat32":
-                value = JsValue.FromObject(_setFloat32);
+                value = (JsValue)_setFloat32;
                 return true;
             case "getFloat64":
-                value = JsValue.FromObject(_getFloat64);
+                value = (JsValue)_getFloat64;
                 return true;
             case "setFloat64":
-                value = JsValue.FromObject(_setFloat64);
+                value = (JsValue)_setFloat64;
                 return true;
         }
 
@@ -259,12 +259,12 @@ public sealed class JsDataView : IJsPropertyAccessor
 
     public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, JsValue.FromObject(this), out value);
+        return TryGetProperty(name, (JsValue)this, out value);
     }
 
     public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, JsValue.FromObject(this));
+        SetProperty(name, value, (JsValue)this);
     }
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
@@ -277,7 +277,7 @@ public sealed class JsDataView : IJsPropertyAccessor
                 throw new InvalidOperationException($"Cannot assign to read-only property '{name}' on DataView.");
         }
 
-        _properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObject(this) : receiver);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? (JsValue)this : receiver);
     }
 
     /// <summary>

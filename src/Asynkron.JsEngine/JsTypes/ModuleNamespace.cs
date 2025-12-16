@@ -59,7 +59,7 @@ internal sealed class ModuleNamespace : IJsObjectLike
     {
         if (string.Equals(name, _toStringTagKey, StringComparison.Ordinal))
         {
-            value = JsValue.FromObject("Module");
+            value = (JsValue)"Module";
             return true;
         }
 

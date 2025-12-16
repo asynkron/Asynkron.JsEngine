@@ -137,7 +137,7 @@ public static partial class TypedAstEvaluator
                 Origin = "constructor.prototype (auto-created)"
             };
 
-            constructor.SetProperty("prototype", JsValue.FromObject(created));
+            constructor.SetProperty("prototype", (JsValue)created);
             return created;
         }
     }

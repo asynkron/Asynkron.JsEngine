@@ -209,7 +209,7 @@ try {
                 var realmGlobal = realmEngine.GlobalObject;
                 realmGlobal["global"] = realmGlobal;
 
-                return JsValue.FromObject(realmGlobal);
+                return (JsValue)realmGlobal;
             }),
 
             // detachArrayBuffer function - placeholder implementation
@@ -555,7 +555,7 @@ try {
 
         var constructor = new HostFunction((_, _) =>
         {
-            var error = JsValue.FromObject("%AbstractModuleSource% is not constructable");
+            var error = (JsValue)"%AbstractModuleSource% is not constructable";
             if (engine.GlobalObject.TryGetValue("TypeError", out var typeErrorObj) &&
                 typeErrorObj is JsValue typeErrorValue &&
                 typeErrorValue.TryGetObject<IJsCallable>(out var typeErrorCtor))
@@ -566,7 +566,7 @@ try {
                 }
                 catch (ThrowSignal signal)
                 {
-                    error = JsValue.FromObject(signal.ThrownValue);
+                    error = signal.ThrownValue;
                 }
             }
 

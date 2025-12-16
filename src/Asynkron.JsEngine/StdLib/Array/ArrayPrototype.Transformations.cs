@@ -14,7 +14,7 @@ public sealed partial class ArrayPrototype
     {
         var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.join", realm);
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
         if (length == 0)
@@ -62,7 +62,7 @@ public sealed partial class ArrayPrototype
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.includes", realm);
 
         var searchElement = args.Count > 0 ? args[0] : JsValue.Undefined;
-        var fromIndexArg = args.Count > 1 ? args[1] : JsValue.FromObject(0d);
+        var fromIndexArg = args.Count > 1 ? args[1] : 0d;
         var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal) : 0d;
 
         var fromIndex = ToIntegerOrInfinity(fromIndexArg);
@@ -263,7 +263,7 @@ public sealed partial class ArrayPrototype
     {
         var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.slice", realm);
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
         var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0]) : 0;
@@ -288,7 +288,7 @@ public sealed partial class ArrayPrototype
     public JsValue At(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var target = EnsureArrayLikeReceiver(thisValue, "Array.prototype.at", Realm);
-        var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
+        var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
         var indexArg = args.GetArgument(0);
@@ -330,7 +330,7 @@ public sealed partial class ArrayPrototype
         {
             depth = (long)depthNum;
         }
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var sourceLength = (long)ToLengthOrZero(lengthValue);
 
         var result = ArraySpeciesCreate(thisValue, 0, realm);
@@ -349,7 +349,7 @@ public sealed partial class ArrayPrototype
             throw ThrowTypeError("Array.prototype.flatMap expects a callable mapper", realm: Realm);
         }
         var thisArg = args.Count > 1 ? args[1] : JsValue.Undefined;
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var sourceLength = (long)ToLengthOrZero(lengthValue);
         var result = ArraySpeciesCreate(thisValue, 0, Realm);
         var newLength = FlattenIntoArray(result, accessor, sourceLength, 0, 1, callback, thisArg, Realm,
@@ -363,7 +363,7 @@ public sealed partial class ArrayPrototype
     {
         var realm = Realm;
         var target = EnsureArrayLikeReceiver(thisValue, "Array.prototype.fill", realm);
-        var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
+        var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
         var value = args.GetArgument(0);
@@ -385,7 +385,7 @@ public sealed partial class ArrayPrototype
     {
         const string MethodName = "Array.prototype.copyWithin";
         var target = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
-        var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
+        var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
         var toIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0]) : 0;
@@ -440,7 +440,7 @@ public sealed partial class ArrayPrototype
     {
         var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toSorted", realm);
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
         var values = new List<JsValue>((int)Math.Min(length, int.MaxValue));
@@ -503,7 +503,7 @@ public sealed partial class ArrayPrototype
     public JsValue ToReversed(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toReversed", Realm);
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
         var result = ArraySpeciesCreate(thisValue, length, Realm);
@@ -522,7 +522,7 @@ public sealed partial class ArrayPrototype
     {
         var realm = Realm;
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toSpliced", realm);
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
         var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0]) : 0;
@@ -582,7 +582,7 @@ public sealed partial class ArrayPrototype
     public JsValue With(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.with", Realm);
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromObject(0d);
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
         if (args.Count == 0)

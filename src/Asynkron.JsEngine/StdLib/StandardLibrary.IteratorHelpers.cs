@@ -109,17 +109,17 @@ public static partial class StandardLibrary
                             index++;
                         }
 
-                        result.SetProperty("value", JsValue.FromObject(value));
-                        result.SetProperty("done", JsValue.FromObject(false));
+                        result.SetProperty("value", (JsValue)value);
+                        result.SetProperty("done", false);
                     }
                     else
                     {
-                        result.SetProperty("done", JsValue.FromObject(true));
+                        result.SetProperty("done", true);
                     }
 
                     return new JsValue(result);
                 }, isConstructor: false);
-                iteratorObj.SetProperty("next", JsValue.FromObject(nextFunc));
+                iteratorObj.SetProperty("next", (JsValue)nextFunc);
                 return iteratorObj;
             }
 
@@ -145,17 +145,17 @@ public static partial class StandardLibrary
                             value = JsValue.Undefined;
                         }
                         result.SetProperty("value", value);
-                        result.SetProperty("done", JsValue.FromObject(false));
+                        result.SetProperty("done", false);
                         index++;
                     }
                     else
                     {
-                        result.SetProperty("done", JsValue.FromObject(true));
+                        result.SetProperty("done", true);
                     }
 
                     return new JsValue(result);
                 }, isConstructor: false);
-                iteratorObj.SetProperty("next", JsValue.FromObject(next));
+                iteratorObj.SetProperty("next", (JsValue)next);
                 return iteratorObj;
             }
 

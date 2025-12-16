@@ -180,7 +180,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         if (TryGetTrap("defineProperty", out var trap))
         {
             var descriptorObject = CreateDescriptorObject(descriptor);
-            var args = new[] { JsValue.FromObject(Target), JsValue.FromObject(DecodePropertyKey(name)), JsValue.FromObject(descriptorObject) };
+            var args = new[] { JsValue.FromObject(Target), JsValue.FromObject(DecodePropertyKey(name)), (JsValue)descriptorObject };
             var result = trap.Invoke(args, JsValue.FromObject(Handler));
             if (!JsOps.ToBoolean(result))
             {
@@ -265,7 +265,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         if (TryGetTrap("defineProperty", out var trap))
         {
             var descriptorObject = CreateDescriptorObject(descriptor);
-            var args = new[] { JsValue.FromObject(Target), JsValue.FromObject(DecodePropertyKey(name)), JsValue.FromObject(descriptorObject) };
+            var args = new[] { JsValue.FromObject(Target), JsValue.FromObject(DecodePropertyKey(name)), (JsValue)descriptorObject };
             var result = trap.Invoke(args, JsValue.FromObject(Handler));
             return JsOps.ToBoolean(result);
         }
@@ -463,7 +463,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (descriptorObject.TryGetProperty("get", out var getterValueObj))
         {
-            var getterValue = JsValue.FromObject(getterValueObj);
+            var getterValue = getterValueObj;
             if (!getterValue.IsUndefined && (!getterValue.IsObject || !getterValue.TryGetObject<IJsCallable>(out _)))
             {
                 throw StandardLibrary.ThrowTypeError("Getter must be a function", realm: realm);
@@ -474,7 +474,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (descriptorObject.TryGetProperty("set", out var setterValueObj))
         {
-            var setterValue = JsValue.FromObject(setterValueObj);
+            var setterValue = setterValueObj;
             if (!setterValue.IsUndefined && (!setterValue.IsObject || !setterValue.TryGetObject<IJsCallable>(out _)))
             {
                 throw StandardLibrary.ThrowTypeError("Setter must be a function", realm: realm);
@@ -507,11 +507,11 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         else
         {
             result.SetProperty("value", JsValue.FromObject(descriptor.Value));
-            result.SetProperty("writable", JsValue.FromObject(descriptor is { HasWritable: true, Writable: true }));
+            result.SetProperty("writable", descriptor is { HasWritable: true, Writable: true });
         }
 
-        result.SetProperty("enumerable", JsValue.FromObject(descriptor is { HasEnumerable: true, Enumerable: true }));
-        result.SetProperty("configurable", JsValue.FromObject(descriptor is { HasConfigurable: true, Configurable: true }));
+        result.SetProperty("enumerable", descriptor is { HasEnumerable: true, Enumerable: true });
+        result.SetProperty("configurable", descriptor is { HasConfigurable: true, Configurable: true });
         return result;
     }
 }

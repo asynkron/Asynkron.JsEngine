@@ -49,27 +49,27 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
     {
         if (string.Equals(name, "toString", StringComparison.Ordinal))
         {
-            value = JsValue.FromObject(SymbolToStringFunction);
+            value = (JsValue)SymbolToStringFunction;
             return true;
         }
 
         if (string.Equals(name, "valueOf", StringComparison.Ordinal))
         {
-            value = JsValue.FromObject(new HostFunction((JsValue thisValue, IReadOnlyList<JsValue> _) => JsValue.FromObject(Unbox(thisValue)), isConstructor: false));
+            value = (JsValue)new HostFunction((JsValue thisValue, IReadOnlyList<JsValue> _) => (JsValue)Unbox(thisValue), isConstructor: false);
             return true;
         }
 
         var toPrimitiveKey = PropertyKey(Symbols.ToPrimitive);
         if (string.Equals(name, toPrimitiveKey, StringComparison.Ordinal))
         {
-            value = JsValue.FromObject(new HostFunction((JsValue thisValue, IReadOnlyList<JsValue> _) => JsValue.FromObject(Unbox(thisValue)), isConstructor: false));
+            value = (JsValue)new HostFunction((JsValue thisValue, IReadOnlyList<JsValue> _) => (JsValue)Unbox(thisValue), isConstructor: false);
             return true;
         }
 
         var toStringTagKey = PropertyKey(Symbols.ToStringTag);
         if (string.Equals(name, toStringTagKey, StringComparison.Ordinal))
         {
-            value = JsValue.FromObject("Symbol");
+            value = (JsValue)"Symbol";
             return true;
         }
 

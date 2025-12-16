@@ -26,7 +26,7 @@ public static partial class StandardLibrary
             }
 
             // Use Construct to properly invoke the constructor with new.target semantics
-            var constructed = Construct(callable, [JsValue.FromObject((double)len)], callable, constructorRealm);
+            var constructed = Construct(callable, [(double)len], callable, constructorRealm);
             result = constructed.TryGetObject<IJsObjectLike>(out var constructedObj) ? constructedObj : null!;
             if (result is null)
             {
@@ -322,22 +322,22 @@ public static partial class StandardLibrary
         // Handle generic thenables (objects with a callable "then")
         if (jsCandidate.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
             accessor.TryGetProperty("then", out var thenVal) &&
-            JsValue.FromObject(thenVal).TryGetObject<IJsCallable>(out var thenCallable))
+            thenVal.TryGetObject<IJsCallable>(out var thenCallable))
         {
             try
             {
                 thenCallable.Invoke(
                     [
-                        JsValue.FromObject(new HostFunction(args =>
+                        (JsValue)new HostFunction(args =>
                         {
                             onFulfilled(args.Count > 0 ? args[0].ToObject() : null);
                             return JsValue.Undefined;
-                        }, isConstructor: false)),
-                        JsValue.FromObject(new HostFunction(args =>
+                        }, isConstructor: false),
+                        (JsValue)new HostFunction(args =>
                         {
                             onRejected(args.Count > 0 ? args[0].ToObject() : null);
                             return JsValue.Undefined;
-                        }, isConstructor: false))
+                        }, isConstructor: false)
                     ],
                     JsValue.FromObject(accessor));
                 return true;
@@ -379,7 +379,7 @@ public static partial class StandardLibrary
         // Handle case where value and thisArg are already boxed JsValues
         var valueArg = value is JsValue vJs ? vJs : JsValue.FromObject(value);
         var thisArgJs = thisArg is JsValue taJs ? taJs : JsValue.FromObject(thisArg);
-        return mapper.Invoke([valueArg, JsValue.FromObject((double)index)], thisArgJs).ToObject();
+        return mapper.Invoke([valueArg, (double)index], thisArgJs).ToObject();
     }
 
     private sealed class ArrayFromAsyncOperation(

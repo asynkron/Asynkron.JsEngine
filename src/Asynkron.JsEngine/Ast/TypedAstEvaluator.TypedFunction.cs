@@ -347,16 +347,16 @@ public static partial class TypedAstEvaluator
             switch (name)
             {
                 case "call":
-                    value = JsValue.FromObject(new HostFunction((thisValue, args) =>
+                    value = (JsValue)new HostFunction((thisValue, args) =>
                     {
                         var thisArg = args.GetArgument(0);
                         var callArgs = args.SliceFrom(1);
                         return callable.Invoke(callArgs, thisArg);
-                    }, isConstructor: false));
+                    }, isConstructor: false);
                     return true;
 
                 case "apply":
-                    value = JsValue.FromObject(new HostFunction((thisValue, args) =>
+                    value = (JsValue)new HostFunction((thisValue, args) =>
                     {
                         var thisArg = args.GetArgument(0);
                         IReadOnlyList<JsValue> argList;
@@ -376,18 +376,18 @@ public static partial class TypedAstEvaluator
                             argList = ArgumentSlice.Empty;
                         }
                         return callable.Invoke(argList, thisArg);
-                    }, isConstructor: false));
+                    }, isConstructor: false);
                     return true;
 
                 case "bind":
-                    value = JsValue.FromObject(new HostFunction((thisValue, args) =>
+                    value = (JsValue)new HostFunction((thisValue, args) =>
                     {
                         var boundThis = args.GetArgument(0);
                         var boundArgs = args.SliceFrom(1);
                         var targetIsConstructor = JsOps.IsConstructor(callable);
-                        return JsValue.FromObject(HostFunction.CreateBoundFunction(callable, boundThis, boundArgs, targetIsConstructor,
-                            _realmState));
-                    }, isConstructor: false));
+                        return (JsValue)HostFunction.CreateBoundFunction(callable, boundThis, boundArgs, targetIsConstructor,
+                            _realmState);
+                    }, isConstructor: false);
                     return true;
             }
 
@@ -850,7 +850,7 @@ public static partial class TypedAstEvaluator
                             {
                                 var thrownDuringInitialization = context.FlowValue;
                                 callingContext?.SetThrow(thrownDuringInitialization);
-                                return JsValue.FromObject(thrownDuringInitialization);
+                                return thrownDuringInitialization;
                             }
 
                             return JsValue.Undefined;
@@ -1299,7 +1299,7 @@ public static partial class TypedAstEvaluator
                     ? "anonymous function prototype (materialized)"
                     : $"prototype of {_function.Name!.Name} (materialized)"
             };
-            _properties.SetProperty("prototype", JsValue.FromObject(created));
+            _properties.SetProperty("prototype", (JsValue)created);
             _prototypeObject = created;
             return created;
         }
@@ -1773,7 +1773,7 @@ public static partial class TypedAstEvaluator
             else
             {
                 boundThisValue = thisValue.IsNullish
-                    ? (_realmState.Engine is { GlobalObject: { } globalObj } ? JsValue.FromObject(globalObj) : JsValue.Undefined)
+                    ? (_realmState.Engine is { GlobalObject: { } globalObj } ? (JsValue)globalObj : JsValue.Undefined)
                     : thisValue;
             }
             functionEnvironment._thisValue = boundThisValue;
@@ -1858,7 +1858,7 @@ public static partial class TypedAstEvaluator
             else
             {
                 boundThisValue = thisValue.IsNullish
-                    ? (_realmState.Engine is { GlobalObject: { } globalObj } ? JsValue.FromObject(globalObj) : JsValue.Undefined)
+                    ? (_realmState.Engine is { GlobalObject: { } globalObj } ? (JsValue)globalObj : JsValue.Undefined)
                     : thisValue;
             }
             functionEnvironment._thisValue = boundThisValue;
@@ -1932,7 +1932,7 @@ public static partial class TypedAstEvaluator
             else
             {
                 boundThisValue = thisValue.IsNullish
-                    ? (_realmState.Engine is { GlobalObject: { } globalObj } ? JsValue.FromObject(globalObj) : JsValue.Undefined)
+                    ? (_realmState.Engine is { GlobalObject: { } globalObj } ? (JsValue)globalObj : JsValue.Undefined)
                     : thisValue;
             }
             functionEnvironment._thisValue = boundThisValue;
@@ -2004,7 +2004,7 @@ public static partial class TypedAstEvaluator
             else
             {
                 boundThisValue = thisValue.IsNullish
-                    ? (_realmState.Engine is { GlobalObject: { } globalObj } ? JsValue.FromObject(globalObj) : JsValue.Undefined)
+                    ? (_realmState.Engine is { GlobalObject: { } globalObj } ? (JsValue)globalObj : JsValue.Undefined)
                     : thisValue;
             }
             functionEnvironment._thisValue = boundThisValue;
@@ -2095,7 +2095,7 @@ public static partial class TypedAstEvaluator
                 if (thisValue.IsNullish)
                 {
                     boundThisValue = _realmState.Engine is { GlobalObject: { } globalObj }
-                        ? JsValue.FromObject(globalObj)
+                        ? (JsValue)globalObj
                         : JsValue.Undefined;
                 }
                 else

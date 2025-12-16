@@ -161,7 +161,7 @@ namespace Asynkron.JsEngine.JsTypes;
         EnsureFunctionPrototype();
 
         // First check if there's a user-defined property (including getters)
-        if (Properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObject(this) : receiver, out value))
+        if (Properties.TryGetProperty(name, receiver.IsUndefined ? (JsValue)this : receiver, out value))
         {
             return true;
         }
@@ -180,7 +180,7 @@ namespace Asynkron.JsEngine.JsTypes;
         switch (name)
         {
             case "call":
-                value = JsValue.FromObject(new HostFunction((thisValue, args) =>
+                value = (JsValue)new HostFunction((thisValue, args) =>
                 {
                     // When call is invoked through .bind(), thisValue is the bound target function.
                     // When called directly like fn.call(obj), jsCallable is the function to invoke.
@@ -188,11 +188,11 @@ namespace Asynkron.JsEngine.JsTypes;
                     var thisArg = args.GetArgument(0);
                     var callArgs = args.SliceFrom(1);
                     return functionToCall.Invoke(callArgs, thisArg);
-                }, isConstructor: false));
+                }, isConstructor: false);
                 return true;
 
             case "apply":
-                value = JsValue.FromObject(new HostFunction((thisValue, args) =>
+                value = (JsValue)new HostFunction((thisValue, args) =>
                 {
                     // Use the thisValue (the function being applied) when called via prototype chain
                     var target = thisValue.TryGetObject<IJsCallable>(out var thisObj) ? thisObj : jsCallable;
@@ -214,11 +214,11 @@ namespace Asynkron.JsEngine.JsTypes;
                         argList = ArgumentSlice.Empty;
                     }
                     return target.Invoke(argList, thisArg);
-                }, isConstructor: false));
+                }, isConstructor: false);
                 return true;
 
             case "bind":
-                value = JsValue.FromObject(new HostFunction((thisValue, args) =>
+                value = (JsValue)new HostFunction((thisValue, args) =>
                 {
                     // Use the thisValue (the function being bound) when called via prototype chain
                     var target = thisValue.TryGetObject<IJsCallable>(out var callable) ? callable : jsCallable;
@@ -226,8 +226,8 @@ namespace Asynkron.JsEngine.JsTypes;
                     var boundArgs = args.SliceFrom(1);
                     var targetIsConstructor = JsOps.IsConstructor(target);
                     var realmState = RealmState ?? (target as ICallableMetadata)?.RealmState;
-                    return JsValue.FromObject(CreateBoundFunction(target, boundThis, boundArgs, targetIsConstructor, realmState));
-                }, isConstructor: false));
+                    return (JsValue)CreateBoundFunction(target, boundThis, boundArgs, targetIsConstructor, realmState);
+                }, isConstructor: false);
                 return true;
         }
 
@@ -237,17 +237,17 @@ namespace Asynkron.JsEngine.JsTypes;
 
     public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, JsValue.FromObject(this), out value);
+        return TryGetProperty(name, (JsValue)this, out value);
     }
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
     {
-        Properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObject(this) : receiver);
+        Properties.SetProperty(name, value, receiver.IsUndefined ? (JsValue)this : receiver);
     }
 
     public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, JsValue.FromObject(this));
+        SetProperty(name, value, (JsValue)this);
     }
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
@@ -452,12 +452,12 @@ namespace Asynkron.JsEngine.JsTypes;
         }
 
         var prototype = new JsObject();
-        prototype.SetProperty("constructor", JsValue.FromObject(this));
+        prototype.SetProperty("constructor", (JsValue)this);
         // Per ES spec, the "prototype" property on constructor functions should be
         // writable, but NOT enumerable and NOT configurable
         Properties.DefineProperty("prototype", new PropertyDescriptor
         {
-            Value = JsValue.FromObject(prototype),
+            Value = (JsValue)prototype,
             Writable = true,
             Enumerable = false,
             Configurable = false

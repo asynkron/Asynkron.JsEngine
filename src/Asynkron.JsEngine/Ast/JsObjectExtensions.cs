@@ -23,10 +23,8 @@ public static partial class TypedAstEvaluator
             JsEnvironment? callingEnvironment = null)
         {
             var args = hasSendValue ? new[] { sendValue } : Array.Empty<JsValue>();
-            // Use InvokeCallable to properly handle HostFunction.InvokeWithContext
-            // which is required for array iterators that use SetInvokeWithContext
-            var result = InvokeCallable(nextMethod, args, new JsValue((JsObject)iterator), context, callingEnvironment);
-            return JsValue.FromObject(result);
+            // Use InvokeCallableJsValue to avoid boxing round-trip
+            return InvokeCallableJsValue(nextMethod, args, new JsValue((JsObject)iterator), context, callingEnvironment);
         }
 
         private IJsCallable GetIteratorNextCallable(EvaluationContext? context)
@@ -84,9 +82,8 @@ public static partial class TypedAstEvaluator
             }
 
             var args = hasArgument ? new[] { argument } : Array.Empty<JsValue>();
-            // Use InvokeCallable to properly handle HostFunction.InvokeWithContext
-            var invokeResult = InvokeCallable(callable, args, JsValue.FromObject((JsObject)iterator), context, null);
-            result = JsValue.FromObject(invokeResult);
+            // Use InvokeCallableJsValue to avoid boxing round-trip
+            result = InvokeCallableJsValue(callable, args, new JsValue((JsObject)iterator), context, null);
 
             // Check if the method threw an error
             if (context.IsThrow)

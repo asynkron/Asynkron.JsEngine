@@ -21,9 +21,9 @@ public static partial class TypedAstEvaluator
                 var symbolProp = symbolPropLit.Value.AsString()!;
                 return symbolProp switch
                 {
-                    "iterator" => JsValue.FromObject(Symbols.Iterator),
-                    "asyncIterator" => JsValue.FromObject(Symbols.AsyncIterator),
-                    "toStringTag" => JsValue.FromObject(Symbols.ToStringTag),
+                    "iterator" => (JsValue)Symbols.Iterator,
+                    "asyncIterator" => (JsValue)Symbols.AsyncIterator,
+                    "toStringTag" => (JsValue)Symbols.ToStringTag,
                     _ => EvaluateDefaultMember(expression, environment, context)
                 };
             }

@@ -204,7 +204,10 @@ public static partial class TypedAstEvaluator
                         // Getter threw - return as delegated completion to be handled by generator's try/catch
                         return (context.FlowValue, true, true, true, null);
                     }
-                    value = gotValue ? JsValue.FromObject(yielded) : JsValue.Undefined;
+                    // yielded might be a boxed JsValue from TryGetPropertyValue
+                    value = gotValue
+                        ? (yielded is JsValue yjs ? yjs : JsValue.FromObject(yielded))
+                        : JsValue.Undefined;
                 }
                 else
                 {

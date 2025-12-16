@@ -219,7 +219,7 @@ public sealed partial class IntlLocaleConstructor : JsConstructor
             return false;
         }
 
-        var raw = JsValue.FromObject(rawValue);
+        var raw = rawValue;
         if (raw.IsUndefined)
         {
             value = string.Empty;
@@ -238,7 +238,7 @@ public sealed partial class IntlLocaleConstructor : JsConstructor
             return false;
         }
 
-        var raw = JsValue.FromObject(rawValue);
+        var raw = rawValue;
         if (raw.IsUndefined)
         {
             value = false;
@@ -269,7 +269,7 @@ public sealed partial class IntlLocaleConstructor : JsConstructor
             return false;
         }
 
-        var raw = JsValue.FromObject(rawValue);
+        var raw = rawValue;
         if (raw.IsUndefined)
         {
             return false;

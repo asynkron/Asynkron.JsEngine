@@ -71,12 +71,12 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         try
         {
-            var executorArgs = new JsValue[] { JsValue.FromObject(resolve), JsValue.FromObject(reject) };
+            var executorArgs = new JsValue[] { (JsValue)resolve, (JsValue)reject };
             executor.Invoke(executorArgs, JsValue.Undefined);
         }
         catch (Exception ex)
         {
-            promise.Reject(JsValue.FromObject(ex.Message));
+            promise.Reject((JsValue)ex.Message);
         }
 
         return promise.JsObject;
@@ -167,13 +167,13 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             var index = i;
             // Handle case where item is already a boxed JsValue
             var rawItem = array.Items[i];
-            var item = rawItem is JsValue riJs ? riJs : JsValue.FromObject(rawItem);
+            var item = rawItem is JsValue riJs ? riJs : rawItem;
 
             // thenMethod is already a JsValue from TryGetProperty
             if (item.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
                 thenMethod.TryGetObject<IJsCallable>(out var thenCallable))
             {
-                var thenArgs = new JsValue[] { JsValue.FromObject(CreateAllResolve(index)), JsValue.FromObject(CreateAllReject()) };
+                var thenArgs = new JsValue[] { (JsValue)CreateAllResolve(index), (JsValue)CreateAllReject() };
                 thenCallable.Invoke(thenArgs, item);
             }
             else
@@ -238,12 +238,12 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         foreach (var item in array.Items)
         {
             // Handle case where item is already a boxed JsValue
-            var jsItem = item is JsValue itemJs ? itemJs : JsValue.FromObject(item);
+            var jsItem = item is JsValue itemJs ? itemJs : item;
             // thenMethod is already a JsValue from TryGetProperty
             if (jsItem.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
                 thenMethod.TryGetObject<IJsCallable>(out var thenCallable))
             {
-                var thenArgs = new JsValue[] { JsValue.FromObject(CreateRaceResolve()), JsValue.FromObject(CreateRaceReject()) };
+                var thenArgs = new JsValue[] { (JsValue)CreateRaceResolve(), (JsValue)CreateRaceReject() };
                 thenCallable.Invoke(thenArgs, jsItem);
             }
             else if (!settled)
@@ -330,7 +330,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
                 // thenMethod is already JsValue from TryGetProperty
                 thenMethod.TryGetObject<IJsCallable>(out var thenCallable))
             {
-                var thenArgs = new JsValue[] { JsValue.FromObject(CreateResolve(index)), JsValue.FromObject(CreateReject(index)) };
+                var thenArgs = new JsValue[] { (JsValue)CreateResolve(index), (JsValue)CreateReject(index) };
                 thenCallable.Invoke(thenArgs, item);
             }
             else
@@ -416,7 +416,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
                 // thenMethod is already JsValue from TryGetProperty
                 thenMethod.TryGetObject<IJsCallable>(out var thenCallable))
             {
-                var thenArgs = new JsValue[] { JsValue.FromObject(CreateResolve()), JsValue.FromObject(CreateReject()) };
+                var thenArgs = new JsValue[] { (JsValue)CreateResolve(), (JsValue)CreateReject() };
                 thenCallable.Invoke(thenArgs, item);
             }
             else

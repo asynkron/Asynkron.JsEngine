@@ -58,7 +58,7 @@ public static partial class TypedAstEvaluator
 
             // asyncIterator[Symbol.asyncIterator] returns itself.
             var asyncKey = SymbolKeys.AsyncIterator;
-            asyncIterator.SetProperty(asyncKey, JsValue.FromObject(new HostFunction((thisValue, _) => thisValue)));
+            asyncIterator.SetProperty(asyncKey, (JsValue)new HostFunction((thisValue, _) => thisValue));
 
             return asyncIterator;
         }
@@ -110,7 +110,7 @@ public static partial class TypedAstEvaluator
                     case TypedGeneratorInstance.AsyncGeneratorStepKind.Completed:
                     {
                         var iteratorResult = CreateAsyncIteratorResult(step.Value, step.Done);
-                        resolve.Invoke([JsValue.FromObject(iteratorResult)], JsValue.Undefined);
+                        resolve.Invoke([(JsValue)iteratorResult], JsValue.Undefined);
                         break;
                     }
                     case TypedGeneratorInstance.AsyncGeneratorStepKind.Throw:
@@ -127,10 +127,10 @@ public static partial class TypedAstEvaluator
 
             if (promiseCtor is HostFunction hostCtor)
             {
-                return hostCtor.InvokeWithContext([JsValue.FromObject(executor)], JsValue.Undefined, null, JsValue.FromObject(hostCtor)).ObjectValue;
+                return hostCtor.InvokeWithContext([(JsValue)executor], JsValue.Undefined, null, (JsValue)hostCtor).ObjectValue;
             }
 
-            return promiseCtor.Invoke([JsValue.FromObject(executor)], JsValue.Undefined).ObjectValue;
+            return promiseCtor.Invoke([(JsValue)executor], JsValue.Undefined).ObjectValue;
         }
 
         private static JsObject CreateAsyncIteratorResult(JsValue value, bool done)
@@ -153,7 +153,7 @@ public static partial class TypedAstEvaluator
                 case TypedGeneratorInstance.AsyncGeneratorStepKind.Completed:
                 {
                     var iteratorResult = CreateAsyncIteratorResult(step.Value, step.Done);
-                    resolve.Invoke([JsValue.FromObject(iteratorResult)], JsValue.Undefined);
+                    resolve.Invoke([(JsValue)iteratorResult], JsValue.Undefined);
                     break;
                 }
                 case TypedGeneratorInstance.AsyncGeneratorStepKind.Throw:
@@ -173,20 +173,20 @@ public static partial class TypedAstEvaluator
         {
             if (!step.PendingPromise.TryGetObject<JsObject>(out var pendingPromise))
             {
-                reject.Invoke([JsValue.FromObject("Awaited value is not a promise")], JsValue.Undefined);
+                reject.Invoke([(JsValue)"Awaited value is not a promise"], JsValue.Undefined);
                 return;
             }
 
             if (!pendingPromise.TryGetProperty("then", out var thenValue))
             {
-                reject.Invoke([JsValue.FromObject("Awaited value has no 'then' method")], JsValue.Undefined);
+                reject.Invoke([(JsValue)"Awaited value has no 'then' method"], JsValue.Undefined);
                 return;
             }
 
             // thenValue is already a JsValue from TryGetProperty
             if (!thenValue.TryUnwrap(out IJsCallable? thenCallable))
             {
-                reject.Invoke([JsValue.FromObject("'then' is not callable")], JsValue.Undefined);
+                reject.Invoke([(JsValue)"'then' is not callable"], JsValue.Undefined);
                 return;
             }
 
@@ -208,7 +208,7 @@ public static partial class TypedAstEvaluator
 
             if (thenCallable is not null)
             {
-                thenCallable.Invoke([JsValue.FromObject(onFulfilled), JsValue.FromObject(onRejected)], JsValue.FromObject(pendingPromise));
+                thenCallable.Invoke([(JsValue)onFulfilled, (JsValue)onRejected], (JsValue)pendingPromise);
             }
         }
 

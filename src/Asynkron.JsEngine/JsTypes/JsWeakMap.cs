@@ -23,22 +23,22 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        return _properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObject(this) : receiver, out value);
+        return _properties.TryGetProperty(name, receiver.IsUndefined ? (JsValue)this : receiver, out value);
     }
 
     public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, JsValue.FromObject(this), out value);
+        return TryGetProperty(name, (JsValue)this, out value);
     }
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
     {
-        _properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObject(this) : receiver);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? (JsValue)this : receiver);
     }
 
     public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, JsValue.FromObject(this));
+        SetProperty(name, value, (JsValue)this);
     }
 
     public JsObject? Prototype => _properties.Prototype;

@@ -87,7 +87,7 @@ public sealed class JsPromise
             var resolveFn = new HostFunction(args => { resolveCallback.Invoke(args, JsValue.Undefined); return JsValue.Undefined; }, isConstructor: false);
             var rejectFn = new HostFunction(args => { rejectCallback.Invoke(args, JsValue.Undefined); return JsValue.Undefined; }, isConstructor: false);
             var thenableValue = JsValue.FromObject(thenable);
-            thenMethod.Invoke([JsValue.FromObject(resolveFn), JsValue.FromObject(rejectFn)], thenableValue);
+            thenMethod.Invoke([(JsValue)resolveFn, (JsValue)rejectFn], thenableValue);
         }
         catch (ThrowSignal signal)
         {
@@ -273,7 +273,7 @@ public sealed class JsPromise
             // Wrap callbacks in HostFunction so they can be passed as JsValue
             var resolveFn = new HostFunction(args => { resolveCallback.Invoke(args, JsValue.Undefined); return JsValue.Undefined; }, isConstructor: false);
             var rejectFn = new HostFunction(args => { rejectCallback.Invoke(args, JsValue.Undefined); return JsValue.Undefined; }, isConstructor: false);
-            thenCallable.Invoke([JsValue.FromObject(resolveFn), JsValue.FromObject(rejectFn)], result);
+            thenCallable.Invoke([(JsValue)resolveFn, (JsValue)rejectFn], result);
         }
         else
         {

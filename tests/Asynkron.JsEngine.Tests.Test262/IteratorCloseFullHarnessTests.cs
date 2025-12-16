@@ -18,7 +18,7 @@ public class IteratorCloseFullHarnessTests
         // Minimal $262 hooks needed for these tests
         var obj262 = new JsObject
         {
-            ["createRealm"] = new HostFunction(_ => JsValue.FromObject(engine.GlobalObject)),
+            ["createRealm"] = new HostFunction(_ => (JsValue)engine.GlobalObject),
             ["detachArrayBuffer"] = new HostFunction(_ => JsValue.Undefined)
         };
         engine.SetGlobalValue("$262", obj262);

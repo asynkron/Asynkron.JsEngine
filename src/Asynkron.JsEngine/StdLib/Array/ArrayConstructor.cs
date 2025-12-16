@@ -138,7 +138,7 @@ public sealed partial class ArrayConstructor : JsConstructor
         var isArray = new HostFunction(args =>
         {
 var result = StandardLibrary.ArrayIsArray(args.GetArgument(0), Realm);
-            return JsValue.FromObject(result);
+            return result;
         }, Realm, isConstructor: false);
         StandardLibrary.AttachBuiltinMetadata(isArray, "isArray", 1d);
         isArray.Delete("prototype");

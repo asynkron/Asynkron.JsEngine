@@ -90,7 +90,7 @@ public static partial class TypedAstEvaluator
                 args => Return(args.Count > 0 ? args[0] : JsValue.Undefined),
                 args => Throw(args.Count > 0 ? args[0] : JsValue.Undefined),
                 prototype);
-            iterator.SetProperty(IteratorSymbolPropertyName, JsValue.FromObject(new HostFunction((_, _) => new JsValue(iterator))));
+            iterator.SetProperty(IteratorSymbolPropertyName, (JsValue)new HostFunction((_, _) => new JsValue(iterator)));
             iterator.SetProperty(GeneratorBrandPropertyName, JsValue.FromObject(GeneratorBrandMarker));
             return iterator;
         }
@@ -571,7 +571,7 @@ public static partial class TypedAstEvaluator
                             _programCounter = yieldInstruction.Next;
                             RecordYield(context);
                             _state = GeneratorState.Suspended;
-                            return JsValue.FromObject(CreateIteratorResult(yieldedValue, false));
+                            return (JsValue)CreateIteratorResult(yieldedValue, false);
 
                         case YieldStarInstruction yieldStarInstruction:
                         {
@@ -814,7 +814,7 @@ public static partial class TypedAstEvaluator
                                     return JsValue.FromObject(originalResult);
                                 }
                                 var resultDone = propagateReturn ? iteratorResult.Done : false;
-                                return JsValue.FromObject(CreateIteratorResult(iteratorResult.Value, resultDone));
+                                return (JsValue)CreateIteratorResult(iteratorResult.Value, resultDone);
                             }
 
                             continue;
@@ -974,7 +974,7 @@ public static partial class TypedAstEvaluator
                                         context: context,
                                         callingEnvironment: environment);
                                     // Handle case where nextResult is already a boxed JsValue
-                                    var nextResultValue = nextResult is JsValue nrJs ? nrJs : JsValue.FromObject(nextResult);
+                                    var nextResultValue = nextResult is JsValue nrJs ? nrJs : nextResult;
                                     if (!nextResultValue.TryGetObject<JsObject>(out var resultObj))
                                     {
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
@@ -1071,7 +1071,7 @@ public static partial class TypedAstEvaluator
                                         driverState.NextMethod!,
                                         context: context,
                                         callingEnvironment: environment);
-                                    if (!TryAwaitPromiseOrSchedule(JsValue.FromObject(nextResult), context, out var awaitedNext))
+                                    if (!TryAwaitPromiseOrSchedule(nextResult, context, out var awaitedNext))
                                     {
                                         if (_asyncStepMode && _pendingPromise.TryGetObject<JsObject>(out _))
                                         {
@@ -1080,7 +1080,7 @@ public static partial class TypedAstEvaluator
                                                 driverState);
                                             _state = GeneratorState.Suspended;
                                             _programCounter = iteratorIndex;
-                                            return JsValue.FromObject(CreateIteratorResult(JsValue.Undefined, false));
+                                            return (JsValue)CreateIteratorResult(JsValue.Undefined, false);
                                         }
 
                                         if (context.IsThrow)
@@ -1118,7 +1118,7 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 var rawValue = awaitResultObj.TryGetProperty("value", out var yieldedAwait)
-                                    ? JsValue.FromObject(yieldedAwait)
+                                    ? yieldedAwait
                                     : JsValue.Undefined;
                                 if (!TryAwaitPromiseOrSchedule(rawValue, context, out var fullyAwaitedValue))
                                 {
@@ -1266,7 +1266,7 @@ public static partial class TypedAstEvaluator
                             {
                                 var pendingReturn = context.FlowValue;
                                 context.ClearReturn();
-                                returnValue = JsValue.FromObject(pendingReturn);
+                                returnValue = pendingReturn;
                             }
 
                             if (HandleAbruptCompletion(AbruptKind.Return, returnValue.ToObject(), environment))
@@ -1278,7 +1278,7 @@ public static partial class TypedAstEvaluator
                             _state = GeneratorState.Completed;
                             _done = true;
                             _tryStack.Clear();
-                            return JsValue.FromObject(CreateIteratorResult(returnValue, true));
+                            return (JsValue)CreateIteratorResult(returnValue, true);
 
                         case EnterWithInstruction enterWithInstruction:
                         {
@@ -1366,7 +1366,7 @@ public static partial class TypedAstEvaluator
             _state = GeneratorState.Completed;
             _done = true;
             _tryStack.Clear();
-            return JsValue.FromObject(CreateIteratorResult(JsValue.Undefined, true));
+            return (JsValue)CreateIteratorResult(JsValue.Undefined, true);
         }
 
         private JsEnvironment EnsureExecutionEnvironment()
@@ -1423,7 +1423,7 @@ public static partial class TypedAstEvaluator
             return mode switch
             {
                 ResumeMode.Throw => throw new ThrowSignal(value),
-                _ => JsValue.FromObject(CreateIteratorResult(value, true))
+                _ => (JsValue)CreateIteratorResult(value, true)
             };
         }
 

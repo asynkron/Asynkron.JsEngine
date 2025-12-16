@@ -12,28 +12,28 @@ public static class JsPropertyAccessorExtensions
         Func<IReadOnlyList<JsValue>, JsValue> handler)
     {
         var fn = new HostFunction(handler, isConstructor: false);
-        accessor.SetProperty(name, JsValue.FromObject(fn));
+        accessor.SetProperty(name, (JsValue)fn);
     }
 
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
         Func<IReadOnlyList<JsValue>, RealmState?, JsValue> handler, RealmState? realmState)
     {
         var fn = new HostFunction(args => handler(args, realmState), realmState, isConstructor: false);
-        accessor.SetProperty(name, JsValue.FromObject(fn));
+        accessor.SetProperty(name, (JsValue)fn);
     }
 
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
         Func<JsValue, IReadOnlyList<JsValue>, JsValue> handler)
     {
         var fn = new HostFunction(handler, isConstructor: false);
-        accessor.SetProperty(name, JsValue.FromObject(fn));
+        accessor.SetProperty(name, (JsValue)fn);
     }
 
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
         Func<JsValue, IReadOnlyList<JsValue>, RealmState?, JsValue> handler, RealmState? realmState)
     {
         var fn = new HostFunction((thisVal, args) => handler(thisVal, args, realmState), realmState, isConstructor: false);
-        accessor.SetProperty(name, JsValue.FromObject(fn));
+        accessor.SetProperty(name, (JsValue)fn);
     }
 
     // Legacy object-based signatures (adapter overloads for backwards compatibility)
@@ -47,7 +47,7 @@ public static class JsPropertyAccessorExtensions
             // Handle case where handler returns a boxed JsValue
             return result is JsValue jsv ? jsv : JsValue.FromObject(result);
         }, isConstructor: false);
-        accessor.SetProperty(name, JsValue.FromObject(fn));
+        accessor.SetProperty(name, (JsValue)fn);
     }
 
     [Obsolete("Use JsValue-based overloads instead")]
@@ -60,7 +60,7 @@ public static class JsPropertyAccessorExtensions
             // Handle case where handler returns a boxed JsValue
             return result is JsValue jsv ? jsv : JsValue.FromObject(result);
         }, realmState, isConstructor: false);
-        accessor.SetProperty(name, JsValue.FromObject(fn));
+        accessor.SetProperty(name, (JsValue)fn);
     }
 
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name, HostFunction hostFunction,
@@ -72,6 +72,6 @@ public static class JsPropertyAccessorExtensions
         }
 
         hostFunction.IsConstructor = false;
-        accessor.SetProperty(name, JsValue.FromObject(hostFunction));
+        accessor.SetProperty(name, (JsValue)hostFunction);
     }
 }

@@ -109,7 +109,7 @@ public sealed class JsEngine : IAsyncDisposable
         // Bind the global `this` value to a dedicated JS object so that
         // top-level `this` behaves like the global object (e.g. for UMD
         // wrappers such as babel-standalone).
-        GlobalEnvironment.DefineJsValue(Symbol.This, JsValue.FromObject(GlobalObject));
+        GlobalEnvironment.DefineJsValue(Symbol.This, (JsValue)GlobalObject);
         GlobalObject.RealmState = RealmState;
 
         // Expose common aliases for the global object that many libraries
@@ -303,8 +303,8 @@ public sealed class JsEngine : IAsyncDisposable
             new HostFunction((_, args) => DynamicImport(args, null, ImportPhase.Source, null), RealmState, isConstructor: false);
         importSourceFunction.SetInvokeWithContext(
             (args, thisValue, ctx, _) => DynamicImport(args, ctx, ImportPhase.Source, importSourceFunction));
-        importFunction.SetProperty("defer", JsValue.FromObject(importDeferFunction));
-        importFunction.SetProperty("source", JsValue.FromObject(importSourceFunction));
+        importFunction.SetProperty("defer", (JsValue)importDeferFunction);
+        importFunction.SetProperty("source", (JsValue)importSourceFunction);
         SetGlobal("import", importFunction);
 
         // Provide a stable global object helper used by Test262 harness utilities.
@@ -1611,7 +1611,7 @@ public sealed class JsEngine : IAsyncDisposable
         {
             if (!entry.Environment.TryGet(Symbol.ImportMeta, out _))
             {
-                entry.Environment.DefineJsValue(Symbol.ImportMeta, JsValue.FromObject(existing), isConst: true, isLexical: true,
+                entry.Environment.DefineJsValue(Symbol.ImportMeta, (JsValue)existing, isConst: true, isLexical: true,
                     blocksFunctionScopeOverride: false);
             }
 
@@ -1633,7 +1633,7 @@ public sealed class JsEngine : IAsyncDisposable
                 HasConfigurable = true
             });
 
-        entry.Environment.DefineJsValue(Symbol.ImportMeta, JsValue.FromObject(importMeta), isConst: true, isLexical: true,
+        entry.Environment.DefineJsValue(Symbol.ImportMeta, (JsValue)importMeta, isConst: true, isLexical: true,
             blocksFunctionScopeOverride: false);
         entry.ImportMeta = importMeta;
         return importMeta;
@@ -1858,7 +1858,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public void SetGlobalFunction(string name, Func<JsValue, IReadOnlyList<JsValue>, JsValue> handler)
     {
-        GlobalEnvironment.DefineJsValue(Symbol.Intern(name), JsValue.FromObject(new HostFunction(handler) { Realm = GlobalObject }));
+        GlobalEnvironment.DefineJsValue(Symbol.Intern(name), (JsValue)new HostFunction(handler) { Realm = GlobalObject });
     }
 
     /// <summary>
@@ -2482,7 +2482,7 @@ public sealed class JsEngine : IAsyncDisposable
                 // Clear the throw signal since we're handling it by rejecting the promise
                 // This prevents the throw from propagating to EvaluateProgram
                 context.Clear();
-                ScheduleTask(() => promise.Reject(JsValue.FromObject(flowValue)));
+                ScheduleTask(() => promise.Reject(flowValue));
                 return;
             }
 
@@ -4382,7 +4382,7 @@ public sealed class JsEngine : IAsyncDisposable
 
             try
             {
-                thenCallable.Invoke(new JsValue[] { JsValue.FromObject(onFulfilledFn), JsValue.FromObject(onRejectedFn) }, JsValue.FromObject(promiseObject));
+                thenCallable.Invoke(new JsValue[] { (JsValue)onFulfilledFn, (JsValue)onRejectedFn }, (JsValue)promiseObject);
             }
             catch (ThrowSignal signal)
             {
@@ -4574,7 +4574,7 @@ public sealed class JsEngine : IAsyncDisposable
 
                     if (!calleeValue.TryGetObject<IJsCallable>(out var callable))
                     {
-                        throw new ThrowSignal(JsValue.FromObject($"TypeError: {calleeValue} is not a function"));
+                        throw new ThrowSignal((JsValue)$"TypeError: {calleeValue} is not a function");
                     }
 
                     var result = callable.Invoke(evaluatedArgs, thisValue);
@@ -4787,7 +4787,7 @@ public sealed class JsEngine : IAsyncDisposable
 
             try
             {
-                thenCallable.Invoke(new JsValue[] { JsValue.FromObject(onFulfilledFn), JsValue.FromObject(onRejectedFn) }, JsValue.FromObject(promiseObject));
+                thenCallable.Invoke(new JsValue[] { (JsValue)onFulfilledFn, (JsValue)onRejectedFn }, (JsValue)promiseObject);
             }
             catch (ThrowSignal signal)
             {
@@ -4962,7 +4962,7 @@ public sealed class JsEngine : IAsyncDisposable
 
             try
             {
-                thenCallable.Invoke(new JsValue[] { JsValue.FromObject(onFulfilledFn), JsValue.FromObject(onRejectedFn) }, JsValue.FromObject(promiseObject));
+                thenCallable.Invoke(new JsValue[] { (JsValue)onFulfilledFn, (JsValue)onRejectedFn }, (JsValue)promiseObject);
             }
             catch (ThrowSignal signal)
             {

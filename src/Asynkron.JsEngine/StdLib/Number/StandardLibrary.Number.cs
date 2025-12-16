@@ -43,7 +43,7 @@ public static partial class StandardLibrary
                 throw ThrowRangeError("radix must be an integer at least 2 and no greater than 36", realm: realm);
             }
 
-            return JsValue.FromObject(NumberToString(num, radix));
+            return (JsValue)NumberToString(num, radix);
         });
 
         numberObj.SetHostedProperty("toFixed", args =>
@@ -56,27 +56,27 @@ public static partial class StandardLibrary
 
             if (double.IsNaN(num))
             {
-                return JsValue.FromObject("NaN");
+                return (JsValue)"NaN";
             }
 
             if (double.IsInfinity(num))
             {
-                return JsValue.FromObject(num > 0 ? "Infinity" : "-Infinity");
+                return (JsValue)(num > 0 ? "Infinity" : "-Infinity");
             }
 
-            return JsValue.FromObject(num.ToString("F" + fractionDigits, CultureInfo.InvariantCulture));
+            return (JsValue)num.ToString("F" + fractionDigits, CultureInfo.InvariantCulture);
         });
 
         numberObj.SetHostedProperty("toExponential", args =>
         {
             if (double.IsNaN(num))
             {
-                return JsValue.FromObject("NaN");
+                return (JsValue)"NaN";
             }
 
             if (double.IsInfinity(num))
             {
-                return JsValue.FromObject(num > 0 ? "Infinity" : "-Infinity");
+                return (JsValue)(num > 0 ? "Infinity" : "-Infinity");
             }
 
             string result;
@@ -95,29 +95,29 @@ public static partial class StandardLibrary
                 result = num.ToString("e" + fractionDigits, CultureInfo.InvariantCulture);
             }
 
-            return JsValue.FromObject(FormatExponentialForJs(result));
+            return (JsValue)FormatExponentialForJs(result);
         });
 
         numberObj.SetHostedProperty("toPrecision", args =>
         {
             if (args.Count == 0)
             {
-                return JsValue.FromObject(num.ToString(CultureInfo.InvariantCulture));
+                return (JsValue)num.ToString(CultureInfo.InvariantCulture);
             }
 
             if (double.IsNaN(num))
             {
-                return JsValue.FromObject("NaN");
+                return (JsValue)"NaN";
             }
 
             if (double.IsInfinity(num))
             {
-                return JsValue.FromObject(num > 0 ? "Infinity" : "-Infinity");
+                return (JsValue)(num > 0 ? "Infinity" : "-Infinity");
             }
 
             if (!args[0].TryGetDouble(out var d))
             {
-                return JsValue.FromObject(num.ToString(CultureInfo.InvariantCulture));
+                return (JsValue)num.ToString(CultureInfo.InvariantCulture);
             }
 
             var precision = (int)d;
@@ -126,10 +126,10 @@ public static partial class StandardLibrary
                 throw ThrowRangeError("toPrecision() precision argument must be between 1 and 100", realm: realm);
             }
 
-            return JsValue.FromObject(num.ToString("G" + precision, CultureInfo.InvariantCulture));
+            return (JsValue)num.ToString("G" + precision, CultureInfo.InvariantCulture);
         });
 
-        numberObj.SetHostedProperty("valueOf", _ => JsValue.FromObject(num));
+        numberObj.SetHostedProperty("valueOf", _ => num);
 
         numberObj.SetHostedProperty("toLocaleString", args =>
         {
@@ -144,7 +144,7 @@ public static partial class StandardLibrary
 
             if (!optionsArg.TryGetObject<JsObject>(out var options) || options is null)
             {
-                return JsValue.FromObject(num.ToString(CultureInfo.InvariantCulture));
+                return (JsValue)num.ToString(CultureInfo.InvariantCulture);
             }
 
             if (options.TryGetProperty("style", out var styleVal) && !styleVal.IsNullOrUndefined)
@@ -154,11 +154,11 @@ public static partial class StandardLibrary
                     options.TryGetProperty("unit", out var unitVal) &&
                     !unitVal.IsNullOrUndefined)
                 {
-                    return JsValue.FromObject($"{num.ToString(CultureInfo.InvariantCulture)} {JsOps.ToJsString(unitVal)}");
+                    return (JsValue)$"{num.ToString(CultureInfo.InvariantCulture)} {JsOps.ToJsString(unitVal)}";
                 }
             }
 
-            return JsValue.FromObject(num.ToString(CultureInfo.InvariantCulture));
+            return (JsValue)num.ToString(CultureInfo.InvariantCulture);
         });
     }
 

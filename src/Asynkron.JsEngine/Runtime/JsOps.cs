@@ -603,7 +603,7 @@ internal static class JsOps
             throw finalSignal;
         }
 
-        context.SetThrow(JsValue.FromObject(finalSignal.ThrownValue));
+        context.SetThrow(finalSignal.ThrownValue);
         return value;
     }
 

@@ -110,7 +110,7 @@ public static partial class StandardLibrary
         var primitive = JsOps.ToPrimitive(value, ToPrimitiveHint.String, evalContext);
         if (evalContext.IsThrow)
         {
-            throw new ThrowSignal(JsValue.FromObject(evalContext.FlowValue));
+            throw new ThrowSignal(evalContext.FlowValue);
         }
 
         return primitive switch

@@ -346,7 +346,7 @@ public static partial class TypedAstEvaluator
             obj.SetPrototype(realm.BooleanPrototype);
         }
 
-        obj.SetProperty("__value__", JsValue.FromObject(value));
+        obj.SetProperty("__value__", value);
         return obj;
     }
 
@@ -358,7 +358,7 @@ public static partial class TypedAstEvaluator
             obj.SetPrototype(realm.SymbolPrototype);
         }
 
-        obj.SetProperty("__value__", JsValue.FromObject(symbol));
+        obj.SetProperty("__value__", (JsValue)symbol);
         return obj;
     }
 

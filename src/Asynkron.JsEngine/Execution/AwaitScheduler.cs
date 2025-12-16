@@ -194,7 +194,7 @@ internal static class AwaitScheduler
 
             try
             {
-                thenCallable.Invoke([JsValue.FromObject(onFulfilledFn), JsValue.FromObject(onRejectedFn)], new JsValue(promiseObj));
+                thenCallable.Invoke([(JsValue)onFulfilledFn, (JsValue)onRejectedFn], new JsValue(promiseObj));
             }
             catch (ThrowSignal signal)
             {
@@ -206,7 +206,7 @@ internal static class AwaitScheduler
             catch (Exception ex)
             {
                 ReturnState(awaitState);
-                context.SetThrow(JsValue.FromObject(ex.Message));
+                context.SetThrow((JsValue)ex.Message);
                 resolvedValue = JsValue.Undefined;
                 return false;
             }
@@ -241,7 +241,7 @@ internal static class AwaitScheduler
             catch (Exception ex)
             {
                 ReturnState(awaitState);
-                context.SetThrow(JsValue.FromObject(ex.Message));
+                context.SetThrow((JsValue)ex.Message);
                 resolvedValue = JsValue.Undefined;
                 return false;
             }

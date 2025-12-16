@@ -15,7 +15,7 @@ public sealed partial class WeakMapPrototype
         var value = args.GetArgument(1);
         try
         {
-            return JsValue.FromObject(map.Set(key, value));
+            return (JsValue)map.Set(key, value);
         }
         catch (Exception ex)
         {
@@ -75,7 +75,7 @@ public sealed partial class WeakSetPrototype
         var value = args.GetArgument(0);
         try
         {
-            return JsValue.FromObject(set.Add(value));
+            return (JsValue)set.Add(value);
         }
         catch (Exception ex)
         {

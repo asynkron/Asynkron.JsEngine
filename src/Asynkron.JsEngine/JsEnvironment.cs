@@ -1057,7 +1057,7 @@ public sealed class JsEnvironment
                 var globalObject = GetRootGlobalObject();
                 if (globalObject is not null && globalObject.TryGetProperty(name.Name, out var globalValue))
                 {
-                    value = JsValue.FromObject(globalValue);
+                    value = globalValue; // globalValue is already JsValue - don't box via FromObject!
                     return true;
                 }
             }
@@ -1311,6 +1311,12 @@ public sealed class JsEnvironment
         return binding.JsValue.ToObject();
     }
 
+    // Debug counters for ReadResolvedBindingJsValue paths
+    public static long PathUninitialized;
+    public static long PathLiveExport;
+    public static long PathGlobalScope;
+    public static long PathNormal;
+
     /// <summary>
     /// Reads a resolved binding value as JsValue, avoiding boxing for primitives.
     /// </summary>
@@ -1319,6 +1325,7 @@ public sealed class JsEnvironment
         // Check IsUninitialized before reading - this is a TDZ violation
         if (binding.IsUninitialized)
         {
+            Interlocked.Increment(ref PathUninitialized);
             throw new ThrowSignal(JsValue.FromObject(
                 StdLib.StandardLibrary.CreateReferenceError(
                     $"Cannot access '{name.Name}' before initialization",
@@ -1329,27 +1336,21 @@ public sealed class JsEnvironment
         // Check for live export bindings
         if (binding.LiveExportBindingOrNull is { } liveBinding)
         {
+            Interlocked.Increment(ref PathLiveExport);
             return JsValue.FromObject(liveBinding.GetValue());
         }
-
-        // Use binding.JsValue for logging to avoid boxing
-        bindingEnvironment.RealmState?.Logger?.LogInformation(
-            "Read binding '{Name}' (envDepth={Depth}, lexical={Lexical}, bindingHash={Hash}) -> {Value}",
-            name.Name,
-            bindingEnvironment.Depth,
-            binding.IsLexical,
-            binding.GetHashCode(),
-            binding.JsValue);
 
         if (bindingEnvironment.IsGlobalFunctionScope && !binding.IsLexical)
         {
             var globalObject = bindingEnvironment.GetRootGlobalObject();
             if (globalObject is not null && globalObject.TryGetProperty(name.Name, out var globalValue))
             {
-                return JsValue.FromObject(globalValue);
+                Interlocked.Increment(ref PathGlobalScope);
+                return globalValue; // globalValue is already JsValue - don't box via FromObject!
             }
         }
 
+        Interlocked.Increment(ref PathNormal);
         return binding.JsValue;
     }
 
@@ -2743,19 +2744,12 @@ public sealed class JsEnvironment
         bool IsConst { get; }
     }
 
-    private sealed class AsyncExportBinding : ISpecialBinding
+    private sealed class AsyncExportBinding(JsPromise promise, bool isConst) : ISpecialBinding
     {
-        private readonly JsPromise _promise;
         private bool _resolved;
         private object? _resolvedValue;
 
-        public AsyncExportBinding(JsPromise promise, bool isConst)
-        {
-            _promise = promise;
-            IsConst = isConst;
-        }
-
-        public object? GetValue() => _resolved ? _resolvedValue : _promise.JsObject;
+        public object? GetValue() => _resolved ? _resolvedValue : promise.JsObject;
 
         public void SetValue(object? value)
         {
@@ -2766,10 +2760,10 @@ public sealed class JsEnvironment
 
             _resolved = true;
             _resolvedValue = value;
-            _promise.Resolve(JsValue.FromObject(value));
+            promise.Resolve(JsValue.FromObject(value));
         }
 
-        public bool IsConst { get; }
+        public bool IsConst { get; } = isConst;
     }
 
     /// <summary>

@@ -56,11 +56,13 @@ async Task RunWithAsynkron(string code)
     // Reset counters after warmup
     Asynkron.JsEngine.Ast.TypedAstEvaluator.PreEvalPathCount = 0;
     Asynkron.JsEngine.Ast.TypedAstEvaluator.NormalPathCount = 0;
-    Asynkron.JsEngine.Ast.TypedAstEvaluator.TypedFunction.ReuseCallFastPath = 0;
-    Asynkron.JsEngine.Ast.TypedAstEvaluator.TypedFunction.ReuseCallSlowPath = 0;
-    Asynkron.JsEngine.Ast.TypedAstEvaluator.TypedFunction.NonReuseCallCount = 0;
-    Asynkron.JsEngine.Ast.TypedAstEvaluator.TypedFunction.ActualReusePath = 0;
-    Asynkron.JsEngine.Ast.TypedAstEvaluator.TypedFunction.ActualFallbackPath = 0;
+    Asynkron.JsEngine.Ast.TypedAstEvaluator.IdentifierSlotPathLocal = 0;
+    Asynkron.JsEngine.Ast.TypedAstEvaluator.IdentifierSlotPathClosure = 0;
+    Asynkron.JsEngine.Ast.TypedAstEvaluator.IdentifierDictionaryPath = 0;
+    JsEnvironment.PathUninitialized = 0;
+    JsEnvironment.PathLiveExport = 0;
+    JsEnvironment.PathGlobalScope = 0;
+    JsEnvironment.PathNormal = 0;
 
     var sw = Stopwatch.StartNew();
     // Run multiple times to accumulate allocation samples.
@@ -76,9 +78,17 @@ async Task RunWithAsynkron(string code)
     // Debug output
     Console.WriteLine($"PreEval path: {Asynkron.JsEngine.Ast.TypedAstEvaluator.PreEvalPathCount:N0}");
     Console.WriteLine($"Normal path: {Asynkron.JsEngine.Ast.TypedAstEvaluator.NormalPathCount:N0}");
-    Console.WriteLine($"Reuse Fast path: {Asynkron.JsEngine.Ast.TypedAstEvaluator.TypedFunction.ReuseCallFastPath:N0}");
-    Console.WriteLine($"Reuse Slow path: {Asynkron.JsEngine.Ast.TypedAstEvaluator.TypedFunction.ReuseCallSlowPath:N0}");
-    Console.WriteLine($"Non-reuse calls: {Asynkron.JsEngine.Ast.TypedAstEvaluator.TypedFunction.NonReuseCallCount:N0}");
-    Console.WriteLine($"ACTUAL Reuse: {Asynkron.JsEngine.Ast.TypedAstEvaluator.TypedFunction.ActualReusePath:N0}");
-    Console.WriteLine($"ACTUAL Fallback: {Asynkron.JsEngine.Ast.TypedAstEvaluator.TypedFunction.ActualFallbackPath:N0}");
+
+    // Identifier resolution path counters
+    Console.WriteLine($"Identifier resolution paths:");
+    Console.WriteLine($"  SlotPathLocal: {Asynkron.JsEngine.Ast.TypedAstEvaluator.IdentifierSlotPathLocal:N0}");
+    Console.WriteLine($"  SlotPathClosure: {Asynkron.JsEngine.Ast.TypedAstEvaluator.IdentifierSlotPathClosure:N0}");
+    Console.WriteLine($"  DictionaryPath: {Asynkron.JsEngine.Ast.TypedAstEvaluator.IdentifierDictionaryPath:N0}");
+
+    // JsEnvironment ReadResolvedBindingJsValue path counters
+    Console.WriteLine($"ReadResolvedBindingJsValue paths:");
+    Console.WriteLine($"  PathUninitialized: {JsEnvironment.PathUninitialized:N0}");
+    Console.WriteLine($"  PathLiveExport: {JsEnvironment.PathLiveExport:N0}");
+    Console.WriteLine($"  PathGlobalScope: {JsEnvironment.PathGlobalScope:N0}");
+    Console.WriteLine($"  PathNormal: {JsEnvironment.PathNormal:N0}");
 }

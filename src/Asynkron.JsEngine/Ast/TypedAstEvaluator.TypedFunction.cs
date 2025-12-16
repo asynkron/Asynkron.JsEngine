@@ -469,18 +469,12 @@ public static partial class TypedAstEvaluator
             JsValue thisValue,
             EvaluationContext callingContext)
         {
-            Interlocked.Increment(ref NonReuseCallCount);
             if (_canUseFastPathBase)
             {
                 return InvokeSimpleFast1(arg0, thisValue, callingContext);
             }
             return InvokeWithContextSlow([arg0], thisValue, callingContext, JsValue.Undefined);
         }
-
-        // Debug counters - remove after testing
-        public static long ReuseCallFastPath;
-        public static long ReuseCallSlowPath;
-        public static long NonReuseCallCount;
 
         /// <summary>
         /// Ultra-fast invoke for 1-argument calls with environment reuse optimization.
@@ -495,10 +489,8 @@ public static partial class TypedAstEvaluator
         {
             if (_canUseFastPathBase)
             {
-                Interlocked.Increment(ref ReuseCallFastPath);
                 return InvokeSimpleFast1Reuse(arg0, thisValue, callingContext, reuseEnvironment);
             }
-            Interlocked.Increment(ref ReuseCallSlowPath);
             return InvokeWithContextSlow([arg0], thisValue, callingContext, JsValue.Undefined);
         }
 
@@ -1715,10 +1707,6 @@ public static partial class TypedAstEvaluator
             return InvokeSimpleFastWithExceptionHandling([arg0], thisValue, callingContext);
         }
 
-        // More debug counters
-        public static long ActualReusePath;
-        public static long ActualFallbackPath;
-
         /// <summary>
         /// Ultra-fast 1-argument invoke with environment reuse - avoids both array and environment allocation.
         /// The provided environment is reset and reused instead of allocating a new one.
@@ -1728,10 +1716,8 @@ public static partial class TypedAstEvaluator
         {
             if (_canPoolInvocationEnvironment && !_usesArguments)
             {
-                Interlocked.Increment(ref ActualReusePath);
                 return InvokeSimpleFastCore1Reuse(arg0, thisValue, callingContext, reuseEnvironment);
             }
-            Interlocked.Increment(ref ActualFallbackPath);
             return InvokeSimpleFastWithExceptionHandling([arg0], thisValue, callingContext);
         }
 

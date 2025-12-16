@@ -6,6 +6,11 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
+    // Debug counters for identifier resolution paths
+    public static long IdentifierSlotPathLocal;
+    public static long IdentifierSlotPathClosure;
+    public static long IdentifierDictionaryPath;
+
     extension(IdentifierExpression identifier)
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -22,6 +27,7 @@ public static partial class TypedAstEvaluator
                     var slots = environment._slots;
                     if (slots is not null)
                     {
+                        Interlocked.Increment(ref IdentifierSlotPathLocal);
                         var value = slots[identifier.SlotIndex];
                         // Check for TDZ (Temporal Dead Zone) - uninitialized let/const bindings
                         if (value.IsUninitialized)
@@ -37,6 +43,7 @@ public static partial class TypedAstEvaluator
                     var targetEnv = environment.FindByScopeId(identifier.ScopeId);
                     if (targetEnv?._slots is not null)
                     {
+                        Interlocked.Increment(ref IdentifierSlotPathClosure);
                         var value = targetEnv._slots[identifier.SlotIndex];
                         // Check for TDZ (Temporal Dead Zone) - uninitialized let/const bindings
                         if (value.IsUninitialized)
@@ -48,6 +55,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
+            Interlocked.Increment(ref IdentifierDictionaryPath);
             // Fallback: use dictionary-based lookup
             if (environment.TryGetIdentifierJsValue(identifier.Name, context, out var value2))
             {

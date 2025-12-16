@@ -286,7 +286,8 @@ public static partial class TypedAstEvaluator
                         {
                             foreach (var item in jsArray.Items)
                             {
-                                argsBuilder.Add(JsValue.FromObject(item));
+                                // Items is already IReadOnlyList<JsValue>, no wrapping needed
+                                argsBuilder.Add(item);
                             }
                         }
                         else

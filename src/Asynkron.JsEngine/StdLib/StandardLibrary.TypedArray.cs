@@ -406,13 +406,15 @@ public static partial class StandardLibrary
                 var target = CreateTarget(typedSource.Length);
                 for (var i = 0; i < typedSource.Length; i++)
                 {
-                    object? value = typedSource switch
+                    // GetElement/GetBigIntElement return raw numbers/BigInt, need to wrap
+                    JsValue value = typedSource switch
                     {
-                        JsBigInt64Array bi64 => bi64.GetBigIntElement(i),
-                        JsBigUint64Array bu64 => bu64.GetBigIntElement(i),
-                        _ => typedSource.GetElement(i)
+                        JsBigInt64Array bi64 => JsValue.FromObject(bi64.GetBigIntElement(i)),
+                        JsBigUint64Array bu64 => JsValue.FromObject(bu64.GetBigIntElement(i)),
+                        _ => JsValue.FromObject(typedSource.GetElement(i))
                     };
-                    target.SetValue(i, JsValue.FromObject(ApplyMap(i, value)));
+                    // ApplyMap returns JsValue, no additional wrapping needed
+                    target.SetValue(i, ApplyMap(i, value));
                 }
 
                 return target;
@@ -440,7 +442,8 @@ public static partial class StandardLibrary
                     throw new ThrowSignal(JsValue.FromObject(WrapTypeError("Iterator result does not expose next", callingEnv)));
                 }
 
-                var collected = new List<object?>();
+                // Use List<JsValue> to avoid boxing from TryGetProperty results
+                var collected = new List<JsValue>();
                 while (true)
                 {
                     var nextResult = nextCallable.Invoke([], iteratorObj);
@@ -456,7 +459,8 @@ public static partial class StandardLibrary
                         var target = CreateTarget(collected.Count);
                         for (var i = 0; i < collected.Count; i++)
                         {
-                            target.SetValue(i, JsValue.FromObject(ApplyMap(i, collected[i])));
+                            // collected[i] is JsValue, ApplyMap returns JsValue, no wrapping needed
+                            target.SetValue(i, ApplyMap(i, collected[i]));
                         }
 
                         return target;
@@ -481,7 +485,8 @@ public static partial class StandardLibrary
                 {
                     var key = i.ToString(CultureInfo.InvariantCulture);
                     var hasElement = arrayLike.TryGetProperty(key, out var element);
-                    target.SetValue(i, JsValue.FromObject(ApplyMap(i, hasElement ? element : JsValue.Undefined)));
+                    // ApplyMap returns JsValue, no wrapping needed
+                    target.SetValue(i, ApplyMap(i, hasElement ? element : JsValue.Undefined));
                 }
 
                 return target;
@@ -526,9 +531,9 @@ public static partial class StandardLibrary
                 return target;
             }
 
-            object? ApplyMap(int index, object? value)
+            JsValue ApplyMap(int index, JsValue value)
             {
-                return mapFn is null ? value : mapFn.Invoke([JsValue.FromObject(value), JsValue.FromNumber((double)index)], mapThis);
+                return mapFn is null ? value : mapFn.Invoke([value, JsValue.FromNumber((double)index)], mapThis);
             }
         }
     }
@@ -702,8 +707,9 @@ public static partial class StandardLibrary
                 break;
             }
 
+            // GetValueForIndex returns JsValue, no wrapping needed
             var value = typedArray.GetValueForIndex(k);
-            var mapped = callback.Invoke([JsValue.FromObject(value), JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
+            var mapped = callback.Invoke([value, JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
             result.SetValue(k, mapped);
         }
 
@@ -734,7 +740,8 @@ public static partial class StandardLibrary
         }
 
         var length = typedArray.Length;
-        var kept = new List<object?>();
+        // Use List<JsValue> to avoid boxing from GetValueForIndex
+        var kept = new List<JsValue>();
         for (var k = 0; k < length; k++)
         {
             if (typedArray.IsDetachedOrOutOfBounds())
@@ -747,8 +754,9 @@ public static partial class StandardLibrary
                 break;
             }
 
+            // GetValueForIndex returns JsValue, no wrapping needed
             var value = typedArray.GetValueForIndex(k);
-            var result = callback.Invoke([JsValue.FromObject(value), JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
+            var result = callback.Invoke([value, JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
             if (IsTruthy(result))
             {
                 kept.Add(value);
@@ -758,7 +766,8 @@ public static partial class StandardLibrary
         var filtered = TypedArraySpeciesCreate(typedArray, kept.Count, realm);
         for (var i = 0; i < kept.Count; i++)
         {
-            filtered.SetValue(i, JsValue.FromObject(kept[i]));
+            // kept is List<JsValue>, no wrapping needed
+            filtered.SetValue(i, kept[i]);
         }
 
         return filtered;
@@ -813,6 +822,7 @@ public static partial class StandardLibrary
                 break;
             }
 
+            // GetValueForIndex returns JsValue, no wrapping needed
             var value = typedArray.GetValueForIndex(k);
             visited++;
 
@@ -823,7 +833,9 @@ public static partial class StandardLibrary
             }
             else
             {
-                accumulator = callback.Invoke([JsValue.FromObject(accumulator), JsValue.FromObject(value), JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], JsValue.Undefined);
+                // value is JsValue from GetValueForIndex, accumulator is JsValue from callback or initial value
+                var accumulatorJs = accumulator is JsValue accJs ? accJs : JsValue.FromObject(accumulator);
+                accumulator = callback.Invoke([accumulatorJs, value, JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], JsValue.Undefined);
             }
 
             k += step;
@@ -877,8 +889,9 @@ public static partial class StandardLibrary
         var length = typedArray.Length;
         for (var k = 0; k < length; k++)
         {
+            // GetValueForIndex returns JsValue, no wrapping needed
             var value = typedArray.GetValueForIndex(k);
-            var result = callback.Invoke([JsValue.FromObject(value), JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
+            var result = callback.Invoke([value, JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
             if (!IsTruthy(result))
             {
                 return false;
@@ -1076,8 +1089,9 @@ public static partial class StandardLibrary
                 break;
             }
 
+            // GetValueForIndex returns JsValue, no wrapping needed
             var value = typedArray.GetValueForIndex(k);
-            callback.Invoke([JsValue.FromObject(value), JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
+            callback.Invoke([value, JsValue.FromNumber((double)k), JsValue.FromObject(typedArray)], thisArg);
         }
 
         return Symbol.Undefined;

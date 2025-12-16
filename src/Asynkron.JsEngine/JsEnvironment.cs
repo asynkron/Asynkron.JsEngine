@@ -414,7 +414,6 @@ public sealed class JsEnvironment
             }
         }
 
-        var canDeclareFunction = true;
         var isRestrictedGlobal = isGlobalScope &&
                                  existingDescriptor is { Configurable: false } descriptor &&
                                  (!descriptor.IsDataDescriptor || !descriptor.Writable);
@@ -427,7 +426,7 @@ public sealed class JsEnvironment
                     context, context?.RealmState);
             }
 
-            canDeclareFunction = existingDescriptor switch
+            var canDeclareFunction = existingDescriptor switch
             {
                 null => globalThis?.IsExtensible != false,
                 { Configurable: true } => true,
@@ -666,111 +665,6 @@ public sealed class JsEnvironment
             {
                 return propertyValue;
             }
-        }
-
-        throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
-    }
-
-    /// <summary>
-    /// Gets a binding value as JsValue, avoiding boxing for primitives.
-    /// </summary>
-    public JsValue GetJsValue(Symbol name)
-    {
-        var current = this;
-        var hops = 0;
-        const int maxLookupDepth = 10_000;
-        while (current is not null && hops++ < maxLookupDepth)
-        {
-            if (current._values is not null && current._values.TryGetValue(name, out var binding))
-            {
-                // Check IsUninitialized before reading
-                if (binding.IsUninitialized)
-                {
-                    throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
-                }
-
-                if (current.IsGlobalFunctionScope &&
-                    !binding.IsLexical)
-                {
-                    var globalObject = current.GetRootGlobalObject();
-                    if (globalObject is not null &&
-                        globalObject.TryGetProperty(name.Name, out var globalValue))
-                    {
-                        return JsValue.FromObject(globalValue);
-                    }
-                }
-
-                return binding.JsValue;
-            }
-
-            if (current._varEnvironmentOverride is not null &&
-                current._varEnvironmentOverride != current)
-            {
-                return current._varEnvironmentOverride.GetJsValue(name);
-            }
-
-            if (current._withObject is not null && TryGetFromWith(current._withObject, name, out var withValue))
-            {
-                return JsValue.FromObject(withValue);
-            }
-
-            current = current.Enclosing;
-        }
-
-        if (IsGlobalFunctionScope)
-        {
-            var rootGlobal = GetRootGlobalObject();
-            if (rootGlobal is not null && rootGlobal.TryGetProperty(name.Name, out var propertyValue))
-            {
-                return JsValue.FromObject(propertyValue);
-            }
-        }
-
-        throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
-    }
-
-    internal object? GetDeclarative(Symbol name)
-    {
-        var current = this;
-        var hops = 0;
-        const int maxLookupDepth = 10_000;
-        while (current is not null && hops++ < maxLookupDepth)
-        {
-            if (current._values is not null && current._values.TryGetValue(name, out var binding))
-            {
-                // Check IsUninitialized before reading
-                if (binding.IsUninitialized)
-                {
-                    throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
-                }
-
-                if (current.IsGlobalFunctionScope &&
-                    !binding.IsLexical)
-                {
-                    var globalObject = current.GetRootGlobalObject();
-                    if (globalObject is not null &&
-                        globalObject.TryGetProperty(name.Name, out var globalValue))
-                    {
-                        return globalValue;
-                    }
-                }
-
-                return binding.JsValue.ToObject();
-            }
-
-            if (current._varEnvironmentOverride is not null &&
-                current._varEnvironmentOverride != current)
-            {
-                return current._varEnvironmentOverride.GetDeclarative(name);
-            }
-
-            current = current.Enclosing;
-        }
-
-        var rootGlobal = GetRootGlobalObject();
-        if (rootGlobal is not null && rootGlobal.TryGetProperty(name.Name, out var propertyValue))
-        {
-            return propertyValue;
         }
 
         throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");

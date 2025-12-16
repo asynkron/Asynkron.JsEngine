@@ -567,19 +567,25 @@ public readonly struct JsValue : IEquatable<JsValue>
     public bool IsTruthy
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => Kind switch
+        get
         {
-            JsValueKind.Undefined => false,
-            JsValueKind.Null => false,
-            JsValueKind.Unit => false,
-            JsValueKind.Boolean => NumberValue != 0.0,
-            JsValueKind.Number => NumberValue != 0.0 && !double.IsNaN(NumberValue),
-            JsValueKind.String => ((string)ObjectValue!).Length > 0,
-            JsValueKind.BigInt => !((JsBigInt)ObjectValue!).Value.IsZero,
-            JsValueKind.Symbol => true,
-            JsValueKind.Object => true,
-            _ => false
-        };
+            // Fast path for boolean (most common in loop conditions)
+            if (Kind == JsValueKind.Boolean) return NumberValue != 0.0;
+            // Fast path for objects (always truthy)
+            if (Kind == JsValueKind.Object) return true;
+
+            return Kind switch
+            {
+                JsValueKind.Undefined => false,
+                JsValueKind.Null => false,
+                JsValueKind.Unit => false,
+                JsValueKind.Number => NumberValue != 0.0 && !double.IsNaN(NumberValue),
+                JsValueKind.String => ((string)ObjectValue!).Length > 0,
+                JsValueKind.BigInt => !((JsBigInt)ObjectValue!).Value.IsZero,
+                JsValueKind.Symbol => true,
+                _ => false
+            };
+        }
     }
 
     /// <summary>Returns true if this value is falsy according to JavaScript semantics.</summary>

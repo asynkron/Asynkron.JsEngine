@@ -14,7 +14,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext context)
         {
             // ES2022: Handle private identifier in 'in' operator (#field in obj)
-            if (expression.Operator == "in" && expression.Left is PrivateIdentifierExpression privateId)
+            if (expression.Operator == BinaryOperator.In && expression.Left is PrivateIdentifierExpression privateId)
             {
                 var rightTarget = EvaluateExpression(expression.Right, environment, context);
                 if (context.ShouldStopEvaluation)
@@ -33,15 +33,15 @@ public static partial class TypedAstEvaluator
 
             switch (expression.Operator)
             {
-                case "&&":
+                case BinaryOperator.LogicalAnd:
                     return left.IsTruthy
                         ? EvaluateExpression(expression.Right, environment, context)
                         : left;
-                case "||":
+                case BinaryOperator.LogicalOr:
                     return left.IsTruthy
                         ? left
                         : EvaluateExpression(expression.Right, environment, context);
-                case "??":
+                case BinaryOperator.NullishCoalescing:
                     return left.IsNullOrUndefined
                         ? EvaluateExpression(expression.Right, environment, context)
                         : left;
@@ -55,28 +55,28 @@ public static partial class TypedAstEvaluator
 
             return expression.Operator switch
             {
-                "+" => AddValue(left, right, context),
-                "-" => SubtractValue(left, right, context),
-                "*" => MultiplyValue(left, right, context),
-                "/" => DivideValue(left, right, context),
-                "%" => ModuloValue(left, right, context),
-                "**" => PowerValue(left, right, context),
-                "==" => LooseEqualsValue(left, right, context) ? JsValue.True : JsValue.False,
-                "!=" => LooseEqualsValue(left, right, context) ? JsValue.False : JsValue.True,
-                "===" => StrictEqualsValue(left, right) ? JsValue.True : JsValue.False,
-                "!==" => StrictEqualsValue(left, right) ? JsValue.False : JsValue.True,
-                "<" => LessThanValue(left, right, context),
-                "<=" => LessThanOrEqualValue(left, right, context),
-                ">" => GreaterThanValue(left, right, context),
-                ">=" => GreaterThanOrEqualValue(left, right, context),
-                "&" => BitwiseAndValue(left, right, context),
-                "|" => BitwiseOrValue(left, right, context),
-                "^" => BitwiseXorValue(left, right, context),
-                "<<" => LeftShiftValue(left, right, context),
-                ">>" => RightShiftValue(left, right, context),
-                ">>>" => UnsignedRightShiftValue(left, right, context),
-                "in" => InOperator(left.ToObject(), right.ToObject(), context) ? JsValue.True : JsValue.False,
-                "instanceof" => InstanceofOperator(left.ToObject(), right.ToObject(), context) ? JsValue.True : JsValue.False,
+                BinaryOperator.Add => AddValue(left, right, context),
+                BinaryOperator.Subtract => SubtractValue(left, right, context),
+                BinaryOperator.Multiply => MultiplyValue(left, right, context),
+                BinaryOperator.Divide => DivideValue(left, right, context),
+                BinaryOperator.Modulo => ModuloValue(left, right, context),
+                BinaryOperator.Power => PowerValue(left, right, context),
+                BinaryOperator.Equal => LooseEqualsValue(left, right, context) ? JsValue.True : JsValue.False,
+                BinaryOperator.NotEqual => LooseEqualsValue(left, right, context) ? JsValue.False : JsValue.True,
+                BinaryOperator.StrictEqual => StrictEqualsValue(left, right) ? JsValue.True : JsValue.False,
+                BinaryOperator.StrictNotEqual => StrictEqualsValue(left, right) ? JsValue.False : JsValue.True,
+                BinaryOperator.LessThan => LessThanValue(left, right, context),
+                BinaryOperator.LessThanOrEqual => LessThanOrEqualValue(left, right, context),
+                BinaryOperator.GreaterThan => GreaterThanValue(left, right, context),
+                BinaryOperator.GreaterThanOrEqual => GreaterThanOrEqualValue(left, right, context),
+                BinaryOperator.BitwiseAnd => BitwiseAndValue(left, right, context),
+                BinaryOperator.BitwiseOr => BitwiseOrValue(left, right, context),
+                BinaryOperator.BitwiseXor => BitwiseXorValue(left, right, context),
+                BinaryOperator.LeftShift => LeftShiftValue(left, right, context),
+                BinaryOperator.RightShift => RightShiftValue(left, right, context),
+                BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(left, right, context),
+                BinaryOperator.In => InOperator(left.ToObject(), right.ToObject(), context) ? JsValue.True : JsValue.False,
+                BinaryOperator.InstanceOf => InstanceofOperator(left.ToObject(), right.ToObject(), context) ? JsValue.True : JsValue.False,
                 _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet.")
             };
         }

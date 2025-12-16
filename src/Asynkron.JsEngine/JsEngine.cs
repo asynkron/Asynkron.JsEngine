@@ -4528,21 +4528,21 @@ public sealed class JsEngine : IAsyncDisposable
             }
         }
 
-        private static object? EvaluateUnaryOnValue(string op, object? operand)
+        private static object? EvaluateUnaryOnValue(Ast.UnaryOperator op, object? operand)
         {
             return op switch
             {
-                "!" => !JsOps.ToBoolean(operand),
-                "+" => JsOps.ToNumber(operand, null),
-                "-" => operand switch
+                Ast.UnaryOperator.LogicalNot => !JsOps.ToBoolean(operand),
+                Ast.UnaryOperator.Plus => JsOps.ToNumber(operand, null),
+                Ast.UnaryOperator.Minus => operand switch
                 {
                     double d => -d,
                     long l => -l,
                     _ => -JsOps.ToNumber(operand, null)
                 },
-                "~" => ~(int)JsOps.ToNumber(operand, null),
-                "void" => Symbol.Undefined,
-                "typeof" => JsOps.GetTypeofString(operand),
+                Ast.UnaryOperator.BitwiseNot => ~(int)JsOps.ToNumber(operand, null),
+                Ast.UnaryOperator.Void => Symbol.Undefined,
+                Ast.UnaryOperator.TypeOf => JsOps.GetTypeofString(operand),
                 _ => throw new NotSupportedException($"Unary operator '{op}' is not supported in async module context.")
             };
         }

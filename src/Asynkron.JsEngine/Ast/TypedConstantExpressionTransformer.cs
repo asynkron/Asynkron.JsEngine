@@ -735,46 +735,46 @@ public sealed class TypedConstantExpressionTransformer
         };
     }
 
-    private static bool TryFoldBinary(string op, object? left, object? right, out object? value)
+    private static bool TryFoldBinary(BinaryOperator op, object? left, object? right, out object? value)
     {
         value = null;
         return op switch
         {
-            "+" => TryFoldAddition(left, right, out value),
-            "-" => TryFoldSubtraction(left, right, out value),
-            "*" => TryFoldMultiplication(left, right, out value),
-            "/" => TryFoldDivision(left, right, out value),
-            "%" => TryFoldModulo(left, right, out value),
-            "**" => TryFoldExponentiation(left, right, out value),
-            "&&" => TryFoldLogicalAnd(left, right, out value),
-            "||" => TryFoldLogicalOr(left, right, out value),
-            "==" => TryFoldEquals(left, right, out value),
-            "!=" => TryFoldNotEquals(left, right, out value),
-            "===" => TryFoldStrictEquals(left, right, out value),
-            "!==" => TryFoldStrictNotEquals(left, right, out value),
-            "<" => TryFoldLessThan(left, right, out value),
-            "<=" => TryFoldLessThanOrEqual(left, right, out value),
-            ">" => TryFoldGreaterThan(left, right, out value),
-            ">=" => TryFoldGreaterThanOrEqual(left, right, out value),
-            "&" => TryFoldBitwiseAnd(left, right, out value),
-            "|" => TryFoldBitwiseOr(left, right, out value),
-            "^" => TryFoldBitwiseXor(left, right, out value),
-            "<<" => TryFoldLeftShift(left, right, out value),
-            ">>" => TryFoldRightShift(left, right, out value),
-            ">>>" => TryFoldUnsignedRightShift(left, right, out value),
+            BinaryOperator.Add => TryFoldAddition(left, right, out value),
+            BinaryOperator.Subtract => TryFoldSubtraction(left, right, out value),
+            BinaryOperator.Multiply => TryFoldMultiplication(left, right, out value),
+            BinaryOperator.Divide => TryFoldDivision(left, right, out value),
+            BinaryOperator.Modulo => TryFoldModulo(left, right, out value),
+            BinaryOperator.Power => TryFoldExponentiation(left, right, out value),
+            BinaryOperator.LogicalAnd => TryFoldLogicalAnd(left, right, out value),
+            BinaryOperator.LogicalOr => TryFoldLogicalOr(left, right, out value),
+            BinaryOperator.Equal => TryFoldEquals(left, right, out value),
+            BinaryOperator.NotEqual => TryFoldNotEquals(left, right, out value),
+            BinaryOperator.StrictEqual => TryFoldStrictEquals(left, right, out value),
+            BinaryOperator.StrictNotEqual => TryFoldStrictNotEquals(left, right, out value),
+            BinaryOperator.LessThan => TryFoldLessThan(left, right, out value),
+            BinaryOperator.LessThanOrEqual => TryFoldLessThanOrEqual(left, right, out value),
+            BinaryOperator.GreaterThan => TryFoldGreaterThan(left, right, out value),
+            BinaryOperator.GreaterThanOrEqual => TryFoldGreaterThanOrEqual(left, right, out value),
+            BinaryOperator.BitwiseAnd => TryFoldBitwiseAnd(left, right, out value),
+            BinaryOperator.BitwiseOr => TryFoldBitwiseOr(left, right, out value),
+            BinaryOperator.BitwiseXor => TryFoldBitwiseXor(left, right, out value),
+            BinaryOperator.LeftShift => TryFoldLeftShift(left, right, out value),
+            BinaryOperator.RightShift => TryFoldRightShift(left, right, out value),
+            BinaryOperator.UnsignedRightShift => TryFoldUnsignedRightShift(left, right, out value),
             _ => false
         };
     }
 
-    private static bool TryFoldUnary(string op, object? operand, out object? value)
+    private static bool TryFoldUnary(UnaryOperator op, object? operand, out object? value)
     {
         value = null;
         return op switch
         {
-            "unary-" => TryFoldUnaryMinus(operand, out value),
-            "unary+" => TryFoldUnaryPlus(operand, out value),
-            "!" => TryFoldLogicalNot(operand, out value),
-            "~" => TryFoldBitwiseNot(operand, out value),
+            UnaryOperator.Minus => TryFoldUnaryMinus(operand, out value),
+            UnaryOperator.Plus => TryFoldUnaryPlus(operand, out value),
+            UnaryOperator.LogicalNot => TryFoldLogicalNot(operand, out value),
+            UnaryOperator.BitwiseNot => TryFoldBitwiseNot(operand, out value),
             _ => false
         };
     }

@@ -1306,14 +1306,14 @@ internal static class GeneratorYieldLowerer
                             conditionYield.IsDelegated))));
 
                 loopStatements.Add(new IfStatement(forStatement.Source,
-                    new UnaryExpression(forStatement.Source, "!", rewrittenCondition!, true),
+                    new UnaryExpression(forStatement.Source, UnaryOperator.LogicalNot, rewrittenCondition!, true),
                     new BreakStatement(forStatement.Source, null),
                     null));
             }
             else if (forStatement.Condition is not null)
             {
                 loopStatements.Add(new IfStatement(forStatement.Source,
-                    new UnaryExpression(forStatement.Source, "!", forStatement.Condition, true),
+                    new UnaryExpression(forStatement.Source, UnaryOperator.LogicalNot, forStatement.Condition, true),
                     new BreakStatement(forStatement.Source, null),
                     null));
             }
@@ -1476,7 +1476,7 @@ internal static class GeneratorYieldLowerer
                 {
                     var conditionCheck = rewrittenCondition ?? plan.Condition;
                     prologue.Add(new IfStatement(plan.Body.Source,
-                        new UnaryExpression(plan.Body.Source, "!", conditionCheck, true),
+                        new UnaryExpression(plan.Body.Source, UnaryOperator.LogicalNot, conditionCheck, true),
                         new BreakStatement(plan.Body.Source, null),
                         null));
                 }

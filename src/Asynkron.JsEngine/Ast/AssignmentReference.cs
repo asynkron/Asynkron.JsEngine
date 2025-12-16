@@ -391,7 +391,7 @@ internal static class AssignmentReferenceResolver
         EvaluationContext context)
     {
         // Unwrap unary ++/-- expressions to get the underlying identifier
-        while (expression is UnaryExpression { Operator: "++" or "--" } unary)
+        while (expression is UnaryExpression { Operator: UnaryOperator.Increment or UnaryOperator.Decrement } unary)
         {
             expression = unary.Operand;
         }
@@ -436,7 +436,7 @@ internal static class AssignmentReferenceResolver
             IdentifierExpression identifier => ResolveIdentifier(identifier, environment, context),
             MemberExpression member => ResolveMember(member, environment, context, evaluateExpression,
                 deferPropertyKeyConversion),
-            UnaryExpression { Operator: "++" or "--" } unary =>
+            UnaryExpression { Operator: UnaryOperator.Increment or UnaryOperator.Decrement } unary =>
                 Resolve(unary.Operand, environment, context, evaluateExpression),
             _ => throw new NotSupportedException("Unsupported assignment target.")
         };

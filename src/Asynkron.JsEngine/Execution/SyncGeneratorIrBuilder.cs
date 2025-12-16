@@ -635,13 +635,13 @@ internal sealed class SyncGeneratorIrBuilder
                 continue;
             }
 
-            var matchUnset = new BinaryExpression(statement.Source, "===",
+            var matchUnset = new BinaryExpression(statement.Source, BinaryOperator.StrictEqual,
                 new IdentifierExpression(statement.Source, matchIndexSymbol),
                 new LiteralExpression(statement.Source, -1));
             var discIdentifier = new IdentifierExpression(statement.Source, discriminantSymbol);
-            var equalTest = new BinaryExpression(statement.Source, "===",
+            var equalTest = new BinaryExpression(statement.Source, BinaryOperator.StrictEqual,
                 discIdentifier, switchCase.Test);
-            var combinedTest = new BinaryExpression(statement.Source, "&&", matchUnset, equalTest);
+            var combinedTest = new BinaryExpression(statement.Source, BinaryOperator.LogicalAnd, matchUnset, equalTest);
 
             var setMatch = new AssignmentExpression(statement.Source, matchIndexSymbol,
                 new LiteralExpression(statement.Source, i));
@@ -654,7 +654,7 @@ internal sealed class SyncGeneratorIrBuilder
         // If still unmatched, fall back to default (if any).
         if (defaultIndex != -1)
         {
-            var stillUnmatched = new BinaryExpression(statement.Source, "===",
+            var stillUnmatched = new BinaryExpression(statement.Source, BinaryOperator.StrictEqual,
                 new IdentifierExpression(statement.Source, matchIndexSymbol),
                 new LiteralExpression(statement.Source, -1));
             var setDefaultMatch = new AssignmentExpression(statement.Source, matchIndexSymbol,
@@ -689,16 +689,16 @@ internal sealed class SyncGeneratorIrBuilder
             }
 
             // Execution guard: if (!__done && __matchN != -1 && __matchN <= caseIndex) { ...body... }
-            var notDoneExec = new UnaryExpression(statement.Source, "!",
+            var notDoneExec = new UnaryExpression(statement.Source, UnaryOperator.LogicalNot,
                 new IdentifierExpression(statement.Source, doneSymbol), true);
-            var matchSet = new BinaryExpression(statement.Source, "!==",
+            var matchSet = new BinaryExpression(statement.Source, BinaryOperator.StrictNotEqual,
                 new IdentifierExpression(statement.Source, matchIndexSymbol),
                 new LiteralExpression(statement.Source, -1));
-            var matchReached = new BinaryExpression(statement.Source, "<=",
+            var matchReached = new BinaryExpression(statement.Source, BinaryOperator.LessThanOrEqual,
                 new IdentifierExpression(statement.Source, matchIndexSymbol),
                 new LiteralExpression(statement.Source, caseIndex));
-            var matchGuard = new BinaryExpression(statement.Source, "&&", matchSet, matchReached);
-            var execCondition = new BinaryExpression(statement.Source, "&&", notDoneExec, matchGuard);
+            var matchGuard = new BinaryExpression(statement.Source, BinaryOperator.LogicalAnd, matchSet, matchReached);
+            var execCondition = new BinaryExpression(statement.Source, BinaryOperator.LogicalAnd, notDoneExec, matchGuard);
 
             var execBuilder = ImmutableArray.CreateBuilder<StatementNode>();
             var copyCount = breakIndex == -1 ? bodyStatements.Length : breakIndex;

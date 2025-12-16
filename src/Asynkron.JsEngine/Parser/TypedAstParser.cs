@@ -2092,7 +2092,7 @@ public sealed class TypedAstParser(
                 var rightExpr = ParseShift();
                 return new BinaryExpression(
                     CreateSourceReference(privateToken),
-                    "in",
+                    BinaryOperator.In,
                     privateExpr,
                     rightExpr);
             }
@@ -2209,47 +2209,47 @@ public sealed class TypedAstParser(
         {
             if (Match(TokenType.PlusPlus))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), "++", ParseUnary(), true);
+                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.Increment, ParseUnary(), true);
             }
 
             if (Match(TokenType.MinusMinus))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), "--", ParseUnary(), true);
+                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.Decrement, ParseUnary(), true);
             }
 
             if (Match(TokenType.Bang))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), "!", ParseUnary(), true);
+                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.LogicalNot, ParseUnary(), true);
             }
 
             if (Match(TokenType.Minus))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), "-", ParseUnary(), true);
+                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.Minus, ParseUnary(), true);
             }
 
             if (Match(TokenType.Plus))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), "+", ParseUnary(), true);
+                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.Plus, ParseUnary(), true);
             }
 
             if (Match(TokenType.Tilde))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), "~", ParseUnary(), true);
+                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.BitwiseNot, ParseUnary(), true);
             }
 
             if (Match(TokenType.Typeof))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), "typeof", ParseUnary(), true);
+                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.TypeOf, ParseUnary(), true);
             }
 
             if (Match(TokenType.Void))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), "void", ParseUnary(), true);
+                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.Void, ParseUnary(), true);
             }
 
             if (Match(TokenType.Delete))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), "delete", ParseUnary(), true);
+                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.Delete, ParseUnary(), true);
             }
 
             if (Check(TokenType.Yield))
@@ -2315,7 +2315,7 @@ public sealed class TypedAstParser(
                 if (!HasLineTerminatorBefore())
                 {
                     var op = Advance();
-                    return new UnaryExpression(CreateSourceReference(op), "++", expr, false);
+                    return new UnaryExpression(CreateSourceReference(op), UnaryOperator.Increment, expr, false);
                 }
 
                 return expr;
@@ -2326,7 +2326,7 @@ public sealed class TypedAstParser(
                 if (!HasLineTerminatorBefore())
                 {
                     var op = Advance();
-                    return new UnaryExpression(CreateSourceReference(op), "--", expr, false);
+                    return new UnaryExpression(CreateSourceReference(op), UnaryOperator.Decrement, expr, false);
                 }
 
                 return expr;
@@ -2569,10 +2569,10 @@ public sealed class TypedAstParser(
                 var operand = ParseUnary();
                 var op = token.Type switch
                 {
-                    TokenType.Tilde => "~",
-                    TokenType.Typeof => "typeof",
-                    TokenType.Void => "void",
-                    TokenType.Delete => "delete",
+                    TokenType.Tilde => UnaryOperator.BitwiseNot,
+                    TokenType.Typeof => UnaryOperator.TypeOf,
+                    TokenType.Void => UnaryOperator.Void,
+                    TokenType.Delete => UnaryOperator.Delete,
                     _ => throw new InvalidOperationException()
                 };
                 var unary = new UnaryExpression(CreateSourceReference(token), op, operand, true);
@@ -3397,8 +3397,51 @@ public sealed class TypedAstParser(
         private static BinaryExpression CreateBinaryExpression(string op, ExpressionNode left, ExpressionNode right)
         {
             var source = left.Source ?? right.Source;
-            return new BinaryExpression(source, op, left, right);
+            var binaryOp = op switch
+            {
+                "+" => BinaryOperator.Add,
+                "-" => BinaryOperator.Subtract,
+                "*" => BinaryOperator.Multiply,
+                "/" => BinaryOperator.Divide,
+                "%" => BinaryOperator.Modulo,
+                "**" => BinaryOperator.Power,
+                "==" => BinaryOperator.Equal,
+                "!=" => BinaryOperator.NotEqual,
+                "===" => BinaryOperator.StrictEqual,
+                "!==" => BinaryOperator.StrictNotEqual,
+                "<" => BinaryOperator.LessThan,
+                "<=" => BinaryOperator.LessThanOrEqual,
+                ">" => BinaryOperator.GreaterThan,
+                ">=" => BinaryOperator.GreaterThanOrEqual,
+                "&&" => BinaryOperator.LogicalAnd,
+                "||" => BinaryOperator.LogicalOr,
+                "??" => BinaryOperator.NullishCoalescing,
+                "&" => BinaryOperator.BitwiseAnd,
+                "|" => BinaryOperator.BitwiseOr,
+                "^" => BinaryOperator.BitwiseXor,
+                "<<" => BinaryOperator.LeftShift,
+                ">>" => BinaryOperator.RightShift,
+                ">>>" => BinaryOperator.UnsignedRightShift,
+                "in" => BinaryOperator.In,
+                "instanceof" => BinaryOperator.InstanceOf,
+                _ => throw new NotSupportedException($"Unknown binary operator: {op}")
+            };
+            return new BinaryExpression(source, binaryOp, left, right);
         }
+
+        private static UnaryOperator ParseUnaryOperator(string op) => op switch
+        {
+            "+" => UnaryOperator.Plus,
+            "-" => UnaryOperator.Minus,
+            "!" => UnaryOperator.LogicalNot,
+            "~" => UnaryOperator.BitwiseNot,
+            "typeof" => UnaryOperator.TypeOf,
+            "void" => UnaryOperator.Void,
+            "delete" => UnaryOperator.Delete,
+            "++" => UnaryOperator.Increment,
+            "--" => UnaryOperator.Decrement,
+            _ => throw new NotSupportedException($"Unknown unary operator: {op}")
+        };
 
         private static ExpressionNode CreateMemberAssignment(
             MemberExpression member,

@@ -161,7 +161,7 @@ public static partial class TypedAstEvaluator
 
         switch (binary.Operator)
         {
-            case "&&":
+            case BinaryOperator.LogicalAnd:
                 if (!leftJs.IsTruthy)
                 {
                     value = leftJs;
@@ -172,7 +172,7 @@ public static partial class TypedAstEvaluator
                 value = EvaluateAssignmentRhsWithNameHintJsValue(assignment, binary.Right, environment, context);
                 shouldAssign = !context.ShouldStopEvaluation;
                 return true;
-            case "||":
+            case BinaryOperator.LogicalOr:
                 if (leftJs.IsTruthy)
                 {
                     value = leftJs;
@@ -183,7 +183,7 @@ public static partial class TypedAstEvaluator
                 value = EvaluateAssignmentRhsWithNameHintJsValue(assignment, binary.Right, environment, context);
                 shouldAssign = !context.ShouldStopEvaluation;
                 return true;
-            case "??":
+            case BinaryOperator.NullishCoalescing:
                 if (!leftJs.IsNullish)
                 {
                     value = leftJs;
@@ -207,28 +207,28 @@ public static partial class TypedAstEvaluator
         // Use JsValue arithmetic operations to avoid boxing
         value = binary.Operator switch
         {
-            "+" => AddValue(leftJs, rightJs, context),
-            "-" => SubtractValue(leftJs, rightJs, context),
-            "*" => MultiplyValue(leftJs, rightJs, context),
-            "/" => DivideValue(leftJs, rightJs, context),
-            "%" => ModuloValue(leftJs, rightJs, context),
-            "**" => PowerValue(leftJs, rightJs, context),
-            "==" => LooseEqualsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
-            "!=" => !LooseEqualsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
-            "===" => StrictEqualsValue(leftJs, rightJs) ? JsValue.True : JsValue.False,
-            "!==" => !StrictEqualsValue(leftJs, rightJs) ? JsValue.True : JsValue.False,
-            "<" => LessThanValue(leftJs, rightJs, context),
-            "<=" => LessThanOrEqualValue(leftJs, rightJs, context),
-            ">" => GreaterThanValue(leftJs, rightJs, context),
-            ">=" => GreaterThanOrEqualValue(leftJs, rightJs, context),
-            "&" => BitwiseAndValue(leftJs, rightJs, context),
-            "|" => BitwiseOrValue(leftJs, rightJs, context),
-            "^" => BitwiseXorValue(leftJs, rightJs, context),
-            "<<" => LeftShiftValue(leftJs, rightJs, context),
-            ">>" => RightShiftValue(leftJs, rightJs, context),
-            ">>>" => UnsignedRightShiftValue(leftJs, rightJs, context),
-            "in" => InOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
-            "instanceof" => InstanceofOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
+            BinaryOperator.Add => AddValue(leftJs, rightJs, context),
+            BinaryOperator.Subtract => SubtractValue(leftJs, rightJs, context),
+            BinaryOperator.Multiply => MultiplyValue(leftJs, rightJs, context),
+            BinaryOperator.Divide => DivideValue(leftJs, rightJs, context),
+            BinaryOperator.Modulo => ModuloValue(leftJs, rightJs, context),
+            BinaryOperator.Power => PowerValue(leftJs, rightJs, context),
+            BinaryOperator.Equal => LooseEqualsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
+            BinaryOperator.NotEqual => !LooseEqualsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
+            BinaryOperator.StrictEqual => StrictEqualsValue(leftJs, rightJs) ? JsValue.True : JsValue.False,
+            BinaryOperator.StrictNotEqual => !StrictEqualsValue(leftJs, rightJs) ? JsValue.True : JsValue.False,
+            BinaryOperator.LessThan => LessThanValue(leftJs, rightJs, context),
+            BinaryOperator.LessThanOrEqual => LessThanOrEqualValue(leftJs, rightJs, context),
+            BinaryOperator.GreaterThan => GreaterThanValue(leftJs, rightJs, context),
+            BinaryOperator.GreaterThanOrEqual => GreaterThanOrEqualValue(leftJs, rightJs, context),
+            BinaryOperator.BitwiseAnd => BitwiseAndValue(leftJs, rightJs, context),
+            BinaryOperator.BitwiseOr => BitwiseOrValue(leftJs, rightJs, context),
+            BinaryOperator.BitwiseXor => BitwiseXorValue(leftJs, rightJs, context),
+            BinaryOperator.LeftShift => LeftShiftValue(leftJs, rightJs, context),
+            BinaryOperator.RightShift => RightShiftValue(leftJs, rightJs, context),
+            BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(leftJs, rightJs, context),
+            BinaryOperator.In => InOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
+            BinaryOperator.InstanceOf => InstanceofOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
             _ => throw new NotSupportedException(
                 $"Compound assignment operator '{binary.Operator}' is not supported yet.")
         };
@@ -267,7 +267,7 @@ public static partial class TypedAstEvaluator
 
         switch (binary.Operator)
         {
-            case "&&":
+            case BinaryOperator.LogicalAnd:
                 if (!leftJs.IsTruthy)
                 {
                     value = leftJs;
@@ -278,7 +278,7 @@ public static partial class TypedAstEvaluator
                 value = EvaluateAssignmentRhsWithNameHintJsValue(assignment, binary.Right, environment, context);
                 shouldAssign = !context.ShouldStopEvaluation;
                 return true;
-            case "||":
+            case BinaryOperator.LogicalOr:
                 if (leftJs.IsTruthy)
                 {
                     value = leftJs;
@@ -289,7 +289,7 @@ public static partial class TypedAstEvaluator
                 value = EvaluateAssignmentRhsWithNameHintJsValue(assignment, binary.Right, environment, context);
                 shouldAssign = !context.ShouldStopEvaluation;
                 return true;
-            case "??":
+            case BinaryOperator.NullishCoalescing:
                 if (!leftJs.IsNullish)
                 {
                     value = leftJs;
@@ -313,28 +313,28 @@ public static partial class TypedAstEvaluator
         // Use JsValue arithmetic operations to avoid boxing
         value = binary.Operator switch
         {
-            "+" => AddValue(leftJs, rightJs, context),
-            "-" => SubtractValue(leftJs, rightJs, context),
-            "*" => MultiplyValue(leftJs, rightJs, context),
-            "/" => DivideValue(leftJs, rightJs, context),
-            "%" => ModuloValue(leftJs, rightJs, context),
-            "**" => PowerValue(leftJs, rightJs, context),
-            "==" => LooseEqualsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
-            "!=" => !LooseEqualsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
-            "===" => StrictEqualsValue(leftJs, rightJs) ? JsValue.True : JsValue.False,
-            "!==" => !StrictEqualsValue(leftJs, rightJs) ? JsValue.True : JsValue.False,
-            "<" => LessThanValue(leftJs, rightJs, context),
-            "<=" => LessThanOrEqualValue(leftJs, rightJs, context),
-            ">" => GreaterThanValue(leftJs, rightJs, context),
-            ">=" => GreaterThanOrEqualValue(leftJs, rightJs, context),
-            "&" => BitwiseAndValue(leftJs, rightJs, context),
-            "|" => BitwiseOrValue(leftJs, rightJs, context),
-            "^" => BitwiseXorValue(leftJs, rightJs, context),
-            "<<" => LeftShiftValue(leftJs, rightJs, context),
-            ">>" => RightShiftValue(leftJs, rightJs, context),
-            ">>>" => UnsignedRightShiftValue(leftJs, rightJs, context),
-            "in" => InOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
-            "instanceof" => InstanceofOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
+            BinaryOperator.Add => AddValue(leftJs, rightJs, context),
+            BinaryOperator.Subtract => SubtractValue(leftJs, rightJs, context),
+            BinaryOperator.Multiply => MultiplyValue(leftJs, rightJs, context),
+            BinaryOperator.Divide => DivideValue(leftJs, rightJs, context),
+            BinaryOperator.Modulo => ModuloValue(leftJs, rightJs, context),
+            BinaryOperator.Power => PowerValue(leftJs, rightJs, context),
+            BinaryOperator.Equal => LooseEqualsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
+            BinaryOperator.NotEqual => !LooseEqualsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
+            BinaryOperator.StrictEqual => StrictEqualsValue(leftJs, rightJs) ? JsValue.True : JsValue.False,
+            BinaryOperator.StrictNotEqual => !StrictEqualsValue(leftJs, rightJs) ? JsValue.True : JsValue.False,
+            BinaryOperator.LessThan => LessThanValue(leftJs, rightJs, context),
+            BinaryOperator.LessThanOrEqual => LessThanOrEqualValue(leftJs, rightJs, context),
+            BinaryOperator.GreaterThan => GreaterThanValue(leftJs, rightJs, context),
+            BinaryOperator.GreaterThanOrEqual => GreaterThanOrEqualValue(leftJs, rightJs, context),
+            BinaryOperator.BitwiseAnd => BitwiseAndValue(leftJs, rightJs, context),
+            BinaryOperator.BitwiseOr => BitwiseOrValue(leftJs, rightJs, context),
+            BinaryOperator.BitwiseXor => BitwiseXorValue(leftJs, rightJs, context),
+            BinaryOperator.LeftShift => LeftShiftValue(leftJs, rightJs, context),
+            BinaryOperator.RightShift => RightShiftValue(leftJs, rightJs, context),
+            BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(leftJs, rightJs, context),
+            BinaryOperator.In => InOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
+            BinaryOperator.InstanceOf => InstanceofOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
             _ => throw new NotSupportedException(
                 $"Compound assignment operator '{binary.Operator}' is not supported yet.")
         };

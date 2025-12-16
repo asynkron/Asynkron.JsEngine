@@ -17,12 +17,12 @@ public static partial class TypedAstEvaluator
             {
                 switch (expression.Operator)
                 {
-                    case "++" or "--":
+                    case UnaryOperator.Increment or UnaryOperator.Decrement:
                     {
                         // Fast path: for simple identifiers, use direct environment access
                         // This avoids creating AssignmentReference structs entirely
                         var targetOperand = expression.Operand;
-                        while (targetOperand is UnaryExpression { Operator: "++" or "--" } nested)
+                        while (targetOperand is UnaryExpression { Operator: UnaryOperator.Increment or UnaryOperator.Decrement } nested)
                         {
                             targetOperand = nested.Operand;
                         }
@@ -40,7 +40,7 @@ public static partial class TypedAstEvaluator
                             if (currentJsValue.Kind == JsValueKind.Number)
                             {
                                 var d = currentJsValue.NumberValue;
-                                var updatedValue = d + (expression.Operator == "++" ? 1 : -1);
+                                var updatedValue = d + (expression.Operator == UnaryOperator.Increment ? 1 : -1);
                                 environment.SetIdentifierJsValue(identifier.Name, new JsValue(updatedValue), context);
                                 return expression.IsPrefix ? new JsValue(updatedValue) : new JsValue(d);
                             }
@@ -52,7 +52,7 @@ public static partial class TypedAstEvaluator
                                 return context.FlowValue;
                             }
 
-                            var updated = expression.Operator == "++"
+                            var updated = expression.Operator == UnaryOperator.Increment
                                 ? IncrementValue(oldNumeric, context)
                                 : DecrementValue(oldNumeric, context);
                             environment.SetIdentifierJsValue(identifier.Name, updated, context);
@@ -74,7 +74,7 @@ public static partial class TypedAstEvaluator
                         if (refCurrentJsValue.Kind == JsValueKind.Number)
                         {
                             var d = refCurrentJsValue.NumberValue;
-                            var updatedValue = d + (expression.Operator == "++" ? 1 : -1);
+                            var updatedValue = d + (expression.Operator == UnaryOperator.Increment ? 1 : -1);
                             reference.SetValue(new JsValue(updatedValue));
                             return expression.IsPrefix ? new JsValue(updatedValue) : new JsValue(d);
                         }
@@ -88,7 +88,7 @@ public static partial class TypedAstEvaluator
                         }
 
                         // Calculate new value (increment/decrement the already-converted numeric value)
-                        var refUpdated = expression.Operator == "++"
+                        var refUpdated = expression.Operator == UnaryOperator.Increment
                             ? IncrementValue(refOldNumeric, context)
                             : DecrementValue(refOldNumeric, context);
                         reference.SetValue(refUpdated);
@@ -97,9 +97,9 @@ public static partial class TypedAstEvaluator
                         // Prefix returns the new value (after increment/decrement)
                         return expression.IsPrefix ? refUpdated : refOldNumeric;
                     }
-                    case "delete":
+                    case UnaryOperator.Delete:
                         return EvaluateDelete(expression.Operand, environment, context) ? JsValue.True : JsValue.False;
-                    case "typeof":
+                    case UnaryOperator.TypeOf:
                     {
                         // The typeof operator has special semantics: it returns "undefined"
                         // for UNDECLARED references instead of throwing ReferenceError.
@@ -160,13 +160,13 @@ public static partial class TypedAstEvaluator
 
                 return expression.Operator switch
                 {
-                    "!" => operand.IsTruthy ? JsValue.False : JsValue.True,
-                    "+" => operand.IsBigInt
+                    UnaryOperator.LogicalNot => operand.IsTruthy ? JsValue.False : JsValue.True,
+                    UnaryOperator.Plus => operand.IsBigInt
                         ? throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number", context)
                         : new JsValue(ToNumberValue(operand, context)),
-                    "-" => NegateValue(operand, context),
-                    "~" => BitwiseNotValue(operand, context),
-                    "void" => JsValue.Undefined,
+                    UnaryOperator.Minus => NegateValue(operand, context),
+                    UnaryOperator.BitwiseNot => BitwiseNotValue(operand, context),
+                    UnaryOperator.Void => JsValue.Undefined,
                     _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet.")
                 };
             }

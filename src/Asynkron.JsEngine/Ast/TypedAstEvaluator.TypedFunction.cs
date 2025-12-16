@@ -477,6 +477,24 @@ public static partial class TypedAstEvaluator
         }
 
         /// <summary>
+        /// Ultra-fast invoke for 1-argument calls with environment reuse optimization.
+        /// When reuseEnvironment is provided, the callee will reuse it instead of allocating a new one.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public JsValue InvokeWithContext1Reuse(
+            JsValue arg0,
+            JsValue thisValue,
+            EvaluationContext callingContext,
+            JsEnvironment reuseEnvironment)
+        {
+            if (_canUseFastPathBase)
+            {
+                return InvokeSimpleFast1Reuse(arg0, thisValue, callingContext, reuseEnvironment);
+            }
+            return InvokeWithContextSlow([arg0], thisValue, callingContext, JsValue.Undefined);
+        }
+
+        /// <summary>
         /// Ultra-fast invoke for 2-argument calls - avoids array allocation.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1690,6 +1708,20 @@ public static partial class TypedAstEvaluator
         }
 
         /// <summary>
+        /// Ultra-fast 1-argument invoke with environment reuse - avoids both array and environment allocation.
+        /// The provided environment is reset and reused instead of allocating a new one.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue InvokeSimpleFast1Reuse(JsValue arg0, JsValue thisValue, EvaluationContext callingContext, JsEnvironment reuseEnvironment)
+        {
+            if (_canPoolInvocationEnvironment && !_usesArguments)
+            {
+                return InvokeSimpleFastCore1Reuse(arg0, thisValue, callingContext, reuseEnvironment);
+            }
+            return InvokeSimpleFastWithExceptionHandling([arg0], thisValue, callingContext);
+        }
+
+        /// <summary>
         /// Ultra-fast 2-argument invoke - avoids array allocation entirely.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1861,6 +1893,83 @@ public static partial class TypedAstEvaluator
 
             _realmState.ReturnContext(context);
             _realmState.ReturnEnvironment(functionEnvironment);
+            return result;
+        }
+
+        /// <summary>
+        /// Ultra-fast 1-argument core invocation with environment reuse.
+        /// Reuses the provided environment instead of allocating a new one.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue InvokeSimpleFastCore1Reuse(JsValue arg0, JsValue thisValue, EvaluationContext callingContext, JsEnvironment reuseEnvironment)
+        {
+            var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
+            var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: true);
+            context.AllowIdentifierCache = true;
+            context.CallDepth = callingContext.CallDepth;
+            context.MaxCallDepth = callingContext.MaxCallDepth;
+
+            // Reuse the provided environment instead of renting a new one
+            var functionEnvironment = reuseEnvironment;
+            functionEnvironment.Reset(_closure, true, _isStrict, _function.Source, _functionDescription);
+            functionEnvironment.ScopeId = _function.ScopeId;
+            if (_function.SlotCount > 0)
+            {
+                functionEnvironment.InitializeSlots(_function.SlotCount);
+            }
+
+            // Bind this
+            JsValue boundThisValue;
+            if (IsArrowFunction)
+            {
+                boundThisValue = _lexicalThis.IsUndefined ? JsValue.Undefined : _lexicalThis;
+            }
+            else if (_isStrict)
+            {
+                boundThisValue = thisValue;
+            }
+            else
+            {
+                boundThisValue = thisValue.IsNullish
+                    ? (_realmState.Engine is { GlobalObject: { } globalObj } ? JsValue.FromObject(globalObj) : JsValue.Undefined)
+                    : thisValue;
+            }
+            functionEnvironment._thisValue = boundThisValue;
+            functionEnvironment._hasThisValue = true;
+
+            // Bind single parameter directly - no array allocation
+            var slots = functionEnvironment._slots;
+            if (slots is not null && _parameterNames.Length > 0)
+            {
+                slots[0] = arg0;
+            }
+            else if (_parameterNames.Length > 0)
+            {
+                // Fallback when slots not available
+                functionEnvironment.DefineParameterFast(_parameterNames[0], arg0);
+            }
+
+            _ = EvaluateBlockJsValue(_function.Body, functionEnvironment, context);
+
+            JsValue result;
+            if (context.IsThrow)
+            {
+                result = context.FlowValue;
+                context.Clear();
+                callingContext.SetThrow(result);
+            }
+            else if (context.IsReturn)
+            {
+                result = context.FlowValue;
+                context.ClearReturn();
+            }
+            else
+            {
+                result = JsValue.Undefined;
+            }
+
+            _realmState.ReturnContext(context);
+            // Note: Do NOT return the reused environment - the caller still has a reference to it
             return result;
         }
 

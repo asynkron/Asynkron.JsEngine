@@ -187,18 +187,19 @@ public static partial class TypedAstEvaluator
 
     /// <summary>
     /// Computes modulo of two JsValue operands.
+    /// Uses JsOps.MathMod for proper negative zero handling.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static JsValue ModuloValue(JsValue left, JsValue right, EvaluationContext context)
     {
-        // Fast path: both numbers
+        // Fast path: both numbers - use MathMod for proper ES spec compliance
         if (left.IsNumber && right.IsNumber)
         {
-            return JsValue.FromDouble(left.NumberValue % right.NumberValue);
+            return JsValue.FromDouble(JsOps.MathMod(left.NumberValue, right.NumberValue));
         }
 
         return NumericBinaryOp(left, right,
-            (l, r) => l % r,
+            (l, r) => JsOps.MathMod(l, r),
             (l, r) =>
             {
                 if (r.Value.IsZero)

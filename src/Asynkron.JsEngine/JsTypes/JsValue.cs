@@ -97,13 +97,16 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// <summary>
     /// Returns a JsValue for the given double, using cache for common integers.
     /// This avoids struct initialization for cached values.
+    /// Note: We must not cache -0.0 since it's semantically different from +0.0 in JavaScript.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static JsValue FromDouble(double value)
     {
         // Fast path: check if it's a cached non-negative integer
+        // Use double.IsNegative to detect negative zero (which would incorrectly match cache[0])
+        // This is important because -0.0 == 0.0 in C# but they must be distinct in JavaScript
         int i = (int)value;
-        if ((uint)i < (uint)IntegerCache.Length && i == value)
+        if ((uint)i < (uint)IntegerCache.Length && i == value && !double.IsNegative(value))
         {
             return IntegerCache[i];
         }
@@ -113,13 +116,15 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// <summary>
     /// Returns a ref to a cached JsValue for the given double, or stores in the scratch slot.
     /// This avoids 24-byte struct copies for cached values.
+    /// Note: We must not cache -0.0 since it's semantically different from +0.0 in JavaScript.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ref readonly JsValue FromDoubleRef(double value, ref JsValue scratch)
     {
         // Fast path: check if it's a cached non-negative integer
+        // Use double.IsNegative to detect negative zero (which would incorrectly match cache[0])
         int i = (int)value;
-        if ((uint)i < (uint)IntegerCache.Length && i == value)
+        if ((uint)i < (uint)IntegerCache.Length && i == value && !double.IsNegative(value))
         {
             return ref IntegerCache[i];
         }

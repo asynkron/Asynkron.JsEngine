@@ -126,6 +126,8 @@ public sealed record ConditionalExpression(
 /// <param name="SlotCount">Number of slots needed for local variables in this function's scope.
 /// Set by ScopeAnalyzer for O(1) variable access. -1 means not analyzed.</param>
 /// <param name="ScopeId">Unique ID for the scope created by this function. -1 means not analyzed.</param>
+/// <param name="HasClosures">True if any inner functions capture variables from this function's scope.
+/// When true, environment reuse optimization is disabled for calls within this function.</param>
 public sealed record FunctionExpression(
     SourceReference? Source,
     Symbol? Name,
@@ -138,7 +140,8 @@ public sealed record FunctionExpression(
     bool IsHoistableDefaultExport = false,
     bool IsDefaultDerivedConstructor = false,
     int SlotCount = -1,
-    int ScopeId = -1)
+    int ScopeId = -1,
+    bool HasClosures = false)
     : ExpressionNode(Source);
 
 /// <summary>
@@ -155,11 +158,15 @@ public sealed record FunctionParameter(
 /// <summary>
 ///     Represents a call expression.
 /// </summary>
+/// <param name="CanReuseCallerEnvironment">True if this call can safely reuse the caller's environment.
+/// Set by ScopeAnalyzer when: (1) the containing function has no closures, (2) no eval/with in scope,
+/// and (3) no scope variables are referenced after this call's arguments are evaluated.</param>
 public sealed record CallExpression(
     SourceReference? Source,
     ExpressionNode Callee,
     ImmutableArray<CallArgument> Arguments,
-    bool IsOptional) : ExpressionNode(Source);
+    bool IsOptional,
+    bool CanReuseCallerEnvironment = false) : ExpressionNode(Source);
 
 /// <summary>
 ///     Represents a single call argument, optionally marked as a spread argument.

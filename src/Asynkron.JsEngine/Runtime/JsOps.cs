@@ -86,6 +86,48 @@ internal static class JsOps
         return double.IsFinite(value) && value % 1 == 0 && Math.Abs(value % 2) == 1;
     }
 
+    /// <summary>
+    /// ECMAScript-compliant modulo operation that properly handles negative zero.
+    /// Per ES spec 13.15.3: The result of a remainder operation preserves the sign of the dividend.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static double MathMod(double dividend, double divisor)
+    {
+        // If either operand is NaN, return NaN
+        if (double.IsNaN(dividend) || double.IsNaN(divisor))
+        {
+            return double.NaN;
+        }
+
+        // If dividend is infinity, return NaN
+        if (double.IsInfinity(dividend))
+        {
+            return double.NaN;
+        }
+
+        // If divisor is zero, return NaN
+        if (divisor == 0)
+        {
+            return double.NaN;
+        }
+
+        // If divisor is infinity and dividend is finite, result equals dividend (preserves sign)
+        if (double.IsInfinity(divisor))
+        {
+            return dividend;
+        }
+
+        // If dividend is zero, result equals dividend (preserves sign of zero)
+        // This is important: -0 % n = -0
+        if (dividend == 0)
+        {
+            return dividend;
+        }
+
+        // Standard remainder operation
+        return dividend % divisor;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsNullish(this object? value)
     {
@@ -153,6 +195,11 @@ internal static class JsOps
         if (value is JsValue jsv)
         {
             if (jsv.IsNumber || jsv.IsBigInt) return jsv;
+            // Handle JsValue kinds that have null ObjectValue specially
+            // to avoid null being treated as 0 in ToNumericCore
+            if (jsv.Kind == JsValueKind.Undefined) return JsValue.NaN;
+            if (jsv.Kind == JsValueKind.Null) return JsValue.Zero;
+            if (jsv.Kind == JsValueKind.Boolean) return new JsValue(jsv.NumberValue);
             return ToNumericCore(jsv.ObjectValue, context);
         }
 

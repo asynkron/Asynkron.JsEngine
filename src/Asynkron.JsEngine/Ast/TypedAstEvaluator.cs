@@ -633,7 +633,7 @@ public static partial class TypedAstEvaluator
 
                 return l % r;
             },
-            (l, r) => l % r,
+            JsOps.MathMod,
             context);
     }
 

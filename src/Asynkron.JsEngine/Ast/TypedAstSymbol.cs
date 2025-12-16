@@ -78,15 +78,17 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
 
         TypedAstSymbol Unbox(JsValue receiver)
         {
-            if (receiver.TryGetObject<TypedAstSymbol>(out var sym))
+            // For primitive symbols: Kind=Symbol, ObjectValue=TypedAstSymbol
+            if (receiver.IsSymbol && receiver.TryUnwrap<TypedAstSymbol>(out var sym))
             {
                 return sym;
             }
+            // For boxed symbols: Kind=Object, ObjectValue=JsObject with __value__
             if (receiver.TryGetObject<JsObject>(out var obj) &&
                 obj.TryGetProperty("__value__", out var inner) &&
-                inner.ToObject() is TypedAstSymbol s)
+                inner.IsSymbol && inner.TryUnwrap<TypedAstSymbol>(out var innerSym))
             {
-                return s;
+                return innerSym;
             }
             throw StandardLibrary.ThrowTypeError("Symbol.prototype valueOf called on incompatible receiver");
         }

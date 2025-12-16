@@ -96,7 +96,10 @@ public static partial class TypedAstEvaluator
                                     context.CallDepth--;
                                     return JsValue.Undefined;
                                 }
-                                result = typedFunc.InvokeWithContext1(arg0, JsValue.Undefined, context);
+                                // Use environment reuse optimization when eligible
+                                result = expression.CanReuseCallerEnvironment
+                                    ? typedFunc.InvokeWithContext1Reuse(arg0, JsValue.Undefined, context, environment)
+                                    : typedFunc.InvokeWithContext1(arg0, JsValue.Undefined, context);
                                 break;
                             default: // 2
                                 var a0 = EvaluateExpression(expression.Arguments[0].Expression, environment, context);

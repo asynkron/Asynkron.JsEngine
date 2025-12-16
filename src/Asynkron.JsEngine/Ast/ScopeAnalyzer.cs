@@ -24,6 +24,12 @@ public sealed class ScopeAnalyzer
         public bool IsDynamic => HasEval || HasWith || (Parent?.IsDynamic ?? false);
 
         /// <summary>
+        /// True if any inner functions capture variables from this scope.
+        /// When true, environment reuse optimization is disabled for this function.
+        /// </summary>
+        public bool HasClosures { get; set; }
+
+        /// <summary>
         /// Unique ID for this scope, used to match variables to their declaring scope at runtime.
         /// </summary>
         public int ScopeId { get; }
@@ -73,9 +79,15 @@ public sealed class ScopeAnalyzer
         /// Checks if a variable is declared in this scope.
         /// </summary>
         public bool HasVariable(Symbol name) => _variables.ContainsKey(name);
+
+        /// <summary>
+        /// Gets all variable names declared in this scope.
+        /// </summary>
+        public IEnumerable<Symbol> GetVariables() => _variables.Keys;
     }
 
     private ScopeInfo? _currentScope;
+    private ScopeInfo? _currentFunctionScope;
     private int _nextScopeId;
 
     /// <summary>
@@ -104,7 +116,9 @@ public sealed class ScopeAnalyzer
     public FunctionExpression AnalyzeFunction(FunctionExpression function, bool isDeclaration = false)
     {
         var parentScope = _currentScope;
+        var parentFunctionScope = _currentFunctionScope;
         _currentScope = new ScopeInfo(parentScope, isFunctionScope: true, isBlockScope: false, scopeId: _nextScopeId++);
+        _currentFunctionScope = _currentScope;
 
         // Declare parameters
         foreach (var param in function.Parameters)
@@ -133,13 +147,15 @@ public sealed class ScopeAnalyzer
         // Resolve the body
         var resolvedBody = ResolveBlockStatement(function.Body);
 
-        // Capture slot count and scope ID before leaving scope
+        // Capture slot count, scope ID, and closure info before leaving scope
         var slotCount = _currentScope!.IsDynamic ? -1 : _currentScope.SlotCount;
         var scopeId = _currentScope!.IsDynamic ? -1 : _currentScope.ScopeId;
+        var hasClosures = _currentScope.HasClosures || _currentScope.IsDynamic;
 
         _currentScope = parentScope;
+        _currentFunctionScope = parentFunctionScope;
 
-        return function with { Body = resolvedBody, SlotCount = slotCount, ScopeId = scopeId };
+        return function with { Body = resolvedBody, SlotCount = slotCount, ScopeId = scopeId, HasClosures = hasClosures };
     }
 
     #region Declaration Collection
@@ -347,6 +363,14 @@ public sealed class ScopeAnalyzer
             var slot = scope.GetSlot(name);
             if (slot >= 0)
             {
+                // If we crossed function boundaries to find this variable,
+                // mark the declaring scope as having closures (an inner function
+                // captures variables from this scope).
+                if (depth > 0 && scope.IsFunctionScope)
+                {
+                    scope.HasClosures = true;
+                }
+
                 return (depth, slot, scope.ScopeId);
             }
 
@@ -409,10 +433,7 @@ public sealed class ScopeAnalyzer
 
             ForEachStatement forEachStmt => ResolveForEachStatement(forEachStmt),
 
-            ReturnStatement returnStmt => returnStmt with
-            {
-                Expression = returnStmt.Expression is not null ? ResolveExpression(returnStmt.Expression) : null
-            },
+            ReturnStatement returnStmt => ResolveReturnStatement(returnStmt),
 
             ThrowStatement throwStmt => throwStmt with
             {
@@ -464,6 +485,213 @@ public sealed class ScopeAnalyzer
 
         _currentScope = parentScope;
         return resolved;
+    }
+
+    private ReturnStatement ResolveReturnStatement(ReturnStatement returnStmt)
+    {
+        if (returnStmt.Expression is null)
+        {
+            return returnStmt;
+        }
+
+        // Check if environment reuse is possible for this function
+        var canOptimize = _currentFunctionScope is not null &&
+                          !_currentFunctionScope.IsDynamic &&
+                          !_currentFunctionScope.HasClosures;
+
+        // Resolve the expression, potentially marking calls for environment reuse
+        var resolvedExpr = canOptimize
+            ? ResolveReturnExpressionWithReuse(returnStmt.Expression)
+            : ResolveExpression(returnStmt.Expression);
+
+        return returnStmt with { Expression = resolvedExpr };
+    }
+
+    /// <summary>
+    /// Resolves a return expression and marks eligible call expressions for environment reuse.
+    /// A call is eligible if no scope variables are referenced after its arguments are evaluated.
+    /// </summary>
+    private ExpressionNode ResolveReturnExpressionWithReuse(ExpressionNode expression)
+    {
+        // For a direct call expression (tail call position), we can definitely reuse
+        // since there's nothing after the call returns.
+        if (expression is CallExpression call)
+        {
+            var resolvedCall = ResolveCallExpression(call);
+            // Mark as eligible for environment reuse
+            return resolvedCall with { CanReuseCallerEnvironment = true };
+        }
+
+        // For conditional expressions, both branches could potentially reuse
+        if (expression is ConditionalExpression cond)
+        {
+            var resolvedTest = ResolveExpression(cond.Test);
+            var resolvedConsequent = ResolveReturnExpressionWithReuse(cond.Consequent);
+            var resolvedAlternate = ResolveReturnExpressionWithReuse(cond.Alternate);
+            return cond with
+            {
+                Test = resolvedTest,
+                Consequent = resolvedConsequent,
+                Alternate = resolvedAlternate
+            };
+        }
+
+        // For logical expressions (&&, ||, ??), the right side could be a tail call
+        if (expression is BinaryExpression { Operator: BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing } logical)
+        {
+            var resolvedLeft = ResolveExpression(logical.Left);
+            var resolvedRight = ResolveReturnExpressionWithReuse(logical.Right);
+            return logical with { Left = resolvedLeft, Right = resolvedRight };
+        }
+
+        // For binary expressions like fib(n-1) + fib(n-2), analyze variable liveness
+        if (expression is BinaryExpression binary)
+        {
+            return ResolveBinaryExpressionWithReuse(binary);
+        }
+
+        // For sequence expressions, only the last expression matters for return
+        if (expression is SequenceExpression seq)
+        {
+            var resolvedLeft = ResolveExpression(seq.Left);
+            var resolvedRight = ResolveReturnExpressionWithReuse(seq.Right);
+            return seq with { Left = resolvedLeft, Right = resolvedRight };
+        }
+
+        // Default: just resolve normally
+        return ResolveExpression(expression);
+    }
+
+    /// <summary>
+    /// Resolves a binary expression in a return context, analyzing which calls can reuse the environment.
+    /// For expressions like fib(n-1) + fib(n-2), the rightmost call can reuse because after it completes,
+    /// only C# operations (addition, etc.) remain - no more JS environment access is needed.
+    /// </summary>
+    private ExpressionNode ResolveBinaryExpressionWithReuse(BinaryExpression binary)
+    {
+        // Resolve the left side normally - calls on the left cannot reuse because
+        // the right side still needs to be evaluated after they return
+        var resolvedLeft = ResolveExpression(binary.Left);
+
+        // For the right side: the rightmost call CAN reuse the environment because
+        // after the call completes, only the binary operation remains (which uses
+        // the return values in C# locals, not the JS environment).
+        ExpressionNode resolvedRight;
+        if (binary.Right is CallExpression rightCall)
+        {
+            // This is a call in rightmost position - it can reuse!
+            // Arguments are evaluated BEFORE the call, so even if they reference
+            // scope variables, the environment is no longer needed during/after the call.
+            var resolvedRightCall = ResolveCallExpression(rightCall);
+            resolvedRight = resolvedRightCall with { CanReuseCallerEnvironment = true };
+        }
+        else if (binary.Right is BinaryExpression rightBinary)
+        {
+            // Recursively analyze nested binary expressions
+            resolvedRight = ResolveBinaryExpressionWithReuse(rightBinary);
+        }
+        else
+        {
+            resolvedRight = ResolveExpression(binary.Right);
+        }
+
+        return binary with { Left = resolvedLeft, Right = resolvedRight };
+    }
+
+    /// <summary>
+    /// Collects all variable identifiers referenced in an expression.
+    /// </summary>
+    private HashSet<Symbol> CollectReferencedVariables(ExpressionNode expression)
+    {
+        var variables = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+        CollectVariablesRecursive(expression, variables);
+        return variables;
+    }
+
+    private void CollectVariablesRecursive(ExpressionNode expression, HashSet<Symbol> variables)
+    {
+        switch (expression)
+        {
+            case IdentifierExpression id:
+                variables.Add(id.Name);
+                break;
+
+            case BinaryExpression binary:
+                CollectVariablesRecursive(binary.Left, variables);
+                CollectVariablesRecursive(binary.Right, variables);
+                break;
+
+            case UnaryExpression unary:
+                CollectVariablesRecursive(unary.Operand, variables);
+                break;
+
+            case CallExpression call:
+                CollectVariablesRecursive(call.Callee, variables);
+                foreach (var arg in call.Arguments)
+                {
+                    CollectVariablesRecursive(arg.Expression, variables);
+                }
+                break;
+
+            case MemberExpression member:
+                CollectVariablesRecursive(member.Target, variables);
+                if (member.IsComputed)
+                {
+                    CollectVariablesRecursive(member.Property, variables);
+                }
+                break;
+
+            case ConditionalExpression cond:
+                CollectVariablesRecursive(cond.Test, variables);
+                CollectVariablesRecursive(cond.Consequent, variables);
+                CollectVariablesRecursive(cond.Alternate, variables);
+                break;
+
+            case ArrayExpression array:
+                foreach (var element in array.Elements)
+                {
+                    if (element.Expression is not null)
+                    {
+                        CollectVariablesRecursive(element.Expression, variables);
+                    }
+                }
+                break;
+
+            case ObjectExpression obj:
+                foreach (var member in obj.Members)
+                {
+                    if (member.Value is not null)
+                    {
+                        CollectVariablesRecursive(member.Value, variables);
+                    }
+                }
+                break;
+
+            case SequenceExpression seq:
+                CollectVariablesRecursive(seq.Left, variables);
+                CollectVariablesRecursive(seq.Right, variables);
+                break;
+
+            case AssignmentExpression assign:
+                variables.Add(assign.Target);
+                CollectVariablesRecursive(assign.Value, variables);
+                break;
+
+            case AwaitExpression await:
+                CollectVariablesRecursive(await.Expression, variables);
+                break;
+
+            case YieldExpression yield when yield.Expression is not null:
+                CollectVariablesRecursive(yield.Expression, variables);
+                break;
+
+            // Literals and other expressions that don't reference variables
+            case LiteralExpression or ThisExpression or SuperExpression
+                or NewTargetExpression or ImportMetaExpression
+                or RegexLiteralExpression or FunctionExpression:
+                // These don't reference scope variables directly
+                break;
+        }
     }
 
     private VariableDeclaration ResolveVariableDeclaration(VariableDeclaration varDecl)

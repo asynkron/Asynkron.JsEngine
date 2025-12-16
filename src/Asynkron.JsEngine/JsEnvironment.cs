@@ -991,6 +991,20 @@ public sealed class JsEnvironment
                         context,
                         context.RealmState)));
             }
+
+            // For non-lexical bindings in global scope, read from global object
+            // to ensure changes via this.x are visible when accessing x directly.
+            // This mirrors the logic in ReadResolvedBindingJsValue.
+            if (IsGlobalFunctionScope && !localBinding.IsLexical)
+            {
+                var globalObject = GetRootGlobalObject();
+                if (globalObject is not null && globalObject.TryGetProperty(name.Name, out var globalValue))
+                {
+                    value = JsValue.FromObject(globalValue);
+                    return true;
+                }
+            }
+
             value = localBinding.JsValue;
             return true;
         }

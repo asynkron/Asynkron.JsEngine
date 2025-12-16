@@ -11,7 +11,8 @@ public static partial class TypedAstEvaluator
         {
             // Function declarations are hoisted and instantiated during FunctionDeclarationInstantiation.
             // The actual declaration statement is a no-op at runtime.
-            return JsValue.Undefined;
+            // Per ES spec, FunctionDeclaration returns NormalCompletion(empty).
+            return JsValue.Unit;
         }
     }
 }

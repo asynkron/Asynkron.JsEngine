@@ -173,14 +173,16 @@ public static partial class TypedAstEvaluator
 
                 var completion = EvaluateStatementJsValue(stmt, switchEnv, context);
                 var shouldStop = context.ShouldStopEvaluation;
-                // JsValue.Undefined is our equivalent of "not empty" for JsValue tracking
+                // Apply UpdateEmpty semantics: only update result if completion is not empty (Unit)
+                // This preserves the previous value when break/continue have empty completion
                 var shouldCapture =
-                    !shouldStop ||
+                    !completion.IsUnit &&
+                    (!shouldStop ||
                      context.IsReturn ||
                      context.IsThrow ||
                      context.IsYield ||
                      context.IsBreak ||
-                     context.IsContinue;
+                     context.IsContinue);
 
                 if (shouldCapture)
                 {

@@ -12,11 +12,12 @@ public static partial class TypedAstEvaluator
             var constructorValue = CreateClassValue(declaration.Definition, environment, context, declaration.Name);
             if (context.ShouldStopEvaluation)
             {
-                return JsValue.Undefined;
+                return JsValue.Unit;
             }
 
             environment.DefineJsValue(declaration.Name, JsValue.FromObjectUnsafe(constructorValue), isLexical: true, blocksFunctionScopeOverride: true);
-            return JsValue.Undefined;
+            // Per ES spec, ClassDeclaration returns NormalCompletion(empty).
+            return JsValue.Unit;
         }
     }
 }

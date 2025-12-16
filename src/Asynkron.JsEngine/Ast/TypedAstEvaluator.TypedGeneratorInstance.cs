@@ -1032,7 +1032,8 @@ public static partial class TypedAstEvaluator
 
                                 if (forAwaitResumeKind == ResumePayloadKind.Throw)
                                 {
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, forAwaitResumePayload.ToObject(), environment))
+                                    // forAwaitResumePayload is already JsValue, no need to box with .ToObject()
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, forAwaitResumePayload, environment))
                                     {
                                         continue;
                                     }
@@ -1043,7 +1044,8 @@ public static partial class TypedAstEvaluator
 
                                 if (forAwaitResumeKind == ResumePayloadKind.Return)
                                 {
-                                    if (HandleAbruptCompletion(AbruptKind.Return, forAwaitResumePayload.ToObject(), environment))
+                                    // forAwaitResumePayload is already JsValue, no need to box with .ToObject()
+                                    if (HandleAbruptCompletion(AbruptKind.Return, forAwaitResumePayload, environment))
                                     {
                                         continue;
                                     }
@@ -1462,7 +1464,8 @@ public static partial class TypedAstEvaluator
                 return result;
             }
 
-            var awaitedValue = EvaluateExpression(expression.Expression, environment, context).ToObject();
+            // Keep as JsValue to avoid boxing round trips
+            var awaitedValue = EvaluateExpression(expression.Expression, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return awaitedValue;
@@ -1484,14 +1487,15 @@ public static partial class TypedAstEvaluator
 
             // Async-aware mode: surface promise-like values as pending steps
             // so AsyncGeneratorInstance can resume via the event queue.
-            if (TryAwaitPromiseOrSchedule(JsValue.FromObject(awaitedValue), context, out var resolved))
+            // awaitedValue is already JsValue
+            if (TryAwaitPromiseOrSchedule(awaitedValue, context, out var resolved))
             {
-                return resolved.ToObject();
+                return resolved;
             }
 
             if (!_pendingPromise.TryGetObject<JsObject>(out _) || awaitKey is null)
             {
-                return resolved.ToObject();
+                return resolved;
             }
 
             // Remember which await site is pending so we can stash the
@@ -1511,7 +1515,8 @@ public static partial class TypedAstEvaluator
             var result = AwaitScheduler.TryAwaitPromiseOrSchedule(candidate, _asyncStepMode, ref pendingPromise,
                 context, out var resolvedObj);
             _pendingPromise = pendingPromise;
-            resolvedValue = JsValue.FromObject(resolvedObj);
+            // resolvedObj is already JsValue from the scheduler
+            resolvedValue = resolvedObj;
             return result;
         }
 
@@ -1643,7 +1648,9 @@ public static partial class TypedAstEvaluator
                         }
                         else
                         {
-                            environment.DefineJsValue(slot, JsValue.FromObject(value));
+                            // Handle case where value is already a boxed JsValue
+                            var valueJs = value is JsValue js ? js : JsValue.FromObject(value);
+                            environment.DefineJsValue(slot, valueJs);
                         }
                     }
 

@@ -15,15 +15,12 @@ public sealed class TypedAstParser(
     bool allowTopLevelAwait = false,
     IJsEngineOptions? options = null)
 {
-    private readonly bool _allowTopLevelAwait = allowTopLevelAwait;
-    private readonly bool _forceStrict = forceStrict;
     private readonly IJsEngineOptions _options = options ?? JsEngineOptions.Default;
-    private readonly string _source = source ?? string.Empty;
     private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
 
     public ProgramNode ParseProgram()
     {
-        var direct = new DirectParser(_tokens, _source, _forceStrict, _allowTopLevelAwait, _options);
+        var direct = new DirectParser(_tokens, source, forceStrict, allowTopLevelAwait, _options);
         return direct.ParseProgram();
     }
 
@@ -38,10 +35,7 @@ public sealed class TypedAstParser(
         bool allowTopLevelAwait,
         IJsEngineOptions options)
     {
-        private readonly bool _allowTopLevelAwait = allowTopLevelAwait;
-        private readonly bool _forceStrict = forceStrict;
         private readonly Stack<FunctionContext> _functionContexts = new();
-        private readonly IJsEngineOptions _options = options ?? JsEngineOptions.Default;
         private readonly string _source = source ?? string.Empty;
         private readonly Stack<bool> _strictContexts = new();
         private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
@@ -56,14 +50,14 @@ public sealed class TypedAstParser(
         private bool InAsyncContext => _functionContexts.Count > 0 && _functionContexts.Peek().IsAsync;
 
         private bool IsAwaitAllowed =>
-            InAsyncContext || (_allowTopLevelAwait && _functionContexts.Count == 0);
+            InAsyncContext || (allowTopLevelAwait && _functionContexts.Count == 0);
 
         private bool InStrictContext => _strictContexts.Count > 0 && _strictContexts.Peek();
 
         public ProgramNode ParseProgram()
         {
             var statements = ImmutableArray.CreateBuilder<StatementNode>();
-            var isStrict = _forceStrict || CheckForUseStrictDirective();
+            var isStrict = forceStrict || CheckForUseStrictDirective();
 
             using (EnterStrictContext(isStrict))
             {
@@ -2490,7 +2484,7 @@ public sealed class TypedAstParser(
                     }
 
                     // import.meta is only valid in module context.
-                    if (!_options.AllowImportMeta)
+                    if (!options.AllowImportMeta)
                     {
                         throw new ParseException(
                             "'import.meta' is only valid in module code.",
@@ -3085,7 +3079,7 @@ public sealed class TypedAstParser(
 
             // Create a new DirectParser directly to preserve the current function context (generator/async).
             // This allows yield/await to be recognized inside template interpolations within generators/async functions.
-            var embeddedParser = new DirectParser(tokens, wrappedSource, InStrictContext, _allowTopLevelAwait, _options);
+            var embeddedParser = new DirectParser(tokens, wrappedSource, InStrictContext, allowTopLevelAwait, options);
 
             // Propagate the current function context to the embedded parser
             if (InGeneratorContext || InAsyncContext)

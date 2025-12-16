@@ -79,7 +79,7 @@ public static partial class StandardLibrary
             ParsedProgram program;
             try
             {
-                program = engine.ParseForExecution(functionSource, options: scriptGoalOptions);
+                program = engine.ParseProgram(functionSource, options: scriptGoalOptions);
             }
             catch (ParseException parseException)
             {

@@ -432,11 +432,12 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    ///     Parses JavaScript source code and returns both the transformed S-expression and the
-    ///     typed AST. This is primarily used by the evaluator so we avoid rebuilding the typed
-    ///     tree multiple times.
+    ///     Parses JavaScript source code into a typed AST ready for execution.
+    ///     Applies constant folding, scope analysis (for slot-based variable access),
+    ///     and CPS transformation (for async/await). Returns a ParsedProgram that
+    ///     can be evaluated multiple times without re-parsing.
     /// </summary>
-    internal ParsedProgram ParseForExecution(
+    public ParsedProgram ParseProgram(
         string source,
         bool forceStrict = false,
         bool allowTopLevelAwait = false,
@@ -655,19 +656,9 @@ public sealed class JsEngine : IAsyncDisposable
     ///     This ensures all code executes through the event loop, maintaining proper
     ///     single-threaded execution semantics.
     /// </summary>
-    public ParsedProgram ParseProgram(string source, bool forceStrict = false, bool allowModule = false)
-    {
-        return ParseForExecution(source, forceStrict, allowModule);
-    }
-
-    /// <summary>
-    ///     Parses and schedules evaluation of the provided source on the event queue.
-    ///     This ensures all code executes through the event loop, maintaining proper
-    ///     single-threaded execution semantics.
-    /// </summary>
     public Task<object?> Evaluate(string source, CancellationToken cancellationToken = default)
     {
-        var program = ParseForExecution(source);
+        var program = ParseProgram(source);
         return Evaluate(program, cancellationToken);
     }
 
@@ -710,7 +701,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// <returns>The result of the evaluation after microtasks have drained.</returns>
     public async Task<object?> EvaluateAndAwait(string source, CancellationToken cancellationToken = default)
     {
-        var program = ParseForExecution(source);
+        var program = ParseProgram(source);
 
         // Check if the last statement is an expression statement with an identifier
         Symbol? trailingIdentifier = null;
@@ -776,7 +767,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// <returns>The result of the evaluation.</returns>
     public object? EvaluateSync(string source, CancellationToken cancellationToken = default)
     {
-        var program = ParseForExecution(source);
+        var program = ParseProgram(source);
         return EvaluateSyncInternal(program, cancellationToken);
     }
 
@@ -853,7 +844,7 @@ public sealed class JsEngine : IAsyncDisposable
     public Task<object?> EvaluateModule(string source, string? sourcePath = null,
         CancellationToken cancellationToken = default)
     {
-        var program = ParseForExecution(source, true, true);
+        var program = ParseProgram(source, true, true);
         return Evaluate(program, cancellationToken, sourcePath, true);
     }
 
@@ -2706,7 +2697,7 @@ public sealed class JsEngine : IAsyncDisposable
         else
         {
             // Parse the module
-            var program = ParseForExecution(source, true, true);
+            var program = ParseProgram(source, true, true);
 
             // Create a module exports object
             var exports = new JsObject();
@@ -2834,7 +2825,7 @@ public sealed class JsEngine : IAsyncDisposable
         else
         {
             // Parse the module
-            var program = ParseForExecution(source, true, true);
+            var program = ParseProgram(source, true, true);
 
             // Create a module exports object
             var exports = new JsObject();

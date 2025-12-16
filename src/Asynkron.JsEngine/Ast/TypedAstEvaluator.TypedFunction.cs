@@ -1601,6 +1601,12 @@ public static partial class TypedAstEvaluator
                 ? _realmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription)
                 : new JsEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
 
+            // Initialize slots for O(1) variable access when scope analysis provided slot count
+            if (_function.SlotCount > 0)
+            {
+                functionEnvironment.InitializeSlots(_function.SlotCount);
+            }
+
             // Bind this - keep as JsValue to avoid unnecessary boxing/unboxing
             JsValue boundThisValue;
             if (IsArrowFunction)
@@ -1631,10 +1637,17 @@ public static partial class TypedAstEvaluator
             functionEnvironment.DefineParameterFast(Symbol.This, boundThisValue);
 
             // Bind parameters directly - simple identifiers only (not lexical, can be reassigned)
+            // If slots are available, write parameter values directly to slots for O(1) access
+            var slots = functionEnvironment._slots;
             for (var i = 0; i < _parameterNames.Length; i++)
             {
                 var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
                 functionEnvironment.DefineParameterFast(_parameterNames[i], value);
+                // Also write to slot for O(1) access (parameters are slots 0, 1, 2, ...)
+                if (slots is not null)
+                {
+                    slots[i] = value;
+                }
             }
 
             // Only create arguments object if the function body actually references it

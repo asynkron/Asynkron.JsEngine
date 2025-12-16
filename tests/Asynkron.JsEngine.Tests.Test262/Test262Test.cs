@@ -137,7 +137,7 @@ try {
         return HarnessProgramCache.GetOrAdd(source, static s =>
         {
             var parserEngine = new JsEngine();
-            return parserEngine.ParseForExecution(s);
+            return parserEngine.ParseProgram(s);
         });
     }
 

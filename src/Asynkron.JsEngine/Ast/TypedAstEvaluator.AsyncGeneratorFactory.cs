@@ -432,7 +432,7 @@ public static partial class TypedAstEvaluator
             ParsedProgram program;
             try
             {
-                program = engine.ParseForExecution(functionSource, options: scriptGoalOptions);
+                program = engine.ParseProgram(functionSource, options: scriptGoalOptions);
             }
             catch (Parser.ParseException parseException)
             {

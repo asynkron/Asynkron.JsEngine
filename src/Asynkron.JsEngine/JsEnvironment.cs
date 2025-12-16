@@ -24,7 +24,7 @@ public sealed class JsEnvironment
     /// Slot-based storage for fast variable access when scope analysis is available.
     /// This enables O(1) array indexing instead of dictionary lookup.
     /// </summary>
-    private JsValue[]? _slots;
+    internal JsValue[]? _slots;
 
     /// <summary>
     /// Gets the values dictionary, creating it if necessary.

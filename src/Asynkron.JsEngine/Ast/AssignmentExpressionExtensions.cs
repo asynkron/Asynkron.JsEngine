@@ -11,11 +11,12 @@ public static partial class TypedAstEvaluator
             EvaluationContext context)
         {
             // Fastest path: slot-based assignment when scope analysis resolved this identifier
-            // AND the environment has slots initialized
-            if (expression.SlotIndex >= 0 && environment.HasSlots)
+            // to a local variable (ScopeDepth=0) AND the environment has slots initialized.
+            // We only use slots for depth=0 because outer scopes (like global) may not have slots.
+            if (expression.SlotIndex >= 0 && expression.ScopeDepth == 0 && environment.HasSlots)
             {
                 if (expression.IsCompoundAssignment &&
-                    TryEvaluateCompoundAssignmentSlotBased(expression, expression.Value, expression.ScopeDepth, expression.SlotIndex,
+                    TryEvaluateCompoundAssignmentSlotBased(expression, expression.Value, expression.SlotIndex,
                         environment, context, out var compoundJsValue, out var shouldAssignCompound))
                 {
                     if (context.ShouldStopEvaluation)
@@ -25,7 +26,7 @@ public static partial class TypedAstEvaluator
 
                     if (shouldAssignCompound)
                     {
-                        environment.SetSlot(expression.ScopeDepth, expression.SlotIndex, compoundJsValue);
+                        environment._slots![expression.SlotIndex] = compoundJsValue;
                     }
 
                     return compoundJsValue;
@@ -38,7 +39,7 @@ public static partial class TypedAstEvaluator
                     return slotValueJs;
                 }
 
-                environment.SetSlot(expression.ScopeDepth, expression.SlotIndex, slotValueJs);
+                environment._slots![expression.SlotIndex] = slotValueJs;
                 return slotValueJs;
             }
 
@@ -271,11 +272,11 @@ public static partial class TypedAstEvaluator
 
     /// <summary>
     /// Slot-based compound assignment evaluation - fastest path for resolved identifiers.
+    /// Only used when ScopeDepth=0 (local variables in the current function scope).
     /// </summary>
     private static bool TryEvaluateCompoundAssignmentSlotBased(
         AssignmentExpression? assignment,
         ExpressionNode candidate,
-        int scopeDepth,
         int slotIndex,
         JsEnvironment environment,
         EvaluationContext context,
@@ -289,8 +290,8 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        // Direct slot access - O(1) array indexing
-        var leftJs = environment.GetSlot(scopeDepth, slotIndex);
+        // Direct slot access - O(1) array indexing (ScopeDepth is always 0 here)
+        var leftJs = environment._slots![slotIndex];
 
         switch (binary.Operator)
         {

@@ -30,17 +30,18 @@ public static partial class TypedAstEvaluator
                         if (targetOperand is IdentifierExpression identifier)
                         {
                             // Fastest path: slot-based access when scope analysis resolved this identifier
-                            // AND the environment has slots initialized
-                            if (identifier.SlotIndex >= 0 && environment.HasSlots)
+                            // to a local variable (ScopeDepth=0) AND the environment has slots initialized.
+                            // We only use slots for depth=0 because outer scopes (like global) may not have slots.
+                            if (identifier.SlotIndex >= 0 && identifier.ScopeDepth == 0 && environment.HasSlots)
                             {
-                                var slotValue = environment.GetSlot(identifier.ScopeDepth, identifier.SlotIndex);
+                                var slotValue = environment._slots![identifier.SlotIndex];
 
                                 // Fast path for Number (most common case in loops)
                                 if (slotValue.Kind == JsValueKind.Number)
                                 {
                                     var d = slotValue.NumberValue;
                                     var updatedValue = d + (expression.Operator == UnaryOperator.Increment ? 1 : -1);
-                                    environment.SetSlot(identifier.ScopeDepth, identifier.SlotIndex, new JsValue(updatedValue));
+                                    environment._slots![identifier.SlotIndex] = new JsValue(updatedValue);
                                     return expression.IsPrefix ? new JsValue(updatedValue) : new JsValue(d);
                                 }
 
@@ -54,7 +55,7 @@ public static partial class TypedAstEvaluator
                                 var slotUpdated = expression.Operator == UnaryOperator.Increment
                                     ? IncrementValue(slotOldNumeric, context)
                                     : DecrementValue(slotOldNumeric, context);
-                                environment.SetSlot(identifier.ScopeDepth, identifier.SlotIndex, slotUpdated);
+                                environment._slots![identifier.SlotIndex] = slotUpdated;
 
                                 return expression.IsPrefix ? slotUpdated : slotOldNumeric;
                             }

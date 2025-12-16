@@ -87,7 +87,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         ParsedProgram program;
         try
         {
-            program = _engine.ParseForExecution(code, forceStrict);
+            program = _engine.ParseProgram(code, forceStrict);
         }
         catch (ParseException parseException)
         {

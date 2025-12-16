@@ -91,7 +91,10 @@ public sealed class ScopeAnalyzer
     /// <summary>
     /// Analyzes a function expression and returns a new one with resolved slot indices.
     /// </summary>
-    public FunctionExpression AnalyzeFunction(FunctionExpression function)
+    /// <param name="function">The function to analyze.</param>
+    /// <param name="isDeclaration">True if this is a FunctionDeclaration (name bound in outer scope),
+    /// false if it's a named FunctionExpression (name bound inside for self-reference).</param>
+    public FunctionExpression AnalyzeFunction(FunctionExpression function, bool isDeclaration = false)
     {
         var parentScope = _currentScope;
         _currentScope = new ScopeInfo(parentScope, isFunctionScope: true, isBlockScope: false);
@@ -111,7 +114,8 @@ public sealed class ScopeAnalyzer
         }
 
         // Declare function name for named function expressions (internal binding)
-        if (function.Name is not null)
+        // For FunctionDeclarations, the name is bound in the outer scope, not inside
+        if (function.Name is not null && !isDeclaration)
         {
             _currentScope.DeclareVariable(function.Name);
         }
@@ -387,7 +391,7 @@ public sealed class ScopeAnalyzer
 
             FunctionDeclaration funcDecl => funcDecl with
             {
-                Function = AnalyzeFunction(funcDecl.Function)
+                Function = AnalyzeFunction(funcDecl.Function, isDeclaration: true)
             },
 
             ClassDeclaration classDecl => ResolveClassDeclaration(classDecl),

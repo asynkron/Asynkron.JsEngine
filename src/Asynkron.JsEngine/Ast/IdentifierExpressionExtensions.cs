@@ -13,10 +13,12 @@ public static partial class TypedAstEvaluator
             EvaluationContext context)
         {
             // Fastest path: slot-based access when scope analysis resolved this identifier
-            // AND the environment has slots initialized
-            if (identifier.SlotIndex >= 0 && environment.HasSlots)
+            // to a local variable (ScopeDepth=0) AND the environment has slots initialized.
+            // We only use slots for depth=0 because outer scopes (like global) may not have slots.
+            var slots = environment._slots;
+            if (identifier.SlotIndex >= 0 && identifier.ScopeDepth == 0 && slots is not null)
             {
-                return environment.GetSlot(identifier.ScopeDepth, identifier.SlotIndex);
+                return slots[identifier.SlotIndex];
             }
 
             // Fast path: use TryGetIdentifierJsValue to avoid exception overhead

@@ -87,7 +87,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     private static JsValue[] CreateIntegerCache(int size)
     {
         var cache = new JsValue[size];
-        for (int i = 0; i < size; i++)
+        for (var i = 0; i < size; i++)
         {
             cache[i] = new JsValue((double)i);
         }

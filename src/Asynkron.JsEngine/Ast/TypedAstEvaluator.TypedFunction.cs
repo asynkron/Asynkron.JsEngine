@@ -1684,7 +1684,7 @@ public static partial class TypedAstEvaluator
         {
             // Rent context from pool
             var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
-            var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: false);
+            var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: true);
             context.AllowIdentifierCache = true;
             context.CallDepth = callingContext.CallDepth;
             context.MaxCallDepth = callingContext.MaxCallDepth;
@@ -1770,7 +1770,7 @@ public static partial class TypedAstEvaluator
         private JsValue InvokeSimpleFastCore1(JsValue arg0, JsValue thisValue, EvaluationContext callingContext)
         {
             var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
-            var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: false);
+            var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: true);
             context.AllowIdentifierCache = true;
             context.CallDepth = callingContext.CallDepth;
             context.MaxCallDepth = callingContext.MaxCallDepth;
@@ -1844,7 +1844,7 @@ public static partial class TypedAstEvaluator
         private JsValue InvokeSimpleFastCore2(JsValue arg0, JsValue arg1, JsValue thisValue, EvaluationContext callingContext)
         {
             var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
-            var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: false);
+            var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: true);
             context.AllowIdentifierCache = true;
             context.CallDepth = callingContext.CallDepth;
             context.MaxCallDepth = callingContext.MaxCallDepth;

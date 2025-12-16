@@ -469,12 +469,18 @@ public static partial class TypedAstEvaluator
             JsValue thisValue,
             EvaluationContext callingContext)
         {
+            Interlocked.Increment(ref NonReuseCallCount);
             if (_canUseFastPathBase)
             {
                 return InvokeSimpleFast1(arg0, thisValue, callingContext);
             }
             return InvokeWithContextSlow([arg0], thisValue, callingContext, JsValue.Undefined);
         }
+
+        // Debug counters - remove after testing
+        public static long ReuseCallFastPath;
+        public static long ReuseCallSlowPath;
+        public static long NonReuseCallCount;
 
         /// <summary>
         /// Ultra-fast invoke for 1-argument calls with environment reuse optimization.
@@ -489,8 +495,10 @@ public static partial class TypedAstEvaluator
         {
             if (_canUseFastPathBase)
             {
+                Interlocked.Increment(ref ReuseCallFastPath);
                 return InvokeSimpleFast1Reuse(arg0, thisValue, callingContext, reuseEnvironment);
             }
+            Interlocked.Increment(ref ReuseCallSlowPath);
             return InvokeWithContextSlow([arg0], thisValue, callingContext, JsValue.Undefined);
         }
 
@@ -1707,6 +1715,10 @@ public static partial class TypedAstEvaluator
             return InvokeSimpleFastWithExceptionHandling([arg0], thisValue, callingContext);
         }
 
+        // More debug counters
+        public static long ActualReusePath;
+        public static long ActualFallbackPath;
+
         /// <summary>
         /// Ultra-fast 1-argument invoke with environment reuse - avoids both array and environment allocation.
         /// The provided environment is reset and reused instead of allocating a new one.
@@ -1716,8 +1728,10 @@ public static partial class TypedAstEvaluator
         {
             if (_canPoolInvocationEnvironment && !_usesArguments)
             {
+                Interlocked.Increment(ref ActualReusePath);
                 return InvokeSimpleFastCore1Reuse(arg0, thisValue, callingContext, reuseEnvironment);
             }
+            Interlocked.Increment(ref ActualFallbackPath);
             return InvokeSimpleFastWithExceptionHandling([arg0], thisValue, callingContext);
         }
 
@@ -1910,13 +1924,12 @@ public static partial class TypedAstEvaluator
             context.MaxCallDepth = callingContext.MaxCallDepth;
 
             // Reuse the provided environment instead of renting a new one
+            // Use ResetForReuse which keeps the slots array to avoid allocation
             var functionEnvironment = reuseEnvironment;
-            functionEnvironment.Reset(_closure, true, _isStrict, _function.Source, _functionDescription);
+            functionEnvironment.ResetForReuse(_closure, true, _isStrict, _function.Source, _functionDescription);
             functionEnvironment.ScopeId = _function.ScopeId;
-            if (_function.SlotCount > 0)
-            {
-                functionEnvironment.InitializeSlots(_function.SlotCount);
-            }
+            // Skip InitializeSlots - for simple functions we only have parameters (no local vars),
+            // and we're about to set the parameter slot directly below. This avoids the Array.Fill.
 
             // Bind this
             JsValue boundThisValue;
@@ -1937,7 +1950,7 @@ public static partial class TypedAstEvaluator
             functionEnvironment._thisValue = boundThisValue;
             functionEnvironment._hasThisValue = true;
 
-            // Bind single parameter directly - no array allocation
+            // Bind single parameter directly - no array allocation, no Array.Fill needed
             var slots = functionEnvironment._slots;
             if (slots is not null && _parameterNames.Length > 0)
             {

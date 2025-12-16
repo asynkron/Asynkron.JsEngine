@@ -111,7 +111,11 @@ public sealed class JsEnvironment
     {
         if (slotCount > 0)
         {
-            _slots = new JsValue[slotCount];
+            // Reuse existing array if it's big enough, otherwise allocate
+            if (_slots is null || _slots.Length < slotCount)
+            {
+                _slots = new JsValue[slotCount];
+            }
             // Initialize all slots to undefined
             Array.Fill(_slots, JsValue.Undefined);
         }
@@ -129,7 +133,11 @@ public sealed class JsEnvironment
         ScopeId = scopeId;
         if (slotCount > 0)
         {
-            _slots = new JsValue[slotCount];
+            // Reuse existing array if it's big enough, otherwise allocate
+            if (_slots is null || _slots.Length < slotCount)
+            {
+                _slots = new JsValue[slotCount];
+            }
             // Initialize all slots to undefined
             Array.Fill(_slots, JsValue.Undefined);
         }
@@ -280,6 +288,45 @@ public sealed class JsEnvironment
         Depth = (enclosing?.Depth ?? -1) + 1;
         // Reset slot-based state
         _slots = null;
+        _thisValue = default;
+        _hasThisValue = false;
+        ScopeId = -1;
+    }
+
+    /// <summary>
+    ///     Resets the environment for direct reuse in recursive calls.
+    ///     Unlike Reset(), this KEEPS the slots array to avoid allocation.
+    ///     Only use this when reusing an environment for the SAME function.
+    /// </summary>
+    internal void ResetForReuse(
+        JsEnvironment? enclosing,
+        bool isFunctionScope,
+        bool isStrict,
+        SourceReference? creatingSource = null,
+        string? description = null)
+    {
+        Enclosing = enclosing;
+        IsFunctionScope = isFunctionScope;
+        IsStrictLocal = isStrict;
+        _creatingSource = creatingSource;
+        _description = description;
+        _values?.Clear();
+        _identifierBindingCache?.Clear();
+        _bindingObservers?.Clear();
+        _bodyLexicalNames?.Clear();
+        _simpleCatchParameters?.Clear();
+        _isDefaultDerivedConstructor = false;
+        _varEnvironmentOverride = null;
+        _withObject = null;
+        IsParameterEnvironment = false;
+        IsBodyEnvironment = false;
+        _treatAsGlobalFunctionScope = false;
+        _inheritStrictness = true;
+        RealmState = enclosing?.RealmState;
+        ModulePath = enclosing?.ModulePath;
+        IsAsyncModule = enclosing?.IsAsyncModule ?? false;
+        Depth = (enclosing?.Depth ?? -1) + 1;
+        // Keep _slots for reuse - InitializeSlots will reuse if same size
         _thisValue = default;
         _hasThisValue = false;
         ScopeId = -1;

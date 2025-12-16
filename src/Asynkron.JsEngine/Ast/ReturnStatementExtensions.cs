@@ -5,6 +5,10 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
+    // Debug counters - remove after testing
+    public static long PreEvalPathCount;
+    public static long NormalPathCount;
+
     extension(ReturnStatement statement)
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -20,10 +24,12 @@ public static partial class TypedAstEvaluator
                 binary.Left is CallExpression leftCall &&
                 binary.Right is CallExpression rightCall)
             {
+                Interlocked.Increment(ref PreEvalPathCount);
                 jsValue = EvaluateBinaryWithPreEvaluation(binary, leftCall, rightCall, environment, context);
             }
             else
             {
+                Interlocked.Increment(ref NormalPathCount);
                 jsValue = statement.Expression is null
                     ? JsValue.Undefined
                     : EvaluateExpression(statement.Expression, environment, context);

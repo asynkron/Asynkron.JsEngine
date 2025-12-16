@@ -564,38 +564,93 @@ public sealed class ScopeAnalyzer
 
     /// <summary>
     /// Resolves a binary expression in a return context, analyzing which calls can reuse the environment.
-    /// For expressions like fib(n-1) + fib(n-2), the rightmost call can reuse because after it completes,
-    /// only C# operations (addition, etc.) remain - no more JS environment access is needed.
+    /// Currently only the RIGHTMOST call can safely reuse the environment. To enable ALL calls to reuse,
+    /// we would need to pre-evaluate all arguments before making any calls - this requires a specialized
+    /// return expression evaluator.
     /// </summary>
     private ExpressionNode ResolveBinaryExpressionWithReuse(BinaryExpression binary)
     {
-        // Resolve the left side normally - calls on the left cannot reuse because
-        // the right side still needs to be evaluated after they return
-        var resolvedLeft = ResolveExpression(binary.Left);
+        // Count how many calls are in this expression
+        var callCount = CountCallExpressions(binary);
 
-        // For the right side: the rightmost call CAN reuse the environment because
-        // after the call completes, only the binary operation remains (which uses
-        // the return values in C# locals, not the JS environment).
-        ExpressionNode resolvedRight;
+        // If there's only one call, we can mark it for reuse regardless of position
+        if (callCount == 1)
+        {
+            var resolvedLeft = MarkCallsForReuse(ResolveExpression(binary.Left));
+            var resolvedRight = MarkCallsForReuse(ResolveExpression(binary.Right));
+            return binary with { Left = resolvedLeft, Right = resolvedRight };
+        }
+
+        // For multiple calls, only mark the rightmost for reuse (safe because nothing after it needs the environment).
+        // NOTE: To enable ALL calls to reuse, we need argument pre-evaluation. See ReturnStatementExtensions.
+        var resolvedLeftNormal = ResolveExpression(binary.Left);
+
+        ExpressionNode resolvedRightWithReuse;
         if (binary.Right is CallExpression rightCall)
         {
-            // This is a call in rightmost position - it can reuse!
-            // Arguments are evaluated BEFORE the call, so even if they reference
-            // scope variables, the environment is no longer needed during/after the call.
             var resolvedRightCall = ResolveCallExpression(rightCall);
-            resolvedRight = resolvedRightCall with { CanReuseCallerEnvironment = true };
+            resolvedRightWithReuse = resolvedRightCall with { CanReuseCallerEnvironment = true };
         }
         else if (binary.Right is BinaryExpression rightBinary)
         {
-            // Recursively analyze nested binary expressions
-            resolvedRight = ResolveBinaryExpressionWithReuse(rightBinary);
+            resolvedRightWithReuse = ResolveBinaryExpressionWithReuse(rightBinary);
         }
         else
         {
-            resolvedRight = ResolveExpression(binary.Right);
+            resolvedRightWithReuse = ResolveExpression(binary.Right);
         }
 
-        return binary with { Left = resolvedLeft, Right = resolvedRight };
+        return binary with { Left = resolvedLeftNormal, Right = resolvedRightWithReuse };
+    }
+
+    /// <summary>
+    /// Counts the number of CallExpression nodes in an expression tree.
+    /// </summary>
+    private static int CountCallExpressions(ExpressionNode expression)
+    {
+        return expression switch
+        {
+            CallExpression => 1,
+            BinaryExpression binary => CountCallExpressions(binary.Left) + CountCallExpressions(binary.Right),
+            UnaryExpression unary => CountCallExpressions(unary.Operand),
+            ConditionalExpression cond => CountCallExpressions(cond.Test) +
+                                          CountCallExpressions(cond.Consequent) +
+                                          CountCallExpressions(cond.Alternate),
+            _ => 0
+        };
+    }
+
+    /// <summary>
+    /// Recursively marks all CallExpression nodes in the expression tree for environment reuse.
+    /// Only safe when arguments have been pre-evaluated or there's only one call.
+    /// </summary>
+    private static ExpressionNode MarkCallsForReuse(ExpressionNode expression)
+    {
+        return expression switch
+        {
+            CallExpression call => call with { CanReuseCallerEnvironment = true },
+
+            BinaryExpression binary => binary with
+            {
+                Left = MarkCallsForReuse(binary.Left),
+                Right = MarkCallsForReuse(binary.Right)
+            },
+
+            UnaryExpression unary => unary with
+            {
+                Operand = MarkCallsForReuse(unary.Operand)
+            },
+
+            ConditionalExpression cond => cond with
+            {
+                Test = MarkCallsForReuse(cond.Test),
+                Consequent = MarkCallsForReuse(cond.Consequent),
+                Alternate = MarkCallsForReuse(cond.Alternate)
+            },
+
+            // For other expression types, return as-is (they don't contain calls we can optimize)
+            _ => expression
+        };
     }
 
     /// <summary>

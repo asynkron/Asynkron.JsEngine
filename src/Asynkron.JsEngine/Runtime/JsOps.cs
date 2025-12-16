@@ -878,8 +878,13 @@ internal static class JsOps
         }
 
         // Step 5b: If one is BigInt and the other is Number, do mixed-type comparison
-        if ((leftNumeric is JsBigInt && rightNumeric is double) ||
-            (leftNumeric is double && rightNumeric is JsBigInt))
+        // Note: ToNumeric may return a boxed JsValue for numbers (not a raw double), so we need to
+        // check both `double` and `JsValue` with IsNumber to correctly identify numeric values.
+        var leftIsNumber = TryGetNumericDouble(leftNumeric, out var leftDouble);
+        var rightIsNumber = TryGetNumericDouble(rightNumeric, out var rightDouble);
+
+        if ((leftNumeric is JsBigInt && rightIsNumber) ||
+            (leftIsNumber && rightNumeric is JsBigInt))
         {
             JsBigInt bigIntValue;
             double numberValue;
@@ -888,13 +893,13 @@ internal static class JsOps
             if (leftNumeric is JsBigInt)
             {
                 bigIntValue = (JsBigInt)leftNumeric;
-                numberValue = (double)rightNumeric;
+                numberValue = rightDouble;
                 bigIntIsLeft = true;
             }
             else
             {
                 bigIntValue = (JsBigInt)rightNumeric;
-                numberValue = (double)leftNumeric;
+                numberValue = leftDouble;
                 bigIntIsLeft = false;
             }
 
@@ -1007,6 +1012,24 @@ internal static class JsOps
             ComparisonOperator.GreaterThanOrEqual => leftNum >= rightNum,
             _ => false
         };
+    }
+
+    // Helper method to extract a double from a numeric value (either raw double or boxed JsValue)
+    // Returns true if the value is a number, false otherwise.
+    private static bool TryGetNumericDouble(object? value, out double result)
+    {
+        if (value is double d)
+        {
+            result = d;
+            return true;
+        }
+        if (value is JsValue jsv && jsv.IsNumber)
+        {
+            result = jsv.NumberValue;
+            return true;
+        }
+        result = 0;
+        return false;
     }
 
     // Helper method to compare a BigInteger to a double without precision loss
@@ -1125,12 +1148,26 @@ internal static class JsOps
 
         var sign = value < 0 ? "-" : string.Empty;
         var abs = Math.Abs(value);
+
+        // Fast path: if it's a whole number that fits in a long, use integer conversion.
+        // This avoids precision loss from floating-point format strings for large integers.
+        // The format "0.###################" rounds incorrectly for values near and above 2^53.
+        // Note: Any integer that fits in a double without fraction is exactly representable
+        // up to the limits of double precision, and can be safely converted to long.
+        if (abs == Math.Truncate(abs) && abs <= (double)long.MaxValue)
+        {
+            var intVal = (long)abs;
+            return sign + intVal.ToString(CultureInfo.InvariantCulture);
+        }
+
         var exponent = (int)Math.Floor(Math.Log10(abs));
         var useExponential = exponent < -6 || exponent >= 21;
 
         if (!useExponential)
         {
             // Fixed-point form for the mid-range magnitude.
+            // Use "0.###################" format for non-integers - it works correctly for these.
+            // Only large integers near MAX_SAFE_INTEGER need the special handling above.
             var fixedText = abs.ToString("0.###################", CultureInfo.InvariantCulture);
             return sign + fixedText;
         }

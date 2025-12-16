@@ -375,11 +375,13 @@ public static partial class TypedAstEvaluator
 
         try
         {
-            return rejectCallable.Invoke([JsValue.FromObject(reason)], JsValue.FromObject(promiseCtor)).ToObject();
+            // Handle case where reason is already a boxed JsValue
+            var reasonArg = reason is JsValue reasonJs ? reasonJs : JsValue.FromObject(reason);
+            return rejectCallable.Invoke([reasonArg], JsValue.FromObject(promiseCtor)).ToObject();
         }
         catch (ThrowSignal signal)
         {
-            return signal.ThrownValue;
+            return signal.ThrownValue.ToObject();
         }
     }
 
@@ -401,11 +403,13 @@ public static partial class TypedAstEvaluator
 
         try
         {
-            return resolveCallable.Invoke([JsValue.FromObject(value)], JsValue.FromObject(promiseCtor)).ToObject();
+            // Handle case where value is already a boxed JsValue
+            var valueArg = value is JsValue valJs ? valJs : JsValue.FromObject(value);
+            return resolveCallable.Invoke([valueArg], JsValue.FromObject(promiseCtor)).ToObject();
         }
         catch (ThrowSignal signal)
         {
-            return signal.ThrownValue;
+            return signal.ThrownValue.ToObject();
         }
     }
 

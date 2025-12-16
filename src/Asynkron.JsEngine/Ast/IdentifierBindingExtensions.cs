@@ -26,16 +26,19 @@ public static partial class TypedAstEvaluator
                     $"Cannot reassign constant '{identifier.Name.Name}'.", context, context.RealmState)));
             }
 
+            // Handle case where value is already a boxed JsValue
+            var jsValue = value is JsValue jv ? jv : JsValue.FromObject(value);
+
             switch (mode)
             {
                 case BindingMode.Assign:
                     environment.Assign(identifier.Name, value);
                     break;
                 case BindingMode.DefineLet:
-                    environment.DefineJsValue(identifier.Name, JsValue.FromObject(value), isLexical: true, blocksFunctionScopeOverride: true);
+                    environment.DefineJsValue(identifier.Name, jsValue, isLexical: true, blocksFunctionScopeOverride: true);
                     break;
                 case BindingMode.DefineConst:
-                    environment.DefineJsValue(identifier.Name, JsValue.FromObject(value), true, blocksFunctionScopeOverride: true);
+                    environment.DefineJsValue(identifier.Name, jsValue, true, blocksFunctionScopeOverride: true);
                     break;
                 case BindingMode.DefineVar:
                 {
@@ -91,7 +94,7 @@ public static partial class TypedAstEvaluator
                     }
                     else
                     {
-                        environment.DefineJsValue(identifier.Name, JsValue.FromObject(value), isLexical: false);
+                        environment.DefineJsValue(identifier.Name, jsValue, isLexical: false);
                     }
 
                     break;

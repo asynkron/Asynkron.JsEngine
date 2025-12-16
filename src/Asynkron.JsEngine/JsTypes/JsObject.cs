@@ -355,7 +355,8 @@ namespace Asynkron.JsEngine.JsTypes;
     {
         if (TryGetPropertyInternal(name, out var objValue))
         {
-            value = JsValue.FromObject(objValue);
+            // Handle case where objValue is already a boxed JsValue
+            value = objValue is JsValue jsVal ? jsVal : JsValue.FromObject(objValue);
             return true;
         }
 
@@ -367,7 +368,8 @@ namespace Asynkron.JsEngine.JsTypes;
     {
         if (TryGetPropertyInternal(name, receiver.ToObject(), out var objValue))
         {
-            value = JsValue.FromObject(objValue);
+            // Handle case where objValue is already a boxed JsValue
+            value = objValue is JsValue jsVal ? jsVal : JsValue.FromObject(objValue);
             return true;
         }
 

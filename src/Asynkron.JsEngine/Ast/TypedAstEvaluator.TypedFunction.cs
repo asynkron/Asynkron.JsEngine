@@ -908,13 +908,14 @@ public static partial class TypedAstEvaluator
                             // PromiseConstructor, ensuring we always have access to Promise.
                             callingContext?.Clear();
 
-                            return JsValue.FromObject(CreateRejectedPromiseFromRealm(thrownDuringBinding));
+                            var rejectedBindingResult = CreateRejectedPromiseFromRealm(thrownDuringBinding);
+                            return rejectedBindingResult is JsValue rejBindJs ? rejBindJs : JsValue.FromObject(rejectedBindingResult);
                         }
 
                         if (callingContext is not null)
                         {
                             callingContext.SetThrow(thrownDuringBinding);
-                            return JsValue.FromObject(thrownDuringBinding);
+                            return thrownDuringBinding;
                         }
 
                         throw new ThrowSignal(thrownDuringBinding);
@@ -956,7 +957,8 @@ public static partial class TypedAstEvaluator
 
                     if (IsAsyncFunction || _wasAsyncFunction)
                     {
-                        return JsValue.FromObject(CreateRejectedPromise(thrown, executionEnvironment));
+                        var rejectedThrowResult = CreateRejectedPromise(thrown, executionEnvironment);
+                        return rejectedThrowResult is JsValue rejThrowJs ? rejThrowJs : JsValue.FromObject(rejectedThrowResult);
                     }
 
                     if (callingContext is not null)
@@ -1079,13 +1081,15 @@ public static partial class TypedAstEvaluator
                     IsAsyncFunction,
                     _wasAsyncFunction,
                     completionValue?.GetType().Name ?? "null");
-                return JsValue.FromObject(CreateResolvedPromise(completionValue, executionEnvironment));
+                var resolvedResult = CreateResolvedPromise(completionValue, executionEnvironment);
+                return resolvedResult is JsValue resolvedJs ? resolvedJs : JsValue.FromObject(resolvedResult);
             }
             catch (ThrowSignal signal) when (IsAsyncFunction || _wasAsyncFunction)
             {
                 // Use CreateRejectedPromiseFromRealm which uses the RealmState's PromiseConstructor
                 // directly, avoiding environment lookup that might fail during parameter binding.
-                return JsValue.FromObject(CreateRejectedPromiseFromRealm(signal.ThrownValue));
+                var rejectedResult = CreateRejectedPromiseFromRealm(signal.ThrownValue);
+                return rejectedResult is JsValue rejectedJs ? rejectedJs : JsValue.FromObject(rejectedResult);
             }
             finally
             {

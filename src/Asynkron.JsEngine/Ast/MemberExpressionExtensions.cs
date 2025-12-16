@@ -91,7 +91,13 @@ public static partial class TypedAstEvaluator
             {
                 if (JsOps.TryGetPropertyValue(target, propertyName, out var directValue, context))
                 {
-                    return context.ShouldStopEvaluation ? JsValue.Undefined : JsValue.FromObject(directValue);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    // Handle case where value is already a boxed JsValue
+                    return directValue is JsValue jsVal ? jsVal : JsValue.FromObject(directValue);
                 }
 
                 return JsValue.Undefined;
@@ -104,7 +110,13 @@ public static partial class TypedAstEvaluator
                 context.CurrentScope.IsStrict,
                 allowPrivate: !expression.IsComputed);
             var value = handle.GetValue();
-            return context.ShouldStopEvaluation ? JsValue.Undefined : JsValue.FromObject(value);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
+            // Handle case where value is already a boxed JsValue
+            return value is JsValue jsv ? jsv : JsValue.FromObject(value);
         }
 
         private (JsValue Value, SuperBinding Binding) ResolveSuperMember(JsEnvironment environment,

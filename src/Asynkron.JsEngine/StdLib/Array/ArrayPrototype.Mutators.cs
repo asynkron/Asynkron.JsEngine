@@ -524,7 +524,10 @@ public sealed partial class ArrayPrototype
 
             if (compareFn is not null)
             {
-                var raw = compareFn.Invoke([JsValue.FromObject(aVal), JsValue.FromObject(bVal)], JsValue.Undefined).ToObject();
+                // Handle case where values are already boxed JsValues
+                var aArg = aVal is JsValue ajv ? ajv : JsValue.FromObject(aVal);
+                var bArg = bVal is JsValue bjv ? bjv : JsValue.FromObject(bVal);
+                var raw = compareFn.Invoke([aArg, bArg], JsValue.Undefined).ToObject();
                 var ctx = realm?.CreateContext();
                 var num = JsOps.ToNumberWithContext(raw, ctx);
                 if (ctx is not null && ctx.IsThrow)
@@ -559,7 +562,9 @@ public sealed partial class ArrayPrototype
         long index = 0;
         foreach (var pair in elements)
         {
-            accessor.SetProperty(ToIndexString(index++), JsValue.FromObject(pair.Value));
+            // Handle case where value is already a boxed JsValue
+            var pairVal = pair.Value is JsValue pjv ? pjv : JsValue.FromObject(pair.Value);
+            accessor.SetProperty(ToIndexString(index++), pairVal);
         }
 
         if (objectLike is not null)

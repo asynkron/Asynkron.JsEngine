@@ -161,88 +161,103 @@ public sealed class ScopeAnalyzer
 
     private void CollectVarDeclarations(StatementNode statement)
     {
-        switch (statement)
+        while (true)
         {
-            case VariableDeclaration { Kind: VariableKind.Var } varDecl:
-                foreach (var declarator in varDecl.Declarators)
-                {
-                    CollectBindingDeclarations(declarator.Target);
-                }
-                break;
-
-            case FunctionDeclaration funcDecl:
-                _currentScope!.DeclareVariable(funcDecl.Name);
-                break;
-
-            case BlockStatement block:
-                foreach (var stmt in block.Statements)
-                {
-                    CollectVarDeclarations(stmt);
-                }
-                break;
-
-            case IfStatement ifStmt:
-                CollectVarDeclarations(ifStmt.Then);
-                if (ifStmt.Else is not null)
-                {
-                    CollectVarDeclarations(ifStmt.Else);
-                }
-                break;
-
-            case WhileStatement whileStmt:
-                CollectVarDeclarations(whileStmt.Body);
-                break;
-
-            case DoWhileStatement doWhileStmt:
-                CollectVarDeclarations(doWhileStmt.Body);
-                break;
-
-            case ForStatement forStmt:
-                if (forStmt.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar)
-                {
-                    foreach (var declarator in initVar.Declarators)
+            switch (statement)
+            {
+                case VariableDeclaration { Kind: VariableKind.Var } varDecl:
+                    foreach (var declarator in varDecl.Declarators)
                     {
                         CollectBindingDeclarations(declarator.Target);
                     }
-                }
-                CollectVarDeclarations(forStmt.Body);
-                break;
 
-            case ForEachStatement forEachStmt:
-                if (forEachStmt.DeclarationKind == VariableKind.Var)
-                {
-                    CollectBindingDeclarations(forEachStmt.Target);
-                }
-                CollectVarDeclarations(forEachStmt.Body);
-                break;
+                    break;
 
-            case TryStatement tryStmt:
-                CollectVarDeclarations(tryStmt.TryBlock);
-                if (tryStmt.Catch is not null)
-                {
-                    CollectVarDeclarations(tryStmt.Catch.Body);
-                }
-                if (tryStmt.Finally is not null)
-                {
-                    CollectVarDeclarations(tryStmt.Finally);
-                }
-                break;
+                case FunctionDeclaration funcDecl:
+                    _currentScope!.DeclareVariable(funcDecl.Name);
+                    break;
 
-            case SwitchStatement switchStmt:
-                foreach (var switchCase in switchStmt.Cases)
-                {
-                    CollectVarDeclarations(switchCase.Body);
-                }
-                break;
+                case BlockStatement block:
+                    foreach (var stmt in block.Statements)
+                    {
+                        CollectVarDeclarations(stmt);
+                    }
 
-            case LabeledStatement labeledStmt:
-                CollectVarDeclarations(labeledStmt.Statement);
-                break;
+                    break;
 
-            case WithStatement withStmt:
-                _currentScope!.HasWith = true;
-                CollectVarDeclarations(withStmt.Body);
-                break;
+                case IfStatement ifStmt:
+                    CollectVarDeclarations(ifStmt.Then);
+                    if (ifStmt.Else is not null)
+                    {
+                        statement = ifStmt.Else;
+                        continue;
+                    }
+
+                    break;
+
+                case WhileStatement whileStmt:
+                    statement = whileStmt.Body;
+                    continue;
+
+                case DoWhileStatement doWhileStmt:
+                    statement = doWhileStmt.Body;
+                    continue;
+
+                case ForStatement forStmt:
+                    if (forStmt.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar)
+                    {
+                        foreach (var declarator in initVar.Declarators)
+                        {
+                            CollectBindingDeclarations(declarator.Target);
+                        }
+                    }
+
+                    statement = forStmt.Body;
+                    continue;
+
+                case ForEachStatement forEachStmt:
+                    if (forEachStmt.DeclarationKind == VariableKind.Var)
+                    {
+                        CollectBindingDeclarations(forEachStmt.Target);
+                    }
+
+                    statement = forEachStmt.Body;
+                    continue;
+
+                case TryStatement tryStmt:
+                    CollectVarDeclarations(tryStmt.TryBlock);
+                    if (tryStmt.Catch is not null)
+                    {
+                        CollectVarDeclarations(tryStmt.Catch.Body);
+                    }
+
+                    if (tryStmt.Finally is not null)
+                    {
+                        statement = tryStmt.Finally;
+                        continue;
+                    }
+
+                    break;
+
+                case SwitchStatement switchStmt:
+                    foreach (var switchCase in switchStmt.Cases)
+                    {
+                        CollectVarDeclarations(switchCase.Body);
+                    }
+
+                    break;
+
+                case LabeledStatement labeledStmt:
+                    statement = labeledStmt.Statement;
+                    continue;
+
+                case WithStatement withStmt:
+                    _currentScope!.HasWith = true;
+                    statement = withStmt.Body;
+                    continue;
+            }
+
+            break;
         }
     }
 
@@ -265,39 +280,50 @@ public sealed class ScopeAnalyzer
 
     private void CollectBindingDeclarations(BindingTarget target)
     {
-        switch (target)
+        while (true)
         {
-            case IdentifierBinding identifier:
-                _currentScope!.DeclareVariable(identifier.Name);
-                break;
+            switch (target)
+            {
+                case IdentifierBinding identifier:
+                    _currentScope!.DeclareVariable(identifier.Name);
+                    break;
 
-            case ArrayBinding arrayBinding:
-                foreach (var element in arrayBinding.Elements)
-                {
-                    if (element.Target is not null)
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
                     {
-                        CollectBindingDeclarations(element.Target);
+                        if (element.Target is not null)
+                        {
+                            CollectBindingDeclarations(element.Target);
+                        }
                     }
-                }
-                if (arrayBinding.RestElement is not null)
-                {
-                    CollectBindingDeclarations(arrayBinding.RestElement);
-                }
-                break;
 
-            case ObjectBinding objectBinding:
-                foreach (var prop in objectBinding.Properties)
-                {
-                    if (prop.Target is not null)
+                    if (arrayBinding.RestElement is not null)
                     {
-                        CollectBindingDeclarations(prop.Target);
+                        target = arrayBinding.RestElement;
+                        continue;
                     }
-                }
-                if (objectBinding.RestElement is not null)
-                {
-                    CollectBindingDeclarations(objectBinding.RestElement);
-                }
-                break;
+
+                    break;
+
+                case ObjectBinding objectBinding:
+                    foreach (var prop in objectBinding.Properties)
+                    {
+                        if (prop.Target is not null)
+                        {
+                            CollectBindingDeclarations(prop.Target);
+                        }
+                    }
+
+                    if (objectBinding.RestElement is not null)
+                    {
+                        target = objectBinding.RestElement;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            break;
         }
     }
 

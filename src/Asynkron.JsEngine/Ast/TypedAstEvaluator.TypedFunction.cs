@@ -871,6 +871,11 @@ public static partial class TypedAstEvaluator
                     parameterEnvironment.DefineJsValue(functionName, JsValue.FromObject(this), isConst: true, isLexical: true, blocksFunctionScopeOverride: true);
                 }
 
+                // Wrap parameter binding and body evaluation in the same try-catch for async functions.
+                // This ensures ThrowSignal exceptions from TDZ errors during parameter default evaluation
+                // are properly caught and converted to rejected promises.
+                try
+                {
                 // Bind parameters using the same converted array
                 BindFunctionParameters(_function, argumentValues, parameterEnvironment, context);
                 if (context.ShouldStopEvaluation)
@@ -916,8 +921,6 @@ public static partial class TypedAstEvaluator
                     functionEnvironment.DefineFunctionScoped(hoistedName, Symbol.Undefined, false, context: context);
                 }
 
-                try
-                {
                     _ = EvaluateBlockJsValue(
                         _function.Body,
                         executionEnvironment,
@@ -1062,7 +1065,9 @@ public static partial class TypedAstEvaluator
             }
             catch (ThrowSignal signal) when (IsAsyncFunction || _wasAsyncFunction)
             {
-                return JsValue.FromObject(CreateRejectedPromise(signal.ThrownValue, executionEnvironment));
+                // Use CreateRejectedPromiseFromRealm which uses the RealmState's PromiseConstructor
+                // directly, avoiding environment lookup that might fail during parameter binding.
+                return JsValue.FromObject(CreateRejectedPromiseFromRealm(signal.ThrownValue));
             }
             finally
             {

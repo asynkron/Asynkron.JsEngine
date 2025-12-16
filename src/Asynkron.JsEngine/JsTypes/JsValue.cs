@@ -69,6 +69,60 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// </summary>
     public readonly object? ObjectValue;
 
+    #region Static Cache
+
+    /// <summary>
+    /// Cache of JsValue instances for integers 0-99999.
+    /// Used to avoid struct copies for common numeric values.
+    /// </summary>
+    private static readonly JsValue[] IntegerCache = CreateIntegerCache(100000);
+
+    private static JsValue[] CreateIntegerCache(int size)
+    {
+        var cache = new JsValue[size];
+        for (int i = 0; i < size; i++)
+        {
+            cache[i] = new JsValue((double)i);
+        }
+        return cache;
+    }
+
+    /// <summary>
+    /// Returns a JsValue for the given double, using cache for common integers.
+    /// This avoids struct initialization for cached values.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue FromDouble(double value)
+    {
+        // Fast path: check if it's a cached non-negative integer
+        int i = (int)value;
+        if ((uint)i < (uint)IntegerCache.Length && i == value)
+        {
+            return IntegerCache[i];
+        }
+        return new JsValue(value);
+    }
+
+    /// <summary>
+    /// Returns a ref to a cached JsValue for the given double, or stores in the scratch slot.
+    /// This avoids 24-byte struct copies for cached values.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ref readonly JsValue FromDoubleRef(double value, ref JsValue scratch)
+    {
+        // Fast path: check if it's a cached non-negative integer
+        int i = (int)value;
+        if ((uint)i < (uint)IntegerCache.Length && i == value)
+        {
+            return ref IntegerCache[i];
+        }
+        // Fallback: store in scratch and return ref to it
+        scratch = new JsValue(value);
+        return ref scratch;
+    }
+
+    #endregion
+
     #region Static Singletons
 
     /// <summary>The undefined value.</summary>

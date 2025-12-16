@@ -46,6 +46,9 @@ public static partial class TypedAstEvaluator
         private bool _isDerivedClassConstructor;
         private IJsEnvironmentAwareCallable? _superConstructor;
         private IJsPropertyAccessor? _superPrototype;
+        // Precomputed fast path eligibility - combines all conditions except newTarget.IsUndefined
+        // Updated when setters are called that could invalidate fast path
+        private bool _canUseFastPathBase;
 
         public TypedFunction(
             FunctionExpression function,
@@ -203,6 +206,12 @@ public static partial class TypedAstEvaluator
                     HasEnumerable = true,
                     HasConfigurable = true
                 });
+
+            // Initialize precomputed fast path eligibility
+            // At construction: _isClassConstructor=false, _capturedPrivateNameScopes=empty, PrivateNameScope=null,
+            // _homeObject=null, _superConstructor=null, _superPrototype=null
+            // So we only need to check _isSimpleFunction and _lexicalThisEnvironment
+            _canUseFastPathBase = _isSimpleFunction && _lexicalThisEnvironment is null;
         }
 
         public bool IsAsyncFunction { get; }
@@ -434,29 +443,63 @@ public static partial class TypedAstEvaluator
             return _properties.TryDefineProperty(name, descriptor);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public JsValue InvokeWithContext(
             IReadOnlyList<JsValue> arguments,
             JsValue thisValue,
             EvaluationContext? callingContext,
             JsValue newTarget = default)
         {
-            // Fast-path for simple functions (no async, no defaults, no lexical declarations)
-            // Skip if this is a constructor call (newTarget set), class constructor, or has super access
-            // Also skip arrow functions with uninitialized this (need to look up this at call time)
-            var canUseFastPath = _isSimpleFunction &&
-                !_isClassConstructor &&
-                newTarget.IsUndefined &&
-                _capturedPrivateNameScopes.IsDefaultOrEmpty &&
-                PrivateNameScope is null &&
-                _homeObject is null && // Methods with homeObject need super context
-                _superConstructor is null &&
-                _superPrototype is null &&
-                _lexicalThisEnvironment is null; // Arrow functions with dynamic this need full path
-
-            if (canUseFastPath)
+            // Fast-path for simple functions - uses precomputed _canUseFastPathBase
+            // Only check newTarget at runtime (everything else is fixed after construction)
+            if (_canUseFastPathBase && newTarget.IsUndefined)
             {
                 return InvokeSimpleFast(arguments, thisValue, callingContext);
             }
+
+            return InvokeWithContextSlow(arguments, thisValue, callingContext, newTarget);
+        }
+
+        /// <summary>
+        /// Ultra-fast invoke for 1-argument calls - avoids array allocation.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public JsValue InvokeWithContext1(
+            JsValue arg0,
+            JsValue thisValue,
+            EvaluationContext callingContext)
+        {
+            if (_canUseFastPathBase)
+            {
+                return InvokeSimpleFast1(arg0, thisValue, callingContext);
+            }
+            return InvokeWithContextSlow([arg0], thisValue, callingContext, JsValue.Undefined);
+        }
+
+        /// <summary>
+        /// Ultra-fast invoke for 2-argument calls - avoids array allocation.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public JsValue InvokeWithContext2(
+            JsValue arg0,
+            JsValue arg1,
+            JsValue thisValue,
+            EvaluationContext callingContext)
+        {
+            if (_canUseFastPathBase)
+            {
+                return InvokeSimpleFast2(arg0, arg1, thisValue, callingContext);
+            }
+            return InvokeWithContextSlow([arg0, arg1], thisValue, callingContext, JsValue.Undefined);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private JsValue InvokeWithContextSlow(
+            IReadOnlyList<JsValue> arguments,
+            JsValue thisValue,
+            EvaluationContext? callingContext,
+            JsValue newTarget)
+        {
 
             var context = _realmState.RentContext(pushScope: false);
             context.AllowIdentifierCache = _allowIdentifierCache;
@@ -1091,22 +1134,35 @@ public static partial class TypedAstEvaluator
         public void SetPrivateNameScope(PrivateNameScope? scope)
         {
             PrivateNameScope = scope;
+            if (scope is not null)
+            {
+                _canUseFastPathBase = false;
+            }
         }
 
         public void SetCapturedPrivateNameScopes(ImmutableArray<PrivateNameScope> scopes)
         {
             _capturedPrivateNameScopes = scopes;
+            if (!scopes.IsDefaultOrEmpty)
+            {
+                _canUseFastPathBase = false;
+            }
         }
 
         public void SetSuperBinding(IJsEnvironmentAwareCallable? superConstructor, IJsPropertyAccessor? superPrototype)
         {
             _superConstructor = superConstructor;
             _superPrototype = superPrototype;
+            if (superConstructor is not null || superPrototype is not null)
+            {
+                _canUseFastPathBase = false;
+            }
         }
 
         public void SetHomeObject(IJsObjectLike homeObject)
         {
             _homeObject = homeObject;
+            _canUseFastPathBase = false;
         }
 
         public void DisableConstruction()
@@ -1130,6 +1186,7 @@ public static partial class TypedAstEvaluator
         {
             _isClassConstructor = true;
             _isDerivedClassConstructor = isDerived;
+            _canUseFastPathBase = false;
         }
 
         public void SetInstanceFields(ImmutableArray<ClassField> fields)
@@ -1580,6 +1637,287 @@ public static partial class TypedAstEvaluator
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue InvokeSimpleFast(IReadOnlyList<JsValue> arguments, JsValue thisValue, EvaluationContext? callingContext)
+        {
+            // Ultra-fast path for simple recursive functions (no arguments object, poolable environment)
+            // This path has no try/catch to allow inlining
+            if (_canPoolInvocationEnvironment && !_usesArguments && callingContext is not null)
+            {
+                return InvokeSimpleFastCore(arguments, thisValue, callingContext);
+            }
+
+            // Standard fast path with try/catch for exception handling
+            return InvokeSimpleFastWithExceptionHandling(arguments, thisValue, callingContext);
+        }
+
+        /// <summary>
+        /// Ultra-fast 1-argument invoke - avoids array allocation entirely.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue InvokeSimpleFast1(JsValue arg0, JsValue thisValue, EvaluationContext callingContext)
+        {
+            if (_canPoolInvocationEnvironment && !_usesArguments)
+            {
+                return InvokeSimpleFastCore1(arg0, thisValue, callingContext);
+            }
+            return InvokeSimpleFastWithExceptionHandling([arg0], thisValue, callingContext);
+        }
+
+        /// <summary>
+        /// Ultra-fast 2-argument invoke - avoids array allocation entirely.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue InvokeSimpleFast2(JsValue arg0, JsValue arg1, JsValue thisValue, EvaluationContext callingContext)
+        {
+            if (_canPoolInvocationEnvironment && !_usesArguments)
+            {
+                return InvokeSimpleFastCore2(arg0, arg1, thisValue, callingContext);
+            }
+            return InvokeSimpleFastWithExceptionHandling([arg0, arg1], thisValue, callingContext);
+        }
+
+        /// <summary>
+        /// Ultra-fast core invocation - no try/catch to allow JIT inlining.
+        /// Only used when we can guarantee no ThrowSignal will escape (errors propagate via context).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue InvokeSimpleFastCore(IReadOnlyList<JsValue> arguments, JsValue thisValue, EvaluationContext callingContext)
+        {
+            // Rent context from pool
+            var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
+            var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: false);
+            context.AllowIdentifierCache = true;
+            context.CallDepth = callingContext.CallDepth;
+            context.MaxCallDepth = callingContext.MaxCallDepth;
+
+            // Rent environment from pool
+            var functionEnvironment = _realmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
+            functionEnvironment.ScopeId = _function.ScopeId;
+            if (_function.SlotCount > 0)
+            {
+                functionEnvironment.InitializeSlots(_function.SlotCount);
+            }
+
+            // Bind this - use lexical this for arrow functions, parameter for others
+            JsValue boundThisValue;
+            if (IsArrowFunction)
+            {
+                boundThisValue = _lexicalThis.IsUndefined ? JsValue.Undefined : _lexicalThis;
+            }
+            else if (_isStrict)
+            {
+                boundThisValue = thisValue;
+            }
+            else
+            {
+                boundThisValue = thisValue.IsNullish
+                    ? (_realmState.Engine is { GlobalObject: { } globalObj } ? JsValue.FromObject(globalObj) : JsValue.Undefined)
+                    : thisValue;
+            }
+            functionEnvironment._thisValue = boundThisValue;
+            functionEnvironment._hasThisValue = true;
+
+            // Bind parameters to slots
+            var slots = functionEnvironment._slots;
+            if (slots is not null)
+            {
+                for (var i = 0; i < _parameterNames.Length; i++)
+                {
+                    slots[i] = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                }
+            }
+            else
+            {
+                // Fallback when slots not available
+                for (var i = 0; i < _parameterNames.Length; i++)
+                {
+                    var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                    functionEnvironment.DefineParameterFast(_parameterNames[i], value);
+                }
+            }
+
+            // Execute body
+            _ = EvaluateBlockJsValue(_function.Body, functionEnvironment, context);
+
+            // Get result
+            JsValue result;
+            if (context.IsThrow)
+            {
+                result = context.FlowValue;
+                context.Clear();
+                callingContext.SetThrow(result);
+            }
+            else if (context.IsReturn)
+            {
+                result = context.FlowValue;
+                context.ClearReturn();
+            }
+            else
+            {
+                result = JsValue.Undefined;
+            }
+
+            // Return pooled resources
+            _realmState.ReturnContext(context);
+            _realmState.ReturnEnvironment(functionEnvironment);
+
+            return result;
+        }
+
+        /// <summary>
+        /// Ultra-fast 1-argument core invocation - no array allocation, no try/catch.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue InvokeSimpleFastCore1(JsValue arg0, JsValue thisValue, EvaluationContext callingContext)
+        {
+            var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
+            var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: false);
+            context.AllowIdentifierCache = true;
+            context.CallDepth = callingContext.CallDepth;
+            context.MaxCallDepth = callingContext.MaxCallDepth;
+
+            var functionEnvironment = _realmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
+            functionEnvironment.ScopeId = _function.ScopeId;
+            if (_function.SlotCount > 0)
+            {
+                functionEnvironment.InitializeSlots(_function.SlotCount);
+            }
+
+            // Bind this
+            JsValue boundThisValue;
+            if (IsArrowFunction)
+            {
+                boundThisValue = _lexicalThis.IsUndefined ? JsValue.Undefined : _lexicalThis;
+            }
+            else if (_isStrict)
+            {
+                boundThisValue = thisValue;
+            }
+            else
+            {
+                boundThisValue = thisValue.IsNullish
+                    ? (_realmState.Engine is { GlobalObject: { } globalObj } ? JsValue.FromObject(globalObj) : JsValue.Undefined)
+                    : thisValue;
+            }
+            functionEnvironment._thisValue = boundThisValue;
+            functionEnvironment._hasThisValue = true;
+
+            // Bind single parameter directly - no array allocation
+            var slots = functionEnvironment._slots;
+            if (slots is not null && _parameterNames.Length > 0)
+            {
+                slots[0] = arg0;
+            }
+            else if (_parameterNames.Length > 0)
+            {
+                // Fallback when slots not available
+                functionEnvironment.DefineParameterFast(_parameterNames[0], arg0);
+            }
+
+            _ = EvaluateBlockJsValue(_function.Body, functionEnvironment, context);
+
+            JsValue result;
+            if (context.IsThrow)
+            {
+                result = context.FlowValue;
+                context.Clear();
+                callingContext.SetThrow(result);
+            }
+            else if (context.IsReturn)
+            {
+                result = context.FlowValue;
+                context.ClearReturn();
+            }
+            else
+            {
+                result = JsValue.Undefined;
+            }
+
+            _realmState.ReturnContext(context);
+            _realmState.ReturnEnvironment(functionEnvironment);
+            return result;
+        }
+
+        /// <summary>
+        /// Ultra-fast 2-argument core invocation - no array allocation, no try/catch.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue InvokeSimpleFastCore2(JsValue arg0, JsValue arg1, JsValue thisValue, EvaluationContext callingContext)
+        {
+            var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
+            var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: false);
+            context.AllowIdentifierCache = true;
+            context.CallDepth = callingContext.CallDepth;
+            context.MaxCallDepth = callingContext.MaxCallDepth;
+
+            var functionEnvironment = _realmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
+            functionEnvironment.ScopeId = _function.ScopeId;
+            if (_function.SlotCount > 0)
+            {
+                functionEnvironment.InitializeSlots(_function.SlotCount);
+            }
+
+            // Bind this
+            JsValue boundThisValue;
+            if (IsArrowFunction)
+            {
+                boundThisValue = _lexicalThis.IsUndefined ? JsValue.Undefined : _lexicalThis;
+            }
+            else if (_isStrict)
+            {
+                boundThisValue = thisValue;
+            }
+            else
+            {
+                boundThisValue = thisValue.IsNullish
+                    ? (_realmState.Engine is { GlobalObject: { } globalObj } ? JsValue.FromObject(globalObj) : JsValue.Undefined)
+                    : thisValue;
+            }
+            functionEnvironment._thisValue = boundThisValue;
+            functionEnvironment._hasThisValue = true;
+
+            // Bind both parameters directly - no array allocation
+            var slots = functionEnvironment._slots;
+            if (slots is not null)
+            {
+                if (_parameterNames.Length > 0) slots[0] = arg0;
+                if (_parameterNames.Length > 1) slots[1] = arg1;
+            }
+            else
+            {
+                // Fallback when slots not available
+                if (_parameterNames.Length > 0) functionEnvironment.DefineParameterFast(_parameterNames[0], arg0);
+                if (_parameterNames.Length > 1) functionEnvironment.DefineParameterFast(_parameterNames[1], arg1);
+            }
+
+            _ = EvaluateBlockJsValue(_function.Body, functionEnvironment, context);
+
+            JsValue result;
+            if (context.IsThrow)
+            {
+                result = context.FlowValue;
+                context.Clear();
+                callingContext.SetThrow(result);
+            }
+            else if (context.IsReturn)
+            {
+                result = context.FlowValue;
+                context.ClearReturn();
+            }
+            else
+            {
+                result = JsValue.Undefined;
+            }
+
+            _realmState.ReturnContext(context);
+            _realmState.ReturnEnvironment(functionEnvironment);
+            return result;
+        }
+
+        /// <summary>
+        /// Standard fast path with exception handling for functions that may throw.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private JsValue InvokeSimpleFastWithExceptionHandling(IReadOnlyList<JsValue> arguments, JsValue thisValue, EvaluationContext? callingContext)
         {
             // Rent context from pool - avoids allocation per call
             var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;

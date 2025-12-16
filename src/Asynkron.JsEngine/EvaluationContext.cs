@@ -85,6 +85,12 @@ public sealed class EvaluationContext(
     public int CallDepth { get; set; }
 
     /// <summary>
+    ///     Scratch slot for JsValue to avoid struct copies in hot paths.
+    ///     Used by JsValue.FromDoubleRef when the value isn't in the cache.
+    /// </summary>
+    public JsValue ScratchValue;
+
+    /// <summary>
     ///     Maximum allowed dynamic call depth before we bail out.
     /// </summary>
     public int MaxCallDepth { get; set; } = 1000;

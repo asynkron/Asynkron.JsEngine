@@ -8,5 +8,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Asynkron.JsEngine\Asynkron.JsEngine.csproj" />
+    <PackageReference Include="Jint" Version="4.2.1" />
   </ItemGroup>
 </Project>

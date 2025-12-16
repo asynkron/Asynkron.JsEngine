@@ -24,6 +24,7 @@ public static partial class TypedAstEvaluator
         /// Core block evaluation that returns JsValue directly.
         /// Returns JsValue.Undefined for empty blocks to match browser behavior.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue EvaluateBlockCore(
             JsEnvironment environment,
             EvaluationContext context)
@@ -34,41 +35,63 @@ public static partial class TypedAstEvaluator
             }
             var hoistPlan = ((IAstCacheable<HoistPlan>)block).GetOrCreateCache();
 
-            // Start with Undefined (not Unit) to match browser behavior for empty blocks
-            var resultJs = JsValue.Undefined;
-
             // Fast path: if the block has no lexical/function decls, execute directly in the incoming environment
             if (!hoistPlan.NeedsEnvironment)
             {
-                foreach (var statement in block.Statements)
-                {
-                    context.ThrowIfCancellationRequested();
-
-                    var completionJs = EvaluateStatementJsValue(statement, environment, context);
-                    var shouldStop = context.ShouldStopEvaluation;
-                    var shouldCapture =
-                        !completionJs.IsUnit &&
-                        (!shouldStop ||
-                         context.IsReturn ||
-                         context.IsThrow ||
-                         context.IsYield ||
-                         context.IsBreak ||
-                         context.IsContinue);
-
-                    if (shouldCapture)
-                    {
-                        resultJs = completionJs;
-                    }
-
-                    if (shouldStop)
-                    {
-                        break;
-                    }
-                }
-
-                return resultJs;
+                return block.EvaluateBlockFast(environment, context);
             }
 
+            // Slow path: needs new environment for lexical bindings
+            return block.EvaluateBlockSlow(environment, context);
+        }
+
+        /// <summary>
+        /// Fast path for blocks that don't need a new environment.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue EvaluateBlockFast(
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            var resultJs = JsValue.Undefined;
+            foreach (var statement in block.Statements)
+            {
+                context.ThrowIfCancellationRequested();
+
+                var completionJs = EvaluateStatementJsValue(statement, environment, context);
+                var shouldStop = context.ShouldStopEvaluation;
+                var shouldCapture =
+                    !completionJs.IsUnit &&
+                    (!shouldStop ||
+                     context.IsReturn ||
+                     context.IsThrow ||
+                     context.IsYield ||
+                     context.IsBreak ||
+                     context.IsContinue);
+
+                if (shouldCapture)
+                {
+                    resultJs = completionJs;
+                }
+
+                if (shouldStop)
+                {
+                    break;
+                }
+            }
+
+            return resultJs;
+        }
+
+        /// <summary>
+        /// Slow path for blocks that need a new environment for lexical bindings.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private JsValue EvaluateBlockSlow(
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            var resultJs = JsValue.Undefined;
             var scope = new JsEnvironment(environment, false, block.IsStrict);
 
             var mode = scope.IsStrict || block.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy;

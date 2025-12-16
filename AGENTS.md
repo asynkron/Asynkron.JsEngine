@@ -371,3 +371,30 @@ This optimization reduced memory allocation in the ForLoop benchmark:
 - `let` loops (50k iterations): 4.99 MB → 3.84 MB (23% reduction)
 - `var` loops (100k iterations): 29.52 MB → 27.24 MB (8% reduction)
 - Execution time also improved ~19% for `let` loops
+
+## Comparing to Jint
+
+When discussing performance comparisons with Jint:
+
+### Do NOT Say
+- "The performance gap with Jint is likely due to deeper architectural differences"
+- "Bytecode compilation (like Jint's interpreter)" - **Jint is NOT a bytecode interpreter**, it's an AST-walking interpreter like we are
+
+### Do Say
+- "We need to investigate what specific optimizations we can apply"
+- "Let's profile to find the actual bottlenecks"
+- "What are the remaining allocation hotspots?"
+
+### Key Facts About Jint
+- Jint is an **AST-walking interpreter**, not a bytecode interpreter
+- Both Jint and Asynkron.JsEngine evaluate JavaScript by walking the AST
+- Jint uses `readonly struct ExecutionContext` while we use class `EvaluationContext` (required for async/await support)
+- When comparing, always profile and identify specific differences rather than hand-waving about "architecture"
+
+### Investigation Approach
+When we're slower than Jint, the proper approach is:
+1. Profile both engines on the same workload
+2. Compare hot function call counts and time distribution
+3. Identify specific allocations/operations that differ
+4. Create targeted optimizations for each bottleneck
+5. Repeat until parity is achieved or specific trade-offs are understood

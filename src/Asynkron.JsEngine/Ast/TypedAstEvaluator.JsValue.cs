@@ -21,7 +21,7 @@ public static partial class TypedAstEvaluator
         // Fast path: both operands are already numbers (very common in loops)
         if (left.IsNumber && right.IsNumber)
         {
-            return new JsValue(left.NumberValue + right.NumberValue);
+            return JsValue.FromDouble(left.NumberValue + right.NumberValue);
         }
 
         // Need ToPrimitive for objects FIRST per ES spec 13.15.3
@@ -51,7 +51,7 @@ public static partial class TypedAstEvaluator
         // Convert to numeric and add
         var leftNum = ToNumberValue(left, context);
         var rightNum = ToNumberValue(right, context);
-        return new JsValue(leftNum + rightNum);
+        return JsValue.FromDouble(leftNum + rightNum);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -127,7 +127,7 @@ public static partial class TypedAstEvaluator
             return JsValue.Undefined;
         }
 
-        return new JsValue(leftNum + rightNum);
+        return JsValue.FromDouble(leftNum + rightNum);
     }
 
     /// <summary>
@@ -139,7 +139,7 @@ public static partial class TypedAstEvaluator
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
         {
-            return new JsValue(left.NumberValue - right.NumberValue);
+            return JsValue.FromDouble(left.NumberValue - right.NumberValue);
         }
 
         return NumericBinaryOp(left, right, (l, r) => l - r, (l, r) => l - r, context);
@@ -154,7 +154,7 @@ public static partial class TypedAstEvaluator
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
         {
-            return new JsValue(left.NumberValue * right.NumberValue);
+            return JsValue.FromDouble(left.NumberValue * right.NumberValue);
         }
 
         return NumericBinaryOp(left, right, (l, r) => l * r, (l, r) => l * r, context);
@@ -169,7 +169,7 @@ public static partial class TypedAstEvaluator
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
         {
-            return new JsValue(left.NumberValue / right.NumberValue);
+            return JsValue.FromDouble(left.NumberValue / right.NumberValue);
         }
 
         return NumericBinaryOp(left, right,
@@ -194,7 +194,7 @@ public static partial class TypedAstEvaluator
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
         {
-            return new JsValue(left.NumberValue % right.NumberValue);
+            return JsValue.FromDouble(left.NumberValue % right.NumberValue);
         }
 
         return NumericBinaryOp(left, right,
@@ -237,7 +237,7 @@ public static partial class TypedAstEvaluator
         // Both numbers
         if (leftNumeric.IsNumber && rightNumeric.IsNumber)
         {
-            return new JsValue(numericOp(leftNumeric.NumberValue, rightNumeric.NumberValue));
+            return JsValue.FromDouble(numericOp(leftNumeric.NumberValue, rightNumeric.NumberValue));
         }
 
         // Both BigInt
@@ -252,7 +252,7 @@ public static partial class TypedAstEvaluator
             throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions", context);
         }
 
-        return new JsValue(numericOp(leftNumeric.NumberValue, rightNumeric.NumberValue));
+        return JsValue.FromDouble(numericOp(leftNumeric.NumberValue, rightNumeric.NumberValue));
     }
 
     /// <summary>
@@ -347,7 +347,7 @@ public static partial class TypedAstEvaluator
     {
         if (value.IsNumber)
         {
-            return new JsValue(value.NumberValue + 1.0);
+            return JsValue.FromDouble(value.NumberValue + 1.0);
         }
 
         if (value.IsBigInt)
@@ -359,7 +359,7 @@ public static partial class TypedAstEvaluator
         var numeric = ToNumericValue(value, context);
         if (numeric.IsNumber)
         {
-            return new JsValue(numeric.NumberValue + 1.0);
+            return JsValue.FromDouble(numeric.NumberValue + 1.0);
         }
         if (numeric.IsBigInt)
         {
@@ -377,7 +377,7 @@ public static partial class TypedAstEvaluator
     {
         if (value.IsNumber)
         {
-            return new JsValue(value.NumberValue - 1.0);
+            return JsValue.FromDouble(value.NumberValue - 1.0);
         }
 
         if (value.IsBigInt)
@@ -389,7 +389,7 @@ public static partial class TypedAstEvaluator
         var numeric = ToNumericValue(value, context);
         if (numeric.IsNumber)
         {
-            return new JsValue(numeric.NumberValue - 1.0);
+            return JsValue.FromDouble(numeric.NumberValue - 1.0);
         }
         if (numeric.IsBigInt)
         {
@@ -407,7 +407,7 @@ public static partial class TypedAstEvaluator
     {
         if (value.IsNumber)
         {
-            return new JsValue(-value.NumberValue);
+            return JsValue.FromDouble(-value.NumberValue);
         }
 
         if (value.IsBigInt)
@@ -418,7 +418,7 @@ public static partial class TypedAstEvaluator
         var numeric = ToNumericValue(value, context);
         if (numeric.IsNumber)
         {
-            return new JsValue(-numeric.NumberValue);
+            return JsValue.FromDouble(-numeric.NumberValue);
         }
         if (numeric.IsBigInt)
         {
@@ -502,7 +502,7 @@ public static partial class TypedAstEvaluator
         // (handles special cases like abs(base)==1 with ±Infinity exponent)
         if (left.IsNumber && right.IsNumber)
         {
-            return new JsValue(JsOps.MathPow(left.NumberValue, right.NumberValue));
+            return JsValue.FromDouble(JsOps.MathPow(left.NumberValue, right.NumberValue));
         }
 
         // Fall back to object path
@@ -566,7 +566,7 @@ public static partial class TypedAstEvaluator
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
         {
-            return new JsValue((double)(JsNumericConversions.ToInt32(left.NumberValue) & JsNumericConversions.ToInt32(right.NumberValue)));
+            return JsValue.FromDouble((double)(JsNumericConversions.ToInt32(left.NumberValue) & JsNumericConversions.ToInt32(right.NumberValue)));
         }
 
         return JsValue.FromObject(BitwiseAnd(left.ToObject(), right.ToObject(), context));
@@ -581,7 +581,7 @@ public static partial class TypedAstEvaluator
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
         {
-            return new JsValue((double)(JsNumericConversions.ToInt32(left.NumberValue) | JsNumericConversions.ToInt32(right.NumberValue)));
+            return JsValue.FromDouble((double)(JsNumericConversions.ToInt32(left.NumberValue) | JsNumericConversions.ToInt32(right.NumberValue)));
         }
 
         return JsValue.FromObject(BitwiseOr(left.ToObject(), right.ToObject(), context));
@@ -596,7 +596,7 @@ public static partial class TypedAstEvaluator
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
         {
-            return new JsValue((double)(JsNumericConversions.ToInt32(left.NumberValue) ^ JsNumericConversions.ToInt32(right.NumberValue)));
+            return JsValue.FromDouble((double)(JsNumericConversions.ToInt32(left.NumberValue) ^ JsNumericConversions.ToInt32(right.NumberValue)));
         }
 
         return JsValue.FromObject(BitwiseXor(left.ToObject(), right.ToObject(), context));
@@ -611,7 +611,7 @@ public static partial class TypedAstEvaluator
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
         {
-            return new JsValue((double)(JsNumericConversions.ToInt32(left.NumberValue) << (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F)));
+            return JsValue.FromDouble((double)(JsNumericConversions.ToInt32(left.NumberValue) << (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F)));
         }
 
         return JsValue.FromObject(LeftShift(left.ToObject(), right.ToObject(), context));
@@ -626,7 +626,7 @@ public static partial class TypedAstEvaluator
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
         {
-            return new JsValue((double)(JsNumericConversions.ToInt32(left.NumberValue) >> (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F)));
+            return JsValue.FromDouble((double)(JsNumericConversions.ToInt32(left.NumberValue) >> (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F)));
         }
 
         return JsValue.FromObject(RightShift(left.ToObject(), right.ToObject(), context));
@@ -641,7 +641,7 @@ public static partial class TypedAstEvaluator
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
         {
-            return new JsValue((double)(JsNumericConversions.ToUInt32(left.NumberValue) >> (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F)));
+            return JsValue.FromDouble((double)(JsNumericConversions.ToUInt32(left.NumberValue) >> (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F)));
         }
 
         return JsValue.FromObject(UnsignedRightShift(left.ToObject(), right.ToObject(), context));

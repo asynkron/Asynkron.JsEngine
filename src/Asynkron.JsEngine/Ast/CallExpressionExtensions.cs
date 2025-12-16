@@ -13,7 +13,112 @@ public static partial class TypedAstEvaluator
 {
     extension(CallExpression expression)
     {
+        /// <summary>
+        /// Hot path for call expressions - handles simple TypedFunction calls without Activity overhead.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue EvaluateCall(JsEnvironment environment, EvaluationContext context)
+        {
+            // Ultra-fast path for simple identifier calls to TypedFunctions (e.g., fib(n-1))
+            // This is the most common case in recursive benchmarks
+            if (!expression.IsOptional &&
+                expression.Callee is IdentifierExpression calleeId &&
+                expression.Arguments.Length <= 2)
+            {
+                // Check if all arguments are simple (no spread)
+                var hasSpread = false;
+                foreach (var arg in expression.Arguments)
+                {
+                    if (arg.IsSpread)
+                    {
+                        hasSpread = true;
+                        break;
+                    }
+                }
+
+                if (!hasSpread)
+                {
+                    // Fast slot-based lookup for the function
+                    JsValue calleeValue;
+                    if (calleeId.SlotIndex >= 0 && calleeId.ScopeId >= 0)
+                    {
+                        var targetEnv = environment.ScopeId == calleeId.ScopeId
+                            ? environment
+                            : environment.FindByScopeId(calleeId.ScopeId);
+
+                        if (targetEnv?._slots is not null)
+                        {
+                            calleeValue = targetEnv._slots[calleeId.SlotIndex];
+                        }
+                        else
+                        {
+                            calleeValue = context.GetIdentifier(environment, calleeId.Name);
+                        }
+                    }
+                    else
+                    {
+                        calleeValue = context.GetIdentifier(environment, calleeId.Name);
+                    }
+
+                    if (context.ShouldStopEvaluation)
+                        return JsValue.Undefined;
+
+                    // Fast path for TypedFunction only
+                    if (calleeValue.TryGetObject<TypedFunction>(out var typedFunc) && !typedFunc.IsClassConstructor)
+                    {
+                        if (++context.CallDepth > context.MaxCallDepth)
+                        {
+                            throw new InvalidOperationException($"Exceeded maximum call depth of {context.MaxCallDepth}.");
+                        }
+
+                        // Evaluate arguments and call specialized invoke - avoids array allocation
+                        JsValue result;
+                        switch (expression.Arguments.Length)
+                        {
+                            case 0:
+                                result = typedFunc.InvokeWithContext(Array.Empty<JsValue>(), JsValue.Undefined, context, JsValue.Undefined);
+                                break;
+                            case 1:
+                                var arg0 = EvaluateExpression(expression.Arguments[0].Expression, environment, context);
+                                if (context.ShouldStopEvaluation)
+                                {
+                                    context.CallDepth--;
+                                    return JsValue.Undefined;
+                                }
+                                result = typedFunc.InvokeWithContext1(arg0, JsValue.Undefined, context);
+                                break;
+                            default: // 2
+                                var a0 = EvaluateExpression(expression.Arguments[0].Expression, environment, context);
+                                if (context.ShouldStopEvaluation)
+                                {
+                                    context.CallDepth--;
+                                    return JsValue.Undefined;
+                                }
+                                var a1 = EvaluateExpression(expression.Arguments[1].Expression, environment, context);
+                                if (context.ShouldStopEvaluation)
+                                {
+                                    context.CallDepth--;
+                                    return JsValue.Undefined;
+                                }
+                                result = typedFunc.InvokeWithContext2(a0, a1, JsValue.Undefined, context);
+                                break;
+                        }
+
+                        context.CallDepth--;
+                        return result;
+                    }
+                }
+            }
+
+            // Fall through to slow path for complex cases
+            return expression.EvaluateCallSlow(environment, context);
+        }
+
+        /// <summary>
+        /// Slow path for complex call expressions - handles optional chaining, super calls, spread arguments, etc.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private JsValue EvaluateCallSlow(JsEnvironment environment, EvaluationContext context)
         {
             // Fast-path for plain Map/Set method calls - bypasses prototype lookup and host function machinery
             if (TryFastPathMapSetCall(expression, environment, context, out var fastResult))

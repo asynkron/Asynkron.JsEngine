@@ -91,21 +91,17 @@ public static partial class TypedAstEvaluator
     {
         /// <summary>
         /// Ultra-thin hot path for expression evaluation - designed to be inlined.
-        /// Only handles the 3 most common expression types to keep IL size minimal.
+        /// Uses explicit if statements instead of switch for minimal IL size.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue EvaluateExpression(JsEnvironment environment,
             EvaluationContext context)
         {
-            // Minimal hot path - explicit type checks for smallest IL footprint
-            if (expression is LiteralExpression literal)
-                return literal.Value;
-            if (expression is IdentifierExpression identifier)
-                return EvaluateIdentifier(identifier, environment, context);
-            if (expression is BinaryExpression binary)
-                return EvaluateBinary(binary, environment, context);
-
-            // Everything else goes through the slow path
+            // Explicit if statements generate less IL than switch expressions
+            if (expression is LiteralExpression literal) return literal.Value;
+            if (expression is IdentifierExpression identifier) return EvaluateIdentifier(identifier, environment, context);
+            if (expression is BinaryExpression binary) return EvaluateBinary(binary, environment, context);
+            if (expression is CallExpression call) return EvaluateCall(call, environment, context);
             return expression.EvaluateExpressionSlow(environment, context);
         }
 

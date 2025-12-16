@@ -28,8 +28,11 @@ public static partial class TypedAstEvaluator
             {
                 foreach (var statement in plan.LeadingStatements)
                 {
-                    // Leading statements use the JsValue path too
-                    lastValueJs = EvaluateStatementJsValue(statement, environment, context, loopLabel);
+                    // Leading statements (e.g., for loop initializer) are evaluated for side effects only.
+                    // Per ES spec (14.7.4.7), the initializer does NOT contribute to the loop's completion value.
+                    // The loop's completion value comes solely from the body; if the body never executes,
+                    // the result is undefined.
+                    _ = EvaluateStatementJsValue(statement, environment, context, loopLabel);
                     if (context.ShouldStopEvaluation)
                     {
                         return lastValueJs;

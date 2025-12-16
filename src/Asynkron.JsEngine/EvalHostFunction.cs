@@ -324,17 +324,18 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         environment.RealmState);
                 }
 
-                // In sloppy direct eval, a parameter named `arguments` (or any matching
-                // parameter binding) blocks new var/function declarations of the same name
-                // (EvalDeclarationInstantiation step 5.d). Only enforce when the parameter
-                // environment actually has that binding; otherwise allow the eval hoist.
+                // ES2024 19.2.1.3 EvalDeclarationInstantiation step 5.b.iii.1.a:
+                // When a function has non-simple parameters (detected by IsParameterEnvironment),
+                // declaring `arguments` via var in direct eval always throws SyntaxError,
+                // regardless of whether an arguments binding already exists.
+                // Check the calling environment (not varEnv) because GetVarEnvironment() returns
+                // the function scope, not the parameter environment.
                 if (isDirectEval &&
-                    varEnv.IsParameterEnvironment &&
-                    ReferenceEquals(name, Symbol.Arguments) &&
-                    varEnv.HasOwnBinding(Symbol.Arguments))
+                    environment.IsParameterEnvironment &&
+                    ReferenceEquals(name, Symbol.Arguments))
                 {
                     throw StandardLibrary.ThrowSyntaxError(
-                        $"Cannot declare var-scoped binding '{name.Name}' in direct eval due to existing parameter binding.",
+                        "Cannot declare 'arguments' in direct eval inside a function with non-simple parameters.",
                         CallingContext,
                         environment.RealmState);
                 }

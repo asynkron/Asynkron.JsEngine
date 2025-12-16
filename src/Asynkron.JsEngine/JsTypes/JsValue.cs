@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.JsTypes;
 /// <summary>
 /// Represents the kind of JavaScript value.
 /// </summary>
-public enum JsValueKind : byte
+public enum JsValueKind
 {
     /// <summary>The undefined value.</summary>
     Undefined = 0,
@@ -36,7 +36,13 @@ public enum JsValueKind : byte
     /// Unit/empty completion - represents "no value produced".
     /// Used internally to distinguish "statement produced no completion value" from "statement produced undefined".
     /// </summary>
-    Unit = 8
+    Unit = 8,
+
+    /// <summary>
+    /// Uninitialized binding - represents a variable in the Temporal Dead Zone (TDZ).
+    /// Accessing this value throws a ReferenceError.
+    /// </summary>
+    Uninitialized = 9
 }
 
 /// <summary>
@@ -44,7 +50,8 @@ public enum JsValueKind : byte
 /// This is the core value type used throughout the engine to minimize allocations.
 ///
 /// Layout (24 bytes on 64-bit):
-/// - Kind: 1 byte (+ 7 bytes padding)
+/// - Kind: 4 bytes (int enum, better CPU performance than byte)
+/// - Padding: 4 bytes (to align double to 8-byte boundary)
 /// - NumberValue: 8 bytes (stores double directly, or bool as 0.0/1.0)
 /// - ObjectValue: 8 bytes (reference for string, BigInt, Symbol, JsObject)
 /// </summary>
@@ -169,6 +176,12 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// Used to distinguish "statement produced no completion value" from "undefined".
     /// </summary>
     public static readonly JsValue Unit = new(JsValueKind.Unit, 0.0, UnitSentinel);
+
+    /// <summary>
+    /// Uninitialized binding - represents a variable in the Temporal Dead Zone (TDZ).
+    /// Accessing this value should throw a ReferenceError.
+    /// </summary>
+    public static readonly JsValue Uninitialized = new(JsValueKind.Uninitialized, 0.0, null);
 
     #endregion
 
@@ -295,6 +308,13 @@ public readonly struct JsValue : IEquatable<JsValue>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => Kind <= JsValueKind.Null;
+    }
+
+    /// <summary>True if this is an uninitialized binding (TDZ).</summary>
+    public bool IsUninitialized
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => Kind == JsValueKind.Uninitialized;
     }
 
     /// <summary>True if this is a boolean value.</summary>

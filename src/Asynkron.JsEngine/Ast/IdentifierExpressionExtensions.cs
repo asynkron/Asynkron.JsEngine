@@ -22,7 +22,13 @@ public static partial class TypedAstEvaluator
                     var slots = environment._slots;
                     if (slots is not null)
                     {
-                        return slots[identifier.SlotIndex];
+                        var value = slots[identifier.SlotIndex];
+                        // Check for TDZ (Temporal Dead Zone) - uninitialized let/const bindings
+                        if (value.IsUninitialized)
+                        {
+                            return HandleTdzError(identifier.Name, context);
+                        }
+                        return value;
                     }
                 }
                 else
@@ -31,15 +37,21 @@ public static partial class TypedAstEvaluator
                     var targetEnv = environment.FindByScopeId(identifier.ScopeId);
                     if (targetEnv?._slots is not null)
                     {
-                        return targetEnv._slots[identifier.SlotIndex];
+                        var value = targetEnv._slots[identifier.SlotIndex];
+                        // Check for TDZ (Temporal Dead Zone) - uninitialized let/const bindings
+                        if (value.IsUninitialized)
+                        {
+                            return HandleTdzError(identifier.Name, context);
+                        }
+                        return value;
                     }
                 }
             }
 
             // Fallback: use dictionary-based lookup
-            if (environment.TryGetIdentifierJsValue(identifier.Name, context, out var value))
+            if (environment.TryGetIdentifierJsValue(identifier.Name, context, out var value2))
             {
-                return value;
+                return value2;
             }
 
             // Slow path: identifier not found - create proper error
@@ -51,6 +63,16 @@ public static partial class TypedAstEvaluator
     {
         var errorObject = StandardLibrary.CreateReferenceError(
             $"{name.Name} is not defined",
+            context,
+            context.RealmState);
+        context.SetThrow(JsValue.FromObject(errorObject));
+        return JsValue.FromObject(errorObject);
+    }
+
+    private static JsValue HandleTdzError(Symbol name, EvaluationContext context)
+    {
+        var errorObject = StandardLibrary.CreateReferenceError(
+            $"Cannot access '{name.Name}' before initialization",
             context,
             context.RealmState);
         context.SetThrow(JsValue.FromObject(errorObject));

@@ -1169,7 +1169,7 @@ public sealed class JsEnvironment
                 throw new InvalidOperationException($"Binding for {_name.Name} not found");
             }
 
-            return ReadResolvedBindingJsValue(_environment, ref binding, _name);
+            return ReadResolvedBindingJsValue(_environment, ref binding, _name, context);
         }
 
         internal void Write(Symbol name, object? value, bool isStrictContext, EvaluationContext context)
@@ -1257,12 +1257,16 @@ public sealed class JsEnvironment
     /// <summary>
     /// Reads a resolved binding value as JsValue, avoiding boxing for primitives.
     /// </summary>
-    private static JsValue ReadResolvedBindingJsValue(JsEnvironment bindingEnvironment, ref Binding binding, Symbol name)
+    private static JsValue ReadResolvedBindingJsValue(JsEnvironment bindingEnvironment, ref Binding binding, Symbol name, EvaluationContext context)
     {
-        // Check IsUninitialized before reading
+        // Check IsUninitialized before reading - this is a TDZ violation
         if (binding.IsUninitialized)
         {
-            throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+            throw new ThrowSignal(JsValue.FromObject(
+                StdLib.StandardLibrary.CreateReferenceError(
+                    $"Cannot access '{name.Name}' before initialization",
+                    context,
+                    context.RealmState)));
         }
 
         // Check for live export bindings

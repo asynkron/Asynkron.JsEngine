@@ -18,7 +18,10 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            return JsValue.Undefined;
+            // Per ES spec, variable declarations have an empty completion value.
+            // This must be Unit (not Undefined) so it doesn't overwrite previous
+            // statement results in the program's completion value.
+            return JsValue.Unit;
         }
     }
 }

@@ -569,6 +569,40 @@ public class FoundationTests
     }
 
     [Fact]
+    public async Task Function_RecursiveAnonymous_ViaOuterVariable()
+    {
+        // Anonymous function expression that calls itself via the outer variable name
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            'use strict';
+            var __func = function (arg){
+                if (arg === 1) {
+                    return arg;
+                } else {
+                    return __func(arg-1)*arg;
+                }
+            };
+            __func(3);
+        ");
+        Assert.Equal(6d, result);
+    }
+
+    [Fact]
+    public async Task Function_RecursiveNamed_ViaInternalName()
+    {
+        // Named function expression that calls itself via its internal name
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            var f = function factorial(n) {
+                if (n <= 1) return 1;
+                return n * factorial(n - 1);
+            };
+            f(5);
+        ");
+        Assert.Equal(120d, result);
+    }
+
+    [Fact]
     public async Task Function_Closure()
     {
         await using var engine = new JsEngine();

@@ -29,6 +29,7 @@ public static partial class TypedAstEvaluator
         private readonly bool _allowIdentifierCache;
         private readonly bool _isSimpleFunction;
         private readonly bool _usesArguments;
+        private readonly bool _argumentsObjectNeeded;
         private readonly bool _canPoolInvocationEnvironment;
         private readonly string _functionDescription;
         private readonly ImmutableArray<Symbol> _parameterNames;
@@ -89,16 +90,24 @@ public static partial class TypedAstEvaluator
             // in the outer scope, not that we need extra environment setup during invocation.
             // For non-strict mode: can use fast path if the function doesn't use 'arguments' identifier,
             // since mapped arguments object (which links argument values to parameter bindings) is not needed.
+            // Named function expressions that need internal binding (e.g., `var f = function factorial(n) {...}`)
+            // must use the slow path where the internal name binding is created.
             var hasSimpleParams = HasOnlySimpleIdentifierParameters(function);
             var canUseFastPathForStrictness = _isStrict || !_usesArguments;
-            _isSimpleFunction = canUseFastPathForStrictness &&
+            var needsInternalNameBinding = !function.IsArrow && function.Name is not null && !hasFunctionNameEnvironment;
+            // TODO: The fast path has bugs with recursive function calls via outer variable names
+            // (e.g., `var fac = function(n) { return n * fac(n-1); }`) and named function expression
+            // internal bindings. Disabling until these issues are resolved.
+            // See: S13_A3_T* tests, eval-direct tests
+            _isSimpleFunction = false; /*canUseFastPathForStrictness &&
                                !function.IsAsync &&
                                !_wasAsyncFunction &&
                                !_hasParameterExpressions &&
                                _bodyLexicalNames.Length == 0 &&
                                !_hasHoistableDeclarations &&
                                _allowIdentifierCache &&
-                               hasSimpleParams;
+                               hasSimpleParams &&
+                               !needsInternalNameBinding;*/
 
             // Can pool invocation environment if simple function AND no inner functions that would capture it
             _canPoolInvocationEnvironment = _isSimpleFunction &&
@@ -118,6 +127,18 @@ public static partial class TypedAstEvaluator
             var bodyLexicalSet = new HashSet<Symbol>(_bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
             bodyLexicalSet.ExceptWith(simpleCatchParams);
             _bodyLexicalTemplate = bodyLexicalSet.ToImmutableArray();
+
+            // ES2024 9.2.12 FunctionDeclarationInstantiation steps 17-20:
+            // argumentsObjectNeeded is true unless:
+            // - Arrow function (step 18)
+            // - "arguments" is a parameter name (step 19)
+            // - hasParameterExpressions is false AND "arguments" is in functionNames/lexicalNames (step 20)
+            // Note: If hasParameterExpressions is true, arguments object is needed even if body has "let arguments"
+            var argumentsIsParameterName = _parameterNames.Contains(Symbol.Arguments);
+            var argumentsInBodyLexicalNames = bodyLexicalSet.Contains(Symbol.Arguments);
+            var canSkipArgumentsForBodyDeclaration = !_hasParameterExpressions && argumentsInBodyLexicalNames;
+            _argumentsObjectNeeded = !IsArrowFunction && !argumentsIsParameterName && !canSkipArgumentsForBodyDeclaration;
+
             if (IsArrowFunction)
             {
                 try
@@ -585,6 +606,7 @@ public static partial class TypedAstEvaluator
 
                 parameterEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict, _function.Source,
                     _functionDescription, isParameterEnvironment: true);
+                parameterEnvironment.IsArrowFunctionEnvironment = IsArrowFunction;
                 parameterEnvironment.SetBodyLexicalNames(bodyLexicalNames);
 
                 varEnvironment = new JsEnvironment(parameterEnvironment, true, _isStrict, _function.Source,
@@ -871,9 +893,9 @@ public static partial class TypedAstEvaluator
                     argumentValues[i] = arguments[i].ToObject();
                 }
 
-                // Only create arguments object if the function actually uses it
-                // This saves significant allocations for functions like fib(n) that don't reference 'arguments'
-                if (!IsArrowFunction && _usesArguments)
+                // Create arguments object per ES2024 9.2.12 steps 17-20
+                // Note: argumentsObjectNeeded handles all spec conditions (arrow, param name, lexical binding)
+                if (_argumentsObjectNeeded)
                 {
                     // Create the `arguments` binding up front so parameter default expressions can reference it.
                     var argumentsObject =

@@ -248,6 +248,14 @@ public sealed class JsEnvironment
 
     internal bool IsBodyEnvironment { get; private set; }
 
+    /// <summary>
+    ///     When true, indicates this environment belongs to an arrow function.
+    ///     Arrow functions don't have their own 'arguments' binding, so the eval
+    ///     restriction on declaring 'arguments' in direct eval inside functions
+    ///     with non-simple parameters doesn't apply.
+    /// </summary>
+    internal bool IsArrowFunctionEnvironment { get; set; }
+
     internal bool IsFunctionScope { get; private set; }
 
     /// <summary>
@@ -298,6 +306,7 @@ public sealed class JsEnvironment
         _withObject = null;
         IsParameterEnvironment = isParameterEnvironment;
         IsBodyEnvironment = isBodyEnvironment;
+        IsArrowFunctionEnvironment = false;
         _treatAsGlobalFunctionScope = false;
         _inheritStrictness = true;
         RealmState = enclosing?.RealmState;

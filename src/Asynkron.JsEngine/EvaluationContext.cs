@@ -9,6 +9,21 @@ using Asynkron.JsEngine.Runtime;
 namespace Asynkron.JsEngine;
 
 /// <summary>
+///     Represents a saved completion state for try-finally handling.
+/// </summary>
+public readonly struct CompletionState(bool isReturn, JsValue returnValue, ICompletionSignal? signal)
+{
+    public bool IsReturn { get; } = isReturn;
+    public JsValue ReturnValue { get; } = returnValue;
+    public ICompletionSignal? Signal { get; } = signal;
+
+    /// <summary>
+    ///     Returns true if there's any completion to restore.
+    /// </summary>
+    public bool HasCompletion => IsReturn || Signal is not null;
+}
+
+/// <summary>
 ///     Tracks the current control flow state during evaluation using typed signals.
 ///     Used as an alternative to exception-based control flow.
 /// </summary>
@@ -71,8 +86,13 @@ public sealed class EvaluationContext(
 
     /// <summary>
     ///     The current control flow signal, if any.
+    ///     Note: For returns, we use _isReturn/_returnValue directly to avoid allocation.
     /// </summary>
     public ICompletionSignal? CurrentSignal { get; private set; }
+
+    // Fast path for returns - avoids allocating ReturnCompletionSignal
+    private bool _isReturn;
+    private JsValue _returnValue;
 
     /// <summary>
     ///     The yield slot index that produced the most recent suspension.
@@ -126,23 +146,38 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     The value associated with the control flow (for Return, Throw, and Yield signals).
     /// </summary>
-    public JsValue FlowValue => CurrentSignal switch
+    public JsValue FlowValue
     {
-        ReturnCompletionSignal rs => rs.JsValue,
-        ThrowFlowCompletionSignal ts => ts.JsValue,
-        YieldCompletionSignal ys => ys.JsValue,
-        _ => JsValue.Undefined
-    };
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get
+        {
+            if (_isReturn) return _returnValue;
+            return CurrentSignal switch
+            {
+                ThrowFlowCompletionSignal ts => ts.JsValue,
+                YieldCompletionSignal ys => ys.JsValue,
+                _ => JsValue.Undefined
+            };
+        }
+    }
 
     /// <summary>
     ///     Returns true if evaluation should stop (any signal is present).
     /// </summary>
-    public bool ShouldStopEvaluation => CurrentSignal is not null;
+    public bool ShouldStopEvaluation
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _isReturn || CurrentSignal is not null;
+    }
 
     /// <summary>
     ///     Returns true if the current signal is Return.
     /// </summary>
-    public bool IsReturn => CurrentSignal is ReturnCompletionSignal;
+    public bool IsReturn
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _isReturn;
+    }
 
     /// <summary>
     ///     Returns true if the current signal is Throw.
@@ -279,9 +314,11 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     Sets the context to Return state with the given value.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void SetReturn(JsValue value)
     {
-        CurrentSignal = new ReturnCompletionSignal(value);
+        _isReturn = true;
+        _returnValue = value;
     }
 
     /// <summary>
@@ -385,12 +422,11 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     Clears the Return signal (used when a function consumes it).
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void ClearReturn()
     {
-        if (CurrentSignal is ReturnCompletionSignal)
-        {
-            CurrentSignal = null;
-        }
+        _isReturn = false;
+        _returnValue = default;
     }
 
     /// <summary>
@@ -398,7 +434,29 @@ public sealed class EvaluationContext(
     /// </summary>
     public void Clear()
     {
+        _isReturn = false;
+        _returnValue = default;
         CurrentSignal = null;
+    }
+
+    /// <summary>
+    ///     Saves the current completion state for later restoration (used by try-finally).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public CompletionState SaveCompletionState()
+    {
+        return new CompletionState(_isReturn, _returnValue, CurrentSignal);
+    }
+
+    /// <summary>
+    ///     Restores a previously saved completion state.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void RestoreCompletionState(in CompletionState state)
+    {
+        _isReturn = state.IsReturn;
+        _returnValue = state.ReturnValue;
+        CurrentSignal = state.Signal;
     }
 
     /// <summary>
@@ -414,6 +472,8 @@ public sealed class EvaluationContext(
         _classFieldInitializerDepth = 0;
         AllowIdentifierCache = false;
         IsStrictSource = false;
+        _isReturn = false;
+        _returnValue = default;
         CurrentSignal = null;
         LastYieldIndex = -1;
         CallDepth = 0;

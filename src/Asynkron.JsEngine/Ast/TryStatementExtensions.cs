@@ -63,33 +63,32 @@ public static partial class TypedAstEvaluator
                 return result;
             }
 
-            var savedSignal = context.CurrentSignal;
+            var savedState = context.SaveCompletionState();
 
             GeneratorPendingCompletion? pending = null;
             var isGenerator = IsGeneratorContext(environment);
-            if (isGenerator && savedSignal is not null)
+            if (isGenerator && savedState.HasCompletion)
             {
                 pending = GetGeneratorPendingCompletion(environment);
-                switch (savedSignal)
+                if (savedState.IsReturn)
                 {
-                    case ThrowFlowCompletionSignal throwSignal:
-                        pending.HasValue = true;
-                        pending.IsThrow = true;
-                        pending.IsReturn = false;
-                        pending.Value = throwSignal.JsValue;
-                        break;
-                    case ReturnCompletionSignal returnSignal:
-                        pending.HasValue = true;
-                        pending.IsThrow = false;
-                        pending.IsReturn = true;
-                        pending.Value = returnSignal.JsValue;
-                        break;
+                    pending.HasValue = true;
+                    pending.IsThrow = false;
+                    pending.IsReturn = true;
+                    pending.Value = savedState.ReturnValue.ToObject();
+                }
+                else if (savedState.Signal is ThrowFlowCompletionSignal throwSignal)
+                {
+                    pending.HasValue = true;
+                    pending.IsThrow = true;
+                    pending.IsReturn = false;
+                    pending.Value = throwSignal.JsValue;
                 }
             }
 
             context.Clear();
             var finallyResult = EvaluateBlockJsValue(statement.Finally, environment, context);
-            if (context.CurrentSignal is not null)
+            if (context.ShouldStopEvaluation)
             {
                 // Per ES spec: When finally has an abrupt completion, use its completion value
                 return finallyResult;
@@ -113,7 +112,7 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                RestoreSignal(context, savedSignal);
+                context.RestoreCompletionState(savedState);
             }
 
             context.RealmState.Logger?.LogInformation(

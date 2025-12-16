@@ -375,7 +375,9 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                environment.DefineJsValue(symbol, JsValue.FromObject(value));
+                // Handle case where value is already a boxed JsValue
+                var jsVal = value is JsValue jv ? jv : JsValue.FromObject(value);
+                environment.DefineJsValue(symbol, jsVal);
             }
         }
 
@@ -898,7 +900,9 @@ public static partial class TypedAstEvaluator
                                     continue;
                                 }
 
-                                return CompleteReturn(JsValue.FromObject(pending.Value));
+                                // Handle case where pending.Value is already a boxed JsValue
+                                var pendingJs = pending.Value is JsValue pjs ? pjs : JsValue.FromObject(pending.Value);
+                                return CompleteReturn(pendingJs);
                             }
 
                             if (pending.Kind == AbruptKind.Break || pending.Kind == AbruptKind.Continue)
@@ -962,7 +966,8 @@ public static partial class TypedAstEvaluator
                                         driverState.NextMethod!,
                                         context: context,
                                         callingEnvironment: environment);
-                                    var nextResultValue = JsValue.FromObject(nextResult);
+                                    // Handle case where nextResult is already a boxed JsValue
+                                    var nextResultValue = nextResult is JsValue nrJs ? nrJs : JsValue.FromObject(nextResult);
                                     if (!nextResultValue.TryGetObject<JsObject>(out var resultObj))
                                     {
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
@@ -977,8 +982,9 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
+                                    // yielded is already a JsValue from TryGetProperty
                                     currentValue = resultObj.TryGetProperty("value", out var yielded)
-                                        ? JsValue.FromObject(yielded)
+                                        ? yielded
                                         : JsValue.Undefined;
                                 }
                                 else if (driverState.Enumerator is IEnumerator<object?> enumerator)

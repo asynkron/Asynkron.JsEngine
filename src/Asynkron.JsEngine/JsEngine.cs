@@ -4400,12 +4400,14 @@ public sealed class JsEngine : IAsyncDisposable
             if (promiseCtor is IJsPropertyAccessor accessor &&
                 accessor.TryGetProperty("resolve", out var resolveValue))
             {
-                var resolveJsValue = JsValue.FromObject(resolveValue);
-                if (resolveJsValue.TryGetObject<IJsCallable>(out var resolveCallable))
+                // resolveValue is already a JsValue from TryGetProperty
+                if (resolveValue.TryGetObject<IJsCallable>(out var resolveCallable))
                 {
                     try
                     {
-                        var result = resolveCallable.Invoke(new JsValue[] { JsValue.FromObject(value) }, promiseCtorValue);
+                        // Handle case where value is already a boxed JsValue
+                        var valueArg = value is JsValue vJs ? vJs : JsValue.FromObject(value);
+                        var result = resolveCallable.Invoke(new JsValue[] { valueArg }, promiseCtorValue);
                         if (result.TryGetObject<JsObject>(out var resolvedPromise))
                         {
                             return resolvedPromise;

@@ -97,7 +97,17 @@ public static partial class StandardLibrary
         }
         else
         {
-            result.SetProperty("value", descriptor.HasValue ? JsValue.FromObject(descriptor.Value) : JsValue.Undefined);
+            JsValue valJs;
+            if (descriptor.HasValue)
+            {
+                // Handle case where Value is already a boxed JsValue
+                valJs = descriptor.Value is JsValue v ? v : JsValue.FromObject(descriptor.Value);
+            }
+            else
+            {
+                valJs = JsValue.Undefined;
+            }
+            result.SetProperty("value", valJs);
             result.SetProperty("writable", new JsValue(descriptor.HasWritable ? descriptor.Writable : false));
         }
 
@@ -634,7 +644,8 @@ public static partial class StandardLibrary
                 continue;
             }
 
-            var descriptor = ToPropertyDescriptor(JsValue.FromObject(descriptorValue), realmState);
+            // descriptorValue is already a JsValue from TryGetProperty
+            var descriptor = ToPropertyDescriptor(descriptorValue, realmState);
             TryDefinePropertyOnTarget(obj, propName, descriptor, realmState, true);
         }
 

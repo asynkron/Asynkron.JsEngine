@@ -402,7 +402,8 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return false;
         }
 
-        var trapValue = JsValue.FromObject(trapValueObj);
+        // trapValueObj is already a JsValue from TryGetProperty
+        var trapValue = trapValueObj;
         if (trapValue.IsUndefined || trapValue.IsNull)
         {
             callable = null!;

@@ -230,7 +230,8 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            var element = JsValue.FromObject(elementObj);
+            // elementObj is already a JsValue from TryGetExistingElement
+            var element = elementObj;
             if (element.IsNullOrUndefined)
             {
                 parts.Add(string.Empty);
@@ -238,9 +239,10 @@ public sealed partial class ArrayPrototype
             }
 
             string part;
+            // method is already a JsValue from TryGetProperty
             if (element.TryGetObject<IJsPropertyAccessor>(out var elementAccessor) &&
                 elementAccessor.TryGetProperty("toLocaleString", out var method) &&
-                JsValue.FromObject(method).TryGetObject<IJsCallable>(out var callable))
+                method.TryGetObject<IJsCallable>(out var callable))
             {
                 var result = callable.Invoke([locales, options], element);
                 part = JsOps.ToJsString(result);

@@ -50,7 +50,10 @@ public static partial class StandardLibrary
             var result = new JsObject(realm?.ObjectPrototype);
             if (index < length)
             {
-                result.SetProperty("value", JsValue.FromObject(projector(index)));
+                // Handle case where projector returns a boxed JsValue
+                var projectedVal = projector(index);
+                var valueJs = projectedVal is JsValue pjv ? pjv : JsValue.FromObject(projectedVal);
+                result.SetProperty("value", valueJs);
                 result.SetProperty("done", JsValue.FromObject(false));
                 index++;
             }

@@ -117,9 +117,18 @@ public static partial class StandardLibrary
 
             var key = ToIndexString(k);
             var value = GetElementOrUndefined(arrayLike, key);
-            var mapped = mapping && mapper is not null
-                ? JsValue.FromObject(InvokeArrayFromMapper(mapper, host, thisArg, value, k))
-                : JsValue.FromObject(value);
+            JsValue mapped;
+            if (mapping && mapper is not null)
+            {
+                var mapperResult = InvokeArrayFromMapper(mapper, host, thisArg, value, k);
+                // Handle case where result is already a boxed JsValue
+                mapped = mapperResult is JsValue mrJs ? mrJs : JsValue.FromObject(mapperResult);
+            }
+            else
+            {
+                // Handle case where value is already a boxed JsValue
+                mapped = value is JsValue vJs ? vJs : JsValue.FromObject(value);
+            }
             CreateDataPropertyOrThrow(result, key, mapped, realm, MethodName);
             k++;
         }
@@ -209,7 +218,9 @@ public static partial class StandardLibrary
     {
         const string MethodName = "Array.from";
         var result = CreateArrayFromResult(thisValue, realm, 0, false, MethodName);
-        var iteratorValue = iteratorMethod.Invoke([], JsValue.FromObject(items));
+        // Handle case where items is already a boxed JsValue
+        var itemsArg = items is JsValue itemsJs ? itemsJs : JsValue.FromObject(items);
+        var iteratorValue = iteratorMethod.Invoke([], itemsArg);
         if (!iteratorValue.TryGetObject<IJsPropertyAccessor>(out var iterator))
         {
             throw ThrowTypeError("Array.from iterator method did not return an object", realm: realm);
@@ -219,8 +230,8 @@ public static partial class StandardLibrary
         {
             throw ThrowTypeError("Array.from iterator does not expose a callable next()", realm: realm);
         }
-        var nextValue = JsValue.FromObject(nextVal);
-        if (!nextValue.TryGetObject<IJsCallable>(out var nextFn))
+        // nextVal is already a JsValue from TryGetProperty
+        if (!nextVal.TryGetObject<IJsCallable>(out var nextFn))
         {
             throw ThrowTypeError("Array.from iterator does not expose a callable next()", realm: realm);
         }
@@ -265,7 +276,9 @@ public static partial class StandardLibrary
             {
                 try
                 {
-                    mappedValue = JsValue.FromObject(InvokeArrayFromMapper(mapper, host, thisArg, value, k));
+                    var mapperResult = InvokeArrayFromMapper(mapper, host, thisArg, value, k);
+                    // Handle case where result is already a boxed JsValue
+                    mappedValue = mapperResult is JsValue mrJs ? mrJs : JsValue.FromObject(mapperResult);
                 }
                 catch (ThrowSignal)
                 {
@@ -363,7 +376,10 @@ public static partial class StandardLibrary
             envAware.CallingJsEnvironment = host.CallingJsEnvironment;
         }
 
-        return mapper.Invoke([JsValue.FromObject(value), JsValue.FromObject((double)index)], JsValue.FromObject(thisArg)).ToObject();
+        // Handle case where value and thisArg are already boxed JsValues
+        var valueArg = value is JsValue vJs ? vJs : JsValue.FromObject(value);
+        var thisArgJs = thisArg is JsValue taJs ? taJs : JsValue.FromObject(thisArg);
+        return mapper.Invoke([valueArg, JsValue.FromObject((double)index)], thisArgJs).ToObject();
     }
 
     private sealed class ArrayFromAsyncOperation(
@@ -388,7 +404,9 @@ public static partial class StandardLibrary
             JsValue iteratorValue;
             try
             {
-                iteratorValue = iteratorMethod.Invoke(Array.Empty<JsValue>(), JsValue.FromObject(items));
+                // Handle case where items is already a boxed JsValue
+                var itemsArg = items is JsValue itemsJs ? itemsJs : JsValue.FromObject(items);
+                iteratorValue = iteratorMethod.Invoke(Array.Empty<JsValue>(), itemsArg);
             }
             catch (ThrowSignal signal)
             {
@@ -409,8 +427,8 @@ public static partial class StandardLibrary
                     realm));
                 return;
             }
-            var nextValue = JsValue.FromObject(nextVal);
-            if (!nextValue.TryGetObject<IJsCallable>(out var nextFn))
+            // nextVal is already a JsValue from TryGetProperty
+            if (!nextVal.TryGetObject<IJsCallable>(out var nextFn))
             {
                 RejectFailure(CreateTypeError("Array.fromAsync iterator does not expose a callable next()", null,
                     realm));

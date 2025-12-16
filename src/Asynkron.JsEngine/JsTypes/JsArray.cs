@@ -603,7 +603,9 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     /// </summary>
     public void Push(object? value)
     {
-        _items.Add(JsValue.FromObject(value));
+        // Handle case where value is already a boxed JsValue
+        var jsVal = value is JsValue jv ? jv : JsValue.FromObject(value);
+        _items.Add(jsVal);
         BumpLength((uint)_items.Count);
     }
 

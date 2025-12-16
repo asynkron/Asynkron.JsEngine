@@ -120,7 +120,8 @@ internal static class AwaitScheduler
         {
             if (isRejected)
             {
-                context.SetThrow(JsValue.FromObject(settledValue));
+                // settledValue is already a JsValue from TryGetSettledValueFast
+                context.SetThrow(settledValue);
                 resolvedValue = JsValue.Undefined;
                 return false;
             }

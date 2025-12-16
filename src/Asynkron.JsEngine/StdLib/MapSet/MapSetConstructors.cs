@@ -323,7 +323,9 @@ public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmSta
         {
             try
             {
-                set.Add(JsValue.FromObject(value));
+                // Handle case where value is already a boxed JsValue
+                var jsVal = value is JsValue jv ? jv : JsValue.FromObject(value);
+                set.Add(jsVal);
             }
             catch (Exception ex)
             {

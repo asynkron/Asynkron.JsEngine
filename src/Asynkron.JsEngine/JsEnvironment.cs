@@ -2010,10 +2010,12 @@ public sealed class JsEnvironment
                         return;
                     }
 
-                    binding.JsValue = JsValue.FromObject(value);
+                    // Handle case where value is already a boxed JsValue
+                    var jsVal = value is JsValue jv ? jv : JsValue.FromObject(value);
+                    binding.JsValue = jsVal;
                     if (!binding.IsLexical)
                     {
-                        globalObject?.SetProperty(name.Name, JsValue.FromObject(value));
+                        globalObject?.SetProperty(name.Name, jsVal);
                     }
                     current.NotifyBindingObservers(name, value);
                     return;

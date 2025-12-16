@@ -165,10 +165,13 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         for (var i = 0; i < array.Items.Count; i++)
         {
             var index = i;
-            var item = JsValue.FromObject(array.Items[i]);
+            // Handle case where item is already a boxed JsValue
+            var rawItem = array.Items[i];
+            var item = rawItem is JsValue riJs ? riJs : JsValue.FromObject(rawItem);
 
+            // thenMethod is already a JsValue from TryGetProperty
             if (item.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
-                JsValue.FromObject(thenMethod).TryGetObject<IJsCallable>(out var thenCallable))
+                thenMethod.TryGetObject<IJsCallable>(out var thenCallable))
             {
                 var thenArgs = new JsValue[] { JsValue.FromObject(CreateAllResolve(index)), JsValue.FromObject(CreateAllReject()) };
                 thenCallable.Invoke(thenArgs, item);
@@ -234,9 +237,11 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         foreach (var item in array.Items)
         {
-            var jsItem = JsValue.FromObject(item);
+            // Handle case where item is already a boxed JsValue
+            var jsItem = item is JsValue itemJs ? itemJs : JsValue.FromObject(item);
+            // thenMethod is already a JsValue from TryGetProperty
             if (jsItem.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
-                JsValue.FromObject(thenMethod).TryGetObject<IJsCallable>(out var thenCallable))
+                thenMethod.TryGetObject<IJsCallable>(out var thenCallable))
             {
                 var thenArgs = new JsValue[] { JsValue.FromObject(CreateRaceResolve()), JsValue.FromObject(CreateRaceReject()) };
                 thenCallable.Invoke(thenArgs, jsItem);

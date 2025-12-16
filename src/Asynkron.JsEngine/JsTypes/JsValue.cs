@@ -552,11 +552,10 @@ public readonly struct JsValue : IEquatable<JsValue>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static JsValue FromObject(object? value)
     {
-        // TODO: Re-enable this guard after fixing all boxing sites
-        // if (value is JsValue)
-        // {
-        //     throw new ArgumentException("JsValue should not be boxed and passed to FromObject. Use the value directly.", nameof(value));
-        // }
+        if (value is JsValue)
+        {
+            throw new ArgumentException("JsValue should not be boxed and passed to FromObject. Use the value directly.", nameof(value));
+        }
 
         return value switch
         {

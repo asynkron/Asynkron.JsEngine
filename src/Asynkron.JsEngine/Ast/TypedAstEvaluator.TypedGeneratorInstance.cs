@@ -860,7 +860,8 @@ public static partial class TypedAstEvaluator
                                     continue;
                                 }
 
-                                return CompleteReturn(JsValue.FromObject(resumeReturnValue));
+                                // resumeReturnValue is already a JsValue from context.FlowValue
+                                return CompleteReturn(resumeReturnValue);
                             }
 
                             _programCounter = storeResumeValueInstruction.Next;

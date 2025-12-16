@@ -306,7 +306,9 @@ public sealed partial class ArrayPrototype
             return JsValue.Undefined;
         }
 
-        return JsValue.FromObject(GetElementOrUndefined(target, ToIndexString(index)));
+        // Handle case where element is already a boxed JsValue
+        var element = GetElementOrUndefined(target, ToIndexString(index));
+        return element is JsValue elemJs ? elemJs : JsValue.FromObject(element);
     }
 
     [JsHostMethod("flat", Length = 0d)]

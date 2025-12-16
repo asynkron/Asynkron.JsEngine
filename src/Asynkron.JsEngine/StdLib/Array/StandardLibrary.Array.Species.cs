@@ -391,10 +391,11 @@ public static partial class StandardLibrary
                 continue;
             }
 
-            var mapped = JsValue.FromObject(element);
+            // element is already a JsValue from TryGetExistingElement
+            var mapped = element;
             if (mapper is not null)
             {
-                mapped = mapper.Invoke([JsValue.FromObject(element), new JsValue((double)k), JsValue.FromObject(source)], thisArg);
+                mapped = mapper.Invoke([element, new JsValue((double)k), JsValue.FromObject(source)], thisArg);
             }
 
         IJsPropertyAccessor? mappedAccessor = null;

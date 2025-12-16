@@ -144,7 +144,8 @@ internal static class AwaitScheduler
         {
             if (isRejected)
             {
-                context.SetThrow(JsValue.FromObject(settledValue));
+                // settledValue is already JsValue from TryGetSettledValueFast
+                context.SetThrow(settledValue);
                 resolvedValue = JsValue.Undefined;
                 return false;
             }
@@ -165,7 +166,8 @@ internal static class AwaitScheduler
             {
                 if (rejected)
                 {
-                    context.SetThrow(JsValue.FromObject(loopSettled));
+                    // loopSettled is already JsValue from TryGetSettledValueFast
+                    context.SetThrow(loopSettled);
                     resolvedValue = JsValue.Undefined;
                     return false;
                 }
@@ -252,12 +254,14 @@ internal static class AwaitScheduler
             }
 
             var fulfilled = awaitState.Fulfilled;
+            // awaitState.Value is already JsValue
             var value = awaitState.Value;
             ReturnState(awaitState);
 
             if (fulfilled == 0)
             {
-                context.SetThrow(JsValue.FromObject(value));
+                // value is already JsValue
+                context.SetThrow(value);
                 resolvedValue = JsValue.Undefined;
                 return false;
             }
@@ -278,7 +282,8 @@ internal static class AwaitScheduler
         {
             if (isRejected)
             {
-                context.SetThrow(JsValue.FromObject(value));
+                // value is already JsValue from TryGetSettled
+                context.SetThrow(value);
                 resolvedValue = JsValue.Undefined;
                 return false;
             }
@@ -295,7 +300,8 @@ internal static class AwaitScheduler
             {
                 if (isRejected)
                 {
-                    context.SetThrow(JsValue.FromObject(value));
+                    // value is already JsValue from TryGetSettled
+                    context.SetThrow(value);
                     resolvedValue = JsValue.Undefined;
                     return false;
                 }

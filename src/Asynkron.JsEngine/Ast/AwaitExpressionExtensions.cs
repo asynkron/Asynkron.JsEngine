@@ -18,7 +18,9 @@ public static partial class TypedAstEvaluator
             if (environment.TryGet(Symbol.GeneratorInstanceSymbol, out var instanceObj) &&
                 instanceObj is TypedGeneratorInstance generator)
             {
-                return JsValue.FromObject(generator.EvaluateAwaitInGenerator(expression, environment, context));
+                // EvaluateAwaitInGenerator returns object? which might be a boxed JsValue
+                var result = generator.EvaluateAwaitInGenerator(expression, environment, context);
+                return result is JsValue resultJs ? resultJs : JsValue.FromObject(result);
             }
 
             var awaitedValue = EvaluateExpression(expression.Expression, environment, context);

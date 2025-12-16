@@ -114,7 +114,8 @@ public static partial class TypedAstEvaluator
                         break;
                     }
                     case TypedGeneratorInstance.AsyncGeneratorStepKind.Throw:
-                        reject.Invoke([JsValue.FromObject(step.Value)], JsValue.Undefined);
+                        // step.Value is already JsValue
+                        reject.Invoke([step.Value], JsValue.Undefined);
                         break;
                     case TypedGeneratorInstance.AsyncGeneratorStepKind.Pending:
                         HandlePendingStep(step, resolve, reject);
@@ -132,11 +133,12 @@ public static partial class TypedAstEvaluator
             return promiseCtor.Invoke([JsValue.FromObject(executor)], JsValue.Undefined).ObjectValue;
         }
 
-        private static JsObject CreateAsyncIteratorResult(object? value, bool done)
+        private static JsObject CreateAsyncIteratorResult(JsValue value, bool done)
         {
             var result = new JsObject();
-            result.SetProperty("value", JsValue.FromObject(value));
-            result.SetProperty("done", JsValue.FromObject(done));
+            // value is already JsValue
+            result.SetProperty("value", value);
+            result.SetProperty("done", done ? JsValue.True : JsValue.False);
             return result;
         }
 
@@ -155,7 +157,8 @@ public static partial class TypedAstEvaluator
                     break;
                 }
                 case TypedGeneratorInstance.AsyncGeneratorStepKind.Throw:
-                    reject.Invoke([JsValue.FromObject(step.Value)], JsValue.Undefined);
+                    // step.Value is already JsValue
+                    reject.Invoke([step.Value], JsValue.Undefined);
                     break;
                 case TypedGeneratorInstance.AsyncGeneratorStepKind.Pending:
                     HandlePendingStep(step, resolve, reject);

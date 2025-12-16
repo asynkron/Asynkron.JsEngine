@@ -324,9 +324,11 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         for (var i = 0; i < array.Items.Count; i++)
         {
             var index = i;
-            var item = JsValue.FromObject(array.Items[i]);
+            // array.Items[i] is already JsValue
+            var item = array.Items[i];
             if (item.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
-                JsValue.FromObject(thenMethod).TryGetObject<IJsCallable>(out var thenCallable))
+                // thenMethod is already JsValue from TryGetProperty
+                thenMethod.TryGetObject<IJsCallable>(out var thenCallable))
             {
                 var thenArgs = new JsValue[] { JsValue.FromObject(CreateResolve(index)), JsValue.FromObject(CreateReject(index)) };
                 thenCallable.Invoke(thenArgs, item);
@@ -408,9 +410,11 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         for (var i = 0; i < array.Items.Count; i++)
         {
-            var item = JsValue.FromObject(array.Items[i]);
+            // array.Items[i] is already JsValue
+            var item = array.Items[i];
             if (item.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
-                JsValue.FromObject(thenMethod).TryGetObject<IJsCallable>(out var thenCallable))
+                // thenMethod is already JsValue from TryGetProperty
+                thenMethod.TryGetObject<IJsCallable>(out var thenCallable))
             {
                 var thenArgs = new JsValue[] { JsValue.FromObject(CreateResolve()), JsValue.FromObject(CreateReject()) };
                 thenCallable.Invoke(thenArgs, item);
@@ -427,7 +431,8 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
     private object CreateAggregateError(JsArray rejectionErrors)
     {
         if (Realm.Engine?.GlobalObject.TryGetProperty("AggregateError", out var aggregateCtor) == true &&
-            JsValue.FromObject(aggregateCtor).TryGetObject<IJsCallable>(out var callable))
+            // aggregateCtor is already JsValue from TryGetProperty
+            aggregateCtor.TryGetObject<IJsCallable>(out var callable))
         {
             try
             {

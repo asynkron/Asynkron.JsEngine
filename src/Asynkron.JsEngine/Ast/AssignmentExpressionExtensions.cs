@@ -57,8 +57,9 @@ public static partial class TypedAstEvaluator
             }
 
             // Fast path for compound assignments on simple identifiers
-            // This avoids creating AssignmentReference structs entirely
-            if (expression.IsCompoundAssignment &&
+            // This avoids creating AssignmentReference structs entirely.
+            // IMPORTANT: Only use this fast path for non-dynamic scopes (see comment below for simple assignments).
+            if (expression.IsCompoundAssignment && expression.SlotIndex >= 0 && expression.ScopeId >= 0 &&
                 TryEvaluateCompoundAssignmentDirectJsValue(expression, expression.Value, expression.Target,
                     environment, context, out var compoundJsValue2, out var shouldAssignCompound2))
             {
@@ -76,8 +77,12 @@ public static partial class TypedAstEvaluator
             }
 
             // Fast path for simple identifier assignments (not compound)
-            // This avoids creating AssignmentReference structs entirely
-            if (!expression.IsCompoundAssignment)
+            // This avoids creating AssignmentReference structs entirely.
+            // IMPORTANT: Only use this fast path for non-dynamic scopes!
+            // Dynamic scopes (with eval/with) require resolving the reference BEFORE
+            // evaluating the RHS, per ES spec 13.15.2. The fast path evaluates RHS first
+            // which breaks code like: with(scope) { x = (delete scope.x, 2); }
+            if (!expression.IsCompoundAssignment && expression.SlotIndex >= 0 && expression.ScopeId >= 0)
             {
                 var targetValueJs = EvaluateAssignmentRhsWithNameHintJsValue(expression, expression.Value, environment, context);
                 if (context.ShouldStopEvaluation)

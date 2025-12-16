@@ -1225,6 +1225,18 @@ public static partial class TypedAstEvaluator
     private static IJsObjectLike ToObjectForDestructuring(object? value, EvaluationContext context)
     {
         var realm = context.RealmState;
+
+        // Handle boxed JsValue structs - unwrap and check for null/undefined
+        if (value is JsValue jsValue)
+        {
+            if (jsValue.IsNull || jsValue.IsUndefined)
+            {
+                throw StandardLibrary.ThrowTypeError("Cannot destructure undefined or null", context, realm);
+            }
+            // Unwrap the JsValue and recurse with the underlying object
+            value = jsValue.ToObject();
+        }
+
         switch (value)
         {
             case null:

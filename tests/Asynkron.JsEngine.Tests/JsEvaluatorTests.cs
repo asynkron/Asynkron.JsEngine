@@ -1951,4 +1951,49 @@ public class JsEvaluatorTests
         Assert.True(proto, $"a={a}, b={b}, proto={proto}, parentProto={parentProto}");
         Assert.True(parentProto, $"a={a}, b={b}, proto={proto}, parentProto={parentProto}");
     }
+
+    // Tests for batch of failing Test262 tests
+    [Fact(Timeout = 2000)]
+    public async Task DestructuringNull_ShouldThrowTypeError()
+    {
+        // Test: let [{ x }] = [null]; should throw TypeError
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+try {
+    let [{ x }] = [null];
+    'no_error';
+} catch(e) {
+    e.name;
+}
+");
+        Assert.Equal("TypeError", result?.ToString());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task WithDeleteAssignment_ShouldPreserveReference()
+    {
+        // Test S11.13.1_A5_T1: Assignment in with statement should preserve reference after delete
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+var testResult = '';
+function testFunction() {
+  var x = 0;
+  var scope = {x: 1};
+
+  with (scope) {
+    x = (delete scope.x, 2);
+  }
+
+  if (scope.x !== 2) {
+    testResult += 'FAIL: scope.x should be 2, got ' + scope.x + '; ';
+  }
+  if (x !== 0) {
+    testResult += 'FAIL: x should be 0, got ' + x;
+  }
+  return testResult || 'PASS';
+}
+testFunction();
+");
+        Assert.Equal("PASS", result?.ToString());
+    }
 }

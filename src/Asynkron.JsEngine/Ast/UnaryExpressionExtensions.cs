@@ -29,6 +29,36 @@ public static partial class TypedAstEvaluator
 
                         if (targetOperand is IdentifierExpression identifier)
                         {
+                            // Fastest path: slot-based access when scope analysis resolved this identifier
+                            // AND the environment has slots initialized
+                            if (identifier.SlotIndex >= 0 && environment.HasSlots)
+                            {
+                                var slotValue = environment.GetSlot(identifier.ScopeDepth, identifier.SlotIndex);
+
+                                // Fast path for Number (most common case in loops)
+                                if (slotValue.Kind == JsValueKind.Number)
+                                {
+                                    var d = slotValue.NumberValue;
+                                    var updatedValue = d + (expression.Operator == UnaryOperator.Increment ? 1 : -1);
+                                    environment.SetSlot(identifier.ScopeDepth, identifier.SlotIndex, new JsValue(updatedValue));
+                                    return expression.IsPrefix ? new JsValue(updatedValue) : new JsValue(d);
+                                }
+
+                                // Fall back to JsValue path for non-numeric values
+                                var slotOldNumeric = ToNumericValue(slotValue, context);
+                                if (context.ShouldStopEvaluation)
+                                {
+                                    return context.FlowValue;
+                                }
+
+                                var slotUpdated = expression.Operator == UnaryOperator.Increment
+                                    ? IncrementValue(slotOldNumeric, context)
+                                    : DecrementValue(slotOldNumeric, context);
+                                environment.SetSlot(identifier.ScopeDepth, identifier.SlotIndex, slotUpdated);
+
+                                return expression.IsPrefix ? slotUpdated : slotOldNumeric;
+                            }
+
                             // Direct path for simple identifiers (most common case in loops)
                             var currentJsValue = context.GetIdentifier(environment, identifier.Name);
                             if (context.ShouldStopEvaluation)

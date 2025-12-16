@@ -77,9 +77,9 @@ public class ConstantFoldingTests(ITestOutputHelper output)
         var originalDeclaration = Assert.IsType<VariableDeclaration>(original.Body[0]);
         var originalDeclarator = Assert.Single(originalDeclaration.Declarators);
         var originalExpression = Assert.IsType<BinaryExpression>(originalDeclarator.Initializer);
-        Assert.Equal("+", originalExpression.Operator);
+        Assert.Equal(BinaryOperator.Add, originalExpression.Operator);
         var multiplication = Assert.IsType<BinaryExpression>(originalExpression.Right);
-        Assert.Equal("*", multiplication.Operator);
+        Assert.Equal(BinaryOperator.Multiply, multiplication.Operator);
 
         // Constant folding now happens on the typed AST, so inspect the first declaration
         var declaration = Assert.IsType<VariableDeclaration>(typedConstantFolded.Body[0]);

@@ -78,7 +78,15 @@ public sealed record RegexLiteralExpression(SourceReference? Source, string Patt
 /// <summary>
 ///     Represents a reference to an identifier.
 /// </summary>
-public sealed record IdentifierExpression(SourceReference? Source, Symbol Name) : ExpressionNode(Source);
+/// <param name="Source">Source location in the original code.</param>
+/// <param name="Name">The identifier name as a Symbol.</param>
+/// <param name="ScopeDepth">How many scopes up to find this variable (0 = local, 1 = parent, etc.). -1 means unresolved (use dictionary lookup).</param>
+/// <param name="SlotIndex">Index into the scope's slots array. -1 means unresolved.</param>
+public sealed record IdentifierExpression(
+    SourceReference? Source,
+    Symbol Name,
+    int ScopeDepth = -1,
+    int SlotIndex = -1) : ExpressionNode(Source);
 
 /// <summary>
 ///     Represents a private identifier reference used in the 'in' operator for brand checking.
@@ -113,6 +121,8 @@ public sealed record ConditionalExpression(
 /// <summary>
 ///     Represents a function or generator expression.
 /// </summary>
+/// <param name="SlotCount">Number of slots needed for local variables in this function's scope.
+/// Set by ScopeAnalyzer for O(1) variable access. -1 means not analyzed.</param>
 public sealed record FunctionExpression(
     SourceReference? Source,
     Symbol? Name,
@@ -123,7 +133,8 @@ public sealed record FunctionExpression(
     bool IsArrow = false,
     bool WasAsync = false,
     bool IsHoistableDefaultExport = false,
-    bool IsDefaultDerivedConstructor = false)
+    bool IsDefaultDerivedConstructor = false,
+    int SlotCount = -1)
     : ExpressionNode(Source);
 
 /// <summary>
@@ -182,11 +193,19 @@ public sealed record ImportMetaExpression(SourceReference? Source) : ExpressionN
 /// <summary>
 ///     Represents an assignment to an identifier.
 /// </summary>
+/// <param name="Source">Source location in the original code.</param>
+/// <param name="Target">The target identifier name.</param>
+/// <param name="Value">The value expression to assign.</param>
+/// <param name="IsCompoundAssignment">True if this is a compound assignment (+=, -=, etc.).</param>
+/// <param name="ScopeDepth">How many scopes up to find target variable. -1 means unresolved.</param>
+/// <param name="SlotIndex">Index into the scope's slots array. -1 means unresolved.</param>
 public sealed record AssignmentExpression(
     SourceReference? Source,
     Symbol Target,
     ExpressionNode Value,
-    bool IsCompoundAssignment = false)
+    bool IsCompoundAssignment = false,
+    int ScopeDepth = -1,
+    int SlotIndex = -1)
     : ExpressionNode(Source);
 
 /// <summary>

@@ -515,6 +515,11 @@ public static partial class TypedAstEvaluator
                 functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+                // Initialize slots for O(1) variable access when scope analysis provided slot count
+                if (_function.SlotCount > 0)
+                {
+                    functionEnvironment.InitializeSlots(_function.SlotCount);
+                }
 
                 parameterEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict, _function.Source,
                     _functionDescription, isParameterEnvironment: true);
@@ -529,6 +534,11 @@ public static partial class TypedAstEvaluator
                 functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+                // Initialize slots for O(1) variable access when scope analysis provided slot count
+                if (_function.SlotCount > 0)
+                {
+                    functionEnvironment.InitializeSlots(_function.SlotCount);
+                }
                 parameterEnvironment = functionEnvironment;
                 varEnvironment = functionEnvironment;
             }

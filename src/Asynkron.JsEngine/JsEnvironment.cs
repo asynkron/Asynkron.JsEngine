@@ -21,6 +21,12 @@ public sealed class JsEnvironment
     private SymbolHybridDictionary<Binding>? _values;
 
     /// <summary>
+    /// Slot-based storage for fast variable access when scope analysis is available.
+    /// This enables O(1) array indexing instead of dictionary lookup.
+    /// </summary>
+    private JsValue[]? _slots;
+
+    /// <summary>
     /// Gets the values dictionary, creating it if necessary.
     /// Use this when you need to add bindings.
     /// </summary>
@@ -79,6 +85,77 @@ public sealed class JsEnvironment
     ///     Depth of the environment chain (0 for the root/global).
     /// </summary>
     public int Depth { get; private set; }
+
+    #region Slot-based Variable Access
+
+    /// <summary>
+    /// Initializes slot storage for this environment.
+    /// Call this when creating an environment for a scope that has been analyzed.
+    /// </summary>
+    /// <param name="slotCount">Number of slots needed for this scope.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void InitializeSlots(int slotCount)
+    {
+        if (slotCount > 0)
+        {
+            _slots = new JsValue[slotCount];
+            // Initialize all slots to undefined
+            Array.Fill(_slots, JsValue.Undefined);
+        }
+    }
+
+    /// <summary>
+    /// Gets a variable value by slot index. This is the fast path for resolved identifiers.
+    /// </summary>
+    /// <param name="scopeDepth">How many function scopes up (0 = this scope).</param>
+    /// <param name="slotIndex">Index into the slots array.</param>
+    /// <returns>The value at the specified slot.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public JsValue GetSlot(int scopeDepth, int slotIndex)
+    {
+        var env = this;
+        while (scopeDepth > 0)
+        {
+            env = env.Enclosing!;
+            // Only count function scopes for depth
+            if (env.IsFunctionScope)
+            {
+                scopeDepth--;
+            }
+        }
+
+        return env._slots![slotIndex];
+    }
+
+    /// <summary>
+    /// Sets a variable value by slot index. This is the fast path for resolved identifiers.
+    /// </summary>
+    /// <param name="scopeDepth">How many function scopes up (0 = this scope).</param>
+    /// <param name="slotIndex">Index into the slots array.</param>
+    /// <param name="value">The value to set.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void SetSlot(int scopeDepth, int slotIndex, JsValue value)
+    {
+        var env = this;
+        while (scopeDepth > 0)
+        {
+            env = env.Enclosing!;
+            // Only count function scopes for depth
+            if (env.IsFunctionScope)
+            {
+                scopeDepth--;
+            }
+        }
+
+        env._slots![slotIndex] = value;
+    }
+
+    /// <summary>
+    /// Checks if this environment has slot storage initialized.
+    /// </summary>
+    public bool HasSlots => _slots is not null;
+
+    #endregion
 
     private bool IsStrictLocal { get; set; }
 

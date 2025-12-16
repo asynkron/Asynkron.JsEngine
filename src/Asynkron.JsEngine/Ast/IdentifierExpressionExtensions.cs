@@ -12,6 +12,13 @@ public static partial class TypedAstEvaluator
         private JsValue EvaluateIdentifier(JsEnvironment environment,
             EvaluationContext context)
         {
+            // Fastest path: slot-based access when scope analysis resolved this identifier
+            // AND the environment has slots initialized
+            if (identifier.SlotIndex >= 0 && environment.HasSlots)
+            {
+                return environment.GetSlot(identifier.ScopeDepth, identifier.SlotIndex);
+            }
+
             // Fast path: use TryGetIdentifierJsValue to avoid exception overhead
             if (environment.TryGetIdentifierJsValue(identifier.Name, context, out var value))
             {

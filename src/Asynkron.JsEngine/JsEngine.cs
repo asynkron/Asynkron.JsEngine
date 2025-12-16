@@ -64,6 +64,7 @@ public sealed class JsEngine : IAsyncDisposable
     private readonly ConcurrentDictionary<int, CancellationTokenSource> _timers = new();
     private readonly TypedConstantExpressionTransformer _typedConstantTransformer = new();
     private readonly TypedCpsTransformer _typedCpsTransformer = new();
+    private readonly ScopeAnalyzer _scopeAnalyzer = new();
     private Task? _eventLoopTask;
     private int? _eventLoopThreadId;
     private Channel<Func<ValueTask>>? _eventQueue;
@@ -449,6 +450,9 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         typedProgram = _typedConstantTransformer.Transform(typedProgram);
+
+        // Scope analysis: resolve variable references to slot indices for O(1) lookup
+        typedProgram = _scopeAnalyzer.Analyze(typedProgram);
 
         if (TypedCpsTransformer.NeedsTransformation(typedProgram))
         {

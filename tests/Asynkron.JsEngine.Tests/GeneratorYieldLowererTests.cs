@@ -152,7 +152,7 @@ public class GeneratorYieldLowererTests
     {
         var condition = new BinaryExpression(
             null,
-            "&&",
+            BinaryOperator.LogicalAnd,
             new YieldExpression(null, new LiteralExpression(null, "left"), false),
             new YieldExpression(null, new LiteralExpression(null, "right"), false));
 
@@ -226,7 +226,7 @@ public class GeneratorYieldLowererTests
     {
         var condition = new BinaryExpression(
             null,
-            "+",
+            BinaryOperator.Add,
             new LiteralExpression(null, 1),
             new YieldExpression(null, new LiteralExpression(null, "side"), false));
 
@@ -369,7 +369,7 @@ public class GeneratorYieldLowererTests
             iSymbol,
             new BinaryExpression(
                 null,
-                "+",
+                BinaryOperator.Add,
                 new IdentifierExpression(null, iSymbol),
                 new YieldExpression(null, new LiteralExpression(null, "inc"), false)));
 
@@ -442,14 +442,14 @@ public class GeneratorYieldLowererTests
 
         var increment = new BinaryExpression(
             null,
-            "+",
+            BinaryOperator.Add,
             new YieldExpression(null, new LiteralExpression(null, "a"), false),
             new YieldExpression(null, new LiteralExpression(null, "b"), false));
 
         var forStatement = new ForStatement(
             null,
             initializer,
-            new BinaryExpression(null, "<", new IdentifierExpression(null, iSymbol), new LiteralExpression(null, 1)),
+            new BinaryExpression(null, BinaryOperator.LessThan, new IdentifierExpression(null, iSymbol), new LiteralExpression(null, 1)),
             increment,
             new ExpressionStatement(null, new LiteralExpression(null, "body")));
 
@@ -513,7 +513,7 @@ public class GeneratorYieldLowererTests
         var targetSymbol = Symbol.Intern("value");
         var initializer = new BinaryExpression(
             null,
-            "+",
+            BinaryOperator.Add,
             new YieldExpression(null, new LiteralExpression(null, "a"), false),
             new YieldExpression(null, new LiteralExpression(null, "b"), false));
 

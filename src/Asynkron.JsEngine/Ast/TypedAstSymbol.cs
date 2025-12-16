@@ -20,7 +20,8 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
 
     private static readonly HostFunction SymbolToStringFunction = new((JsValue thisValue, IReadOnlyList<JsValue> _) =>
     {
-        if (thisValue.TryGetObject<TypedAstSymbol>(out var typed))
+        // Use TryUnwrap instead of TryGetObject because Symbol JsValues have Kind=Symbol, not Object
+        if (thisValue.TryUnwrap<TypedAstSymbol>(out var typed))
         {
             return new JsValue(typed.ToString());
         }

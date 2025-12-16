@@ -39,7 +39,7 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
     private JsValue CreateSymbolValue(IReadOnlyList<JsValue> args)
     {
         var description = args.Count > 0 && !args[0].IsUndefined
-            ? args[0].ToString()
+            ? JsOps.ToJsString(args[0].ToObject())
             : null;
         return new JsValue(JsValueKind.Symbol, 0.0, TypedAstSymbol.Create(description));
     }

@@ -1996,4 +1996,12 @@ testFunction();
 ");
         Assert.Equal("PASS", result?.ToString());
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task Symbol_ToString_IncludesDescription()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("Symbol('foo').toString()");
+        Assert.Equal("Symbol(foo)", result?.ToString());
+    }
 }

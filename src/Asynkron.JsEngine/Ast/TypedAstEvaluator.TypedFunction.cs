@@ -1617,13 +1617,14 @@ public static partial class TypedAstEvaluator
                     boundThisValue = thisValue;
                 }
             }
-            functionEnvironment.DefineJsValue(Symbol.This, boundThisValue);
+            // Use fast parameter binding - environment is fresh, no existing bindings
+            functionEnvironment.DefineParameterFast(Symbol.This, boundThisValue);
 
             // Bind parameters directly - simple identifiers only (not lexical, can be reassigned)
             for (var i = 0; i < _parameterNames.Length; i++)
             {
                 var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
-                functionEnvironment.DefineJsValue(_parameterNames[i], value, isLexical: false);
+                functionEnvironment.DefineParameterFast(_parameterNames[i], value);
             }
 
             // Only create arguments object if the function body actually references it

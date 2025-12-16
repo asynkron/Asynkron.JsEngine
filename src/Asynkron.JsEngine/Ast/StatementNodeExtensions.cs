@@ -42,6 +42,8 @@ public static partial class TypedAstEvaluator
                     return EvaluateLabeledJsValue(labeledStatement, environment, context);
                 case EmptyStatement:
                     return JsValue.Unit;
+                case ReturnStatement returnStatement:
+                    return EvaluateReturnJsValue(returnStatement, environment, context);
             }
 
             // Slow path for less common statement types
@@ -50,7 +52,6 @@ public static partial class TypedAstEvaluator
 
             return statement switch
             {
-                ReturnStatement returnStatement => EvaluateReturnJsValue(returnStatement, environment, context),
                 ThrowStatement throwStatement => EvaluateThrowJsValue(throwStatement, environment, context),
                 VariableDeclaration declaration => EvaluateVariableDeclarationJsValue(declaration, environment, context),
                 FunctionDeclaration functionDeclaration => EvaluateFunctionDeclarationJsValue(functionDeclaration, environment,

@@ -253,6 +253,20 @@ public sealed class JsEnvironment
         }
     }
 
+    /// <summary>
+    /// Fast path for defining function parameters. Assumes:
+    /// - Environment is fresh (no existing bindings)
+    /// - Not defining GlobalConstants
+    /// - No binding observers
+    /// Use only for function parameter binding in fresh environments.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void DefineParameterFast(Symbol name, JsValue value)
+    {
+        Values[name] = new Binding(value, isConst: false, isGlobalConstant: false, isLexical: false,
+            blocksFunctionScopeOverride: false, canDelete: false, isImmutableBinding: false);
+    }
+
     internal void DefineExportPromiseBinding(Symbol name, JsPromise promise, bool isLexical, bool isConst)
     {
         if (_values is not null && _values.ContainsKey(name))
@@ -934,6 +948,23 @@ public sealed class JsEnvironment
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryGetIdentifierJsValue(Symbol name, EvaluationContext context, out JsValue value)
     {
+        // Ultra-fast path: check current environment first for local variables
+        // Most identifier lookups in functions are for local variables/parameters
+        if (_values is not null && _values.TryGetValue(name, out var localBinding))
+        {
+            if (localBinding.IsUninitialized)
+            {
+                // TDZ violation - throw ReferenceError
+                throw new ThrowSignal(JsValue.FromObject(
+                    StdLib.StandardLibrary.CreateReferenceError(
+                        $"Cannot access '{name.Name}' before initialization",
+                        context,
+                        context.RealmState)));
+            }
+            value = localBinding.JsValue;
+            return true;
+        }
+
         if (TryGetCachedDeclarativeBinding(name, context, out var cached))
         {
             value = cached.ReadJsValue(name, context);

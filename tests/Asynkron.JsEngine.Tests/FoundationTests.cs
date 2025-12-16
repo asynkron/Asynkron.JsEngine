@@ -618,6 +618,30 @@ public class FoundationTests
     }
 
     [Fact]
+    public async Task Function_ArgumentsWithDestructuringDefault()
+    {
+        // Test that arguments object is correctly created in functions
+        // with destructuring parameters that use default expressions.
+        // Per ES2024 9.2.12 steps 17-20, arguments object must be created when
+        // hasParameterExpressions is true, even if 'arguments' is in bodyLexicalNames.
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            var fn, fnParam;
+            (function ({test262 = fnParam = arguments}) {
+                fn = arguments;
+            })('test arg');
+
+            JSON.stringify({
+                fnLength: fn ? fn.length : 'null',
+                fnFirst: fn && fn[0] ? fn[0] : 'null',
+                fnParamLength: fnParam ? fnParam.length : 'null',
+                fnParamFirst: fnParam && fnParam[0] ? fnParam[0] : 'null'
+            });
+        ");
+        Assert.Equal("{\"fnLength\":1,\"fnFirst\":\"test arg\",\"fnParamLength\":1,\"fnParamFirst\":\"test arg\"}", result);
+    }
+
+    [Fact]
     public async Task Function_IIFE()
     {
         await using var engine = new JsEngine();

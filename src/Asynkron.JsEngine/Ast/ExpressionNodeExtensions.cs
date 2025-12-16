@@ -442,8 +442,17 @@ public static partial class TypedAstEvaluator
             {
                 if (environment.TryResolveWithBinding(identifier.Name, context, out var withBinding))
                 {
-                    var withValue = JsEnvironment.GetWithBindingValue(withBinding);
-                    return (JsValue.FromObjectUnsafe(withValue), JsValue.FromObjectUnsafe(withBinding.BindingObject), false);
+                    try
+                    {
+                        var withValue = JsEnvironment.GetWithBindingValue(withBinding);
+                        return (JsValue.FromObjectUnsafe(withValue), JsValue.FromObjectUnsafe(withBinding.BindingObject), false);
+                    }
+                    catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
+                    {
+                        // Convert to JavaScript ReferenceError so it can be caught by JavaScript try-catch
+                        var errorObject = StdLib.StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
+                        throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
+                    }
                 }
 
                 // Fast path: use slot-based lookup when available

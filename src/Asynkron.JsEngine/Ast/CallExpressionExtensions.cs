@@ -26,11 +26,14 @@ public static partial class TypedAstEvaluator
                 expression.Arguments.Length <= 2)
             {
                 // If the identifier was NOT statically resolved (SlotIndex < 0), it might be
-                // in a dynamic scope (with/eval). Check for 'with' binding - if found, we need
+                // in a dynamic scope (with/eval). Check for 'with' environment - if found, we need
                 // to use the with-object as 'this', which the fast path doesn't handle.
                 // When SlotIndex >= 0, the identifier was statically resolved, so we know
                 // it's NOT coming from a 'with' binding and can skip this check.
-                if (calleeId.SlotIndex < 0 && environment.TryResolveWithBinding(calleeId.Name, context, out _))
+                // IMPORTANT: Use HasWithObjectInChain() instead of TryResolveWithBinding() to avoid
+                // triggering proxy 'has' and 'get' traps just to detect if we need the slow path.
+                // The slow path's EvaluateCallTarget will do the actual with-binding resolution.
+                if (calleeId.SlotIndex < 0 && environment.HasWithObjectInChain())
                 {
                     // Fall through to slow path which handles 'with' bindings correctly
                     return expression.EvaluateCallSlow(environment, context);

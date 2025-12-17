@@ -2978,9 +2978,6 @@ public sealed class JsEngine : IAsyncDisposable
                 case ExportDefaultStatement exportDefaultStmt:
                     if (moduleEnv.IsAsyncModule)
                     {
-                        var promise = CreateRealmPromise();
-                        moduleEnv.DefineExportPromiseBinding(Symbol.Intern("*default*"), promise, isLexical: false,
-                            isConst: false);
                         exports["default"] = new LiveExportBinding(() => moduleEnv.Get(Symbol.Intern("*default*")));
                     }
                     else
@@ -3007,22 +3004,7 @@ public sealed class JsEngine : IAsyncDisposable
                         var defaultSymbol = Symbol.Intern("*default*");
                         if (!moduleEnv.HasBinding(defaultSymbol))
                         {
-                            if (moduleEnv.IsAsyncModule && exports.TryGetValue("default", out var defaultExport))
-                            {
-                                var defaultExportValue = JsValue.FromObjectUnsafe(defaultExport);
-                                if (JsPromise.TryGetInternalPromise(defaultExportValue, out var promise))
-                                {
-                                    moduleEnv.DefineExportPromiseBinding(defaultSymbol, promise, isLexical: false, isConst: false);
-                                }
-                                else
-                                {
-                                    moduleEnv.DefineJsValue(defaultSymbol, JsValue.Uninitialized, isLexical: false, blocksFunctionScopeOverride: false);
-                                }
-                            }
-                            else
-                            {
-                                moduleEnv.DefineJsValue(defaultSymbol, JsValue.Uninitialized, isLexical: false, blocksFunctionScopeOverride: false);
-                            }
+                            moduleEnv.DefineJsValue(defaultSymbol, JsValue.Uninitialized, isLexical: false, blocksFunctionScopeOverride: false);
                         }
                     }
                     break;
@@ -3043,9 +3025,12 @@ public sealed class JsEngine : IAsyncDisposable
 
                             if (moduleEnv.IsAsyncModule)
                             {
-                                var promise = CreateRealmPromise();
                                 exports[symbol.Name] = new LiveExportBinding(() => moduleEnv.Get(symbol));
-                                moduleEnv.DefineExportPromiseBinding(symbol, promise, isLexical: !isVar, isConst: variableDeclaration.Kind == VariableKind.Const);
+                                var envInit = isVar
+                                    ? JsValue.FromObjectUnsafe(Symbol.Undefined)
+                                    : JsValue.Uninitialized;
+                                moduleEnv.DefineJsValue(symbol, envInit, isLexical: !isVar,
+                                    blocksFunctionScopeOverride: false);
                             }
                             else
                             {
@@ -3063,9 +3048,9 @@ public sealed class JsEngine : IAsyncDisposable
                     {
                         if (moduleEnv.IsAsyncModule)
                         {
-                            var promise = CreateRealmPromise();
                             exports[symbol.Name] = new LiveExportBinding(() => moduleEnv.Get(symbol));
-                            moduleEnv.DefineExportPromiseBinding(symbol, promise, isLexical: true, isConst: true);
+                            moduleEnv.DefineJsValue(symbol, JsValue.Uninitialized, isLexical: true,
+                                blocksFunctionScopeOverride: false);
                         }
                         else
                         {
@@ -5267,16 +5252,16 @@ private bool TryEvaluateWhileStatementWithAwait(WhileStatement whileStatement, J
 
             if (!importStatement.IsDeferred)
             {
-                if (isAsyncImport &&
-                    !string.Equals(moduleEntry.Path, referrerPath, StringComparison.Ordinal))
+                if (isAsyncImport)
                 {
-                    if (requiresModuleCompletion)
+                    var isSelfImport = string.Equals(moduleEntry.Path, referrerPath, StringComparison.Ordinal);
+                    var evaluation = EnsureModuleEvaluatedAsync(
+                        moduleEntry,
+                        waitForAsync: requiresModuleCompletion && !isSelfImport);
+                    if (requiresModuleCompletion && !isSelfImport)
                     {
-                        WaitForAsyncModule(moduleEntry);
-                    }
-                    else
-                    {
-                        EnsureModuleEvaluatedAsync(moduleEntry, waitForAsync: false);
+                        // Block until the async dependency finishes so exported bindings are initialized.
+                        evaluation.GetAwaiter().GetResult();
                     }
                 }
                 else

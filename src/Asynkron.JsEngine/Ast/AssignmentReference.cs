@@ -216,7 +216,7 @@ internal readonly struct AssignmentReference
     {
         try
         {
-            return _binding.Read(_name, _context);
+            return _binding.Read();
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
@@ -230,7 +230,7 @@ internal readonly struct AssignmentReference
     {
         try
         {
-            return _binding.ReadJsValue(_name, _context);
+            return _binding.ReadJsValue(_context);
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {

@@ -1637,14 +1637,14 @@ internal static class JsOps
             }
             catch (ThrowSignal signal)
             {
-                if (context is not null)
+                if (context is null)
                 {
-                    context.SetThrow(signal.ThrownValue);
-                    value = signal.ThrownValue;
-                    return true;
+                    throw;
                 }
 
-                throw;
+                context.SetThrow(signal.ThrownValue);
+                value = signal.ThrownValue;
+                return true;
             }
         }
 

@@ -1,16 +1,19 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
+#endregion
+
 namespace Asynkron.JsEngine.StdLib;
 
 [JsConstructor("Symbol", PrototypeType = typeof(SymbolPrototype), Length = 0d, DisplayName = "Symbol")]
-public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
+public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmState realm)
+    : JsConstructor(prototype, realm)
 {
-    private HostFunction? _constructor;
-
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         _ = thisValue;
@@ -20,34 +23,25 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
 
     protected override void ConfigureConstructor(HostFunction constructor)
     {
-        _constructor = constructor;
         Realm.SymbolPrototype ??= Prototype as JsObject;
 
-        constructor.SetInvokeWithContext((args, _, _, newTarget) =>
-        {
-            if (!newTarget.IsUndefined)
-            {
-                throw ThrowTypeError("Symbol is not a constructor", realm: Realm);
-            }
-
-            return CreateSymbolValue(args);
-        });
+        constructor.SetInvokeWithContext((args, _, _, newTarget) => newTarget.IsUndefined ? CreateSymbolValue(args) : throw ThrowTypeError("Symbol is not a constructor", realm: Realm));
 
         AttachStatics(constructor);
     }
 
-    private JsValue CreateSymbolValue(IReadOnlyList<JsValue> args)
+    private static JsValue CreateSymbolValue(IReadOnlyList<JsValue> args)
     {
         var description = args.Count > 0 && !args[0].IsUndefined
-            ? JsOps.ToJsString(args[0].ToObject())
+            ? args[0].ToJsString()
             : null;
         return new JsValue(JsValueKind.Symbol, 0.0, TypedAstSymbol.Create(description));
     }
 
     private void AttachStatics(HostFunction constructor)
     {
-        constructor.SetHostedProperty("for", new HostFunction(SymbolFor, Realm, isConstructor: false), Realm);
-        constructor.SetHostedProperty("keyFor", new HostFunction(SymbolKeyFor, Realm, isConstructor: false), Realm);
+        constructor.SetHostedProperty("for", new HostFunction(SymbolFor, Realm, false), Realm);
+        constructor.SetHostedProperty("keyFor", new HostFunction(SymbolKeyFor, Realm, false), Realm);
 
         constructor.SetProperty("hasInstance", (JsValue)Symbols.HasInstance);
         constructor.SetProperty("iterator", (JsValue)Symbols.Iterator);
@@ -65,18 +59,18 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
         constructor.SetProperty("isConcatSpreadable", (JsValue)Symbols.IsConcatSpreadable);
     }
 
-    private JsValue SymbolFor(IReadOnlyList<JsValue> args)
+    private static JsValue SymbolFor(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
             return JsValue.Undefined;
         }
 
-        var key = JsOps.ToJsString(args[0].ToObject());
+        var key = args[0].ToJsString();
         return new JsValue(JsValueKind.Symbol, 0.0, TypedAstSymbol.For(key));
     }
 
-    private JsValue SymbolKeyFor(IReadOnlyList<JsValue> args)
+    private static JsValue SymbolKeyFor(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0 || !args[0].IsSymbol || args[0].ObjectValue is not TypedAstSymbol sym)
         {

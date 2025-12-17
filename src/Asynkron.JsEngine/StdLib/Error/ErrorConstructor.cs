@@ -36,6 +36,38 @@ public abstract partial class ErrorConstructorBase(IJsObjectLike prototype, Real
             return JsValue.FromObjectUnsafe(ConstructWithNewTarget(args, newTargetCallable, target));
         });
 
+        // Ensure the prototype points back to this constructor so that thrown errors
+        // expose a usable .constructor property (used by assert.throws in Test262).
+        if (Prototype.GetOwnPropertyDescriptor("constructor") is null)
+        {
+            var descriptor = new PropertyDescriptor
+            {
+                Value = constructor,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
+            };
+
+            if (Prototype is IPropertyDefinitionHost definable)
+            {
+                var added = definable.TryDefineProperty("constructor", descriptor);
+                Console.WriteLine($"DEBUG ErrorConstructor: added ctor on {ErrorType} prototype via definable={added}");
+            }
+            else if (Prototype is JsObject protoObj)
+            {
+                protoObj.SetProperty("constructor", constructor);
+                Console.WriteLine($"DEBUG ErrorConstructor: set ctor on {ErrorType} prototype via SetProperty");
+            }
+            else
+            {
+                Console.WriteLine($"DEBUG ErrorConstructor: no way to set ctor on {ErrorType} prototype type={Prototype.GetType().Name}");
+            }
+        }
+        else
+        {
+            Console.WriteLine($"DEBUG ErrorConstructor: prototype for {ErrorType} already has constructor property");
+        }
+
         LinkPrototypeChain();
         InitializePrototypeDefaults();
         CacheRealmReferences(constructor);

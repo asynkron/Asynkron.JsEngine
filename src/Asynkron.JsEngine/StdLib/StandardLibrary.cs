@@ -1,7 +1,11 @@
+#region
+
 using System.Numerics;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -16,48 +20,50 @@ public static partial class StandardLibrary
     internal static object CreateTypeError(string message, EvaluationContext? context = null, RealmState? realm = null)
     {
         realm ??= context?.RealmState;
-        if (realm?.TypeErrorConstructor is IJsCallable callable)
+        if (realm?.TypeErrorConstructor is not IJsCallable callable)
         {
-            var result = callable.Invoke([new JsValue(message)], JsValue.Null);
-            if (result.IsUndefined)
-            {
-                return CreateErrorFallback("TypeError", message, realm);
-            }
-
-            return result.ToObject()!;
+            return CreateErrorFallback("TypeError", message, realm);
         }
 
-        return CreateErrorFallback("TypeError", message, realm);
+        var result = callable.Invoke([new JsValue(message)], JsValue.Null);
+        if (result.IsUndefined)
+        {
+            return CreateErrorFallback("TypeError", message, realm);
+        }
+
+        return result.ToObject()!;
+
     }
 
-    internal static object CreateRangeError(string message, EvaluationContext? context = null, RealmState? realm = null)
+    private static object CreateRangeError(string message, EvaluationContext? context = null, RealmState? realm = null)
     {
         realm ??= context?.RealmState;
-        if (realm?.RangeErrorConstructor is IJsCallable callable)
+        if (realm?.RangeErrorConstructor is not IJsCallable callable)
         {
-            var result = callable.Invoke([new JsValue(message)], JsValue.Null);
-            return result.IsUndefined ? CreateErrorFallback("RangeError", message, realm) : result.ToObject()!;
+            return CreateErrorFallback("RangeError", message, realm);
         }
 
-        return CreateErrorFallback("RangeError", message, realm);
+        var result = callable.Invoke([new JsValue(message)], JsValue.Null);
+        return result.IsUndefined ? CreateErrorFallback("RangeError", message, realm) : result.ToObject()!;
+
     }
 
     internal static object CreateReferenceError(string message, EvaluationContext? context = null,
         RealmState? realm = null)
     {
         realm ??= context?.RealmState;
-        if (realm?.ReferenceErrorConstructor is IJsCallable callable)
+        if (realm?.ReferenceErrorConstructor is not IJsCallable callable)
         {
-            var result = callable.Invoke([new JsValue(message)], JsValue.Null);
-            if (result.IsUndefined || result.IsNull)
-            {
-                return CreateErrorFallback("ReferenceError", message, realm);
-            }
-
-            return result.ToObject()!;
+            return CreateErrorFallback("ReferenceError", message, realm);
         }
 
-        return CreateErrorFallback("ReferenceError", message, realm);
+        var result = callable.Invoke([new JsValue(message)], JsValue.Null);
+        if (result.IsUndefined || result.IsNull)
+        {
+            return CreateErrorFallback("ReferenceError", message, realm);
+        }
+
+        return result.ToObject()!;
     }
 
     internal static ThrowSignal ThrowTypeError(string message, EvaluationContext? context = null,
@@ -67,6 +73,7 @@ public static partial class StandardLibrary
         {
             Console.WriteLine($"DEBUG ThrowTypeError: {message}\n{Environment.StackTrace}");
         }
+
         return new ThrowSignal(JsValue.FromObjectUnsafe(CreateTypeError(message, context, realm)));
     }
 
@@ -79,9 +86,44 @@ public static partial class StandardLibrary
     internal static ThrowSignal ThrowReferenceError(string message, EvaluationContext? context = null,
         RealmState? realm = null)
     {
+        var errorObj = CreateReferenceError(message, context, realm);
         // DEBUG
-        Console.WriteLine($"DEBUG ThrowReferenceError: {message}");
-        return new ThrowSignal(JsValue.FromObjectUnsafe(CreateReferenceError(message, context, realm)));
+        if (errorObj is IJsPropertyAccessor accessor)
+        {
+            var hasCtor = accessor.TryGetProperty("constructor", out var ctorVal);
+            if (!hasCtor && errorObj is JsObject jsObj)
+            {
+                var realmState = realm ?? context?.RealmState;
+                IJsCallable? ctor = realmState?.ReferenceErrorConstructor ?? context?.RealmState?.ReferenceErrorConstructor;
+                if (ctor is null)
+                {
+                    if (realmState?.Engine?.GlobalObject.TryGetValue("ReferenceError", out var ctorValue) == true &&
+                        ctorValue is JsValue ctorJs &&
+                        ctorJs.TryGetObject<IJsCallable>(out var callable))
+                    {
+                        ctor = callable;
+                    }
+                }
+
+                if (ctor is not null)
+                {
+                    jsObj.DefineProperty("constructor", new PropertyDescriptor
+                    {
+                        Value = ctor,
+                        Writable = true,
+                        Enumerable = false,
+                        Configurable = true,
+                    });
+                    hasCtor = jsObj.TryGetProperty("constructor", out ctorVal);
+                }
+            }
+            Console.WriteLine($"DEBUG ThrowReferenceError: {message}, hasCtor={hasCtor}, ctorIsNull={ctorVal.IsNull}, ctorIsUndef={ctorVal.IsUndefined}");
+        }
+        else
+        {
+            Console.WriteLine($"DEBUG ThrowReferenceError: {message}, errorType={errorObj?.GetType().Name}");
+        }
+        return new ThrowSignal(JsValue.FromObjectUnsafe(errorObj));
     }
 
     internal static ThrowSignal ThrowSyntaxError(string message, EvaluationContext? context = null,
@@ -158,13 +200,14 @@ public static partial class StandardLibrary
         RealmState? realm = null)
     {
         realm ??= context?.RealmState;
-        if (realm?.SyntaxErrorConstructor is IJsCallable callable)
+        if (realm?.SyntaxErrorConstructor is not IJsCallable callable)
         {
-            var result = callable.Invoke([new JsValue(message)], JsValue.Null);
-            return result.IsUndefined ? CreateErrorFallback("SyntaxError", message, realm) : result.ToObject()!;
+            return CreateErrorFallback("SyntaxError", message, realm);
         }
 
-        return CreateErrorFallback("SyntaxError", message, realm);
+        var result = callable.Invoke([new JsValue(message)], JsValue.Null);
+        return result.IsUndefined ? CreateErrorFallback("SyntaxError", message, realm) : result.ToObject()!;
+
     }
 
     private static JsObject CreateErrorFallback(string name, string message, RealmState? realm)
@@ -243,18 +286,6 @@ public static partial class StandardLibrary
         }
     }
 
-    internal static long ToBigInt64(object? value, RealmState? realmState = null)
-    {
-        var bigInt = ToBigInt(value, realmState: realmState);
-        return ToBigInt64(bigInt.Value);
-    }
-
-    internal static ulong ToBigUint64(object? value, RealmState? realmState = null)
-    {
-        var bigInt = ToBigInt(value, realmState: realmState);
-        return ToBigUint64(bigInt.Value);
-    }
-
     internal static long ToBigInt64(BigInteger value)
     {
         var wrapped = value % BigInt64Modulus;
@@ -328,7 +359,7 @@ public static partial class StandardLibrary
             numberBase = 8;
             text = text[2..];
         }
-        else if (text.StartsWith("0") && text.Length > 1 && char.IsDigit(text[1]))
+        else if (text.StartsWith("0", StringComparison.Ordinal) && text.Length > 1 && char.IsDigit(text[1]))
         {
             throw ThrowSyntaxError("Invalid BigInt literal", context, realmState);
         }
@@ -411,10 +442,11 @@ public static partial class StandardLibrary
             return false;
         }
 
-        var formatter = constructor.Invoke([JsValue.FromObjectUnsafe(localesArg), JsValue.FromObjectUnsafe(optionsArg)], JsValue.Null);
-        if (!formatter.TryGetObject<IJsPropertyAccessor>(out var accessor) || accessor is null ||
+        var formatter = constructor.Invoke([JsValue.FromObjectUnsafe(localesArg), JsValue.FromObjectUnsafe(optionsArg)],
+            JsValue.Null);
+        if (!formatter.TryGetObject<IJsPropertyAccessor>(out var accessor) ||
             !accessor.TryGetProperty("format", out var formatValue) ||
-            !formatValue.TryGetObject<IJsCallable>(out var formatFn) || formatFn is null)
+            !formatValue.TryGetObject<IJsCallable>(out var formatFn))
         {
             return false;
         }
@@ -432,12 +464,14 @@ public static partial class StandardLibrary
             return null;
         }
 
-        if (!intl.TryGetProperty("Intl", out var intlValue) || !intlValue.TryGetObject<IJsPropertyAccessor>(out var intlAccessor) || intlAccessor is null)
+        if (!intl.TryGetProperty("Intl", out var intlValue) ||
+            !intlValue.TryGetObject<IJsPropertyAccessor>(out var intlAccessor))
         {
             return null;
         }
 
-        if (!intlAccessor.TryGetProperty("NumberFormat", out var ctorValue) || !ctorValue.TryGetObject<IJsCallable>(out var ctor) || ctor is null)
+        if (!intlAccessor.TryGetProperty("NumberFormat", out var ctorValue) ||
+            !ctorValue.TryGetObject<IJsCallable>(out var ctor))
         {
             return null;
         }

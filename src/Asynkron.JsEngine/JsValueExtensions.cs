@@ -107,12 +107,12 @@ internal static class JsValueExtensions
 
             var realmState = realm ?? context?.RealmState;
 
-            if (value is Symbol symVal)
+            if (value is Symbol)
             {
                 throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context, realmState);
             }
 
-            if (value is TypedAstSymbol typedSym)
+            if (value is TypedAstSymbol)
             {
                 throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context, realmState);
             }

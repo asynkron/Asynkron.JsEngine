@@ -1,8 +1,12 @@
+#region
+
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -14,13 +18,12 @@ public static partial class StandardLibrary
         realm.FunctionPrototype ??= functionPrototype;
 
         HostFunction functionConstructor = null!;
-        functionConstructor = new HostFunction((_, args) => FunctionConstructorBody(args, functionConstructor))
-        {
-            RealmState = realm
-        };
+        functionConstructor =
+            new HostFunction((_, args) => FunctionConstructorBody(args, functionConstructor)) { RealmState = realm };
 
         functionConstructor.SetInvokeWithContext((args, _, _, newTarget) =>
-            FunctionConstructorBody(args, newTarget.TryGetObject<IJsCallable>(out var callable) ? callable : functionConstructor));
+            FunctionConstructorBody(args,
+                newTarget.TryGetObject<IJsCallable>(out var callable) ? callable : functionConstructor));
 
         functionConstructor.DefineProperty("length",
             new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
@@ -28,7 +31,10 @@ public static partial class StandardLibrary
             new PropertyDescriptor { Value = "Function", Writable = false, Enumerable = false, Configurable = true });
 
         functionConstructor.DefineProperty("prototype",
-            new PropertyDescriptor { Value = functionPrototype, Writable = false, Enumerable = false, Configurable = false });
+            new PropertyDescriptor
+            {
+                Value = functionPrototype, Writable = false, Enumerable = false, Configurable = false
+            });
         if (functionPrototype is IPropertyDefinitionHost definable &&
             definable.TryDefineProperty("constructor",
                 new PropertyDescriptor
@@ -62,7 +68,7 @@ public static partial class StandardLibrary
             }
 
             var bodySource = ToFunctionArgumentString(bodyValue, evalContext, realm);
-            var paramList = string.Join(",", parameters);
+            var paramList = string.Join(',', parameters);
             var hasDanglingClose = ContainsHtmlCloseCommentWithoutLineTerminator(paramList);
             if (hasDanglingClose)
             {
@@ -71,10 +77,7 @@ public static partial class StandardLibrary
 
             var functionSource = $"(function anonymous({paramList}\n) {{\n{bodySource}\n}})";
 
-            var scriptGoalOptions = new JsEngineOptions
-            {
-                AllowImportMeta = false
-            };
+            var scriptGoalOptions = new JsEngineOptions { AllowImportMeta = false };
 
             ParsedProgram program;
             try
@@ -92,13 +95,15 @@ public static partial class StandardLibrary
                 engine.GlobalEnvironment,
                 CancellationToken.None);
 
-            if (created is IJsObjectLike objectLike)
+            if (created is not IJsObjectLike objectLike)
             {
-                var proto = ResolveConstructPrototype(newTarget, functionConstructor, realm);
-                if (proto is not null)
-                {
-                    objectLike.SetPrototype(proto);
-                }
+                return JsValue.FromObjectUnsafe(created);
+            }
+
+            var proto = ResolveConstructPrototype(newTarget, functionConstructor, realm);
+            if (proto is not null)
+            {
+                objectLike.SetPrototype(proto);
             }
 
             return JsValue.FromObjectUnsafe(created);

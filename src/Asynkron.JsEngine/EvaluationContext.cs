@@ -349,6 +349,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public void SetThrow(JsValue value)
     {
+        _isReturn = false;  // Clear return state so FlowValue uses CurrentSignal
         CurrentSignal = new ThrowFlowCompletionSignal(value);
     }
 

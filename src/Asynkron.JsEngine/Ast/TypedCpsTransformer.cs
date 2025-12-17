@@ -905,12 +905,16 @@ public sealed class TypedCpsTransformer
         var catchClause = new CatchClause(null, new IdentifierBinding(null, Symbol.CatchIdentifier), catchBody);
         var tryStatement = new TryStatement(null, tryBlock, catchClause, null);
         var executorBody = new BlockStatement(null, [tryStatement], body.IsStrict);
+        // Use an arrow function for the Promise executor so that `arguments` / `this`
+        // inside the original async body still resolve to the outer async function's
+        // bindings. A normal function expression would introduce its own arguments
+        // object, which breaks references inside the rewritten body.
         var executor = new FunctionExpression(null, null,
             [
                 new FunctionParameter(null, Symbol.ResolveIdentifier, false, null, null),
-                new FunctionParameter(null, Symbol.RejectIdentifier, false, null, null)
+                new FunctionParameter(null, Symbol.RejectIdentifier, false, null, null),
             ],
-            executorBody, false, false);
+            executorBody, false, false, IsArrow: true);
         var promise = new NewExpression(null, new IdentifierExpression(null, Symbol.PromiseIdentifier),
             [new CallArgument(null, executor, false)]);
         var returnPromise = new ReturnStatement(null, promise);

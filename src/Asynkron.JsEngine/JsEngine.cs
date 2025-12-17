@@ -4552,7 +4552,31 @@ public sealed class JsEngine : IAsyncDisposable
                         if (!calleeValue.TryGetObject<IJsCallable>(out var callable))
                         {
                             var calleeLabel = DescribeCallee(callExpr.Callee);
-                            var error = StandardLibrary.CreateTypeError($"{calleeValue} is not a function (callee={calleeLabel})", realm: _engine.RealmState);
+                            string? propertyLabel = null;
+                            if (callExpr.Callee is MemberExpression member)
+                            {
+                                if (member.Property is IdentifierExpression pid)
+                                {
+                                    propertyLabel = pid.Name.Name;
+                                }
+                                else
+                                {
+                                    try
+                                    {
+                                        var propValue = _engine.ExecuteTypedExpression(member.Property, env, isStrict);
+                                        propertyLabel = propValue?.ToString();
+                                    }
+                                    catch
+                                    {
+                                        // Ignore diagnostics failures
+                                    }
+                                }
+                            }
+
+                            var errorMessage = propertyLabel is null
+                                ? $"{calleeValue} is not a function (callee={calleeLabel})"
+                                : $"{calleeValue} is not a function (callee={calleeLabel}, prop={propertyLabel})";
+                            var error = StandardLibrary.CreateTypeError(errorMessage, realm: _engine.RealmState);
                             throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
                         }
 
@@ -4661,11 +4685,11 @@ public sealed class JsEngine : IAsyncDisposable
         {
             var thisValue = JsValue.FromObjectUnsafe(targetResolved);
 
-            bool Finish(object? propertyResolved)
-            {
-                JsValue calleeValue;
-                try
+                bool Finish(object? propertyResolved)
                 {
+                    JsValue calleeValue;
+                    try
+                    {
                     calleeValue = JsOps.TryGetPropertyValue(thisValue, propertyResolved, out var val, null)
                         ? JsValue.FromObjectUnsafe(val)
                         : JsValue.Undefined;
@@ -4680,11 +4704,11 @@ public sealed class JsEngine : IAsyncDisposable
                 return true;
             }
 
-            if (memberExpression.Property is IdentifierExpression identifier)
-            {
-                propertyCompletedSynchronously = Finish(identifier.Name);
-                return;
-            }
+                if (memberExpression.Property is IdentifierExpression identifier)
+                {
+                    propertyCompletedSynchronously = Finish(identifier.Name.Name);
+                    return;
+                }
 
             if (Ast.ShapeAnalyzer.AstShapeAnalyzer.ContainsAwait(memberExpression.Property))
             {
@@ -4713,18 +4737,18 @@ public sealed class JsEngine : IAsyncDisposable
         MemberExpression memberExpression,
         JsEnvironment env,
         bool isStrict)
-    {
-        var targetValue = _engine.ExecuteTypedExpression(memberExpression.Target, env, isStrict);
-        var thisValue = JsValue.FromObjectUnsafe(targetValue);
-        object? propertyKey;
-        if (memberExpression.Property is IdentifierExpression identifier)
         {
-            propertyKey = identifier.Name;
-        }
-        else
-        {
-            propertyKey = _engine.ExecuteTypedExpression(memberExpression.Property, env, isStrict);
-        }
+            var targetValue = _engine.ExecuteTypedExpression(memberExpression.Target, env, isStrict);
+            var thisValue = JsValue.FromObjectUnsafe(targetValue);
+            object? propertyKey;
+            if (memberExpression.Property is IdentifierExpression identifier)
+            {
+                propertyKey = identifier.Name.Name;
+            }
+            else
+            {
+                propertyKey = _engine.ExecuteTypedExpression(memberExpression.Property, env, isStrict);
+            }
 
         var calleeValue = JsOps.TryGetPropertyValue(thisValue, propertyKey, out var val, null)
             ? JsValue.FromObjectUnsafe(val)

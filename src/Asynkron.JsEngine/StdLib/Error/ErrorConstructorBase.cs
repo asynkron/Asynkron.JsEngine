@@ -27,6 +27,7 @@ public abstract partial class ErrorConstructorBase(IJsObjectLike prototype, Real
     protected override void ConfigureConstructor(HostFunction constructor)
     {
         _constructor = constructor;
+        var debugEnabled = Realm.Options.DebugMode;
 
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
@@ -50,21 +51,33 @@ public abstract partial class ErrorConstructorBase(IJsObjectLike prototype, Real
             if (Prototype is IPropertyDefinitionHost definable)
             {
                 var added = definable.TryDefineProperty("constructor", descriptor);
-                Console.WriteLine($"DEBUG ErrorConstructor: added ctor on {ErrorType} prototype via definable={added}");
+                if (debugEnabled)
+                {
+                    Console.WriteLine($"DEBUG ErrorConstructor: added ctor on {ErrorType} prototype via definable={added}");
+                }
             }
             else if (Prototype is JsObject protoObj)
             {
                 protoObj.SetProperty("constructor", constructor);
-                Console.WriteLine($"DEBUG ErrorConstructor: set ctor on {ErrorType} prototype via SetProperty");
+                if (debugEnabled)
+                {
+                    Console.WriteLine($"DEBUG ErrorConstructor: set ctor on {ErrorType} prototype via SetProperty");
+                }
             }
             else
             {
-                Console.WriteLine($"DEBUG ErrorConstructor: no way to set ctor on {ErrorType} prototype type={Prototype.GetType().Name}");
+                if (debugEnabled)
+                {
+                    Console.WriteLine($"DEBUG ErrorConstructor: no way to set ctor on {ErrorType} prototype type={Prototype.GetType().Name}");
+                }
             }
         }
         else
         {
-            Console.WriteLine($"DEBUG ErrorConstructor: prototype for {ErrorType} already has constructor property");
+            if (debugEnabled)
+            {
+                Console.WriteLine($"DEBUG ErrorConstructor: prototype for {ErrorType} already has constructor property");
+            }
         }
 
         LinkPrototypeChain();

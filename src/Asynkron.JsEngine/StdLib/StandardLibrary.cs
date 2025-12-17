@@ -79,6 +79,8 @@ public static partial class StandardLibrary
     internal static ThrowSignal ThrowReferenceError(string message, EvaluationContext? context = null,
         RealmState? realm = null)
     {
+        // DEBUG
+        Console.WriteLine($"DEBUG ThrowReferenceError: {message}");
         return new ThrowSignal(JsValue.FromObjectUnsafe(CreateReferenceError(message, context, realm)));
     }
 

@@ -4690,7 +4690,7 @@ public sealed class JsEngine : IAsyncDisposable
                     JsValue calleeValue;
                     try
                     {
-                    calleeValue = JsOps.TryGetPropertyValue(thisValue, propertyResolved, out var val, null)
+                    calleeValue = JsOps.TryGetPropertyValue(thisValue, propertyResolved, out var val, _engine.RealmState?.CreateContext())
                         ? JsValue.FromObjectUnsafe(val)
                         : JsValue.Undefined;
                 }
@@ -4750,7 +4750,7 @@ public sealed class JsEngine : IAsyncDisposable
                 propertyKey = _engine.ExecuteTypedExpression(memberExpression.Property, env, isStrict);
             }
 
-        var calleeValue = JsOps.TryGetPropertyValue(thisValue, propertyKey, out var val, null)
+        var calleeValue = JsOps.TryGetPropertyValue(thisValue, propertyKey, out var val, _engine.RealmState?.CreateContext())
             ? JsValue.FromObjectUnsafe(val)
             : JsValue.Undefined;
 

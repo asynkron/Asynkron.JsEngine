@@ -163,6 +163,11 @@ public sealed class ScopeAnalyzer
             }
         }
 
+        // Resolve parameter default expressions - these may contain function expressions
+        // that need to capture the function name binding. Per ECMAScript spec, parameter
+        // defaults are evaluated in a scope where the function name is visible.
+        var resolvedParameters = ResolveParameters(function.Parameters);
+
         // Collect var declarations (hoisted)
         CollectVarDeclarations(function.Body);
 
@@ -177,7 +182,36 @@ public sealed class ScopeAnalyzer
         _currentScope = originalParentScope;
         _currentFunctionScope = parentFunctionScope;
 
-        return function with { Body = resolvedBody, SlotCount = slotCount, ScopeId = scopeId, HasClosures = hasClosures, FunctionNameScopeId = functionNameScopeId };
+        return function with { Parameters = resolvedParameters, Body = resolvedBody, SlotCount = slotCount, ScopeId = scopeId, HasClosures = hasClosures, FunctionNameScopeId = functionNameScopeId };
+    }
+
+    private ImmutableArray<FunctionParameter> ResolveParameters(ImmutableArray<FunctionParameter> parameters)
+    {
+        var hasChanges = false;
+        var builder = ImmutableArray.CreateBuilder<FunctionParameter>(parameters.Length);
+
+        foreach (var param in parameters)
+        {
+            ExpressionNode? resolvedDefault = null;
+            if (param.DefaultValue is not null)
+            {
+                resolvedDefault = ResolveExpression(param.DefaultValue);
+                hasChanges = true;
+            }
+
+            // TODO: Resolve destructuring patterns if they contain expressions
+
+            if (resolvedDefault is not null)
+            {
+                builder.Add(param with { DefaultValue = resolvedDefault });
+            }
+            else
+            {
+                builder.Add(param);
+            }
+        }
+
+        return hasChanges ? builder.ToImmutable() : parameters;
     }
 
     #region Declaration Collection

@@ -24,7 +24,7 @@ public static partial class TypedAstEvaluator
                     "iterator" => (JsValue)Symbols.Iterator,
                     "asyncIterator" => (JsValue)Symbols.AsyncIterator,
                     "toStringTag" => (JsValue)Symbols.ToStringTag,
-                    _ => EvaluateDefaultMember(expression, environment, context),
+                    _ => EvaluateDefaultMember(expression, environment, context)
                 };
             }
 

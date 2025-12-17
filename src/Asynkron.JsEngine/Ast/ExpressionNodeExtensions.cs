@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -158,7 +157,7 @@ public static partial class TypedAstEvaluator
                 SuperExpression => throw new InvalidOperationException(
                     $"Super is not available in this context.{GetSourceInfo(context, expression.Source)}"),
                 _ => throw new NotSupportedException(
-                    $"Typed evaluator does not yet support '{expression.GetType().Name}'."),
+                    $"Typed evaluator does not yet support '{expression.GetType().Name}'.")
             };
         }
 
@@ -169,7 +168,7 @@ public static partial class TypedAstEvaluator
                 IdentifierExpression id => id.Name.Name,
                 MemberExpression member => $"{DescribeCallee(member.Target)}.{DescribeMemberName(member.Property)}",
                 CallExpression call => $"{DescribeCallee(call.Callee)}(...)",
-                _ => expression.GetType().Name,
+                _ => expression.GetType().Name
             };
         }
 
@@ -189,7 +188,7 @@ public static partial class TypedAstEvaluator
             {
                 FunctionExpression func => func.Name is null,
                 ClassExpression classExpression => classExpression.Name is null,
-                _ => false,
+                _ => false
             };
         }
 
@@ -399,7 +398,7 @@ public static partial class TypedAstEvaluator
                         IdentifierExpression id => id.Name.Name,
                         LiteralExpression { Value.IsString: true } lit => lit.Value.AsString()!,
                         _ => JsOps.GetRequiredPropertyName(EvaluateExpression(member.Property, environment, context).ToObject(),
-                            context),
+                            context)
                     };
                 }
 
@@ -554,7 +553,7 @@ public static partial class TypedAstEvaluator
             {
                 LiteralExpression { Value.IsString: true } lit => lit.Value.AsString()!,
                 IdentifierExpression id => id.Name.Name,
-                _ => property.GetType().Name,
+                _ => property.GetType().Name
             };
         }
     }

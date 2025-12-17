@@ -938,7 +938,7 @@ internal sealed class SyncGeneratorIrBuilder
             ArrayBinding or ObjectBinding => new DestructuringAssignmentExpression(target.Source, target,
                 valueExpression),
             AssignmentTargetBinding atb => CreateAssignmentExpressionFromLhs(atb.Expression, valueExpression),
-            _ => throw new NotSupportedException($"Unsupported for-of binding target '{target.GetType().Name}'."),
+            _ => throw new NotSupportedException($"Unsupported for-of binding target '{target.GetType().Name}'.")
         };
     }
 

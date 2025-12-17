@@ -92,7 +92,7 @@ public static partial class TypedAstEvaluator
                     HasValue = true,
                     HasWritable = true,
                     HasEnumerable = true,
-                    HasConfigurable = true,
+                    HasConfigurable = true
                 });
         }
 
@@ -341,7 +341,7 @@ public static partial class TypedAstEvaluator
                         HasValue = true,
                         HasWritable = true,
                         HasEnumerable = true,
-                        HasConfigurable = true,
+                        HasConfigurable = true
                     });
 
                 if (_realmState.AsyncGeneratorFunctionConstructor is null)
@@ -365,7 +365,7 @@ public static partial class TypedAstEvaluator
                         HasValue = true,
                         HasWritable = true,
                         HasEnumerable = true,
-                        HasConfigurable = true,
+                        HasConfigurable = true
                     });
 
                 _realmState.AsyncGeneratorFunctionPrototype = asyncGenFuncProto;
@@ -379,7 +379,7 @@ public static partial class TypedAstEvaluator
             constructor = new HostFunction((_, args) =>
                     AsyncGeneratorFunctionConstructorBody(args, constructor, engine, realm))
             {
-                RealmState = realm,
+                RealmState = realm
             };
 
             constructor.SetInvokeWithContext((args, _, _, newTarget) =>
@@ -427,7 +427,7 @@ public static partial class TypedAstEvaluator
 
             var scriptGoalOptions = new JsEngineOptions
             {
-                AllowImportMeta = false,
+                AllowImportMeta = false
             };
 
             ParsedProgram program;
@@ -545,7 +545,7 @@ public static partial class TypedAstEvaluator
                         HasValue = true,
                         HasWritable = true,
                         HasEnumerable = true,
-                        HasConfigurable = true,
+                        HasConfigurable = true
                     });
                 _properties.DefineProperty("prototype",
                     new PropertyDescriptor
@@ -557,7 +557,7 @@ public static partial class TypedAstEvaluator
                         HasValue = true,
                         HasWritable = true,
                         HasEnumerable = true,
-                        HasConfigurable = true,
+                        HasConfigurable = true
                     });
             }
 
@@ -572,7 +572,7 @@ public static partial class TypedAstEvaluator
                     HasValue = true,
                     HasWritable = true,
                     HasEnumerable = true,
-                    HasConfigurable = true,
+                    HasConfigurable = true
                 });
 
             var functionNameValue = _function.Name?.Name ?? string.Empty;
@@ -586,7 +586,7 @@ public static partial class TypedAstEvaluator
                     HasValue = true,
                     HasWritable = true,
                     HasEnumerable = true,
-                    HasConfigurable = true,
+                    HasConfigurable = true
                 });
         }
 

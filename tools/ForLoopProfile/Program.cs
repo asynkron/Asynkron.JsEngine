@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using Asynkron.JsEngine;
-using Asynkron.JsEngine.Ast;
 
 // Minimal harness to stress the classic for-loop body without BenchmarkDotNet overhead.
 var engine = new JsEngine();

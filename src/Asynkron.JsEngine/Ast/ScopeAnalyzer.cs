@@ -402,7 +402,7 @@ public sealed class ScopeAnalyzer
         {
             ExpressionStatement exprStmt => exprStmt with
             {
-                Expression = ResolveExpression(exprStmt.Expression),
+                Expression = ResolveExpression(exprStmt.Expression)
             },
 
             VariableDeclaration varDecl => ResolveVariableDeclaration(varDecl),
@@ -413,19 +413,19 @@ public sealed class ScopeAnalyzer
             {
                 Condition = ResolveExpression(ifStmt.Condition),
                 Then = ResolveStatement(ifStmt.Then),
-                Else = ifStmt.Else is not null ? ResolveStatement(ifStmt.Else) : null,
+                Else = ifStmt.Else is not null ? ResolveStatement(ifStmt.Else) : null
             },
 
             WhileStatement whileStmt => whileStmt with
             {
                 Condition = ResolveExpression(whileStmt.Condition),
-                Body = ResolveStatement(whileStmt.Body),
+                Body = ResolveStatement(whileStmt.Body)
             },
 
             DoWhileStatement doWhileStmt => doWhileStmt with
             {
                 Body = ResolveStatement(doWhileStmt.Body),
-                Condition = ResolveExpression(doWhileStmt.Condition),
+                Condition = ResolveExpression(doWhileStmt.Condition)
             },
 
             ForStatement forStmt => ResolveForStatement(forStmt),
@@ -436,7 +436,7 @@ public sealed class ScopeAnalyzer
 
             ThrowStatement throwStmt => throwStmt with
             {
-                Expression = ResolveExpression(throwStmt.Expression),
+                Expression = ResolveExpression(throwStmt.Expression)
             },
 
             TryStatement tryStmt => ResolveTryStatement(tryStmt),
@@ -445,26 +445,26 @@ public sealed class ScopeAnalyzer
 
             FunctionDeclaration funcDecl => funcDecl with
             {
-                Function = AnalyzeFunction(funcDecl.Function, isDeclaration: true),
+                Function = AnalyzeFunction(funcDecl.Function, isDeclaration: true)
             },
 
             ClassDeclaration classDecl => ResolveClassDeclaration(classDecl),
 
             LabeledStatement labeledStmt => labeledStmt with
             {
-                Statement = ResolveStatement(labeledStmt.Statement),
+                Statement = ResolveStatement(labeledStmt.Statement)
             },
 
             WithStatement withStmt => withStmt with
             {
                 Object = ResolveExpression(withStmt.Object),
-                Body = ResolveStatement(withStmt.Body),
+                Body = ResolveStatement(withStmt.Body)
             },
 
             // Statements that don't contain expressions to resolve
             BreakStatement or ContinueStatement or EmptyStatement => statement,
 
-            _ => statement, // Default: return as-is
+            _ => statement // Default: return as-is
         };
     }
 
@@ -548,7 +548,7 @@ public sealed class ScopeAnalyzer
             {
                 Test = resolvedTest,
                 Consequent = resolvedConsequent,
-                Alternate = resolvedAlternate,
+                Alternate = resolvedAlternate
             };
         }
 
@@ -632,7 +632,7 @@ public sealed class ScopeAnalyzer
             ConditionalExpression cond => CountCallExpressions(cond.Test) +
                                           CountCallExpressions(cond.Consequent) +
                                           CountCallExpressions(cond.Alternate),
-            _ => 0,
+            _ => 0
         };
     }
 
@@ -649,23 +649,23 @@ public sealed class ScopeAnalyzer
             BinaryExpression binary => binary with
             {
                 Left = MarkCallsForReuse(binary.Left),
-                Right = MarkCallsForReuse(binary.Right),
+                Right = MarkCallsForReuse(binary.Right)
             },
 
             UnaryExpression unary => unary with
             {
-                Operand = MarkCallsForReuse(unary.Operand),
+                Operand = MarkCallsForReuse(unary.Operand)
             },
 
             ConditionalExpression cond => cond with
             {
                 Test = MarkCallsForReuse(cond.Test),
                 Consequent = MarkCallsForReuse(cond.Consequent),
-                Alternate = MarkCallsForReuse(cond.Alternate),
+                Alternate = MarkCallsForReuse(cond.Alternate)
             },
 
             // For other expression types, return as-is (they don't contain calls we can optimize)
-            _ => expression,
+            _ => expression
         };
     }
 
@@ -814,7 +814,7 @@ public sealed class ScopeAnalyzer
             VariableDeclaration varDecl => ResolveVariableDeclaration(varDecl),
             ExpressionStatement exprStmt => exprStmt with { Expression = ResolveExpression(exprStmt.Expression) },
             null => null,
-            _ => forStmt.Initializer,
+            _ => forStmt.Initializer
         };
 
         var resolved = forStmt with
@@ -822,7 +822,7 @@ public sealed class ScopeAnalyzer
             Initializer = resolvedInit,
             Condition = forStmt.Condition is not null ? ResolveExpression(forStmt.Condition) : null,
             Increment = forStmt.Increment is not null ? ResolveExpression(forStmt.Increment) : null,
-            Body = ResolveStatement(forStmt.Body),
+            Body = ResolveStatement(forStmt.Body)
         };
 
         if (needsScope)
@@ -847,7 +847,7 @@ public sealed class ScopeAnalyzer
         var resolved = forEachStmt with
         {
             Iterable = ResolveExpression(forEachStmt.Iterable),
-            Body = ResolveStatement(forEachStmt.Body),
+            Body = ResolveStatement(forEachStmt.Body)
         };
 
         if (needsScope)
@@ -885,7 +885,7 @@ public sealed class ScopeAnalyzer
         {
             TryBlock = resolvedTry,
             Catch = resolvedCatch,
-            Finally = resolvedFinally,
+            Finally = resolvedFinally
         };
     }
 
@@ -916,7 +916,7 @@ public sealed class ScopeAnalyzer
         return switchStmt with
         {
             Discriminant = ResolveExpression(switchStmt.Discriminant),
-            Cases = resolvedCases.MoveToImmutable(),
+            Cases = resolvedCases.MoveToImmutable()
         };
     }
 
@@ -927,7 +927,7 @@ public sealed class ScopeAnalyzer
         {
             Extends = classDecl.Definition.Extends is not null
                 ? ResolveExpression(classDecl.Definition.Extends)
-                : null,
+                : null
         };
 
         return classDecl with { Definition = resolvedDefinition };
@@ -948,12 +948,12 @@ public sealed class ScopeAnalyzer
             BinaryExpression binary => binary with
             {
                 Left = ResolveExpression(binary.Left),
-                Right = ResolveExpression(binary.Right),
+                Right = ResolveExpression(binary.Right)
             },
 
             UnaryExpression unary => unary with
             {
-                Operand = ResolveExpression(unary.Operand),
+                Operand = ResolveExpression(unary.Operand)
             },
 
             CallExpression call => ResolveCallExpression(call),
@@ -961,25 +961,25 @@ public sealed class ScopeAnalyzer
             MemberExpression member => member with
             {
                 Target = ResolveExpression(member.Target),
-                Property = member.IsComputed ? ResolveExpression(member.Property) : member.Property,
+                Property = member.IsComputed ? ResolveExpression(member.Property) : member.Property
             },
 
             NewExpression newExpr => newExpr with
             {
                 Constructor = ResolveExpression(newExpr.Constructor),
-                Arguments = ResolveCallArguments(newExpr.Arguments),
+                Arguments = ResolveCallArguments(newExpr.Arguments)
             },
 
             ConditionalExpression cond => cond with
             {
                 Test = ResolveExpression(cond.Test),
                 Consequent = ResolveExpression(cond.Consequent),
-                Alternate = ResolveExpression(cond.Alternate),
+                Alternate = ResolveExpression(cond.Alternate)
             },
 
             ArrayExpression array => array with
             {
-                Elements = ResolveArrayElements(array.Elements),
+                Elements = ResolveArrayElements(array.Elements)
             },
 
             ObjectExpression obj => ResolveObjectExpression(obj),
@@ -991,43 +991,43 @@ public sealed class ScopeAnalyzer
             SequenceExpression seq => seq with
             {
                 Left = ResolveExpression(seq.Left),
-                Right = ResolveExpression(seq.Right),
+                Right = ResolveExpression(seq.Right)
             },
 
             TemplateLiteralExpression template => ResolveTemplateLiteral(template),
 
             TaggedTemplateExpression tagged => tagged with
             {
-                Tag = ResolveExpression(tagged.Tag),
+                Tag = ResolveExpression(tagged.Tag)
             },
 
             AwaitExpression awaitExpr => awaitExpr with
             {
-                Expression = ResolveExpression(awaitExpr.Expression),
+                Expression = ResolveExpression(awaitExpr.Expression)
             },
 
             YieldExpression yieldExpr => yieldExpr with
             {
-                Expression = yieldExpr.Expression is not null ? ResolveExpression(yieldExpr.Expression) : null,
+                Expression = yieldExpr.Expression is not null ? ResolveExpression(yieldExpr.Expression) : null
             },
 
             PropertyAssignmentExpression propAssign => propAssign with
             {
                 Target = ResolveExpression(propAssign.Target),
                 Property = propAssign.IsComputed ? ResolveExpression(propAssign.Property) : propAssign.Property,
-                Value = ResolveExpression(propAssign.Value),
+                Value = ResolveExpression(propAssign.Value)
             },
 
             IndexAssignmentExpression indexAssign => indexAssign with
             {
                 Target = ResolveExpression(indexAssign.Target),
                 Index = ResolveExpression(indexAssign.Index),
-                Value = ResolveExpression(indexAssign.Value),
+                Value = ResolveExpression(indexAssign.Value)
             },
 
             DestructuringAssignmentExpression destruct => destruct with
             {
-                Value = ResolveExpression(destruct.Value),
+                Value = ResolveExpression(destruct.Value)
             },
 
             // Literals and other expressions that don't need resolution
@@ -1035,7 +1035,7 @@ public sealed class ScopeAnalyzer
                 or NewTargetExpression or ImportMetaExpression
                 or RegexLiteralExpression or PrivateIdentifierExpression => expression,
 
-            _ => expression, // Default: return as-is
+            _ => expression // Default: return as-is
         };
     }
 
@@ -1062,7 +1062,7 @@ public sealed class ScopeAnalyzer
             Value = resolvedValue,
             ScopeDepth = depth,
             SlotIndex = slot,
-            ScopeId = scopeId,
+            ScopeId = scopeId
         };
     }
 
@@ -1077,7 +1077,7 @@ public sealed class ScopeAnalyzer
         return call with
         {
             Callee = ResolveExpression(call.Callee),
-            Arguments = ResolveCallArguments(call.Arguments),
+            Arguments = ResolveCallArguments(call.Arguments)
         };
     }
 
@@ -1098,7 +1098,7 @@ public sealed class ScopeAnalyzer
         {
             builder.Add(element with
             {
-                Expression = element.Expression is not null ? ResolveExpression(element.Expression) : null,
+                Expression = element.Expression is not null ? ResolveExpression(element.Expression) : null
             });
         }
         return builder.MoveToImmutable();
@@ -1112,7 +1112,7 @@ public sealed class ScopeAnalyzer
             var resolvedMember = member with
             {
                 Value = member.Value is not null ? ResolveExpression(member.Value) : null,
-                Function = member.Function is not null ? AnalyzeFunction(member.Function) : null,
+                Function = member.Function is not null ? AnalyzeFunction(member.Function) : null
             };
             builder.Add(resolvedMember);
         }
@@ -1126,7 +1126,7 @@ public sealed class ScopeAnalyzer
         {
             builder.Add(part with
             {
-                Expression = part.Expression is not null ? ResolveExpression(part.Expression) : null,
+                Expression = part.Expression is not null ? ResolveExpression(part.Expression) : null
             });
         }
         return template with { Parts = builder.MoveToImmutable() };

@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine;

@@ -1,4 +1,3 @@
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
@@ -30,7 +29,7 @@ public sealed partial class IntlLocalePrototype
         ["wed"] = 3,
         ["thu"] = 4,
         ["fri"] = 5,
-        ["sat"] = 6,
+        ["sat"] = 6
     };
 
     [JsHostGetter("baseName", DisplayName = "get baseName")]

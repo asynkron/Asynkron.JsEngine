@@ -1,4 +1,3 @@
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
@@ -337,7 +336,7 @@ public static partial class StandardLibrary
                         {
                             onRejected(args.Count > 0 ? args[0].ToObject() : null);
                             return JsValue.Undefined;
-                        }, isConstructor: false),
+                        }, isConstructor: false)
                     ],
                     JsValue.FromObjectUnsafe(accessor));
                 return true;

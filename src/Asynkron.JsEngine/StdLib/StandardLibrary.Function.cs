@@ -16,7 +16,7 @@ public static partial class StandardLibrary
         HostFunction functionConstructor = null!;
         functionConstructor = new HostFunction((_, args) => FunctionConstructorBody(args, functionConstructor))
         {
-            RealmState = realm,
+            RealmState = realm
         };
 
         functionConstructor.SetInvokeWithContext((args, _, _, newTarget) =>
@@ -33,7 +33,7 @@ public static partial class StandardLibrary
             definable.TryDefineProperty("constructor",
                 new PropertyDescriptor
                 {
-                    Value = functionConstructor, Writable = true, Enumerable = false, Configurable = true,
+                    Value = functionConstructor, Writable = true, Enumerable = false, Configurable = true
                 }))
         {
             // property defined via descriptor
@@ -73,7 +73,7 @@ public static partial class StandardLibrary
 
             var scriptGoalOptions = new JsEngineOptions
             {
-                AllowImportMeta = false,
+                AllowImportMeta = false
             };
 
             ParsedProgram program;
@@ -126,7 +126,7 @@ public static partial class StandardLibrary
             double d when double.IsPositiveInfinity(d) => "Infinity",
             double d when double.IsNegativeInfinity(d) => "-Infinity",
             double d => d.ToString(CultureInfo.InvariantCulture),
-            _ => Convert.ToString(primitive, CultureInfo.InvariantCulture) ?? string.Empty,
+            _ => Convert.ToString(primitive, CultureInfo.InvariantCulture) ?? string.Empty
         };
     }
 

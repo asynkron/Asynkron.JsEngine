@@ -4,5 +4,5 @@ internal enum DeleteBindingResult
 {
     NotFound,
     Deleted,
-    NotDeletable,
+    NotDeletable
 }

@@ -1,4 +1,3 @@
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -67,7 +66,7 @@ public abstract partial class ErrorConstructorBase(IJsObjectLike prototype, Real
         instance.DefineProperty("message",
             new PropertyDescriptor
             {
-                Value = message, Writable = true, Enumerable = false, Configurable = true,
+                Value = message, Writable = true, Enumerable = false, Configurable = true
             });
     }
 

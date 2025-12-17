@@ -14,7 +14,7 @@ internal enum ToPrimitiveHint
 {
     Default,
     Number,
-    String,
+    String
 }
 
 internal static class JsOps
@@ -157,7 +157,7 @@ internal static class JsOps
             float f => !float.IsNaN(f) && f != 0,
             string s => s.Length > 0,
             JsBigInt bi => !bi.Value.IsZero,
-            _ => true,
+            _ => true
         };
     }
 
@@ -462,7 +462,7 @@ internal static class JsOps
         {
             "number" => ToPrimitiveHint.Number,
             "string" => ToPrimitiveHint.String,
-            _ => ToPrimitiveHint.Default,
+            _ => ToPrimitiveHint.Default
         };
         return ToPrimitive(value, hintEnum, context);
     }
@@ -522,7 +522,7 @@ internal static class JsOps
                     {
                         ToPrimitiveHint.Number => HintNumber,
                         ToPrimitiveHint.String => HintString,
-                        _ => HintDefault,
+                        _ => HintDefault
                     };
                     var result = TypedAstEvaluator.InvokeCallable(
                         toPrimFn,
@@ -747,7 +747,7 @@ internal static class JsOps
         LessThan,
         LessThanOrEqual,
         GreaterThan,
-        GreaterThanOrEqual,
+        GreaterThanOrEqual
     }
 
     public static bool GreaterThan(object? left, object? right, EvaluationContext? context = null)
@@ -809,7 +809,7 @@ internal static class JsOps
                 ComparisonOperator.LessThanOrEqual => comparison <= 0,
                 ComparisonOperator.GreaterThan => comparison > 0,
                 ComparisonOperator.GreaterThanOrEqual => comparison >= 0,
-                _ => false,
+                _ => false
             };
         }
 
@@ -829,7 +829,7 @@ internal static class JsOps
                 ComparisonOperator.LessThanOrEqual => leftAsBigInt! <= rightBi,
                 ComparisonOperator.GreaterThan => leftAsBigInt! > rightBi,
                 ComparisonOperator.GreaterThanOrEqual => leftAsBigInt! >= rightBi,
-                _ => false,
+                _ => false
             };
         }
 
@@ -847,7 +847,7 @@ internal static class JsOps
                 ComparisonOperator.LessThanOrEqual => leftBi <= rightAsBigInt!,
                 ComparisonOperator.GreaterThan => leftBi > rightAsBigInt!,
                 ComparisonOperator.GreaterThanOrEqual => leftBi >= rightAsBigInt!,
-                _ => false,
+                _ => false
             };
         }
 
@@ -873,7 +873,7 @@ internal static class JsOps
                 ComparisonOperator.LessThanOrEqual => leftBigInt <= rightBigInt,
                 ComparisonOperator.GreaterThan => leftBigInt > rightBigInt,
                 ComparisonOperator.GreaterThanOrEqual => leftBigInt >= rightBigInt,
-                _ => false,
+                _ => false
             };
         }
 
@@ -951,7 +951,7 @@ internal static class JsOps
                         ComparisonOperator.LessThanOrEqual => comparison <= 0,
                         ComparisonOperator.GreaterThan => comparison > 0,
                         ComparisonOperator.GreaterThanOrEqual => comparison >= 0,
-                        _ => false,
+                        _ => false
                     };
                 }
                 else
@@ -962,7 +962,7 @@ internal static class JsOps
                         ComparisonOperator.LessThanOrEqual => comparison >= 0,
                         ComparisonOperator.GreaterThan => comparison < 0,
                         ComparisonOperator.GreaterThanOrEqual => comparison <= 0,
-                        _ => false,
+                        _ => false
                     };
                 }
             }
@@ -979,7 +979,7 @@ internal static class JsOps
                         ComparisonOperator.LessThanOrEqual => comparison <= 0,
                         ComparisonOperator.GreaterThan => comparison > 0,
                         ComparisonOperator.GreaterThanOrEqual => comparison >= 0,
-                        _ => false,
+                        _ => false
                     };
                 }
                 else
@@ -990,7 +990,7 @@ internal static class JsOps
                         ComparisonOperator.LessThanOrEqual => comparison >= 0,
                         ComparisonOperator.GreaterThan => comparison < 0,
                         ComparisonOperator.GreaterThanOrEqual => comparison <= 0,
-                        _ => false,
+                        _ => false
                     };
                 }
             }
@@ -1010,7 +1010,7 @@ internal static class JsOps
             ComparisonOperator.LessThanOrEqual => leftNum <= rightNum,
             ComparisonOperator.GreaterThan => leftNum > rightNum,
             ComparisonOperator.GreaterThanOrEqual => leftNum >= rightNum,
-            _ => false,
+            _ => false
         };
     }
 
@@ -1344,7 +1344,7 @@ internal static class JsOps
             double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte => "number",
             string => "string",
             IJsCallable => "function",
-            _ => "object",
+            _ => "object"
         };
     }
 
@@ -1367,7 +1367,7 @@ internal static class JsOps
             double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte =>
                 JsValueType.Number,
             string => JsValueType.String,
-            _ => JsValueType.Object,
+            _ => JsValueType.Object
         };
     }
 
@@ -1435,7 +1435,7 @@ internal static class JsOps
         var expected = radix switch
         {
             16 => ('x', 'X'),
-            _ => ('?', '?'),
+            _ => ('?', '?')
         };
 
         if (prefixChar != expected.Item1 && prefixChar != expected.Item2)
@@ -1528,7 +1528,7 @@ internal static class JsOps
         String,
         Symbol,
         BigInt,
-        Object,
+        Object
     }
 
     /// <summary>
@@ -1974,7 +1974,7 @@ internal static class JsOps
                             HasValue = true,
                             HasWritable = true,
                             HasEnumerable = inheritedDescriptor.HasEnumerable,
-                            HasConfigurable = inheritedDescriptor.HasConfigurable,
+                            HasConfigurable = inheritedDescriptor.HasConfigurable
                         });
                         return true;
                     }
@@ -1983,7 +1983,7 @@ internal static class JsOps
                     {
                         IJsObjectLike objectLike => objectLike.Prototype,
                         IPrototypeAccessorProvider provider => provider.PrototypeAccessor,
-                        _ => null,
+                        _ => null
                     };
                 }
 

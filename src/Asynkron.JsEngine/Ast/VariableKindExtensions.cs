@@ -78,7 +78,7 @@ public static partial class TypedAstEvaluator
                 VariableKind.Const => BindingMode.DefineConst,
                 VariableKind.Using => BindingMode.DefineConst,
                 VariableKind.AwaitUsing => BindingMode.DefineConst,
-                _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
+                _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
             };
 
             if (context.RealmState.Logger is { } logger && targetIdentifier is not null)

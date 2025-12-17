@@ -285,7 +285,7 @@ public sealed class JsPromise
     {
         Pending,
         Fulfilled,
-        Rejected,
+        Rejected
     }
 
     /// <summary>

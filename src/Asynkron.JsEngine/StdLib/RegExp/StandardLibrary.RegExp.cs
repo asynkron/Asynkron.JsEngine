@@ -251,7 +251,7 @@ public static partial class StandardLibrary
                 }, isConstructor: false),
                 Set = null,
                 Enumerable = false,
-                Configurable = true,
+                Configurable = true
             };
         }
 
@@ -275,7 +275,7 @@ public static partial class StandardLibrary
                 return JsValue.Undefined;
             }, isConstructor: false),
             Enumerable = false,
-            Configurable = true,
+            Configurable = true
         };
 
         var lastMatchDescriptor = MakeAccessor(s => s.LastMatch);
@@ -309,7 +309,7 @@ public static partial class StandardLibrary
                     : JsValue.False, isConstructor: false),
             Set = null,
             Enumerable = false,
-            Configurable = true,
+            Configurable = true
         };
         constructor.DefineProperty("multiline", multilineDescriptor);
     }

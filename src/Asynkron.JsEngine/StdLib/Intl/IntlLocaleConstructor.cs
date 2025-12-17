@@ -1,4 +1,3 @@
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -10,12 +9,12 @@ public sealed partial class IntlLocaleConstructor : JsConstructor
 {
     private static readonly HashSet<string> HourCycleValues = new(StringComparer.Ordinal)
     {
-        "h11", "h12", "h23", "h24",
+        "h11", "h12", "h23", "h24"
     };
 
     private static readonly HashSet<string> CaseFirstValues = new(StringComparer.Ordinal)
     {
-        "upper", "lower", "false",
+        "upper", "lower", "false"
     };
 
     public IntlLocaleConstructor(IJsObjectLike prototype, RealmState realm) : base(prototype, realm)
@@ -331,7 +330,7 @@ public sealed partial class IntlLocaleConstructor : JsConstructor
             5 => "fri",
             6 => "sat",
             7 => "sun",
-            _ => string.Empty,
+            _ => string.Empty
         };
 
         return normalized.Length > 0;

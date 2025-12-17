@@ -1,8 +1,6 @@
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
-using Asynkron.JsEngine.Parser;
-using Asynkron.JsEngine;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -84,7 +82,7 @@ public static partial class TypedAstEvaluator
             var values = statement.Kind switch
             {
                 ForEachKind.In => EnumeratePropertyKeys(iterable),
-                _ => throw new ArgumentOutOfRangeException(),
+                _ => throw new ArgumentOutOfRangeException()
             };
 
             foreach (var value in values)

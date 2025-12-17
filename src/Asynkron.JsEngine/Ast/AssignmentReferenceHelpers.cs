@@ -186,7 +186,7 @@ public static partial class TypedAstEvaluator
             TypedAstSymbol => true,
             JsBigInt => true,
             double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte => true,
-            _ => false,
+            _ => false
         };
     }
 
@@ -213,7 +213,7 @@ public static partial class TypedAstEvaluator
             JsBigInt bi => StandardLibrary.CreateBigIntWrapper(bi, context, realm),
             double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte =>
                 StandardLibrary.CreateNumberWrapper(JsOps.ToNumber(primitiveTarget), context, realm),
-            _ => throw new InvalidOperationException($"Unexpected primitive type: {primitiveTarget?.GetType()}"),
+            _ => throw new InvalidOperationException($"Unexpected primitive type: {primitiveTarget?.GetType()}")
         };
 
         // Per ES spec 6.2.3.2 PutValue, the [[Set]] operation is performed on the wrapper object
@@ -371,7 +371,7 @@ public static partial class TypedAstEvaluator
             TypedAstSymbol => "symbol",
             JsBigInt => "bigint",
             double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte => "number",
-            _ => "primitive",
+            _ => "primitive"
         };
     }
 }

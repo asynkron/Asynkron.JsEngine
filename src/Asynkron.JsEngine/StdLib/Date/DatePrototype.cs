@@ -565,7 +565,7 @@ public sealed partial class DatePrototype : JsPrototype
         prototype.DefineProperty("toGMTString",
             new PropertyDescriptor
             {
-                Value = toUtcObj, Writable = true, Enumerable = false, Configurable = true,
+                Value = toUtcObj, Writable = true, Enumerable = false, Configurable = true
             });
     }
 }

@@ -91,7 +91,7 @@ internal static class NumericStringParser
         var expected = radix switch
         {
             16 => ('x', 'X'),
-            _ => ('?', '?'),
+            _ => ('?', '?')
         };
 
         if (prefixChar != expected.Item1 && prefixChar != expected.Item2)

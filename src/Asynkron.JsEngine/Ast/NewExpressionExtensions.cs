@@ -305,7 +305,7 @@ public static partial class TypedAstEvaluator
             {
                 IJsPropertyAccessor => resultObject,
                 IJsCallable => resultObject,
-                _ => instance ?? resultObject,
+                _ => instance ?? resultObject
             };
 
             // If the constructor did not supply its own object, ensure the returned

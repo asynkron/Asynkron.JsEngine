@@ -23,7 +23,7 @@ public static partial class StandardLibrary
                 HasValue = true,
                 HasWritable = true,
                 HasEnumerable = true,
-                HasConfigurable = true,
+                HasConfigurable = true
             });
         wrapper.SetVirtualPropertyProvider(new StringVirtualPropertyProvider(str));
         wrapper.RealmState ??= realm;
@@ -38,7 +38,7 @@ public static partial class StandardLibrary
             JsObject obj when obj.TryGetProperty("__value__", out var inner) && inner.TryGetString(out var s) => s,
             IJsPropertyAccessor accessor when accessor.TryGetProperty("__value__", out var inner)
                                               && inner.TryGetString(out var s) => s,
-            _ => throw ThrowTypeError("String.prototype valueOf called on non-string object", realm: realm),
+            _ => throw ThrowTypeError("String.prototype valueOf called on non-string object", realm: realm)
         };
     }
 
@@ -908,7 +908,7 @@ public static partial class StandardLibrary
                     "NFKC" => value.Normalize(NormalizationForm.FormKC),
                     "NFKD" => value.Normalize(NormalizationForm.FormKD),
                     _ => throw new Exception(
-                        "RangeError: The normalization form should be one of NFC, NFD, NFKC, NFKD."),
+                        "RangeError: The normalization form should be one of NFC, NFD, NFKC, NFKD.")
                 });
             }
             catch
@@ -1440,7 +1440,7 @@ public static partial class StandardLibrary
                 HasValue = true,
                 HasWritable = true,
                 HasEnumerable = true,
-                HasConfigurable = true,
+                HasConfigurable = true
             };
             return true;
         }

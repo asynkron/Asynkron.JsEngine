@@ -264,7 +264,7 @@ public static class JsValueCache
             2 => Pool2.Rent(),
             3 => Pool3.Rent(),
             4 => Pool4.Rent(),
-            _ => new object?[size],
+            _ => new object?[size]
         };
     }
 
@@ -356,7 +356,7 @@ public static class JsValueCache
             2 => JsValuePool2.Rent(),
             3 => JsValuePool3.Rent(),
             4 => JsValuePool4.Rent(),
-            _ => new JsValue[size],
+            _ => new JsValue[size]
         };
     }
 

@@ -1,5 +1,4 @@
 using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -281,7 +280,7 @@ public static partial class TypedAstEvaluator
             BinaryOperator.In => InOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
             BinaryOperator.InstanceOf => InstanceofOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
             _ => throw new NotSupportedException(
-                $"Compound assignment operator '{binary.Operator}' is not supported yet."),
+                $"Compound assignment operator '{binary.Operator}' is not supported yet.")
         };
         shouldAssign = true;
 
@@ -382,7 +381,7 @@ public static partial class TypedAstEvaluator
             BinaryOperator.In => InOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
             BinaryOperator.InstanceOf => InstanceofOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
             _ => throw new NotSupportedException(
-                $"Compound assignment operator '{binary.Operator}' is not supported yet."),
+                $"Compound assignment operator '{binary.Operator}' is not supported yet.")
         };
         shouldAssign = true;
 
@@ -488,7 +487,7 @@ public static partial class TypedAstEvaluator
             BinaryOperator.In => InOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
             BinaryOperator.InstanceOf => InstanceofOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
             _ => throw new NotSupportedException(
-                $"Compound assignment operator '{binary.Operator}' is not supported yet."),
+                $"Compound assignment operator '{binary.Operator}' is not supported yet.")
         };
         shouldAssign = true;
 

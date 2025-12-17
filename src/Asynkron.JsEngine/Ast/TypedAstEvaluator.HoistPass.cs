@@ -5,6 +5,6 @@ public static partial class TypedAstEvaluator
     private enum HoistPass
     {
         Functions,
-        Vars,
+        Vars
     }
 }

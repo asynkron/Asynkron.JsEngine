@@ -43,7 +43,7 @@ public enum BinaryOperator : byte
 
     // Other
     In,               // in
-    InstanceOf,       // instanceof
+    InstanceOf // instanceof
 }
 
 /// <summary>
@@ -62,7 +62,7 @@ public enum UnaryOperator : byte
 
     // Update operators (prefix and postfix)
     Increment,        // ++
-    Decrement,        // --
+    Decrement // --
 }
 
 /// <summary>
@@ -302,7 +302,7 @@ public enum ObjectMemberKind
     Setter,
     Field,
     Spread,
-    Unknown,
+    Unknown
 }
 
 /// <summary>

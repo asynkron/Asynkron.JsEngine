@@ -62,7 +62,7 @@ public static partial class TypedAstEvaluator
                             Value = value,
                             Writable = true,
                             Enumerable = true,
-                            Configurable = true,
+                            Configurable = true
                         });
                         break;
                 }
@@ -103,7 +103,7 @@ public static partial class TypedAstEvaluator
                             Value = callable,
                             Writable = true,
                             Enumerable = true,
-                            Configurable = true,
+                            Configurable = true
                         });
                         break;
                     }
@@ -163,7 +163,7 @@ public static partial class TypedAstEvaluator
                             Value = value,
                             Writable = true,
                             Enumerable = true,
-                            Configurable = true,
+                            Configurable = true
                         });
                         break;
                     }
@@ -191,7 +191,7 @@ public static partial class TypedAstEvaluator
                                     Value = kvp.Value,
                                     Writable = true,
                                     Enumerable = true,
-                                    Configurable = true,
+                                    Configurable = true
                                 });
                             }
 
@@ -212,7 +212,7 @@ public static partial class TypedAstEvaluator
                                 Value = spreadPropertyValue,
                                 Writable = true,
                                 Enumerable = true,
-                                Configurable = true,
+                                Configurable = true
                             });
                         }
 

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -63,7 +62,7 @@ public sealed partial class FunctionPrototype : JsPrototype
             isConstructor: false);
         var poisonDescriptor = new PropertyDescriptor
         {
-            Get = thrower, Set = thrower, Enumerable = false, Configurable = true,
+            Get = thrower, Set = thrower, Enumerable = false, Configurable = true
         };
         Prototype.DefineProperty("caller", poisonDescriptor);
         Prototype.DefineProperty("arguments", poisonDescriptor);
@@ -108,7 +107,7 @@ public sealed partial class FunctionPrototype : JsPrototype
         hasInstance.DefineProperty("name",
             new PropertyDescriptor
             {
-                Value = "[Symbol.hasInstance]", Writable = false, Enumerable = false, Configurable = true,
+                Value = "[Symbol.hasInstance]", Writable = false, Enumerable = false, Configurable = true
             });
         hasInstance.DefineProperty("length",
             new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
@@ -116,7 +115,7 @@ public sealed partial class FunctionPrototype : JsPrototype
         Prototype.DefineProperty(hasInstanceKey,
             new PropertyDescriptor
             {
-                Value = hasInstance, Writable = false, Enumerable = false, Configurable = false,
+                Value = hasInstance, Writable = false, Enumerable = false, Configurable = false
             });
     }
 }

@@ -28,7 +28,7 @@ internal static class IntlLocaleData
                                 "Could not load embedded Intl locale data.");
         var options = new JsonSerializerOptions
         {
-            PropertyNameCaseInsensitive = true,
+            PropertyNameCaseInsensitive = true
         };
         var data = JsonSerializer.Deserialize<LocaleData>(stream, options)
                    ?? throw new InvalidOperationException("Intl locale data is missing.");

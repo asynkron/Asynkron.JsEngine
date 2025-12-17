@@ -224,7 +224,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             {
                 return new PropertyDescriptor
                 {
-                    Value = value, Writable = true, Enumerable = true, Configurable = true,
+                    Value = value, Writable = true, Enumerable = true, Configurable = true
                 };
             }
         }
@@ -730,7 +730,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                                    Value = (double)_length,
                                    Writable = true,
                                    Enumerable = false,
-                                   Configurable = false,
+                                   Configurable = false
                                };
 
         // When the descriptor omits [[Value]], perform ordinary validation /
@@ -825,7 +825,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         _properties.DefineProperty("length",
             new PropertyDescriptor
             {
-                Value = (double)_length, Writable = true, Enumerable = false, Configurable = false,
+                Value = (double)_length, Writable = true, Enumerable = false, Configurable = false
             });
     }
 
@@ -929,7 +929,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             < 10000000 => 7,
             < 100000000 => 8,
             < 1000000000 => 9,
-            _ => 10,
+            _ => 10
         };
 
         if (propertyName.Length != expectedLength)
@@ -975,7 +975,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                                    Value = (double)_length,
                                    Writable = true,
                                    Enumerable = false,
-                                   Configurable = false,
+                                   Configurable = false
                                };
 
         var oldLength = _length;

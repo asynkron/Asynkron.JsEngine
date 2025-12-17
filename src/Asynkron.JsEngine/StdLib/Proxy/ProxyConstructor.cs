@@ -28,7 +28,7 @@ public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState
                 HasValue = true,
                 HasWritable = true,
                 HasEnumerable = true,
-                HasConfigurable = true,
+                HasConfigurable = true
             });
 
         DefineBuiltinFunction(constructor.PropertiesObject, "revocable",
@@ -44,7 +44,7 @@ public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState
             HasValue = true,
             HasWritable = true,
             HasEnumerable = true,
-            HasConfigurable = true,
+            HasConfigurable = true
         });
     }
 

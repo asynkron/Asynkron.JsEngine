@@ -1,9 +1,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
-using System.Diagnostics;
 using System.Threading.Channels;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
@@ -150,12 +148,12 @@ public sealed class JsEngine : IAsyncDisposable
         GlobalObject.DefineProperty("Array",
             new PropertyDescriptor
             {
-                Value = arrayConstructor, Writable = true, Enumerable = false, Configurable = true,
+                Value = arrayConstructor, Writable = true, Enumerable = false, Configurable = true
             });
         GlobalObject.DefineProperty("BigInt",
             new PropertyDescriptor
             {
-                Value = bigIntFunction, Writable = true, Enumerable = false, Configurable = true,
+                Value = bigIntFunction, Writable = true, Enumerable = false, Configurable = true
             });
 
         // Register global constants
@@ -163,7 +161,7 @@ public sealed class JsEngine : IAsyncDisposable
         GlobalObject.DefineProperty("Infinity",
             new PropertyDescriptor
             {
-                Value = double.PositiveInfinity, Writable = false, Enumerable = false, Configurable = false,
+                Value = double.PositiveInfinity, Writable = false, Enumerable = false, Configurable = false
             });
 
         SetGlobal("NaN", double.NaN, true);
@@ -174,7 +172,7 @@ public sealed class JsEngine : IAsyncDisposable
         GlobalObject.DefineProperty("undefined",
             new PropertyDescriptor
             {
-                Value = Symbol.Undefined, Writable = false, Enumerable = false, Configurable = false,
+                Value = Symbol.Undefined, Writable = false, Enumerable = false, Configurable = false
             });
 
         // Register global functions
@@ -393,7 +391,7 @@ public sealed class JsEngine : IAsyncDisposable
             ContinueCompletionSignal => "Continue",
             ThrowFlowCompletionSignal => "Throw",
             YieldCompletionSignal => "Yield",
-            _ => "Unknown",
+            _ => "Unknown"
         };
 
         // Get the call stack by traversing the environment chain
@@ -543,7 +541,7 @@ public sealed class JsEngine : IAsyncDisposable
         _eventQueue = Channel.CreateUnbounded<Func<ValueTask>>(new UnboundedChannelOptions
         {
             SingleReader = true,
-            SingleWriter = false,
+            SingleWriter = false
         });
         _eventLoopTask = Task.Run(() => ProcessEventQueue(_eventQueue));
     }
@@ -1487,7 +1485,7 @@ public sealed class JsEngine : IAsyncDisposable
     {
         var entry = new ModuleEntry(modulePath ?? string.Empty, program, environment, exports)
         {
-            IsAsync = hasTopLevelAwait || ContainsTopLevelAwait(program),
+            IsAsync = hasTopLevelAwait || ContainsTopLevelAwait(program)
         };
         environment.IsAsyncModule = entry.IsAsync;
         EnsureModuleImportMeta(entry);
@@ -1637,7 +1635,7 @@ public sealed class JsEngine : IAsyncDisposable
                 HasValue = true,
                 HasWritable = true,
                 HasEnumerable = true,
-                HasConfigurable = true,
+                HasConfigurable = true
             });
 
         entry.Environment.DefineJsValue(Symbol.ImportMeta, (JsValue)importMeta, isConst: true, isLexical: true,
@@ -1840,7 +1838,7 @@ public sealed class JsEngine : IAsyncDisposable
             Value = value,
             Writable = !isGlobalConstant,
             Enumerable = false,
-            Configurable = !isGlobalConstant,
+            Configurable = !isGlobalConstant
         });
     }
 
@@ -2371,7 +2369,7 @@ public sealed class JsEngine : IAsyncDisposable
     {
         Module,
         Defer,
-        Source,
+        Source
     }
 
     private JsValue DynamicImport(
@@ -2900,7 +2898,7 @@ public sealed class JsEngine : IAsyncDisposable
         {
             ImportPhase.Defer => entry.DeferredNamespace,
             _ when _moduleNamespaces.TryGetValue(entry.Exports, out var eager) => eager,
-            _ => entry.Namespace,
+            _ => entry.Namespace
         };
 
         if (cached is not null)
@@ -3175,7 +3173,7 @@ public sealed class JsEngine : IAsyncDisposable
     {
         NotFound,
         Resolved,
-        Ambiguous,
+        Ambiguous
     }
 
     private readonly record struct ExportResolution(ExportResolutionKind Kind, ModuleEntry? Module, Symbol BindingName)
@@ -4506,12 +4504,12 @@ public sealed class JsEngine : IAsyncDisposable
                 {
                     double d => -d,
                     long l => -l,
-                    _ => -JsOps.ToNumber(operand, null),
+                    _ => -JsOps.ToNumber(operand, null)
                 },
                 UnaryOperator.BitwiseNot => ~(int)JsOps.ToNumber(operand, null),
                 UnaryOperator.Void => Symbol.Undefined,
                 UnaryOperator.TypeOf => JsOps.GetTypeofString(operand),
-                _ => throw new NotSupportedException($"Unary operator '{op}' is not supported in async module context."),
+                _ => throw new NotSupportedException($"Unary operator '{op}' is not supported in async module context.")
             };
         }
 
@@ -5128,7 +5126,7 @@ public sealed class JsEngine : IAsyncDisposable
             {
                 FunctionExpression { Name: null } => true,
                 ClassExpression { Name: null } => true,
-                _ => false,
+                _ => false
             };
 
             var value = ExecuteTypedExpression(
@@ -5170,7 +5168,7 @@ public sealed class JsEngine : IAsyncDisposable
                     : classDeclaration.Name;
                 return moduleEnv.Get(bindingName);
             }),
-            _ => Symbol.Undefined,
+            _ => Symbol.Undefined
         };
     }
 

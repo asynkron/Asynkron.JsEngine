@@ -1,4 +1,3 @@
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
@@ -18,7 +17,7 @@ public sealed partial class IntlDisplayNamesPrototype
     private static readonly HashSet<string> DateTimeFieldValues = new(StringComparer.Ordinal)
     {
         "era", "year", "quarter", "month", "weekOfYear", "weekday", "day",
-        "dayPeriod", "hour", "minute", "second", "relative", "timeZoneName",
+        "dayPeriod", "hour", "minute", "second", "relative", "timeZoneName"
     };
 
     internal static void InitializeInternalSlots(JsObject instance, string locale, string style, string type,
@@ -95,7 +94,7 @@ public sealed partial class IntlDisplayNamesPrototype
             "calendar" => CanonicalizeCalendar(code),
             "language" => CanonicalizeLanguage(code),
             "dateTimeField" => CanonicalizeDateTimeField(code),
-            _ => throw ThrowRangeError($"Unsupported Intl.DisplayNames type '{type}'", realm: Realm),
+            _ => throw ThrowRangeError($"Unsupported Intl.DisplayNames type '{type}'", realm: Realm)
         };
     }
 

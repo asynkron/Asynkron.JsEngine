@@ -369,7 +369,7 @@ public static partial class StandardLibrary
             Value = value,
             Writable = true,
             Enumerable = true,
-            Configurable = true,
+            Configurable = true
         };
 
         if (target is IPropertyDefinitionHost definitionHost)

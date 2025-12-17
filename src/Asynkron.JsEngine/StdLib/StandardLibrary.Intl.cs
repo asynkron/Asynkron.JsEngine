@@ -18,21 +18,21 @@ public static partial class StandardLibrary
                 Value = "Intl",
                 Writable = false,
                 Enumerable = false,
-                Configurable = true,
+                Configurable = true
             });
 
         var localeCtor = IntlLocaleConstructor.CreateConstructor(realm);
         intl.DefineProperty("Locale",
             new PropertyDescriptor
             {
-                Value = localeCtor, Writable = true, Enumerable = false, Configurable = true,
+                Value = localeCtor, Writable = true, Enumerable = false, Configurable = true
             });
 
         var durationFormatCtor = IntlDurationFormatConstructor.CreateConstructor(realm);
         intl.DefineProperty("DurationFormat",
             new PropertyDescriptor
             {
-                Value = durationFormatCtor, Writable = true, Enumerable = false, Configurable = true,
+                Value = durationFormatCtor, Writable = true, Enumerable = false, Configurable = true
             });
 
         var collatorCtor = IntlCollatorConstructor.CreateConstructor(realm);
@@ -43,28 +43,28 @@ public static partial class StandardLibrary
         intl.DefineProperty("DateTimeFormat",
             new PropertyDescriptor
             {
-                Value = dateTimeFormatCtor, Writable = true, Enumerable = false, Configurable = true,
+                Value = dateTimeFormatCtor, Writable = true, Enumerable = false, Configurable = true
             });
 
         var numberFormatCtor = IntlNumberFormatConstructor.CreateConstructor(realm);
         intl.DefineProperty("NumberFormat",
             new PropertyDescriptor
             {
-                Value = numberFormatCtor, Writable = true, Enumerable = false, Configurable = true,
+                Value = numberFormatCtor, Writable = true, Enumerable = false, Configurable = true
             });
 
         var relativeTimeFormatCtor = IntlRelativeTimeFormatConstructor.CreateConstructor(realm);
         intl.DefineProperty("RelativeTimeFormat",
             new PropertyDescriptor
             {
-                Value = relativeTimeFormatCtor, Writable = true, Enumerable = false, Configurable = true,
+                Value = relativeTimeFormatCtor, Writable = true, Enumerable = false, Configurable = true
             });
 
         var displayNamesCtor = IntlDisplayNamesConstructor.CreateConstructor(realm);
         intl.DefineProperty("DisplayNames",
             new PropertyDescriptor
             {
-                Value = displayNamesCtor, Writable = true, Enumerable = false, Configurable = true,
+                Value = displayNamesCtor, Writable = true, Enumerable = false, Configurable = true
             });
 
         var getCanonicalLocales = new HostFunction(args => JsValue.FromObjectUnsafe(CreateCanonicalLocalesResult(args)), realm,
@@ -74,14 +74,14 @@ public static partial class StandardLibrary
         getCanonicalLocales.DefineProperty("name",
             new PropertyDescriptor
             {
-                Value = "getCanonicalLocales", Writable = false, Enumerable = false, Configurable = true,
+                Value = "getCanonicalLocales", Writable = false, Enumerable = false, Configurable = true
             });
         getCanonicalLocales.Delete("prototype");
 
         intl.DefineProperty("getCanonicalLocales",
             new PropertyDescriptor
             {
-                Value = getCanonicalLocales, Writable = true, Enumerable = false, Configurable = true,
+                Value = getCanonicalLocales, Writable = true, Enumerable = false, Configurable = true
             });
 
         var supportedValuesOf =
@@ -91,14 +91,14 @@ public static partial class StandardLibrary
         supportedValuesOf.DefineProperty("name",
             new PropertyDescriptor
             {
-                Value = "supportedValuesOf", Writable = false, Enumerable = false, Configurable = true,
+                Value = "supportedValuesOf", Writable = false, Enumerable = false, Configurable = true
             });
         supportedValuesOf.Delete("prototype");
 
         intl.DefineProperty("supportedValuesOf",
             new PropertyDescriptor
             {
-                Value = supportedValuesOf, Writable = true, Enumerable = false, Configurable = true,
+                Value = supportedValuesOf, Writable = true, Enumerable = false, Configurable = true
             });
 
         return intl;
@@ -226,7 +226,7 @@ public static partial class StandardLibrary
         durationCtor.DefineProperty("prototype",
             new PropertyDescriptor
             {
-                Value = durationPrototype, Writable = false, Enumerable = false, Configurable = false,
+                Value = durationPrototype, Writable = false, Enumerable = false, Configurable = false
             });
         durationPrototype.DefineProperty("constructor",
             new PropertyDescriptor { Value = durationCtor, Writable = true, Enumerable = false, Configurable = true });

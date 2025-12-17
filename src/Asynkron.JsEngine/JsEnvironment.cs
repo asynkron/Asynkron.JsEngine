@@ -519,7 +519,7 @@ public sealed class JsEnvironment
                 { Configurable: true } => true,
                 _ => !existingDescriptor.IsAccessorDescriptor &&
                      existingDescriptor.Writable &&
-                     existingDescriptor.Enumerable,
+                     existingDescriptor.Enumerable
             };
 
             if (!canDeclareFunction)
@@ -627,7 +627,7 @@ public sealed class JsEnvironment
                             name.Name,
                         new PropertyDescriptor
                         {
-                            Value = initialValue, Writable = true, Enumerable = true, Configurable = configurable,
+                            Value = initialValue, Writable = true, Enumerable = true, Configurable = configurable
                         }))
                     {
                         throw StandardLibrary.ThrowTypeError(
@@ -642,7 +642,7 @@ public sealed class JsEnvironment
                             name.Name,
                         new PropertyDescriptor
                         {
-                            Value = initialValue, Writable = true, Enumerable = true, Configurable = configurable,
+                            Value = initialValue, Writable = true, Enumerable = true, Configurable = configurable
                         }))
                     {
                         throw StandardLibrary.ThrowTypeError(
@@ -658,7 +658,7 @@ public sealed class JsEnvironment
                             name.Name,
                         new PropertyDescriptor
                         {
-                            Value = initialValue,
+                            Value = initialValue
                         }))
                     {
                         throw StandardLibrary.ThrowTypeError(
@@ -679,7 +679,7 @@ public sealed class JsEnvironment
                             Value = initialValue,
                             Writable = true,
                             Enumerable = true,
-                            Configurable = varBindingConfigurable,
+                            Configurable = varBindingConfigurable
                         }))
                     {
                         throw StandardLibrary.ThrowTypeError(
@@ -2550,7 +2550,7 @@ public sealed class JsEnvironment
         BlocksFunctionScopeOverride = 8,
         CanDelete = 16,
         IsImmutableBinding = 32,
-        HasSpecialBinding = 64, // When set, _value holds ISpecialBinding
+        HasSpecialBinding = 64 // When set, _value holds ISpecialBinding
     }
 
     /// <summary>

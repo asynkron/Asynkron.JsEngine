@@ -1,4 +1,3 @@
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -28,13 +27,13 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
         supportedLocalesOf.DefineProperty("name",
             new PropertyDescriptor
             {
-                Value = "supportedLocalesOf", Writable = false, Enumerable = false, Configurable = true,
+                Value = "supportedLocalesOf", Writable = false, Enumerable = false, Configurable = true
             });
 
         constructor.DefineProperty("supportedLocalesOf",
             new PropertyDescriptor
             {
-                Value = supportedLocalesOf, Writable = true, Enumerable = false, Configurable = true,
+                Value = supportedLocalesOf, Writable = true, Enumerable = false, Configurable = true
             });
         supportedLocalesOf.SetPrototype(constructor.Prototype);
         supportedLocalesOf.Delete("prototype");
@@ -96,7 +95,7 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
             UseGrouping = useGrouping,
             Notation = notation,
             SignDisplay = signDisplay,
-            Culture = culture,
+            Culture = culture
         };
     }
 
@@ -215,7 +214,7 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
                 "never" => false,
                 "true" => true,
                 _ => throw StandardLibrary.ThrowRangeError(
-                    $"Invalid value '{stringValue}' for Intl.NumberFormat useGrouping option", realm: Realm),
+                    $"Invalid value '{stringValue}' for Intl.NumberFormat useGrouping option", realm: Realm)
             };
         }
 
@@ -239,7 +238,7 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
         {
             "currency" => currencyDigits,
             "percent" => 0,
-            _ => 3,
+            _ => 3
         };
 
         var minimumFractionDigits = GetDigitOption(options, "minimumFractionDigits", 0, 20, minimumFractionDefault);
@@ -262,7 +261,7 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
                 MinimumFractionDigits = minimumFractionDigits,
                 MaximumFractionDigits = maximumFractionDigits,
                 MinimumSignificantDigits = minimumSignificantDigits,
-                MaximumSignificantDigits = maximumSignificantDigits,
+                MaximumSignificantDigits = maximumSignificantDigits
             };
         }
 
@@ -276,7 +275,7 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
         {
             MinimumIntegerDigits = minimumIntegerDigits,
             MinimumFractionDigits = minimumFractionDigits,
-            MaximumFractionDigits = maximumFractionDigits,
+            MaximumFractionDigits = maximumFractionDigits
         };
     }
 

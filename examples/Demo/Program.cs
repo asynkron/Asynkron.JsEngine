@@ -1,5 +1,4 @@
 using Asynkron.JsEngine;
-using System;
 
 var engine = new JsEngine();
 

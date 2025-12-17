@@ -87,7 +87,7 @@ public sealed partial class ArrayConstructor : JsConstructor
         {
             HostFunction { RealmState: { } hostRealm } => hostRealm,
             TypedAstEvaluator.TypedFunction { RealmState: { } tfRealm } => tfRealm,
-            _ => Realm,
+            _ => Realm
         };
     }
 
@@ -145,7 +145,7 @@ var result = StandardLibrary.ArrayIsArray(args.GetArgument(0), Realm);
         constructor.DefineProperty("isArray",
             new PropertyDescriptor
             {
-                Value = isArray, Writable = true, Enumerable = false, Configurable = true,
+                Value = isArray, Writable = true, Enumerable = false, Configurable = true
             });
     }
 
@@ -162,7 +162,7 @@ var result = StandardLibrary.ArrayIsArray(args.GetArgument(0), Realm);
         constructor.DefineProperty("from",
             new PropertyDescriptor
             {
-                Value = arrayFrom, Writable = true, Enumerable = false, Configurable = true,
+                Value = arrayFrom, Writable = true, Enumerable = false, Configurable = true
             });
     }
 
@@ -179,7 +179,7 @@ var result = StandardLibrary.ArrayIsArray(args.GetArgument(0), Realm);
         constructor.DefineProperty("fromAsync",
             new PropertyDescriptor
             {
-                Value = arrayFromAsync, Writable = true, Enumerable = false, Configurable = true,
+                Value = arrayFromAsync, Writable = true, Enumerable = false, Configurable = true
             });
     }
 
@@ -196,7 +196,7 @@ var result = StandardLibrary.ArrayIsArray(args.GetArgument(0), Realm);
         constructor.DefineProperty("of",
             new PropertyDescriptor
             {
-                Value = arrayOf, Writable = true, Enumerable = false, Configurable = true,
+                Value = arrayOf, Writable = true, Enumerable = false, Configurable = true
             });
     }
 
@@ -209,7 +209,7 @@ var result = StandardLibrary.ArrayIsArray(args.GetArgument(0), Realm);
                 Value = "get [Symbol.species]",
                 Writable = false,
                 Enumerable = false,
-                Configurable = true,
+                Configurable = true
             });
         speciesGetter.DefineProperty("length",
             new PropertyDescriptor
@@ -217,7 +217,7 @@ var result = StandardLibrary.ArrayIsArray(args.GetArgument(0), Realm);
                 Value = 0d,
                 Writable = false,
                 Enumerable = false,
-                Configurable = true,
+                Configurable = true
             });
 
         constructor.DefineProperty(StandardLibrary.SymbolSpeciesKey,
@@ -225,7 +225,7 @@ var result = StandardLibrary.ArrayIsArray(args.GetArgument(0), Realm);
             {
                 Get = speciesGetter,
                 Enumerable = false,
-                Configurable = true,
+                Configurable = true
             });
     }
 }

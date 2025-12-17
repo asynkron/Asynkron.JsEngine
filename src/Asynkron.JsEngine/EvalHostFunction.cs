@@ -1,9 +1,7 @@
 using System.Collections.Immutable;
-using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
-using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
@@ -26,7 +24,7 @@ internal enum EvalValidationFlags
     ContainsNewTargetInFunctions = 1 << 6,
     ContainsSuperReferenceInFunctions = 1 << 7,
     ContainsSuperCallInFunctions = 1 << 8,
-    ContainsArgumentsInFunctions = 1 << 9,
+    ContainsArgumentsInFunctions = 1 << 9
 }
 
 /// <summary>
@@ -994,7 +992,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             ForStatement => LabelTargetKind.Iteration,
             ForEachStatement => LabelTargetKind.Iteration,
             SwitchStatement => LabelTargetKind.Switch,
-            _ => LabelTargetKind.Other,
+            _ => LabelTargetKind.Other
         };
     }
 
@@ -1025,7 +1023,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
     {
         Other,
         Iteration,
-        Switch,
+        Switch
     }
 
     private static bool CanDeclareGlobalFunction(JsEnvironment varEnv, Symbol name)
@@ -1042,7 +1040,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             { Configurable: true } => true,
             _ => !descriptor.IsAccessorDescriptor &&
                  descriptor.Writable &&
-                 descriptor.Enumerable,
+                 descriptor.Enumerable
         };
     }
 

@@ -17,7 +17,7 @@ public static partial class StandardLibrary
             "EvalError" => EvalErrorConstructor.CreateConstructor(realm),
             "URIError" => UriErrorConstructor.CreateConstructor(realm),
             "AggregateError" => AggregateErrorConstructor.CreateConstructor(realm),
-            _ => ErrorConstructor.CreateConstructor(realm),
+            _ => ErrorConstructor.CreateConstructor(realm)
         };
     }
 }

@@ -40,7 +40,7 @@ internal static class IntlNumberFormatter
                 new List<NumberFormatPart>
                 {
                     new("minusSign", minus),
-                    new("infinity", infinity),
+                    new("infinity", infinity)
                 });
         }
 
@@ -79,7 +79,7 @@ internal static class IntlNumberFormatter
             "scientific" => FormatScientificNotation(quantity, slots, scientific: true),
             "engineering" => FormatScientificNotation(quantity, slots, scientific: false),
             _ => IntlNumberFormatResult.FromLiteral(
-                FormatDecimal(quantity, slots, slots.UseGrouping, trimTrailingZeros: false).Formatted),
+                FormatDecimal(quantity, slots, slots.UseGrouping, trimTrailingZeros: false).Formatted)
         };
 
         var showNegative = wasNegative;
@@ -98,7 +98,7 @@ internal static class IntlNumberFormatter
                 IntlNumberFormatResult.FromLiteral(FormatCurrency(result.Formatted, slots)),
             "unit" when slots.Unit is { Length: > 0 } =>
                 IntlNumberFormatResult.FromLiteral($"{result.Formatted} {slots.Unit}"),
-            _ => result,
+            _ => result
         };
     }
 
@@ -153,7 +153,7 @@ internal static class IntlNumberFormatter
                 Formatted = integerPortion,
                 IntegerDigits = integerPortion,
                 FractionDigits = null,
-                DecimalSeparator = separator,
+                DecimalSeparator = separator
             };
         }
 
@@ -162,7 +162,7 @@ internal static class IntlNumberFormatter
             Formatted = $"{integerPortion}{separator}{fractionDigits}",
             IntegerDigits = integerPortion,
             FractionDigits = fractionDigits,
-            DecimalSeparator = separator,
+            DecimalSeparator = separator
         };
     }
 
@@ -188,7 +188,7 @@ internal static class IntlNumberFormatter
             {
                 new("integer", "0"),
                 new("exponentSeparator", "E"),
-                new("exponentInteger", "0"),
+                new("exponentInteger", "0")
             };
             return IntlNumberFormatResult.FromParts("0E0", zeroParts);
         }
@@ -230,7 +230,7 @@ internal static class IntlNumberFormatter
         {
             Coefficient = adjustedCoefficient,
             Scale = adjustedScale,
-            IsNegative = false,
+            IsNegative = false
         };
 
         ApplyMaximumFractionDigits(mantissaQuantity, slots.MaximumFractionDigits);
@@ -509,7 +509,7 @@ internal static class IntlNumberFormatter
             1 => $"{formatted}{symbol}",
             2 => $"{symbol}{formatted}",
             3 => $"{symbol}{space}{formatted}",
-            _ => $"{formatted}{symbol}",
+            _ => $"{formatted}{symbol}"
         };
     }
 
@@ -519,7 +519,7 @@ internal static class IntlNumberFormatter
         {
             "code" => slots.Currency ?? string.Empty,
             "name" => slots.Currency ?? string.Empty,
-            _ => slots.Currency ?? string.Empty,
+            _ => slots.Currency ?? string.Empty
         };
 
         if (string.IsNullOrEmpty(display))
@@ -562,7 +562,7 @@ internal static class IntlNumberFormatter
             {
                 Coefficient = BigInteger.Abs(value),
                 Scale = 0,
-                IsNegative = value.Sign < 0,
+                IsNegative = value.Sign < 0
             };
         }
 
@@ -574,7 +574,7 @@ internal static class IntlNumberFormatter
                 {
                     Coefficient = BigInteger.Zero,
                     Scale = 0,
-                    IsNegative = IsNegative(value),
+                    IsNegative = IsNegative(value)
                 };
             }
 
@@ -609,7 +609,7 @@ internal static class IntlNumberFormatter
                 {
                     Coefficient = BigInteger.Zero,
                     Scale = 0,
-                    IsNegative = false,
+                    IsNegative = false
                 };
             }
 
@@ -621,7 +621,7 @@ internal static class IntlNumberFormatter
                 {
                     Coefficient = coefficient,
                     Scale = 0,
-                    IsNegative = isNegative,
+                    IsNegative = isNegative
                 };
             }
 
@@ -629,7 +629,7 @@ internal static class IntlNumberFormatter
             {
                 Coefficient = coefficient,
                 Scale = -exponentAdjustment,
-                IsNegative = isNegative,
+                IsNegative = isNegative
             };
         }
 
@@ -641,7 +641,7 @@ internal static class IntlNumberFormatter
                 {
                     Coefficient = BigInteger.Zero,
                     Scale = 0,
-                    IsNegative = false,
+                    IsNegative = false
                 };
             }
 
@@ -657,7 +657,7 @@ internal static class IntlNumberFormatter
             {
                 Coefficient = coefficient,
                 Scale = scale,
-                IsNegative = isNegative,
+                IsNegative = isNegative
             };
         }
     }

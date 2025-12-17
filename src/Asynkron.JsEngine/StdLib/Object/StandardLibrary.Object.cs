@@ -490,7 +490,7 @@ public static partial class StandardLibrary
             JsObject obj => obj.GetOwnPropertyDescriptor(propName) is not null,
             JsArray array => array.GetOwnPropertyDescriptor(propName) is not null,
             IJsObjectLike accessor => accessor.GetOwnPropertyDescriptor(propName) is not null,
-            _ => false,
+            _ => false
         };
     }
 

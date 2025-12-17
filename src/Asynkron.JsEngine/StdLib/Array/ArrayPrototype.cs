@@ -21,7 +21,7 @@ public sealed partial class ArrayPrototype
                 Value = 0d,
                 Writable = true,
                 Enumerable = false,
-                Configurable = false,
+                Configurable = false
             });
 
         var iteratorKey = SymbolKeys.GetIterator(Realm);
@@ -33,7 +33,7 @@ public sealed partial class ArrayPrototype
                     Value = valuesFunction,
                     Writable = true,
                     Enumerable = false,
-                    Configurable = true,
+                    Configurable = true
                 });
         }
 
@@ -53,7 +53,7 @@ public sealed partial class ArrayPrototype
                     Value = true,
                     Writable = true,
                     Enumerable = true,
-                    Configurable = true,
+                    Configurable = true
                 });
         }
 
@@ -76,7 +76,7 @@ public sealed partial class ArrayPrototype
                 Value = unscopables,
                 Writable = true,
                 Enumerable = false,
-                Configurable = true,
+                Configurable = true
             });
     }
 }

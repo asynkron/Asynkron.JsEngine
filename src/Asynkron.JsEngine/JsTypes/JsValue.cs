@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 
@@ -381,7 +382,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             value = NumberValue;
             return true;
         }
-        value = default;
+        value = 0;
         return false;
     }
 
@@ -394,7 +395,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             value = NumberValue != 0.0;
             return true;
         }
-        value = default;
+        value = false;
         return false;
     }
 
@@ -407,7 +408,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             value = (string)ObjectValue!;
             return true;
         }
-        value = default;
+        value = null;
         return false;
     }
 
@@ -420,7 +421,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             value = (Symbol)ObjectValue!;
             return true;
         }
-        value = default;
+        value = null;
         return false;
     }
 
@@ -433,7 +434,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             value = (JsBigInt)ObjectValue!;
             return true;
         }
-        value = default;
+        value = null;
         return false;
     }
 
@@ -446,33 +447,33 @@ public readonly struct JsValue : IEquatable<JsValue>
             value = obj;
             return true;
         }
-        value = default;
+        value = null;
         return false;
     }
 
     /// <summary>Tries to get the object value as a specific type. Returns true if this is an object of that type.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetObject<T>(out T? value) where T : class
+    public bool TryGetObject<T>([NotNullWhen(true)]out T? value) where T : class
     {
         if (Kind == JsValueKind.Object && ObjectValue is T obj)
         {
             value = obj;
             return true;
         }
-        value = default;
+        value = null;
         return false;
     }
 
     /// <summary>Tries to unwrap the value to a specific type from ObjectValue. Works for any kind.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryUnwrap<T>(out T? value) where T : class
+    public bool TryUnwrap<T>([NotNullWhen(true)]out T? value) where T : class
     {
         if (ObjectValue is T obj)
         {
             value = obj;
             return true;
         }
-        value = default;
+        value = null;
         return false;
     }
 
@@ -499,7 +500,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             JsValueKind.Symbol => ObjectValue,
             JsValueKind.Object => ObjectValue,
             JsValueKind.Unit => ObjectValue, // Returns UnitSentinel
-            _ => Symbol.Undefined,
+            _ => Symbol.Undefined
         };
     }
 
@@ -507,15 +508,15 @@ public readonly struct JsValue : IEquatable<JsValue>
 
     /// <summary>Creates a JsValue from a double.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static JsValue FromObject(double value) => new JsValue(value);
+    public static JsValue FromObject(double value) => new(value);
 
     /// <summary>Creates a JsValue from an int.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static JsValue FromObject(int value) => new JsValue((double)value);
+    public static JsValue FromObject(int value) => new((double)value);
 
     /// <summary>Creates a JsValue from a long.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static JsValue FromObject(long value) => new JsValue((double)value);
+    public static JsValue FromObject(long value) => new((double)value);
 
     /// <summary>Creates a JsValue from a bool.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -543,7 +544,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     {
         null => Null,
         JsObject obj => new JsValue(obj),
-        _ => new JsValue(JsValueKind.Object, 0.0, value),
+        _ => new JsValue(JsValueKind.Object, 0.0, value)
     };
 
     /// <summary>Creates a JsValue from an IJsCallable (HostFunction, TypedFunction, etc.).</summary>
@@ -556,35 +557,35 @@ public readonly struct JsValue : IEquatable<JsValue>
 
     /// <summary>Creates a JsValue from a float.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static JsValue FromObject(float value) => new JsValue(value);
+    public static JsValue FromObject(float value) => new(value);
 
     /// <summary>Creates a JsValue from a decimal.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static JsValue FromObject(decimal value) => new JsValue((double)value);
+    public static JsValue FromObject(decimal value) => new((double)value);
 
     /// <summary>Creates a JsValue from a uint.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static JsValue FromObject(uint value) => new JsValue((double)value);
+    public static JsValue FromObject(uint value) => new((double)value);
 
     /// <summary>Creates a JsValue from a ulong.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static JsValue FromObject(ulong value) => new JsValue(value);
+    public static JsValue FromObject(ulong value) => new(value);
 
     /// <summary>Creates a JsValue from a short.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static JsValue FromObject(short value) => new JsValue((double)value);
+    public static JsValue FromObject(short value) => new((double)value);
 
     /// <summary>Creates a JsValue from a ushort.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static JsValue FromObject(ushort value) => new JsValue((double)value);
+    public static JsValue FromObject(ushort value) => new((double)value);
 
     /// <summary>Creates a JsValue from a byte.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static JsValue FromObject(byte value) => new JsValue((double)value);
+    public static JsValue FromObject(byte value) => new((double)value);
 
     /// <summary>Creates a JsValue from a sbyte.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static JsValue FromObject(sbyte value) => new JsValue((double)value);
+    public static JsValue FromObject(sbyte value) => new((double)value);
 
     /// <summary>
     /// Obsolete: Use typed overloads instead to avoid boxing.
@@ -643,7 +644,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             byte by => new JsValue((double)by),
             sbyte sby => new JsValue((double)sby),
             // Fallback: wrap unknown types as objects (for internal types like YieldResumeContext)
-            _ => new JsValue(JsValueKind.Object, 0.0, value),
+            _ => new JsValue(JsValueKind.Object, 0.0, value)
         };
     }
 
@@ -667,7 +668,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             0.0 => Zero,
             1.0 => One,
             -1.0 => NegativeOne,
-            _ => new JsValue(value),
+            _ => new JsValue(value)
         };
     }
 
@@ -680,7 +681,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             0 => Zero,
             1 => One,
             -1 => NegativeOne,
-            _ => new JsValue((double)value),
+            _ => new JsValue((double)value)
         };
     }
 
@@ -718,7 +719,7 @@ public readonly struct JsValue : IEquatable<JsValue>
                 JsValueKind.String => ((string)ObjectValue!).Length > 0,
                 JsValueKind.BigInt => !((JsBigInt)ObjectValue!).Value.IsZero,
                 JsValueKind.Symbol => true,
-                _ => false,
+                _ => false
             };
         }
     }
@@ -748,7 +749,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             JsValueKind.String => string.Equals((string)ObjectValue!, (string)other.ObjectValue!, StringComparison.Ordinal),
             JsValueKind.BigInt => ((JsBigInt)ObjectValue!).Equals((JsBigInt)other.ObjectValue!),
             JsValueKind.Symbol or JsValueKind.Object => ReferenceEquals(ObjectValue, other.ObjectValue),
-            _ => false,
+            _ => false
         };
     }
 
@@ -765,7 +766,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             JsValueKind.Number => NumberValue.GetHashCode(),
             JsValueKind.String => ((string)ObjectValue!).GetHashCode(StringComparison.Ordinal),
             JsValueKind.BigInt or JsValueKind.Symbol or JsValueKind.Object => ObjectValue!.GetHashCode(),
-            _ => 0,
+            _ => 0
         };
     }
 
@@ -789,7 +790,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             JsValueKind.BigInt => $"{ObjectValue}n",
             JsValueKind.Symbol => ObjectValue?.ToString() ?? "Symbol()",
             JsValueKind.Object => ObjectValue?.ToString() ?? "[object Object]",
-            _ => "undefined",
+            _ => "undefined"
         };
     }
 

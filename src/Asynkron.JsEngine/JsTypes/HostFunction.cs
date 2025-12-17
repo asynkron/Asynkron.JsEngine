@@ -373,7 +373,7 @@ namespace Asynkron.JsEngine.JsTypes;
         }, realmState, isConstructor: false)
         {
             IsBoundFunction = true,
-            IsConstructor = targetIsConstructor,
+            IsConstructor = targetIsConstructor
         };
 
         boundFunction.SetInvokeWithContext((invokeArgs, _, context, newTarget) =>
@@ -460,7 +460,7 @@ namespace Asynkron.JsEngine.JsTypes;
             Value = (JsValue)prototype,
             Writable = true,
             Enumerable = false,
-            Configurable = false,
+            Configurable = false
         });
     }
 

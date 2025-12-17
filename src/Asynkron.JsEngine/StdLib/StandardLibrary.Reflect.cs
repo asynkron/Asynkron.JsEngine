@@ -99,7 +99,7 @@ public static partial class StandardLibrary
                 {
                     HostFunction { RealmState: { } hostRealm } => hostRealm,
                     TypedAstEvaluator.TypedFunction { RealmState: { } tfRealm } => tfRealm,
-                    _ => realm,
+                    _ => realm
                 };
             var arrayInstance = new JsArray(instanceRealm);
             if (proto is not null)
@@ -193,7 +193,7 @@ public static partial class StandardLibrary
             ModuleNamespace moduleNamespace => moduleNamespace.Delete(propertyKey),
             JsArray jsArray when JsOps.TryResolveArrayIndex(propertyKey, out var index) => jsArray.DeleteElement(index),
             JsArray jsArray => jsArray.DeleteProperty(propertyKey),
-            _ => target is JsObject jsObj && jsObj.Remove(propertyKey),
+            _ => target is JsObject jsObj && jsObj.Remove(propertyKey)
         };
         return result;
     }
@@ -533,7 +533,7 @@ public static partial class StandardLibrary
             "WeakMap" => realmState.WeakMapPrototype,
             "WeakSet" => realmState.WeakSetPrototype,
             "String" => realmState.StringPrototype,
-            _ => null,
+            _ => null
         };
 
         return prototype is not null;

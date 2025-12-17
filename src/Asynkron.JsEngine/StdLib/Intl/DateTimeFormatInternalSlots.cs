@@ -6,7 +6,7 @@ internal sealed class DateTimeFormatInternalSlots
 {
     public static readonly string[] ComponentNames =
     [
-        "weekday", "era", "year", "month", "day", "hour", "minute", "second", "timeZoneName",
+        "weekday", "era", "year", "month", "day", "hour", "minute", "second", "timeZoneName"
     ];
 
     public string Locale { get; init; } = CultureInfo.CurrentCulture.Name;

@@ -39,7 +39,7 @@ internal static class ClassMemberEmitter
                 HasValue = true,
                 HasWritable = true,
                 HasEnumerable = true,
-                HasConfigurable = true,
+                HasConfigurable = true
             };
 
             if (member.IsStatic)

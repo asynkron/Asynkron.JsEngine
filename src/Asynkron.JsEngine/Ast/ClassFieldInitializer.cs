@@ -54,7 +54,7 @@ public static partial class TypedAstEvaluator
                 Value = value,
                 Writable = true,
                 Enumerable = true,
-                Configurable = true,
+                Configurable = true
             };
 
             if (constructorAccessor is IPropertyDefinitionHost definitionHost)

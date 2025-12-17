@@ -8,6 +8,6 @@ public static partial class TypedAstEvaluator
         DefineLet,
         DefineConst,
         DefineVar,
-        DefineParameter,
+        DefineParameter
     }
 }

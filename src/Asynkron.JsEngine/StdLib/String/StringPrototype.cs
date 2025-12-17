@@ -49,7 +49,7 @@ public sealed partial class StringPrototype : JsPrototype
                     HasValue = true,
                     HasWritable = true,
                     HasEnumerable = true,
-                    HasConfigurable = true,
+                    HasConfigurable = true
                 });
 
             AddStringMethods(stringProto, Realm);

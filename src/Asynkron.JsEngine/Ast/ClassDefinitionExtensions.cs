@@ -120,7 +120,7 @@ public static partial class TypedAstEvaluator
                     HasValue = true,
                     HasWritable = true,
                     HasEnumerable = true,
-                    HasConfigurable = true,
+                    HasConfigurable = true
                 });
             }
 
@@ -203,7 +203,7 @@ public static partial class TypedAstEvaluator
                 {
                     Name = propertyName,
                     IsComputed = false,
-                    ComputedName = null,
+                    ComputedName = null
                 });
             }
 

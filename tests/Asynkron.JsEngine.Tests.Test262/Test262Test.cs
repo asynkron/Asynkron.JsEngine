@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.IO;
 using System.Reflection;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;

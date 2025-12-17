@@ -1,7 +1,5 @@
 using System.Runtime.CompilerServices;
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
-using System.Threading;
 
 namespace Asynkron.JsEngine.Execution;
 

@@ -20,7 +20,7 @@ internal static class JsValueExtensions
         {
             0 => 0,
             1 => ToNumber(arr.Items[0]),
-            _ => double.NaN,
+            _ => double.NaN
         };
     }
 
@@ -77,7 +77,7 @@ internal static class JsValueExtensions
                 IJsPropertyAccessor accessor => accessor.TryGetProperty("__value__", out var inner)
                     ? ToNumber(inner)
                     : double.NaN,
-                _ => throw new InvalidOperationException($"Cannot convert value '{value}' to a number."),
+                _ => throw new InvalidOperationException($"Cannot convert value '{value}' to a number.")
             };
         }
 
@@ -154,7 +154,7 @@ internal static class JsValueExtensions
                 byte b8 => b8.ToString(CultureInfo.InvariantCulture),
                 sbyte sb8 => sb8.ToString(CultureInfo.InvariantCulture),
                 TypedAstSymbol jsSymbol => jsSymbol.ToString(),
-                _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty,
+                _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
             };
         }
 

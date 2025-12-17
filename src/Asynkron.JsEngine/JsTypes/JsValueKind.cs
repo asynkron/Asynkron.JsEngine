@@ -39,5 +39,5 @@ public enum JsValueKind
     /// Uninitialized binding - represents a variable in the Temporal Dead Zone (TDZ).
     /// Accessing this value throws a ReferenceError.
     /// </summary>
-    Uninitialized = 9,
+    Uninitialized = 9
 }

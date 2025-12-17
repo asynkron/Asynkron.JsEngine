@@ -43,7 +43,7 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
             {
                 Get = new HostFunction((thisVal, _) => thisVal),
                 Enumerable = false,
-                Configurable = true,
+                Configurable = true
             });
     }
 

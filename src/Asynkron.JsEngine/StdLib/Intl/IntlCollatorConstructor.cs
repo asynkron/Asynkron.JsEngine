@@ -1,4 +1,3 @@
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -25,13 +24,13 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
         supportedLocalesOf.DefineProperty("name",
             new PropertyDescriptor
             {
-                Value = "supportedLocalesOf", Writable = false, Enumerable = false, Configurable = true,
+                Value = "supportedLocalesOf", Writable = false, Enumerable = false, Configurable = true
             });
 
         constructor.DefineProperty("supportedLocalesOf",
             new PropertyDescriptor
             {
-                Value = supportedLocalesOf, Writable = true, Enumerable = false, Configurable = true,
+                Value = supportedLocalesOf, Writable = true, Enumerable = false, Configurable = true
             });
 
         supportedLocalesOf.SetPrototype(constructor.Prototype);
@@ -89,7 +88,7 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
             CaseFirst = caseFirst,
             Collation = collation,
             LocaleMatcher = localeMatcher,
-            CompareInfo = compareInfo,
+            CompareInfo = compareInfo
         };
     }
 
@@ -244,6 +243,6 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
         "traditional",
         "unihan",
         "zhuyin",
-        "emoji",
+        "emoji"
     };
 }

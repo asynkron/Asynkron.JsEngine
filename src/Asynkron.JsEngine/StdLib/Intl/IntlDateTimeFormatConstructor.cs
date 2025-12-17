@@ -59,7 +59,7 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
             LocaleMatcher = localeMatcher,
             FormatMatcher = formatMatcher,
             DateStyle = dateStyle,
-            TimeStyle = timeStyle,
+            TimeStyle = timeStyle
         };
 
         foreach (var component in DateTimeFormatInternalSlots.ComponentNames)
@@ -195,7 +195,7 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
             "weekday" => component is "narrow" or "short" or "long",
             "era" => component is "narrow" or "short" or "long",
             "timeZoneName" => component is "short" or "long",
-            _ => IsWidthAllowed(component),
+            _ => IsWidthAllowed(component)
         };
 
         if (!isAllowed)
@@ -230,13 +230,13 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
         supportedLocales.DefineProperty("name",
             new PropertyDescriptor
             {
-                Value = "supportedLocalesOf", Writable = false, Enumerable = false, Configurable = true,
+                Value = "supportedLocalesOf", Writable = false, Enumerable = false, Configurable = true
             });
 
         constructor.DefineProperty("supportedLocalesOf",
             new PropertyDescriptor
             {
-                Value = supportedLocales, Writable = true, Enumerable = false, Configurable = true,
+                Value = supportedLocales, Writable = true, Enumerable = false, Configurable = true
             });
 
         supportedLocales.SetPrototype(constructor.Prototype);

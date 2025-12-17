@@ -22,7 +22,7 @@ public static partial class StandardLibrary
                 HasValue = true,
                 HasWritable = true,
                 HasEnumerable = true,
-                HasConfigurable = true,
+                HasConfigurable = true
             });
 
         return ctor;

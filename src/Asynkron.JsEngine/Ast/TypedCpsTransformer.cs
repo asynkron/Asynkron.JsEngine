@@ -369,7 +369,7 @@ public sealed class TypedCpsTransformer
             LabeledStatement labeledStatement => TransformLabeledStatement(labeledStatement),
             TryStatement tryStatement => TransformTryStatement(tryStatement),
             SwitchStatement switchStatement => TransformSwitchStatement(switchStatement),
-            _ => statement,
+            _ => statement
         };
     }
 
@@ -405,7 +405,7 @@ public sealed class TypedCpsTransformer
                 Constructor = constructor,
                 Members = members,
                 Fields = fields,
-                StaticBlocks = staticBlocks,
+                StaticBlocks = staticBlocks
             };
         }
 
@@ -624,7 +624,7 @@ public sealed class TypedCpsTransformer
         var transformedBody = RewriteAsyncBody(function.Body);
         return function with
         {
-            Body = transformedBody, IsAsync = false, WasAsync = function.WasAsync || function.IsAsync,
+            Body = transformedBody, IsAsync = false, WasAsync = function.WasAsync || function.IsAsync
         };
     }
 
@@ -888,7 +888,7 @@ public sealed class TypedCpsTransformer
         return changed
             ? expression with
             {
-                Tag = tag, StringsArray = strings, RawStringsArray = rawStrings, Expressions = builder.ToImmutable(),
+                Tag = tag, StringsArray = strings, RawStringsArray = rawStrings, Expressions = builder.ToImmutable()
             }
             : expression;
     }
@@ -908,7 +908,7 @@ public sealed class TypedCpsTransformer
         var executor = new FunctionExpression(null, null,
             [
                 new FunctionParameter(null, Symbol.ResolveIdentifier, false, null, null),
-                new FunctionParameter(null, Symbol.RejectIdentifier, false, null, null),
+                new FunctionParameter(null, Symbol.RejectIdentifier, false, null, null)
             ],
             executorBody, false, false);
         var promise = new NewExpression(null, new IdentifierExpression(null, Symbol.PromiseIdentifier),
@@ -1081,7 +1081,7 @@ public sealed class TypedCpsTransformer
         return expression switch
         {
             FunctionExpression functionExpression => TransformFunctionExpression(functionExpression),
-            _ => expression,
+            _ => expression
         };
     }
 
@@ -1447,7 +1447,7 @@ public sealed class TypedCpsTransformer
                 {
                     IdentifierBinding id => [new FunctionParameter(null, id.Name, false, null, null)],
                     null => ImmutableArray<FunctionParameter>.Empty,
-                    _ => [new FunctionParameter(null, null, false, currentCatchClause.Binding, null)],
+                    _ => [new FunctionParameter(null, null, false, currentCatchClause.Binding, null)]
                 };
                 var catchHandler = new FunctionExpression(null, null, catchParameters, catchBlock, false, false);
                 finalExpression = new CallExpression(null,
@@ -1465,7 +1465,7 @@ public sealed class TypedCpsTransformer
             {
                 ForEachKind.In => false,
                 ForEachKind.AwaitOf => true,
-                _ => StatementNeedsTransformation(statement.Body),
+                _ => StatementNeedsTransformation(statement.Body)
             };
         }
 
@@ -1686,7 +1686,7 @@ public sealed class TypedCpsTransformer
             var loopBodyStatements = loopControlChanged ? normalizedWithLoopControl : normalized;
             var bodyRewriter = new AsyncFunctionRewriter(owner, isStrict, loopResolveSymbol, _rejectIdentifier)
             {
-                _currentLoopBreakSymbol = loopBreakSymbol,
+                _currentLoopBreakSymbol = loopBreakSymbol
             };
             var rewritten = bodyRewriter.Rewrite(loopBodyStatements);
             var builder = ImmutableArray.CreateBuilder<StatementNode>(rewritten.Length + 1);
@@ -1829,7 +1829,7 @@ public sealed class TypedCpsTransformer
                         return ifStatement with
                         {
                             Then = thenChanged ? thenBranch : ifStatement.Then,
-                            Else = elseChanged ? rewrittenElse : ifStatement.Else,
+                            Else = elseChanged ? rewrittenElse : ifStatement.Else
                         };
                     }
 
@@ -1861,7 +1861,7 @@ public sealed class TypedCpsTransformer
                         {
                             TryBlock = tryChanged ? tryBlock : tryStatement.TryBlock,
                             Catch = catchChanged ? catchClause : tryStatement.Catch,
-                            Finally = finallyChanged ? finallyBlock : tryStatement.Finally,
+                            Finally = finallyChanged ? finallyBlock : tryStatement.Finally
                         };
                     }
 

@@ -92,7 +92,7 @@ public static partial class TypedAstEvaluator
                     HasValue = true,
                     HasWritable = true,
                     HasEnumerable = true,
-                    HasConfigurable = true,
+                    HasConfigurable = true
                 });
         }
 
@@ -351,7 +351,7 @@ public static partial class TypedAstEvaluator
                         HasValue = true,
                         HasWritable = true,
                         HasEnumerable = true,
-                        HasConfigurable = true,
+                        HasConfigurable = true
                     });
 
                 _realmState.GeneratorFunctionPrototype = genFuncProto;
@@ -373,7 +373,7 @@ public static partial class TypedAstEvaluator
                             HasValue = true,
                             HasWritable = true,
                             HasEnumerable = true,
-                            HasConfigurable = true,
+                            HasConfigurable = true
                         });
 
                     // GeneratorFunction.__proto__ === Function (inherit from Function)
@@ -395,7 +395,7 @@ public static partial class TypedAstEvaluator
             generatorFunctionConstructor = new HostFunction((_, args) =>
                 GeneratorFunctionConstructorBody(args, generatorFunctionConstructor, engine, realm))
             {
-                RealmState = realm,
+                RealmState = realm
             };
 
             generatorFunctionConstructor.SetInvokeWithContext((args, _, _, newTarget) =>
@@ -442,7 +442,7 @@ public static partial class TypedAstEvaluator
             // import.meta is not allowed (it's only valid in Module goal).
             var scriptGoalOptions = new JsEngineOptions
             {
-                AllowImportMeta = false,
+                AllowImportMeta = false
             };
 
             ParsedProgram program;
@@ -573,7 +573,7 @@ public static partial class TypedAstEvaluator
                         HasValue = true,
                         HasWritable = true,
                         HasEnumerable = true,
-                        HasConfigurable = true,
+                        HasConfigurable = true
                     });
             }
 
@@ -588,7 +588,7 @@ public static partial class TypedAstEvaluator
                     HasValue = true,
                     HasWritable = true,
                     HasEnumerable = true,
-                    HasConfigurable = true,
+                    HasConfigurable = true
                 });
 
             var functionNameValue = _function.Name?.Name ?? string.Empty;
@@ -602,7 +602,7 @@ public static partial class TypedAstEvaluator
                     HasValue = true,
                     HasWritable = true,
                     HasEnumerable = true,
-                    HasConfigurable = true,
+                    HasConfigurable = true
                 });
         }
 

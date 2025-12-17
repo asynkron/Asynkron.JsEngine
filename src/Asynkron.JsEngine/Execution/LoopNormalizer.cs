@@ -72,7 +72,7 @@ internal static class LoopNormalizer
         {
             postIteration =
             [
-                new ExpressionStatement(statement.Increment.Source, statement.Increment),
+                new ExpressionStatement(statement.Increment.Source, statement.Increment)
             ];
         }
 

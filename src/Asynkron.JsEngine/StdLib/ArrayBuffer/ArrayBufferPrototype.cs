@@ -1,6 +1,4 @@
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
@@ -226,7 +224,7 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
     {
         var getterFn = new HostFunction((thisVal, _) => getter(thisVal), Realm)
         {
-            IsConstructor = false,
+            IsConstructor = false
         };
 
         getterFn.DefineProperty("name", new PropertyDescriptor
@@ -234,7 +232,7 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
             Value = $"get {name}",
             Writable = false,
             Enumerable = false,
-            Configurable = true,
+            Configurable = true
         });
 
         getterFn.DefineProperty("length", new PropertyDescriptor
@@ -242,14 +240,14 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
             Value = 0d,
             Writable = false,
             Enumerable = false,
-            Configurable = true,
+            Configurable = true
         });
 
         target.DefineProperty(name, new PropertyDescriptor
         {
             Get = getterFn,
             Enumerable = enumerable,
-            Configurable = true,
+            Configurable = true
         });
     }
 }

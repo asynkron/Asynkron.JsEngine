@@ -81,9 +81,10 @@ internal static class AwaitScheduler
             return directPromise.TryGetSettled(out value, out isRejected);
         }
 
-        // JsObject wrapping a JsPromise
+        // JsObject wrapping a JsPromise (use IJsObjectLike to handle JsArray etc.)
         if (candidate.IsObject &&
-            candidate.AsObject().TryGetProperty(JsPromise.InternalPromiseKey, out var inner) &&
+            candidate.TryGetObject<IJsObjectLike>(out var obj) &&
+            obj.TryGetProperty(JsPromise.InternalPromiseKey, out var inner) &&
             inner.TryGetObject<JsPromise>(out var wrappedPromise))
         {
             return wrappedPromise.TryGetSettled(out value, out isRejected);
@@ -159,7 +160,11 @@ internal static class AwaitScheduler
         // Slow path: need to attach handlers and wait
         while (resolvedValue.IsObject && IsPromiseLike(resolvedValue))
         {
-            var promiseObj = resolvedValue.AsObject();
+            // Use IJsObjectLike to handle JsArray etc. that might be promise-like
+            if (!resolvedValue.TryGetObject<IJsObjectLike>(out var promiseObj))
+            {
+                return true; // Not an object, we're done
+            }
 
             // Check settled state again (might have changed)
             if (TryGetSettledValueFast(resolvedValue, out var loopSettled, out var rejected))
@@ -194,7 +199,7 @@ internal static class AwaitScheduler
 
             try
             {
-                thenCallable.Invoke([(JsValue)onFulfilledFn, (JsValue)onRejectedFn], new JsValue(promiseObj));
+                thenCallable.Invoke([(JsValue)onFulfilledFn, (JsValue)onRejectedFn], JsValue.FromObjectUnsafe(promiseObj));
             }
             catch (ThrowSignal signal)
             {

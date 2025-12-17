@@ -1328,6 +1328,7 @@ public sealed class JsEnvironment
     private static JsValue ReadResolvedBindingJsValue(JsEnvironment bindingEnvironment, ref Binding binding, Symbol name, EvaluationContext context)
     {
         // Check IsUninitialized before reading - this is a TDZ violation
+        // Note: This check doesn't work for import bindings (special bindings), handled below
         if (binding.IsUninitialized)
         {
             throw new ThrowSignal(JsValue.FromObjectUnsafe(
@@ -1345,7 +1346,20 @@ public sealed class JsEnvironment
 
         if (!bindingEnvironment.IsGlobalFunctionScope || binding.IsLexical)
         {
-            return binding.JsValue;
+            // Import bindings may throw InvalidOperationException if target is uninitialized (TDZ)
+            // Convert to proper JS ReferenceError
+            try
+            {
+                return binding.JsValue;
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("ReferenceError") || ex.Message.Contains("is not defined"))
+            {
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(
+                    StandardLibrary.CreateReferenceError(
+                        $"Cannot access '{name.Name}' before initialization",
+                        context,
+                        context.RealmState)));
+            }
         }
 
         var globalObject = bindingEnvironment.GetRootGlobalObject();

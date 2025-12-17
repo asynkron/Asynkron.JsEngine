@@ -64,6 +64,15 @@ public static partial class TypedAstEvaluator
                         throw;
                     }
                 }
+                finally
+                {
+                    // Mark the iterator as closed so CloseActiveArrayPatternIterators doesn't try again
+                    if (stateKey is not null && environment.TryGet(stateKey, out var stateObj) && stateObj is ArrayPatternState state)
+                    {
+                        state.IteratorDone = true;
+                        state.Iterator = null;
+                    }
+                }
             }
 
             try

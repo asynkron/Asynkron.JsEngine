@@ -19,7 +19,7 @@ public static partial class StandardLibrary
             proto.DefineProperty(tagKey,
                 new PropertyDescriptor
                 {
-                    Value = "TypedArray", Writable = false, Enumerable = false, Configurable = true
+                    Value = "TypedArray", Writable = false, Enumerable = false, Configurable = true,
                 });
 
             proto.SetHostedProperty("reduce",
@@ -77,7 +77,7 @@ public static partial class StandardLibrary
                     Value = valuesIterator,
                     Writable = false,
                     Enumerable = false,
-                    Configurable = true
+                    Configurable = true,
                 });
             proto.DefineProperty("values",
                 new PropertyDescriptor { Value = valuesIterator, Writable = true, Enumerable = false, Configurable = true });
@@ -120,7 +120,7 @@ public static partial class StandardLibrary
             ctor.DefineProperty("prototype",
                 new PropertyDescriptor
                 {
-                    Value = realm.TypedArrayPrototype!, Writable = false, Enumerable = false, Configurable = false
+                    Value = realm.TypedArrayPrototype!, Writable = false, Enumerable = false, Configurable = false,
                 });
             realm.TypedArrayPrototype!.DefineProperty("constructor",
                 new PropertyDescriptor { Value = ctor, Writable = true, Enumerable = false, Configurable = true });
@@ -161,12 +161,12 @@ public static partial class StandardLibrary
                 Value = constructorName,
                 Writable = false,
                 Enumerable = false,
-                Configurable = true
+                Configurable = true,
             });
         constructor.DefineProperty("name",
             new PropertyDescriptor
             {
-                Value = constructorName, Writable = false, Enumerable = false, Configurable = true
+                Value = constructorName, Writable = false, Enumerable = false, Configurable = true,
             });
         constructor.DefineProperty("of",
             new PropertyDescriptor
@@ -174,7 +174,7 @@ public static partial class StandardLibrary
                 Value = new HostFunction((thisValue, args) => JsValue.FromObjectUnsafe(TypedArrayOf(thisValue, args)), isConstructor: false),
                 Writable = true,
                 Enumerable = false,
-                Configurable = true
+                Configurable = true,
             });
         constructor.DefineProperty("from",
             new PropertyDescriptor
@@ -182,7 +182,7 @@ public static partial class StandardLibrary
                 Value = new HostFunction((thisValue, args) => JsValue.FromObjectUnsafe(TypedArrayFrom(thisValue, args)), isConstructor: false),
                 Writable = true,
                 Enumerable = false,
-                Configurable = true
+                Configurable = true,
             });
         prototype.SetHostedProperty("reduce",
             (thisValue, reduceArgs, realmState) =>
@@ -311,7 +311,7 @@ public static partial class StandardLibrary
                     {
                         JsBigInt64Array bi64 => (JsValue)bi64.GetBigIntElement(i),
                         JsBigUint64Array bu64 => (JsValue)bu64.GetBigIntElement(i),
-                        _ => srcTypedArray.GetValueForIndex(i)
+                        _ => srcTypedArray.GetValueForIndex(i),
                     };
                     if (i < 8)
                     {
@@ -411,7 +411,7 @@ public static partial class StandardLibrary
                     {
                         JsBigInt64Array bi64 => (JsValue)bi64.GetBigIntElement(i),
                         JsBigUint64Array bu64 => (JsValue)bu64.GetBigIntElement(i),
-                        _ => typedSource.GetElement(i)
+                        _ => typedSource.GetElement(i),
                     };
                     // ApplyMap returns JsValue, no additional wrapping needed
                     target.SetValue(i, ApplyMap(i, value));

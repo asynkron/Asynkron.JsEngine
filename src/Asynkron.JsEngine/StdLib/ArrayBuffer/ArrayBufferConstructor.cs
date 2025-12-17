@@ -38,7 +38,7 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
         var speciesKey = SymbolKeys.GetSpecies(Realm);
         var speciesGetter = new HostFunction((thisVal, _) => thisVal, Realm)
         {
-            IsConstructor = false
+            IsConstructor = false,
         };
         AttachBuiltinMetadata(speciesGetter, "get [Symbol.species]", 0d);
 
@@ -46,7 +46,7 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
         {
             Get = speciesGetter,
             Enumerable = false,
-            Configurable = true
+            Configurable = true,
         });
 
         var isView = new HostFunction(ArrayBufferIsView, Realm) { IsConstructor = false };
@@ -56,7 +56,7 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
             Value = isView,
             Writable = true,
             Enumerable = false,
-            Configurable = true
+            Configurable = true,
         });
     }
 

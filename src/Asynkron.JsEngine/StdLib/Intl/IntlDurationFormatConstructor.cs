@@ -26,13 +26,13 @@ public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototyp
         supportedLocales.DefineProperty("name",
             new PropertyDescriptor
             {
-                Value = "supportedLocalesOf", Writable = false, Enumerable = false, Configurable = true
+                Value = "supportedLocalesOf", Writable = false, Enumerable = false, Configurable = true,
             });
 
         constructor.DefineProperty("supportedLocalesOf",
             new PropertyDescriptor
             {
-                Value = supportedLocales, Writable = true, Enumerable = false, Configurable = true
+                Value = supportedLocales, Writable = true, Enumerable = false, Configurable = true,
             });
 
         supportedLocales.SetPrototype(constructor.Prototype);

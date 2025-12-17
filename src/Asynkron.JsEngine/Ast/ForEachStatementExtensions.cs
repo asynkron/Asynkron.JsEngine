@@ -84,7 +84,7 @@ public static partial class TypedAstEvaluator
             var values = statement.Kind switch
             {
                 ForEachKind.In => EnumeratePropertyKeys(iterable),
-                _ => throw new ArgumentOutOfRangeException()
+                _ => throw new ArgumentOutOfRangeException(),
             };
 
             foreach (var value in values)

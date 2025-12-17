@@ -169,7 +169,7 @@ public static partial class TypedAstEvaluator
             BinaryOperator.LeftShift => LeftShiftValue(left, right, context),
             BinaryOperator.RightShift => RightShiftValue(left, right, context),
             BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(left, right, context),
-            _ => throw new NotSupportedException($"Operator '{op}' is not supported in pre-evaluated path.")
+            _ => throw new NotSupportedException($"Operator '{op}' is not supported in pre-evaluated path."),
         };
     }
 }

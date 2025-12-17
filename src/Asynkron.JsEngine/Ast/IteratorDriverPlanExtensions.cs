@@ -27,7 +27,7 @@ public static partial class TypedAstEvaluator
                 IteratorObject = iterator,
                 Enumerator = enumerator,
                 IsAsyncIterator = plan.Kind == IteratorDriverKind.Await,
-                NextMethod = iterator.GetIteratorNextCallable(context)
+                NextMethod = iterator.GetIteratorNextCallable(context),
             };
 
             while (!context.ShouldStopEvaluation)

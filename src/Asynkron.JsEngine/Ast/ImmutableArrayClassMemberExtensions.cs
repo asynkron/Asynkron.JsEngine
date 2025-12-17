@@ -37,7 +37,7 @@ public static partial class TypedAstEvaluator
                 {
                     ClassMemberKind.Getter => $"get {BuildFunctionNameDisplay(baseDisplayName)}",
                     ClassMemberKind.Setter => $"set {BuildFunctionNameDisplay(baseDisplayName)}",
-                    _ => BuildFunctionNameDisplay(baseDisplayName)
+                    _ => BuildFunctionNameDisplay(baseDisplayName),
                 };
 
                 if (member.IsStatic &&

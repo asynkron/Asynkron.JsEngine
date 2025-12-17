@@ -67,7 +67,7 @@ public abstract partial class ErrorConstructorBase(IJsObjectLike prototype, Real
         instance.DefineProperty("message",
             new PropertyDescriptor
             {
-                Value = message, Writable = true, Enumerable = false, Configurable = true
+                Value = message, Writable = true, Enumerable = false, Configurable = true,
             });
     }
 

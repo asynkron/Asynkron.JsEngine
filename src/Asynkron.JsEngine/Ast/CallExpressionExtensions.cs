@@ -720,7 +720,7 @@ public static partial class TypedAstEvaluator
             {
                 IdentifierExpression id => id.Name.Name,
                 LiteralExpression { Value.IsString: true } lit => lit.Value.AsString(),
-                _ => null
+                _ => null,
             };
 
             if (methodName is null)
@@ -762,7 +762,7 @@ public static partial class TypedAstEvaluator
                         "delete" when callExpr.Arguments.Length >= 1 =>
                             FastMapDelete(map, callExpr.Arguments, environment, context),
                         "clear" => FastMapClear(map),
-                        _ => JsValue.Unit // Fall back to normal path for other methods (size is a property, not a method)
+                        _ => JsValue.Unit, // Fall back to normal path for other methods (size is a property, not a method)
                     };
 
                     if (!result.IsUnit)
@@ -794,7 +794,7 @@ public static partial class TypedAstEvaluator
                         "delete" when callExpr.Arguments.Length >= 1 =>
                             FastSetDelete(set, callExpr.Arguments, environment, context),
                         "clear" => FastSetClear(set),
-                        _ => JsValue.Unit // Fall back to normal path for other methods (size is a property, not a method)
+                        _ => JsValue.Unit, // Fall back to normal path for other methods (size is a property, not a method)
                     };
 
                     if (!result.IsUnit)

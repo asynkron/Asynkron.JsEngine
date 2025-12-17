@@ -12,7 +12,7 @@ internal static class IntlUtilities
     [
         "buddhist", "chinese", "coptic", "dangi", "ethioaa", "ethiopic", "gregory", "hebrew", "indian",
         "islamic", "islamic-civil", "islamic-rgsa", "islamic-tbla", "islamic-umalqura", "iso8601", "japanese",
-        "persian", "roc"
+        "persian", "roc",
     ];
     private static readonly HashSet<string> CalendarSet = new(CalendarValues, StringComparer.Ordinal);
     private static readonly Lazy<string[]> CurrencyValues = new(BuildSupportedCurrencies);
@@ -27,7 +27,7 @@ internal static class IntlUtilities
         "mlym", "modi", "mong", "mroo", "mtei", "mymr", "mymrepka", "mymrpao", "mymrshan", "mymrtlng", "nagm",
         "native", "newa", "nkoo", "olck", "onao", "orya", "osma", "outlined", "rohg", "roman", "romanlow", "saur",
         "segment", "shrd", "sind", "sinh", "sora", "sund", "sunu", "takr", "talu", "taml", "tamldec", "tnsa",
-        "telu", "thai", "tirh", "tibt", "traditio", "vaii", "wara", "wcho"
+        "telu", "thai", "tirh", "tibt", "traditio", "vaii", "wara", "wcho",
     ];
     private static readonly HashSet<string> NumberingSystemSet = new(NumberingSystemValues, StringComparer.Ordinal);
 
@@ -37,7 +37,7 @@ internal static class IntlUtilities
         "gallon", "gigabit", "gigabyte", "gram", "hectare", "hour", "inch", "kilobit", "kilobyte", "kilogram",
         "kilometer", "liter", "megabit", "megabyte", "meter", "microsecond", "mile", "mile-scandinavian",
         "milliliter", "millimeter", "millisecond", "minute", "month", "nanosecond", "ounce", "percent",
-        "petabyte", "pound", "second", "stone", "terabit", "terabyte", "week", "yard", "year"
+        "petabyte", "pound", "second", "stone", "terabit", "terabyte", "week", "yard", "year",
     ];
     private static readonly HashSet<string> UnitSet = new(UnitValues, StringComparer.Ordinal);
     private static readonly string[] EmptyValues = Array.Empty<string>();
@@ -305,7 +305,7 @@ internal static class IntlUtilities
             "timeZone" => GetTimeZoneValues(realm),
             "unit" => UnitValues,
             _ => throw StandardLibrary.ThrowRangeError(
-                $"Unsupported Intl.supportedValuesOf key '{key}'", realm: realm)
+                $"Unsupported Intl.supportedValuesOf key '{key}'", realm: realm),
         };
     }
 
@@ -403,7 +403,7 @@ internal static class IntlUtilities
         var members = new HashSet<string>(StringComparer.Ordinal) { "UTC" };
         var lookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ["UTC"] = "UTC"
+            ["UTC"] = "UTC",
         };
 
         void AddZone(string? id)

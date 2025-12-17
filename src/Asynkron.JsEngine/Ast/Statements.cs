@@ -76,7 +76,7 @@ public enum VariableKind
     Let,
     Const,
     Using,
-    AwaitUsing
+    AwaitUsing,
 }
 
 /// <summary>
@@ -288,7 +288,7 @@ public enum ForEachKind
 {
     In,
     Of,
-    AwaitOf
+    AwaitOf,
 }
 
 /// <summary>
@@ -434,7 +434,7 @@ public enum ClassMemberKind
 {
     Method,
     Getter,
-    Setter
+    Setter,
 }
 
 /// <summary>
@@ -465,7 +465,7 @@ public readonly record struct ClassStaticElement(ClassStaticElementKind Kind, in
 public enum ClassStaticElementKind
 {
     Field,
-    Block
+    Block,
 }
 
 /// <summary>

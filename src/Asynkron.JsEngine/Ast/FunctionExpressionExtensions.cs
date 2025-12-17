@@ -378,7 +378,7 @@ public static partial class TypedAstEvaluator
                 true => new TypedGeneratorFactory(functionExpression, closureEnvironment, context.RealmState,
                     context.CurrentScope.IsStrict, hasFunctionNameEnvironment, isConstructorFunction),
                 _ => new TypedFunction(functionExpression, closureEnvironment, context.RealmState,
-                    context.CurrentScope.IsStrict, hasFunctionNameEnvironment, isConstructorFunction)
+                    context.CurrentScope.IsStrict, hasFunctionNameEnvironment, isConstructorFunction),
             };
 
             var capturedPrivateScopes = context.CapturePrivateNameScopes();

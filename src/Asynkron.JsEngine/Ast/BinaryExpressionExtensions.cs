@@ -87,7 +87,7 @@ public static partial class TypedAstEvaluator
                 BinaryOperator.LeftShift => LeftShiftValue(left, right, context),
                 BinaryOperator.RightShift => RightShiftValue(left, right, context),
                 BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(left, right, context),
-                _ => throw new NotSupportedException($"Operator '{op}' is not supported yet.")
+                _ => throw new NotSupportedException($"Operator '{op}' is not supported yet."),
             };
         }
 
@@ -119,7 +119,7 @@ public static partial class TypedAstEvaluator
             {
                 BinaryOperator.In => InOperator(left.ToObject(), right.ToObject(), context) ? JsValue.True : JsValue.False,
                 BinaryOperator.InstanceOf => InstanceofOperator(left.ToObject(), right.ToObject(), context) ? JsValue.True : JsValue.False,
-                _ => JsValue.Undefined
+                _ => JsValue.Undefined,
             };
         }
     }

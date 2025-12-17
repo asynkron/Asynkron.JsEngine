@@ -108,7 +108,7 @@ public static partial class TypedAstEvaluator
                     ReturnCompletionSignal returnSignal => returnSignal.JsValue.GetType().Name,
                     BreakCompletionSignal => "Break",
                     ContinueCompletionSignal => "Continue",
-                    _ => "null"
+                    _ => "null",
                 });
 
             // Per ES spec 7.4.7 IteratorClose: we need to temporarily clear any existing

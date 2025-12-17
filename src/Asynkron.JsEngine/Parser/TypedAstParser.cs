@@ -1920,7 +1920,7 @@ public sealed class TypedAstParser(
                         TokenType.GreaterGreaterEqual => ">>",
                         TokenType.GreaterGreaterGreaterEqual => ">>>",
                         _ => throw new NotSupportedException($"Unsupported assignment operator '{opToken.Type}'.")
-                    }, expr, value)
+                    }, expr, value),
                 };
 
                 var result = expr switch
@@ -1928,7 +1928,7 @@ public sealed class TypedAstParser(
                     IdentifierExpression identifier => new AssignmentExpression(
                         expr.Source ?? combined.Source, identifier.Name, combined, true),
                     MemberExpression member => CreateMemberAssignment(member, combined, true),
-                    _ => throw new NotSupportedException("Unsupported assignment target.")
+                    _ => throw new NotSupportedException("Unsupported assignment target."),
                 };
 
                 return validateCoverInitializedName ? ValidateExpression(result) : result;
@@ -2053,7 +2053,7 @@ public sealed class TypedAstParser(
                     TokenType.EqualEqualEqual => "===",
                     TokenType.BangEqual => "!=",
                     TokenType.BangEqualEqual => "!==",
-                    _ => throw new InvalidOperationException()
+                    _ => throw new InvalidOperationException(),
                 };
                 var right = ParseRelational();
                 expr = CreateBinaryExpression(op, expr, right);
@@ -2118,7 +2118,7 @@ public sealed class TypedAstParser(
                     TokenType.LessEqual => "<=",
                     TokenType.Instanceof => "instanceof",
                     TokenType.In => "in",
-                    _ => throw new InvalidOperationException()
+                    _ => throw new InvalidOperationException(),
                 };
                 var right = ParseShift();
                 expr = CreateBinaryExpression(op, expr, right);
@@ -2139,7 +2139,7 @@ public sealed class TypedAstParser(
                     TokenType.LessLess => "<<",
                     TokenType.GreaterGreater => ">>",
                     TokenType.GreaterGreaterGreater => ">>>",
-                    _ => throw new InvalidOperationException()
+                    _ => throw new InvalidOperationException(),
                 };
                 var right = ParseAddition();
                 expr = CreateBinaryExpression(op, expr, right);
@@ -2175,7 +2175,7 @@ public sealed class TypedAstParser(
                     TokenType.Star => "*",
                     TokenType.Slash => "/",
                     TokenType.Percent => "%",
-                    _ => throw new InvalidOperationException("Unexpected binary operator.")
+                    _ => throw new InvalidOperationException("Unexpected binary operator."),
                 };
 
                 expr = CreateBinaryExpression(symbol, expr, right);
@@ -2567,7 +2567,7 @@ public sealed class TypedAstParser(
                     TokenType.Typeof => UnaryOperator.TypeOf,
                     TokenType.Void => UnaryOperator.Void,
                     TokenType.Delete => UnaryOperator.Delete,
-                    _ => throw new InvalidOperationException()
+                    _ => throw new InvalidOperationException(),
                 };
                 var unary = new UnaryExpression(CreateSourceReference(token), op, operand, true);
                 return ApplyCallSuffix(unary, allowCallSuffix);
@@ -3224,7 +3224,7 @@ public sealed class TypedAstParser(
                     false when Match(TokenType.Equal) => ParseAssignment(validateCoverInitializedName: false),
                     true when Check(TokenType.Equal) => throw new ParseException(
                         "Rest parameters cannot have default values.", Peek(), _source),
-                    _ => null
+                    _ => null,
                 };
 
                 builder.Add(new FunctionParameter(source, name, isRest, pattern, defaultValue));
@@ -3418,7 +3418,7 @@ public sealed class TypedAstParser(
                 ">>>" => BinaryOperator.UnsignedRightShift,
                 "in" => BinaryOperator.In,
                 "instanceof" => BinaryOperator.InstanceOf,
-                _ => throw new NotSupportedException($"Unknown binary operator: {op}")
+                _ => throw new NotSupportedException($"Unknown binary operator: {op}"),
             };
             return new BinaryExpression(source, binaryOp, left, right);
         }
@@ -3434,7 +3434,7 @@ public sealed class TypedAstParser(
             "delete" => UnaryOperator.Delete,
             "++" => UnaryOperator.Increment,
             "--" => UnaryOperator.Decrement,
-            _ => throw new NotSupportedException($"Unknown unary operator: {op}")
+            _ => throw new NotSupportedException($"Unknown unary operator: {op}"),
         };
 
         private static ExpressionNode CreateMemberAssignment(
@@ -3464,7 +3464,7 @@ public sealed class TypedAstParser(
                 VariableDeclaration { Declarators.Length: 1 } declaration => declaration.Declarators[0].Target,
                 ExpressionStatement { Expression: { } expression } => TryConvertExpressionToBindingTarget(
                     expression),
-                _ => null
+                _ => null,
             };
         }
 
@@ -3476,7 +3476,7 @@ public sealed class TypedAstParser(
                     initializer.Source ?? identifier.Source, identifier.Name, initializer),
                 ArrayBinding or ObjectBinding => new DestructuringAssignmentExpression(
                     initializer.Source ?? target.Source, target, initializer),
-                _ => throw new NotSupportedException("Unsupported initializer binding in for-each statement.")
+                _ => throw new NotSupportedException("Unsupported initializer binding in for-each statement."),
             };
         }
 
@@ -4030,7 +4030,7 @@ public sealed class TypedAstParser(
             {
                 IdentifierBinding identifier =>
                     new FunctionParameter(target.Source, identifier.Name, isRest, null, defaultValue),
-                _ => new FunctionParameter(target.Source, null, isRest, target, defaultValue)
+                _ => new FunctionParameter(target.Source, null, isRest, target, defaultValue),
             };
         }
 
@@ -4098,7 +4098,7 @@ public sealed class TypedAstParser(
                     TokenType.Await or TokenType.Static or TokenType.Import or TokenType.Export
                     or TokenType.Using
                     or TokenType.With => true,
-                _ => false
+                _ => false,
             };
         }
 
@@ -4444,12 +4444,12 @@ public sealed class TypedAstParser(
                 TokenType.BigInt => token.Literal switch
                 {
                     JsBigInt bigInt => bigInt.Value.ToString(CultureInfo.InvariantCulture),
-                    _ => Convert.ToString(token.Literal, CultureInfo.InvariantCulture) ?? token.Lexeme
+                    _ => Convert.ToString(token.Literal, CultureInfo.InvariantCulture) ?? token.Lexeme,
                 },
                 TokenType.PrivateIdentifier => token.Lexeme.IsPrivateName()
                     ? token.Lexeme
                     : "#" + token.Lexeme,
-                _ => token.Lexeme
+                _ => token.Lexeme,
             };
         }
 

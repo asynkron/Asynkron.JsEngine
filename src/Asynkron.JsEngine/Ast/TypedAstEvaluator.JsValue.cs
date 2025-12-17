@@ -276,7 +276,7 @@ public static partial class TypedAstEvaluator
             JsValueKind.String => new JsValue(JsOps.ToNumber(value.AsString(), context)),
             JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a number", context),
             JsValueKind.Object => ToNumericValueFromObject(value.ObjectValue, context),
-            _ => JsValue.NaN
+            _ => JsValue.NaN,
         };
     }
 
@@ -312,7 +312,7 @@ public static partial class TypedAstEvaluator
             JsValueKind.BigInt => throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number", context),
             JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a number", context),
             JsValueKind.Object => JsOps.ToNumber(value.ToObject(), context),
-            _ => double.NaN
+            _ => double.NaN,
         };
     }
 
@@ -336,7 +336,7 @@ public static partial class TypedAstEvaluator
             JsValueKind.BigInt => value.AsBigInt().ToString(),
             JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context),
             JsValueKind.Object => JsOps.ToJsString(value.ToObject(), context),
-            _ => "undefined"
+            _ => "undefined",
         };
     }
 
@@ -554,7 +554,7 @@ public static partial class TypedAstEvaluator
             JsValueKind.BigInt => left.AsBigInt().Value == right.AsBigInt().Value,
             JsValueKind.Symbol => ReferenceEquals(left.ObjectValue, right.ObjectValue),
             JsValueKind.Object => ReferenceEquals(left.ObjectValue, right.ObjectValue),
-            _ => false
+            _ => false,
         };
     }
 

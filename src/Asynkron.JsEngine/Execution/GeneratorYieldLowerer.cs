@@ -149,7 +149,7 @@ internal static class GeneratorYieldLowerer
                 VariableDeclaration declaration => TryRewriteClassExpressionDeclaration(declaration, out replacement),
                 ExpressionStatement expressionStatement => TryRewriteClassExpressionExpression(expressionStatement,
                     out replacement),
-                _ => false
+                _ => false,
             };
         }
 
@@ -235,7 +235,7 @@ internal static class GeneratorYieldLowerer
                 VariableDeclaration declaration => TryRewriteObjectLiteralDeclaration(declaration, out replacement),
                 ExpressionStatement expressionStatement => TryRewriteObjectLiteralExpression(expressionStatement,
                     out replacement),
-                _ => false
+                _ => false,
             };
         }
 
@@ -458,7 +458,7 @@ internal static class GeneratorYieldLowerer
             {
                 Extends = rewrittenExtends,
                 Members = members.ToImmutable(),
-                Fields = fields.ToImmutable()
+                Fields = fields.ToImmutable(),
             };
             return true;
         }
@@ -587,7 +587,7 @@ internal static class GeneratorYieldLowerer
                     {
                         return propertyAssignmentExpression with
                         {
-                            Target = target, Property = property, Value = value
+                            Target = target, Property = property, Value = value,
                         };
                     }
 
@@ -611,7 +611,7 @@ internal static class GeneratorYieldLowerer
                     {
                         return indexAssignmentExpression with
                         {
-                            Target = target, Index = index, Value = value
+                            Target = target, Index = index, Value = value,
                         };
                     }
 
@@ -811,7 +811,7 @@ internal static class GeneratorYieldLowerer
                             Tag = tag,
                             StringsArray = stringsArray,
                             RawStringsArray = rawStringsArray,
-                            Expressions = expressionsBuilder.ToImmutable()
+                            Expressions = expressionsBuilder.ToImmutable(),
                         };
                     }
 
@@ -938,7 +938,7 @@ internal static class GeneratorYieldLowerer
                     var nestedResume = CreateResumeIdentifier();
                     var nestedDeclarator = declarator with
                     {
-                        Initializer = new IdentifierExpression(yieldExpression.Source, nestedResume.Name)
+                        Initializer = new IdentifierExpression(yieldExpression.Source, nestedResume.Name),
                     };
                     var nestedDeclaration = declaration with { Declarators = [nestedDeclarator] };
 
@@ -959,7 +959,7 @@ internal static class GeneratorYieldLowerer
             var resumeIdentifier = CreateResumeIdentifier();
             var rewrittenDeclarator = declarator with
             {
-                Initializer = new IdentifierExpression(yieldExpression.Source, resumeIdentifier.Name)
+                Initializer = new IdentifierExpression(yieldExpression.Source, resumeIdentifier.Name),
             };
             var rewrittenDeclaration = declaration with { Declarators = [rewrittenDeclarator] };
 
@@ -971,7 +971,7 @@ internal static class GeneratorYieldLowerer
                     new AssignmentExpression(yieldExpression.Source, resumeIdentifier.Name,
                         new YieldExpression(yieldExpression.Source, yieldExpression.Expression,
                             yieldExpression.IsDelegated))),
-                rewrittenDeclaration
+                rewrittenDeclaration,
             ];
             return true;
         }
@@ -1015,7 +1015,7 @@ internal static class GeneratorYieldLowerer
             var rewrittenInitializer = binary with
             {
                 Left = new IdentifierExpression(binary.Left.Source, leftResume.Name),
-                Right = new IdentifierExpression(binary.Right.Source, rightResume.Name)
+                Right = new IdentifierExpression(binary.Right.Source, rightResume.Name),
             };
             var finalDeclarator = declarator with { Initializer = rewrittenInitializer };
 
@@ -1023,7 +1023,7 @@ internal static class GeneratorYieldLowerer
             [
                 declaration with { Declarators = [leftDeclarator], Kind = VariableKind.Let },
                 declaration with { Declarators = [rightDeclarator], Kind = VariableKind.Let },
-                declaration with { Declarators = [finalDeclarator] }
+                declaration with { Declarators = [finalDeclarator] },
             ];
             return true;
         }
@@ -1049,7 +1049,7 @@ internal static class GeneratorYieldLowerer
             var resumeIdentifier = CreateResumeIdentifier();
             var rewrittenAssignment = assignment with
             {
-                Value = new IdentifierExpression(yieldExpression.Source, resumeIdentifier.Name)
+                Value = new IdentifierExpression(yieldExpression.Source, resumeIdentifier.Name),
             };
 
             var rewrittenStatement = expressionStatement with { Expression = rewrittenAssignment };
@@ -1064,7 +1064,7 @@ internal static class GeneratorYieldLowerer
                     new AssignmentExpression(yieldExpression.Source, resumeIdentifier.Name,
                         new YieldExpression(yieldExpression.Source, yieldExpression.Expression,
                             yieldExpression.IsDelegated))),
-                rewrittenStatement
+                rewrittenStatement,
             ];
             return true;
         }
@@ -1097,7 +1097,7 @@ internal static class GeneratorYieldLowerer
 
                     var loweredIf = ifStatement with
                     {
-                        Condition = rewrittenCondition, Then = rewrittenThen, Else = rewrittenElse
+                        Condition = rewrittenCondition, Then = rewrittenThen, Else = rewrittenElse,
                     };
 
                     var declareResume = new VariableDeclaration(yieldExpression.Source, VariableKind.Let,
@@ -1111,7 +1111,7 @@ internal static class GeneratorYieldLowerer
                     [
                         declareResume,
                         assignResume,
-                        loweredIf
+                        loweredIf,
                     ];
                     return true;
                 }

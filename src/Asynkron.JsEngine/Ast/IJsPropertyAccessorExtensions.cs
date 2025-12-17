@@ -134,7 +134,7 @@ public static partial class TypedAstEvaluator
 
             var created = new JsObject(realm.ObjectPrototype)
             {
-                Origin = "constructor.prototype (auto-created)"
+                Origin = "constructor.prototype (auto-created)",
             };
 
             constructor.SetProperty("prototype", (JsValue)created);

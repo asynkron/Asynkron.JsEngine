@@ -11,7 +11,7 @@ public sealed partial class SetPrototype
     {
         Entries,
         Keys,
-        Values
+        Values,
     }
 
     [JsHostMethod("add", Length = 1d)]
@@ -103,7 +103,7 @@ public sealed partial class SetPrototype
                     Value = values,
                     Writable = true,
                     Enumerable = false,
-                    Configurable = true
+                    Configurable = true,
                 });
         }
     }
@@ -140,7 +140,7 @@ public sealed partial class SetPrototype
                 var value = kind switch
                 {
                     SetIterationKind.Entries => CreateEntryPair(current, current),
-                    _ => current
+                    _ => current,
                 };
 
                 result.SetProperty("value", JsValue.FromObjectUnsafe(value));

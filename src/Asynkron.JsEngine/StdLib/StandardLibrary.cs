@@ -94,7 +94,7 @@ public static partial class StandardLibrary
             HasValue = true,
             HasWritable = true,
             HasEnumerable = true,
-            HasConfigurable = true
+            HasConfigurable = true,
         };
 
         if (target is IPropertyDefinitionHost definable && definable.TryDefineProperty(name, descriptor))
@@ -126,7 +126,7 @@ public static partial class StandardLibrary
         function.DefineProperty("length",
             new PropertyDescriptor
             {
-                Value = (double)length, Writable = false, Enumerable = false, Configurable = true
+                Value = (double)length, Writable = false, Enumerable = false, Configurable = true,
             });
         function.DefineProperty("name",
             new PropertyDescriptor { Value = name, Writable = false, Enumerable = false, Configurable = true });
@@ -139,7 +139,7 @@ public static partial class StandardLibrary
         target.DefineProperty(name,
             new PropertyDescriptor
             {
-                Value = function, Writable = writable, Enumerable = enumerable, Configurable = configurable
+                Value = function, Writable = writable, Enumerable = enumerable, Configurable = configurable,
             });
     }
 
@@ -358,7 +358,7 @@ public static partial class StandardLibrary
                 >= '0' and <= '9' => ch - '0',
                 >= 'a' and <= 'z' => ch - 'a' + 10,
                 >= 'A' and <= 'Z' => ch - 'A' + 10,
-                _ => -1
+                _ => -1,
             };
 
             if (digit < 0 || digit >= numberBase)

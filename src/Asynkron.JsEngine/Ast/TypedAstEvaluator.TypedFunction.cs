@@ -189,7 +189,7 @@ public static partial class TypedAstEvaluator
                         HasValue = true,
                         HasWritable = true,
                         HasEnumerable = true,
-                        HasConfigurable = true
+                        HasConfigurable = true,
                     });
                 _properties.DefineProperty("prototype",
                     new PropertyDescriptor
@@ -201,7 +201,7 @@ public static partial class TypedAstEvaluator
                         HasValue = true,
                         HasWritable = true,
                         HasEnumerable = true,
-                        HasConfigurable = true
+                        HasConfigurable = true,
                     });
             }
 
@@ -215,7 +215,7 @@ public static partial class TypedAstEvaluator
                     HasValue = true,
                     HasWritable = true,
                     HasEnumerable = true,
-                    HasConfigurable = true
+                    HasConfigurable = true,
                 });
 
             _properties.DefineProperty("name",
@@ -228,7 +228,7 @@ public static partial class TypedAstEvaluator
                     HasValue = true,
                     HasWritable = true,
                     HasEnumerable = true,
-                    HasConfigurable = true
+                    HasConfigurable = true,
                 });
 
             // Initialize precomputed fast path eligibility
@@ -301,7 +301,7 @@ public static partial class TypedAstEvaluator
                     HasValue = true,
                     HasWritable = true,
                     HasEnumerable = true,
-                    HasConfigurable = true
+                    HasConfigurable = true,
                 });
         }
 
@@ -795,7 +795,7 @@ public static partial class TypedAstEvaluator
                     {
                         initialThisValue = new JsObject
                         {
-                            RealmState = _realmState
+                            RealmState = _realmState,
                         };
                     }
 
@@ -1322,7 +1322,7 @@ public static partial class TypedAstEvaluator
                 RealmState = _realmState,
                 Origin = string.IsNullOrEmpty(_function.Name?.Name)
                     ? "anonymous function prototype (materialized)"
-                    : $"prototype of {_function.Name!.Name} (materialized)"
+                    : $"prototype of {_function.Name!.Name} (materialized)",
             };
             _properties.SetProperty("prototype", (JsValue)created);
             _prototypeObject = created;
@@ -1482,7 +1482,7 @@ public static partial class TypedAstEvaluator
                     Value = value,
                     Writable = true,
                     Enumerable = true,
-                    Configurable = true
+                    Configurable = true,
                 };
 
                 if (instance is IPropertyDefinitionHost definitionHost)

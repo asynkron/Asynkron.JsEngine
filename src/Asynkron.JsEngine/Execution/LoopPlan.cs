@@ -7,7 +7,7 @@ internal enum LoopKind
 {
     While,
     DoWhile,
-    For
+    For,
 }
 
 /// <summary>

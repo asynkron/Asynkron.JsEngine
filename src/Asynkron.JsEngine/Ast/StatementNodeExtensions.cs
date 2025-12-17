@@ -77,7 +77,7 @@ public static partial class TypedAstEvaluator
                 ClassDeclaration classDeclaration => EvaluateClassJsValue(classDeclaration, environment, context),
                 WithStatement withStatement => EvaluateWithJsValue(withStatement, environment, context),
                 _ => throw new NotSupportedException(
-                    $"Typed evaluator does not yet support '{statement.GetType().Name}'.")
+                    $"Typed evaluator does not yet support '{statement.GetType().Name}'."),
             };
         }
 

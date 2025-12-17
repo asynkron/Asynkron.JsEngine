@@ -23,7 +23,7 @@ public static partial class StandardLibrary
                 HasValue = true,
                 HasWritable = true,
                 HasEnumerable = true,
-                HasConfigurable = true
+                HasConfigurable = true,
             });
         wrapper.SetVirtualPropertyProvider(new StringVirtualPropertyProvider(str));
         wrapper.RealmState ??= realm;
@@ -38,7 +38,7 @@ public static partial class StandardLibrary
             JsObject obj when obj.TryGetProperty("__value__", out var inner) && inner.TryGetString(out var s) => s,
             IJsPropertyAccessor accessor when accessor.TryGetProperty("__value__", out var inner)
                                               && inner.TryGetString(out var s) => s,
-            _ => throw ThrowTypeError("String.prototype valueOf called on non-string object", realm: realm)
+            _ => throw ThrowTypeError("String.prototype valueOf called on non-string object", realm: realm),
         };
     }
 
@@ -60,7 +60,7 @@ public static partial class StandardLibrary
         else
         {
             // Fallback when no realm prototype is available yet.
-            AddStringMethods(stringObj, realmState, true);
+            AddStringMethods(stringObj, realmState, forceAttach: true);
         }
 
         return stringObj;
@@ -388,6 +388,7 @@ public static partial class StandardLibrary
 
         JsValue Concat(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
+            //TODO: use stringbuilder
             var result = ResolveString(thisValue);
             foreach (var arg in args)
             {
@@ -907,7 +908,7 @@ public static partial class StandardLibrary
                     "NFKC" => value.Normalize(NormalizationForm.FormKC),
                     "NFKD" => value.Normalize(NormalizationForm.FormKD),
                     _ => throw new Exception(
-                        "RangeError: The normalization form should be one of NFC, NFD, NFKC, NFKD.")
+                        "RangeError: The normalization form should be one of NFC, NFD, NFKC, NFKD."),
                 });
             }
             catch
@@ -1097,7 +1098,7 @@ public static partial class StandardLibrary
 
         static string EscapeAttr(string input)
         {
-            return input.Replace("\"", "&quot;");
+            return input.Replace("\"", "&quot;", StringComparison.Ordinal);
         }
 
         JsValue CreateIterator(JsValue thisValue, IReadOnlyList<JsValue> _)
@@ -1217,7 +1218,7 @@ public static partial class StandardLibrary
         return result.ToString();
     }
 
-    internal static object? StringRaw(IReadOnlyList<JsValue> args)
+    internal static string StringRaw(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -1283,7 +1284,7 @@ public static partial class StandardLibrary
         return result.ToString();
     }
 
-    internal static object? StringEscape(IReadOnlyList<JsValue> args)
+    internal static string StringEscape(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -1439,7 +1440,7 @@ public static partial class StandardLibrary
                 HasValue = true,
                 HasWritable = true,
                 HasEnumerable = true,
-                HasConfigurable = true
+                HasConfigurable = true,
             };
             return true;
         }

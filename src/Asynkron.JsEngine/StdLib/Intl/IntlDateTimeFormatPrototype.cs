@@ -121,14 +121,14 @@ public sealed partial class IntlDateTimeFormatPrototype
             Value = 1d,
             Writable = false,
             Enumerable = false,
-            Configurable = true
+            Configurable = true,
         });
         function.DefineProperty("name", new PropertyDescriptor
         {
             Value = string.Empty,
             Writable = false,
             Enumerable = false,
-            Configurable = true
+            Configurable = true,
         });
     }
 

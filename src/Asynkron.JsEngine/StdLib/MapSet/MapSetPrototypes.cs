@@ -12,7 +12,7 @@ public sealed partial class MapPrototype
     {
         Entries,
         Keys,
-        Values
+        Values,
     }
 
     [JsHostMethod("set", Length = 2d)]
@@ -111,7 +111,7 @@ public sealed partial class MapPrototype
                     Value = entries,
                     Writable = true,
                     Enumerable = false,
-                    Configurable = true
+                    Configurable = true,
                 });
         }
     }
@@ -149,7 +149,7 @@ public sealed partial class MapPrototype
                 {
                     MapIterationKind.Keys => entry.Key,
                     MapIterationKind.Values => entry.Value,
-                    _ => CreateEntryPair(entry.Key, entry.Value)
+                    _ => CreateEntryPair(entry.Key, entry.Value),
                 };
 
                 result.SetProperty("value", JsValue.FromObjectUnsafe(value));

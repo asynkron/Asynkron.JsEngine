@@ -84,5 +84,5 @@ public enum PrototypeObjectKind
 {
     Object,
     Array,
-    Function
+    Function,
 }

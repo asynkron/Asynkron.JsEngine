@@ -202,7 +202,7 @@ public static partial class TypedAstEvaluator
                 UnaryOperator.Minus => NegateValue(operand, context),
                 UnaryOperator.BitwiseNot => BitwiseNotValue(operand, context),
                 UnaryOperator.Void => JsValue.Undefined,
-                _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet.")
+                _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet."),
             };
         }
 
@@ -247,7 +247,7 @@ public static partial class TypedAstEvaluator
             JsValueKind.String => "string",
             JsValueKind.Symbol => "symbol",
             JsValueKind.Object => GetTypeofStringForObject(value.ObjectValue),
-            _ => "undefined"
+            _ => "undefined",
         };
     }
 

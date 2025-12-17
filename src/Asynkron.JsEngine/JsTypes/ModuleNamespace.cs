@@ -106,7 +106,7 @@ internal sealed class ModuleNamespace : IJsObjectLike
         {
             return new PropertyDescriptor
             {
-                Value = "Module", Writable = false, Enumerable = false, Configurable = false
+                Value = "Module", Writable = false, Enumerable = false, Configurable = false,
             };
         }
 
@@ -117,7 +117,7 @@ internal sealed class ModuleNamespace : IJsObjectLike
                 var lookedUp = _bindingLookup(name);
                 return new PropertyDescriptor
                 {
-                    Value = lookedUp, Writable = true, Enumerable = true, Configurable = false
+                    Value = lookedUp, Writable = true, Enumerable = true, Configurable = false,
                 };
             }
 
@@ -131,7 +131,7 @@ internal sealed class ModuleNamespace : IJsObjectLike
             EnsureInitialized(name, lookedUp);
             return new PropertyDescriptor
             {
-                Value = lookedUp, Writable = true, Enumerable = true, Configurable = false
+                Value = lookedUp, Writable = true, Enumerable = true, Configurable = false,
             };
         }
 

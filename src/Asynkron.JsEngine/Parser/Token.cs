@@ -110,7 +110,7 @@ public enum TokenType
     Import,
     Export,
     RegexLiteral,
-    Eof
+    Eof,
 }
 
 public sealed record Token(

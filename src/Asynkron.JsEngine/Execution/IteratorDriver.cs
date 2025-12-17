@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.Execution;
 internal enum IteratorDriverKind
 {
     Sync,
-    Await
+    Await,
 }
 
 internal sealed record IteratorDriverPlan(

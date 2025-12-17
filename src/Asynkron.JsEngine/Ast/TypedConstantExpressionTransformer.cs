@@ -48,7 +48,7 @@ public sealed class TypedConstantExpressionTransformer
             ExportDefaultStatement exportDefaultStatement => TransformExportDefault(exportDefaultStatement),
             ExportDeclarationStatement exportDeclarationStatement => TransformExportDeclaration(
                 exportDeclarationStatement),
-            _ => statement
+            _ => statement,
         };
     }
 
@@ -257,7 +257,7 @@ public sealed class TypedConstantExpressionTransformer
             IdentifierBinding => target,
             ArrayBinding arrayBinding => TransformArrayBinding(arrayBinding),
             ObjectBinding objectBinding => TransformObjectBinding(objectBinding),
-            _ => target
+            _ => target,
         };
     }
 
@@ -365,7 +365,7 @@ public sealed class TypedConstantExpressionTransformer
             Constructor = constructor,
             Members = members,
             Fields = fields,
-            StaticBlocks = staticBlocks
+            StaticBlocks = staticBlocks,
         };
     }
 
@@ -405,7 +405,7 @@ public sealed class TypedConstantExpressionTransformer
         {
             ExportDefaultExpression expression => TransformExportDefaultExpression(expression),
             ExportDefaultDeclaration declaration => TransformExportDefaultDeclaration(declaration),
-            _ => value
+            _ => value,
         };
     }
 
@@ -455,7 +455,7 @@ public sealed class TypedConstantExpressionTransformer
             AwaitExpression awaitExpression => TransformAwait(awaitExpression),
             ThisExpression => expression,
             SuperExpression => expression,
-            _ => expression
+            _ => expression,
         };
     }
 
@@ -678,7 +678,7 @@ public sealed class TypedConstantExpressionTransformer
 
         return expression with
         {
-            Tag = tag, StringsArray = stringsArray, RawStringsArray = rawStringsArray, Expressions = expressions
+            Tag = tag, StringsArray = stringsArray, RawStringsArray = rawStringsArray, Expressions = expressions,
         };
     }
 
@@ -705,7 +705,7 @@ public sealed class TypedConstantExpressionTransformer
                 JsValueKind.Boolean => literal.Value.IsBoolean && literal.Value.NumberValue != 0,
                 JsValueKind.Number => literal.Value.NumberValue,
                 JsValueKind.String => literal.Value.AsString(),
-                _ => null
+                _ => null,
             };
             return true;
         }
@@ -731,7 +731,7 @@ public sealed class TypedConstantExpressionTransformer
             false => JsValue.False,
             double d => new JsValue(d),
             string s => new JsValue(s),
-            _ => JsValue.FromObjectUnsafe(value)
+            _ => JsValue.FromObjectUnsafe(value),
         };
     }
 
@@ -762,7 +762,7 @@ public sealed class TypedConstantExpressionTransformer
             BinaryOperator.LeftShift => TryFoldLeftShift(left, right, out value),
             BinaryOperator.RightShift => TryFoldRightShift(left, right, out value),
             BinaryOperator.UnsignedRightShift => TryFoldUnsignedRightShift(left, right, out value),
-            _ => false
+            _ => false,
         };
     }
 
@@ -775,7 +775,7 @@ public sealed class TypedConstantExpressionTransformer
             UnaryOperator.Plus => TryFoldUnaryPlus(operand, out value),
             UnaryOperator.LogicalNot => TryFoldLogicalNot(operand, out value),
             UnaryOperator.BitwiseNot => TryFoldBitwiseNot(operand, out value),
-            _ => false
+            _ => false,
         };
     }
 
@@ -1125,7 +1125,7 @@ public sealed class TypedConstantExpressionTransformer
             bool b => b ? "true" : "false",
             double d => d.ToString(CultureInfo.InvariantCulture),
             IJsCallable => "function() { [native code] }",
-            _ => value.ToString() ?? string.Empty
+            _ => value.ToString() ?? string.Empty,
         };
     }
 
@@ -1137,7 +1137,7 @@ public sealed class TypedConstantExpressionTransformer
             bool b => b,
             double d => d != 0 && !double.IsNaN(d),
             string s => s.Length > 0,
-            _ => true
+            _ => true,
         };
     }
 

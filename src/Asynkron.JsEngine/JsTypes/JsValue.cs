@@ -499,7 +499,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             JsValueKind.Symbol => ObjectValue,
             JsValueKind.Object => ObjectValue,
             JsValueKind.Unit => ObjectValue, // Returns UnitSentinel
-            _ => Symbol.Undefined
+            _ => Symbol.Undefined,
         };
     }
 
@@ -543,7 +543,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     {
         null => Null,
         JsObject obj => new JsValue(obj),
-        _ => new JsValue(JsValueKind.Object, 0.0, value)
+        _ => new JsValue(JsValueKind.Object, 0.0, value),
     };
 
     /// <summary>Creates a JsValue from an IJsCallable (HostFunction, TypedFunction, etc.).</summary>
@@ -643,7 +643,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             byte by => new JsValue((double)by),
             sbyte sby => new JsValue((double)sby),
             // Fallback: wrap unknown types as objects (for internal types like YieldResumeContext)
-            _ => new JsValue(JsValueKind.Object, 0.0, value)
+            _ => new JsValue(JsValueKind.Object, 0.0, value),
         };
     }
 
@@ -667,7 +667,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             0.0 => Zero,
             1.0 => One,
             -1.0 => NegativeOne,
-            _ => new JsValue(value)
+            _ => new JsValue(value),
         };
     }
 
@@ -680,7 +680,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             0 => Zero,
             1 => One,
             -1 => NegativeOne,
-            _ => new JsValue((double)value)
+            _ => new JsValue((double)value),
         };
     }
 
@@ -718,7 +718,7 @@ public readonly struct JsValue : IEquatable<JsValue>
                 JsValueKind.String => ((string)ObjectValue!).Length > 0,
                 JsValueKind.BigInt => !((JsBigInt)ObjectValue!).Value.IsZero,
                 JsValueKind.Symbol => true,
-                _ => false
+                _ => false,
             };
         }
     }
@@ -748,7 +748,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             JsValueKind.String => string.Equals((string)ObjectValue!, (string)other.ObjectValue!, StringComparison.Ordinal),
             JsValueKind.BigInt => ((JsBigInt)ObjectValue!).Equals((JsBigInt)other.ObjectValue!),
             JsValueKind.Symbol or JsValueKind.Object => ReferenceEquals(ObjectValue, other.ObjectValue),
-            _ => false
+            _ => false,
         };
     }
 
@@ -765,7 +765,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             JsValueKind.Number => NumberValue.GetHashCode(),
             JsValueKind.String => ((string)ObjectValue!).GetHashCode(StringComparison.Ordinal),
             JsValueKind.BigInt or JsValueKind.Symbol or JsValueKind.Object => ObjectValue!.GetHashCode(),
-            _ => 0
+            _ => 0,
         };
     }
 
@@ -789,7 +789,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             JsValueKind.BigInt => $"{ObjectValue}n",
             JsValueKind.Symbol => ObjectValue?.ToString() ?? "Symbol()",
             JsValueKind.Object => ObjectValue?.ToString() ?? "[object Object]",
-            _ => "undefined"
+            _ => "undefined",
         };
     }
 

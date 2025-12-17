@@ -994,7 +994,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             ForStatement => LabelTargetKind.Iteration,
             ForEachStatement => LabelTargetKind.Iteration,
             SwitchStatement => LabelTargetKind.Switch,
-            _ => LabelTargetKind.Other
+            _ => LabelTargetKind.Other,
         };
     }
 
@@ -1025,7 +1025,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
     {
         Other,
         Iteration,
-        Switch
+        Switch,
     }
 
     private static bool CanDeclareGlobalFunction(JsEnvironment varEnv, Symbol name)
@@ -1042,7 +1042,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             { Configurable: true } => true,
             _ => !descriptor.IsAccessorDescriptor &&
                  descriptor.Writable &&
-                 descriptor.Enumerable
+                 descriptor.Enumerable,
         };
     }
 

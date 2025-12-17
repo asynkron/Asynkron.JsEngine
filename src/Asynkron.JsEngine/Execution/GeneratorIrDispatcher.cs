@@ -16,7 +16,7 @@ internal static class GeneratorIrBuilder
         {
             { IsAsync: true, IsGenerator: true } => AsyncGeneratorIrBuilder.TryBuild(function, out plan,
                 out failureReason),
-            _ => SyncGeneratorIrBuilder.TryBuild(function, out plan, out failureReason)
+            _ => SyncGeneratorIrBuilder.TryBuild(function, out plan, out failureReason),
         };
 
         GeneratorIrDiagnostics.ReportResult(function, succeeded, failureReason);

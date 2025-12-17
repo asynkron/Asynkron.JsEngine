@@ -161,7 +161,7 @@ public static partial class TypedAstEvaluator
         return value switch
         {
             IJsPropertyAccessor => value,
-            _ => ToObjectForDestructuring(value, context)
+            _ => ToObjectForDestructuring(value, context),
         };
     }
 
@@ -240,7 +240,7 @@ public static partial class TypedAstEvaluator
                     {
                         IJsObjectLike objectLike => objectLike.Prototype,
                         IPrototypeAccessorProvider provider => provider.PrototypeAccessor,
-                        _ => null
+                        _ => null,
                     };
                 }
 
@@ -323,7 +323,7 @@ public static partial class TypedAstEvaluator
                     {
                         IJsObjectLike objectLike => objectLike.Prototype,
                         IPrototypeAccessorProvider provider => provider.PrototypeAccessor,
-                        _ => null
+                        _ => null,
                     };
                 }
 
@@ -545,7 +545,7 @@ public static partial class TypedAstEvaluator
                 {
                     TypedAstSymbol => true,
                     Symbol sym when !ReferenceEquals(sym, Symbol.Undefined) => true,
-                    _ => false
+                    _ => false,
                 };
             }
 
@@ -959,7 +959,7 @@ public static partial class TypedAstEvaluator
         {
             JsBigInt bigInt => new JsBigInt(bigInt.Value + BigInteger.One),
             double d => JsValueCache.GetNumber(d + 1),
-            _ => JsValueCache.GetNumber(JsOps.ToNumber(value, context) + 1)
+            _ => JsValueCache.GetNumber(JsOps.ToNumber(value, context) + 1),
         };
     }
 
@@ -969,7 +969,7 @@ public static partial class TypedAstEvaluator
         {
             JsBigInt bigInt => new JsBigInt(bigInt.Value - BigInteger.One),
             double d => JsValueCache.GetNumber(d - 1),
-            _ => JsValueCache.GetNumber(JsOps.ToNumber(value, context) - 1)
+            _ => JsValueCache.GetNumber(JsOps.ToNumber(value, context) - 1),
         };
     }
 

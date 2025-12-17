@@ -67,7 +67,7 @@ internal static class IntlWeekData
             FirstDay = new Dictionary<string, string>(payload.FirstDay, StringComparer.Ordinal),
             WeekendStart = new Dictionary<string, string>(payload.WeekendStart, StringComparer.Ordinal),
             WeekendEnd = new Dictionary<string, string>(payload.WeekendEnd, StringComparer.Ordinal),
-            MinDays = new Dictionary<string, string>(payload.MinDays, StringComparer.Ordinal)
+            MinDays = new Dictionary<string, string>(payload.MinDays, StringComparer.Ordinal),
         };
     }
 

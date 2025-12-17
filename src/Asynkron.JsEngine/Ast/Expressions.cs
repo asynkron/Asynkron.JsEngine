@@ -302,7 +302,7 @@ public enum ObjectMemberKind
     Setter,
     Field,
     Spread,
-    Unknown
+    Unknown,
 }
 
 /// <summary>

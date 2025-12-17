@@ -150,7 +150,7 @@ namespace Asynkron.JsEngine.JsTypes;
         {
             return new PropertyDescriptor
             {
-                Value = existingValue, Writable = true, Enumerable = true, Configurable = true
+                Value = existingValue, Writable = true, Enumerable = true, Configurable = true,
             };
         }
 
@@ -344,7 +344,7 @@ namespace Asynkron.JsEngine.JsTypes;
             {
                 _descriptors[key] = new PropertyDescriptor
                 {
-                    Value = this[key], Writable = true, Enumerable = true, Configurable = false
+                    Value = this[key], Writable = true, Enumerable = true, Configurable = false,
                 };
             }
         }
@@ -1233,7 +1233,7 @@ namespace Asynkron.JsEngine.JsTypes;
             {
                 _descriptors[key] = new PropertyDescriptor
                 {
-                    Value = this[key], Writable = false, Enumerable = true, Configurable = false
+                    Value = this[key], Writable = false, Enumerable = true, Configurable = false,
                 };
             }
         }

@@ -49,13 +49,13 @@ public sealed partial class IntlDisplayNamesConstructor(IJsObjectLike prototype,
         supportedLocalesOf.DefineProperty("name",
             new PropertyDescriptor
             {
-                Value = "supportedLocalesOf", Writable = false, Enumerable = false, Configurable = true
+                Value = "supportedLocalesOf", Writable = false, Enumerable = false, Configurable = true,
             });
 
         constructor.DefineProperty("supportedLocalesOf",
             new PropertyDescriptor
             {
-                Value = supportedLocalesOf, Writable = true, Enumerable = false, Configurable = true
+                Value = supportedLocalesOf, Writable = true, Enumerable = false, Configurable = true,
             });
 
         supportedLocalesOf.SetPrototype(constructor.Prototype);

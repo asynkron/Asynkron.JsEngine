@@ -168,7 +168,7 @@ internal readonly struct AssignmentReference
             ReferenceKind.WithBinding => ReadWithBinding(),
             ReferenceKind.Unresolvable => ReadUnresolvable(),
             ReferenceKind.Delegate => _delegateGetter!(),
-            _ => throw new InvalidOperationException($"Unknown reference kind: {_kind}")
+            _ => throw new InvalidOperationException($"Unknown reference kind: {_kind}"),
         };
     }
 
@@ -184,7 +184,7 @@ internal readonly struct AssignmentReference
             ReferenceKind.WithBinding => JsValue.FromObjectUnsafe(ReadWithBinding()),
             ReferenceKind.Unresolvable => JsValue.FromObjectUnsafe(ReadUnresolvable()),
             ReferenceKind.Delegate => JsValue.FromObjectUnsafe(_delegateGetter!()),
-            _ => throw new InvalidOperationException($"Unknown reference kind: {_kind}")
+            _ => throw new InvalidOperationException($"Unknown reference kind: {_kind}"),
         };
     }
 
@@ -337,7 +337,7 @@ internal readonly struct AssignmentReference
             JsValueKind.String => value.ObjectValue,
             JsValueKind.Symbol => value.ObjectValue,
             JsValueKind.Object => value.ObjectValue,
-            _ => Symbol.Undefined
+            _ => Symbol.Undefined,
         };
     }
 }
@@ -438,7 +438,7 @@ internal static class AssignmentReferenceResolver
                 deferPropertyKeyConversion),
             UnaryExpression { Operator: UnaryOperator.Increment or UnaryOperator.Decrement } unary =>
                 Resolve(unary.Operand, environment, context, evaluateExpression),
-            _ => throw new NotSupportedException("Unsupported assignment target.")
+            _ => throw new NotSupportedException("Unsupported assignment target."),
         };
     }
 
@@ -732,7 +732,7 @@ internal static class AssignmentReferenceResolver
                         HasValue = true,
                         HasWritable = true,
                         HasEnumerable = inheritedDescriptor.HasEnumerable,
-                        HasConfigurable = inheritedDescriptor.HasConfigurable
+                        HasConfigurable = inheritedDescriptor.HasConfigurable,
                     });
                     return;
                 }
@@ -787,7 +787,7 @@ internal static class AssignmentReferenceResolver
                         HasValue = true,
                         HasWritable = true,
                         HasEnumerable = inheritedDescriptor.HasEnumerable,
-                        HasConfigurable = inheritedDescriptor.HasConfigurable
+                        HasConfigurable = inheritedDescriptor.HasConfigurable,
                     });
                     return;
                 }

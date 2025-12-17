@@ -156,7 +156,7 @@ public sealed class EvaluationContext(
             {
                 ThrowFlowCompletionSignal ts => ts.JsValue,
                 YieldCompletionSignal ys => ys.JsValue,
-                _ => JsValue.Undefined
+                _ => JsValue.Undefined,
             };
         }
     }
@@ -605,13 +605,13 @@ public enum ScopeKind
 {
     Program,
     Function,
-    Block
+    Block,
 }
 
 public enum ScopeMode
 {
     Strict,
-    Sloppy
+    Sloppy,
 }
 
 public readonly record struct ScopeFrame(ScopeKind Kind, ScopeMode Mode)

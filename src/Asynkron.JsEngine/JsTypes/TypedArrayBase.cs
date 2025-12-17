@@ -400,7 +400,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             Value = GetValueForIndex(index),
             Writable = true,
             Enumerable = true,
-            Configurable = false
+            Configurable = false,
         };
     }
 
@@ -578,7 +578,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             {
                 JsBigInt64Array bi64 => new JsValue(bi64.GetBigIntElement(i)),
                 JsBigUint64Array bu64 => new JsValue(bu64.GetBigIntElement(i)),
-                _ => new JsValue(target.GetElement(i))
+                _ => new JsValue(target.GetElement(i)),
             };
 
             if (JsOps.StrictEquals(element, searchElement))
@@ -655,7 +655,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             {
                 JsBigInt64Array bi64 => new JsValue(bi64.GetBigIntElement(i)),
                 JsBigUint64Array bu64 => new JsValue(bu64.GetBigIntElement(i)),
-                _ => new JsValue(target.GetElement(i))
+                _ => new JsValue(target.GetElement(i)),
             };
 
             if (SameValueZero(element, searchElement))
@@ -737,7 +737,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             {
                 JsBigInt64Array bi64 => new JsValue(bi64.GetBigIntElement(i)),
                 JsBigUint64Array bu64 => new JsValue(bu64.GetBigIntElement(i)),
-                _ => new JsValue(target.GetElement(i))
+                _ => new JsValue(target.GetElement(i)),
             };
 
             if (JsOps.StrictEquals(element, searchElement))

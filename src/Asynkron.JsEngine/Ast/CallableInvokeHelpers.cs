@@ -37,7 +37,7 @@ public static partial class TypedAstEvaluator
             {
                 TypedFunction typedFunction => typedFunction.InvokeWithContext(arguments, thisValue, callingContext),
                 HostFunction hostFunction => hostFunction.InvokeWithContext(arguments, thisValue, callingContext),
-                _ => callable.Invoke(arguments, thisValue)
+                _ => callable.Invoke(arguments, thisValue),
             };
         }
         finally

@@ -28,7 +28,7 @@ public static partial class TypedAstEvaluator
                     HasValue = true,
                     HasWritable = true,
                     HasEnumerable = true,
-                    HasConfigurable = true
+                    HasConfigurable = true,
                 });
             }
 
@@ -43,7 +43,7 @@ public static partial class TypedAstEvaluator
                 HasValue = true,
                 HasWritable = true,
                 HasEnumerable = true,
-                HasConfigurable = true
+                HasConfigurable = true,
             });
 
             // Create and configure the raw array - also needs to be a JsArray
@@ -59,7 +59,7 @@ public static partial class TypedAstEvaluator
                     HasValue = true,
                     HasWritable = true,
                     HasEnumerable = true,
-                    HasConfigurable = true
+                    HasConfigurable = true,
                 });
             }
 
@@ -72,7 +72,7 @@ public static partial class TypedAstEvaluator
                 HasValue = true,
                 HasWritable = true,
                 HasEnumerable = true,
-                HasConfigurable = true
+                HasConfigurable = true,
             });
 
             // Freeze the raw array
@@ -89,7 +89,7 @@ public static partial class TypedAstEvaluator
                 HasValue = true,
                 HasWritable = true,
                 HasEnumerable = true,
-                HasConfigurable = true
+                HasConfigurable = true,
             });
 
             // Freeze the template object

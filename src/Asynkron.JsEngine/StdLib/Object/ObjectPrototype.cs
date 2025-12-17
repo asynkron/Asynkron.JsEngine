@@ -291,7 +291,7 @@ public sealed partial class ObjectPrototype : JsPrototype
                     Value = "get __proto__",
                     Writable = false,
                     Enumerable = false,
-                    Configurable = true
+                    Configurable = true,
                 });
             var protoSetter = new HostFunction(SetProto, Realm, isConstructor: false);
             protoSetter.TryDefineProperty("name",
@@ -300,7 +300,7 @@ public sealed partial class ObjectPrototype : JsPrototype
                     Value = "set __proto__",
                     Writable = false,
                     Enumerable = false,
-                    Configurable = true
+                    Configurable = true,
                 });
 
             objectProto.DefineProperty("__proto__", new PropertyDescriptor
@@ -308,7 +308,7 @@ public sealed partial class ObjectPrototype : JsPrototype
                 Get = protoGetter,
                 Set = protoSetter,
                 Enumerable = false,
-                Configurable = true
+                Configurable = true,
             });
         }
     }

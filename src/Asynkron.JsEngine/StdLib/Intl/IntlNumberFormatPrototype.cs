@@ -34,7 +34,7 @@ public sealed partial class IntlNumberFormatPrototype
         var partsArray = new JsArray(Realm);
         var parts = result.Parts ?? new List<NumberFormatPart>
         {
-            new("literal", result.Formatted)
+            new("literal", result.Formatted),
         };
         foreach (var part in parts)
         {
@@ -160,14 +160,14 @@ public sealed partial class IntlNumberFormatPrototype
             Value = (JsValue)1d,
             Writable = false,
             Enumerable = false,
-            Configurable = true
+            Configurable = true,
         });
         function.DefineProperty("name", new PropertyDescriptor
         {
             Value = (JsValue)string.Empty,
             Writable = false,
             Enumerable = false,
-            Configurable = true
+            Configurable = true,
         });
     }
 }

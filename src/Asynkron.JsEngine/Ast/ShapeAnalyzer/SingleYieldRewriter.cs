@@ -16,36 +16,36 @@ public sealed class SingleYieldRewriter(Symbol replacementSymbol)
             {
                 Test = Rewrite(conditional.Test),
                 Consequent = Rewrite(conditional.Consequent),
-                Alternate = Rewrite(conditional.Alternate)
+                Alternate = Rewrite(conditional.Alternate),
             },
             CallExpression call => call with
             {
-                Callee = Rewrite(call.Callee), Arguments = RewriteArguments(call.Arguments)
+                Callee = Rewrite(call.Callee), Arguments = RewriteArguments(call.Arguments),
             },
             NewExpression @new => @new with
             {
-                Constructor = Rewrite(@new.Constructor), Arguments = RewriteArguments(@new.Arguments)
+                Constructor = Rewrite(@new.Constructor), Arguments = RewriteArguments(@new.Arguments),
             },
             MemberExpression member => member with
             {
-                Target = Rewrite(member.Target), Property = Rewrite(member.Property)
+                Target = Rewrite(member.Target), Property = Rewrite(member.Property),
             },
             AssignmentExpression assignment => assignment with { Value = Rewrite(assignment.Value) },
             PropertyAssignmentExpression propertyAssignment => propertyAssignment with
             {
                 Target = Rewrite(propertyAssignment.Target),
                 Property = Rewrite(propertyAssignment.Property),
-                Value = Rewrite(propertyAssignment.Value)
+                Value = Rewrite(propertyAssignment.Value),
             },
             IndexAssignmentExpression indexAssignment => indexAssignment with
             {
                 Target = Rewrite(indexAssignment.Target),
                 Index = Rewrite(indexAssignment.Index),
-                Value = Rewrite(indexAssignment.Value)
+                Value = Rewrite(indexAssignment.Value),
             },
             SequenceExpression sequence => sequence with
             {
-                Left = Rewrite(sequence.Left), Right = Rewrite(sequence.Right)
+                Left = Rewrite(sequence.Left), Right = Rewrite(sequence.Right),
             },
             UnaryExpression unary => unary with { Operand = Rewrite(unary.Operand) },
             ArrayExpression array => array with { Elements = RewriteArrayElements(array.Elements) },
@@ -56,13 +56,13 @@ public sealed class SingleYieldRewriter(Symbol replacementSymbol)
                 Tag = Rewrite(taggedTemplate.Tag),
                 StringsArray = Rewrite(taggedTemplate.StringsArray),
                 RawStringsArray = Rewrite(taggedTemplate.RawStringsArray),
-                Expressions = RewriteExpressions(taggedTemplate.Expressions)
+                Expressions = RewriteExpressions(taggedTemplate.Expressions),
             },
             DestructuringAssignmentExpression destructuringAssignment => destructuringAssignment with
             {
-                Value = Rewrite(destructuringAssignment.Value)
+                Value = Rewrite(destructuringAssignment.Value),
             },
-            _ => expression
+            _ => expression,
         };
     }
 
@@ -136,7 +136,7 @@ public sealed class SingleYieldRewriter(Symbol replacementSymbol)
             {
                 Value = member.Value is null ? null : Rewrite(member.Value),
                 Function = member.Function,
-                Key = member.Key is ExpressionNode keyExpr ? Rewrite(keyExpr) : member.Key
+                Key = member.Key is ExpressionNode keyExpr ? Rewrite(keyExpr) : member.Key,
             });
         }
 

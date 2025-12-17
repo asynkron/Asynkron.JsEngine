@@ -16,7 +16,7 @@ public static partial class TypedAstEvaluator
             {
                 MemberExpression { Target: SuperExpression } member => member.Property,
                 SuperExpression => expression.Property,
-                _ => null
+                _ => null,
             };
 
             if (superPropertyExpression is not null)

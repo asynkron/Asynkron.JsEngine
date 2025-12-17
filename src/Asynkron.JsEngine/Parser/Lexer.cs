@@ -22,7 +22,7 @@ internal enum BraceKind
     /// <summary>Function/method/class body - division follows (produces a value)</summary>
     FunctionBody,
     /// <summary>Statement block (if/for/while/etc.) - regex follows (no value)</summary>
-    StatementBlock
+    StatementBlock,
 }
 
 public sealed class Lexer(string source, bool allowHtmlComments = true)
@@ -79,7 +79,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
         ["void"] = TokenType.Void,
         ["delete"] = TokenType.Delete,
         ["import"] = TokenType.Import,
-        ["export"] = TokenType.Export
+        ["export"] = TokenType.Export,
     };
 
     private readonly bool _allowHtmlComments = allowHtmlComments;
@@ -1311,7 +1311,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                 16 when c is >= '0' and <= '9' => c - '0',
                 16 when c is >= 'a' and <= 'f' => 10 + c - 'a',
                 16 when c is >= 'A' and <= 'F' => 10 + c - 'A',
-                _ => throw new ParseException($"Invalid digit '{c}' in base-{numberBase} literal.")
+                _ => throw new ParseException($"Invalid digit '{c}' in base-{numberBase} literal."),
             };
 
             value = value * numberBase + digitValue;

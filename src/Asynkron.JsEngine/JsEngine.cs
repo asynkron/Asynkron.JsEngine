@@ -2970,9 +2970,9 @@ public sealed class JsEngine : IAsyncDisposable
                     if (moduleEnv.IsAsyncModule)
                     {
                         var promise = CreateRealmPromise();
-                        exports["default"] = promise.JsObject;
                         moduleEnv.DefineExportPromiseBinding(Symbol.Intern("*default*"), promise, isLexical: false,
                             isConst: false);
+                        exports["default"] = new LiveExportBinding(() => moduleEnv.Get(Symbol.Intern("*default*")));
                     }
                     else
                     {
@@ -3035,7 +3035,7 @@ public sealed class JsEngine : IAsyncDisposable
                             if (moduleEnv.IsAsyncModule)
                             {
                                 var promise = CreateRealmPromise();
-                                exports[symbol.Name] = promise.JsObject;
+                                exports[symbol.Name] = new LiveExportBinding(() => moduleEnv.Get(symbol));
                                 moduleEnv.DefineExportPromiseBinding(symbol, promise, isLexical: !isVar, isConst: variableDeclaration.Kind == VariableKind.Const);
                             }
                             else
@@ -3055,7 +3055,7 @@ public sealed class JsEngine : IAsyncDisposable
                         if (moduleEnv.IsAsyncModule)
                         {
                             var promise = CreateRealmPromise();
-                            exports[symbol.Name] = promise.JsObject;
+                            exports[symbol.Name] = new LiveExportBinding(() => moduleEnv.Get(symbol));
                             moduleEnv.DefineExportPromiseBinding(symbol, promise, isLexical: true, isConst: true);
                         }
                         else
@@ -3073,7 +3073,7 @@ public sealed class JsEngine : IAsyncDisposable
                         if (moduleEnv.IsAsyncModule)
                         {
                             var promise = CreateRealmPromise();
-                            exports[specifier.Exported.Name] = promise.JsObject;
+                            exports[specifier.Exported.Name] = new LiveExportBinding(() => moduleEnv.Get(specifier.Local));
                             moduleEnv.DefineExportPromiseBinding(specifier.Local, promise, isLexical: true, isConst: true);
                         }
                         else

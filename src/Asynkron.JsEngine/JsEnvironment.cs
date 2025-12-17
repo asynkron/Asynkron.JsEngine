@@ -382,6 +382,19 @@ public sealed class JsEnvironment
         ref var binding = ref Values.GetValueRefOrNullRef(name);
         if (!Unsafe.IsNullRef(ref binding))
         {
+            // Async export bindings start as promise placeholders but must accept their first
+            // initialization value even when flagged const.
+            if (binding.IsAsyncExportBinding)
+            {
+                binding.JsValue = value;
+                if (_bindingObservers is not null)
+                {
+                    NotifyBindingObservers(name, value.ToObject());
+                }
+
+                return;
+            }
+
             if (binding.IsConst || binding.IsGlobalConstant)
             {
                 if (isLexical && blocksFunctionScopeOverride)
@@ -2655,6 +2668,9 @@ public sealed class JsEnvironment
 
         public readonly bool IsImportBinding => (_flags & BindingFlags.HasSpecialBinding) != 0
             && _specialBinding is ImportBindingWrapper;
+
+        public readonly bool IsAsyncExportBinding => (_flags & BindingFlags.HasSpecialBinding) != 0
+            && _specialBinding is AsyncExportBinding;
 
         /// <summary>
         /// Checks if this binding holds the Uninitialized sentinel without triggering ToObject().

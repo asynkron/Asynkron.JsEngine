@@ -104,6 +104,8 @@ public static partial class TypedAstEvaluator
         [MustDisposeResource]
         private IEnumerator<object?> EnumerateArrayElements()
         {
+            return Enumerate().GetEnumerator();
+
             IEnumerable<object?> Enumerate()
             {
                 var length = array.Length;
@@ -115,8 +117,6 @@ public static partial class TypedAstEvaluator
                     yield return array.GetElement(i);
                 }
             }
-
-            return Enumerate().GetEnumerator();
         }
     }
 }

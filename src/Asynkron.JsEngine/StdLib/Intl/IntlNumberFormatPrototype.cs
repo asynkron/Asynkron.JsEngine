@@ -31,10 +31,7 @@ public sealed partial class IntlNumberFormatPrototype
         var value = args.GetArgument(0);
         var result = FormatNumberResult(nf, value);
         var partsArray = new JsArray(Realm);
-        var parts = result.Parts ?? new List<NumberFormatPart>
-        {
-            new("literal", result.Formatted)
-        };
+        var parts = result.Parts ?? [new("literal", result.Formatted)];
         foreach (var part in parts)
         {
             var entry = new JsObject(Realm.ObjectPrototype);

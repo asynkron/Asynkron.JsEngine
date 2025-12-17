@@ -10,7 +10,7 @@ public class ModuleTests
         // Set up a module loader
         engine.SetModuleLoader(modulePath =>
         {
-            if (modulePath == "math.js")
+            if (string.Equals(modulePath, "math.js", StringComparison.Ordinal))
             {
                 return """
 
@@ -41,7 +41,7 @@ public class ModuleTests
 
         engine.SetModuleLoader(modulePath =>
         {
-            if (modulePath == "config.js")
+            if (string.Equals(modulePath, "config.js", StringComparison.Ordinal))
             {
                 return """
 
@@ -71,7 +71,7 @@ public class ModuleTests
 
         engine.SetModuleLoader(modulePath =>
         {
-            if (modulePath == "utils.js")
+            if (string.Equals(modulePath, "utils.js", StringComparison.Ordinal))
             {
                 return """
 
@@ -101,7 +101,7 @@ public class ModuleTests
 
         engine.SetModuleLoader(modulePath =>
         {
-            if (modulePath == "math.js")
+            if (string.Equals(modulePath, "math.js", StringComparison.Ordinal))
             {
                 return """
 
@@ -136,7 +136,7 @@ public class ModuleTests
 
         engine.SetModuleLoader(modulePath =>
         {
-            if (modulePath == "math.js")
+            if (string.Equals(modulePath, "math.js", StringComparison.Ordinal))
             {
                 return """
 
@@ -167,7 +167,7 @@ public class ModuleTests
 
         engine.SetModuleLoader(modulePath =>
         {
-            if (modulePath == "math.js")
+            if (string.Equals(modulePath, "math.js", StringComparison.Ordinal))
             {
                 return """
 
@@ -202,7 +202,7 @@ public class ModuleTests
 
         engine.SetModuleLoader(modulePath =>
         {
-            if (modulePath == "utils.js")
+            if (string.Equals(modulePath, "utils.js", StringComparison.Ordinal))
             {
                 return """
 
@@ -234,7 +234,7 @@ public class ModuleTests
 
         engine.SetModuleLoader(modulePath =>
         {
-            if (modulePath == "utils.js")
+            if (string.Equals(modulePath, "utils.js", StringComparison.Ordinal))
             {
                 return """
 
@@ -265,36 +265,37 @@ public class ModuleTests
 
         engine.SetModuleLoader(modulePath =>
         {
-            if (modulePath == "counter.js")
+            if (!string.Equals(modulePath, "counter.js", StringComparison.Ordinal))
             {
-                loadCount++;
-                return """
-
-                                           export let count = 0;
-                                           export function increment() {
-                                               count = count + 1;
-                                           }
-
-                       """;
+                throw new FileNotFoundException($"Module not found: {modulePath}");
             }
 
-            throw new FileNotFoundException($"Module not found: {modulePath}");
+            loadCount++;
+            return """
+
+                                       export let count = 0;
+                                       export function increment() {
+                                           count = count + 1;
+                                       }
+
+                   """;
+
         });
 
         // Load the module twice
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     import { count, increment } from "counter.js";
-                                                     increment();
+                                          import { count, increment } from "counter.js";
+                                          increment();
 
-                                         """);
+                              """);
 
-        var temp1 = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                      import { count } from "counter.js";
-                                                      count;
+                                          import { count } from "counter.js";
+                                          count;
 
-                                          """);
+                              """);
 
         // Module should only be loaded once
         Assert.Equal(1, loadCount);
@@ -309,7 +310,7 @@ public class ModuleTests
 
         engine.SetModuleLoader(modulePath =>
         {
-            if (modulePath == "constants.js")
+            if (string.Equals(modulePath, "constants.js", StringComparison.Ordinal))
             {
                 return """
 
@@ -339,7 +340,7 @@ public class ModuleTests
 
         engine.SetModuleLoader(modulePath =>
         {
-            if (modulePath == "point.js")
+            if (string.Equals(modulePath, "point.js", StringComparison.Ordinal))
             {
                 return """
 
@@ -376,25 +377,17 @@ public class ModuleTests
     {
         await using var engine = new JsEngine();
 
-        engine.SetModuleLoader(modulePath =>
-        {
-            if (modulePath == "module.js")
-            {
-                return """
+        engine.SetModuleLoader(modulePath => !string.Equals(modulePath, "module.js", StringComparison.Ordinal) ? throw new FileNotFoundException($"Module not found: {modulePath}") : """
 
-                                           export default function main() {
-                                               return "main";
-                                           }
+                                export default function main() {
+                                    return "main";
+                                }
 
-                                           export function helper() {
-                                               return "helper";
-                                           }
+                                export function helper() {
+                                    return "helper";
+                                }
 
-                       """;
-            }
-
-            throw new FileNotFoundException($"Module not found: {modulePath}");
-        });
+            """);
 
         var result = await engine.Evaluate("""
 
@@ -413,7 +406,7 @@ public class ModuleTests
 
         engine.SetModuleLoader(modulePath =>
         {
-            if (modulePath == "side-effect.js")
+            if (string.Equals(modulePath, "side-effect.js", StringComparison.Ordinal))
             {
                 return """
 
@@ -426,11 +419,11 @@ public class ModuleTests
         });
 
         // Import the module which sets a variable
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     import "side-effect.js";
+                                          import "side-effect.js";
 
-                                         """);
+                              """);
 
         // The side effect should have run, but since it's in a module scope,
         // we can't directly access it. For this test, we'll just verify no error occurred.
@@ -442,28 +435,20 @@ public class ModuleTests
     {
         await using var engine = new JsEngine();
 
-        engine.SetModuleLoader(modulePath =>
-        {
-            if (modulePath == "Rectangle.js")
-            {
-                return """
+        engine.SetModuleLoader(modulePath => string.Equals(modulePath, "Rectangle.js", StringComparison.Ordinal) ? """
 
-                                           export default class Rectangle {
-                                               constructor(width, height) {
-                                                   this.width = width;
-                                                   this.height = height;
-                                               }
+                                export default class Rectangle {
+                                    constructor(width, height) {
+                                        this.width = width;
+                                        this.height = height;
+                                    }
 
-                                               area() {
-                                                   return this.width * this.height;
-                                               }
-                                           }
+                                    area() {
+                                        return this.width * this.height;
+                                    }
+                                }
 
-                       """;
-            }
-
-            throw new FileNotFoundException($"Module not found: {modulePath}");
-        });
+            """ : throw new FileNotFoundException($"Module not found: {modulePath}"));
 
         var result = await engine.Evaluate("""
 
@@ -481,25 +466,17 @@ public class ModuleTests
     {
         await using var engine = new JsEngine();
 
-        engine.SetModuleLoader(modulePath =>
-        {
-            if (modulePath == "anonymous.js")
-            {
-                return """
-                                           export default class {
-                                               constructor(value) {
-                                                   this.value = value;
-                                               }
+        engine.SetModuleLoader(modulePath => string.Equals(modulePath, "anonymous.js", StringComparison.Ordinal) ? """
+                                export default class {
+                                    constructor(value) {
+                                        this.value = value;
+                                    }
 
-                                               double() {
-                                                   return this.value * 2;
-                                               }
-                                           }
-                       """;
-            }
-
-            throw new FileNotFoundException($"Module not found: {modulePath}");
-        });
+                                    double() {
+                                        return this.value * 2;
+                                    }
+                                }
+            """ : throw new FileNotFoundException($"Module not found: {modulePath}"));
 
         var result = await engine.Evaluate("""
                                                        import Mystery from "anonymous.js";
@@ -515,22 +492,14 @@ public class ModuleTests
     {
         await using var engine = new JsEngine();
 
-        engine.SetModuleLoader(modulePath =>
-        {
-            if (modulePath == "math.js")
-            {
-                return """
+        engine.SetModuleLoader(modulePath => string.Equals(modulePath, "math.js", StringComparison.Ordinal) ? """
 
-                                           export function add(a, b) { return a + b; }
-                                           export function sub(a, b) { return a - b; }
-                                           export function mul(a, b) { return a * b; }
-                                           export function div(a, b) { return a / b; }
+                                export function add(a, b) { return a + b; }
+                                export function sub(a, b) { return a - b; }
+                                export function mul(a, b) { return a * b; }
+                                export function div(a, b) { return a / b; }
 
-                       """;
-            }
-
-            throw new FileNotFoundException($"Module not found: {modulePath}");
-        });
+            """ : throw new FileNotFoundException($"Module not found: {modulePath}"));
 
         var result = await engine.Evaluate("""
 
@@ -547,21 +516,13 @@ public class ModuleTests
     {
         await using var engine = new JsEngine();
 
-        engine.SetModuleLoader(modulePath =>
-        {
-            if (modulePath == "dynamic.js")
-            {
-                return """
+        engine.SetModuleLoader(modulePath => string.Equals(modulePath, "dynamic.js", StringComparison.Ordinal) ? """
 
-                                           export function greet(name) {
-                                               return "Hello, " + name;
-                                           }
+                                export function greet(name) {
+                                    return "Hello, " + name;
+                                }
 
-                       """;
-            }
-
-            throw new FileNotFoundException($"Module not found: {modulePath}");
-        });
+            """ : throw new FileNotFoundException($"Module not found: {modulePath}"));
 
         await engine.Evaluate("""
 
@@ -581,24 +542,16 @@ public class ModuleTests
     {
         await using var engine = new JsEngine();
 
-        engine.SetModuleLoader(modulePath =>
-        {
-            if (modulePath == "calculator.js")
-            {
-                return """
+        engine.SetModuleLoader(modulePath => string.Equals(modulePath, "calculator.js", StringComparison.Ordinal) ? """
 
-                                           export function multiply(a, b) {
-                                               return a * b;
-                                           }
-                                           export function divide(a, b) {
-                                               return a / b;
-                                           }
+                                export function multiply(a, b) {
+                                    return a * b;
+                                }
+                                export function divide(a, b) {
+                                    return a / b;
+                                }
 
-                       """;
-            }
-
-            throw new FileNotFoundException($"Module not found: {modulePath}");
-        });
+            """ : throw new FileNotFoundException($"Module not found: {modulePath}"));
 
         await engine.Evaluate("""
 
@@ -623,21 +576,13 @@ public class ModuleTests
     {
         await using var engine = new JsEngine();
 
-        engine.SetModuleLoader(modulePath =>
-        {
-            if (modulePath == "counter.js")
-            {
-                return """
+        engine.SetModuleLoader(modulePath => string.Equals(modulePath, "counter.js", StringComparison.Ordinal) ? """
 
-                                           export default function count() {
-                                               return 42;
-                                           }
+                                export default function count() {
+                                    return 42;
+                                }
 
-                       """;
-            }
-
-            throw new FileNotFoundException($"Module not found: {modulePath}");
-        });
+            """ : throw new FileNotFoundException($"Module not found: {modulePath}"));
 
         await engine.Evaluate("""
 
@@ -660,19 +605,18 @@ public class ModuleTests
         var loadCount = 0;
         engine.SetModuleLoader(modulePath =>
         {
-            if (modulePath == "cached.js")
+            if (string.Equals(modulePath, "cached.js", StringComparison.Ordinal))
             {
                 loadCount++;
-                return """
+                return $"""
 
-                                           export let counter =
-                       """ + loadCount + """
-                                         ;
+                                            export let counter ={loadCount};
 
-                                         """;
+                        """;
             }
 
             throw new FileNotFoundException($"Module not found: {modulePath}");
+
         });
 
         await engine.Evaluate("""
@@ -725,7 +669,7 @@ public class ModuleTests
 
         engine.SetModuleLoader(modulePath =>
         {
-            if (modulePath == "self.js")
+            if (string.Equals(modulePath, "self.js", StringComparison.Ordinal))
             {
                 return """
                        import f from './self.js';
@@ -753,7 +697,7 @@ public class ModuleTests
 
         engine.SetModuleLoader(modulePath =>
         {
-            if (modulePath == "language/module-code/test.js")
+            if (string.Equals(modulePath, "language/module-code/test.js", StringComparison.Ordinal))
             {
                 return """
                        import f from './test.js';
@@ -789,7 +733,7 @@ export default function() { return 23; };
 
         engine.SetModuleLoader(modulePath =>
         {
-            if (modulePath == "language/module-code/instn-named-bndng-dflt-fun-anon.js")
+            if (string.Equals(modulePath, "language/module-code/instn-named-bndng-dflt-fun-anon.js", StringComparison.Ordinal))
             {
                 return testCode;
             }
@@ -810,7 +754,7 @@ export default function() { return 23; };
 
         engine.SetModuleLoader(modulePath =>
         {
-            if (modulePath == "self.js")
+            if (string.Equals(modulePath, "self.js", StringComparison.Ordinal))
             {
                 return """
                        import f from './self.js';
@@ -839,7 +783,7 @@ export default function() { return 23; };
 
         engine.SetModuleLoader(modulePath =>
         {
-            if (modulePath == "fixture.js")
+            if (string.Equals(modulePath, "fixture.js", StringComparison.Ordinal))
             {
                 return """
                        export default function fn() {

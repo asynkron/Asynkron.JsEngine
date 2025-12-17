@@ -22,18 +22,6 @@ public static partial class StandardLibrary
     {
         length = Math.Max(length, 0);
 
-        IJsObjectLike CreateDefaultArray()
-        {
-            if (length > MaxConcreteArrayLength)
-            {
-                throw ThrowRangeError("Array length exceeds 2^32 - 1", realm: realm);
-            }
-
-            var arr = new JsArray(realm);
-            arr.SetProperty("length", new JsValue((double)length));
-            return arr;
-        }
-
         if (realm is null)
         {
             return CreateDefaultArray();
@@ -121,6 +109,18 @@ public static partial class StandardLibrary
         }
 
         return receiver;
+
+        IJsObjectLike CreateDefaultArray()
+        {
+            if (length > MaxConcreteArrayLength)
+            {
+                throw ThrowRangeError("Array length exceeds 2^32 - 1", realm: realm);
+            }
+
+            var arr = new JsArray(realm);
+            arr.SetProperty("length", new JsValue((double)length));
+            return arr;
+        }
     }
 
     internal static IJsObjectLike CreateArrayFromResult(JsValue constructorCandidate, RealmState? realm, long length,

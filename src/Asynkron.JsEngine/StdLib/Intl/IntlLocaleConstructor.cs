@@ -422,12 +422,12 @@ public sealed partial class IntlLocaleConstructor : JsConstructor
         string baseName)
     {
         var subtags = baseName.Length == 0
-            ? Array.Empty<string>()
+            ? []
             : baseName.Split('-', StringSplitOptions.RemoveEmptyEntries);
 
         if (subtags.Length == 0)
         {
-            return ("und", null, null, new List<string>());
+            return ("und", null, null, []);
         }
 
         var index = 1;

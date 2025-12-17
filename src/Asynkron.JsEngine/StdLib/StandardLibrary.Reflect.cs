@@ -35,7 +35,7 @@ public static partial class StandardLibrary
 
         var argList = args.Count > 1 && args[1].TryGetObject<JsArray>(out var arr)
             ? arr.Items.ToArray()
-            : Array.Empty<JsValue>();
+            : [];
         IJsCallable newTarget;
         if (args.Count > 2)
         {

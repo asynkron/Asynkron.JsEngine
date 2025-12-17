@@ -824,7 +824,7 @@ public sealed class JsEnvironment
     /// </summary>
     internal IEnumerable<Symbol> GetBindingSymbols()
     {
-        return _values?.Keys ?? Enumerable.Empty<Symbol>();
+        return _values?.Keys ?? [];
     }
 
     internal bool TryAssignBlockedBinding(Symbol name, object? value)

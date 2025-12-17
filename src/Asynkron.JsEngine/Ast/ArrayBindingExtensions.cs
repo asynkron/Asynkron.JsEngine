@@ -45,35 +45,6 @@ public static partial class TypedAstEvaluator
             var hasPendingElement = resumeState?.HasPendingElement == true;
             var pendingValue = resumeState?.PendingValue;
             var pendingDone = resumeState?.PendingDone ?? false;
-            void CloseIterator(bool preserveExistingThrow, JsValue existingThrowOverride = default)
-            {
-                if (iterator is null)
-                {
-                    return;
-                }
-
-                try
-                {
-                    IteratorClose(iterator, context, preserveExistingThrow, existingThrowOverride);
-                }
-                catch (ThrowSignal)
-                {
-                    iteratorThrew = true;
-                    if (!preserveExistingThrow)
-                    {
-                        throw;
-                    }
-                }
-                finally
-                {
-                    // Mark the iterator as closed so CloseActiveArrayPatternIterators doesn't try again
-                    if (stateKey is not null && environment.TryGet(stateKey, out var stateObj) && stateObj is ArrayPatternState state)
-                    {
-                        state.IteratorDone = true;
-                        state.Iterator = null;
-                    }
-                }
-            }
 
             try
             {
@@ -373,6 +344,38 @@ public static partial class TypedAstEvaluator
             if (stateKey is { })
             {
                 ClearArrayPatternState(stateKey, environment);
+            }
+
+            return;
+
+            void CloseIterator(bool preserveExistingThrow, JsValue existingThrowOverride = default)
+            {
+                if (iterator is null)
+                {
+                    return;
+                }
+
+                try
+                {
+                    IteratorClose(iterator, context, preserveExistingThrow, existingThrowOverride);
+                }
+                catch (ThrowSignal)
+                {
+                    iteratorThrew = true;
+                    if (!preserveExistingThrow)
+                    {
+                        throw;
+                    }
+                }
+                finally
+                {
+                    // Mark the iterator as closed so CloseActiveArrayPatternIterators doesn't try again
+                    if (stateKey is not null && environment.TryGet(stateKey, out var stateObj) && stateObj is ArrayPatternState state)
+                    {
+                        state.IteratorDone = true;
+                        state.Iterator = null;
+                    }
+                }
             }
         }
     }

@@ -37,7 +37,7 @@ public static partial class TypedAstEvaluator
         private readonly ImmutableArray<Symbol> _catchParameterTemplate;
         private readonly ImmutableArray<Symbol> _simpleCatchParameterTemplate;
         private readonly ImmutableArray<Symbol> _bodyLexicalTemplate;
-        private static readonly System.Collections.Concurrent.ConcurrentBag<HashSet<Symbol>> SymbolSetPool = new();
+        private static readonly System.Collections.Concurrent.ConcurrentBag<HashSet<Symbol>> SymbolSetPool = [];
         private bool _isConstructorEnabled;
         private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
         private JsObject? _prototypeObject;
@@ -118,15 +118,15 @@ public static partial class TypedAstEvaluator
 
             var parameterNames = new List<Symbol>();
             CollectParameterNamesFromFunction(_function, parameterNames);
-            _parameterNames = parameterNames.ToImmutableArray();
-            _lexicalTemplate = _bodyLexicalNames.ToImmutableArray();
+            _parameterNames = [..parameterNames];
+            _lexicalTemplate = [.._bodyLexicalNames];
             var catchParams = CollectCatchParameterNames(_function.Body);
-            _catchParameterTemplate = catchParams.ToImmutableArray();
+            _catchParameterTemplate = [..catchParams];
             var simpleCatchParams = CollectSimpleCatchParameterNames(_function.Body);
-            _simpleCatchParameterTemplate = simpleCatchParams.ToImmutableArray();
+            _simpleCatchParameterTemplate = [..simpleCatchParams];
             var bodyLexicalSet = new HashSet<Symbol>(_bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
             bodyLexicalSet.ExceptWith(simpleCatchParams);
-            _bodyLexicalTemplate = bodyLexicalSet.ToImmutableArray();
+            _bodyLexicalTemplate = [..bodyLexicalSet];
 
             // ES2024 9.2.12 FunctionDeclarationInstantiation steps 17-20:
             // argumentsObjectNeeded is true unless:

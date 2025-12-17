@@ -241,7 +241,7 @@ public static partial class StandardLibrary
             JsValue step;
             try
             {
-                step = nextFn.Invoke(Array.Empty<JsValue>(), JsValue.FromObjectUnsafe(iterator));
+                step = nextFn.Invoke([], JsValue.FromObjectUnsafe(iterator));
             }
             catch (ThrowSignal)
             {
@@ -405,7 +405,7 @@ public static partial class StandardLibrary
             {
                 // Handle case where items is already a boxed JsValue
                 var itemsArg = items is JsValue itemsJs ? itemsJs : JsValue.FromObjectUnsafe(items);
-                iteratorValue = iteratorMethod.Invoke(Array.Empty<JsValue>(), itemsArg);
+                iteratorValue = iteratorMethod.Invoke([], itemsArg);
             }
             catch (ThrowSignal signal)
             {
@@ -453,7 +453,7 @@ public static partial class StandardLibrary
                 JsValue step;
                 try
                 {
-                    step = _nextFn.Invoke(Array.Empty<JsValue>(), JsValue.FromObjectUnsafe(_iterator));
+                    step = _nextFn.Invoke([], JsValue.FromObjectUnsafe(_iterator));
                 }
                 catch (ThrowSignal signal)
                 {

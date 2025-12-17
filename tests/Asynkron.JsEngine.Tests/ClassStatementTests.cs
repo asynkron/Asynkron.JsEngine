@@ -117,7 +117,7 @@ public class ClassStatementTests
                 """);
         });
 
-        Assert.Contains("ReferenceError", exception.Message);
+        Assert.Contains("ReferenceError", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -139,7 +139,7 @@ public class ClassStatementTests
                 """);
         });
 
-        Assert.Contains("TypeError", exception.Message);
+        Assert.Contains("TypeError", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -253,7 +253,7 @@ public class ClassStatementTests
                 """);
         });
 
-        Assert.Contains("TypeError", exception.Message);
+        Assert.Contains("TypeError", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]

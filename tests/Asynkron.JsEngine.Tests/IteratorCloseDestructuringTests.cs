@@ -31,7 +31,7 @@ public class IteratorCloseDestructuringTests
             iter.return();
             """));
 
-        Assert.Contains("TypeError", ex.Message);
+        Assert.Contains("TypeError", ex.Message, StringComparison.Ordinal);
         Assert.Equal(1d, engine.GlobalObject["nextCount"]);
         Assert.Equal(1d, engine.GlobalObject["returnCount"]);
         Assert.Equal(0d, engine.GlobalObject["unreachable"]);
@@ -64,7 +64,7 @@ public class IteratorCloseDestructuringTests
             iter.return();
             """));
 
-        Assert.Contains("TypeError", ex.Message);
+        Assert.Contains("TypeError", ex.Message, StringComparison.Ordinal);
         Assert.Equal(1d, engine.GlobalObject["nextCount"]);
         Assert.Equal(1d, engine.GlobalObject["returnCount"]);
         Assert.Equal(0d, engine.GlobalObject["loopCount"]);

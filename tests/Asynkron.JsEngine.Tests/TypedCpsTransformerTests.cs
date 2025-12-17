@@ -243,7 +243,7 @@ public class TypedCpsTransformerTests
                 return;
             case MemberExpression member when member.Property is LiteralExpression literal &&
                                               literal.Value.IsString &&
-                                              literal.Value.AsString() == "Promise":
+string.Equals(literal.Value.AsString(), "Promise", StringComparison.Ordinal):
                 return;
             default:
                 throw new XunitException("Expected Promise constructor.");
@@ -280,7 +280,7 @@ public class TypedCpsTransformerTests
         return property switch
         {
             LiteralExpression literal when literal.Value.IsString &&
-                                          literal.Value.AsString() == propertyName => true,
+string.Equals(literal.Value.AsString(), propertyName, StringComparison.Ordinal) => true,
             LiteralExpression literal when literal.Value.IsSymbol &&
                                           ReferenceEquals(literal.Value.AsSymbol(), symbol) => true,
             IdentifierExpression identifier when ReferenceEquals(identifier.Name, symbol) => true,

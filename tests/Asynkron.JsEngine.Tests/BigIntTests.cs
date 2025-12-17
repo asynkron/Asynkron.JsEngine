@@ -278,7 +278,7 @@ public class BigIntTests
         await using var engine = new JsEngine();
         var exception =
             await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("10n + 5;"));
-        Assert.Contains("Cannot mix BigInt and other types", exception.Message);
+        Assert.Contains("Cannot mix BigInt and other types", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -287,7 +287,7 @@ public class BigIntTests
         await using var engine = new JsEngine();
         var exception =
             await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("10n - 5;"));
-        Assert.Contains("Cannot mix BigInt and other types", exception.Message);
+        Assert.Contains("Cannot mix BigInt and other types", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -296,7 +296,7 @@ public class BigIntTests
         await using var engine = new JsEngine();
         var exception =
             await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("10n * 5;"));
-        Assert.Contains("Cannot mix BigInt and other types", exception.Message);
+        Assert.Contains("Cannot mix BigInt and other types", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -305,7 +305,7 @@ public class BigIntTests
         await using var engine = new JsEngine();
         var exception =
             await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("10n / 5;"));
-        Assert.Contains("Cannot mix BigInt and other types", exception.Message);
+        Assert.Contains("Cannot mix BigInt and other types", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -314,7 +314,7 @@ public class BigIntTests
         await using var engine = new JsEngine();
         var exception =
             await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("10n >>> 2n;"));
-        Assert.Contains("BigInts have no unsigned right shift", exception.Message);
+        Assert.Contains("BigInts have no unsigned right shift", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -323,7 +323,7 @@ public class BigIntTests
         await using var engine = new JsEngine();
         var exception =
             await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("10n / 0n;"));
-        Assert.Contains("Division by zero", exception.Message);
+        Assert.Contains("Division by zero", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -332,7 +332,7 @@ public class BigIntTests
         await using var engine = new JsEngine();
         var exception =
             await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("10n % 0n;"));
-        Assert.Contains("Division by zero", exception.Message);
+        Assert.Contains("Division by zero", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -341,7 +341,7 @@ public class BigIntTests
         await using var engine = new JsEngine();
         var exception =
             await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("2n ** -1n;"));
-        Assert.Contains("Exponent must be non-negative", exception.Message);
+        Assert.Contains("Exponent must be non-negative", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]

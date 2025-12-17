@@ -18,9 +18,9 @@ let z = ;";
         });
 
         // Check that the error message contains the source context
-        Assert.Contains("Source context:", ex.Message);
-        Assert.Contains("let z = ;", ex.Message);
-        Assert.Contains("^", ex.Message); // Should have a position marker
+        Assert.Contains("Source context:", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("let z = ;", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("^", ex.Message, StringComparison.Ordinal); // Should have a position marker
     }
 
     [Fact(Timeout = 2000)]
@@ -35,10 +35,10 @@ let z = ;";
         });
 
         // Check that the error message contains context around the error
-        Assert.Contains("Source context:", ex.Message);
+        Assert.Contains("Source context:", ex.Message, StringComparison.Ordinal);
         // Should show some chars before and after the error position
-        Assert.Contains("let f", ex.Message);
-        Assert.Contains("^", ex.Message); // Should have a position marker
+        Assert.Contains("let f", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("^", ex.Message, StringComparison.Ordinal); // Should have a position marker
     }
 
     [Fact(Timeout = 2000)]
@@ -53,9 +53,9 @@ let z = ;";
         });
 
         // Even with short source, should show context
-        Assert.Contains("Source context:", ex.Message);
-        Assert.Contains("let x = ;", ex.Message);
-        Assert.Contains("^", ex.Message); // Should have a position marker
+        Assert.Contains("Source context:", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("let x = ;", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("^", ex.Message, StringComparison.Ordinal); // Should have a position marker
     }
 
     [Fact(Timeout = 2000)]
@@ -70,16 +70,16 @@ let z = ;";
         });
 
         // Should show from the beginning
-        Assert.Contains("Source context:", ex.Message);
-        Assert.Contains("class", ex.Message);
-        Assert.Contains("^", ex.Message); // Should have a position marker
+        Assert.Contains("Source context:", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("class", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("^", ex.Message, StringComparison.Ordinal); // Should have a position marker
     }
 
     [Fact(Timeout = 2000)]
     public async Task ParseError_LongSource_ShowsSnippet()
     {
         await using var engine = new JsEngine();
-        var source = "let a = 1; let b = 2; let c = 3; let d = 4; let e = 5; let f = 6; let g let h = 8;"; // Missing = after g
+        const string source = "let a = 1; let b = 2; let c = 3; let d = 4; let e = 5; let f = 6; let g let h = 8;"; // Missing = after g
 
         var ex = await Assert.ThrowsAsync<ParseException>(async () =>
         {
@@ -87,11 +87,11 @@ let z = ;";
         });
 
         // Should show snippet around the error with ellipsis
-        Assert.Contains("Source context:", ex.Message);
-        Assert.Contains("let g", ex.Message);
+        Assert.Contains("Source context:", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("let g", ex.Message, StringComparison.Ordinal);
         // Should have ellipsis if truncated
-        Assert.Contains("...", ex.Message);
-        Assert.Contains("^", ex.Message); // Should have a position marker
+        Assert.Contains("...", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("^", ex.Message, StringComparison.Ordinal); // Should have a position marker
     }
 
     [Fact(Timeout = 2000)]
@@ -114,7 +114,7 @@ let z = ;";
         Assert.True(ex.Column > 0);
 
         // Verify the line/column in the message
-        Assert.Contains($"at line {ex.Line}, column {ex.Column}", ex.Message);
+        Assert.Contains($"at line {ex.Line}, column {ex.Column}", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]

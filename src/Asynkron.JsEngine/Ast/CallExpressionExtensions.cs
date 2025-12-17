@@ -88,7 +88,7 @@ public static partial class TypedAstEvaluator
                         switch (expression.Arguments.Length)
                         {
                             case 0:
-                                result = typedFunc.InvokeWithContext(Array.Empty<JsValue>(), JsValue.Undefined, context, JsValue.Undefined);
+                                result = typedFunc.InvokeWithContext([], JsValue.Undefined, context, JsValue.Undefined);
                                 break;
                             case 1:
                                 var arg0 = EvaluateExpression(expression.Arguments[0].Expression, environment, context);
@@ -187,7 +187,7 @@ public static partial class TypedAstEvaluator
                 switch (argCount)
                 {
                     case 0:
-                        frozenArguments = Array.Empty<JsValue>();
+                        frozenArguments = [];
                         break;
                     case 1:
                     {

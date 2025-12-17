@@ -239,7 +239,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             }
             else if (CallingContext.CurrentPrivateNameScope is not null)
             {
-                evalPrivateNameScopes = ImmutableArray.Create(CallingContext.CurrentPrivateNameScope);
+                evalPrivateNameScopes = [CallingContext.CurrentPrivateNameScope];
             }
         }
 

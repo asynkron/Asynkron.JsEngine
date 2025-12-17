@@ -50,5 +50,5 @@ public readonly struct ArgumentSlice : IReadOnlyList<JsValue>
     /// <summary>
     /// Static empty instance for zero-arg cases.
     /// </summary>
-    public static readonly ArgumentSlice Empty = new(Array.Empty<JsValue>(), 0);
+    public static readonly ArgumentSlice Empty = new([], 0);
 }

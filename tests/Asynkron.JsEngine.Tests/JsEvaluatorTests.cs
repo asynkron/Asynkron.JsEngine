@@ -1865,7 +1865,7 @@ public class JsEvaluatorTests
 
                                            """);
         Assert.IsType<string>(result);
-        Assert.Contains("2024", (string)result);
+        Assert.Contains("2024", (string)result, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -1907,7 +1907,7 @@ public class JsEvaluatorTests
 
                                            """);
         Assert.IsType<string>(result);
-        Assert.Contains("Bob", (string)result);
+        Assert.Contains("Bob", (string)result, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]

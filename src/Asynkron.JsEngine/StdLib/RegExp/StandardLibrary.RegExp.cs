@@ -230,36 +230,6 @@ public static partial class StandardLibrary
 
     internal static void DefineLegacyRegExpAccessors(HostFunction constructor, RealmState realm)
     {
-        RegExpStatics EnsureRegExpReceiver(JsValue thisValue)
-        {
-            if (!ReferenceEquals(thisValue.ObjectValue, realm.RegExpConstructor))
-            {
-                throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm);
-            }
-
-            return realm.RegExpStatics;
-        }
-
-        PropertyDescriptor MakeAccessor(Func<RegExpStatics, string> getter)
-        {
-            return new PropertyDescriptor
-            {
-                Get = new HostFunction((thisValue, _) =>
-                {
-                    var statics = EnsureRegExpReceiver(thisValue);
-                    return new JsValue(getter(statics));
-                }, isConstructor: false),
-                Set = null,
-                Enumerable = false,
-                Configurable = true
-            };
-        }
-
-        string GetCapture(RegExpStatics s, int index)
-        {
-            return index < s.Captures.Length ? s.Captures[index] : string.Empty;
-        }
-
         var inputDescriptor = new PropertyDescriptor
         {
             Get = new HostFunction((thisValue, _) =>
@@ -312,5 +282,36 @@ public static partial class StandardLibrary
             Configurable = true
         };
         constructor.DefineProperty("multiline", multilineDescriptor);
+        return;
+
+        RegExpStatics EnsureRegExpReceiver(JsValue thisValue)
+        {
+            if (!ReferenceEquals(thisValue.ObjectValue, realm.RegExpConstructor))
+            {
+                throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm);
+            }
+
+            return realm.RegExpStatics;
+        }
+
+        PropertyDescriptor MakeAccessor(Func<RegExpStatics, string> getter)
+        {
+            return new PropertyDescriptor
+            {
+                Get = new HostFunction((thisValue, _) =>
+                {
+                    var statics = EnsureRegExpReceiver(thisValue);
+                    return new JsValue(getter(statics));
+                }, isConstructor: false),
+                Set = null,
+                Enumerable = false,
+                Configurable = true
+            };
+        }
+
+        string GetCapture(RegExpStatics s, int index)
+        {
+            return index < s.Captures.Length ? s.Captures[index] : string.Empty;
+        }
     }
 }

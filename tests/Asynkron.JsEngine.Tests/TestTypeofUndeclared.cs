@@ -19,6 +19,6 @@ public class TestTypeofUndeclared
             await engine.Evaluate("undeclaredVar;");
         });
 
-        Assert.Contains("ReferenceError", ex.Message);
+        Assert.Contains("ReferenceError", ex.Message, StringComparison.Ordinal);
     }
 }

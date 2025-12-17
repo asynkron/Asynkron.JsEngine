@@ -350,22 +350,6 @@ namespace Asynkron.JsEngine.JsTypes;
             boundArgs = copy;
         }
 
-        static IReadOnlyList<JsValue> Combine(IReadOnlyList<JsValue> prefix, IReadOnlyList<JsValue> suffix)
-        {
-            if (prefix.Count == 0)
-                return suffix;
-            if (suffix.Count == 0)
-                return prefix;
-
-            var final = new JsValue[prefix.Count + suffix.Count];
-            for (var i = 0; i < prefix.Count; i++)
-                final[i] = prefix[i];
-            for (var i = 0; i < suffix.Count; i++)
-                final[prefix.Count + i] = suffix[i];
-
-            return final;
-        }
-
         var boundFunction = new HostFunction((_, innerArgs) =>
         {
             var finalArgs = Combine(boundArgs, innerArgs);
@@ -416,6 +400,22 @@ namespace Asynkron.JsEngine.JsTypes;
         });
 
         return boundFunction;
+
+        static IReadOnlyList<JsValue> Combine(IReadOnlyList<JsValue> prefix, IReadOnlyList<JsValue> suffix)
+        {
+            if (prefix.Count == 0)
+                return suffix;
+            if (suffix.Count == 0)
+                return prefix;
+
+            var final = new JsValue[prefix.Count + suffix.Count];
+            for (var i = 0; i < prefix.Count; i++)
+                final[i] = prefix[i];
+            for (var i = 0; i < suffix.Count; i++)
+                final[prefix.Count + i] = suffix[i];
+
+            return final;
+        }
     }
 
     private void EnsureFunctionPrototype()

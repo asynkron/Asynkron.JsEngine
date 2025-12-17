@@ -40,7 +40,7 @@ internal static class IntlUtilities
         "petabyte", "pound", "second", "stone", "terabit", "terabyte", "week", "yard", "year"
     ];
     private static readonly HashSet<string> UnitSet = new(UnitValues, StringComparer.Ordinal);
-    private static readonly string[] EmptyValues = Array.Empty<string>();
+    private static readonly string[] EmptyValues = [];
     private static readonly Lazy<HashSet<string>> CurrencySet =
         new(() => new HashSet<string>(CurrencyValues.Value, StringComparer.Ordinal));
     private static readonly Lazy<TimeZoneRegistry> TimeZoneRegistryCache = new(BuildSupportedTimeZones);
@@ -64,7 +64,7 @@ internal static class IntlUtilities
 
         if (ReferenceEquals(locales, Symbol.Undefined))
         {
-            return Array.Empty<string>();
+            return [];
         }
 
         var seen = new List<string>();
@@ -194,7 +194,7 @@ internal static class IntlUtilities
     {
         if (requestedLocales.Count == 0)
         {
-            return Array.Empty<string>();
+            return [];
         }
 
         var supported = new List<string>(requestedLocales.Count);
@@ -406,23 +406,6 @@ internal static class IntlUtilities
             ["UTC"] = "UTC"
         };
 
-        void AddZone(string? id)
-        {
-            if (string.IsNullOrEmpty(id))
-            {
-                return;
-            }
-
-            var canonical = CanonicalizeTimeZoneId(id);
-            if (zones.Add(canonical))
-            {
-                members.Add(canonical);
-            }
-
-            lookup[canonical] = canonical;
-            lookup[id] = canonical;
-        }
-
         try
         {
             foreach (var tz in TimeZoneInfo.GetSystemTimeZones())
@@ -441,6 +424,23 @@ internal static class IntlUtilities
         }
 
         return new TimeZoneRegistry(zones.ToArray(), members, lookup);
+
+        void AddZone(string? id)
+        {
+            if (string.IsNullOrEmpty(id))
+            {
+                return;
+            }
+
+            var canonical = CanonicalizeTimeZoneId(id);
+            if (zones.Add(canonical))
+            {
+                members.Add(canonical);
+            }
+
+            lookup[canonical] = canonical;
+            lookup[id] = canonical;
+        }
     }
 
     private static IEnumerable<string> BuildEtcGmtZones()
@@ -482,7 +482,7 @@ internal static class IntlUtilities
             return false;
         }
 
-        var privateSplit = locale.Split(new[] { "-x-" }, StringSplitOptions.None);
+        var privateSplit = locale.Split(["-x-"], StringSplitOptions.None);
         var head = privateSplit[0];
         return !DuplicateSingletonRegex.IsMatch(head) && !DuplicateVariantRegex.IsMatch(head);
     }
@@ -798,10 +798,7 @@ internal static class IntlUtilities
             }
         }
 
-        if (!set.Contains("en"))
-        {
-            set.Add("en");
-        }
+        set.Add("en");
 
         return set;
     }
@@ -923,15 +920,6 @@ internal static class IntlUtilities
     private static IEnumerable<string> EnumerateCultureCandidates(string baseName)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        bool Add(string candidate)
-        {
-            if (string.IsNullOrEmpty(candidate))
-            {
-                return false;
-            }
-
-            return seen.Add(candidate);
-        }
 
         if (Add(baseName))
         {
@@ -973,6 +961,18 @@ internal static class IntlUtilities
         if (Add(maximizedBase))
         {
             yield return maximizedBase;
+        }
+
+        yield break;
+
+        bool Add(string candidate)
+        {
+            if (string.IsNullOrEmpty(candidate))
+            {
+                return false;
+            }
+
+            return seen.Add(candidate);
         }
     }
 

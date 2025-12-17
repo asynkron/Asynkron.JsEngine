@@ -19,7 +19,7 @@ public class SourceReferenceInExceptionsTests
         var ex = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate(source));
 
         // Should include source reference
-        Assert.Contains("Cannot destructure non-iterable value", ex.Message);
+        Assert.Contains("Cannot destructure non-iterable value", ex.Message, StringComparison.Ordinal);
         // Message should include source info to aid debugging
         Assert.True(ex.Message.Length > 50, "Expected source reference information to be included in message");
     }
@@ -55,7 +55,7 @@ public class SourceReferenceInExceptionsTests
 
         // Should include source reference (though the specific format may vary)
         // In a regular function, super is null so we get "Cannot read properties of null (reading from super)"
-        Assert.Contains("Cannot read properties of null", ex.Message);
+        Assert.Contains("Cannot read properties of null", ex.Message, StringComparison.Ordinal);
         // Message should be longer than just the basic error (indicating source info is present)
         Assert.True(ex.Message.Length > 50, "Expected source reference information to be included");
     }

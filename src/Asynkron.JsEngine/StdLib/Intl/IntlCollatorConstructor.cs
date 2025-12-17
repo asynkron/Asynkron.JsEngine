@@ -126,17 +126,17 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
         var entries = new List<(string Key, List<string> Values)>();
         if (!string.Equals(collation, "default", StringComparison.Ordinal))
         {
-            entries.Add(("co", new List<string> { collation }));
+            entries.Add(("co", [collation]));
         }
 
         if (numeric)
         {
-            entries.Add(("kn", new List<string>()));
+            entries.Add(("kn", []));
         }
 
         if (!string.Equals(caseFirst, "false", StringComparison.Ordinal))
         {
-            entries.Add(("kf", new List<string> { caseFirst }));
+            entries.Add(("kf", [caseFirst]));
         }
 
         if (entries.Count == 0)

@@ -203,7 +203,7 @@ public class DebugTests
         Assert.NotNull(debugMessage.CallStack);
         Assert.NotEmpty(debugMessage.CallStack);
 
-        var hasForLoop = debugMessage.CallStack.Any(f => f.OperationType == "for");
+        var hasForLoop = debugMessage.CallStack.Any(f => string.Equals(f.OperationType, "for", StringComparison.Ordinal));
         Assert.True(hasForLoop, "Expected to find a 'for' loop in the call stack");
     }
 

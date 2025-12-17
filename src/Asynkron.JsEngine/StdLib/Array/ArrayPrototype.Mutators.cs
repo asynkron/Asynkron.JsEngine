@@ -517,6 +517,37 @@ public sealed partial class ArrayPrototype
             }
         }
 
+        elements.Sort((x, y) => Comparer(x, y));
+
+        // Write sorted values back to the array
+        long index = 0;
+        foreach (var pair in elements)
+        {
+            // Handle case where value is already a boxed JsValue
+            var pairVal = pair.Value is JsValue pjv ? pjv : JsValue.FromObjectUnsafe(pair.Value);
+            accessor.SetProperty(ToIndexString(index++), pairVal);
+        }
+
+        if (objectLike is not null)
+        {
+            for (var k = index; k < length; k++)
+            {
+                objectLike.Delete(ToIndexString(k));
+            }
+        }
+        else
+        {
+            for (var k = index; k < length; k++)
+            {
+                accessor.SetProperty(ToIndexString(k), JsValue.Undefined);
+            }
+        }
+
+        // Clear re-entrancy guard
+        accessor.SetProperty("__sorting__", JsValue.Undefined);
+
+        return JsValue.FromObjectUnsafe(accessor);
+
         int Comparer((object? Value, long OriginalIndex) a, (object? Value, long OriginalIndex) b)
         {
             var aVal = a.Value;
@@ -555,36 +586,5 @@ public sealed partial class ArrayPrototype
             var ord = string.CompareOrdinal(aStr, bStr);
             return ord != 0 ? ord : a.OriginalIndex.CompareTo(b.OriginalIndex);
         }
-
-        elements.Sort((x, y) => Comparer(x, y));
-
-        // Write sorted values back to the array
-        long index = 0;
-        foreach (var pair in elements)
-        {
-            // Handle case where value is already a boxed JsValue
-            var pairVal = pair.Value is JsValue pjv ? pjv : JsValue.FromObjectUnsafe(pair.Value);
-            accessor.SetProperty(ToIndexString(index++), pairVal);
-        }
-
-        if (objectLike is not null)
-        {
-            for (var k = index; k < length; k++)
-            {
-                objectLike.Delete(ToIndexString(k));
-            }
-        }
-        else
-        {
-            for (var k = index; k < length; k++)
-            {
-                accessor.SetProperty(ToIndexString(k), JsValue.Undefined);
-            }
-        }
-
-        // Clear re-entrancy guard
-        accessor.SetProperty("__sorting__", JsValue.Undefined);
-
-        return JsValue.FromObjectUnsafe(accessor);
     }
 }

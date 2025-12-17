@@ -36,7 +36,7 @@ public static partial class TypedAstEvaluator
             {
                 if (expression.Arguments.Length == 0)
                 {
-                    args = Array.Empty<JsValue>();
+                    args = [];
                 }
                 else
                 {
@@ -134,28 +134,6 @@ public static partial class TypedAstEvaluator
             var logger = realm?.Logger;
 
             JsObject? instance = null;
-            string DescribePrototype(object? proto)
-            {
-                if (proto is null)
-                {
-                    return "null";
-                }
-
-                if (proto is JsObject jsObj)
-                {
-                    var origin = string.IsNullOrEmpty(jsObj.Origin) ? "unknown" : jsObj.Origin;
-                    return $"JsObject@{RuntimeHelpers.GetHashCode(jsObj)} origin='{origin}'";
-                }
-
-                return $"{proto.GetType().Name}@{RuntimeHelpers.GetHashCode(proto)}";
-            }
-
-            string DescribeInstance(JsObject obj)
-            {
-                var proto = obj.PrototypeAccessor ?? obj.Prototype;
-                var origin = string.IsNullOrEmpty(obj.Origin) ? "unknown" : obj.Origin;
-                return $"JsObject@{RuntimeHelpers.GetHashCode(obj)} origin='{origin}' proto={DescribePrototype(proto)}";
-            }
 
             if (!isDerivedClassCtor)
             {
@@ -341,6 +319,29 @@ public static partial class TypedAstEvaluator
             }
 
             return JsValue.FromObjectUnsafe(constructedResultObject);
+
+            string DescribePrototype(object? proto)
+            {
+                if (proto is null)
+                {
+                    return "null";
+                }
+
+                if (proto is JsObject jsObj)
+                {
+                    var origin = string.IsNullOrEmpty(jsObj.Origin) ? "unknown" : jsObj.Origin;
+                    return $"JsObject@{RuntimeHelpers.GetHashCode(jsObj)} origin='{origin}'";
+                }
+
+                return $"{proto.GetType().Name}@{RuntimeHelpers.GetHashCode(proto)}";
+            }
+
+            string DescribeInstance(JsObject obj)
+            {
+                var proto = obj.PrototypeAccessor ?? obj.Prototype;
+                var origin = string.IsNullOrEmpty(obj.Origin) ? "unknown" : obj.Origin;
+                return $"JsObject@{RuntimeHelpers.GetHashCode(obj)} origin='{origin}' proto={DescribePrototype(proto)}";
+            }
         }
     }
 }

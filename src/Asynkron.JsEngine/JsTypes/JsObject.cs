@@ -26,7 +26,7 @@ namespace Asynkron.JsEngine.JsTypes;
     private readonly Dictionary<string, PropertyDescriptor> _descriptors = new(StringComparer.Ordinal);
     private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
     private readonly Dictionary<string, object?> _privateFields = new(StringComparer.Ordinal);
-    private readonly LinkedList<string> _propertyInsertionOrder = new();
+    private readonly LinkedList<string> _propertyInsertionOrder = [];
     private readonly Dictionary<string, LinkedListNode<string>> _propertyInsertionNodes = new(StringComparer.Ordinal);
     private bool _trackArrayLength;
     private double _trackedArrayLength;
@@ -1400,7 +1400,7 @@ namespace Asynkron.JsEngine.JsTypes;
                             {
                                 value = TypedAstEvaluator.InvokeCallable(
                                     desc.Get,
-                                    Array.Empty<JsValue>(),
+                                    [],
                                     JsValue.FromObjectUnsafe(receiver ?? this),
                                     context,
                                     ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
@@ -1512,7 +1512,7 @@ namespace Asynkron.JsEngine.JsTypes;
                 {
                     value = TypedAstEvaluator.InvokeCallable(
                         virtualDescriptor.Get,
-                        Array.Empty<JsValue>(),
+                        [],
                         JsValue.FromObjectUnsafe(receiver ?? this),
                         context,
                         ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
@@ -1544,7 +1544,7 @@ namespace Asynkron.JsEngine.JsTypes;
                     {
                         value = TypedAstEvaluator.InvokeCallable(
                             descriptor.Get,
-                            Array.Empty<JsValue>(),
+                            [],
                             JsValue.FromObjectUnsafe(receiver ?? this),
                             context,
                             ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);

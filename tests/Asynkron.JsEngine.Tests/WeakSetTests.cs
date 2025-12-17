@@ -105,7 +105,7 @@ public class WeakSetTests
                         ws.add("string");
 
             """));
-        Assert.Contains("Invalid value used in weak set", exception.Message);
+        Assert.Contains("Invalid value used in weak set", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -118,7 +118,7 @@ public class WeakSetTests
                         ws.add(42);
 
             """));
-        Assert.Contains("Invalid value used in weak set", exception.Message);
+        Assert.Contains("Invalid value used in weak set", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -131,7 +131,7 @@ public class WeakSetTests
                         ws.add(true);
 
             """));
-        Assert.Contains("Invalid value used in weak set", exception.Message);
+        Assert.Contains("Invalid value used in weak set", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -144,7 +144,7 @@ public class WeakSetTests
                         ws.add(null);
 
             """));
-        Assert.Contains("Invalid value used in weak set", exception.Message);
+        Assert.Contains("Invalid value used in weak set", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -158,7 +158,7 @@ public class WeakSetTests
                         ws.add(x);
 
             """));
-        Assert.Contains("Invalid value used in weak set", exception.Message);
+        Assert.Contains("Invalid value used in weak set", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]

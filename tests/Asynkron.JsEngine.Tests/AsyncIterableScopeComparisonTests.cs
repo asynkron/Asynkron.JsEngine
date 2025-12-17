@@ -809,8 +809,8 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
 
         output.WriteLine("");
         output.WriteLine("=== MANUAL ITERATION CONCLUSION ===");
-        output.WriteLine($"Local scope manual: {(localManualResult?.ToString() == "xyz" ? "✅ Works" : "❌ Failed")}");
-        output.WriteLine($"Global scope manual: {(globalManualResult?.ToString() == "xyz" ? "✅ Works" : "❌ Failed")}");
+        output.WriteLine($"Local scope manual: {(string.Equals(localManualResult?.ToString(), "xyz", StringComparison.Ordinal) ? "✅ Works" : "❌ Failed")}");
+        output.WriteLine($"Global scope manual: {(string.Equals(globalManualResult?.ToString(), "xyz", StringComparison.Ordinal) ? "✅ Works" : "❌ Failed")}");
         output.WriteLine("");
         output.WriteLine("If manual iteration works for both, the issue is specific to for-await-of transformation.");
     }

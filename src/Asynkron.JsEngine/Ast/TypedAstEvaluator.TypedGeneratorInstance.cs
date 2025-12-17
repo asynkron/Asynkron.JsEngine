@@ -26,7 +26,7 @@ public static partial class TypedAstEvaluator
         private readonly PrivateNameScope? _privateNameScope;
         // Track yield slots that have already produced a value so re-running the body after a
         // nested suspension skips only those slots (per the generator resumption rules).
-        private readonly HashSet<int> _consumedYieldIndices = new();
+        private readonly HashSet<int> _consumedYieldIndices = [];
         private readonly JsValue _thisValue;
         private readonly Stack<TryFrame> _tryStack = new();
         // Track active with-scope slots for restoration after yield/resume

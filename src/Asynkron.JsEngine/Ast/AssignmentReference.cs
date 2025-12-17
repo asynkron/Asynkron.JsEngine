@@ -477,11 +477,6 @@ internal static class AssignmentReferenceResolver
 
             var binding = TypedAstEvaluator.ExpectSuperBinding(environment, context);
             string? propertyNameCache = null;
-            string GetPropertyName()
-            {
-                propertyNameCache ??= JsOps.GetRequiredPropertyName(superPropertyValue, context);
-                return propertyNameCache;
-            }
 
             return AssignmentReference.ForDelegate(
                 () =>
@@ -524,6 +519,12 @@ internal static class AssignmentReferenceResolver
                             context.RealmState);
                     }
                 });
+
+            string GetPropertyName()
+            {
+                propertyNameCache ??= JsOps.GetRequiredPropertyName(superPropertyValue, context);
+                return propertyNameCache;
+            }
         }
 
         var target = evaluateExpression(member.Target, environment, context);
@@ -547,6 +548,19 @@ internal static class AssignmentReferenceResolver
         if (deferPropertyKeyConversion)
         {
             string? propertyNameCache = null;
+
+            return AssignmentReference.ForDelegate(
+                () =>
+                {
+                    var handle = GetHandle();
+                    return handle.GetValue();
+                },
+                newValue =>
+                {
+                    var handle = GetHandle();
+                    handle.SetValue(newValue);
+                });
+
             string GetPropertyName()
             {
                 propertyNameCache ??= JsOps.GetRequiredPropertyName(propertyValue, context);
@@ -563,18 +577,6 @@ internal static class AssignmentReferenceResolver
                     context.CurrentScope.IsStrict,
                     allowPrivate: !member.IsComputed);
             }
-
-            return AssignmentReference.ForDelegate(
-                () =>
-                {
-                    var handle = GetHandle();
-                    return handle.GetValue();
-                },
-                newValue =>
-                {
-                    var handle = GetHandle();
-                    handle.SetValue(newValue);
-                });
         }
 
         if (target is TypedArrayBase typedArray &&

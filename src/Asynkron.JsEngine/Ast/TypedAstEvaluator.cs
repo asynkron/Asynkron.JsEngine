@@ -339,7 +339,7 @@ public static partial class TypedAstEvaluator
         var iteratorTarget = NormalizeIterableTarget(iterable, context);
         if (context.ShouldStopEvaluation)
         {
-            return DelegatedYieldState.FromEnumerable(Array.Empty<JsValue>());
+            return DelegatedYieldState.FromEnumerable([]);
         }
 
         if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
@@ -349,7 +349,7 @@ public static partial class TypedAstEvaluator
 
         if (context.ShouldStopEvaluation)
         {
-            return DelegatedYieldState.FromEnumerable(Array.Empty<JsValue>());
+            return DelegatedYieldState.FromEnumerable([]);
         }
 
         throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
@@ -539,6 +539,13 @@ public static partial class TypedAstEvaluator
 
         if (leftPrimitive is string || rightPrimitive is string)
         {
+            if (IsRealSymbol(leftPrimitive) || IsRealSymbol(rightPrimitive))
+            {
+                throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context);
+            }
+
+            return JsOps.ToJsString(leftPrimitive, context) + JsOps.ToJsString(rightPrimitive, context);
+
             bool IsRealSymbol(object? v)
             {
                 return v switch
@@ -548,13 +555,6 @@ public static partial class TypedAstEvaluator
                     _ => false
                 };
             }
-
-            if (IsRealSymbol(leftPrimitive) || IsRealSymbol(rightPrimitive))
-            {
-                throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context);
-            }
-
-            return JsOps.ToJsString(leftPrimitive, context) + JsOps.ToJsString(rightPrimitive, context);
         }
 
         // Use JsValue-based conversion to avoid boxing
@@ -1200,6 +1200,8 @@ public static partial class TypedAstEvaluator
     [MustDisposeResource]
     private static IEnumerator<JsValue> EnumerateStringCharacters(string value)
     {
+        return Enumerate().GetEnumerator();
+
         IEnumerable<JsValue> Enumerate()
         {
             foreach (var ch in value)
@@ -1207,13 +1209,13 @@ public static partial class TypedAstEvaluator
                 yield return ch.ToString();
             }
         }
-
-        return Enumerate().GetEnumerator();
     }
 
     [MustDisposeResource]
     private static IEnumerator<JsValue> EnumerateTypedArrayValues(TypedArrayBase typedArray)
     {
+        return Enumerate().GetEnumerator();
+
         IEnumerable<JsValue> Enumerate()
         {
             var length = typedArray.Length;
@@ -1222,8 +1224,6 @@ public static partial class TypedAstEvaluator
                 yield return typedArray.GetValueForIndex(i);
             }
         }
-
-        return Enumerate().GetEnumerator();
     }
 
     private static IJsObjectLike ToObjectForDestructuring(object? value, EvaluationContext context)

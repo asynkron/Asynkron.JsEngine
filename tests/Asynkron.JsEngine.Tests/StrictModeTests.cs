@@ -61,8 +61,8 @@ public class StrictModeTests
 
             """));
 
-        Assert.Contains("ReferenceError", ex.Message);
-        Assert.Contains("is not defined", ex.Message);
+        Assert.Contains("ReferenceError", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("is not defined", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -98,7 +98,7 @@ public class StrictModeTests
 
             """));
 
-        Assert.Contains("is not defined", ex.Message);
+        Assert.Contains("is not defined", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]

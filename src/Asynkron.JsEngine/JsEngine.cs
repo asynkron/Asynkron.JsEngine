@@ -139,21 +139,18 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("Boolean", StandardLibrary.CreateBooleanConstructor(RealmState));
         SetGlobal("String", StandardLibrary.CreateStringConstructor(RealmState));
         var arrayConstructor = StandardLibrary.CreateArrayConstructor(RealmState);
+        arrayConstructor.RealmState = RealmState;
         SetGlobal("Array", arrayConstructor);
-        if (arrayConstructor is HostFunction)
-        {
-            arrayConstructor.RealmState = RealmState;
-        }
 
         GlobalObject.DefineProperty("Array",
             new PropertyDescriptor
             {
-                Value = arrayConstructor, Writable = true, Enumerable = false, Configurable = true
+                Value = arrayConstructor, Writable = true, Enumerable = false, Configurable = true,
             });
         GlobalObject.DefineProperty("BigInt",
             new PropertyDescriptor
             {
-                Value = bigIntFunction, Writable = true, Enumerable = false, Configurable = true
+                Value = bigIntFunction, Writable = true, Enumerable = false, Configurable = true,
             });
 
         // Register global constants
@@ -161,7 +158,7 @@ public sealed class JsEngine : IAsyncDisposable
         GlobalObject.DefineProperty("Infinity",
             new PropertyDescriptor
             {
-                Value = double.PositiveInfinity, Writable = false, Enumerable = false, Configurable = false
+                Value = double.PositiveInfinity, Writable = false, Enumerable = false, Configurable = false,
             });
 
         SetGlobal("NaN", double.NaN, true);
@@ -172,7 +169,7 @@ public sealed class JsEngine : IAsyncDisposable
         GlobalObject.DefineProperty("undefined",
             new PropertyDescriptor
             {
-                Value = Symbol.Undefined, Writable = false, Enumerable = false, Configurable = false
+                Value = Symbol.Undefined, Writable = false, Enumerable = false, Configurable = false,
             });
 
         // Register global functions
@@ -287,20 +284,20 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobalFunction("clearTimeout", ClearTimer);
         SetGlobalFunction("clearInterval", ClearTimer);
 
-        // Register dynamic import function
+        // Register a dynamic import function
         var importFunction = new HostFunction((_, args) => DynamicImport(args, null, ImportPhase.Module, null), RealmState, isConstructor: false);
         importFunction.SetInvokeWithContext(
-            (args, thisValue, ctx, _) => DynamicImport(args, ctx, ImportPhase.Module, importFunction));
+            (args, _, ctx, _) => DynamicImport(args, ctx, ImportPhase.Module, importFunction));
 
         var importDeferFunction =
             new HostFunction((_, args) => DynamicImport(args, null, ImportPhase.Defer, null), RealmState, isConstructor: false);
         importDeferFunction.SetInvokeWithContext(
-            (args, thisValue, ctx, _) => DynamicImport(args, ctx, ImportPhase.Defer, importDeferFunction));
+            (args, _, ctx, _) => DynamicImport(args, ctx, ImportPhase.Defer, importDeferFunction));
 
         var importSourceFunction =
             new HostFunction((_, args) => DynamicImport(args, null, ImportPhase.Source, null), RealmState, isConstructor: false);
         importSourceFunction.SetInvokeWithContext(
-            (args, thisValue, ctx, _) => DynamicImport(args, ctx, ImportPhase.Source, importSourceFunction));
+            (args, _, ctx, _) => DynamicImport(args, ctx, ImportPhase.Source, importSourceFunction));
         importFunction.SetProperty("defer", (JsValue)importDeferFunction);
         importFunction.SetProperty("source", (JsValue)importSourceFunction);
         SetGlobal("import", importFunction);
@@ -308,9 +305,9 @@ public sealed class JsEngine : IAsyncDisposable
         // Provide a stable global object helper used by Test262 harness utilities.
         // Note: NOT marked as constant so Test262 harness can redeclare it if needed.
         SetGlobal("fnGlobalObject",
-            new HostFunction((_, __) => new JsValue(GlobalObject)) { Realm = GlobalObject, RealmState = RealmState });
+            new HostFunction((_, _) => new JsValue(GlobalObject)) { Realm = GlobalObject, RealmState = RealmState });
 
-        // Register debug function as a debug-aware host function
+        // Register the debug function as a debug-aware host function
         GlobalEnvironment.DefineJsValue(Symbol.DebugIdentifier, JsValue.FromObjectUnsafe(new DebugAwareHostFunction(CaptureDebugMessage)));
     }
 
@@ -322,7 +319,7 @@ public sealed class JsEngine : IAsyncDisposable
     ///     Null or non-positive values disable the timeout.
     /// </summary>
     // Keep a finite timeout to avoid runaway scripts, but give heavy test cases
-    // (e.g. crypto/NBody fixtures) enough headroom to finish.
+    // (e.g., crypto/NBody fixtures) enough headroom to finish.
     public TimeSpan? ExecutionTimeout { get; set; } = TimeSpan.FromSeconds(10);
 
     /// <summary>
@@ -338,7 +335,7 @@ public sealed class JsEngine : IAsyncDisposable
 
     internal void SetGlobalExecutionScope(JsEnvironment environment)
     {
-        GlobalExecutionScope = environment ?? GlobalEnvironment;
+        GlobalExecutionScope = environment;
     }
 
     public async ValueTask DisposeAsync()
@@ -391,7 +388,7 @@ public sealed class JsEngine : IAsyncDisposable
             ContinueCompletionSignal => "Continue",
             ThrowFlowCompletionSignal => "Throw",
             YieldCompletionSignal => "Yield",
-            _ => "Unknown"
+            _ => "Unknown",
         };
 
         // Get the call stack by traversing the environment chain
@@ -541,7 +538,7 @@ public sealed class JsEngine : IAsyncDisposable
         _eventQueue = Channel.CreateUnbounded<Func<ValueTask>>(new UnboundedChannelOptions
         {
             SingleReader = true,
-            SingleWriter = false
+            SingleWriter = false,
         });
         _eventLoopTask = Task.Run(() => ProcessEventQueue(_eventQueue));
     }
@@ -1228,7 +1225,7 @@ public sealed class JsEngine : IAsyncDisposable
 
         foreach (var member in definition.Members)
         {
-            if (member.IsComputed && member.ComputedName is { } computedName &&
+            if (member is { IsComputed: true, ComputedName: { } computedName } &&
                 ExpressionContainsImportMeta(computedName))
             {
                 return true;
@@ -1242,7 +1239,7 @@ public sealed class JsEngine : IAsyncDisposable
 
         foreach (var field in definition.Fields)
         {
-            if (field.IsComputed && field.ComputedName is { } computedName &&
+            if (field is { IsComputed: true, ComputedName: { } computedName } &&
                 ExpressionContainsImportMeta(computedName))
             {
                 return true;
@@ -1418,7 +1415,7 @@ public sealed class JsEngine : IAsyncDisposable
                 case ObjectExpression objectExpression:
                     foreach (var member in objectExpression.Members)
                     {
-                        if (member.IsComputed && member.Key is ExpressionNode computedKey && ExpressionContainsImportMeta(computedKey))
+                        if (member is { IsComputed: true, Key: ExpressionNode computedKey } && ExpressionContainsImportMeta(computedKey))
                         {
                             return true;
                         }
@@ -1485,7 +1482,7 @@ public sealed class JsEngine : IAsyncDisposable
     {
         var entry = new ModuleEntry(modulePath ?? string.Empty, program, environment, exports)
         {
-            IsAsync = hasTopLevelAwait || ContainsTopLevelAwait(program)
+            IsAsync = hasTopLevelAwait || ContainsTopLevelAwait(program),
         };
         environment.IsAsyncModule = entry.IsAsync;
         EnsureModuleImportMeta(entry);
@@ -1628,14 +1625,14 @@ public sealed class JsEngine : IAsyncDisposable
         importMeta.DefineProperty("url",
             new PropertyDescriptor
             {
-                Value = entry.Path ?? string.Empty,
+                Value = entry.Path,
                 Writable = true,
                 Enumerable = true,
                 Configurable = true,
                 HasValue = true,
                 HasWritable = true,
                 HasEnumerable = true,
-                HasConfigurable = true
+                HasConfigurable = true,
             });
 
         entry.Environment.DefineJsValue(Symbol.ImportMeta, (JsValue)importMeta, isConst: true, isLexical: true,
@@ -1828,7 +1825,7 @@ public sealed class JsEngine : IAsyncDisposable
                 hostFunction.Properties.SetPrototype(RealmState.FunctionPrototype);
             }
         }
-        else if (value is JsObject jsObject && jsObject.RealmState is null)
+        else if (value is JsObject { RealmState: null } jsObject)
         {
             jsObject.RealmState = RealmState;
         }
@@ -1838,7 +1835,7 @@ public sealed class JsEngine : IAsyncDisposable
             Value = value,
             Writable = !isGlobalConstant,
             Enumerable = false,
-            Configurable = !isGlobalConstant
+            Configurable = !isGlobalConstant,
         });
     }
 
@@ -2168,7 +2165,7 @@ public sealed class JsEngine : IAsyncDisposable
                 // If this task is from a later epoch than allowed, defer it
                 if (taskEpoch > maxEpoch)
                 {
-                    deferred ??= new List<(Action, int)>();
+                    deferred ??= [];
                     deferred.Add((task, taskEpoch));
                     continue;
                 }
@@ -2369,7 +2366,7 @@ public sealed class JsEngine : IAsyncDisposable
     {
         Module,
         Defer,
-        Source
+        Source,
     }
 
     private JsValue DynamicImport(
@@ -2681,16 +2678,19 @@ public sealed class JsEngine : IAsyncDisposable
         entry.Environment.IsAsyncModule = entry.IsAsync;
 
         EnsureModuleInstantiated(entry, phase, exportStarSet);
-        if (phase == ImportPhase.Module)
+        if (phase != ImportPhase.Module)
         {
-            if (entry.IsAsync || entry.HasAsyncDependency)
-            {
-                EnsureModuleEvaluatedAsync(entry, waitForAsync: false);
-            }
-            else
-            {
-                EnsureModuleEvaluated(entry);
-            }
+            return entry;
+        }
+
+        if (entry.IsAsync || entry.HasAsyncDependency)
+        {
+            //TODO: this can´t be right?
+            _ = EnsureModuleEvaluatedAsync(entry, waitForAsync: false);
+        }
+        else
+        {
+            EnsureModuleEvaluated(entry);
         }
 
         return entry;
@@ -2705,7 +2705,7 @@ public sealed class JsEngine : IAsyncDisposable
 
         foreach (var attr in attributes)
         {
-            if (attr.Key == "type" && attr.Value == "json")
+            if (attr is { Key: "type", Value: "json" })
             {
                 return true;
             }
@@ -2833,14 +2833,15 @@ public sealed class JsEngine : IAsyncDisposable
             var lastSlash = referrer?.LastIndexOf('/') ?? -1;
             var baseDir = lastSlash >= 0 ? referrer![..lastSlash] : string.Empty;
 
-            if (!preferRelative && !string.IsNullOrEmpty(referrer) && Path.IsPathRooted(referrer))
+            if (preferRelative || string.IsNullOrEmpty(referrer) || !Path.IsPathRooted(referrer))
             {
-                var rootedBase = Path.GetDirectoryName(referrer) ?? string.Empty;
-                var combined = Path.GetFullPath(Path.Combine(rootedBase, specifier));
-                return combined.Replace('\\', '/');
+                return NormalizeRelativeModulePath(baseDir, specifier);
             }
 
-            return NormalizeRelativeModulePath(baseDir, specifier);
+            var rootedBase = Path.GetDirectoryName(referrer) ?? string.Empty;
+            var combined = Path.GetFullPath(Path.Combine(rootedBase, specifier));
+            return combined.Replace('\\', '/');
+
         }
 
         if (Path.IsPathRooted(specifier))
@@ -2871,22 +2872,23 @@ public sealed class JsEngine : IAsyncDisposable
 
         foreach (var segment in specifier.Split('/', StringSplitOptions.RemoveEmptyEntries))
         {
-            if (segment == ".")
+            switch (segment)
             {
-                continue;
-            }
-
-            if (segment == "..")
-            {
-                if (parts.Count > 0)
+                case ".":
+                    continue;
+                case "..":
                 {
-                    parts.RemoveAt(parts.Count - 1);
+                    if (parts.Count > 0)
+                    {
+                        parts.RemoveAt(parts.Count - 1);
+                    }
+
+                    continue;
                 }
-
-                continue;
+                default:
+                    parts.Add(segment);
+                    break;
             }
-
-            parts.Add(segment);
         }
 
         return string.Join('/', parts);
@@ -2898,7 +2900,7 @@ public sealed class JsEngine : IAsyncDisposable
         {
             ImportPhase.Defer => entry.DeferredNamespace,
             _ when _moduleNamespaces.TryGetValue(entry.Exports, out var eager) => eager,
-            _ => entry.Namespace
+            _ => entry.Namespace,
         };
 
         if (cached is not null)
@@ -2911,7 +2913,7 @@ public sealed class JsEngine : IAsyncDisposable
         var resolvedNames = new List<string>();
         foreach (var name in exportedNames)
         {
-            var resolution = ResolveExport(entry, name, phase, new HashSet<(ModuleEntry, string)>());
+            var resolution = ResolveExport(entry, name, phase, []);
             if (resolution.Kind == ExportResolutionKind.Resolved &&
                 !name.StartsWith("__getter__", StringComparison.Ordinal) &&
                 !name.StartsWith("__setter__", StringComparison.Ordinal) &&
@@ -2922,8 +2924,23 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         var exportNames = resolvedNames
-            .OrderBy(n => n, StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
             .ToArray();
+
+        var ns = new ModuleNamespace(exportNames, Lookup, RealmState, UninitializedExportMarker,
+            phase == ImportPhase.Defer, phase == ImportPhase.Defer ? EnsureEvaluated : null);
+
+        if (phase == ImportPhase.Defer)
+        {
+            entry.DeferredNamespace = ns;
+        }
+        else
+        {
+            entry.Namespace = ns;
+            _moduleNamespaces[entry.Exports] = ns;
+        }
+
+        return ns;
 
         object? Lookup(string name)
         {
@@ -2944,21 +2961,6 @@ public sealed class JsEngine : IAsyncDisposable
         {
             EnsureModuleEvaluated(entry);
         }
-
-        var ns = new ModuleNamespace(exportNames, Lookup, RealmState, UninitializedExportMarker,
-            phase == ImportPhase.Defer, phase == ImportPhase.Defer ? EnsureEvaluated : null);
-
-        if (phase == ImportPhase.Defer)
-        {
-            entry.DeferredNamespace = ns;
-        }
-        else
-        {
-            entry.Namespace = ns;
-            _moduleNamespaces[entry.Exports] = ns;
-        }
-
-        return ns;
     }
 
     private void PredeclareExportNames(
@@ -3092,12 +3094,11 @@ public sealed class JsEngine : IAsyncDisposable
                     break;
                 case ExportAllStatement exportAll:
                     var sourceEntry = LoadModuleForInstantiation(exportAll.ModulePath, modulePath, phase, exportStarSet);
-                    if (exportStarSet.Contains(sourceEntry.Path))
+                    if (!exportStarSet.Add(sourceEntry.Path))
                     {
                         break;
                     }
 
-                    exportStarSet.Add(sourceEntry.Path);
                     EnsureModuleInstantiated(sourceEntry, phase, exportStarSet);
                     var exportedNames = GetExportedNames(sourceEntry, exportStarSet);
                     foreach (var name in exportedNames)
@@ -3108,7 +3109,7 @@ public sealed class JsEngine : IAsyncDisposable
                         }
 
                         var resolution =
-                            ResolveExport(sourceEntry, name, phase, new HashSet<(ModuleEntry, string)>());
+                            ResolveExport(sourceEntry, name, phase, []);
                         if (resolution.Kind == ExportResolutionKind.Resolved)
                         {
                             exports[name] = UninitializedExportMarker;
@@ -3135,36 +3136,38 @@ public sealed class JsEngine : IAsyncDisposable
     {
         foreach (var statement in program.Body)
         {
-            if (statement is ImportStatement importStatement)
+            if (statement is not ImportStatement importStatement)
             {
-                // Determine the phase for this specific import - deferred imports use Defer phase
-                var importPhase = importStatement.IsDeferred ? ImportPhase.Defer : phase;
+                continue;
+            }
 
-                // Load and instantiate the module but DON'T evaluate it yet
-                var importedModule = LoadModuleForInstantiation(importStatement.ModulePath, modulePath, importPhase, null, importStatement.Attributes);
-                EnsureModuleInstantiated(importedModule, importPhase);
+            // Determine the phase for this specific import-deferred imports use Defer phase
+            var importPhase = importStatement.IsDeferred ? ImportPhase.Defer : phase;
 
-                // Handle default import
-                if (importStatement.DefaultBinding is { } defaultBinding)
-                {
-                    CreateImportBinding(moduleEnv, defaultBinding, importedModule, Symbol.Intern("default"), importPhase);
-                }
+            // Load and instantiate the module but DON'T evaluate it yet
+            var importedModule = LoadModuleForInstantiation(importStatement.ModulePath, modulePath, importPhase, null, importStatement.Attributes);
+            EnsureModuleInstantiated(importedModule, importPhase);
 
-                // Handle namespace import
-                if (importStatement.NamespaceBinding is { } nsBinding)
-                {
-                    // Namespace binding is the whole module namespace object
-                    // Per ES spec 16.2.1.6.2 step 12.b.ii: CreateImmutableBinding(in.[[LocalName]], true)
-                    // The binding must be immutable - assignment should throw TypeError in strict mode
-                    var ns = GetModuleNamespace(importedModule, importPhase);
-                    moduleEnv.DefineJsValue(nsBinding, JsValue.FromObjectUnsafe(ns), isConst: true, isLexical: true, blocksFunctionScopeOverride: false);
-                }
+            // Handle default import
+            if (importStatement.DefaultBinding is { } defaultBinding)
+            {
+                CreateImportBinding(moduleEnv, defaultBinding, importedModule, Symbol.Intern("default"), importPhase);
+            }
 
-                // Handle named imports
-                foreach (var specifier in importStatement.NamedImports)
-                {
-                    CreateImportBinding(moduleEnv, specifier.Local, importedModule, specifier.Imported, importPhase);
-                }
+            // Handle namespace import
+            if (importStatement.NamespaceBinding is { } nsBinding)
+            {
+                // Namespace binding is the whole module namespace object
+                // Per ES spec 16.2.1.6.2 step 12.b.ii: CreateImmutableBinding(in.[[LocalName]], true)
+                // The binding must be immutable - assignment should throw TypeError in strict mode
+                var ns = GetModuleNamespace(importedModule, importPhase);
+                moduleEnv.DefineJsValue(nsBinding, JsValue.FromObjectUnsafe(ns), isConst: true, isLexical: true, blocksFunctionScopeOverride: false);
+            }
+
+            // Handle named imports
+            foreach (var specifier in importStatement.NamedImports)
+            {
+                CreateImportBinding(moduleEnv, specifier.Local, importedModule, specifier.Imported, importPhase);
             }
         }
     }
@@ -3173,7 +3176,7 @@ public sealed class JsEngine : IAsyncDisposable
     {
         NotFound,
         Resolved,
-        Ambiguous
+        Ambiguous,
     }
 
     private readonly record struct ExportResolution(ExportResolutionKind Kind, ModuleEntry? Module, Symbol BindingName)
@@ -3196,8 +3199,7 @@ public sealed class JsEngine : IAsyncDisposable
         Symbol importedName,
         ImportPhase importPhase)
     {
-        var resolved = ResolveExport(importedModule, importedName.Name, importPhase,
-            new HashSet<(ModuleEntry, string)>());
+        var resolved = ResolveExport(importedModule, importedName.Name, importPhase, []);
         if (!resolved.IsResolved)
         {
             throw new InvalidOperationException(
@@ -3209,27 +3211,25 @@ public sealed class JsEngine : IAsyncDisposable
 
     private Symbol GetDefaultExportBindingName(ExportDefaultStatement exportDefault)
     {
-        if (exportDefault.Value is ExportDefaultDeclaration { Declaration: FunctionDeclaration funcDecl })
+        return exportDefault.Value switch
         {
-            return funcDecl.Name.Name == "" ? Symbol.Intern("*default*") : funcDecl.Name;
-        }
-
-        if (exportDefault.Value is ExportDefaultDeclaration { Declaration: ClassDeclaration classDecl })
-        {
-            return classDecl.Name.Name == "" ? Symbol.Intern("*default*") : classDecl.Name;
-        }
-
-        return Symbol.Intern("*default*");
+            ExportDefaultDeclaration { Declaration: FunctionDeclaration(_, var symbol, _) } => symbol.Name.Length == 0
+                ? Symbol.Intern("*default*")
+                : symbol,
+            ExportDefaultDeclaration { Declaration: ClassDeclaration classDecl } => classDecl.Name.Name?.Length == 0
+                ? Symbol.Intern("*default*")
+                : classDecl.Name,
+            _ => Symbol.Intern("*default*")
+        };
     }
 
     private IEnumerable<string> GetExportedNames(ModuleEntry module, HashSet<string> exportStarSet)
     {
-        if (exportStarSet.Contains(module.Path))
+        if (!exportStarSet.Add(module.Path))
         {
-            return Array.Empty<string>();
+            return [];
         }
 
-        exportStarSet.Add(module.Path);
         if (module.Program.Body.IsEmpty && module.Exports.Count > 0)
         {
             exportStarSet.Remove(module.Path);
@@ -3290,13 +3290,11 @@ public sealed class JsEngine : IAsyncDisposable
         ImportPhase phase,
         HashSet<(ModuleEntry, string)>? resolveSet = null)
     {
-        resolveSet ??= new HashSet<(ModuleEntry, string)>();
-        if (resolveSet.Contains((module, exportName)))
+        resolveSet ??= [];
+        if (!resolveSet.Add((module, exportName)))
         {
             return ExportResolution.NotFound;
         }
-
-        resolveSet.Add((module, exportName));
 
         if (module.Program.Body.IsEmpty && module.Exports.ContainsKey(exportName))
         {
@@ -4351,7 +4349,7 @@ public sealed class JsEngine : IAsyncDisposable
 
             try
             {
-                thenCallable.Invoke(new JsValue[] { (JsValue)onFulfilledFn, (JsValue)onRejectedFn }, (JsValue)promiseObject);
+                thenCallable.Invoke([(JsValue)onFulfilledFn, (JsValue)onRejectedFn], (JsValue)promiseObject);
             }
             catch (ThrowSignal signal)
             {
@@ -4376,7 +4374,7 @@ public sealed class JsEngine : IAsyncDisposable
                     {
                         // Handle case where value is already a boxed JsValue
                         var valueArg = value is JsValue vJs ? vJs : JsValue.FromObjectUnsafe(value);
-                        var result = resolveCallable.Invoke(new JsValue[] { valueArg }, promiseCtorValue);
+                        var result = resolveCallable.Invoke([valueArg], promiseCtorValue);
                         if (result.TryGetObject<JsObject>(out var resolvedPromise))
                         {
                             return resolvedPromise;
@@ -4477,6 +4475,13 @@ public sealed class JsEngine : IAsyncDisposable
                 case CallExpression callExpr when Ast.ShapeAnalyzer.AstShapeAnalyzer.ContainsAwait(callExpr):
                     return TryEvaluateCallExpressionWithAwait(callExpr, env, isStrict, continuation);
 
+                case MemberExpression memberExpression when Ast.ShapeAnalyzer.AstShapeAnalyzer.ContainsAwait(memberExpression):
+                    return TryEvaluateMemberExpressionWithAwait(memberExpression, env, isStrict,
+                        (value, _) => continuation(value));
+
+                case NewExpression newExpression when Ast.ShapeAnalyzer.AstShapeAnalyzer.ContainsAwait(newExpression):
+                    return TryEvaluateNewExpressionWithAwait(newExpression, env, isStrict, continuation);
+
                 default:
                     // No await found in this expression, or expression types we don't need to handle specially
                     // Just evaluate synchronously
@@ -4504,81 +4509,116 @@ public sealed class JsEngine : IAsyncDisposable
                 {
                     double d => -d,
                     long l => -l,
-                    _ => -JsOps.ToNumber(operand, null)
+                    _ => -JsOps.ToNumber(operand, null),
                 },
                 UnaryOperator.BitwiseNot => ~(int)JsOps.ToNumber(operand, null),
                 UnaryOperator.Void => Symbol.Undefined,
                 UnaryOperator.TypeOf => JsOps.GetTypeofString(operand),
-                _ => throw new NotSupportedException($"Unary operator '{op}' is not supported in async module context.")
+                _ => throw new NotSupportedException($"Unary operator '{op}' is not supported in async module context."),
             };
         }
 
         private bool TryEvaluateCallExpressionWithAwait(CallExpression callExpr, JsEnvironment env, bool isStrict, Action<object?> continuation)
-        {
-            // Evaluate arguments left to right, handling any await expressions
-            var evaluatedArgs = new List<JsValue>();
+    {
+        // Evaluate callee first (await-aware), then arguments.
+        var evaluatedArgs = new List<JsValue>();
             var argList = callExpr.Arguments.ToList();
-            return TryEvaluateArgumentsWithAwait(argList, 0, evaluatedArgs, env, isStrict, () =>
+            var completedSynchronously = true;
+            string DescribeCallee(ExpressionNode expr)
             {
-                // All arguments evaluated, now evaluate callee and call
-                JsValue calleeValue;
-                var thisValue = JsValue.Undefined;
+                string DescribeTarget(ExpressionNode target) =>
+                    target switch
+                    {
+                        IdentifierExpression id => id.Name.Name,
+                        _ => target.GetType().Name,
+                    };
 
-                try
+                return expr switch
                 {
-                    if (callExpr.Callee is MemberExpression memberAccess)
-                    {
-                        thisValue = JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(memberAccess.Target, env, isStrict));
-                        var propertyKey = memberAccess.Property is IdentifierExpression id
-                            ? (object)id.Name
-                            : _engine.ExecuteTypedExpression(memberAccess.Property, env, isStrict);
-                        calleeValue = JsOps.TryGetPropertyValue(thisValue, propertyKey, out var val, null)
-                            ? JsValue.FromObjectUnsafe(val)
-                            : JsValue.Undefined;
-                    }
-                    else
-                    {
-                        calleeValue = JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(callExpr.Callee, env, isStrict));
-                    }
+                    IdentifierExpression id => id.Name.Name,
+                    MemberExpression member when member.Property is IdentifierExpression pid =>
+                        $"{DescribeTarget(member.Target)}.{pid.Name.Name}",
+                    MemberExpression member => $"{DescribeTarget(member.Target)}.[computed]",
+                    _ => expr.GetType().Name,
+                };
+            }
 
-                    if (!calleeValue.TryGetObject<IJsCallable>(out var callable))
+            var calleeResult = EvaluateCalleeWithAwait(callExpr.Callee, env, isStrict, (calleeValue, thisValue) =>
+            {
+                var argsResult = TryEvaluateArgumentsWithAwait(argList, 0, evaluatedArgs, env, isStrict, () =>
+                {
+                    try
                     {
-                        throw new ThrowSignal((JsValue)$"TypeError: {calleeValue} is not a function");
-                    }
+                        if (!calleeValue.TryGetObject<IJsCallable>(out var callable))
+                        {
+                            var calleeLabel = DescribeCallee(callExpr.Callee);
+                            var error = StandardLibrary.CreateTypeError($"{calleeValue} is not a function (callee={calleeLabel})", realm: _engine.RealmState);
+                            throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
+                        }
 
-                    var result = callable.Invoke(evaluatedArgs, thisValue);
-                    continuation(result);
+                        var result = callable.Invoke(evaluatedArgs, thisValue);
+                        continuation(result);
                 }
                 catch (ThrowSignal signal)
                 {
                     Fail(signal);
                 }
             });
+
+            if (!argsResult)
+            {
+                completedSynchronously = false;
+            }
+        });
+
+        return calleeResult && completedSynchronously;
+    }
+
+    private bool TryEvaluateArgumentsWithAwait(List<CallArgument> args, int index, List<JsValue> evaluated, JsEnvironment env, bool isStrict, Action onComplete)
+    {
+        if (index >= args.Count)
+        {
+            onComplete();
+            return true;
         }
 
-        private bool TryEvaluateArgumentsWithAwait(List<CallArgument> args, int index, List<JsValue> evaluated, JsEnvironment env, bool isStrict, Action onComplete)
+        var arg = args[index];
+        if (Ast.ShapeAnalyzer.AstShapeAnalyzer.ContainsAwait(arg.Expression))
         {
-            if (index >= args.Count)
+            return TryEvaluateExpressionWithAwait(arg.Expression, env, isStrict, resolved =>
             {
-                onComplete();
-                return true;
-            }
+                evaluated.Add(JsValue.FromObjectUnsafe(resolved));
+                TryEvaluateArgumentsWithAwait(args, index + 1, evaluated, env, isStrict, onComplete);
+            });
+        }
 
-            var arg = args[index];
-            if (Ast.ShapeAnalyzer.AstShapeAnalyzer.ContainsAwait(arg.Expression))
+        try
+        {
+            var value = _engine.ExecuteTypedExpression(arg.Expression, env, isStrict);
+            evaluated.Add(JsValue.FromObjectUnsafe(value));
+            return TryEvaluateArgumentsWithAwait(args, index + 1, evaluated, env, isStrict, onComplete);
+        }
+        catch (ThrowSignal signal)
+        {
+            Fail(signal);
+            return false;
+        }
+    }
+
+    private bool EvaluateCalleeWithAwait(ExpressionNode calleeExpr, JsEnvironment env, bool isStrict, Action<JsValue, JsValue> continuation)
+    {
+        if (calleeExpr is MemberExpression memberExpression)
+        {
+            if (Ast.ShapeAnalyzer.AstShapeAnalyzer.ContainsAwait(memberExpression))
             {
-                return TryEvaluateExpressionWithAwait(arg.Expression, env, isStrict, resolved =>
-                {
-                    evaluated.Add(JsValue.FromObjectUnsafe(resolved));
-                    TryEvaluateArgumentsWithAwait(args, index + 1, evaluated, env, isStrict, onComplete);
-                });
+                return TryEvaluateMemberExpressionWithAwait(memberExpression, env, isStrict, continuation);
             }
 
             try
             {
-                var value = _engine.ExecuteTypedExpression(arg.Expression, env, isStrict);
-                evaluated.Add(JsValue.FromObjectUnsafe(value));
-                return TryEvaluateArgumentsWithAwait(args, index + 1, evaluated, env, isStrict, onComplete);
+                var (calleeValue, thisValue) = EvaluateMemberExpression(memberExpression, env, isStrict);
+                continuation(calleeValue, thisValue);
+                return true;
             }
             catch (ThrowSignal signal)
             {
@@ -4587,7 +4627,152 @@ public sealed class JsEngine : IAsyncDisposable
             }
         }
 
-        private bool TryEvaluateWhileStatementWithAwait(WhileStatement whileStatement, JsEnvironment env, bool isStrict)
+        if (Ast.ShapeAnalyzer.AstShapeAnalyzer.ContainsAwait(calleeExpr))
+        {
+            return TryEvaluateExpressionWithAwait(calleeExpr, env, isStrict, resolved =>
+            {
+                continuation(JsValue.FromObjectUnsafe(resolved), JsValue.Undefined);
+            });
+        }
+
+        try
+        {
+            var calleeObj = _engine.ExecuteTypedExpression(calleeExpr, env, isStrict);
+            continuation(JsValue.FromObjectUnsafe(calleeObj), JsValue.Undefined);
+            return true;
+        }
+        catch (ThrowSignal signal)
+        {
+            Fail(signal);
+            return false;
+        }
+    }
+
+    private bool TryEvaluateMemberExpressionWithAwait(
+        MemberExpression memberExpression,
+        JsEnvironment env,
+        bool isStrict,
+        Action<JsValue, JsValue> continuation)
+    {
+        var propertyAwaited = false;
+        var propertyCompletedSynchronously = true;
+
+        var targetResult = TryEvaluateExpressionWithAwait(memberExpression.Target, env, isStrict, targetResolved =>
+        {
+            var thisValue = JsValue.FromObjectUnsafe(targetResolved);
+
+            bool Finish(object? propertyResolved)
+            {
+                JsValue calleeValue;
+                try
+                {
+                    calleeValue = JsOps.TryGetPropertyValue(thisValue, propertyResolved, out var val, null)
+                        ? JsValue.FromObjectUnsafe(val)
+                        : JsValue.Undefined;
+                }
+                catch (ThrowSignal signal)
+                {
+                    Fail(signal);
+                    return false;
+                }
+
+                continuation(calleeValue, thisValue);
+                return true;
+            }
+
+            if (memberExpression.Property is IdentifierExpression identifier)
+            {
+                propertyCompletedSynchronously = Finish(identifier.Name);
+                return;
+            }
+
+            if (Ast.ShapeAnalyzer.AstShapeAnalyzer.ContainsAwait(memberExpression.Property))
+            {
+                propertyAwaited = true;
+                propertyCompletedSynchronously = TryEvaluateExpressionWithAwait(memberExpression.Property, env, isStrict,
+                    propertyResolved => { Finish(propertyResolved); });
+                return;
+            }
+
+            try
+            {
+                var propertyValue = _engine.ExecuteTypedExpression(memberExpression.Property, env, isStrict);
+                propertyCompletedSynchronously = Finish(propertyValue);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                propertyCompletedSynchronously = false;
+            }
+        });
+
+        return targetResult && (!propertyAwaited || propertyCompletedSynchronously);
+    }
+
+    private (JsValue calleeValue, JsValue thisValue) EvaluateMemberExpression(
+        MemberExpression memberExpression,
+        JsEnvironment env,
+        bool isStrict)
+    {
+        var targetValue = _engine.ExecuteTypedExpression(memberExpression.Target, env, isStrict);
+        var thisValue = JsValue.FromObjectUnsafe(targetValue);
+        object? propertyKey;
+        if (memberExpression.Property is IdentifierExpression identifier)
+        {
+            propertyKey = identifier.Name;
+        }
+        else
+        {
+            propertyKey = _engine.ExecuteTypedExpression(memberExpression.Property, env, isStrict);
+        }
+
+        var calleeValue = JsOps.TryGetPropertyValue(thisValue, propertyKey, out var val, null)
+            ? JsValue.FromObjectUnsafe(val)
+            : JsValue.Undefined;
+
+        return (calleeValue, thisValue);
+    }
+
+    private bool TryEvaluateNewExpressionWithAwait(
+        NewExpression newExpression,
+        JsEnvironment env,
+        bool isStrict,
+        Action<object?> continuation)
+    {
+        var evaluatedArgs = new List<JsValue>();
+        var argList = newExpression.Arguments.ToList();
+        var completedSynchronously = true;
+
+        var calleeResult = EvaluateCalleeWithAwait(newExpression.Constructor, env, isStrict, (ctorValue, _) =>
+        {
+            var argsResult = TryEvaluateArgumentsWithAwait(argList, 0, evaluatedArgs, env, isStrict, () =>
+            {
+                try
+                {
+                    if (!JsOps.IsConstructor(ctorValue) || !ctorValue.TryGetObject<IJsCallable>(out var callable))
+                    {
+                        var error = StandardLibrary.CreateTypeError("Target is not a constructor", realm: _engine.RealmState);
+                        throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
+                    }
+
+                    var constructed = StandardLibrary.Construct(callable, evaluatedArgs, callable, _engine.RealmState);
+                    continuation(constructed);
+                }
+                catch (ThrowSignal signal)
+                {
+                    Fail(signal);
+                }
+            });
+
+            if (!argsResult)
+            {
+                completedSynchronously = false;
+            }
+        });
+
+        return calleeResult && completedSynchronously;
+    }
+private bool TryEvaluateWhileStatementWithAwait(WhileStatement whileStatement, JsEnvironment env, bool isStrict)
         {
             // Handle await in the condition
             if (whileStatement.Condition is AwaitExpression awaitExpr)
@@ -4756,7 +4941,7 @@ public sealed class JsEngine : IAsyncDisposable
 
             try
             {
-                thenCallable.Invoke(new JsValue[] { (JsValue)onFulfilledFn, (JsValue)onRejectedFn }, (JsValue)promiseObject);
+                thenCallable.Invoke([(JsValue)onFulfilledFn, (JsValue)onRejectedFn], (JsValue)promiseObject);
             }
             catch (ThrowSignal signal)
             {
@@ -4931,7 +5116,7 @@ public sealed class JsEngine : IAsyncDisposable
 
             try
             {
-                thenCallable.Invoke(new JsValue[] { (JsValue)onFulfilledFn, (JsValue)onRejectedFn }, (JsValue)promiseObject);
+                thenCallable.Invoke([(JsValue)onFulfilledFn, (JsValue)onRejectedFn], (JsValue)promiseObject);
             }
             catch (ThrowSignal signal)
             {
@@ -5126,7 +5311,7 @@ public sealed class JsEngine : IAsyncDisposable
             {
                 FunctionExpression { Name: null } => true,
                 ClassExpression { Name: null } => true,
-                _ => false
+                _ => false,
             };
 
             var value = ExecuteTypedExpression(
@@ -5151,7 +5336,7 @@ public sealed class JsEngine : IAsyncDisposable
         // For anonymous functions, the binding name is "*default*"
         if (declaration.Declaration is FunctionDeclaration functionDeclaration)
         {
-            var bindingName = functionDeclaration.Name.Name == ""
+            var bindingName = functionDeclaration.Name.Name?.Length == 0
                 ? Symbol.Intern("*default*")
                 : functionDeclaration.Name;
             return new LiveExportBinding(() => moduleEnv.Get(bindingName));
@@ -5163,12 +5348,12 @@ public sealed class JsEngine : IAsyncDisposable
         {
             ClassDeclaration classDeclaration => new LiveExportBinding(() =>
             {
-                var bindingName = classDeclaration.Name.Name == ""
+                var bindingName = classDeclaration.Name.Name?.Length == 0
                     ? Symbol.Intern("*default*")
                     : classDeclaration.Name;
                 return moduleEnv.Get(bindingName);
             }),
-            _ => Symbol.Undefined
+            _ => Symbol.Undefined,
         };
     }
 
@@ -5184,7 +5369,7 @@ public sealed class JsEngine : IAsyncDisposable
             foreach (var specifier in statement.Specifiers)
             {
                 var resolution = ResolveExport(sourceEntry, specifier.Local.Name, ImportPhase.Module,
-                    new HashSet<(ModuleEntry, string)>());
+                    []);
                 if (resolution.Kind == ExportResolutionKind.Resolved)
                 {
                     exports[specifier.Exported.Name] = CreateLiveBinding(resolution);
@@ -5226,7 +5411,7 @@ public sealed class JsEngine : IAsyncDisposable
             }
 
             var resolution = ResolveExport(sourceEntry, name, ImportPhase.Module,
-                new HashSet<(ModuleEntry, string)>());
+                []);
             if (resolution.Kind != ExportResolutionKind.Resolved)
             {
                 continue;

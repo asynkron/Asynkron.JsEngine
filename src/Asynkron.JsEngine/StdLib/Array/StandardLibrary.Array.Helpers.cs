@@ -358,7 +358,7 @@ public static partial class StandardLibrary
             throw ThrowTypeError($"{operation} iterator return is not callable", realm: realm);
         }
 
-        callable.Invoke(Array.Empty<JsValue>(), JsValue.FromObjectUnsafe(iterator));
+        callable.Invoke([], JsValue.FromObjectUnsafe(iterator));
     }
 
     internal static void CreateDataPropertyOrThrow(IJsObjectLike target, string propertyKey, object? value,

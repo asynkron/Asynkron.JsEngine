@@ -367,7 +367,7 @@ internal static class JsOps
                 {
                     var result = TypedAstEvaluator.InvokeCallable(
                         toPrimFn,
-                        new JsValue[] { new JsValue("number") },
+                        [new JsValue("number")],
                         JsValue.FromObjectUnsafe(accessor),
                         context,
                         accessor is JsObject obj ? obj.RealmState?.Engine?.GlobalEnvironment : null);
@@ -526,7 +526,7 @@ internal static class JsOps
                     };
                     var result = TypedAstEvaluator.InvokeCallable(
                         toPrimFn,
-                        new JsValue[] { new JsValue(hintString) },
+                        [new JsValue(hintString)],
                         JsValue.FromObjectUnsafe(accessor),
                         context,
                         accessor is JsObject obj ? obj.RealmState?.Engine?.GlobalEnvironment : null);
@@ -1192,7 +1192,7 @@ internal static class JsOps
 
         try
         {
-            result = TypedAstEvaluator.InvokeCallable(callable, Array.Empty<JsValue>(), JsValue.FromObjectUnsafe(accessor), context,
+            result = TypedAstEvaluator.InvokeCallable(callable, [], JsValue.FromObjectUnsafe(accessor), context,
                 accessor is JsObject obj ? obj.RealmState?.Engine?.GlobalEnvironment : null);
             return context?.IsThrow != true;
         }
@@ -1906,7 +1906,7 @@ internal static class JsOps
                             return true;
                         }
 
-                        TypedAstEvaluator.InvokeCallable(ownDescriptor.Set, new JsValue[] { JsValue.FromObjectUnsafe(value) }, JsValue.FromObjectUnsafe(jsArray), context);
+                        TypedAstEvaluator.InvokeCallable(ownDescriptor.Set, [JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(jsArray), context);
                         return true;
                     }
 
@@ -1948,7 +1948,7 @@ internal static class JsOps
                                 return true;
                             }
 
-                            TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, new JsValue[] { JsValue.FromObjectUnsafe(value) }, JsValue.FromObjectUnsafe(jsArray), context);
+                            TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(jsArray), context);
                             return true;
                         }
 

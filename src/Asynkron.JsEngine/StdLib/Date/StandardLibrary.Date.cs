@@ -574,7 +574,7 @@ public static partial class StandardLibrary
             return new JsValue("Invalid Date");
         }
 
-        return formatCallable.Invoke(new JsValue[] { new JsValue(dateObj) }, formatter);
+        return formatCallable.Invoke([new JsValue(dateObj)], formatter);
     }
 
     internal static JsObject CreateDefaultDateTimeOptions(RealmState realm)

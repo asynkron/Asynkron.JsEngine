@@ -450,7 +450,7 @@ public static partial class TypedAstEvaluator
                     catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
                     {
                         // Convert to JavaScript ReferenceError so it can be caught by JavaScript try-catch
-                        var errorObject = StdLib.StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
+                        var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
                         throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
                     }
                 }

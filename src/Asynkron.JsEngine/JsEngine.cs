@@ -565,7 +565,7 @@ public sealed class JsEngine : IAsyncDisposable
                 return;
             }
 
-            if (_drainCompletionSource is null || _drainCompletionSource.Task.IsCompleted)
+            if (_drainCompletionSource?.Task.IsCompleted != false)
             {
                 _drainCompletionSource = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             }
@@ -2887,7 +2887,7 @@ public sealed class JsEngine : IAsyncDisposable
 
     private ModuleNamespace GetModuleNamespace(ModuleEntry entry, ImportPhase phase = ImportPhase.Module)
     {
-        ModuleNamespace? cached = phase switch
+        var cached = phase switch
         {
             ImportPhase.Defer => entry.DeferredNamespace,
             _ when _moduleNamespaces.TryGetValue(entry.Exports, out var eager) => eager,
@@ -4487,21 +4487,21 @@ public sealed class JsEngine : IAsyncDisposable
             }
         }
 
-        private static object? EvaluateUnaryOnValue(Ast.UnaryOperator op, object? operand)
+        private static object? EvaluateUnaryOnValue(UnaryOperator op, object? operand)
         {
             return op switch
             {
-                Ast.UnaryOperator.LogicalNot => !JsOps.ToBoolean(operand),
-                Ast.UnaryOperator.Plus => JsOps.ToNumber(operand, null),
-                Ast.UnaryOperator.Minus => operand switch
+                UnaryOperator.LogicalNot => !JsOps.ToBoolean(operand),
+                UnaryOperator.Plus => JsOps.ToNumber(operand, null),
+                UnaryOperator.Minus => operand switch
                 {
                     double d => -d,
                     long l => -l,
                     _ => -JsOps.ToNumber(operand, null)
                 },
-                Ast.UnaryOperator.BitwiseNot => ~(int)JsOps.ToNumber(operand, null),
-                Ast.UnaryOperator.Void => Symbol.Undefined,
-                Ast.UnaryOperator.TypeOf => JsOps.GetTypeofString(operand),
+                UnaryOperator.BitwiseNot => ~(int)JsOps.ToNumber(operand, null),
+                UnaryOperator.Void => Symbol.Undefined,
+                UnaryOperator.TypeOf => JsOps.GetTypeofString(operand),
                 _ => throw new NotSupportedException($"Unary operator '{op}' is not supported in async module context.")
             };
         }
@@ -4515,7 +4515,7 @@ public sealed class JsEngine : IAsyncDisposable
             {
                 // All arguments evaluated, now evaluate callee and call
                 JsValue calleeValue;
-                JsValue thisValue = JsValue.Undefined;
+                var thisValue = JsValue.Undefined;
 
                 try
                 {

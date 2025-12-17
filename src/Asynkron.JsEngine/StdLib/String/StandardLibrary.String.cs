@@ -1246,7 +1246,7 @@ public static partial class StandardLibrary
             var items = new List<JsValue>(length);
             for (var i = 0; i < length; i++)
             {
-                if (rawObj.TryGetProperty(i.ToString(), out var item))
+                if (rawObj.TryGetProperty(i.ToString(CultureInfo.InvariantCulture), out var item))
                 {
                     items.Add(item);
                 }

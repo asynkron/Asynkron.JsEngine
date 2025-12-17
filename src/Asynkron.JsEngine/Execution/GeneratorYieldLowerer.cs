@@ -412,7 +412,7 @@ internal static class GeneratorYieldLowerer
             var members = definition.Members.ToBuilder();
             var fields = definition.Fields.ToBuilder();
             var changed = false;
-            ExpressionNode? rewrittenExtends = definition.Extends;
+            var rewrittenExtends = definition.Extends;
 
             // Handle extends clause containing yield
             if (definition.Extends is not null && AstShapeAnalyzer.ContainsYield(definition.Extends))

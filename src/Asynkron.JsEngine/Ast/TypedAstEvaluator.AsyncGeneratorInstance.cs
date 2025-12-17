@@ -206,10 +206,7 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             });
 
-            if (thenCallable is not null)
-            {
-                thenCallable.Invoke([(JsValue)onFulfilled, (JsValue)onRejected], (JsValue)pendingPromise);
-            }
+            thenCallable?.Invoke([(JsValue)onFulfilled, (JsValue)onRejected], (JsValue)pendingPromise);
         }
 
         private JsObject? ResolveGeneratorPrototype()

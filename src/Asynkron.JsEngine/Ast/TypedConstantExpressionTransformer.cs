@@ -701,10 +701,10 @@ public sealed class TypedConstantExpressionTransformer
             // Extract the underlying value from JsValue for constant folding
             value = literal.Value.Kind switch
             {
-                JsTypes.JsValueKind.Null => null,
-                JsTypes.JsValueKind.Boolean => literal.Value.IsBoolean && literal.Value.NumberValue != 0,
-                JsTypes.JsValueKind.Number => literal.Value.NumberValue,
-                JsTypes.JsValueKind.String => literal.Value.AsString(),
+                JsValueKind.Null => null,
+                JsValueKind.Boolean => literal.Value.IsBoolean && literal.Value.NumberValue != 0,
+                JsValueKind.Number => literal.Value.NumberValue,
+                JsValueKind.String => literal.Value.AsString(),
                 _ => null
             };
             return true;
@@ -714,24 +714,24 @@ public sealed class TypedConstantExpressionTransformer
         return false;
     }
 
-    private static bool IsFoldableLiteral(JsTypes.JsValue value)
+    private static bool IsFoldableLiteral(JsValue value)
     {
-        return value.Kind is JsTypes.JsValueKind.Number
-            or JsTypes.JsValueKind.String
-            or JsTypes.JsValueKind.Boolean
-            or JsTypes.JsValueKind.Null;
+        return value.Kind is JsValueKind.Number
+            or JsValueKind.String
+            or JsValueKind.Boolean
+            or JsValueKind.Null;
     }
 
-    private static JsTypes.JsValue ToJsValue(object? value)
+    private static JsValue ToJsValue(object? value)
     {
         return value switch
         {
-            null => JsTypes.JsValue.Null,
-            true => JsTypes.JsValue.True,
-            false => JsTypes.JsValue.False,
-            double d => new JsTypes.JsValue(d),
-            string s => new JsTypes.JsValue(s),
-            _ => JsTypes.JsValue.FromObjectUnsafe(value)
+            null => JsValue.Null,
+            true => JsValue.True,
+            false => JsValue.False,
+            double d => new JsValue(d),
+            string s => new JsValue(s),
+            _ => JsValue.FromObjectUnsafe(value)
         };
     }
 

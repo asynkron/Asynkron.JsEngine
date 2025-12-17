@@ -407,7 +407,7 @@ public static partial class StandardLibrary
                 for (var i = 0; i < typedSource.Length; i++)
                 {
                     // GetElement/GetBigIntElement return raw numbers/BigInt, need to wrap
-                    JsValue value = typedSource switch
+                    var value = typedSource switch
                     {
                         JsBigInt64Array bi64 => (JsValue)bi64.GetBigIntElement(i),
                         JsBigUint64Array bu64 => (JsValue)bu64.GetBigIntElement(i),
@@ -1528,7 +1528,7 @@ public static partial class StandardLibrary
     private static TypedArrayBase TypedArraySpeciesCreate(TypedArrayBase exemplar, int length, RealmState? realm)
     {
         length = Math.Max(length, 0);
-        JsValue constructorValue = JsValue.Undefined;
+        var constructorValue = JsValue.Undefined;
 
         if (exemplar.TryGetProperty("constructor", (JsValue)exemplar, out var ctorValue))
         {

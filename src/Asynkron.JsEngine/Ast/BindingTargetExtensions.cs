@@ -51,8 +51,7 @@ public static partial class TypedAstEvaluator
             WalkBindingTargets(target,
                 identifier =>
                 {
-                    if (!context.CurrentScope.IsStrict && lexicalNames is not null &&
-                        lexicalNames.Contains(identifier.Name))
+                    if (!context.CurrentScope.IsStrict && lexicalNames?.Contains(identifier.Name) == true)
                     {
                         return;
                     }

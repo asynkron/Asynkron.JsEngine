@@ -121,7 +121,7 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
             }
 
-            if (constructor is TypedAstEvaluator.TypedGeneratorFactory)
+            if (constructor is TypedGeneratorFactory)
             {
                 var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
                     ? typeErrorCtor.Invoke([(JsValue)"Generator functions cannot be constructed with 'new'"], JsValue.Null).ToObject()
@@ -208,7 +208,7 @@ public static partial class TypedAstEvaluator
             instance?.BeginConstruction();
             try
             {
-                JsValue receiver = isDerivedClassCtor ? JsValue.Undefined : (JsValue)instance;
+                var receiver = isDerivedClassCtor ? JsValue.Undefined : (JsValue)instance;
                 if (typedConstructor is not null)
                 {
                     result = typedConstructor.InvokeWithContext(args, receiver, context,

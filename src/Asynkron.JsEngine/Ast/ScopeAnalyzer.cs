@@ -494,8 +494,7 @@ public sealed class ScopeAnalyzer
         }
 
         // Check if environment reuse is possible for this function
-        var canOptimize = _currentFunctionScope is not null &&
-                          !_currentFunctionScope.IsDynamic &&
+        var canOptimize = _currentFunctionScope?.IsDynamic == false &&
                           !_currentFunctionScope.HasClosures;
 
         if (!canOptimize)

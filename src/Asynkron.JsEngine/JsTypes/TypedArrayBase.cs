@@ -493,7 +493,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
     private static double ToIntegerOrInfinity(JsValue value, EvaluationContext? context)
     {
         var number = JsOps.ToNumberWithContext(value, context);
-        if (context is not null && context.IsThrow)
+        if (context?.IsThrow == true)
         {
             throw new ThrowSignal(context.FlowValue);
         }
@@ -651,7 +651,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
                 continue;
             }
 
-            JsValue element = target switch
+            var element = target switch
             {
                 JsBigInt64Array bi64 => new JsValue(bi64.GetBigIntElement(i)),
                 JsBigUint64Array bu64 => new JsValue(bu64.GetBigIntElement(i)),
@@ -733,7 +733,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
                 continue;
             }
 
-            JsValue element = target switch
+            var element = target switch
             {
                 JsBigInt64Array bi64 => new JsValue(bi64.GetBigIntElement(i)),
                 JsBigUint64Array bu64 => new JsValue(bu64.GetBigIntElement(i)),

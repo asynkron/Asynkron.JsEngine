@@ -192,6 +192,13 @@ public sealed class EvaluationContext(
     public bool DrainAwaitMicrotasks { get; set; } = true;
 
     /// <summary>
+    ///     When true, array pattern destructuring will NOT close iterators upon completion.
+    ///     Used by generators to defer iterator close until the generator completes/returns.
+    ///     The generator's CloseActiveArrayPatternIterators will handle cleanup.
+    /// </summary>
+    public bool InGeneratorContext { get; set; }
+
+    /// <summary>
     ///     Returns true if the current signal is Yield.
     /// </summary>
     public bool IsYield => CurrentSignal is YieldCompletionSignal;
@@ -358,7 +365,7 @@ public sealed class EvaluationContext(
     ///     Sets the context to Yield state with the given value and original iterator result object.
     ///     Used by yield* to preserve the original iterator result properties (like done being absent).
     /// </summary>
-    public void SetYieldWithIteratorResult(JsValue value, int yieldIndex, JsTypes.IJsObjectLike? iteratorResultObject)
+    public void SetYieldWithIteratorResult(JsValue value, int yieldIndex, IJsObjectLike? iteratorResultObject)
     {
         LastYieldIndex = yieldIndex;
         CurrentSignal = new YieldCompletionSignal(value, iteratorResultObject);

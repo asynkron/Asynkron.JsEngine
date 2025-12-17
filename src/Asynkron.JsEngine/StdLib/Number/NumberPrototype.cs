@@ -137,7 +137,7 @@ public sealed partial class NumberPrototype
             return JsValue.FromObjectUnsafe(formatted);
         }
 
-        if (optionsArg.TryGetObject(out JsObject? options) && options is not null)
+        if (optionsArg.TryGetObject(out var options) && options is not null)
         {
             if (options.TryGetProperty("style", out var styleVal) && !styleVal.IsNullOrUndefined)
             {

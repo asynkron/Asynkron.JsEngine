@@ -278,7 +278,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         if (TryParseArrayIndex(name, out var index))
         {
             var descriptor = _properties.GetOwnPropertyDescriptor(name);
-            if (descriptor is not null && !descriptor.Configurable)
+            if (descriptor?.Configurable == false)
             {
                 return false;
             }
@@ -618,7 +618,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
 
         var lastIndex = _length - 1;
-        JsValue value = JsValue.Undefined;
+        var value = JsValue.Undefined;
 
         if (lastIndex < _items.Count)
         {

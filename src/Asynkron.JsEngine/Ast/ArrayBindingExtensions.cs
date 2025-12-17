@@ -348,6 +348,16 @@ public static partial class TypedAstEvaluator
 
             if (iterator is not null && !iteratorDone)
             {
+                // When inside a generator context, don't close the iterator immediately.
+                // Instead, save the state so CloseActiveArrayPatternIterators can find it
+                // when the generator completes/returns.
+                if (context.InGeneratorContext && stateKey is { })
+                {
+                    SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
+                        binding.Elements.Length, null, iteratorDone, false, null, false);
+                    return;
+                }
+
                 CloseIterator(context.IsThrow);
             }
 

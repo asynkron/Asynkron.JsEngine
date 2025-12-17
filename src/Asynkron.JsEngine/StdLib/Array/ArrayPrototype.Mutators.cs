@@ -530,7 +530,7 @@ public sealed partial class ArrayPrototype
                 var raw = compareFn.Invoke([aArg, bArg], JsValue.Undefined).ToObject();
                 var ctx = realm?.CreateContext();
                 var num = JsOps.ToNumberWithContext(raw, ctx);
-                if (ctx is not null && ctx.IsThrow)
+                if (ctx?.IsThrow == true)
                 {
                     throw new ThrowSignal(ctx.FlowValue);
                 }

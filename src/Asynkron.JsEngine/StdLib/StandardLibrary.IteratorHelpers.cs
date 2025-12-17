@@ -21,7 +21,7 @@ public static partial class StandardLibrary
 
             var iterable = args[0];
 
-            if (iterable.TryGetObject(out JsObject? jsObject) && jsObject is not null)
+            if (iterable.TryGetObject(out var jsObject) && jsObject is not null)
             {
                 if (HasCallableNext(jsObject))
                 {
@@ -179,7 +179,7 @@ public static partial class StandardLibrary
         JsValue IteratorNext(IReadOnlyList<JsValue> args)
         {
             // args[0] should be the iterator object
-            if (args.Count == 0 || !args[0].TryGetObject(out JsObject? iterator) || iterator is null)
+            if (args.Count == 0 || !args[0].TryGetObject(out var iterator) || iterator is null)
             {
                 throw new InvalidOperationException("__iteratorNext requires an iterator object");
             }

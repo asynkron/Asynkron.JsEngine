@@ -87,7 +87,7 @@ public sealed partial class ObjectPrototype : JsPrototype
             return new JsValue(false);
         }
 
-        bool result = false;
+        var result = false;
         if (thisValue.TryGetObject<JsObject>(out var obj) && obj is not null)
         {
             result = obj.GetOwnPropertyDescriptor(propertyName) is not null;

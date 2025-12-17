@@ -410,16 +410,16 @@ public static partial class TypedAstEvaluator
                     break;
             }
 
-            if (functionNameEnvironment is not null)
-            {
+                
+            
                 // Named function expression bindings are immutable but silently fail
                 // assignment in non-strict mode (unlike const which always throws)
-                functionNameEnvironment.DefineJsValue(functionExpression.Name!, JsValue.FromObjectUnsafe(callable),
+                functionNameEnvironment?.DefineJsValue(functionExpression.Name!, JsValue.FromObjectUnsafe(callable),
                     isConst: false,
                     isLexical: true,
                     blocksFunctionScopeOverride: true,
                     isImmutableBinding: true);
-            }
+            
 
             // Per ES spec 13.3.1.4: If IsAnonymousFunctionDefinition(Initializer) is true and
             // hasNameProperty is false, perform SetFunctionName(value, bindingId).

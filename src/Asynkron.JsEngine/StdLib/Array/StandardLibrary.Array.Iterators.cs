@@ -40,7 +40,7 @@ public static partial class StandardLibrary
                 return new JsValue(doneResult);
             }
 
-            if (typedAccessor is not null && typedAccessor.IsDetachedOrOutOfBounds())
+            if (typedAccessor?.IsDetachedOrOutOfBounds() == true)
             {
                 throw typedAccessor.CreateOutOfBoundsTypeError();
             }

@@ -62,10 +62,6 @@ public static partial class TypedAstEvaluator
 
                 var completionJs = EvaluateStatementJsValue(statement, environment, context);
                 var shouldStop = context.ShouldStopEvaluation;
-                if (context.IsThrow)
-                {
-                    Console.WriteLine($"DEBUG BlockFast: after statement, IsThrow = true");
-                }
                 var shouldCapture =
                     !completionJs.IsUnit &&
                     (!shouldStop ||
@@ -82,7 +78,6 @@ public static partial class TypedAstEvaluator
 
                 if (shouldStop)
                 {
-                    Console.WriteLine($"DEBUG BlockFast: shouldStop=true, breaking loop. IsThrow={context.IsThrow}, IsYield={context.IsYield}, IsReturn={context.IsReturn}");
                     break;
                 }
             }

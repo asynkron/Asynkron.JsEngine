@@ -205,7 +205,7 @@ public static partial class TypedAstEvaluator
         var realm = context.RealmState;
 
         // ToObject: convert primitive to wrapper
-        JsObject wrapper = primitiveTarget switch
+        var wrapper = primitiveTarget switch
         {
             string s => StandardLibrary.CreateStringWrapper(s, context, realm),
             bool b => CreateBooleanWrapper(b, realm),

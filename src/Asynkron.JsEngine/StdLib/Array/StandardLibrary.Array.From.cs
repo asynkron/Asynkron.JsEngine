@@ -640,7 +640,7 @@ public static partial class StandardLibrary
                 return false;
             }
 
-            object? finalValue = resolved;
+            var finalValue = resolved;
 
             if (mapping && mapper is not null)
             {

@@ -59,7 +59,7 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment,
             EvaluationContext context)
         {
-            JsValue thisArg = JsValue.Undefined;
+            var thisArg = JsValue.Undefined;
             var argsBuilder = ImmutableArray.CreateBuilder<JsValue>();
 
             for (var i = 0; i < callArguments.Length; i++)

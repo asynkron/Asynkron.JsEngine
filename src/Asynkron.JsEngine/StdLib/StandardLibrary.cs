@@ -201,7 +201,7 @@ public static partial class StandardLibrary
                     return bigInt;
                 case JsObject or IJsPropertyAccessor:
                     value = JsOps.ToPrimitive(value, ToPrimitiveHint.Number, localContext);
-                    if (localContext is not null && localContext.IsThrow)
+                    if (localContext?.IsThrow == true)
                     {
                         throw new ThrowSignal(localContext.FlowValue);
                     }

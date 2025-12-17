@@ -18,7 +18,7 @@ public static partial class StandardLibrary
 
     internal static PropertyDescriptor ToPropertyDescriptor(JsValue candidate, RealmState realm)
     {
-        if (!candidate.TryGetObject(out JsObject? descriptorObject))
+        if (!candidate.TryGetObject(out var descriptorObject))
         {
             throw ThrowTypeError("Property description must be an object", realm: realm);
         }
@@ -209,7 +209,7 @@ public static partial class StandardLibrary
             throw ThrowTypeError("Object.defineProperties called on non-object", realm: realmState);
         }
 
-        if (!args[1].TryGetObject(out JsObject? props))
+        if (!args[1].TryGetObject(out var props))
         {
             throw ThrowTypeError("Property description must be an object", realm: realmState);
         }
@@ -428,7 +428,7 @@ public static partial class StandardLibrary
 
         for (var i = 1; i < args.Count; i++)
         {
-            if (!args[i].TryGetObject(out JsObject? source))
+            if (!args[i].TryGetObject(out var source))
             {
                 continue;
             }
@@ -632,7 +632,7 @@ public static partial class StandardLibrary
             obj.SetPrototype(args[0].ToObject());
         }
 
-        if (args.Count <= 1 || !args[1].TryGetObject(out JsObject? propsObj))
+        if (args.Count <= 1 || !args[1].TryGetObject(out var propsObj))
         {
             return obj;
         }

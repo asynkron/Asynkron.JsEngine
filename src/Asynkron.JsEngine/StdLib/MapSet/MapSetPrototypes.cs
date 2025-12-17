@@ -145,7 +145,7 @@ public sealed partial class MapPrototype
             if (index < map.EntryCount)
             {
                 var entry = map.GetEntry(index++);
-                object? value = kind switch
+                var value = kind switch
                 {
                     MapIterationKind.Keys => entry.Key,
                     MapIterationKind.Values => entry.Value,

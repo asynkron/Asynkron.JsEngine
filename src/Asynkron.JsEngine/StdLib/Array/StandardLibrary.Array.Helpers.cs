@@ -114,7 +114,7 @@ public static partial class StandardLibrary
     internal static double ToLengthOrZero(object? value, EvaluationContext? context = null)
     {
         var number = JsOps.ToNumberWithContext(value, context);
-        if (context is not null && context.IsThrow)
+        if (context?.IsThrow == true)
         {
             throw new ThrowSignal(context.FlowValue);
         }
@@ -131,7 +131,7 @@ public static partial class StandardLibrary
     internal static double ToIntegerOrInfinity(object? value, EvaluationContext? context = null)
     {
         var number = JsOps.ToNumberWithContext(value, context);
-        if (context is not null && context.IsThrow)
+        if (context?.IsThrow == true)
         {
             throw new ThrowSignal(context.FlowValue);
         }

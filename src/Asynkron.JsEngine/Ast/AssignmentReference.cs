@@ -244,7 +244,7 @@ internal readonly struct AssignmentReference
     {
         // Note: Don't rely on _context for write operations as it may be stale in async contexts.
         // The binding's environment has access to the RealmState for logging.
-        _binding.WriteJsValue(_name, value, _isStrict);
+        _binding.WriteJsValue(value, _isStrict);
     }
 
     private object? ReadGlobalBinding()
@@ -683,7 +683,7 @@ internal static class AssignmentReferenceResolver
             return;
         }
 
-        IJsPropertyAccessor? prototypeAccessor = target.PrototypeAccessor ?? target.Prototype;
+        var prototypeAccessor = target.PrototypeAccessor ?? target.Prototype;
         while (prototypeAccessor is not null)
         {
             if (prototypeAccessor is JsObject protoObj)

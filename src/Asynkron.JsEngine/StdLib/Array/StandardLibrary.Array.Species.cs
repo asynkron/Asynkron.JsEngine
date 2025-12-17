@@ -70,7 +70,7 @@ public static partial class StandardLibrary
 
         if (!useDefaultConstructor && constructorValue.TryGetObject<IJsPropertyAccessor>(out var ctorAccessor))
         {
-            JsValue species = JsValue.Undefined;
+            var species = JsValue.Undefined;
             if (ctorAccessor.TryGetProperty(SymbolSpeciesKey, out var speciesValue))
             {
                 species = speciesValue;

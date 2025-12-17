@@ -120,7 +120,7 @@ public static partial class TypedAstEvaluator
             }
 
             bool invokeSucceeded;
-            JsValue closeResult = JsValue.Undefined;
+            var closeResult = JsValue.Undefined;
             try
             {
                 invokeSucceeded = iterator.TryInvokeIteratorMethod(

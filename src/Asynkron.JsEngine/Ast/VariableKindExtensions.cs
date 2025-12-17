@@ -1,8 +1,8 @@
 namespace Asynkron.JsEngine.Ast;
 
 using Microsoft.Extensions.Logging;
-using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.StdLib;
+using JsTypes;
+using StdLib;
 
 public static partial class TypedAstEvaluator
 {

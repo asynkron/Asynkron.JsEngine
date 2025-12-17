@@ -11,8 +11,6 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    private static int _callSlowIdCounter;
-
     extension(CallExpression expression)
     {
         /// <summary>
@@ -139,8 +137,6 @@ public static partial class TypedAstEvaluator
         [MethodImpl(MethodImplOptions.NoInlining)]
         private JsValue EvaluateCallSlow(JsEnvironment environment, EvaluationContext context)
         {
-            var callId = System.Threading.Interlocked.Increment(ref _callSlowIdCounter);
-            Console.WriteLine($"DEBUG EvaluateCallSlow #{callId} ENTER: callee type = {expression.Callee.GetType().Name}");
             // Fast-path for plain Map/Set method calls - bypasses prototype lookup and host function machinery
             if (TryFastPathMapSetCall(expression, environment, context, out var fastResult))
             {
@@ -403,7 +399,6 @@ public static partial class TypedAstEvaluator
             }
 
             var isAsyncCallable = callable is TypedFunction { IsAsyncLike: true };
-            Console.WriteLine($"DEBUG EvaluateCallSlow #{callId}: callable type = {callable.GetType().Name}");
 
             IJsEnvironmentAwareCallable? envAwareHandle = null;
             if (callable is IJsEnvironmentAwareCallable envAware)
@@ -427,8 +422,8 @@ public static partial class TypedAstEvaluator
                 debugFunction.CurrentContext = context;
             }
 
-            JsValue callResult = JsValue.Undefined;
-            JsValue newTargetForCall = JsValue.Undefined;
+            var callResult = JsValue.Undefined;
+            var newTargetForCall = JsValue.Undefined;
             if (expression.Callee is SuperExpression &&
                 environment.TryGet(Symbol.NewTarget, out var inheritedNewTarget))
             {
@@ -627,7 +622,6 @@ public static partial class TypedAstEvaluator
             }
             catch (ThrowSignal signal)
             {
-                Console.WriteLine($"DEBUG EvaluateCallSlow #{callId} CATCH: {signal.ThrownValue.ToObject()}, callable type = {callable?.GetType().Name}");
                 context.RealmState.Logger?.LogInformation(
                     "EvaluateCall caught ThrowSignal type={Type} calleeType={CalleeType}",
                     signal.ThrownValue.ToObject()?.GetType().Name ?? "null",
@@ -639,7 +633,6 @@ public static partial class TypedAstEvaluator
                 }
                 else
                 {
-                    Console.WriteLine($"DEBUG EvaluateCallSlow #{callId}: Setting throw and returning");
                     context.SetThrow(signal.ThrownValue);
                     return signal.ThrownValue;
                 }
@@ -653,7 +646,6 @@ public static partial class TypedAstEvaluator
             }
             finally
             {
-                Console.WriteLine($"DEBUG EvaluateCallSlow #{callId} FINALLY: entering");
                 if (evalHost is not null)
                 {
                     evalHost.IsDirectCall = false;
@@ -661,7 +653,6 @@ public static partial class TypedAstEvaluator
                 }
 
                 context.CallDepth--;
-                Console.WriteLine($"DEBUG EvaluateCallSlow #{callId} FINALLY: leaving");
 
                 debugFunction?.CurrentJsEnvironment = null;
                 debugFunction?.CurrentContext = null;
@@ -678,10 +669,8 @@ public static partial class TypedAstEvaluator
                 {
                     JsValueCache.ReturnJsValueArray(pooledJsValueArray);
                 }
-                Console.WriteLine($"DEBUG EvaluateCallSlow #{callId} FINALLY: completed");
             }
 
-            Console.WriteLine($"DEBUG EvaluateCallSlow #{callId}: after try-catch-finally");
             switch (isAsyncCallable)
             {
                 // If an async callable left a pending throw signal (e.g., default parameter TDZ),
@@ -727,7 +716,7 @@ public static partial class TypedAstEvaluator
                 return false;
 
             // Get the method name
-            string? methodName = member.Property switch
+            var methodName = member.Property switch
             {
                 IdentifierExpression id => id.Name.Name,
                 LiteralExpression { Value.IsString: true } lit => lit.Value.AsString(),

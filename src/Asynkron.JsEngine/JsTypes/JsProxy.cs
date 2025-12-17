@@ -109,7 +109,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             if (!includeNonEnumerable)
             {
                 var desc = GetOwnPropertyDescriptor(propertyName);
-                if (desc is null || !desc.Enumerable)
+                if (desc?.Enumerable != true)
                 {
                     continue;
                 }

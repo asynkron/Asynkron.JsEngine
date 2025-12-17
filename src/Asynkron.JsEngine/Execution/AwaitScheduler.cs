@@ -333,7 +333,7 @@ internal static class AwaitScheduler
             }
 
             // Check event loop if engine available
-            if (engine is not null && !engine.IsEventLoopDrained())
+            if (engine?.IsEventLoopDrained() == false)
             {
                 engine.StartEventLoop();
                 var drainTask = engine.DrainEventLoopAsync(CancellationToken.None);

@@ -63,7 +63,7 @@ public readonly struct JsValue : IEquatable<JsValue>
         // Fast path: check if it's a cached non-negative integer
         // Use double.IsNegative to detect negative zero (which would incorrectly match cache[0])
         // This is important because -0.0 == 0.0 in C# but they must be distinct in JavaScript
-        int i = (int)value;
+        var i = (int)value;
         if ((uint)i < (uint)IntegerCache.Length && i == value && !double.IsNegative(value))
         {
             return IntegerCache[i];
@@ -81,7 +81,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     {
         // Fast path: check if it's a cached non-negative integer
         // Use double.IsNegative to detect negative zero (which would incorrectly match cache[0])
-        int i = (int)value;
+        var i = (int)value;
         if ((uint)i < (uint)IntegerCache.Length && i == value && !double.IsNegative(value))
         {
             return ref IntegerCache[i];

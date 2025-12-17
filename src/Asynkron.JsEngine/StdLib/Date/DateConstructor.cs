@@ -33,7 +33,7 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
 
             var target = _constructor ?? constructor;
             var effectiveNewTarget = newTarget.TryGetObject<IJsCallable>(out var nt) ? nt : target;
-            var thisObj = thisValue.TryGetObject(out JsObject? jsObj) ? jsObj : null;
+            var thisObj = thisValue.TryGetObject(out var jsObj) ? jsObj : null;
             return JsValue.FromObjectUnsafe(ConstructDate(args, effectiveNewTarget, target, thisObj, context));
         });
 

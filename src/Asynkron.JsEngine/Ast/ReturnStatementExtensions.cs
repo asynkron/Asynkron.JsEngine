@@ -70,7 +70,7 @@ public static partial class TypedAstEvaluator
         // This reads from the environment BEFORE any calls modify it
 
         // Left call arguments
-        JsValue leftArg0 = JsValue.Undefined;
+        var leftArg0 = JsValue.Undefined;
         if (leftCall.Arguments.Length >= 1 && !leftCall.Arguments[0].IsSpread)
         {
             leftArg0 = EvaluateExpression(leftCall.Arguments[0].Expression, environment, context);
@@ -78,7 +78,7 @@ public static partial class TypedAstEvaluator
         }
 
         // Right call arguments
-        JsValue rightArg0 = JsValue.Undefined;
+        var rightArg0 = JsValue.Undefined;
         if (rightCall.Arguments.Length >= 1 && !rightCall.Arguments[0].IsSpread)
         {
             rightArg0 = EvaluateExpression(rightCall.Arguments[0].Expression, environment, context);

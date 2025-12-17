@@ -256,7 +256,7 @@ public static partial class TypedAstEvaluator
                 ScopeKind.Function,
                 DetermineGeneratorScopeMode());
 
-            JsValue boundThis = _thisValue;
+            var boundThis = _thisValue;
             if (!_isStrict)
             {
                 if (boundThis.IsNullish)
@@ -535,7 +535,7 @@ public static partial class TypedAstEvaluator
                             continue;
 
                         case YieldInstruction yieldInstruction:
-                            JsValue yieldedValue = JsValue.Undefined;
+                            var yieldedValue = JsValue.Undefined;
                             var yieldedDuringOperand = false;
                             if (yieldInstruction.YieldExpression is not null)
                             {
@@ -667,7 +667,7 @@ public static partial class TypedAstEvaluator
 
                             while (true)
                             {
-                                JsValue sendValue = JsValue.Undefined;
+                                var sendValue = JsValue.Undefined;
                                 var hasSendValue = false;
                                 var propagateThrow = false;
                                 var propagateReturn = false;
@@ -1015,8 +1015,8 @@ public static partial class TypedAstEvaluator
                                 continue;
                             }
 
-                            JsValue awaitedValue = JsValue.Undefined;
-                            JsValue awaitedNextResult = JsValue.Undefined;
+                            var awaitedValue = JsValue.Undefined;
+                            var awaitedNextResult = JsValue.Undefined;
 
                             // If we're resuming after a pending await from this
                             // iterator site, consume the resume payload and treat

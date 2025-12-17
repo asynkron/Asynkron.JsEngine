@@ -433,7 +433,7 @@ public readonly struct PooledArgumentArray : IDisposable, IReadOnlyList<object?>
 
     public void Dispose()
     {
-        if (_array is not null && _array.Length <= 4)
+        if (_array?.Length <= 4)
         {
             JsValueCache.ReturnArgumentArray(_array);
         }

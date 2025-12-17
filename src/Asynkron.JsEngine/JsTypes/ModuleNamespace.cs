@@ -158,9 +158,6 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
         }
     }
 
-    private static int _toStringTagTrueCount = 0;
-    private static int _toStringTagFalseCount = 0;
-
     /// <summary>
     /// Implements [[DefineOwnProperty]] for module namespace exotic objects.
     /// Returns true if no change is requested, false otherwise.
@@ -170,8 +167,11 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
         // Check if this is Symbol.toStringTag
         // Use TryGetByInternalKey to get the actual symbol and check its description,
         // since symbol IDs can vary depending on initialization order
-        var isToStringTag = TypedAstSymbol.TryGetByInternalKey(name, out var symbol) &&
-                            string.Equals(symbol.Description, "Symbol.toStringTag", StringComparison.Ordinal);
+        // Match both the realm-specific key (e.g. "@@symbol:5") and a parsed well-known symbol
+        var isToStringTag =
+            string.Equals(name, ToStringTagKey, StringComparison.Ordinal) ||
+            (TypedAstSymbol.TryGetByInternalKey(name, out var symbol) &&
+             string.Equals(symbol.Description, "Symbol.toStringTag", StringComparison.Ordinal));
 
         // Handle Symbol.toStringTag property
         if (isToStringTag)
@@ -179,16 +179,12 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
             // Per ES spec, accessor descriptors are not allowed
             if (descriptor.IsAccessorDescriptor)
             {
-                _toStringTagFalseCount++;
-                throw new InvalidOperationException($"DEBUG: Symbol.toStringTag returning FALSE (IsAccessorDescriptor). true={_toStringTagTrueCount}, false={_toStringTagFalseCount}");
                 return false;
             }
 
-            // For deferred namespaces, any valid data descriptor is accepted
             if (_isDeferred)
             {
-                _toStringTagTrueCount++;
-                throw new InvalidOperationException($"DEBUG: Symbol.toStringTag returning TRUE (isDeferred). true={_toStringTagTrueCount}, false={_toStringTagFalseCount}");
+                // For deferred namespaces, any valid data descriptor is accepted
                 return true;
             }
 
@@ -201,8 +197,6 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
                 var valueObj = descriptor.Value;
                 if (valueObj is not string strValue || !string.Equals(strValue, "Module", StringComparison.Ordinal))
                 {
-                    _toStringTagFalseCount++;
-                    throw new InvalidOperationException($"DEBUG: Symbol.toStringTag returning FALSE (HasValue). true={_toStringTagTrueCount}, false={_toStringTagFalseCount}");
                     return false;
                 }
             }
@@ -210,30 +204,22 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
             // If writable is specified and true (different from current false), return false
             if (descriptor.HasWritable && descriptor.Writable)
             {
-                _toStringTagFalseCount++;
-                throw new InvalidOperationException($"DEBUG: Symbol.toStringTag returning FALSE (HasWritable). true={_toStringTagTrueCount}, false={_toStringTagFalseCount}");
                 return false;
             }
 
             // If enumerable is specified and true (different from current false), return false
             if (descriptor.HasEnumerable && descriptor.Enumerable)
             {
-                _toStringTagFalseCount++;
-                throw new InvalidOperationException($"DEBUG: Symbol.toStringTag returning FALSE (HasEnumerable). true={_toStringTagTrueCount}, false={_toStringTagFalseCount}");
                 return false;
             }
 
             // If configurable is specified and true (different from current false), return false
             if (descriptor.HasConfigurable && descriptor.Configurable)
             {
-                _toStringTagFalseCount++;
-                throw new InvalidOperationException($"DEBUG: Symbol.toStringTag returning FALSE (HasConfigurable). true={_toStringTagTrueCount}, false={_toStringTagFalseCount}");
                 return false;
             }
 
             // No change requested (empty descriptor or values match current)
-            _toStringTagTrueCount++;
-            throw new InvalidOperationException($"DEBUG: Symbol.toStringTag returning TRUE (no change). true={_toStringTagTrueCount}, false={_toStringTagFalseCount}");
             return true;
         }
 

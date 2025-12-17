@@ -5,13 +5,13 @@ using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.JsTypes;
 
-internal sealed class ModuleNamespace : IJsObjectLike
+internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
 {
     private readonly Func<string, object?> _bindingLookup;
     private readonly ImmutableArray<string> _exportNames;
     private readonly RealmState _realmState;
 
-    private readonly string _toStringTagKey = SymbolKeys.ToStringTag;
+    private string ToStringTagKey => SymbolKeys.GetToStringTag(_realmState);
 
     private readonly TypedAstSymbol _toStringTagSymbol = Symbols.ToStringTag;
     private readonly Action? _ensureEvaluated;
@@ -51,13 +51,13 @@ internal sealed class ModuleNamespace : IJsObjectLike
                 yield return name;
             }
 
-            yield return _toStringTagKey;
+            yield return ToStringTagKey;
         }
     }
 
     public bool TryGetProperty(string name, out JsValue value)
     {
-        if (string.Equals(name, _toStringTagKey, StringComparison.Ordinal))
+        if (string.Equals(name, ToStringTagKey, StringComparison.Ordinal))
         {
             value = (JsValue)"Module";
             return true;
@@ -102,7 +102,7 @@ internal sealed class ModuleNamespace : IJsObjectLike
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
     {
-        if (string.Equals(name, _toStringTagKey, StringComparison.Ordinal))
+        if (string.Equals(name, ToStringTagKey, StringComparison.Ordinal))
         {
             return new PropertyDescriptor
             {
@@ -152,29 +152,100 @@ internal sealed class ModuleNamespace : IJsObjectLike
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
     {
-        if (string.Equals(name, _toStringTagKey, StringComparison.Ordinal))
+        if (!TryDefineProperty(name, descriptor))
         {
+            throw StandardLibrary.ThrowTypeError("Cannot define property on module namespace", realm: _realmState);
+        }
+    }
+
+    /// <summary>
+    /// Implements [[DefineOwnProperty]] for module namespace exotic objects.
+    /// Returns true if no change is requested, false otherwise.
+    /// </summary>
+    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        // For Symbol.toStringTag, we need to match ANY symbol that represents Symbol.toStringTag
+        // The issue is that Symbols.ToStringTag might have been created with a different ID
+        // than the one exposed via Symbol constructor.
+        // Per ES spec, Symbol.toStringTag on module namespace should match Symbol.toStringTag
+
+        // Try multiple ways to identify Symbol.toStringTag
+        var isToStringTag = false;
+
+        // Method 1: Check static key (from Symbols.ToStringTag)
+        if (string.Equals(name, SymbolKeys.ToStringTag, StringComparison.Ordinal))
+        {
+            isToStringTag = true;
+        }
+        // Method 2: Check realm-aware key
+        else if (string.Equals(name, ToStringTagKey, StringComparison.Ordinal))
+        {
+            isToStringTag = true;
+        }
+        // Method 3: Try to resolve the symbol by looking it up in the global registry
+        else if (name.StartsWith("@@symbol:", StringComparison.Ordinal) &&
+                 TypedAstSymbol.TryGetByInternalKey(name, out var symbol))
+        {
+            // Check if the symbol's description matches Symbol.toStringTag
+            if (string.Equals(symbol.Description, "Symbol.toStringTag", StringComparison.Ordinal))
+            {
+                isToStringTag = true;
+            }
+            // Also check if the symbol is the same reference as Symbols.ToStringTag
+            else if (ReferenceEquals(symbol, Symbols.ToStringTag))
+            {
+                isToStringTag = true;
+            }
+        }
+
+        // Handle Symbol.toStringTag property
+        if (isToStringTag)
+        {
+            // Per ES spec, accessor descriptors are not allowed
             if (descriptor.IsAccessorDescriptor)
             {
-                throw StandardLibrary.ThrowTypeError("Module namespace objects are immutable", realm: _realmState);
+                return false;
             }
 
+            // For deferred namespaces, any valid data descriptor is accepted
             if (_isDeferred)
             {
-                return;
+                return true;
             }
 
-            var tagValue = descriptor.HasValue ? descriptor.Value : "Module";
-            var tagWritable = descriptor.HasWritable ? descriptor.Writable : false;
-            var tagEnumerable = descriptor.HasEnumerable ? descriptor.Enumerable : false;
-            var tagConfigurable = descriptor.HasConfigurable ? descriptor.Configurable : false;
+            // For non-deferred namespaces, check if the descriptor requests a change
+            // Current property: value="Module", writable=false, enumerable=false, configurable=false
 
-            if (!Equals(tagValue, "Module") || tagWritable || tagEnumerable || tagConfigurable)
+            // If value is specified and different from "Module", return false
+            if (descriptor.HasValue)
             {
-                throw StandardLibrary.ThrowTypeError("Invalid @@toStringTag for module namespace", realm: _realmState);
+                var valueObj = descriptor.Value;
+                if (valueObj is not string strValue || !string.Equals(strValue, "Module", StringComparison.Ordinal))
+                {
+                    return false;
+                }
             }
 
-            return;
+            // If writable is specified and true (different from current false), return false
+            if (descriptor.HasWritable && descriptor.Writable)
+            {
+                return false;
+            }
+
+            // If enumerable is specified and true (different from current false), return false
+            if (descriptor.HasEnumerable && descriptor.Enumerable)
+            {
+                return false;
+            }
+
+            // If configurable is specified and true (different from current false), return false
+            if (descriptor.HasConfigurable && descriptor.Configurable)
+            {
+                return false;
+            }
+
+            // No change requested (empty descriptor or values match current)
+            return true;
         }
 
         // Per ES spec, [[DefineOwnProperty]] calls GetModuleExportsList which triggers evaluation
@@ -184,14 +255,16 @@ internal sealed class ModuleNamespace : IJsObjectLike
             EnsureExportsEvaluated(name);
         }
 
+        // Property doesn't exist - return false
         if (!_exportNames.Contains(name, StringComparer.Ordinal))
         {
-            throw StandardLibrary.ThrowTypeError("Module namespace objects are immutable", realm: _realmState);
+            return false;
         }
 
+        // Accessor descriptors not allowed
         if (descriptor.IsAccessorDescriptor)
         {
-            throw StandardLibrary.ThrowTypeError("Module namespace exports are immutable", realm: _realmState);
+            return false;
         }
 
         var value = _bindingLookup(name);
@@ -206,11 +279,14 @@ internal sealed class ModuleNamespace : IJsObjectLike
         var configurable = descriptor.HasConfigurable ? descriptor.Configurable : currentConfigurable;
         var valueChange = descriptor.HasValue && !JsOps.StrictEquals(descriptor.Value, value);
 
+        // Return true only if no change is requested
         if (writable != currentWritable || enumerable != currentEnumerable || configurable != currentConfigurable ||
             valueChange)
         {
-            throw StandardLibrary.ThrowTypeError("Cannot redefine module namespace export", realm: _realmState);
+            return false;
         }
+
+        return true;
     }
 
     public void SetPrototype(object? candidate)
@@ -241,13 +317,13 @@ internal sealed class ModuleNamespace : IJsObjectLike
         }
 
         return !_exportNames.Contains(name, StringComparer.Ordinal) &&
-               !string.Equals(name, _toStringTagKey, StringComparison.Ordinal);
+               !string.Equals(name, ToStringTagKey, StringComparison.Ordinal);
     }
 
     internal bool HasExport(string name)
     {
         return _exportNames.Contains(name, StringComparer.Ordinal) ||
-               string.Equals(name, _toStringTagKey, StringComparison.Ordinal);
+               string.Equals(name, ToStringTagKey, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -263,7 +339,7 @@ internal sealed class ModuleNamespace : IJsObjectLike
         }
 
         return _exportNames.Contains(name, StringComparer.Ordinal) ||
-               string.Equals(name, _toStringTagKey, StringComparison.Ordinal);
+               string.Equals(name, ToStringTagKey, StringComparison.Ordinal);
     }
 
     internal IEnumerable<object?> OwnKeys()

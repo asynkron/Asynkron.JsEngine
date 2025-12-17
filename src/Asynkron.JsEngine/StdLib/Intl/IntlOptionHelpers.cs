@@ -44,7 +44,7 @@ internal static class IntlOptionHelpers
         }
 
         var stringValue = StandardLibrary.JsValueToString(value, realm);
-        if (allowedValues is not null && !allowedValues.Contains(stringValue, StringComparer.Ordinal))
+        if (allowedValues?.Contains(stringValue, StringComparer.Ordinal) == false)
         {
             throw StandardLibrary.ThrowRangeError(
                 $"Invalid value '{stringValue}' for option '{property}' on Intl.{typeName}", realm: realm);

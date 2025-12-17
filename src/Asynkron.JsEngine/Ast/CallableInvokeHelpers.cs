@@ -4,10 +4,14 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    internal static object? InvokeCallable(
+    /// <summary>
+    /// Invokes a callable and returns the result as JsValue.
+    /// This is the preferred method to avoid boxing.
+    /// </summary>
+    internal static JsValue InvokeCallableJsValue(
         IJsCallable callable,
-        IReadOnlyList<object?> arguments,
-        object? thisValue,
+        IReadOnlyList<JsValue> arguments,
+        JsValue thisValue,
         EvaluationContext? callingContext,
         JsEnvironment? callingEnvironment = null)
     {
@@ -38,15 +42,23 @@ public static partial class TypedAstEvaluator
         }
         finally
         {
-            if (envAware is not null)
-            {
-                envAware.CallingJsEnvironment = previousEnvironment;
-            }
+            envAware?.CallingJsEnvironment = previousEnvironment;
 
-            if (contextAware is not null)
-            {
-                contextAware.CallingContext = null;
-            }
+            contextAware?.CallingContext = null;
         }
+    }
+
+    /// <summary>
+    /// Invokes a callable and returns the result as object?.
+    /// This is for backward compatibility - prefer InvokeCallableJsValue when possible.
+    /// </summary>
+    internal static object? InvokeCallable(
+        IJsCallable callable,
+        IReadOnlyList<JsValue> arguments,
+        JsValue thisValue,
+        EvaluationContext? callingContext,
+        JsEnvironment? callingEnvironment = null)
+    {
+        return InvokeCallableJsValue(callable, arguments, thisValue, callingContext, callingEnvironment).ToObject();
     }
 }

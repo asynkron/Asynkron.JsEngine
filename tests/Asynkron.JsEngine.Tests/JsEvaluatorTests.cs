@@ -50,13 +50,13 @@ public class JsEvaluatorTests
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("collect", args =>
         {
-            captured.AddRange(args);
+            captured.AddRange(args.Select(a => a.ToObject()));
             return args.Count;
         });
 
         var result = await engine.Evaluate("collect(\"hello\", 3); collect(\"world\");");
 
-        Assert.Equal(1, result); // last call returns number of args
+        Assert.Equal(1d, result); // last call returns number of args
         Assert.Collection(captured,
             item => Assert.Equal("hello", item),
             item => Assert.Equal(3d, item),
@@ -505,7 +505,7 @@ public class JsEvaluatorTests
 
         var ctorValue = Assert.IsAssignableFrom<IJsPropertyAccessor>(await engine.Evaluate("C"));
         Assert.True(ctorValue.TryGetProperty("prototype", out var ctorProto));
-        var ctorProtoObject = Assert.IsAssignableFrom<JsObject>(ctorProto);
+        var ctorProtoObject = Assert.IsAssignableFrom<JsObject>(ctorProto.ToObject());
         var ctorProtoHasX = ctorProtoObject.TryGetProperty("x", out _);
         Assert.True(ctorProtoHasX);
         var ctorProtoHash = RuntimeHelpers.GetHashCode(ctorProtoObject);
@@ -1451,13 +1451,13 @@ public class JsEvaluatorTests
         await using var engine = new JsEngine();
 
         var positive = await engine.Evaluate("Math.sign(10);");
-        Assert.Equal(1, positive);
+        Assert.Equal(1d, positive);
 
         var negative = await engine.Evaluate("Math.sign(-5);");
-        Assert.Equal(-1, negative);
+        Assert.Equal(-1d, negative);
 
         var zero = await engine.Evaluate("Math.sign(0);");
-        Assert.Equal(0, zero);
+        Assert.Equal(0d, zero);
     }
 
     [Fact(Timeout = 2000)]
@@ -1865,7 +1865,7 @@ public class JsEvaluatorTests
 
                                            """);
         Assert.IsType<string>(result);
-        Assert.Contains("2024", (string)result);
+        Assert.Contains("2024", (string)result, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -1907,7 +1907,7 @@ public class JsEvaluatorTests
 
                                            """);
         Assert.IsType<string>(result);
-        Assert.Contains("Bob", (string)result);
+        Assert.Contains("Bob", (string)result, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -1950,5 +1950,58 @@ public class JsEvaluatorTests
         Assert.True(b, $"a={a}, b={b}, proto={proto}, parentProto={parentProto}");
         Assert.True(proto, $"a={a}, b={b}, proto={proto}, parentProto={parentProto}");
         Assert.True(parentProto, $"a={a}, b={b}, proto={proto}, parentProto={parentProto}");
+    }
+
+    // Tests for batch of failing Test262 tests
+    [Fact(Timeout = 2000)]
+    public async Task DestructuringNull_ShouldThrowTypeError()
+    {
+        // Test: let [{ x }] = [null]; should throw TypeError
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+try {
+    let [{ x }] = [null];
+    'no_error';
+} catch(e) {
+    e.name;
+}
+");
+        Assert.Equal("TypeError", result?.ToString());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task WithDeleteAssignment_ShouldPreserveReference()
+    {
+        // Test S11.13.1_A5_T1: Assignment in with statement should preserve reference after delete
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+var testResult = '';
+function testFunction() {
+  var x = 0;
+  var scope = {x: 1};
+
+  with (scope) {
+    x = (delete scope.x, 2);
+  }
+
+  if (scope.x !== 2) {
+    testResult += 'FAIL: scope.x should be 2, got ' + scope.x + '; ';
+  }
+  if (x !== 0) {
+    testResult += 'FAIL: x should be 0, got ' + x;
+  }
+  return testResult || 'PASS';
+}
+testFunction();
+");
+        Assert.Equal("PASS", result?.ToString());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Symbol_ToString_IncludesDescription()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("Symbol('foo').toString()");
+        Assert.Equal("Symbol(foo)", result?.ToString());
     }
 }

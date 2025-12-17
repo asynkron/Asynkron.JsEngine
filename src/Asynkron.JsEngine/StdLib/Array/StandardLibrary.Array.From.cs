@@ -1,4 +1,3 @@
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
@@ -11,18 +10,27 @@ public static partial class StandardLibrary
         return ArrayConstructor.CreateConstructor(realm);
     }
 
-    internal static object? ArrayOf(HostFunction host, object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    internal static object? ArrayOf(HostFunction host, JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         const string MethodName = "Array.of";
         var len = args.Count;
         IJsObjectLike result;
 
-        if (thisValue is IJsCallable callable && JsOps.IsConstructor(callable))
+        if (thisValue.TryGetObject<IJsCallable>(out var callable) && JsOps.IsConstructor(callable))
         {
             var constructorRealm = GetConstructorRealm(callable, realm) ?? realm;
-            var receiver = CreateArrayLikeReceiverForConstructor(callable, constructorRealm, len);
-            var constructed = callable.Invoke([(double)len], receiver);
-            result = constructed as IJsObjectLike ?? receiver;
+            if (constructorRealm is null)
+            {
+                throw new InvalidOperationException($"{MethodName} requires an active realm.");
+            }
+
+            // Use Construct to properly invoke the constructor with new.target semantics
+            var constructed = Construct(callable, [(double)len], callable, constructorRealm);
+            result = constructed.TryGetObject<IJsObjectLike>(out var constructedObj) ? constructedObj : null!;
+            if (result is null)
+            {
+                throw ThrowTypeError($"{MethodName}: constructor did not return an object", realm: realm);
+            }
         }
         else
         {
@@ -46,12 +54,12 @@ public static partial class StandardLibrary
         }
     }
 
-    internal static object? ArrayFrom(HostFunction host, object? thisValue, IReadOnlyList<object?> args,
+    internal static object? ArrayFrom(HostFunction host, JsValue thisValue, IReadOnlyList<JsValue> args,
         RealmState? realm)
     {
         const string MethodName = "Array.from";
 
-        if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
+        if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
         {
             throw ThrowTypeError("Array.from requires an array-like or iterable", realm: realm);
         }
@@ -60,11 +68,11 @@ public static partial class StandardLibrary
         var mapperCandidate = args.GetArgument(1);
         var thisArg = args.GetArgument(2);
 
-        var mapping = !ReferenceEquals(mapperCandidate, Symbol.Undefined);
+        var mapping = !mapperCandidate.IsUndefined;
         IJsCallable? mapper = null;
         if (mapping)
         {
-            if (mapperCandidate is not IJsCallable callableMapper)
+            if (!mapperCandidate.TryGetObject<IJsCallable>(out var callableMapper))
             {
                 throw ThrowTypeError("Array.from: when provided, the mapping callback must be callable", realm: realm);
             }
@@ -108,9 +116,18 @@ public static partial class StandardLibrary
 
             var key = ToIndexString(k);
             var value = GetElementOrUndefined(arrayLike, key);
-            var mapped = mapping && mapper is not null
-                ? InvokeArrayFromMapper(mapper, host, thisArg, value, k)
-                : value;
+            JsValue mapped;
+            if (mapping && mapper is not null)
+            {
+                var mapperResult = InvokeArrayFromMapper(mapper, host, thisArg, value, k);
+                // Handle case where result is already a boxed JsValue
+                mapped = mapperResult is JsValue mrJs ? mrJs : JsValue.FromObjectUnsafe(mapperResult);
+            }
+            else
+            {
+                // Handle case where value is already a boxed JsValue
+                mapped = value is JsValue vJs ? vJs : JsValue.FromObjectUnsafe(value);
+            }
             CreateDataPropertyOrThrow(result, key, mapped, realm, MethodName);
             k++;
         }
@@ -119,7 +136,7 @@ public static partial class StandardLibrary
         return result;
     }
 
-    internal static object? ArrayFromAsync(HostFunction host, object? thisValue, IReadOnlyList<object?> args,
+    internal static object? ArrayFromAsync(HostFunction host, JsValue thisValue, IReadOnlyList<JsValue> args,
         RealmState? realm)
     {
         const string MethodName = "Array.fromAsync";
@@ -132,9 +149,9 @@ public static partial class StandardLibrary
         var promise = new JsPromise(engine);
         AddPromiseInstanceMethods(promise.JsObject, promise, engine);
 
-        if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
+        if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
         {
-            promise.Reject(CreateTypeError("Array.fromAsync requires an array-like or iterable", realm: realm));
+            promise.Reject(JsValue.FromObjectUnsafe(CreateTypeError("Array.fromAsync requires an array-like or iterable", realm: realm)));
             return promise.JsObject;
         }
 
@@ -142,14 +159,14 @@ public static partial class StandardLibrary
         var mapperCandidate = args.GetArgument(1);
         var thisArg = args.GetArgument(2);
 
-        var mapping = !ReferenceEquals(mapperCandidate, Symbol.Undefined);
+        var mapping = !mapperCandidate.IsUndefined;
         IJsCallable? mapper = null;
         if (mapping)
         {
-            if (mapperCandidate is not IJsCallable callableMapper)
+            if (!mapperCandidate.TryGetObject<IJsCallable>(out var callableMapper))
             {
-                promise.Reject(CreateTypeError("Array.fromAsync: when provided, the mapping callback must be callable",
-                    realm: realm));
+                promise.Reject(JsValue.FromObjectUnsafe(CreateTypeError("Array.fromAsync: when provided, the mapping callback must be callable",
+                    realm: realm)));
                 return promise.JsObject;
             }
 
@@ -163,7 +180,7 @@ public static partial class StandardLibrary
         }
         catch (ThrowSignal signal)
         {
-            promise.Reject(signal.ThrownValue ?? signal);
+            promise.Reject(signal.ThrownValue);
             return promise.JsObject;
         }
 
@@ -189,24 +206,31 @@ public static partial class StandardLibrary
         }
         catch (ThrowSignal signal)
         {
-            promise.Reject(signal.ThrownValue ?? signal);
+            promise.Reject(signal.ThrownValue);
         }
 
         return promise.JsObject;
     }
 
-    internal static object? ArrayFromIterable(HostFunction host, object? thisValue, object? items,
+    internal static object? ArrayFromIterable(HostFunction host, JsValue thisValue, object? items,
         IJsCallable iteratorMethod, IJsCallable? mapper, bool mapping, object? thisArg, RealmState? realm)
     {
         const string MethodName = "Array.from";
         var result = CreateArrayFromResult(thisValue, realm, 0, false, MethodName);
-        var iteratorValue = iteratorMethod.Invoke([], items);
-        if (iteratorValue is not IJsPropertyAccessor iterator)
+        // Handle case where items is already a boxed JsValue
+        var itemsArg = items is JsValue itemsJs ? itemsJs : JsValue.FromObjectUnsafe(items);
+        var iteratorValue = iteratorMethod.Invoke([], itemsArg);
+        if (!iteratorValue.TryGetObject<IJsPropertyAccessor>(out var iterator))
         {
             throw ThrowTypeError("Array.from iterator method did not return an object", realm: realm);
         }
 
-        if (!iterator.TryGetProperty("next", out var nextValue) || nextValue is not IJsCallable nextFn)
+        if (!iterator.TryGetProperty("next", out var nextVal))
+        {
+            throw ThrowTypeError("Array.from iterator does not expose a callable next()", realm: realm);
+        }
+        // nextVal is already a JsValue from TryGetProperty
+        if (!nextVal.TryGetObject<IJsCallable>(out var nextFn))
         {
             throw ThrowTypeError("Array.from iterator does not expose a callable next()", realm: realm);
         }
@@ -214,10 +238,10 @@ public static partial class StandardLibrary
 
         while (true)
         {
-            object? step;
+            JsValue step;
             try
             {
-                step = nextFn.Invoke(Array.Empty<object?>(), iterator);
+                step = nextFn.Invoke([], JsValue.FromObjectUnsafe(iterator));
             }
             catch (ThrowSignal)
             {
@@ -225,7 +249,7 @@ public static partial class StandardLibrary
                 throw;
             }
 
-            if (step is not IJsPropertyAccessor stepAccessor)
+            if (!step.TryGetObject<IJsPropertyAccessor>(out var stepAccessor))
             {
                 IteratorClose(iterator, realm, MethodName);
                 throw ThrowTypeError("Array.from iterator result is not an object", realm: realm);
@@ -244,13 +268,16 @@ public static partial class StandardLibrary
                 throw ThrowTypeError("Array.from result exceeds 2^32 - 1 elements", realm: realm);
             }
 
-            var value = stepAccessor.TryGetProperty("value", out var entryValue) ? entryValue : Symbol.Undefined;
+            // entryValue is already a JsValue from TryGetProperty
+            var value = stepAccessor.TryGetProperty("value", out var entryValue) ? entryValue : JsValue.Undefined;
             var mappedValue = value;
             if (mapping && mapper is not null)
             {
                 try
                 {
-                    mappedValue = InvokeArrayFromMapper(mapper, host, thisArg, value, k);
+                    var mapperResult = InvokeArrayFromMapper(mapper, host, thisArg, value, k);
+                    // Handle case where result is already a boxed JsValue
+                    mappedValue = mapperResult is JsValue mrJs ? mrJs : JsValue.FromObjectUnsafe(mapperResult);
                 }
                 catch (ThrowSignal)
                 {
@@ -276,36 +303,68 @@ public static partial class StandardLibrary
     internal static bool TryAwaitPromiseLike(object? candidate, RealmState? realm, Action<object?> onFulfilled,
         Action<object?> onRejected)
     {
-        if (candidate is JsObject jsObject &&
-            jsObject.TryGetProperty("then", out var thenValue) &&
-            thenValue is IJsCallable thenCallable)
+        var jsCandidate = candidate is JsValue value ? value : JsValue.FromObjectUnsafe(candidate);
+
+        // Handle internal JsPromise instances (both raw and wrapped)
+        if (jsCandidate.ObjectValue is JsPromise directPromise)
+        {
+            AttachHandlers(directPromise);
+            return true;
+        }
+
+        if (JsPromise.TryGetInternalPromise(jsCandidate, out var wrappedPromise) && wrappedPromise is not null)
+        {
+            AttachHandlers(wrappedPromise);
+            return true;
+        }
+
+        // Handle generic thenables (objects with a callable "then")
+        if (jsCandidate.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
+            accessor.TryGetProperty("then", out var thenVal) &&
+            thenVal.TryGetObject<IJsCallable>(out var thenCallable))
         {
             try
             {
                 thenCallable.Invoke(
                     [
-                        new HostFunction((_, args) =>
+                        (JsValue)new HostFunction(args =>
                         {
-                            onFulfilled(args.Count > 0 ? args[0] : null);
-                            return null;
+                            onFulfilled(args.Count > 0 ? args[0].ToObject() : null);
+                            return JsValue.Undefined;
                         }, isConstructor: false),
-                        new HostFunction((_, args) =>
+                        (JsValue)new HostFunction(args =>
                         {
-                            onRejected(args.Count > 0 ? args[0] : null);
-                            return null;
+                            onRejected(args.Count > 0 ? args[0].ToObject() : null);
+                            return JsValue.Undefined;
                         }, isConstructor: false)
                     ],
-                    jsObject);
+                    JsValue.FromObjectUnsafe(accessor));
                 return true;
             }
             catch (ThrowSignal signal)
             {
-                onRejected(signal.ThrownValue ?? signal);
+                onRejected(signal.ThrownValue.ToObject());
                 return true;
             }
         }
 
         return false;
+
+        void AttachHandlers(JsPromise promise)
+        {
+            var resolveFn = new HostFunction(args =>
+            {
+                onFulfilled(args.Count > 0 ? args[0].ToObject() : null);
+                return JsValue.Undefined;
+            }, isConstructor: false);
+            var rejectFn = new HostFunction(args =>
+            {
+                onRejected(args.Count > 0 ? args[0].ToObject() : null);
+                return JsValue.Undefined;
+            }, isConstructor: false);
+
+            promise.Then(resolveFn, rejectFn);
+        }
     }
 
     internal static object? InvokeArrayFromMapper(IJsCallable mapper, HostFunction host, object? thisArg, object? value,
@@ -316,7 +375,10 @@ public static partial class StandardLibrary
             envAware.CallingJsEnvironment = host.CallingJsEnvironment;
         }
 
-        return mapper.Invoke([value, (double)index], thisArg);
+        // Handle case where value and thisArg are already boxed JsValues
+        var valueArg = value is JsValue vJs ? vJs : JsValue.FromObjectUnsafe(value);
+        var thisArgJs = thisArg is JsValue taJs ? taJs : JsValue.FromObjectUnsafe(thisArg);
+        return mapper.Invoke([valueArg, (double)index], thisArgJs).ToObject();
     }
 
     private sealed class ArrayFromAsyncOperation(
@@ -338,10 +400,12 @@ public static partial class StandardLibrary
 
         public void StartIterator(object? items, IJsCallable iteratorMethod, bool awaitIteratorResult)
         {
-            object? iteratorValue;
+            JsValue iteratorValue;
             try
             {
-                iteratorValue = iteratorMethod.Invoke(Array.Empty<object?>(), items);
+                // Handle case where items is already a boxed JsValue
+                var itemsArg = items is JsValue itemsJs ? itemsJs : JsValue.FromObjectUnsafe(items);
+                iteratorValue = iteratorMethod.Invoke([], itemsArg);
             }
             catch (ThrowSignal signal)
             {
@@ -349,14 +413,21 @@ public static partial class StandardLibrary
                 return;
             }
 
-            if (iteratorValue is not IJsPropertyAccessor iterator)
+            if (!iteratorValue.TryGetObject<IJsPropertyAccessor>(out var iterator))
             {
                 RejectFailure(CreateTypeError("Array.fromAsync iterator method did not return an object", null,
                     realm));
                 return;
             }
 
-            if (!iterator.TryGetProperty("next", out var nextValue) || nextValue is not IJsCallable nextFn)
+            if (!iterator.TryGetProperty("next", out var nextVal))
+            {
+                RejectFailure(CreateTypeError("Array.fromAsync iterator does not expose a callable next()", null,
+                    realm));
+                return;
+            }
+            // nextVal is already a JsValue from TryGetProperty
+            if (!nextVal.TryGetObject<IJsCallable>(out var nextFn))
             {
                 RejectFailure(CreateTypeError("Array.fromAsync iterator does not expose a callable next()", null,
                     realm));
@@ -379,10 +450,10 @@ public static partial class StandardLibrary
         {
             while (!_settled && _iterator is not null && _nextFn is not null)
             {
-                object? step;
+                JsValue step;
                 try
                 {
-                    step = _nextFn.Invoke(Array.Empty<object?>(), _iterator);
+                    step = _nextFn.Invoke([], JsValue.FromObjectUnsafe(_iterator));
                 }
                 catch (ThrowSignal signal)
                 {
@@ -390,7 +461,7 @@ public static partial class StandardLibrary
                     return;
                 }
 
-                var shouldContinue = HandleIteratorStep(step);
+                var shouldContinue = HandleIteratorStep(step.ToObject());
                 if (!shouldContinue)
                 {
                     return;
@@ -437,7 +508,8 @@ public static partial class StandardLibrary
                 return false;
             }
 
-            var value = stepAccessor.TryGetProperty("value", out var entryValue) ? entryValue : Symbol.Undefined;
+            // entryValue is already a JsValue from TryGetProperty
+            var value = stepAccessor.TryGetProperty("value", out var entryValue) ? entryValue : JsValue.Undefined;
             if (TryAwaitPromiseLike(value, realm,
                     resolved =>
                     {
@@ -470,7 +542,7 @@ public static partial class StandardLibrary
                 }
                 catch (ThrowSignal signal)
                 {
-                    RejectWithClose(signal.ThrownValue ?? signal);
+                    RejectWithClose(signal.ThrownValue.ToObject());
                     return false;
                 }
 
@@ -506,7 +578,7 @@ public static partial class StandardLibrary
             }
             catch (ThrowSignal signal)
             {
-                RejectWithClose(signal.ThrownValue ?? signal);
+                RejectWithClose(signal.ThrownValue.ToObject());
                 return false;
             }
 
@@ -567,7 +639,7 @@ public static partial class StandardLibrary
                 return false;
             }
 
-            object? finalValue = resolved;
+            var finalValue = resolved;
 
             if (mapping && mapper is not null)
             {
@@ -578,7 +650,7 @@ public static partial class StandardLibrary
                 }
                 catch (ThrowSignal signal)
                 {
-                    RejectFailure(signal.ThrownValue ?? signal);
+                    RejectFailure(signal.ThrownValue.ToObject());
                     return false;
                 }
 
@@ -614,7 +686,7 @@ public static partial class StandardLibrary
             }
             catch (ThrowSignal signal)
             {
-                RejectFailure(signal.ThrownValue ?? signal);
+                RejectFailure(signal.ThrownValue.ToObject());
                 return false;
             }
 
@@ -624,7 +696,7 @@ public static partial class StandardLibrary
 
         private void RejectSignal(ThrowSignal signal)
         {
-            RejectFailure(signal.ThrownValue ?? signal);
+            RejectFailure(signal.ThrownValue.ToObject());
         }
 
         private void RejectFailure(object? reason)
@@ -635,7 +707,7 @@ public static partial class StandardLibrary
             }
 
             _settled = true;
-            promise.Reject(reason);
+            promise.Reject(JsValue.FromObjectUnsafe(reason));
         }
 
         private void RejectWithClose(object? reason)
@@ -648,7 +720,7 @@ public static partial class StandardLibrary
                 }
                 catch (ThrowSignal signal)
                 {
-                    reason = signal.ThrownValue ?? signal;
+                    reason = signal.ThrownValue.ToObject();
                 }
             }
 
@@ -663,7 +735,7 @@ public static partial class StandardLibrary
             }
 
             _settled = true;
-            promise.Resolve(result);
+            promise.Resolve(JsValue.FromObjectUnsafe(result));
         }
     }
 }

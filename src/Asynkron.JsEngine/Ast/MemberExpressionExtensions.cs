@@ -16,13 +16,14 @@ public static partial class TypedAstEvaluator
             // values that can be used as keys (e.g. o[Symbol.iterator]).
             if (expression is { IsComputed: false, Target: IdentifierExpression symbolIdentifier } &&
                 string.Equals(symbolIdentifier.Name.Name, "Symbol", StringComparison.Ordinal) &&
-                expression.Property is LiteralExpression { Value: string symbolProp })
+                expression.Property is LiteralExpression { Value.IsString: true } symbolPropLit)
             {
+                var symbolProp = symbolPropLit.Value.AsString()!;
                 return symbolProp switch
                 {
-                    "iterator" => JsValue.FromObject(Symbols.Iterator),
-                    "asyncIterator" => JsValue.FromObject(Symbols.AsyncIterator),
-                    "toStringTag" => JsValue.FromObject(Symbols.ToStringTag),
+                    "iterator" => (JsValue)Symbols.Iterator,
+                    "asyncIterator" => (JsValue)Symbols.AsyncIterator,
+                    "toStringTag" => (JsValue)Symbols.ToStringTag,
                     _ => EvaluateDefaultMember(expression, environment, context)
                 };
             }
@@ -44,7 +45,7 @@ public static partial class TypedAstEvaluator
             if (expression.Target is SuperExpression)
             {
                 var (memberValue, _) = ResolveSuperMember(expression, environment, context);
-                return context.ShouldStopEvaluation ? JsValue.Undefined : JsValue.FromObject(memberValue);
+                return context.ShouldStopEvaluation ? JsValue.Undefined : memberValue;
             }
 
             var targetJs = EvaluateExpression(expression.Target, environment, context);
@@ -70,7 +71,7 @@ public static partial class TypedAstEvaluator
                     "Cannot read properties of null or undefined",
                     context,
                     context.RealmState);
-                context.SetThrow(error);
+                context.SetThrow(JsValue.FromObjectUnsafe(error));
                 return JsValue.Undefined;
             }
 
@@ -90,7 +91,13 @@ public static partial class TypedAstEvaluator
             {
                 if (JsOps.TryGetPropertyValue(target, propertyName, out var directValue, context))
                 {
-                    return context.ShouldStopEvaluation ? JsValue.Undefined : JsValue.FromObject(directValue);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    // Handle case where value is already a boxed JsValue
+                    return directValue is JsValue jsVal ? jsVal : JsValue.FromObjectUnsafe(directValue);
                 }
 
                 return JsValue.Undefined;
@@ -103,10 +110,16 @@ public static partial class TypedAstEvaluator
                 context.CurrentScope.IsStrict,
                 allowPrivate: !expression.IsComputed);
             var value = handle.GetValue();
-            return context.ShouldStopEvaluation ? JsValue.Undefined : JsValue.FromObject(value);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
+            // Handle case where value is already a boxed JsValue
+            return value is JsValue jsv ? jsv : JsValue.FromObjectUnsafe(value);
         }
 
-        private (object? Value, SuperBinding Binding) ResolveSuperMember(JsEnvironment environment,
+        private (JsValue Value, SuperBinding Binding) ResolveSuperMember(JsEnvironment environment,
             EvaluationContext context)
         {
             // Per ES spec 12.3.5.3 MakeSuperPropertyReference:
@@ -129,14 +142,14 @@ public static partial class TypedAstEvaluator
                     "Cannot read properties of null (reading from super)",
                     context,
                     context.RealmState);
-                context.SetThrow(error);
-                return (Symbol.Undefined, binding);
+                context.SetThrow(JsValue.FromObjectUnsafe(error));
+                return (JsValue.Undefined, binding);
             }
 
             var propertyValueJs = EvaluateExpression(expression.Property, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return (Symbol.Undefined, binding);
+                return (JsValue.Undefined, binding);
             }
 
             // Use JsOps.GetRequiredPropertyName which properly handles errors from ToPropertyName
@@ -144,12 +157,12 @@ public static partial class TypedAstEvaluator
             var propertyName = JsOps.GetRequiredPropertyName(propertyValueJs.ToObject(), context);
             if (context.ShouldStopEvaluation)
             {
-                return (Symbol.Undefined, binding);
+                return (JsValue.Undefined, binding);
             }
 
             if (!binding.TryGetProperty(propertyName, out var value))
             {
-                return (Symbol.Undefined, binding);
+                return (JsValue.Undefined, binding);
             }
 
             return (value, binding);

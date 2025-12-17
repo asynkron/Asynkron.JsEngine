@@ -635,13 +635,13 @@ internal sealed class SyncGeneratorIrBuilder
                 continue;
             }
 
-            var matchUnset = new BinaryExpression(statement.Source, "===",
+            var matchUnset = new BinaryExpression(statement.Source, BinaryOperator.StrictEqual,
                 new IdentifierExpression(statement.Source, matchIndexSymbol),
                 new LiteralExpression(statement.Source, -1));
             var discIdentifier = new IdentifierExpression(statement.Source, discriminantSymbol);
-            var equalTest = new BinaryExpression(statement.Source, "===",
+            var equalTest = new BinaryExpression(statement.Source, BinaryOperator.StrictEqual,
                 discIdentifier, switchCase.Test);
-            var combinedTest = new BinaryExpression(statement.Source, "&&", matchUnset, equalTest);
+            var combinedTest = new BinaryExpression(statement.Source, BinaryOperator.LogicalAnd, matchUnset, equalTest);
 
             var setMatch = new AssignmentExpression(statement.Source, matchIndexSymbol,
                 new LiteralExpression(statement.Source, i));
@@ -654,7 +654,7 @@ internal sealed class SyncGeneratorIrBuilder
         // If still unmatched, fall back to default (if any).
         if (defaultIndex != -1)
         {
-            var stillUnmatched = new BinaryExpression(statement.Source, "===",
+            var stillUnmatched = new BinaryExpression(statement.Source, BinaryOperator.StrictEqual,
                 new IdentifierExpression(statement.Source, matchIndexSymbol),
                 new LiteralExpression(statement.Source, -1));
             var setDefaultMatch = new AssignmentExpression(statement.Source, matchIndexSymbol,
@@ -689,16 +689,16 @@ internal sealed class SyncGeneratorIrBuilder
             }
 
             // Execution guard: if (!__done && __matchN != -1 && __matchN <= caseIndex) { ...body... }
-            var notDoneExec = new UnaryExpression(statement.Source, "!",
+            var notDoneExec = new UnaryExpression(statement.Source, UnaryOperator.LogicalNot,
                 new IdentifierExpression(statement.Source, doneSymbol), true);
-            var matchSet = new BinaryExpression(statement.Source, "!==",
+            var matchSet = new BinaryExpression(statement.Source, BinaryOperator.StrictNotEqual,
                 new IdentifierExpression(statement.Source, matchIndexSymbol),
                 new LiteralExpression(statement.Source, -1));
-            var matchReached = new BinaryExpression(statement.Source, "<=",
+            var matchReached = new BinaryExpression(statement.Source, BinaryOperator.LessThanOrEqual,
                 new IdentifierExpression(statement.Source, matchIndexSymbol),
                 new LiteralExpression(statement.Source, caseIndex));
-            var matchGuard = new BinaryExpression(statement.Source, "&&", matchSet, matchReached);
-            var execCondition = new BinaryExpression(statement.Source, "&&", notDoneExec, matchGuard);
+            var matchGuard = new BinaryExpression(statement.Source, BinaryOperator.LogicalAnd, matchSet, matchReached);
+            var execCondition = new BinaryExpression(statement.Source, BinaryOperator.LogicalAnd, notDoneExec, matchGuard);
 
             var execBuilder = ImmutableArray.CreateBuilder<StatementNode>();
             var copyCount = breakIndex == -1 ? bodyStatements.Length : breakIndex;
@@ -756,11 +756,37 @@ internal sealed class SyncGeneratorIrBuilder
             : new BlockStatement(statement.Source, [statement.Body], IsStrictBlock(statement.Body));
         var iteratorPlan = IteratorDriverFactory.CreatePlan(statement, planBody);
 
-        var iteratorInstructions =
-            IteratorInstructionTemplate.AppendInstructions(_instructions, iteratorPlan, nextIndex);
+        var instructionStart = _instructions.Count;
 
+        // Build the structure bottom-up:
+        // 1. EndFinally -> nextIndex
+        // 2. IteratorClose -> EndFinally
+        // 3. LeaveTry -> nextIndex
+        // 4. Body -> MoveNext
+        // 5. MoveNext -> Body, BreakIndex -> LeaveTry
+        // 6. EnterTry -> MoveNext, finally -> IteratorClose
+        // 7. IteratorInit -> EnterTry
+
+        // First, create the iterator instructions to get the slot symbol
+        var iteratorInstructions =
+            IteratorInstructionTemplate.AppendInstructions(_instructions, iteratorPlan, -1); // breakIndex will be LeaveTry
+
+        // EndFinally - this is the end of the finally block
+        var endFinallyIndex = Append(new EndFinallyInstruction(nextIndex));
+
+        // IteratorClose - the finally block content
+        var iteratorCloseIndex = Append(new IteratorCloseInstruction(iteratorInstructions.IteratorSlot, endFinallyIndex));
+
+        // LeaveTry - normal exit from the loop
+        var leaveTryIndex = Append(new LeaveTryInstruction(nextIndex));
+
+        // Now update the MoveNext break target to point to LeaveTry
+        _instructions[iteratorInstructions.MoveNextIndex] =
+            (IteratorMoveNextInstruction)_instructions[iteratorInstructions.MoveNextIndex] with { BreakIndex = leaveTryIndex };
+
+        // Build the loop body
         var perIterationBlock = CreateIteratorIterationBlock(iteratorPlan, iteratorInstructions.ValueSlot);
-        var scope = new LoopScope(label, iteratorInstructions.MoveNextIndex, nextIndex);
+        var scope = new LoopScope(label, iteratorInstructions.MoveNextIndex, leaveTryIndex);
         _loopScopes.Push(scope);
         var bodyBuilt = TryBuildStatement(perIterationBlock, iteratorInstructions.MoveNextIndex, out var iterationEntry,
             label);
@@ -768,13 +794,21 @@ internal sealed class SyncGeneratorIrBuilder
 
         if (!bodyBuilt)
         {
-            _instructions.RemoveRange(iteratorInstructions.InitIndex,
-                _instructions.Count - iteratorInstructions.InitIndex);
+            _instructions.RemoveRange(instructionStart,
+                _instructions.Count - instructionStart);
             entryIndex = -1;
             return false;
         }
 
+        // Wire up the MoveNext to point to the body entry
         IteratorInstructionTemplate.Wire(iteratorInstructions, iterationEntry, _instructions);
+
+        // EnterTry - wraps the loop in a try/finally
+        var enterTryIndex = Append(new EnterTryInstruction(iteratorInstructions.MoveNextIndex, -1, null, iteratorCloseIndex));
+
+        // Wire IteratorInit to point to EnterTry
+        _instructions[iteratorInstructions.InitIndex] =
+            (IteratorInitInstruction)_instructions[iteratorInstructions.InitIndex] with { Next = enterTryIndex };
 
         entryIndex = iteratorInstructions.InitIndex;
         return true;

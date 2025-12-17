@@ -9,16 +9,16 @@ public static partial class TypedAstEvaluator
 {
     private sealed class DelegatedYieldState
     {
-        private readonly IEnumerator<object?>? _enumerator;
+        private readonly IEnumerator<JsValue>? _enumerator;
         private readonly bool _isGeneratorObject;
         private readonly IJsObjectLike? _iterator;
         private IJsCallable? _nextMethod;
 
         // Cached result from the last MoveNext call that hasn't been consumed yet
-        private (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, IJsObjectLike? IteratorResultObject)? _cachedResult;
+        private (JsValue Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, IJsObjectLike? IteratorResultObject)? _cachedResult;
         private bool _hasCachedResult;
 
-        private DelegatedYieldState(IJsObjectLike? iterator, IEnumerator<object?>? enumerator, bool isGeneratorObject)
+        private DelegatedYieldState(IJsObjectLike? iterator, IEnumerator<JsValue>? enumerator, bool isGeneratorObject)
         {
             _iterator = iterator;
             _enumerator = enumerator;
@@ -28,7 +28,7 @@ public static partial class TypedAstEvaluator
         /// <summary>
         /// Returns the cached result without advancing the iterator, or null if no cached result.
         /// </summary>
-        public (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, IJsObjectLike? IteratorResultObject)? PeekCachedResult()
+        public (JsValue Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, IJsObjectLike? IteratorResultObject)? PeekCachedResult()
         {
             return _hasCachedResult ? _cachedResult : null;
         }
@@ -46,8 +46,8 @@ public static partial class TypedAstEvaluator
         /// Gets the next result, either from cache or by advancing the iterator.
         /// The result is cached until ConsumeResult is called.
         /// </summary>
-        public (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, IJsObjectLike? IteratorResultObject) GetOrFetchNext(
-            object? sendValue,
+        public (JsValue Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, IJsObjectLike? IteratorResultObject) GetOrFetchNext(
+            JsValue sendValue,
             bool hasSendValue,
             bool propagateThrow,
             bool propagateReturn,
@@ -73,13 +73,13 @@ public static partial class TypedAstEvaluator
             return new DelegatedYieldState(iterator, null, IsGeneratorObject(iterator));
         }
 
-        public static DelegatedYieldState FromEnumerable(IEnumerable<object?> enumerable)
+        public static DelegatedYieldState FromEnumerable(IEnumerable<JsValue> enumerable)
         {
             return new DelegatedYieldState(null, enumerable.GetEnumerator(), false);
         }
 
-        public (object? Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, IJsObjectLike? IteratorResultObject) MoveNext(
-            object? sendValue,
+        public (JsValue Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, IJsObjectLike? IteratorResultObject) MoveNext(
+            JsValue sendValue,
             bool hasSendValue,
             bool propagateThrow,
             bool propagateReturn,
@@ -90,7 +90,7 @@ public static partial class TypedAstEvaluator
             if (_iterator is not null)
             {
                 IJsObjectLike? nextResult;
-                object? candidate = null;
+                var candidate = JsValue.Undefined;
                 var methodInvoked = false;
                 try
                 {
@@ -98,7 +98,7 @@ public static partial class TypedAstEvaluator
                     {
                         methodInvoked = _iterator.TryInvokeIteratorMethod(
                             "throw",
-                            sendValue ?? Symbol.Undefined,
+                            sendValue.IsUndefined ? JsValue.Undefined : sendValue,
                             context,
                             out candidate);
                     }
@@ -106,7 +106,7 @@ public static partial class TypedAstEvaluator
                     {
                         methodInvoked = _iterator.TryInvokeIteratorMethod(
                             "return",
-                            sendValue ?? Symbol.Undefined,
+                            sendValue.IsUndefined ? JsValue.Undefined : sendValue,
                             context,
                             out candidate);
                     }
@@ -116,8 +116,8 @@ public static partial class TypedAstEvaluator
                         // Per ES spec (14.4.14) and Node.js V8 behavior, inner iterator's next()
                         // should always be called with an argument - even if it's undefined.
                         // This ensures arguments.length === 1 inside the next() method.
-                        // Use Symbol.Undefined for null sendValue to match JavaScript undefined semantics.
-                        candidate = _iterator.InvokeIteratorNext(_nextMethod, sendValue ?? Symbol.Undefined, true, context);
+                        // Use JsValue.Undefined for undefined sendValue to match JavaScript undefined semantics.
+                        candidate = _iterator.InvokeIteratorNext(_nextMethod, sendValue.IsUndefined ? JsValue.Undefined : sendValue, true, context);
                     }
 
                     // Per spec: if return method is undefined, return Completion(received)
@@ -142,28 +142,28 @@ public static partial class TypedAstEvaluator
                             context.RealmState);
                     }
 
-                    if (!methodInvoked && candidate is null)
+                    if (!methodInvoked && candidate.IsUndefined)
                     {
-                        return (Symbol.Undefined, true, propagateThrow, propagateThrow, null);
+                        return (JsValue.Undefined, true, propagateThrow, propagateThrow, null);
                     }
 
-                    if (methodInvoked && candidate is null)
+                    if (methodInvoked && candidate.IsUndefined)
                     {
                         throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);
                     }
 
-                    var nextCandidate = candidate ?? throw new InvalidOperationException("Iterator result missing.");
-                    object? awaitedCandidate;
-                    if (nextCandidate is IJsObjectLike promiseCandidate && IsPromiseLike(promiseCandidate))
+                    var nextCandidate = candidate.IsUndefined ? throw new InvalidOperationException("Iterator result missing.") : candidate;
+                    JsValue awaitedCandidate;
+                    if (nextCandidate.TryGetObject<IJsObjectLike>(out var promiseCandidate) && IsPromiseLike(nextCandidate))
                     {
                         awaitedPromise = true;
                         if (!AwaitScheduler.TryAwaitPromiseSync(
-                                promiseCandidate,
+                                nextCandidate,
                                 context,
                                 out awaitedCandidate,
                                 context.DrainAwaitMicrotasks))
                         {
-                            return (Symbol.Undefined, true, true, propagateThrow, null);
+                            return (JsValue.Undefined, true, true, propagateThrow, null);
                         }
                     }
                     else
@@ -171,7 +171,7 @@ public static partial class TypedAstEvaluator
                         awaitedCandidate = nextCandidate;
                     }
 
-                    if (awaitedCandidate is not IJsObjectLike resolvedObject)
+                    if (!awaitedCandidate.TryGetObject<IJsObjectLike>(out var resolvedObject))
                     {
                         throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);
                     }
@@ -195,7 +195,7 @@ public static partial class TypedAstEvaluator
                 // Per ES spec 14.4.14, only read `value` when iteration is complete (done is true).
                 // When done is false, yield the innerResult directly without accessing `value`.
                 // This is important because the spec says IteratorValue is only called when done is true.
-                object? value;
+                JsValue value;
                 if (done)
                 {
                     var gotValue = JsOps.TryGetPropertyValue(nextResult, "value", out var yielded, context);
@@ -204,21 +204,36 @@ public static partial class TypedAstEvaluator
                         // Getter threw - return as delegated completion to be handled by generator's try/catch
                         return (context.FlowValue, true, true, true, null);
                     }
-                    value = gotValue ? yielded : Symbol.Undefined;
+                    // yielded might be a boxed JsValue from TryGetPropertyValue
+                    value = gotValue
+                        ? (yielded is JsValue yjs ? yjs : JsValue.FromObjectUnsafe(yielded))
+                        : JsValue.Undefined;
                 }
                 else
                 {
                     // Don't read `value` yet - it will be read lazily from the iterator result object
-                    // if needed. Pass null here; the caller will use the nextResult object directly.
-                    value = null;
+                    // if needed. Pass JsValue.Undefined here; the caller will use the nextResult object directly.
+                    value = JsValue.Undefined;
                 }
+
+                // When we awaited a Promise from return() and got done: true, report done: false
+                // to allow the generator to suspend and continue on the next call. The actual iterator
+                // result object (nextResult) still has done: true so the caller sees the correct result.
+                // On the next g.next() call, inner.next() will be called to continue iteration.
+                var reportedDone = done;
+                if (awaitedPromise && propagateReturn && done)
+                {
+                    reportedDone = false;
+                }
+
                 // Delegated completion occurs when:
                 // 1. Inner iterator is a generator AND we propagated throw/return, OR
                 // 2. We propagated return AND inner iterator completed (done: true) - even for non-generator iterators
+                // Use reportedDone for delegated completion check to avoid early completion when Promise was awaited
                 var delegatedCompletion = (_isGeneratorObject && (propagateThrow || propagateReturn)) ||
-                                         (propagateReturn && done);
-                var propagateThrowResult = propagateThrow && done;
-                return (value, done, delegatedCompletion, propagateThrowResult, nextResult);
+                                         (propagateReturn && reportedDone);
+                var propagateThrowResult = propagateThrow && reportedDone;
+                return (value, reportedDone, delegatedCompletion, propagateThrowResult, nextResult);
             }
 
             if (_enumerator is null)
@@ -228,7 +243,7 @@ public static partial class TypedAstEvaluator
                     throw new ThrowSignal(sendValue);
                 }
 
-                return (Symbol.Undefined, true, propagateReturn, false, null);
+                return (JsValue.Undefined, true, propagateReturn, false, null);
             }
 
             if (propagateThrow)
@@ -243,7 +258,7 @@ public static partial class TypedAstEvaluator
 
             if (!_enumerator.MoveNext())
             {
-                return (Symbol.Undefined, true, false, false, null);
+                return (JsValue.Undefined, true, false, false, null);
             }
 
             return (_enumerator.Current, false, false, false, null);
@@ -251,8 +266,11 @@ public static partial class TypedAstEvaluator
 
         private static bool IsGeneratorObject(IJsObjectLike iterator)
         {
+            // brand is a JsValue - we need to unwrap it to compare with GeneratorBrandMarker
+            // GeneratorBrandMarker is a plain System.Object, not a JsObject, so we compare ObjectValue directly
             return iterator.TryGetProperty(GeneratorBrandPropertyName, out var brand) &&
-                   ReferenceEquals(brand, GeneratorBrandMarker);
+                   brand.Kind == JsValueKind.Object &&
+                   ReferenceEquals(brand.ObjectValue, GeneratorBrandMarker);
         }
     }
 }

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using BenchmarkDotNet.Attributes;
@@ -42,7 +41,7 @@ public class JintComparisonBenchmarks
         ["asyncForOf"] = 275000.0,              // 5000 * 55 (but bug: Asynkron returns 0)
         ["asyncAwaitResolved"] = 420000.0,      // 10x: 10000 * 42
         ["asyncAwaitPending"] = 5000.0,         // 10x: 5000 * 1
-        ["forOfIteration"] = 2750000.0,         // 10x: 50000 * 55
+        ["forOfIteration"] = 2750000.0 // 10x: 50000 * 55
     };
 
     /// <summary>
@@ -81,7 +80,7 @@ public class JintComparisonBenchmarks
             ("asyncForOf", benchmark.Asynkron_AsyncForOf, () => benchmark._jintEngine.Evaluate(benchmark._asyncForOf).ToObject()),
             ("asyncAwaitResolved", benchmark.Asynkron_AsyncAwaitResolved, () => benchmark._jintEngine.Evaluate(benchmark._asyncAwaitResolved).ToObject()),
             ("asyncAwaitPending", benchmark.Asynkron_AsyncAwaitPending, () => benchmark._jintEngine.Evaluate(benchmark._asyncAwaitPending).ToObject()),
-            ("forOfIteration", benchmark.Asynkron_ForOfIteration, () => benchmark._jintEngine.Evaluate(benchmark._forOfIteration).ToObject()),
+            ("forOfIteration", benchmark.Asynkron_ForOfIteration, () => benchmark._jintEngine.Evaluate(benchmark._forOfIteration).ToObject())
         };
 
         foreach (var (name, asynkronFn, jintFn) in tests)
@@ -206,10 +205,10 @@ public class JintComparisonBenchmarks
             fib(25);
             """;
 
-        // For loop intensive (using var to avoid per-iteration environment allocation)
+        // For loop intensive
         _forLoop = """
-            var sum = 0;
-            for (var i = 0; i < 100000; i++) {
+            let sum = 0;
+            for (let i = 0; i < 100000; i++) {
                 sum += i;
             }
             sum;

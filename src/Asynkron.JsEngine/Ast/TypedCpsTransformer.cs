@@ -47,6 +47,8 @@ public sealed class TypedCpsTransformer
                     return true;
                 case FunctionDeclaration functionDeclaration:
                     return FunctionNeedsTransformation(functionDeclaration.Function);
+                case ClassDeclaration classDeclaration:
+                    return ClassDefinitionNeedsTransformation(classDeclaration.Definition);
                 case VariableDeclaration variableDeclaration:
                     foreach (var declarator in variableDeclaration.Declarators)
                     {
@@ -159,6 +161,54 @@ public sealed class TypedCpsTransformer
         return StatementNeedsTransformation(function.Body);
     }
 
+    private static bool ClassDefinitionNeedsTransformation(ClassDefinition definition)
+    {
+        // Check constructor
+        if (FunctionNeedsTransformation(definition.Constructor))
+        {
+            return true;
+        }
+
+        // Check class members (methods, getters, setters)
+        foreach (var member in definition.Members)
+        {
+            if (FunctionNeedsTransformation(member.Function))
+            {
+                return true;
+            }
+
+            if (member.ComputedName is not null && ExpressionNeedsTransformation(member.ComputedName))
+            {
+                return true;
+            }
+        }
+
+        // Check field initializers
+        foreach (var field in definition.Fields)
+        {
+            if (field.Initializer is not null && ExpressionNeedsTransformation(field.Initializer))
+            {
+                return true;
+            }
+
+            if (field.ComputedName is not null && ExpressionNeedsTransformation(field.ComputedName))
+            {
+                return true;
+            }
+        }
+
+        // Check static blocks
+        foreach (var staticBlock in definition.StaticBlocks)
+        {
+            if (StatementNeedsTransformation(staticBlock.Body))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool ExpressionNeedsTransformation(ExpressionNode expression)
     {
         if (AstShapeAnalyzer.ContainsAwait(expression, true))
@@ -175,6 +225,8 @@ public sealed class TypedCpsTransformer
                 case FunctionExpression functionExpression:
                     return functionExpression is { IsAsync: true, IsGenerator: false } ||
                            StatementNeedsTransformation(functionExpression.Body);
+                case ClassExpression classExpression:
+                    return ClassDefinitionNeedsTransformation(classExpression.Definition);
                 case BinaryExpression binaryExpression:
                     return ExpressionNeedsTransformation(binaryExpression.Left) ||
                            ExpressionNeedsTransformation(binaryExpression.Right);
@@ -304,6 +356,7 @@ public sealed class TypedCpsTransformer
         return statement switch
         {
             FunctionDeclaration declaration => TransformFunctionDeclaration(declaration),
+            ClassDeclaration classDeclaration => TransformClassDeclaration(classDeclaration),
             BlockStatement block => TransformBlock(block),
             ExpressionStatement expressionStatement => TransformExpressionStatement(expressionStatement),
             VariableDeclaration variableDeclaration => TransformVariableDeclaration(variableDeclaration),
@@ -324,6 +377,73 @@ public sealed class TypedCpsTransformer
     {
         var function = TransformFunctionExpression(declaration.Function);
         return ReferenceEquals(function, declaration.Function) ? declaration : declaration with { Function = function };
+    }
+
+    private StatementNode TransformClassDeclaration(ClassDeclaration declaration)
+    {
+        var definition = TransformClassDefinition(declaration.Definition);
+        return ReferenceEquals(definition, declaration.Definition) ? declaration : declaration with { Definition = definition };
+    }
+
+    private ClassExpression TransformClassExpression(ClassExpression classExpression)
+    {
+        var definition = TransformClassDefinition(classExpression.Definition);
+        return ReferenceEquals(definition, classExpression.Definition) ? classExpression : classExpression with { Definition = definition };
+    }
+
+    private ClassDefinition TransformClassDefinition(ClassDefinition definition)
+    {
+        var constructor = TransformFunctionExpression(definition.Constructor);
+        var members = TransformImmutableArray(definition.Members, TransformClassMember, out var membersChanged);
+        var fields = TransformImmutableArray(definition.Fields, TransformClassField, out var fieldsChanged);
+        var staticBlocks = TransformImmutableArray(definition.StaticBlocks, TransformClassStaticBlock, out var staticBlocksChanged);
+
+        if (!ReferenceEquals(constructor, definition.Constructor) || membersChanged || fieldsChanged || staticBlocksChanged)
+        {
+            return definition with
+            {
+                Constructor = constructor,
+                Members = members,
+                Fields = fields,
+                StaticBlocks = staticBlocks
+            };
+        }
+
+        return definition;
+    }
+
+    private ClassMember TransformClassMember(ClassMember member)
+    {
+        var function = TransformFunctionExpression(member.Function);
+        var computedName = member.ComputedName is not null ? TransformExpression(member.ComputedName) : null;
+
+        if (!ReferenceEquals(function, member.Function) ||
+            !ReferenceEquals(computedName, member.ComputedName))
+        {
+            return member with { Function = function, ComputedName = computedName };
+        }
+
+        return member;
+    }
+
+    private ClassField TransformClassField(ClassField field)
+    {
+        var initializer = field.Initializer is not null ? TransformExpression(field.Initializer) : null;
+        var computedName = field.ComputedName is not null ? TransformExpression(field.ComputedName) : null;
+
+        if (!ReferenceEquals(initializer, field.Initializer) ||
+            !ReferenceEquals(computedName, field.ComputedName))
+        {
+            return field with { Initializer = initializer, ComputedName = computedName };
+        }
+
+        return field;
+    }
+
+    private ClassStaticBlock TransformClassStaticBlock(ClassStaticBlock block)
+    {
+        var body = TransformBlock(block.Body);
+        return ReferenceEquals(body, block.Body) ? block : block with { Body = body };
     }
 
     private BlockStatement TransformBlock(BlockStatement block)
@@ -514,6 +634,8 @@ public sealed class TypedCpsTransformer
         {
             case FunctionExpression functionExpression:
                 return TransformFunctionExpression(functionExpression);
+            case ClassExpression classExpression:
+                return TransformClassExpression(classExpression);
             case CallExpression callExpression:
                 return TransformCallExpression(callExpression);
             case NewExpression newExpression:
@@ -783,12 +905,16 @@ public sealed class TypedCpsTransformer
         var catchClause = new CatchClause(null, new IdentifierBinding(null, Symbol.CatchIdentifier), catchBody);
         var tryStatement = new TryStatement(null, tryBlock, catchClause, null);
         var executorBody = new BlockStatement(null, [tryStatement], body.IsStrict);
+        // Use an arrow function for the Promise executor so that `arguments` / `this`
+        // inside the original async body still resolve to the outer async function's
+        // bindings. A normal function expression would introduce its own arguments
+        // object, which breaks references inside the rewritten body.
         var executor = new FunctionExpression(null, null,
             [
                 new FunctionParameter(null, Symbol.ResolveIdentifier, false, null, null),
-                new FunctionParameter(null, Symbol.RejectIdentifier, false, null, null)
+                new FunctionParameter(null, Symbol.RejectIdentifier, false, null, null),
             ],
-            executorBody, false, false);
+            executorBody, false, false, IsArrow: true);
         var promise = new NewExpression(null, new IdentifierExpression(null, Symbol.PromiseIdentifier),
             [new CallArgument(null, executor, false)]);
         var returnPromise = new ReturnStatement(null, promise);
@@ -920,7 +1046,7 @@ public sealed class TypedCpsTransformer
             return false;
         }
 
-        return member.Property is LiteralExpression { Value: "catch" };
+        return member.Property is LiteralExpression { Value.IsString: true } lit && lit.Value.AsString() == "catch";
     }
 
     private static ImmutableArray<StatementNode> NormalizeStatements(ImmutableArray<StatementNode> statements)

@@ -13,10 +13,10 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
 {
     private HostFunction? _constructor;
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var target = _constructor ?? ConstructFallback;
-        return ConstructBuffer(args, target);
+        return JsValue.FromObjectUnsafe(ConstructBuffer(args, target));
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -27,14 +27,14 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
 
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
-            if (newTarget is null)
+            if (newTarget.IsUndefined)
             {
                 throw ThrowTypeError("SharedArrayBuffer constructor requires 'new'", realm: Realm);
             }
 
             var target = _constructor ?? constructor;
-            var effectiveNewTarget = newTarget as IJsCallable ?? target;
-            return ConstructBuffer(args, effectiveNewTarget);
+            var effectiveNewTarget = newTarget.TryGetObject<IJsCallable>(out var callable) ? callable : target;
+            return JsValue.FromObjectUnsafe(ConstructBuffer(args, effectiveNewTarget));
         });
 
         var speciesKey = SymbolKeys.GetSpecies(Realm);
@@ -47,18 +47,18 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
             });
     }
 
-    private object ConstructBuffer(IReadOnlyList<object?> args, IJsCallable newTarget)
+    private object ConstructBuffer(IReadOnlyList<JsValue> args, IJsCallable newTarget)
     {
         if (newTarget is null)
         {
             throw ThrowTypeError("SharedArrayBuffer constructor requires 'new'", realm: Realm);
         }
 
-        var byteLength = args.Count > 0 && !ReferenceEquals(args[0], Symbol.Undefined)
+        var byteLength = args.Count > 0 && !args[0].IsUndefined
             ? ToIndexAsLong(args[0], Realm)
             : 0L;
 
-        var requestedMax = GetRequestedMaxByteLength(args.Count > 1 ? args[1] : null);
+        var requestedMax = GetRequestedMaxByteLength(args.Count > 1 ? args[1] : JsValue.Undefined);
         if (requestedMax is { } maxValue && byteLength > maxValue)
         {
             throw ThrowRangeError("Invalid SharedArrayBuffer length", realm: Realm);
@@ -67,13 +67,13 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
         if (ReferenceEquals(newTarget, _constructor ?? newTarget))
         {
             var allocLength = RequireAllocatableLength(byteLength);
-            int? allocMax = requestedMax is { } maxIndex ? RequireAllocatableLength(maxIndex) : (int?)null;
+            int? allocMax = requestedMax is { } maxIndex ? RequireAllocatableLength(maxIndex) : null;
             var directBuffer = new JsArrayBuffer(allocLength, allocMax, Realm, isShared: true);
             directBuffer.SetPrototype(Prototype);
             return directBuffer;
         }
 
-        var instance = PrepareThisObject(null, assignPrototype: false);
+        var instance = PrepareThisObject(JsValue.Undefined, assignPrototype: false);
         var proto = ResolveConstructPrototype(newTarget, _constructor ?? newTarget, Realm) ?? Prototype;
         if (proto is not null)
         {
@@ -81,7 +81,7 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
         }
 
         var derivedLength = RequireAllocatableLength(byteLength);
-        int? derivedMax = requestedMax is { } maxValue2 ? RequireAllocatableLength(maxValue2) : (int?)null;
+        int? derivedMax = requestedMax is { } maxValue2 ? RequireAllocatableLength(maxValue2) : null;
         var buffer = new JsArrayBuffer(derivedLength, derivedMax, Realm, isShared: true);
         StoreInternalArrayBuffer(instance, buffer);
         return instance;
@@ -97,14 +97,14 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
         return (int)length;
     }
 
-    private long? GetRequestedMaxByteLength(object? options)
+    private long? GetRequestedMaxByteLength(JsValue options)
     {
-        if (options is null || ReferenceEquals(options, Symbol.Undefined))
+        if (options.IsUndefined || options.IsNull)
         {
             return null;
         }
 
-        if (options is not IJsPropertyAccessor accessor)
+        if (!options.IsObject || options.AsObject() is not IJsPropertyAccessor accessor)
         {
             return null;
         }

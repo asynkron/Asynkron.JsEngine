@@ -1,7 +1,5 @@
 using System.Runtime.CompilerServices;
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
-using System.Threading;
 
 namespace Asynkron.JsEngine.Execution;
 
@@ -20,13 +18,13 @@ internal static class AwaitScheduler
     {
         public int Completed;
         public int Fulfilled;
-        public object? Value;
+        public JsValue Value;
 
         public void Reset()
         {
             Completed = 0;
             Fulfilled = 0;
-            Value = null;
+            Value = JsValue.Undefined;
         }
     }
 
@@ -51,11 +49,21 @@ internal static class AwaitScheduler
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool IsPromiseLike(object? candidate)
+    public static bool IsPromiseLike(JsValue candidate)
     {
-        return candidate is JsObject jsObject &&
-               jsObject.TryGetProperty("then", out var thenValue) &&
-               thenValue is IJsCallable;
+        // Unwrapped JsPromise instances should still count as promise-like
+        if (candidate.ObjectValue is JsPromise)
+        {
+            return true;
+        }
+
+        if (!candidate.TryGetObject(out var obj))
+        {
+            return false;
+        }
+
+        return obj.TryGetProperty("then", out var thenValue) &&
+               thenValue.TryGetObject<IJsCallable>(out _);
     }
 
     /// <summary>
@@ -63,40 +71,41 @@ internal static class AwaitScheduler
     ///     without any allocations or microtask processing.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool TryGetSettledValueFast(object? candidate, out object? value, out bool isRejected)
+    private static bool TryGetSettledValueFast(JsValue candidate, out JsValue value, out bool isRejected)
     {
         // Direct JsPromise check (fastest path)
-        if (candidate is JsPromise directPromise)
+        if (candidate.IsObject && candidate.ObjectValue is JsPromise directPromise)
         {
             return directPromise.TryGetSettled(out value, out isRejected);
         }
 
-        // JsObject wrapping a JsPromise
-        if (candidate is JsObject jsObj &&
-            jsObj.TryGetProperty(JsPromise.InternalPromiseKey, out var inner) &&
-            inner is JsPromise wrappedPromise)
+        // JsObject wrapping a JsPromise (use IJsObjectLike to handle JsArray etc.)
+        if (candidate.IsObject &&
+            candidate.TryGetObject<IJsObjectLike>(out var obj) &&
+            obj.TryGetProperty(JsPromise.InternalPromiseKey, out var inner) &&
+            inner.TryGetObject<JsPromise>(out var wrappedPromise))
         {
             return wrappedPromise.TryGetSettled(out value, out isRejected);
         }
 
-        value = null;
+        value = JsValue.Undefined;
         isRejected = false;
         return false;
     }
 
     public static bool TryAwaitPromiseSync(
-        object? candidate,
+        JsValue candidate,
         EvaluationContext context,
-        out object? resolvedValue,
+        out JsValue resolvedValue,
         bool drainMicrotasks = true)
     {
         resolvedValue = candidate;
 
         // Fast path: non-promise values pass through immediately
-        if (candidate is null || candidate is not JsObject)
+        if (!candidate.IsObject)
         {
             // Check for direct JsPromise (without JsObject wrapper)
-            if (candidate is JsPromise directPromise)
+            if (candidate.ObjectValue is JsPromise directPromise)
             {
                 return HandleDirectPromise(directPromise, context, out resolvedValue, drainMicrotasks);
             }
@@ -110,13 +119,14 @@ internal static class AwaitScheduler
         {
             if (isRejected)
             {
+                // settledValue is already a JsValue from TryGetSettledValueFast
                 context.SetThrow(settledValue);
-                resolvedValue = Symbol.Undefined;
+                resolvedValue = JsValue.Undefined;
                 return false;
             }
             resolvedValue = settledValue;
             // Continue to check if settled value is itself a promise
-            if (resolvedValue is not JsObject)
+            if (!resolvedValue.IsObject)
             {
                 return true;
             }
@@ -133,27 +143,35 @@ internal static class AwaitScheduler
         {
             if (isRejected)
             {
+                // settledValue is already JsValue from TryGetSettledValueFast
                 context.SetThrow(settledValue);
-                resolvedValue = Symbol.Undefined;
+                resolvedValue = JsValue.Undefined;
                 return false;
             }
             resolvedValue = settledValue;
-            if (resolvedValue is not JsObject)
+            if (!resolvedValue.IsObject)
             {
                 return true;
             }
         }
 
         // Slow path: need to attach handlers and wait
-        while (resolvedValue is JsObject promiseObj && IsPromiseLike(promiseObj))
+        while (resolvedValue.IsObject && IsPromiseLike(resolvedValue))
         {
+            // Use IJsObjectLike to handle JsArray etc. that might be promise-like
+            if (!resolvedValue.TryGetObject<IJsObjectLike>(out var promiseObj))
+            {
+                return true; // Not an object, we're done
+            }
+
             // Check settled state again (might have changed)
-            if (TryGetSettledValueFast(promiseObj, out var loopSettled, out var rejected))
+            if (TryGetSettledValueFast(resolvedValue, out var loopSettled, out var rejected))
             {
                 if (rejected)
                 {
+                    // loopSettled is already JsValue from TryGetSettledValueFast
                     context.SetThrow(loopSettled);
-                    resolvedValue = Symbol.Undefined;
+                    resolvedValue = JsValue.Undefined;
                     return false;
                 }
                 resolvedValue = loopSettled;
@@ -161,7 +179,7 @@ internal static class AwaitScheduler
             }
 
             if (!promiseObj.TryGetProperty("then", out var thenValue) ||
-                thenValue is not IJsCallable thenCallable)
+                !thenValue.TryGetObject<IJsCallable>(out var thenCallable))
             {
                 break;
             }
@@ -173,22 +191,26 @@ internal static class AwaitScheduler
             var onFulfilled = new AwaitFulfilledCallback(awaitState);
             var onRejected = new AwaitRejectedCallback(awaitState);
 
+            // Wrap callbacks in HostFunction for JsValue compatibility
+            var onFulfilledFn = new HostFunction(args => onFulfilled.Invoke(args, JsValue.Undefined), isConstructor: false);
+            var onRejectedFn = new HostFunction(args => onRejected.Invoke(args, JsValue.Undefined), isConstructor: false);
+
             try
             {
-                thenCallable.Invoke([onFulfilled, onRejected], promiseObj);
+                thenCallable.Invoke([(JsValue)onFulfilledFn, (JsValue)onRejectedFn], JsValue.FromObjectUnsafe(promiseObj));
             }
             catch (ThrowSignal signal)
             {
                 ReturnState(awaitState);
                 context.SetThrow(signal.ThrownValue);
-                resolvedValue = Symbol.Undefined;
+                resolvedValue = JsValue.Undefined;
                 return false;
             }
             catch (Exception ex)
             {
                 ReturnState(awaitState);
-                context.SetThrow(ex.Message);
-                resolvedValue = Symbol.Undefined;
+                context.SetThrow((JsValue)ex.Message);
+                resolvedValue = JsValue.Undefined;
                 return false;
             }
 
@@ -216,14 +238,14 @@ internal static class AwaitScheduler
             {
                 ReturnState(awaitState);
                 context.SetThrow(signal.ThrownValue);
-                resolvedValue = Symbol.Undefined;
+                resolvedValue = JsValue.Undefined;
                 return false;
             }
             catch (Exception ex)
             {
                 ReturnState(awaitState);
-                context.SetThrow(ex.Message);
-                resolvedValue = Symbol.Undefined;
+                context.SetThrow((JsValue)ex.Message);
+                resolvedValue = JsValue.Undefined;
                 return false;
             }
 
@@ -235,13 +257,15 @@ internal static class AwaitScheduler
             }
 
             var fulfilled = awaitState.Fulfilled;
+            // awaitState.Value is already JsValue
             var value = awaitState.Value;
             ReturnState(awaitState);
 
             if (fulfilled == 0)
             {
+                // value is already JsValue
                 context.SetThrow(value);
-                resolvedValue = Symbol.Undefined;
+                resolvedValue = JsValue.Undefined;
                 return false;
             }
 
@@ -252,7 +276,7 @@ internal static class AwaitScheduler
     }
 
     private static bool HandleDirectPromise(JsPromise promise, EvaluationContext context,
-        out object? resolvedValue, bool drainMicrotasks)
+        out JsValue resolvedValue, bool drainMicrotasks)
     {
         var engine = context.RealmState?.Engine;
 
@@ -261,8 +285,9 @@ internal static class AwaitScheduler
         {
             if (isRejected)
             {
+                // value is already JsValue from TryGetSettled
                 context.SetThrow(value);
-                resolvedValue = Symbol.Undefined;
+                resolvedValue = JsValue.Undefined;
                 return false;
             }
             resolvedValue = value;
@@ -278,8 +303,9 @@ internal static class AwaitScheduler
             {
                 if (isRejected)
                 {
+                    // value is already JsValue from TryGetSettled
                     context.SetThrow(value);
-                    resolvedValue = Symbol.Undefined;
+                    resolvedValue = JsValue.Undefined;
                     return false;
                 }
                 resolvedValue = value;
@@ -288,8 +314,8 @@ internal static class AwaitScheduler
         }
 
         // Need to wait via JsObject wrapper
-        resolvedValue = promise.JsObject;
-        return TryAwaitPromiseSync(promise.JsObject, context, out resolvedValue, drainMicrotasks);
+        resolvedValue = new JsValue(promise.JsObject);
+        return TryAwaitPromiseSync(resolvedValue, context, out resolvedValue, drainMicrotasks);
     }
 
     private static void WaitForCompletion(PromiseAwaitState awaitState, EvaluationContext context, JsEngine? engine)
@@ -310,7 +336,7 @@ internal static class AwaitScheduler
             }
 
             // Check event loop if engine available
-            if (engine is not null && !engine.IsEventLoopDrained())
+            if (engine?.IsEventLoopDrained() == false)
             {
                 engine.StartEventLoop();
                 var drainTask = engine.DrainEventLoopAsync(CancellationToken.None);
@@ -351,9 +377,16 @@ internal static class AwaitScheduler
         }
     }
 
-    public static bool TryAwaitPromiseOrSchedule(object? candidate, bool asyncStepMode, ref object? pendingPromise,
-        EvaluationContext context, out object? resolvedValue)
+    public static bool TryAwaitPromiseOrSchedule(JsValue candidate, bool asyncStepMode, ref JsValue pendingPromise,
+        EvaluationContext context, out JsValue resolvedValue)
     {
+        // Normalize raw JsPromise to its object wrapper so async-generator
+        // plumbing (which expects JsObject) can attach handlers.
+        if (candidate.ObjectValue is JsPromise jsPromise)
+        {
+            candidate = new JsValue(jsPromise.JsObject);
+        }
+
         // When not running under async-generator step execution, keep the
         // existing blocking semantics.
         if (!asyncStepMode)
@@ -363,10 +396,10 @@ internal static class AwaitScheduler
 
         // Async-aware mode: if this is a promise-like object, surface it as
         // a pending step instead of blocking.
-        if (candidate is JsObject promiseObj && IsPromiseLike(promiseObj))
+        if (IsPromiseLike(candidate))
         {
-            pendingPromise = promiseObj;
-            resolvedValue = Symbol.Undefined;
+            pendingPromise = candidate;
+            resolvedValue = JsValue.Undefined;
             return false;
         }
 
@@ -385,12 +418,12 @@ internal static class AwaitScheduler
 
         public AwaitFulfilledCallback(PromiseAwaitState state) => _state = state;
 
-        public object? Invoke(IReadOnlyList<object?> args, object? thisValue)
+        public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
         {
-            _state.Value = args.Count > 0 ? args[0] : null;
+            _state.Value = args.Count > 0 ? args[0] : JsValue.Undefined;
             _state.Fulfilled = 1;
             Interlocked.Exchange(ref _state.Completed, 1);
-            return null;
+            return JsValue.Undefined;
         }
 
         public bool IsConstructor => false;
@@ -405,12 +438,12 @@ internal static class AwaitScheduler
 
         public AwaitRejectedCallback(PromiseAwaitState state) => _state = state;
 
-        public object? Invoke(IReadOnlyList<object?> args, object? thisValue)
+        public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
         {
-            _state.Value = args.Count > 0 ? args[0] : null;
+            _state.Value = args.Count > 0 ? args[0] : JsValue.Undefined;
             _state.Fulfilled = 0;
             Interlocked.Exchange(ref _state.Completed, 1);
-            return null;
+            return JsValue.Undefined;
         }
 
         public bool IsConstructor => false;

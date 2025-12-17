@@ -37,19 +37,22 @@ public static partial class TypedAstEvaluator
                     payload.IsReturn,
                     payload.Value?.GetType().Name ?? "null");
 
+                // payload.Value might be a boxed JsValue (from resumeValue.ToObject())
+                var payloadValueJs = payload.Value is JsValue pjs ? pjs : JsValue.FromObjectUnsafe(payload.Value);
+
                 if (payload.IsThrow)
                 {
-                    context.SetThrow(payload.Value);
-                    return JsValue.FromObject(payload.Value);
+                    context.SetThrow(payloadValueJs);
+                    return payloadValueJs;
                 }
 
                 if (payload.IsReturn)
                 {
-                    context.SetReturn(payload.Value);
-                    return JsValue.FromObject(payload.Value);
+                    context.SetReturn(payloadValueJs);
+                    return payloadValueJs;
                 }
 
-                return JsValue.FromObject(payload.Value);
+                return payloadValueJs;
             }
 
             var yieldedValueJs = expression.Expression is null
@@ -60,7 +63,7 @@ public static partial class TypedAstEvaluator
                 return yieldedValueJs;
             }
 
-            context.SetYieldJsValue(yieldedValueJs, yieldIndex);
+            context.SetYield(yieldedValueJs, yieldIndex);
             yieldTracker.MarkConsumed(yieldIndex);
             return yieldedValueJs;
         }
@@ -87,7 +90,7 @@ public static partial class TypedAstEvaluator
                     state = CreateDelegatedState(iterableJs.ToObject(), context);
                     if (context.ShouldStopEvaluation)
                     {
-                        return JsValue.FromObject(context.FlowValue);
+                        return context.FlowValue;
                     }
 
                     StoreDelegatedState(stateKey, environment, state);
@@ -129,7 +132,9 @@ public static partial class TypedAstEvaluator
                 // Use GetOrFetchNext which returns cached result if available,
                 // or advances the iterator if not. This prevents skipping values
                 // when resuming a generator that has already yielded.
-                var iteratorResult = state.GetOrFetchNext(pendingSend,
+                // pendingSend might be a boxed JsValue from ResumePayload
+                var pendingSendJs = pendingSend is JsValue psJs ? psJs : JsValue.FromObjectUnsafe(pendingSend);
+                var iteratorResult = state.GetOrFetchNext(pendingSendJs,
                     hasPendingSend && !pendingThrow && !pendingReturn,
                     pendingThrow,
                     pendingReturn,
@@ -152,21 +157,21 @@ public static partial class TypedAstEvaluator
                     {
                         context.SetThrow(iteratorResult.Value);
                         ClearDelegatedState(stateKey, environment);
-                        return JsValue.FromObject(iteratorResult.Value);
+                        return iteratorResult.Value;
                     }
 
                     // For return propagation (when inner iterator has no return method),
                     // signal a return completion to the outer generator
                     ClearDelegatedState(stateKey, environment);
                     context.SetReturn(iteratorResult.Value);
-                    return JsValue.FromObject(iteratorResult.Value);
+                    return iteratorResult.Value;
                 }
 
                 var (value, done) = (iteratorResult.Value, iteratorResult.Done);
                 if (done)
                 {
                     ClearDelegatedState(stateKey, environment);
-                    return JsValue.FromObject(value);
+                    return value;
                 }
 
                 if (!tracker.ShouldYield(out var yieldIndex))
@@ -216,7 +221,8 @@ public static partial class TypedAstEvaluator
                 // the outer generator returns that same object instead of creating a new one with done: false
                 context.SetYieldWithIteratorResult(value, yieldIndex, iteratorResult.IteratorResultObject);
                 tracker.MarkConsumed(yieldIndex);
-                return JsValue.FromObject(value);
+                // value is already JsValue from iteratorResult.Value
+                return value;
             }
         }
 

@@ -39,12 +39,12 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         _properties.PreventExtensions();
     }
 
-    public bool TryGetProperty(string name, object? receiver, out object? value)
+    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
         // Handle special 'size' property
         if (!string.Equals(name, "size", StringComparison.Ordinal))
         {
-            return _properties.TryGetProperty(name, receiver ?? this, out value);
+            return _properties.TryGetProperty(name, receiver.IsUndefined ? (JsValue)this : receiver, out value);
         }
 
         value = (double)Size;
@@ -52,20 +52,20 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
 
     }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, this, out value);
+        return TryGetProperty(name, (JsValue)this, out value);
     }
 
-    public void SetProperty(string name, object? value, object? receiver)
+    public void SetProperty(string name, JsValue value, JsValue receiver)
     {
         IsPlain = false;
-        _properties.SetProperty(name, value, receiver ?? this);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? (JsValue)this : receiver);
     }
 
-    public void SetProperty(string name, object? value)
+    public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, this);
+        SetProperty(name, value, (JsValue)this);
     }
 
     public JsObject? Prototype => _properties.Prototype;
@@ -251,7 +251,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         foreach (var key in _insertionOrder)
         {
             var value = Get(key);
-            callback.Invoke([value, key, this], thisArg);
+            callback.Invoke([JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(key), (JsValue)this], JsValue.FromObjectUnsafe(thisArg));
         }
     }
 

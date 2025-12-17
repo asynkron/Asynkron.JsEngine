@@ -17,28 +17,28 @@ public static partial class StandardLibrary
     internal const double MsPerMinute = 60000d;
     internal const double MsPerSecond = 1000d;
 
-    internal static object? DateParse(IReadOnlyList<object?> args, RealmState realm)
+    internal static JsValue DateParse(IReadOnlyList<JsValue> args, RealmState realm)
     {
-        if (args.Count == 0 || args[0] is not string dateStr)
+        if (args.Count == 0 || !args[0].TryGetString(out var dateStr))
         {
-            return double.NaN;
+            return JsValue.NaN;
         }
 
         return DateTimeOffset.TryParse(dateStr, out var parsed)
-            ? (double)parsed.ToUnixTimeMilliseconds()
-            : double.NaN;
+            ? new JsValue((double)parsed.ToUnixTimeMilliseconds())
+            : JsValue.NaN;
     }
 
-    internal static object? DateUtc(IReadOnlyList<object?> args, RealmState realm)
+    internal static JsValue DateUtc(IReadOnlyList<JsValue> args, RealmState realm)
     {
         if (args.Count == 0)
         {
-            return double.NaN;
+            return JsValue.NaN;
         }
 
-        double ToNumberOrNaN(object? v)
+        double ToNumberOrNaN(JsValue v)
         {
-            return v is double d ? d : double.NaN;
+            return v.TryGetDouble(out var d) ? d : double.NaN;
         }
 
         var y = ToNumberOrNaN(args[0]);
@@ -52,7 +52,7 @@ public static partial class StandardLibrary
         if (double.IsNaN(y) || double.IsNaN(m) || double.IsNaN(dt) ||
             double.IsNaN(h) || double.IsNaN(min) || double.IsNaN(s) || double.IsNaN(ms))
         {
-            return double.NaN;
+            return JsValue.NaN;
         }
 
         var year = (int)y;
@@ -72,16 +72,16 @@ public static partial class StandardLibrary
         {
             var utcDate = new DateTime(year, month, day, hour, minute, second, millisecond, DateTimeKind.Utc);
             var dto = new DateTimeOffset(utcDate);
-            return (double)dto.ToUnixTimeMilliseconds();
+            return new JsValue((double)dto.ToUnixTimeMilliseconds());
         }
         catch
         {
-            return double.NaN;
+            return JsValue.NaN;
         }
     }
 
     internal static double ComputeDateTimeValue(
-        IReadOnlyList<object?> args,
+        IReadOnlyList<JsValue> args,
         RealmState realm,
         EvaluationContext? context)
     {
@@ -93,7 +93,7 @@ public static partial class StandardLibrary
         if (args.Count == 1)
         {
             var arg = args[0];
-            if (arg is string dateStr && DateTimeOffset.TryParse(dateStr, out var parsed))
+            if (arg.TryGetString(out var dateStr) && DateTimeOffset.TryParse(dateStr, out var parsed))
             {
                 return TimeClip(parsed.ToUnixTimeMilliseconds());
             }
@@ -149,22 +149,25 @@ public static partial class StandardLibrary
 
     internal static void StoreInternalDateValue(JsObject obj, double timeValue)
     {
-        obj.SetProperty("_internalDate", timeValue);
+        obj.SetProperty("_internalDate", new JsValue(timeValue));
     }
 
-    internal static double RequireDateValue(object? thisVal, RealmState realm, out JsObject obj)
+    internal static double RequireDateValue(JsValue thisVal, RealmState realm, out JsObject obj)
     {
-        if (thisVal is JsObject candidate &&
-            candidate.GetOwnPropertyDescriptor("_internalDate") is { Value: double timeValue })
+        if (thisVal.IsObject)
         {
-            obj = candidate;
-            return timeValue;
+            var candidate = thisVal.AsObject();
+            if (candidate.GetOwnPropertyDescriptor("_internalDate") is { Value: double timeValue })
+            {
+                obj = candidate;
+                return timeValue;
+            }
         }
 
         throw ThrowTypeError("Date method called on incompatible receiver", realm: realm);
     }
 
-    internal static JsObject RequireDateObject(object? thisVal, RealmState realm)
+    internal static JsObject RequireDateObject(JsValue thisVal, RealmState realm)
     {
         RequireDateValue(thisVal, realm, out var obj);
         return obj;
@@ -502,64 +505,76 @@ public static partial class StandardLibrary
         }
     }
 
-    internal static object FormatWithIntlDateTime(
-        object? dateThis,
-        object? localesArg,
-        object? optionsArg,
+    internal static JsValue FormatWithIntlDateTime(
+        JsValue dateThis,
+        JsValue localesArg,
+        JsValue optionsArg,
         RealmState realm,
         Func<JsObject>? defaultOptionsFactory)
     {
         var dateObj = RequireDateObject(dateThis, realm);
+        var effectiveOptionsArg = optionsArg;
         if (defaultOptionsFactory is not null &&
-            optionsArg is Symbol sym &&
-            ReferenceEquals(sym, Symbol.Undefined))
+            optionsArg.IsSymbol &&
+            ReferenceEquals(optionsArg.AsSymbol(), Symbol.Undefined))
         {
-            optionsArg = defaultOptionsFactory();
+            effectiveOptionsArg = new JsValue(defaultOptionsFactory());
         }
 
         if (realm.Engine?.GlobalObject is not JsObject global ||
-            !global.TryGetProperty("Intl", out var intlVal) || intlVal is not JsObject intlObj ||
+            !global.TryGetProperty("Intl", out var intlVal) || !intlVal.TryGetObject<JsObject>(out var intlObj) ||
             !intlObj.TryGetProperty("DateTimeFormat", out var ctorVal) ||
-            ctorVal is not IJsCallable ctor)
+            !ctorVal.TryGetObject<IJsCallable>(out var ctor))
         {
-            return "Invalid Date";
+            return new JsValue("Invalid Date");
         }
 
-        var ctorArgs = new object?[] { localesArg, optionsArg };
+        var ctorArgs = new JsValue[] { localesArg, effectiveOptionsArg };
         var instance = new JsObject();
-        if (ctorVal is IJsPropertyAccessor ctorAccessor &&
+        if (ctorVal.TryGetObject<IJsPropertyAccessor>(out var ctorAccessor) &&
             ctorAccessor.TryGetProperty("prototype", out var proto) &&
-            proto is IJsPropertyAccessor protoAccessor)
+            proto.TryGetObject<IJsPropertyAccessor>(out var protoAccessor))
         {
             instance.SetPrototype(protoAccessor);
         }
 
         instance.BeginConstruction();
-        object? constructed;
+        JsValue constructed;
         try
         {
-            constructed = ctor.Invoke(ctorArgs, instance);
+            constructed = ctor.Invoke(ctorArgs, new JsValue(instance));
         }
         finally
         {
             instance.EndConstruction();
         }
 
-        var formatter = constructed switch
+        JsValue formatter;
+        if (constructed.IsObject)
         {
-            IJsPropertyAccessor => constructed,
-            IJsCallable => constructed,
-            _ => instance
-        };
-
-        if (formatter is not IJsPropertyAccessor accessor ||
-            !accessor.TryGetProperty("format", formatter, out var formatVal) ||
-            formatVal is not IJsCallable formatCallable)
+            var constructedObj = constructed.AsObject();
+            if (constructedObj is IJsPropertyAccessor || constructedObj is IJsCallable)
+            {
+                formatter = constructed;
+            }
+            else
+            {
+                formatter = new JsValue(instance);
+            }
+        }
+        else
         {
-            return "Invalid Date";
+            formatter = new JsValue(instance);
         }
 
-        return formatCallable.Invoke(new object?[] { dateObj }, formatter) ?? Symbol.Undefined;
+        if (!formatter.IsObject || !formatter.TryGetObject<IJsPropertyAccessor>(out var accessor) ||
+            !accessor.TryGetProperty("format", formatter, out var formatVal) ||
+            !formatVal.TryGetObject<IJsCallable>(out var formatCallable))
+        {
+            return new JsValue("Invalid Date");
+        }
+
+        return formatCallable.Invoke([new JsValue(dateObj)], formatter);
     }
 
     internal static JsObject CreateDefaultDateTimeOptions(RealmState realm)

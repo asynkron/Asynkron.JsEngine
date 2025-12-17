@@ -17,20 +17,20 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            if (tagValue is not IJsCallable callable)
+            if (!tagValue.TryGetObject<IJsCallable>(out var callable))
             {
                 var error = StandardLibrary.CreateTypeError("Tag in tagged template must be a function.",
                     context, environment.RealmState);
-                throw new ThrowSignal(error);
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
             }
 
             // Per ES spec 13.2.8.4 GetTemplateObject, template objects are cached by parse node.
             // Check the realm's template cache first.
             var realmState = context.RealmState;
-            object templateObject;
+            JsArray templateObject;
             if (realmState is not null && realmState.TemplateObjectCache.TryGetValue(expression, out var cachedTemplate))
             {
-                templateObject = cachedTemplate;
+                templateObject = (JsArray)cachedTemplate;
             }
             else
             {
@@ -56,18 +56,18 @@ public static partial class TypedAstEvaluator
                     throw new InvalidOperationException("Tagged template raw strings array is invalid.");
                 }
 
-                templateObject = CreateTemplateObject(stringsArray, rawStringsArray);
+                templateObject = (JsArray)CreateTemplateObject(stringsArray, rawStringsArray);
 
                 // Cache the template object for subsequent calls to the same parse node
                 realmState?.TemplateObjectCache[expression] = templateObject;
             }
 
-            var arguments = ImmutableArray.CreateBuilder<object?>(expression.Expressions.Length + 1);
-            arguments.Add(templateObject);
+            var arguments = ImmutableArray.CreateBuilder<JsValue>(expression.Expressions.Length + 1);
+            arguments.Add(JsValue.FromObjectUnsafe(templateObject));
 
             foreach (var expr in expression.Expressions)
             {
-                arguments.Add(EvaluateExpression(expr, environment, context).ToObject());
+                arguments.Add(EvaluateExpression(expr, environment, context));
                 if (context.ShouldStopEvaluation)
                 {
                     return JsValue.Undefined;
@@ -91,12 +91,12 @@ public static partial class TypedAstEvaluator
 
             try
             {
-                return JsValue.FromObject(callable.Invoke(frozenArguments, thisValue));
+                return callable.Invoke(frozenArguments, thisValue);
             }
             catch (ThrowSignal signal)
             {
                 context.SetThrow(signal.ThrownValue);
-                return JsValue.FromObject(signal.ThrownValue);
+                return signal.ThrownValue;
             }
             finally
             {

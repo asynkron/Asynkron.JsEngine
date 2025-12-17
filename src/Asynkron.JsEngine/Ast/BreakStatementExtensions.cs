@@ -1,13 +1,16 @@
+using Asynkron.JsEngine.JsTypes;
+
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
     extension(BreakStatement statement)
     {
-        private object EvaluateBreak(EvaluationContext context)
+        private JsValue EvaluateBreakJsValue(EvaluationContext context)
         {
             context.SetBreak(statement.Label);
-            return EmptyCompletion;
+            // Return Unit (empty completion) per ES spec - UpdateEmpty will preserve the previous value
+            return JsValue.Unit;
         }
     }
 }

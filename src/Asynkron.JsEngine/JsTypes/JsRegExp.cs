@@ -85,7 +85,7 @@ public class JsRegExp
 
     private void SetProperty(string name, object? value, object? receiver)
     {
-        JsObject.SetProperty(name, value, receiver ?? JsObject);
+        JsObject.SetProperty(name, JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(receiver ?? JsObject));
     }
 
     public void SetProperty(string name, object? value)

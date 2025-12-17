@@ -1,4 +1,5 @@
 using System.Text;
+using Asynkron.JsEngine.JsTypes;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -111,11 +112,11 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         var engine1 = new JsEngine();
         engine1.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"[LOCAL] {msg}");
             localResult.Append("[LOCAL] ").Append(msg);
             localResult.AppendLine();
-            return null;
+            return JsValue.Null;
         });
 
         await engine1.Evaluate(@"
@@ -172,10 +173,10 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         var engine2 = new JsEngine();
         engine2.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"[GLOBAL] {msg}");
             globalResult.Append("[GLOBAL] ").Append(msg).AppendLine();
-            return null;
+            return JsValue.Null;
         });
 
         await engine2.Evaluate(@"
@@ -396,9 +397,9 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         var engine1 = new JsEngine();
         engine1.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"[LOCAL] {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine1.Evaluate(@"
@@ -438,9 +439,9 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         var engine2 = new JsEngine();
         engine2.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"[GLOBAL] {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine2.Evaluate(@"
@@ -487,9 +488,9 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         var engine1 = new JsEngine();
         engine1.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"[LOCAL] {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine1.Evaluate(@"
@@ -577,9 +578,9 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         var engine2 = new JsEngine();
         engine2.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"[GLOBAL] {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine2.Evaluate(@"
@@ -681,9 +682,9 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         var engine1 = new JsEngine();
         engine1.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"[LOCAL-MANUAL] {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine1.Evaluate(@"
@@ -746,9 +747,9 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         var engine2 = new JsEngine();
         engine2.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"[GLOBAL-MANUAL] {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine2.Evaluate(@"
@@ -808,8 +809,8 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
 
         output.WriteLine("");
         output.WriteLine("=== MANUAL ITERATION CONCLUSION ===");
-        output.WriteLine($"Local scope manual: {(localManualResult?.ToString() == "xyz" ? "✅ Works" : "❌ Failed")}");
-        output.WriteLine($"Global scope manual: {(globalManualResult?.ToString() == "xyz" ? "✅ Works" : "❌ Failed")}");
+        output.WriteLine($"Local scope manual: {(string.Equals(localManualResult?.ToString(), "xyz", StringComparison.Ordinal) ? "✅ Works" : "❌ Failed")}");
+        output.WriteLine($"Global scope manual: {(string.Equals(globalManualResult?.ToString(), "xyz", StringComparison.Ordinal) ? "✅ Works" : "❌ Failed")}");
         output.WriteLine("");
         output.WriteLine("If manual iteration works for both, the issue is specific to for-await-of transformation.");
     }

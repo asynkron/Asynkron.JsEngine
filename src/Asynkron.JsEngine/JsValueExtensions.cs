@@ -51,6 +51,7 @@ internal static class JsValueExtensions
             return value switch
             {
                 null => 0,
+                JsValue jsValue => jsValue.ToObject().ToNumber(),
                 Symbol sym when ReferenceEquals(sym, Symbol.Undefined) => double.NaN,
                 IIsHtmlDda => double.NaN,
                 JsBigInt bigInt => (double)bigInt.Value,
@@ -88,6 +89,12 @@ internal static class JsValueExtensions
                 return "null";
             }
 
+            // Handle JsValue struct - unwrap and recurse
+            if (value is JsValue jsValue)
+            {
+                return jsValue.ToObject().ToJsString(context, realm);
+            }
+
             if (value is Symbol sym && ReferenceEquals(sym, Symbol.Undefined))
             {
                 return "undefined";
@@ -100,12 +107,12 @@ internal static class JsValueExtensions
 
             var realmState = realm ?? context?.RealmState;
 
-            if (value is Symbol symVal)
+            if (value is Symbol)
             {
                 throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context, realmState);
             }
 
-            if (value is TypedAstSymbol typedSym)
+            if (value is TypedAstSymbol)
             {
                 throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context, realmState);
             }
@@ -156,6 +163,12 @@ internal static class JsValueExtensions
             if (value is null || (value is Symbol sym && ReferenceEquals(sym, Symbol.Undefined)))
             {
                 return string.Empty;
+            }
+
+            // Handle JsValue struct - unwrap and recurse
+            if (value is JsValue jsValue)
+            {
+                return jsValue.ToObject().ToJsStringForArray(context, realm);
             }
 
             return value.ToJsString(context, realm);

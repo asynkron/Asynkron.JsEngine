@@ -12,11 +12,11 @@ public sealed partial class ArrayConstructor : JsConstructor
     {
     }
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var array = AllocateArrayInstance(thisValue);
         InitializeArrayLength(array, args);
-        return array;
+        return JsValue.FromObjectUnsafe(array);
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -27,7 +27,15 @@ public sealed partial class ArrayConstructor : JsConstructor
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
             var targetCtor = Realm.ArrayConstructor ?? constructor;
-            var newTargetCallable = newTarget as IJsCallable ?? targetCtor;
+            IJsCallable newTargetCallable;
+            if (newTarget.TryGetObject<IJsCallable>(out var callable))
+            {
+                newTargetCallable = callable;
+            }
+            else
+            {
+                newTargetCallable = targetCtor;
+            }
             var proto = StandardLibrary.ResolveConstructPrototype(newTargetCallable, targetCtor, Realm) ??
                         Prototype;
             var instanceRealm = ResolveInstanceRealm(proto, newTargetCallable);
@@ -38,7 +46,7 @@ public sealed partial class ArrayConstructor : JsConstructor
             }
 
             InitializeArrayLength(array, args);
-            return array;
+            return JsValue.FromObjectUnsafe(array);
         });
 
         AttachIsArray(constructor);
@@ -48,15 +56,15 @@ public sealed partial class ArrayConstructor : JsConstructor
         AttachSpeciesGetter(constructor);
     }
 
-    private JsArray AllocateArrayInstance(object? thisValue)
+    private JsArray AllocateArrayInstance(JsValue thisValue)
     {
-        if (thisValue is JsArray providedArray)
+        if (thisValue.TryGetObject<JsArray>(out var providedArray))
         {
             return providedArray;
         }
 
         var instance = new JsArray(Realm);
-        if (thisValue is JsObject { Prototype: JsObject providedProto })
+        if (thisValue.TryGetObject<JsObject>(out var obj) && obj.Prototype is JsObject providedProto)
         {
             instance.SetPrototype(providedProto);
         }
@@ -83,7 +91,7 @@ public sealed partial class ArrayConstructor : JsConstructor
         };
     }
 
-    private void InitializeArrayLength(JsArray array, IReadOnlyList<object?> args)
+    private void InitializeArrayLength(JsArray array, IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -120,15 +128,18 @@ public sealed partial class ArrayConstructor : JsConstructor
         }
     }
 
-    private static bool IsNumericPrimitive(object? value)
+    private static bool IsNumericPrimitive(JsValue value)
     {
-        return value is double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte;
+        return value.IsNumber;
     }
 
     private void AttachIsArray(HostFunction constructor)
     {
-        var isArray = new HostFunction(args => StandardLibrary.ArrayIsArray(args.GetArgument(0), Realm), Realm,
-            isConstructor: false);
+        var isArray = new HostFunction(args =>
+        {
+var result = StandardLibrary.ArrayIsArray(args.GetArgument(0), Realm);
+            return result;
+        }, Realm, isConstructor: false);
         StandardLibrary.AttachBuiltinMetadata(isArray, "isArray", 1d);
         isArray.Delete("prototype");
         constructor.DefineProperty("isArray",
@@ -141,8 +152,11 @@ public sealed partial class ArrayConstructor : JsConstructor
     private void AttachFrom(HostFunction constructor)
     {
         HostFunction arrayFrom = null!;
-        arrayFrom = new HostFunction((thisValue, args) => StandardLibrary.ArrayFrom(arrayFrom, thisValue, args, Realm),
-            Realm, isConstructor: false);
+        arrayFrom = new HostFunction((thisValue, args) =>
+        {
+            var result = StandardLibrary.ArrayFrom(arrayFrom, thisValue, args, Realm);
+            return JsValue.FromObjectUnsafe(result);
+        }, Realm, isConstructor: false);
         StandardLibrary.AttachBuiltinMetadata(arrayFrom, "from", 1d);
         arrayFrom.Delete("prototype");
         constructor.DefineProperty("from",
@@ -155,9 +169,11 @@ public sealed partial class ArrayConstructor : JsConstructor
     private void AttachFromAsync(HostFunction constructor)
     {
         HostFunction arrayFromAsync = null!;
-        arrayFromAsync = new HostFunction(
-            (thisValue, args) => StandardLibrary.ArrayFromAsync(arrayFromAsync, thisValue, args, Realm),
-            Realm, isConstructor: false);
+        arrayFromAsync = new HostFunction((thisValue, args) =>
+        {
+            var result = StandardLibrary.ArrayFromAsync(arrayFromAsync, thisValue, args, Realm);
+            return JsValue.FromObjectUnsafe(result);
+        }, Realm, isConstructor: false);
         StandardLibrary.AttachBuiltinMetadata(arrayFromAsync, "fromAsync", 1d);
         arrayFromAsync.Delete("prototype");
         constructor.DefineProperty("fromAsync",
@@ -170,8 +186,11 @@ public sealed partial class ArrayConstructor : JsConstructor
     private void AttachOf(HostFunction constructor)
     {
         HostFunction arrayOf = null!;
-        arrayOf = new HostFunction((thisValue, args) => StandardLibrary.ArrayOf(arrayOf, thisValue, args, Realm), Realm,
-            isConstructor: false);
+        arrayOf = new HostFunction((thisValue, args) =>
+        {
+            var result = StandardLibrary.ArrayOf(arrayOf, thisValue, args, Realm);
+            return JsValue.FromObjectUnsafe(result);
+        }, Realm, isConstructor: false);
         StandardLibrary.AttachBuiltinMetadata(arrayOf, "of", 0d);
         arrayOf.Delete("prototype");
         constructor.DefineProperty("of",

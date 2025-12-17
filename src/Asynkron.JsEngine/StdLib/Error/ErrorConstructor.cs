@@ -1,4 +1,3 @@
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -12,18 +11,18 @@ public abstract partial class ErrorConstructorBase(IJsObjectLike prototype, Real
 
     protected abstract string ErrorType { get; }
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue is JsObject { IsConstructing: true } constructing)
+        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true } constructing)
         {
             ApplyPrototype(constructing, _constructor ?? ConstructFallback);
             InitializeError(constructing, args);
-            return constructing;
+            return new JsValue(constructing);
         }
 
-        var instance = PrepareThisObject(null);
+        var instance = PrepareThisObject(JsValue.Undefined);
         InitializeError(instance, args);
-        return instance;
+        return new JsValue(instance);
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -33,19 +32,51 @@ public abstract partial class ErrorConstructorBase(IJsObjectLike prototype, Real
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
             var target = _constructor ?? constructor;
-            var newTargetCallable = newTarget as IJsCallable ?? target;
-            return ConstructWithNewTarget(args, newTargetCallable, target);
+            var newTargetCallable = newTarget.TryGetObject<IJsCallable>(out var callable) ? callable : target;
+            return JsValue.FromObjectUnsafe(ConstructWithNewTarget(args, newTargetCallable, target));
         });
+
+        // Ensure the prototype points back to this constructor so that thrown errors
+        // expose a usable .constructor property (used by assert.throws in Test262).
+        if (Prototype.GetOwnPropertyDescriptor("constructor") is null)
+        {
+            var descriptor = new PropertyDescriptor
+            {
+                Value = constructor,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
+            };
+
+            if (Prototype is IPropertyDefinitionHost definable)
+            {
+                var added = definable.TryDefineProperty("constructor", descriptor);
+                Console.WriteLine($"DEBUG ErrorConstructor: added ctor on {ErrorType} prototype via definable={added}");
+            }
+            else if (Prototype is JsObject protoObj)
+            {
+                protoObj.SetProperty("constructor", constructor);
+                Console.WriteLine($"DEBUG ErrorConstructor: set ctor on {ErrorType} prototype via SetProperty");
+            }
+            else
+            {
+                Console.WriteLine($"DEBUG ErrorConstructor: no way to set ctor on {ErrorType} prototype type={Prototype.GetType().Name}");
+            }
+        }
+        else
+        {
+            Console.WriteLine($"DEBUG ErrorConstructor: prototype for {ErrorType} already has constructor property");
+        }
 
         LinkPrototypeChain();
         InitializePrototypeDefaults();
         CacheRealmReferences(constructor);
     }
 
-    private object ConstructWithNewTarget(IReadOnlyList<object?> args, IJsCallable newTarget, IJsCallable targetCtor)
+    private object ConstructWithNewTarget(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
-        var instance = PrepareThisObject(null, assignPrototype: false);
+        var instance = PrepareThisObject(JsValue.Undefined, assignPrototype: false);
         if (proto is not null && instance.Prototype is null)
         {
             instance.SetPrototype(proto);
@@ -55,15 +86,15 @@ public abstract partial class ErrorConstructorBase(IJsObjectLike prototype, Real
         return instance;
     }
 
-    private void InitializeError(JsObject instance, IReadOnlyList<object?> args)
+    private void InitializeError(JsObject instance, IReadOnlyList<JsValue> args)
     {
         instance.RealmState ??= Realm;
-        if (args.Count == 0 || ReferenceEquals(args[0], Symbol.Undefined))
+        if (args.Count == 0 || args[0].IsUndefined)
         {
             return;
         }
 
-        var message = args[0] is null ? "null" : JsOps.ToJsString(args[0]);
+        var message = args[0].IsNull ? "null" : JsOps.ToJsString(args[0]);
         instance.DefineProperty("message",
             new PropertyDescriptor
             {

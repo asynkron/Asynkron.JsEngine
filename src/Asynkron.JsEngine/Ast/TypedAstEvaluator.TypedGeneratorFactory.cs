@@ -14,7 +14,7 @@ public static partial class TypedAstEvaluator
         private readonly FunctionExpression _function;
         private readonly bool _isLexicallyStrict;
         private readonly bool _hasFunctionNameEnvironment;
-        private readonly Dictionary<string, object?> _privateSlots = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, JsValue> _privateSlots = new(StringComparer.Ordinal);
         private readonly JsObject _properties = new();
         private readonly RealmState _realmState;
         private bool _isConstructorEnabled;
@@ -96,7 +96,7 @@ public static partial class TypedAstEvaluator
                 });
         }
 
-        public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
+        public JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
         {
             var instance = new TypedGeneratorInstance(
                 _function,
@@ -111,7 +111,7 @@ public static partial class TypedAstEvaluator
                 _privateNameScope,
                 _capturedPrivateNameScopes);
             instance.Initialize();
-            return instance.CreateGeneratorObject();
+            return (JsValue)instance.CreateGeneratorObject();
         }
 
         public JsObject? Prototype => _properties.Prototype;
@@ -173,7 +173,7 @@ public static partial class TypedAstEvaluator
             return _properties.DeleteOwnProperty(name);
         }
 
-        public bool TryGetProperty(string name, object? receiver, out object? value)
+        public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
         {
             if (name.IsPrivateSlotName())
             {
@@ -189,7 +189,7 @@ public static partial class TypedAstEvaluator
             switch (name)
             {
                 case "call":
-                    value = new HostFunction((_, args) =>
+                    value = (JsValue)new HostFunction((_, args) =>
                     {
                         var thisArg = args.GetArgument(0);
                         var callArgs = args.SliceFrom(1);
@@ -198,64 +198,77 @@ public static partial class TypedAstEvaluator
                     return true;
 
                 case "apply":
-                    value = new HostFunction((_, args) =>
+                    value = (JsValue)new HostFunction((_, args) =>
                     {
                         var thisArg = args.GetArgument(0);
-                        IReadOnlyList<object?> argList = args.Count > 1 && args[1] is JsArray jsArray
-                            ? jsArray.Items
-                            : ArgumentSlice.Empty;
+                        IReadOnlyList<JsValue> argList = ArgumentSlice.Empty;
+                        if (args.Count > 1 && args[1].TryUnwrap(out JsArray? jsArray))
+                        {
+                            // items[i] is already JsValue from JsArray.Items
+                            var items = jsArray.Items;
+                            var converted = new JsValue[items.Count];
+                            for (var i = 0; i < items.Count; i++)
+                            {
+                                converted[i] = items[i];
+                            }
+                            argList = converted;
+                        }
                         return callable.Invoke(argList, thisArg);
                     });
                     return true;
 
                 case "bind":
-                    value = new HostFunction((_, args) =>
+                    value = (JsValue)new HostFunction((_, args) =>
                     {
                         var boundThis = args.GetArgument(0);
-                    var boundArgs = args.SliceFrom(1);
+                        var boundArgs = args.SliceFrom(1);
 
-                    // Generator functions are never constructors, so bound generator functions
-                    // must also have DisallowConstruct = true per ES spec.
-                    return new HostFunction((_, innerArgs) =>
-                    {
-                        if (boundArgs.Count == 0)
-                            return callable.Invoke(innerArgs, boundThis);
-                        if (innerArgs.Count == 0)
-                            return callable.Invoke(boundArgs, boundThis);
+                        // Generator functions are never constructors, so bound generator functions
+                        // must also have DisallowConstruct = true per ES spec.
+                        return (JsValue)new HostFunction((_, innerArgs) =>
+                        {
+                            if (boundArgs.Count == 0)
+                                return callable.Invoke(innerArgs, boundThis);
+                            if (innerArgs.Count == 0)
+                                return callable.Invoke(boundArgs, boundThis);
 
-                        var finalArgs = new object?[boundArgs.Count + innerArgs.Count];
-                        for (var i = 0; i < boundArgs.Count; i++)
-                            finalArgs[i] = boundArgs[i];
-                        for (var i = 0; i < innerArgs.Count; i++)
-                            finalArgs[boundArgs.Count + i] = innerArgs[i];
+                            var finalArgs = new JsValue[boundArgs.Count + innerArgs.Count];
+                            for (var i = 0; i < boundArgs.Count; i++)
+                                finalArgs[i] = boundArgs[i];
+                            for (var i = 0; i < innerArgs.Count; i++)
+                                finalArgs[boundArgs.Count + i] = innerArgs[i];
 
-                        return callable.Invoke(finalArgs, boundThis);
-                    }, _realmState, isConstructor: false) { DisallowConstruct = true };
-                });
-                return true;
+                            return callable.Invoke(finalArgs, boundThis);
+                        }, _realmState, isConstructor: false) { DisallowConstruct = true };
+                    });
+                    return true;
             }
 
             // Fall back to properties lookup for all other properties
-            if (_properties.TryGetProperty(name, receiver ?? this, out value))
+            var receiverValue = receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver;
+            if (_properties.TryGetProperty(name, receiverValue, out var objValue))
             {
+                value = objValue;
                 return true;
             }
 
-            value = null;
+            value = JsValue.Undefined;
             return false;
         }
 
-        public bool TryGetProperty(string name, out object? value)
+        public bool TryGetProperty(string name, out JsValue value)
         {
-            return TryGetProperty(name, this, out value);
+            return TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);
         }
 
-        public void SetProperty(string name, object? value)
+
+        public void SetProperty(string name, JsValue value)
         {
-            SetProperty(name, value, this);
+            SetProperty(name, value, JsValue.FromObjectUnsafe(this));
         }
 
-        public void SetProperty(string name, object? value, object? receiver)
+
+        public void SetProperty(string name, JsValue value, JsValue receiver)
         {
             if (name.IsPrivateSlotName())
             {
@@ -263,7 +276,8 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            _properties.SetProperty(name, value, receiver ?? this);
+            var receiverValue = receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver;
+            _properties.SetProperty(name, value, receiverValue);
         }
 
         PropertyDescriptor? IJsPropertyAccessor.GetOwnPropertyDescriptor(string name)
@@ -369,7 +383,7 @@ public static partial class TypedAstEvaluator
                     }
 
                     // GeneratorFunction.prototype = GeneratorFunctionPrototype
-                    generatorFunctionConstructor.SetProperty("prototype", genFuncProto);
+                    generatorFunctionConstructor.SetProperty("prototype", (JsValue)genFuncProto);
                 }
             }
         }
@@ -385,7 +399,14 @@ public static partial class TypedAstEvaluator
             };
 
             generatorFunctionConstructor.SetInvokeWithContext((args, _, _, newTarget) =>
-                GeneratorFunctionConstructorBody(args, newTarget as IJsCallable ?? generatorFunctionConstructor, engine, realm));
+            {
+                IJsCallable targetCallable = generatorFunctionConstructor;
+                if (newTarget.TryUnwrap(out IJsCallable? callable))
+                {
+                    targetCallable = callable;
+                }
+                return GeneratorFunctionConstructorBody(args, targetCallable, engine, realm);
+            });
 
             StdLib.StandardLibrary.DefineConstantProperty(generatorFunctionConstructor, "length", 1d, configurable: true);
             StdLib.StandardLibrary.DefineConstantProperty(generatorFunctionConstructor, "name", "GeneratorFunction", configurable: true);
@@ -393,15 +414,15 @@ public static partial class TypedAstEvaluator
             return generatorFunctionConstructor;
         }
 
-        private static object? GeneratorFunctionConstructorBody(
-            IReadOnlyList<object?> args,
+        private static JsValue GeneratorFunctionConstructorBody(
+            IReadOnlyList<JsValue> args,
             IJsCallable newTarget,
             JsEngine engine,
             RealmState realm)
         {
             var evalContext = realm.CreateContext();
             var argCount = args.Count;
-            var bodyValue = argCount > 0 ? args[argCount - 1] : string.Empty;
+            var bodyValue = argCount > 0 ? args[argCount - 1] : (JsValue)string.Empty;
             var parameterCount = Math.Max(argCount - 1, 0);
 
             var parameters = new string[parameterCount];
@@ -427,26 +448,28 @@ public static partial class TypedAstEvaluator
             ParsedProgram program;
             try
             {
-                program = engine.ParseForExecution(functionSource, options: scriptGoalOptions);
+                program = engine.ParseProgram(functionSource, options: scriptGoalOptions);
             }
             catch (Parser.ParseException parseException)
             {
                 var message = parseException.Message ?? "SyntaxError";
-                throw new ThrowSignal(StdLib.StandardLibrary.CreateSyntaxError(message, evalContext, realm));
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(StdLib.StandardLibrary.CreateSyntaxError(message, evalContext, realm)));
             }
 
-            var created = engine.ExecuteProgram(
+            var createdObj = engine.ExecuteProgram(
                 program,
                 engine.GlobalEnvironment,
                 CancellationToken.None);
 
+            var created = JsValue.FromObjectUnsafe(createdObj);
+
             // The result should now be a TypedGeneratorFactory
-            if (created is IJsObjectLike objectLike)
+            if (created.TryUnwrap(out IJsObjectLike? objectLike))
             {
                 // Resolve the prototype from the newTarget
                 var proto = StdLib.StandardLibrary.ResolveConstructPrototype(
                     newTarget,
-                    realm.GeneratorFunctionConstructor,
+                    realm.GeneratorFunctionConstructor!,
                     realm);
                 if (proto is not null)
                 {
@@ -457,40 +480,59 @@ public static partial class TypedAstEvaluator
             return created;
         }
 
-        private static string ToFunctionArgumentString(object? value, EvaluationContext evalContext, RealmState realm)
+        private static string ToFunctionArgumentString(JsValue value, EvaluationContext evalContext, RealmState realm)
         {
-            var primitive = Runtime.JsOps.ToPrimitive(value, Runtime.ToPrimitiveHint.String, evalContext);
+            var primitiveObj = JsOps.ToPrimitive(value.ToObject(), ToPrimitiveHint.String, evalContext);
             if (evalContext.IsThrow)
             {
                 throw new ThrowSignal(evalContext.FlowValue);
             }
 
-            switch (primitive)
+            var primitive = JsValue.FromObjectUnsafe(primitiveObj);
+
+            if (primitive.IsNull)
             {
-                case null:
-                    return "null";
-                case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
-                    return "undefined";
-                case Symbol:
-                case TypedAstSymbol:
-                    throw StdLib.StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", evalContext, realm);
-                case bool flag:
-                    return flag ? "true" : "false";
-                case string s:
-                    return s;
-                case JsBigInt bigInt:
-                    return bigInt.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                case double d when double.IsNaN(d):
-                    return "NaN";
-                case double d when double.IsPositiveInfinity(d):
-                    return "Infinity";
-                case double d when double.IsNegativeInfinity(d):
-                    return "-Infinity";
-                case double d:
-                    return d.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                return "null";
             }
 
-            return Convert.ToString(primitive, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+            if (primitive.IsUndefined)
+            {
+                return "undefined";
+            }
+
+            if (primitive.TryUnwrap(out Symbol? _) || primitive.TryUnwrap(out TypedAstSymbol? _))
+            {
+                throw StdLib.StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", evalContext, realm);
+            }
+
+            if (primitive.TryGetBoolean(out var flag))
+            {
+                return flag ? "true" : "false";
+            }
+
+            if (primitive.TryGetString(out var s))
+            {
+                return s ?? string.Empty;
+            }
+
+            if (primitive.TryUnwrap(out JsBigInt? bigInt))
+            {
+                return bigInt.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            if (primitive.TryGetDouble(out var d))
+            {
+                if (double.IsNaN(d))
+                    return "NaN";
+                if (double.IsPositiveInfinity(d))
+                    return "Infinity";
+                if (double.IsNegativeInfinity(d))
+                    return "-Infinity";
+                return d.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            var obj = primitive.ToObject();
+            return Convert.ToString(obj, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
         }
 
         private void InitializeProperties()

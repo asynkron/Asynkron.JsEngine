@@ -1,4 +1,3 @@
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.JsTypes;
@@ -33,29 +32,29 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvi
 
         _sliceFunction = new HostFunction((thisValue, args) =>
         {
-            var target = thisValue as JsArrayBuffer ?? this;
-            var begin = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
-            var end = args.Count > 1 && args[1] is double d2 ? (int)d2 : target.ByteLength;
+            var target = thisValue.TryGetObject<JsArrayBuffer>(out var buf) ? buf : this;
+            var begin = args.Count > 0 && args[0].TryGetDouble(out var d1) ? (int)d1 : 0;
+            var end = args.Count > 1 && args[1].TryGetDouble(out var d2) ? (int)d2 : target.ByteLength;
 
-            return target.Slice(begin, end);
+            return JsValue.FromObjectUnsafe(target.Slice(begin, end));
         });
 
         _resizeFunction = new HostFunction((thisValue, args) =>
         {
-            var target = thisValue as JsArrayBuffer ?? this;
+            var target = thisValue.TryGetObject<JsArrayBuffer>(out var buf) ? buf : this;
             if (!Resizable)
             {
                 throw new ThrowSignal(CreateTypeError("ArrayBuffer is not resizable"));
             }
 
-            if (args.Count == 0 || args[0] is not double d)
+            if (args.Count == 0 || !args[0].TryGetDouble(out var d))
             {
                 throw new ThrowSignal(CreateTypeError("resize requires a new length"));
             }
 
             var newLength = (int)d;
             target.Resize(newLength);
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         });
 
         if (realmState?.ArrayBufferPrototype is not null)
@@ -122,35 +121,35 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvi
         return _properties.Delete(name);
     }
 
-    public bool TryGetProperty(string name, object? receiver, out object? value)
+    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        if (_properties.TryGetProperty(name, receiver ?? this, out value))
+        if (_properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver, out value))
         {
             return true;
         }
 
-        value = null;
+        value = JsValue.Undefined;
         return false;
     }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, this, out value);
+        return TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);
     }
 
-    public void SetProperty(string name, object? value, object? receiver)
+    public void SetProperty(string name, JsValue value, JsValue receiver)
     {
         if (string.Equals(name, "byteLength", StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Cannot assign to read-only property 'byteLength' on ArrayBuffer.");
         }
 
-        _properties.SetProperty(name, value, receiver ?? this);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver);
     }
 
-    public void SetProperty(string name, object? value)
+    public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, this);
+        SetProperty(name, value, JsValue.FromObjectUnsafe(this));
     }
 
     /// <summary>
@@ -204,8 +203,8 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvi
     {
         if (RealmState?.TypeErrorConstructor is IJsCallable ctor)
         {
-            var created = ctor.Invoke([message], null);
-            if (created is JsObject jsObj)
+            var created = ctor.Invoke([new JsValue(message)], JsValue.Undefined);
+            if (created.TryGetObject<JsObject>(out var jsObj))
             {
                 return jsObj;
             }
@@ -218,8 +217,8 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvi
     {
         if (RealmState?.RangeErrorConstructor is IJsCallable ctor)
         {
-            var created = ctor.Invoke([message], null);
-            if (created is JsObject jsObj)
+            var created = ctor.Invoke([new JsValue(message)], JsValue.Undefined);
+            if (created.TryGetObject<JsObject>(out var jsObj))
             {
                 return jsObj;
             }

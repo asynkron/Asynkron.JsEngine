@@ -1,46 +1,21 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
-/// Represents the kind of a JavaScript value.
-/// </summary>
-public enum JsValueKind : byte
-{
-    /// <summary>The undefined value.</summary>
-    Undefined = 0,
-
-    /// <summary>The null value.</summary>
-    Null = 1,
-
-    /// <summary>A boolean value (true/false).</summary>
-    Boolean = 2,
-
-    /// <summary>A number value (IEEE 754 double).</summary>
-    Number = 3,
-
-    /// <summary>A BigInt value (arbitrary precision integer).</summary>
-    BigInt = 4,
-
-    /// <summary>A string value.</summary>
-    String = 5,
-
-    /// <summary>A Symbol value.</summary>
-    Symbol = 6,
-
-    /// <summary>An object value (includes arrays, functions, etc.).</summary>
-    Object = 7
-}
-
-/// <summary>
+/// <para>
 /// A unified struct representation of JavaScript values that avoids boxing for primitives.
 /// This is the core value type used throughout the engine to minimize allocations.
-///
+/// </para>
+/// <para>
 /// Layout (24 bytes on 64-bit):
-/// - Kind: 1 byte (+ 7 bytes padding)
+/// - Kind: 4 bytes (int enum, better CPU performance than byte)
+/// - Padding: 4 bytes (to align double to 8-byte boundary)
 /// - NumberValue: 8 bytes (stores double directly, or bool as 0.0/1.0)
 /// - ObjectValue: 8 bytes (reference for string, BigInt, Symbol, JsObject)
+/// </para>
 /// </summary>
 public readonly struct JsValue : IEquatable<JsValue>
 {
@@ -62,6 +37,65 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// For primitives: null.
     /// </summary>
     public readonly object? ObjectValue;
+
+    #region Static Cache
+
+    /// <summary>
+    /// Cache of JsValue instances for integers 0-99999.
+    /// Used to avoid struct copies for common numeric values.
+    /// </summary>
+    private static readonly JsValue[] IntegerCache = CreateIntegerCache(100000);
+
+    private static JsValue[] CreateIntegerCache(int size)
+    {
+        var cache = new JsValue[size];
+        for (var i = 0; i < size; i++)
+        {
+            cache[i] = new JsValue((double)i);
+        }
+        return cache;
+    }
+
+    /// <summary>
+    /// Returns a JsValue for the given double, using cache for common integers.
+    /// This avoids struct initialization for cached values.
+    /// Note: We must not cache -0.0 since it's semantically different from +0.0 in JavaScript.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue FromDouble(double value)
+    {
+        // Fast path: check if it's a cached non-negative integer
+        // Use double.IsNegative to detect negative zero (which would incorrectly match cache[0])
+        // This is important because -0.0 == 0.0 in C# but they must be distinct in JavaScript
+        var i = (int)value;
+        if ((uint)i < (uint)IntegerCache.Length && i == value && !double.IsNegative(value))
+        {
+            return IntegerCache[i];
+        }
+        return new JsValue(value);
+    }
+
+    /// <summary>
+    /// Returns a ref to a cached JsValue for the given double, or stores in the scratch slot.
+    /// This avoids 24-byte struct copies for cached values.
+    /// Note: We must not cache -0.0 since it's semantically different from +0.0 in JavaScript.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ref readonly JsValue FromDoubleRef(double value, ref JsValue scratch)
+    {
+        // Fast path: check if it's a cached non-negative integer
+        // Use double.IsNegative to detect negative zero (which would incorrectly match cache[0])
+        var i = (int)value;
+        if ((uint)i < (uint)IntegerCache.Length && i == value && !double.IsNegative(value))
+        {
+            return ref IntegerCache[i];
+        }
+        // Fallback: store in scratch and return ref to it
+        scratch = new JsValue(value);
+        return ref scratch;
+    }
+
+    #endregion
 
     #region Static Singletons
 
@@ -97,6 +131,24 @@ public readonly struct JsValue : IEquatable<JsValue>
 
     /// <summary>The empty string.</summary>
     public static readonly JsValue EmptyString = new(string.Empty);
+
+    /// <summary>
+    /// Sentinel object returned by ToObject() for Unit values.
+    /// Used for backwards compatibility with code that checks ReferenceEquals against EmptyCompletion.
+    /// </summary>
+    internal static readonly object UnitSentinel = new();
+
+    /// <summary>
+    /// Unit/empty completion - represents "no value produced" by a statement.
+    /// Used to distinguish "statement produced no completion value" from "undefined".
+    /// </summary>
+    public static readonly JsValue Unit = new(JsValueKind.Unit, 0.0, UnitSentinel);
+
+    /// <summary>
+    /// Uninitialized binding - represents a variable in the Temporal Dead Zone (TDZ).
+    /// Accessing this value should throw a ReferenceError.
+    /// </summary>
+    public static readonly JsValue Uninitialized = new(JsValueKind.Uninitialized, 0.0, null);
 
     #endregion
 
@@ -225,6 +277,13 @@ public readonly struct JsValue : IEquatable<JsValue>
         get => Kind <= JsValueKind.Null;
     }
 
+    /// <summary>True if this is an uninitialized binding (TDZ).</summary>
+    public bool IsUninitialized
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => Kind == JsValueKind.Uninitialized;
+    }
+
     /// <summary>True if this is a boolean value.</summary>
     public bool IsBoolean
     {
@@ -274,6 +333,13 @@ public readonly struct JsValue : IEquatable<JsValue>
         get => Kind != JsValueKind.Object;
     }
 
+    /// <summary>True if this is the Unit value (empty completion / no value).</summary>
+    public bool IsUnit
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => Kind == JsValueKind.Unit;
+    }
+
     #endregion
 
     #region Value Accessors
@@ -308,6 +374,114 @@ public readonly struct JsValue : IEquatable<JsValue>
 
     #endregion
 
+    #region TryGet Methods (for pattern matching)
+
+    /// <summary>Tries to get the double value. Returns true if this is a number.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetDouble(out double value)
+    {
+        if (Kind == JsValueKind.Number)
+        {
+            value = NumberValue;
+            return true;
+        }
+        value = 0;
+        return false;
+    }
+
+    /// <summary>Tries to get the boolean value. Returns true if this is a boolean.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetBoolean(out bool value)
+    {
+        if (Kind == JsValueKind.Boolean)
+        {
+            value = NumberValue != 0.0;
+            return true;
+        }
+        value = false;
+        return false;
+    }
+
+    /// <summary>Tries to get the string value. Returns true if this is a string.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetString(out string? value)
+    {
+        if (Kind == JsValueKind.String)
+        {
+            value = (string)ObjectValue!;
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    /// <summary>Tries to get the Symbol value. Returns true if this is a Symbol.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetSymbol(out Symbol? value)
+    {
+        if (Kind == JsValueKind.Symbol)
+        {
+            value = (Symbol)ObjectValue!;
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    /// <summary>Tries to get the BigInt value. Returns true if this is a BigInt.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetBigInt(out JsBigInt? value)
+    {
+        if (Kind == JsValueKind.BigInt)
+        {
+            value = (JsBigInt)ObjectValue!;
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    /// <summary>Tries to get the object value. Returns true if this is an object.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetObject(out JsObject? value)
+    {
+        if (Kind == JsValueKind.Object && ObjectValue is JsObject obj)
+        {
+            value = obj;
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    /// <summary>Tries to get the object value as a specific type. Returns true if this is an object of that type.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetObject<T>([NotNullWhen(true)]out T? value) where T : class
+    {
+        if (Kind == JsValueKind.Object && ObjectValue is T obj)
+        {
+            value = obj;
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    /// <summary>Tries to unwrap the value to a specific type from ObjectValue. Works for any kind.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryUnwrap<T>([NotNullWhen(true)]out T? value) where T : class
+    {
+        if (ObjectValue is T obj)
+        {
+            value = obj;
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    #endregion
+
     #region Conversion Methods
 
     /// <summary>
@@ -328,57 +502,68 @@ public readonly struct JsValue : IEquatable<JsValue>
             JsValueKind.String => ObjectValue,
             JsValueKind.Symbol => ObjectValue,
             JsValueKind.Object => ObjectValue,
+            JsValueKind.Unit => ObjectValue, // Returns UnitSentinel
             _ => Symbol.Undefined
         };
     }
 
+    #region Typed FromObject overloads - prefer these to avoid boxing
+
     /// <summary>
-    /// Creates a JsValue from a boxed object representation.
-    /// Used for gradual migration from object? to JsValue.
+    /// Runtime conversion from object? to JsValue. Use this ONLY when the source type
+    /// is genuinely unknown at compile time (e.g., values from dictionaries, reflection, etc.).
+    /// Prefer typed overloads when the type is known.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static JsValue FromObject(object? value)
+    public static JsValue FromObjectUnsafe(object? value)
     {
+        // Check for JsEnvironment.Uninitialized sentinel before the switch
+        if (ReferenceEquals(value, JsEnvironment.Uninitialized))
+        {
+            return Uninitialized;
+        }
+
         return value switch
         {
             null => Null,
+            JsValue jsv => jsv, // Already a JsValue (was boxed)
+            JsObject jsObj => new JsValue(jsObj),
+            string s => new JsValue(s),
             double d => new JsValue(d),
             int i => new JsValue((double)i),
             long l => new JsValue((double)l),
             bool b => b ? True : False,
-            string s => new JsValue(s),
+            Symbol sym => ReferenceEquals(sym, Symbol.Undefined) ? Undefined : new JsValue(sym),
+            TypedAstSymbol astSym => new JsValue(JsValueKind.Symbol, 0.0, astSym),
             JsBigInt bi => new JsValue(bi),
-            Symbol sym => sym == Symbol.Undefined ? Undefined : new JsValue(sym),
-            JsObject obj => new JsValue(obj),
-            _ => FromObjectSlow(value)
-        };
-    }
-
-    /// <summary>Slow path for less common types.</summary>
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static JsValue FromObjectSlow(object value)
-    {
-        // Handle other numeric types
-        return value switch
-        {
-            // Handle boxed JsValue - unwrap it instead of wrapping again
-            JsValue jsValue => jsValue,
-            // Handle JavaScript Symbol (TypedAstSymbol) - must come before JsObject check
-            TypedAstSymbol sym => new JsValue(JsValueKind.Symbol, 0.0, sym),
-            float f => new JsValue((double)f),
+            // Non-JsObject types that are wrapped as objects
+            JsPromise promise => new JsValue(JsValueKind.Object, 0.0, promise),
+            JsRegExp regExp => new JsValue(JsValueKind.Object, 0.0, regExp),
+            JsDataView dataView => new JsValue(JsValueKind.Object, 0.0, dataView),
+            JsMap map => new JsValue(JsValueKind.Object, 0.0, map),
+            JsSet set => new JsValue(JsValueKind.Object, 0.0, set),
+            JsWeakMap weakMap => new JsValue(JsValueKind.Object, 0.0, weakMap),
+            JsWeakSet weakSet => new JsValue(JsValueKind.Object, 0.0, weakSet),
+            TypedArrayBase typedArray => new JsValue(JsValueKind.Object, 0.0, typedArray),
+            // Interface-based fallbacks
+            IJsObjectLike objLike => new JsValue(JsValueKind.Object, 0.0, objLike),
+            IJsCallable callable => new JsValue(JsValueKind.Object, 0.0, callable),
+            IJsPropertyAccessor accessor => new JsValue(JsValueKind.Object, 0.0, accessor),
+            // Numeric types
+            float f => new JsValue(f),
             decimal dec => new JsValue((double)dec),
             uint ui => new JsValue((double)ui),
-            ulong ul => new JsValue((double)ul),
-            short s => new JsValue((double)s),
-            ushort us => new JsValue((double)us),
-            byte b => new JsValue((double)b),
-            sbyte sb => new JsValue((double)sb),
-            // If it's a JsObject subclass, wrap it
-            _ when value is JsObject obj => new JsValue(obj),
-            // Unknown type - wrap as object (should rarely happen)
+            ulong ul => new JsValue(ul),
+            short sh => new JsValue((double)sh),
+            ushort ush => new JsValue((double)ush),
+            byte by => new JsValue((double)by),
+            sbyte sby => new JsValue((double)sby),
+            // Fallback: wrap unknown types as objects (for internal types like YieldResumeContext)
             _ => new JsValue(JsValueKind.Object, 0.0, value)
         };
     }
+
+    #endregion
 
     #endregion
 
@@ -392,29 +577,34 @@ public readonly struct JsValue : IEquatable<JsValue>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static JsValue FromNumber(double value)
     {
-        // Fast path for common values
-        if (value == 0.0) return Zero;
-        if (value == 1.0) return One;
-        if (value == -1.0) return NegativeOne;
-        return new JsValue(value);
+        return value switch
+        {
+            // Fast path for common values
+            0.0 => Zero,
+            1.0 => One,
+            -1.0 => NegativeOne,
+            _ => new JsValue(value)
+        };
     }
 
     /// <summary>Creates a number JsValue from an integer.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static JsValue FromNumber(int value)
     {
-        if (value == 0) return Zero;
-        if (value == 1) return One;
-        if (value == -1) return NegativeOne;
-        return new JsValue((double)value);
+        return value switch
+        {
+            0 => Zero,
+            1 => One,
+            -1 => NegativeOne,
+            _ => new JsValue((double)value)
+        };
     }
 
     /// <summary>Creates a string JsValue.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static JsValue FromString(string value)
     {
-        if (value.Length == 0) return EmptyString;
-        return new JsValue(value);
+        return value.Length == 0 ? EmptyString : new JsValue(value);
     }
 
     #endregion
@@ -428,18 +618,25 @@ public readonly struct JsValue : IEquatable<JsValue>
     public bool IsTruthy
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => Kind switch
+        get
         {
-            JsValueKind.Undefined => false,
-            JsValueKind.Null => false,
-            JsValueKind.Boolean => NumberValue != 0.0,
-            JsValueKind.Number => NumberValue != 0.0 && !double.IsNaN(NumberValue),
-            JsValueKind.String => ((string)ObjectValue!).Length > 0,
-            JsValueKind.BigInt => !((JsBigInt)ObjectValue!).Value.IsZero,
-            JsValueKind.Symbol => true,
-            JsValueKind.Object => true,
-            _ => false
-        };
+            // Fast path for boolean (most common in loop conditions)
+            if (Kind == JsValueKind.Boolean) return NumberValue != 0.0;
+            // Fast path for objects (always truthy)
+            if (Kind == JsValueKind.Object) return true;
+
+            return Kind switch
+            {
+                JsValueKind.Undefined => false,
+                JsValueKind.Null => false,
+                JsValueKind.Unit => false,
+                JsValueKind.Number => NumberValue != 0.0 && !double.IsNaN(NumberValue),
+                JsValueKind.String => ((string)ObjectValue!).Length > 0,
+                JsValueKind.BigInt => !((JsBigInt)ObjectValue!).Value.IsZero,
+                JsValueKind.Symbol => true,
+                _ => false
+            };
+        }
     }
 
     /// <summary>Returns true if this value is falsy according to JavaScript semantics.</summary>
@@ -461,13 +658,13 @@ public readonly struct JsValue : IEquatable<JsValue>
         {
             JsValueKind.Undefined => true,
             JsValueKind.Null => true,
+            JsValueKind.Unit => true,
             JsValueKind.Boolean => NumberValue == other.NumberValue,
             JsValueKind.Number => NumberValue.Equals(other.NumberValue), // Handles NaN correctly
             JsValueKind.String => string.Equals((string)ObjectValue!, (string)other.ObjectValue!, StringComparison.Ordinal),
             JsValueKind.BigInt => ((JsBigInt)ObjectValue!).Equals((JsBigInt)other.ObjectValue!),
-            JsValueKind.Symbol => ReferenceEquals(ObjectValue, other.ObjectValue),
-            JsValueKind.Object => ReferenceEquals(ObjectValue, other.ObjectValue),
-            _ => false
+            JsValueKind.Symbol or JsValueKind.Object => ReferenceEquals(ObjectValue, other.ObjectValue),
+            _ => false,
         };
     }
 
@@ -479,12 +676,11 @@ public readonly struct JsValue : IEquatable<JsValue>
         {
             JsValueKind.Undefined => 0,
             JsValueKind.Null => 1,
+            JsValueKind.Unit => -1, // Distinct from other singletons
             JsValueKind.Boolean => NumberValue != 0.0 ? 3 : 2,
             JsValueKind.Number => NumberValue.GetHashCode(),
             JsValueKind.String => ((string)ObjectValue!).GetHashCode(StringComparison.Ordinal),
-            JsValueKind.BigInt => ObjectValue!.GetHashCode(),
-            JsValueKind.Symbol => ObjectValue!.GetHashCode(),
-            JsValueKind.Object => ObjectValue!.GetHashCode(),
+            JsValueKind.BigInt or JsValueKind.Symbol or JsValueKind.Object => ObjectValue!.GetHashCode(),
             _ => 0
         };
     }
@@ -502,6 +698,7 @@ public readonly struct JsValue : IEquatable<JsValue>
         {
             JsValueKind.Undefined => "undefined",
             JsValueKind.Null => "null",
+            JsValueKind.Unit => "unit",
             JsValueKind.Boolean => NumberValue != 0.0 ? "true" : "false",
             JsValueKind.Number => NumberValue.ToString(System.Globalization.CultureInfo.InvariantCulture),
             JsValueKind.String => $"\"{ObjectValue}\"",
@@ -516,10 +713,29 @@ public readonly struct JsValue : IEquatable<JsValue>
 
     #region Implicit Conversions (for convenience)
 
+    // Primitive conversions
     public static implicit operator JsValue(double value) => new(value);
     public static implicit operator JsValue(int value) => new((double)value);
+    public static implicit operator JsValue(long value) => new((double)value);
     public static implicit operator JsValue(bool value) => value ? True : False;
     public static implicit operator JsValue(string value) => new(value);
+
+    // Object type conversions - reduces JsValue.FromObjectUnsafe() boilerplate
+    public static implicit operator JsValue(JsObject value) => new(value);
+    public static implicit operator JsValue(JsBigInt value) => new(value);
+    public static implicit operator JsValue(Symbol value) => new(value);
+    public static implicit operator JsValue(TypedAstSymbol value) => new(JsValueKind.Symbol, 0.0, value);
+
+    // Non-JsObject types that implement IJsObjectLike or are wrapped as objects
+    public static implicit operator JsValue(HostFunction value) => new(JsValueKind.Object, 0.0, value);
+    public static implicit operator JsValue(TypedArrayBase value) => new(JsValueKind.Object, 0.0, value);
+    public static implicit operator JsValue(JsPromise value) => new(JsValueKind.Object, 0.0, value);
+    public static implicit operator JsValue(JsRegExp value) => new(JsValueKind.Object, 0.0, value);
+    public static implicit operator JsValue(JsDataView value) => new(JsValueKind.Object, 0.0, value);
+    public static implicit operator JsValue(JsMap value) => new(JsValueKind.Object, 0.0, value);
+    public static implicit operator JsValue(JsSet value) => new(JsValueKind.Object, 0.0, value);
+    public static implicit operator JsValue(JsWeakMap value) => new(JsValueKind.Object, 0.0, value);
+    public static implicit operator JsValue(JsWeakSet value) => new(JsValueKind.Object, 0.0, value);
 
     #endregion
 }

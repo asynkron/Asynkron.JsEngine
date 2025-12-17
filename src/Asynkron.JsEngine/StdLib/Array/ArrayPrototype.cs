@@ -45,18 +45,6 @@ public sealed partial class ArrayPrototype
         var unscopables = new JsObject();
         unscopables.SetPrototype(null);
 
-        void Flag(string name)
-        {
-            unscopables.DefineProperty(name,
-                new PropertyDescriptor
-                {
-                    Value = true,
-                    Writable = true,
-                    Enumerable = true,
-                    Configurable = true
-                });
-        }
-
         Flag("copyWithin");
         Flag("entries");
         Flag("fill");
@@ -78,5 +66,18 @@ public sealed partial class ArrayPrototype
                 Enumerable = false,
                 Configurable = true
             });
+        return;
+
+        void Flag(string name)
+        {
+            unscopables.DefineProperty(name,
+                new PropertyDescriptor
+                {
+                    Value = true,
+                    Writable = true,
+                    Enumerable = true,
+                    Configurable = true
+                });
+        }
     }
 }

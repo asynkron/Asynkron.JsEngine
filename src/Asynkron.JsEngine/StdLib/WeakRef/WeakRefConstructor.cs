@@ -10,15 +10,15 @@ public sealed partial class WeakRefConstructor(IJsObjectLike prototype, RealmSta
 {
     private HostFunction? _constructor;
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var targetCtor = _constructor ?? ConstructFallback;
-        if (thisValue is JsObject { IsConstructing: true } constructing)
+        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true } constructing)
         {
             var target = RequireTargetObject(args);
             ApplyPrototype(constructing, targetCtor);
             InitializeWeakRef(constructing, target);
-            return constructing;
+            return new JsValue(constructing);
         }
 
         throw ThrowTypeError("Constructor WeakRef requires 'new'", realm: Realm);
@@ -29,7 +29,7 @@ public sealed partial class WeakRefConstructor(IJsObjectLike prototype, RealmSta
         _constructor = constructor;
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
-            if (newTarget is not IJsCallable callableNewTarget)
+            if (!newTarget.IsObject || newTarget.AsObject<IJsCallable>() is not { } callableNewTarget)
             {
                 throw ThrowTypeError("Constructor WeakRef requires 'new'", realm: Realm);
             }
@@ -39,24 +39,24 @@ public sealed partial class WeakRefConstructor(IJsObjectLike prototype, RealmSta
         });
     }
 
-    private object ConstructWithNewTarget(IReadOnlyList<object?> args, IJsCallable newTarget, IJsCallable targetCtor)
+    private JsValue ConstructWithNewTarget(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
     {
         var target = RequireTargetObject(args);
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
-        var instance = PrepareThisObject(null, assignPrototype: false);
+        var instance = PrepareThisObject(JsValue.Undefined, assignPrototype: false);
         if (proto is not null && instance.Prototype is null)
         {
             instance.SetPrototype(proto);
         }
 
         InitializeWeakRef(instance, target);
-        return instance;
+        return new JsValue(instance);
     }
 
-    private object RequireTargetObject(IReadOnlyList<object?> args)
+    private JsValue RequireTargetObject(IReadOnlyList<JsValue> args)
     {
         var target = args.GetArgument(0);
-        if (target is not IJsObjectLike)
+        if (!target.IsObject || target.AsObject() is not IJsObjectLike)
         {
             throw ThrowTypeError("WeakRef target must be an object", realm: Realm);
         }
@@ -64,7 +64,7 @@ public sealed partial class WeakRefConstructor(IJsObjectLike prototype, RealmSta
         return target;
     }
 
-    private void InitializeWeakRef(JsObject instance, object target)
+    private void InitializeWeakRef(JsObject instance, JsValue target)
     {
         instance.SetProperty("_target", target);
         instance.RealmState ??= Realm;

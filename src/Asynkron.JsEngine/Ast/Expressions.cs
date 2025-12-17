@@ -1,17 +1,94 @@
 using System.Collections.Immutable;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine.Ast;
 
 /// <summary>
-///     Represents a literal (number, string, boolean, null, etc.).
+/// Binary operators for BinaryExpression nodes.
+/// Using an enum enables fast integer-based switch dispatch instead of string comparison.
 /// </summary>
-public sealed record LiteralExpression(SourceReference? Source, object? Value) : ExpressionNode(Source);
+public enum BinaryOperator : byte
+{
+    // Arithmetic
+    Add,              // +
+    Subtract,         // -
+    Multiply,         // *
+    Divide,           // /
+    Modulo,           // %
+    Power,            // **
+
+    // Comparison
+    Equal,            // ==
+    NotEqual,         // !=
+    StrictEqual,      // ===
+    StrictNotEqual,   // !==
+    LessThan,         // <
+    LessThanOrEqual,  // <=
+    GreaterThan,      // >
+    GreaterThanOrEqual, // >=
+
+    // Logical
+    LogicalAnd,       // &&
+    LogicalOr,        // ||
+    NullishCoalescing, // ??
+
+    // Bitwise
+    BitwiseAnd,       // &
+    BitwiseOr,        // |
+    BitwiseXor,       // ^
+    LeftShift,        // <<
+    RightShift,       // >>
+    UnsignedRightShift, // >>>
+
+    // Other
+    In,               // in
+    InstanceOf // instanceof
+}
+
+/// <summary>
+/// Unary operators for UnaryExpression nodes.
+/// </summary>
+public enum UnaryOperator : byte
+{
+    // Prefix operators
+    Plus,             // +
+    Minus,            // -
+    LogicalNot,       // !
+    BitwiseNot,       // ~
+    TypeOf,           // typeof
+    Void,             // void
+    Delete,           // delete
+
+    // Update operators (prefix and postfix)
+    Increment,        // ++
+    Decrement // --
+}
+
+/// <summary>
+///     Represents a literal (number, string, boolean, null, undefined, BigInt).
+/// </summary>
+public sealed record LiteralExpression(SourceReference? Source, JsValue Value) : ExpressionNode(Source);
+
+/// <summary>
+///     Represents a regex literal. Kept separate because regex objects require RealmState at runtime.
+/// </summary>
+public sealed record RegexLiteralExpression(SourceReference? Source, string Pattern, string Flags) : ExpressionNode(Source);
 
 /// <summary>
 ///     Represents a reference to an identifier.
 /// </summary>
-public sealed record IdentifierExpression(SourceReference? Source, Symbol Name) : ExpressionNode(Source);
+/// <param name="Source">Source location in the original code.</param>
+/// <param name="Name">The identifier name as a Symbol.</param>
+/// <param name="ScopeDepth">How many scopes up to find this variable (0 = local, 1 = parent, etc.). -1 means unresolved (use dictionary lookup).</param>
+/// <param name="SlotIndex">Index into the scope's slots array. -1 means unresolved.</param>
+/// <param name="ScopeId">Unique ID of the scope where this variable is declared. -1 means unresolved.</param>
+public sealed record IdentifierExpression(
+    SourceReference? Source,
+    Symbol Name,
+    int ScopeDepth = -1,
+    int SlotIndex = -1,
+    int ScopeId = -1) : ExpressionNode(Source);
 
 /// <summary>
 ///     Represents a private identifier reference used in the 'in' operator for brand checking.
@@ -24,14 +101,14 @@ public sealed record PrivateIdentifierExpression(SourceReference? Source, string
 /// </summary>
 public sealed record BinaryExpression(
     SourceReference? Source,
-    string Operator,
+    BinaryOperator Operator,
     ExpressionNode Left,
     ExpressionNode Right) : ExpressionNode(Source);
 
 /// <summary>
 ///     Represents a unary expression such as -a or !a.
 /// </summary>
-public sealed record UnaryExpression(SourceReference? Source, string Operator, ExpressionNode Operand, bool IsPrefix)
+public sealed record UnaryExpression(SourceReference? Source, UnaryOperator Operator, ExpressionNode Operand, bool IsPrefix)
     : ExpressionNode(Source);
 
 /// <summary>
@@ -46,6 +123,11 @@ public sealed record ConditionalExpression(
 /// <summary>
 ///     Represents a function or generator expression.
 /// </summary>
+/// <param name="SlotCount">Number of slots needed for local variables in this function's scope.
+/// Set by ScopeAnalyzer for O(1) variable access. -1 means not analyzed.</param>
+/// <param name="ScopeId">Unique ID for the scope created by this function. -1 means not analyzed.</param>
+/// <param name="HasClosures">True if any inner functions capture variables from this function's scope.
+/// When true, environment reuse optimization is disabled for calls within this function.</param>
 public sealed record FunctionExpression(
     SourceReference? Source,
     Symbol? Name,
@@ -56,7 +138,10 @@ public sealed record FunctionExpression(
     bool IsArrow = false,
     bool WasAsync = false,
     bool IsHoistableDefaultExport = false,
-    bool IsDefaultDerivedConstructor = false)
+    bool IsDefaultDerivedConstructor = false,
+    int SlotCount = -1,
+    int ScopeId = -1,
+    bool HasClosures = false)
     : ExpressionNode(Source);
 
 /// <summary>
@@ -73,11 +158,15 @@ public sealed record FunctionParameter(
 /// <summary>
 ///     Represents a call expression.
 /// </summary>
+/// <param name="CanReuseCallerEnvironment">True if this call can safely reuse the caller's environment.
+/// Set by ScopeAnalyzer when: (1) the containing function has no closures, (2) no eval/with in scope,
+/// and (3) no scope variables are referenced after this call's arguments are evaluated.</param>
 public sealed record CallExpression(
     SourceReference? Source,
     ExpressionNode Callee,
     ImmutableArray<CallArgument> Arguments,
-    bool IsOptional) : ExpressionNode(Source);
+    bool IsOptional,
+    bool CanReuseCallerEnvironment = false) : ExpressionNode(Source);
 
 /// <summary>
 ///     Represents a single call argument, optionally marked as a spread argument.
@@ -115,11 +204,21 @@ public sealed record ImportMetaExpression(SourceReference? Source) : ExpressionN
 /// <summary>
 ///     Represents an assignment to an identifier.
 /// </summary>
+/// <param name="Source">Source location in the original code.</param>
+/// <param name="Target">The target identifier name.</param>
+/// <param name="Value">The value expression to assign.</param>
+/// <param name="IsCompoundAssignment">True if this is a compound assignment (+=, -=, etc.).</param>
+/// <param name="ScopeDepth">How many scopes up to find target variable. -1 means unresolved.</param>
+/// <param name="SlotIndex">Index into the scope's slots array. -1 means unresolved.</param>
+/// <param name="ScopeId">Unique ID of the scope where this variable is declared. -1 means unresolved.</param>
 public sealed record AssignmentExpression(
     SourceReference? Source,
     Symbol Target,
     ExpressionNode Value,
-    bool IsCompoundAssignment = false)
+    bool IsCompoundAssignment = false,
+    int ScopeDepth = -1,
+    int SlotIndex = -1,
+    int ScopeId = -1)
     : ExpressionNode(Source);
 
 /// <summary>

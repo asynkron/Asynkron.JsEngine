@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Diagnostics;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -14,35 +13,51 @@ public static partial class TypedAstEvaluator
         public object? EvaluateProgram(
             JsEnvironment environment,
             RealmState realmState,
-        CancellationToken cancellationToken = default,
-        ExecutionKind executionKind = ExecutionKind.Script,
-        bool createStrictEnvironment = true,
-        Symbol? functionNameHint = null,
-        ImmutableArray<PrivateNameScope>? inheritedPrivateNameScopes = null,
-        bool drainAwaitMicrotasks = true)
-    {
-        var context = realmState.CreateContext(
-            ScopeKind.Program,
-            program.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy,
-            cancellationToken,
-            executionKind);
-        context.AllowIdentifierCache = AllowsIdentifierCaching(program);
-        context.DrainAwaitMicrotasks = drainAwaitMicrotasks;
-        if (inheritedPrivateNameScopes is { IsDefault: false, Length: > 0 } scopes)
+            CancellationToken cancellationToken = default,
+            ExecutionKind executionKind = ExecutionKind.Script,
+            bool createStrictEnvironment = true,
+            Symbol? functionNameHint = null,
+            ImmutableArray<PrivateNameScope>? inheritedPrivateNameScopes = null,
+            bool drainAwaitMicrotasks = true)
         {
-            context.EnterPrivateNameScopes(scopes);
-            context.RealmState.Logger?.LogInformation(
-                "Program inherited {PrivateScopeCount} private scopes",
-                scopes.Length);
+            var result = EvaluateProgramJsValue(program, environment, realmState, cancellationToken,
+                executionKind, createStrictEnvironment, functionNameHint, inheritedPrivateNameScopes,
+                drainAwaitMicrotasks);
+            return result.IsUnit ? Symbol.Undefined : result.ToObject();
         }
-        context.SourceReference = program.Source;
-        context.IsStrictSource = program.IsStrict;
-        using var nameHintHandle = functionNameHint is not null
-            ? context.EnterFunctionNameHint(functionNameHint)
-            : null;
-        using var programActivity =
-            Activity.Current?.StartEvaluatorActivity("Program", context, program.Source);
-        programActivity?.SetTag("js.program.strict", program.IsStrict);
+
+        public JsValue EvaluateProgramJsValue(
+            JsEnvironment environment,
+            RealmState realmState,
+            CancellationToken cancellationToken = default,
+            ExecutionKind executionKind = ExecutionKind.Script,
+            bool createStrictEnvironment = true,
+            Symbol? functionNameHint = null,
+            ImmutableArray<PrivateNameScope>? inheritedPrivateNameScopes = null,
+            bool drainAwaitMicrotasks = true)
+        {
+            var context = realmState.CreateContext(
+                ScopeKind.Program,
+                program.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy,
+                cancellationToken,
+                executionKind);
+            // For eval, always disable identifier caching because eval runs in the caller's
+            // lexical environment which may contain 'with' statements. The static analysis
+            // of the eval code alone doesn't tell us about the outer context.
+            context.AllowIdentifierCache = executionKind != ExecutionKind.Eval && AllowsIdentifierCaching(program);
+            context.DrainAwaitMicrotasks = drainAwaitMicrotasks;
+            if (inheritedPrivateNameScopes is { IsDefault: false, Length: > 0 } scopes)
+            {
+                context.EnterPrivateNameScopes(scopes);
+                context.RealmState.Logger?.LogInformation(
+                    "Program inherited {PrivateScopeCount} private scopes",
+                    scopes.Length);
+            }
+            context.SourceReference = program.Source;
+            context.IsStrictSource = program.IsStrict;
+            using var nameHintHandle = functionNameHint is not null
+                ? context.EnterFunctionNameHint(functionNameHint)
+                : null;
             var executionEnvironment = program.IsStrict && createStrictEnvironment
                 ? new JsEnvironment(environment, true, true,
                     treatAsGlobalFunctionScope: environment.IsGlobalFunctionScope)
@@ -192,7 +207,7 @@ public static partial class TypedAstEvaluator
                         // Class declarations are also lexically scoped and need TDZ
                         if (!executionEnvironment.HasBinding(classDecl.Name))
                         {
-                            executionEnvironment.Define(classDecl.Name, JsEnvironment.Uninitialized, isLexical: true,
+                            executionEnvironment.DefineJsValue(classDecl.Name, JsValue.Uninitialized, isLexical: true,
                                 blocksFunctionScopeOverride: true, isConst: true);
                         }
                         break;
@@ -207,14 +222,14 @@ public static partial class TypedAstEvaluator
                 catchParameterNames: catchParameterNames,
                 simpleCatchParameterNames: simpleCatchParameterNames);
 
-            var result = EmptyCompletion;
+            var resultJs = JsValue.Unit;
             foreach (var statement in program.Body)
             {
                 context.ThrowIfCancellationRequested();
-                var completion = EvaluateStatement(statement, executionEnvironment, context);
+                var completionJs = EvaluateStatementJsValue(statement, executionEnvironment, context);
                 var shouldStop = context.ShouldStopEvaluation;
                 var shouldCapture =
-                    !ReferenceEquals(completion, EmptyCompletion) &&
+                    !completionJs.IsUnit &&
                     (!shouldStop ||
                      context.IsReturn ||
                      context.IsThrow ||
@@ -224,7 +239,7 @@ public static partial class TypedAstEvaluator
 
                 if (shouldCapture)
                 {
-                    result = completion;
+                    resultJs = completionJs;
                 }
 
                 if (shouldStop)
@@ -238,7 +253,7 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(context.FlowValue);
             }
 
-            return ReferenceEquals(result, EmptyCompletion) ? Symbol.Undefined : result;
+            return resultJs;
         }
     }
 
@@ -440,7 +455,7 @@ public static partial class TypedAstEvaluator
                 case IdentifierBinding id:
                     if (!environment.HasBinding(id.Name))
                     {
-                        environment.Define(id.Name, JsEnvironment.Uninitialized, isLexical: true, blocksFunctionScopeOverride: true, isConst: isConst);
+                        environment.DefineJsValue(id.Name, JsValue.Uninitialized, isLexical: true, blocksFunctionScopeOverride: true, isConst: isConst);
                     }
 
                     break;

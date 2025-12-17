@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.JsTypes;
+
 namespace Asynkron.JsEngine.Tests;
 
 public class GetPropertyNameTests
@@ -158,8 +160,8 @@ public class GetPropertyNameTests
 
         engine.SetGlobalFunction("capture", args =>
         {
-            result = args[0]?.ToString() ?? "";
-            return null;
+            result = args[0].ToObject()?.ToString() ?? "";
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""
@@ -181,8 +183,8 @@ public class GetPropertyNameTests
 
         engine.SetGlobalFunction("capture", args =>
         {
-            result = args[0]?.ToString() ?? "";
-            return null;
+            result = args[0].ToObject()?.ToString() ?? "";
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""

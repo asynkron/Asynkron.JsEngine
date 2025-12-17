@@ -1,4 +1,3 @@
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Tests;
@@ -24,20 +23,20 @@ public class GeneratorYieldSendTests
         }
 
         var steps = Assert.IsType<JsArray>(result);
-        var first = Assert.IsType<JsObject>(steps.Items[0]);
-        var second = Assert.IsType<JsObject>(steps.Items[1]);
-        var third = Assert.IsType<JsObject>(steps.Items[2]);
+        var first = Assert.IsType<JsObject>(steps.Items[0].ToObject());
+        var second = Assert.IsType<JsObject>(steps.Items[1].ToObject());
+        var third = Assert.IsType<JsObject>(steps.Items[2].ToObject());
 
-        Assert.True(first.TryGetProperty("done", out var firstDone) && firstDone is bool { } firstDoneBool &&
-                    firstDoneBool == false);
+        Assert.True(first.TryGetProperty("done", out var firstDone));
+        Assert.False(firstDone.AsBoolean());
 
         Assert.True(second.TryGetProperty("value", out var secondValue));
-        Assert.Equal(123d, secondValue);
-        Assert.True(second.TryGetProperty("done", out var secondDone) && secondDone is bool { } secondDoneBool &&
-                    secondDoneBool == false);
+        Assert.Equal(123d, secondValue.AsDouble());
+        Assert.True(second.TryGetProperty("done", out var secondDone));
+        Assert.False(secondDone.AsBoolean());
 
-        Assert.True(third.TryGetProperty("done", out var thirdDone) && thirdDone is bool { } thirdDoneBool &&
-                    thirdDoneBool);
+        Assert.True(third.TryGetProperty("done", out var thirdDone));
+        Assert.True(thirdDone.AsBoolean());
         Assert.True(third.TryGetProperty("value", out _));
     }
 
@@ -60,33 +59,37 @@ public class GeneratorYieldSendTests
         var steps = Assert.IsType<JsArray>(result);
         Assert.Equal(4, steps.Items.Count);
 
-        var first = Assert.IsType<JsObject>(steps.Items[0]);
-        var second = Assert.IsType<JsObject>(steps.Items[1]);
-        var third = Assert.IsType<JsObject>(steps.Items[2]);
-        var fourth = Assert.IsType<JsObject>(steps.Items[3]);
+        var first = Assert.IsType<JsObject>(steps.Items[0].ToObject());
+        var second = Assert.IsType<JsObject>(steps.Items[1].ToObject());
+        var third = Assert.IsType<JsObject>(steps.Items[2].ToObject());
+        var fourth = Assert.IsType<JsObject>(steps.Items[3].ToObject());
 
-        Assert.True(first.TryGetProperty("done", out var firstDone) && firstDone is bool { } fd && fd == false);
-        Assert.True(first.TryGetProperty("value", out var firstValue) && ReferenceEquals(firstValue, Symbol.Undefined));
+        Assert.True(first.TryGetProperty("done", out var firstDone));
+        Assert.False(firstDone.AsBoolean());
+        Assert.True(first.TryGetProperty("value", out var firstValue) && firstValue.IsUndefined);
 
         if (!second.TryGetProperty("value", out var secondValue))
         {
             throw new Exception($"second keys: {string.Join(",", second.Keys)}");
         }
-        var secondArr = Assert.IsType<JsArray>(secondValue);
-        Assert.Equal(new object?[] { "a", "b", "c" }, secondArr.Items);
-        if (!(second.TryGetProperty("done", out var secondDone) && secondDone is bool { } sd && sd == false))
+        var secondArr = Assert.IsType<JsArray>(secondValue.ToObject());
+        Assert.Equal(new[] { "a", "b", "c" }, secondArr.Items.Select(v => v.ToObject()).ToArray());
+        if (!second.TryGetProperty("done", out var secondDone))
         {
             throw new Exception($"second keys: {string.Join(",", second.Keys)}");
         }
+        Assert.False(secondDone.AsBoolean());
 
         Assert.True(third.TryGetProperty("value", out var thirdValue));
-        var thirdArr = Assert.IsType<JsArray>(thirdValue);
-        Assert.Equal(new object?[] { "i", "g", "n", "o", "r", "e", "d" }, thirdArr.Items);
-        Assert.True(third.TryGetProperty("done", out var thirdDone) && thirdDone is bool { } td && td == false);
+        var thirdArr = Assert.IsType<JsArray>(thirdValue.ToObject());
+        Assert.Equal(new[] { "i", "g", "n", "o", "r", "e", "d" }, thirdArr.Items.Select(v => v.ToObject()).ToArray());
+        Assert.True(third.TryGetProperty("done", out var thirdDone));
+        Assert.False(thirdDone.AsBoolean());
 
-        if (!(fourth.TryGetProperty("done", out var fourthDone) && fourthDone is bool { } fod && fod))
+        if (!fourth.TryGetProperty("done", out var fourthDone))
         {
-            throw new Exception($"fourth keys: {string.Join(",", fourth.Keys)} value={(fourth.TryGetProperty("value", out var v) ? v : null)}");
+            throw new Exception($"fourth keys: {string.Join(",", fourth.Keys)} value={(fourth.TryGetProperty("value", out var v) ? v : JsValue.Null)}");
         }
+        Assert.True(fourthDone.AsBoolean());
     }
 }

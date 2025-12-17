@@ -1,4 +1,3 @@
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -11,10 +10,11 @@ public sealed partial class DataViewConstructor(IJsObjectLike prototype, RealmSt
 {
     private HostFunction? _constructor;
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var target = _constructor ?? ConstructFallback;
-        return ConstructDataView(args, target, thisValue as JsObject);
+        var providedThis = thisValue.IsObject ? thisValue.AsObject() as JsObject : null;
+        return JsValue.FromObjectUnsafe(ConstructDataView(args, target, providedThis));
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -26,12 +26,13 @@ public sealed partial class DataViewConstructor(IJsObjectLike prototype, RealmSt
         constructor.SetInvokeWithContext((args, thisVal, _, newTarget) =>
         {
             var target = _constructor ?? constructor;
-            var effectiveNewTarget = newTarget as IJsCallable ?? target;
-            return ConstructDataView(args, effectiveNewTarget, thisVal as JsObject);
+            var effectiveNewTarget = newTarget.TryGetObject<IJsCallable>(out var callable) ? callable : target;
+            var thisObject = thisVal.TryGetObject<JsObject>(out var jsObj) ? jsObj : null;
+            return JsValue.FromObjectUnsafe(ConstructDataView(args, effectiveNewTarget, thisObject));
         });
     }
 
-    private object ConstructDataView(IReadOnlyList<object?> args, IJsCallable newTarget, JsObject? providedThis)
+    private object ConstructDataView(IReadOnlyList<JsValue> args, IJsCallable newTarget, JsObject? providedThis)
     {
         if (args.Count == 0)
         {
@@ -39,12 +40,12 @@ public sealed partial class DataViewConstructor(IJsObjectLike prototype, RealmSt
         }
 
         var buffer = RequireArrayBuffer(args[0], Realm);
-        var byteOffset = args.Count > 1 && !ReferenceEquals(args[1], Symbol.Undefined)
+        var byteOffset = args.Count > 1 && !args[1].IsUndefined
             ? (int)JsOps.ToNumber(args[1])
             : 0;
 
         int? byteLength = null;
-        if (args.Count > 2 && !ReferenceEquals(args[2], Symbol.Undefined))
+        if (args.Count > 2 && !args[2].IsUndefined)
         {
             byteLength = (int)JsOps.ToNumber(args[2]);
         }
@@ -71,7 +72,7 @@ public sealed partial class DataViewConstructor(IJsObjectLike prototype, RealmSt
             return dataView;
         }
 
-        var instance = PrepareThisObject(providedThis, assignPrototype: false);
+        var instance = PrepareThisObject(providedThis != null ? new JsValue(providedThis) : JsValue.Undefined, assignPrototype: false);
         if (proto is not null)
         {
             instance.SetPrototype(proto);

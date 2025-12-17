@@ -12,20 +12,20 @@ public static partial class StandardLibrary
         {
             if (args.Count == 0)
             {
-                return double.NaN;
+                return JsValue.NaN;
             }
 
-            var str = args[0]?.ToString() ?? "";
+            var str = JsOps.ToJsString(args[0].ToObject()) ?? "";
             str = str.Trim();
             if (str.Length == 0)
             {
-                return double.NaN;
+                return JsValue.NaN;
             }
 
-            var radix = args.Count > 1 && args[1] is double r ? (int)r : 10;
+            var radix = args.Count > 1 && args[1].TryGetDouble(out var r) ? (int)r : 10;
             if (radix is < 2 or > 36)
             {
-                return double.NaN;
+                return JsValue.NaN;
             }
 
             // Handle sign
@@ -69,7 +69,7 @@ public static partial class StandardLibrary
                 hasDigits = true;
             }
 
-            return hasDigits ? result * sign : double.NaN;
+            return hasDigits ? new JsValue(result * sign) : JsValue.NaN;
         }, isConstructor: false);
         fn.Properties.Delete("prototype");
         return fn;
@@ -84,21 +84,21 @@ public static partial class StandardLibrary
         {
             if (args.Count == 0)
             {
-                return double.NaN;
+                return JsValue.NaN;
             }
 
-            var str = args[0]?.ToString() ?? "";
+            var str = JsOps.ToJsString(args[0].ToObject()) ?? "";
             str = str.Trim();
             if (str.Length == 0)
             {
-                return double.NaN;
+                return JsValue.NaN;
             }
 
             // Try parsing the string as a double
             if (double.TryParse(str, NumberStyles.Float,
                     CultureInfo.InvariantCulture, out var result))
             {
-                return result;
+                return new JsValue(result);
             }
 
             // JavaScript parseFloat allows partial parsing - parse as much as possible
@@ -153,17 +153,17 @@ public static partial class StandardLibrary
 
             if (!hasDigits)
             {
-                return double.NaN;
+                return JsValue.NaN;
             }
 
             var parsed = str[..i];
             if (double.TryParse(parsed, NumberStyles.Float,
                     CultureInfo.InvariantCulture, out result))
             {
-                return result;
+                return new JsValue(result);
             }
 
-            return double.NaN;
+            return JsValue.NaN;
         }, isConstructor: false);
         fn.Properties.Delete("prototype");
         return fn;
@@ -178,14 +178,14 @@ public static partial class StandardLibrary
         {
             if (args.Count == 0)
             {
-                return true;
+                return JsValue.True;
             }
 
             var value = args[0];
 
             // Per ECMAScript spec, isNaN must first convert the argument to Number using ToNumber
             var numericValue = JsOps.ToNumber(value);
-            return double.IsNaN(numericValue);
+            return new JsValue(double.IsNaN(numericValue));
         });
     }
 
@@ -198,33 +198,30 @@ public static partial class StandardLibrary
         {
             if (args.Count == 0)
             {
-                return false;
+                return JsValue.False;
             }
 
             var value = args[0];
 
             // Convert to number first (this is what JavaScript does)
-            if (value is double d)
+            if (value.TryGetDouble(out var d))
             {
-                return !double.IsNaN(d) && !double.IsInfinity(d);
+                return new JsValue(!double.IsNaN(d) && !double.IsInfinity(d));
             }
 
-            if (value is int or long or float or decimal)
-            {
-                return true;
-            }
-
-            if (value is string s)
+            if (value.TryGetString(out var s))
             {
                 if (double.TryParse(s, out var parsed))
                 {
-                    return !double.IsNaN(parsed) && !double.IsInfinity(parsed);
+                    return new JsValue(!double.IsNaN(parsed) && !double.IsInfinity(parsed));
                 }
 
-                return false; // Can't parse, so NaN, so not finite
+                return JsValue.False; // Can't parse, so NaN, so not finite
             }
 
-            return false; // Everything else becomes NaN, which is not finite
+            // For other types, convert to number using ToNumber
+            var numericValue = JsOps.ToNumber(value);
+            return new JsValue(!double.IsNaN(numericValue) && !double.IsInfinity(numericValue));
         });
     }
 }

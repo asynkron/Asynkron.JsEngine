@@ -31,7 +31,7 @@ public static partial class TypedAstEvaluator
                 case null:
                     return;
                 case ReturnCompletionSignal returnSignal:
-                    context.SetReturn(returnSignal.Value);
+                    context.SetReturn(returnSignal.JsValue);
                     break;
                 case BreakCompletionSignal breakSignal:
                     context.SetBreak(breakSignal.Label);
@@ -40,7 +40,7 @@ public static partial class TypedAstEvaluator
                     context.SetContinue(continueSignal.Label);
                     break;
                 case ThrowFlowCompletionSignal throwSignal:
-                    context.SetThrow(throwSignal.Value);
+                    context.SetThrow(throwSignal.JsValue);
                     break;
             }
         }

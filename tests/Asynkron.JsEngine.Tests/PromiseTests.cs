@@ -12,12 +12,12 @@ public class PromiseTests
         engine.SetGlobalFunction("checkResolved", args =>
         {
             resolved = true;
-            if (args.Count > 0 && args[0] is string s)
+            if (args.Count > 0 && args[0].ToObject() is string s)
             {
                 resolvedValue = s;
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -48,12 +48,12 @@ public class PromiseTests
         engine.SetGlobalFunction("checkRejected", args =>
         {
             rejected = true;
-            if (args.Count > 0 && args[0] is string s)
+            if (args.Count > 0 && args[0].ToObject() is string s)
             {
                 rejectedReason = s;
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -82,10 +82,10 @@ public class PromiseTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -115,10 +115,10 @@ public class PromiseTests
         {
             if (args.Count > 0)
             {
-                results.Add(args[0]?.ToString() ?? "");
+                results.Add(args[0].ToObject()?.ToString() ?? "");
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -152,10 +152,10 @@ public class PromiseTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -180,10 +180,10 @@ public class PromiseTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -208,7 +208,7 @@ public class PromiseTests
         engine.SetGlobalFunction("markCaught", _ =>
         {
             caught = true;
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -237,7 +237,7 @@ public class PromiseTests
         engine.SetGlobalFunction("incrementFinally", _ =>
         {
             finallyCount++;
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -267,10 +267,10 @@ public class PromiseTests
         {
             if (args.Count > 0)
             {
-                results.Add(args[0]?.ToString() ?? "");
+                results.Add(args[0].ToObject()?.ToString() ?? "");
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -302,10 +302,10 @@ public class PromiseTests
             rejected = true;
             if (args.Count > 0)
             {
-                reason = args[0]?.ToString() ?? "";
+                reason = args[0].ToObject()?.ToString() ?? "";
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -335,10 +335,10 @@ public class PromiseTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -365,10 +365,10 @@ public class PromiseTests
         {
             if (args.Count > 0)
             {
-                result = args[0]?.ToString() ?? "";
+                result = args[0].ToObject()?.ToString() ?? "";
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -397,7 +397,7 @@ public class PromiseTests
         engine.SetGlobalFunction("markExecutorRan", _ =>
         {
             executorCount++;
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""
@@ -422,10 +422,10 @@ public class PromiseTests
         {
             if (args.Count > 0)
             {
-                finalValue = args[0]?.ToString() ?? "";
+                finalValue = args[0].ToObject()?.ToString() ?? "";
             }
 
-            return null;
+            return JsTypes.JsValue.Undefined;
         });
 
         await engine.Evaluate("""

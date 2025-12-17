@@ -14,7 +14,7 @@ public static partial class StandardLibrary
     public static JsObject CreateSymbolWrapper(TypedAstSymbol symbol, EvaluationContext? context = null,
         RealmState? realm = null)
     {
-        var wrapper = new JsObject { ["__value__"] = symbol };
+        var wrapper = new JsObject { ["__value__"] = new JsValue(JsValueKind.Symbol, 0.0, symbol) };
 
         var proto = context?.RealmState?.SymbolPrototype ?? realm?.SymbolPrototype;
         if (proto is not null)
@@ -23,18 +23,28 @@ public static partial class StandardLibrary
         }
         else
         {
-            var valueOf = new HostFunction((thisValue, _) => RequireSymbolReceiver(thisValue, realm), realm,
-                isConstructor: false);
-            var toString = new HostFunction((thisValue, _) => RequireSymbolReceiver(thisValue, realm).ToString(),
-                realm, isConstructor: false);
+            var valueOf = new HostFunction((thisValue, _) =>
+            {
+                var sym = RequireSymbolReceiver(thisValue, realm);
+                return new JsValue(JsValueKind.Symbol, 0.0, sym);
+            }, realm, isConstructor: false);
+
+            var toString = new HostFunction((thisValue, _) =>
+            {
+                var sym = RequireSymbolReceiver(thisValue, realm);
+                return new JsValue(sym.ToString());
+            }, realm, isConstructor: false);
 
             wrapper.SetHostedProperty("valueOf", valueOf);
             wrapper.SetHostedProperty("toString", toString);
 
             var toPrimitiveKey = SymbolKeys.ToPrimitive;
             wrapper.SetProperty(toPrimitiveKey,
-                new HostFunction((thisValue, _) => RequireSymbolReceiver(thisValue, realm), realm,
-                    isConstructor: false));
+                new HostFunction((thisValue, _) =>
+                {
+                    var sym = RequireSymbolReceiver(thisValue, realm);
+                    return new JsValue(JsValueKind.Symbol, 0.0, sym);
+                }, realm, isConstructor: false));
 
             var toStringTagKey = SymbolKeys.ToStringTag;
             wrapper.SetProperty(toStringTagKey, "Symbol");
@@ -43,13 +53,28 @@ public static partial class StandardLibrary
         return wrapper;
     }
 
-    internal static TypedAstSymbol RequireSymbolReceiver(object? receiver, RealmState? realm = null)
+    internal static TypedAstSymbol RequireSymbolReceiver(JsValue receiver, RealmState? realm = null)
     {
-        return receiver switch
+        if (receiver.IsSymbol && receiver.TryUnwrap<TypedAstSymbol>(out var sym))
         {
-            TypedAstSymbol sym => sym,
-            JsObject obj when obj.TryGetProperty("__value__", out var inner) && inner is TypedAstSymbol sym => sym,
-            _ => throw ThrowTypeError("Symbol.prototype valueOf called on incompatible receiver", realm: realm)
-        };
+            return sym;
+        }
+
+        if (receiver.TryGetObject<JsObject>(out var obj) &&
+            obj.TryGetProperty("__value__", out var inner))
+        {
+            // inner is JsValue, need to extract TypedAstSymbol from it
+            if (inner.IsSymbol && inner.TryUnwrap<TypedAstSymbol>(out var innerSym))
+            {
+                return innerSym;
+            }
+            // Also check if inner.ToObject() is directly a TypedAstSymbol (backward compatibility)
+            if (inner.ToObject() is TypedAstSymbol directSym)
+            {
+                return directSym;
+            }
+        }
+
+        throw ThrowTypeError("Symbol.prototype valueOf called on incompatible receiver", realm: realm);
     }
 }

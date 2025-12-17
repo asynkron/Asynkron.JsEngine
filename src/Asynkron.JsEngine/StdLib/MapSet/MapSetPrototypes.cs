@@ -16,81 +16,81 @@ public sealed partial class MapPrototype
     }
 
     [JsHostMethod("set", Length = 2d)]
-    public object? Set(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Set(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireMap(thisValue);
-        map.Set(args.GetArgument(0), args.GetArgument(1));
+        map.Set(args.GetArgument(0).ToObject(), args.GetArgument(1).ToObject());
         return thisValue;
     }
 
     [JsHostMethod("get", Length = 1d)]
-    public object? Get(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Get(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireMap(thisValue);
-        return map.Get(args.GetArgument(0));
+        return JsValue.FromObjectUnsafe(map.Get(args.GetArgument(0).ToObject()));
     }
 
     [JsHostMethod("has", Length = 1d)]
-    public object Has(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Has(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireMap(thisValue);
-        return map.Has(args.GetArgument(0));
+        return new JsValue(map.Has(args.GetArgument(0).ToObject()));
     }
 
     [JsHostMethod("delete", Length = 1d)]
-    public object Delete(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Delete(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireMap(thisValue);
-        return map.Delete(args.GetArgument(0));
+        return new JsValue(map.Delete(args.GetArgument(0).ToObject()));
     }
 
     [JsHostMethod("clear", Length = 0d)]
-    public object? Clear(object? thisValue, IReadOnlyList<object?> _)
+    public JsValue Clear(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var map = RequireMap(thisValue);
         map.Clear();
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     [JsHostMethod("forEach", Length = 1d)]
-    public object? ForEach(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue ForEach(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireMap(thisValue);
-        if (args.GetArgument(0) is not IJsCallable callback)
+        if (!args.GetArgument(0).TryGetObject<IJsCallable>(out var callback))
         {
             throw ThrowTypeError("Map.prototype.forEach callback must be callable", realm: Realm);
         }
 
-        map.ForEach(callback, args.GetArgument(1));
-        return Symbol.Undefined;
+        map.ForEach(callback, args.GetArgument(1).ToObject());
+        return JsValue.Undefined;
     }
 
     [JsHostMethod("entries", Length = 0d)]
-    public object? Entries(object? thisValue, IReadOnlyList<object?> _)
+    public JsValue Entries(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var map = RequireMap(thisValue);
-        return CreateMapIterator(map, MapIterationKind.Entries);
+        return new JsValue(CreateMapIterator(map, MapIterationKind.Entries));
     }
 
     [JsHostMethod("keys", Length = 0d)]
-    public object? Keys(object? thisValue, IReadOnlyList<object?> _)
+    public JsValue Keys(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var map = RequireMap(thisValue);
-        return CreateMapIterator(map, MapIterationKind.Keys);
+        return new JsValue(CreateMapIterator(map, MapIterationKind.Keys));
     }
 
     [JsHostMethod("values", Length = 0d)]
-    public object? Values(object? thisValue, IReadOnlyList<object?> _)
+    public JsValue Values(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var map = RequireMap(thisValue);
-        return CreateMapIterator(map, MapIterationKind.Values);
+        return new JsValue(CreateMapIterator(map, MapIterationKind.Values));
     }
 
     [JsHostGetter("size")]
-    public object Size(object? thisValue)
+    public JsValue Size(JsValue thisValue)
     {
         var map = RequireMap(thisValue);
-        return (double)map.Size;
+        return new JsValue((double)map.Size);
     }
 
     protected override void ConfigurePrototype()
@@ -116,8 +116,10 @@ public sealed partial class MapPrototype
         }
     }
 
-    private JsMap RequireMap(object? candidate)
+    private JsMap RequireMap(JsValue receiver)
     {
+        var candidate = receiver.ToObject();
+
         if (candidate is JsMap map)
         {
             return map;
@@ -143,14 +145,14 @@ public sealed partial class MapPrototype
             if (index < map.EntryCount)
             {
                 var entry = map.GetEntry(index++);
-                object? value = kind switch
+                var value = kind switch
                 {
                     MapIterationKind.Keys => entry.Key,
                     MapIterationKind.Values => entry.Value,
                     _ => CreateEntryPair(entry.Key, entry.Value)
                 };
 
-                result.SetProperty("value", value);
+                result.SetProperty("value", JsValue.FromObjectUnsafe(value));
                 result.SetProperty("done", false);
             }
             else

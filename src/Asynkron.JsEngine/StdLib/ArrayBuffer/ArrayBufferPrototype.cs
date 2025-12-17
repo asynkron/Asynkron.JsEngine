@@ -1,6 +1,4 @@
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
@@ -10,7 +8,7 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class ArrayBufferPrototype : JsPrototype
 {
     [JsHostMethod("slice", Length = 2d)]
-    public object? Slice(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Slice(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var buffer = RequireArrayBuffer(thisValue, Realm);
         EnsureNotShared(buffer);
@@ -18,10 +16,10 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
 
         var length = (long)buffer.ByteLength;
 
-        var startIndex = args.Count > 0 && !ReferenceEquals(args[0], Symbol.Undefined)
+        var startIndex = args.Count > 0 && !args[0].IsUndefined
             ? ToIntegerOrInfinity(args[0], Realm.CreateContext())
             : 0d;
-        var endIndex = args.Count > 1 && !ReferenceEquals(args[1], Symbol.Undefined)
+        var endIndex = args.Count > 1 && !args[1].IsUndefined
             ? ToIntegerOrInfinity(args[1], Realm.CreateContext())
             : length;
 
@@ -31,7 +29,7 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
 
         var speciesConstructor = ArrayBufferSpeciesCreate(thisValue, Realm, Realm.ArrayBufferConstructor!);
 
-        object newBuffer;
+        object? newBuffer;
         JsArrayBuffer targetBuffer;
         if (ReferenceEquals(speciesConstructor, Realm.ArrayBufferConstructor))
         {
@@ -40,16 +38,17 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
         }
         else
         {
-            newBuffer = Construct(speciesConstructor, [(double)newLen], speciesConstructor, Realm)!;
-            if (newBuffer is not IJsPropertyAccessor)
+            var newBufferValue = Construct(speciesConstructor, [(double)newLen], speciesConstructor, Realm);
+            if (!newBufferValue.TryGetObject<IJsPropertyAccessor>(out var newBufferAccessor))
             {
                 throw ThrowTypeError("ArrayBuffer species constructor did not return an object", realm: Realm);
             }
 
-            targetBuffer = RequireArrayBuffer(newBuffer, Realm);
-            if (!ReferenceEquals(targetBuffer, newBuffer))
+            newBuffer = newBufferAccessor;
+            targetBuffer = RequireArrayBuffer(newBufferValue, Realm);
+            if (!ReferenceEquals(targetBuffer, newBufferAccessor))
             {
-                if (newBuffer is JsObject obj)
+                if (newBufferValue.TryGetObject<JsObject>(out var obj))
                 {
                     StoreInternalArrayBuffer(obj, targetBuffer);
                 }
@@ -66,7 +65,8 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
             throw ThrowTypeError("ArrayBuffer species constructor returned a SharedArrayBuffer", realm: Realm);
         }
 
-        if (ReferenceEquals(newBuffer, thisValue))
+        var original = thisValue is JsValue jsVal ? jsVal.ToObject() : thisValue;
+        if (ReferenceEquals(newBuffer, original))
         {
             throw ThrowTypeError("ArrayBuffer species constructor returned this value", realm: Realm);
         }
@@ -81,11 +81,11 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
             Array.Copy(buffer.Buffer, first, targetBuffer.Buffer, 0, newLen);
         }
 
-        return newBuffer;
+        return JsValue.FromObjectUnsafe(newBuffer);
     }
 
     [JsHostMethod("resize", Length = 1d)]
-    public object? Resize(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Resize(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var buffer = RequireArrayBuffer(thisValue, Realm);
         EnsureNotShared(buffer);
@@ -99,27 +99,27 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
         }
 
         buffer.Resize(newLength);
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     [JsHostGetter("byteLength")]
-    public object ByteLength(object? thisValue)
+    public JsValue ByteLength(JsValue thisValue)
     {
         var buffer = RequireArrayBuffer(thisValue, Realm);
         EnsureNotShared(buffer);
-        return buffer.IsDetached ? 0d : (double)buffer.ByteLength;
+        return buffer.IsDetached ? 0d : buffer.ByteLength;
     }
 
     [JsHostGetter("maxByteLength")]
-    public object MaxByteLength(object? thisValue)
+    public JsValue MaxByteLength(JsValue thisValue)
     {
         var buffer = RequireArrayBuffer(thisValue, Realm);
         EnsureNotShared(buffer);
-        return buffer.IsDetached ? 0d : (double)buffer.MaxByteLength;
+        return buffer.IsDetached ? 0d : buffer.MaxByteLength;
     }
 
     [JsHostGetter("resizable")]
-    public object Resizable(object? thisValue)
+    public JsValue Resizable(JsValue thisValue)
     {
         var buffer = RequireArrayBuffer(thisValue, Realm);
         EnsureNotShared(buffer);
@@ -127,7 +127,7 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
     }
 
     [JsHostGetter("detached")]
-    public object Detached(object? thisValue)
+    public JsValue Detached(JsValue thisValue)
     {
         var buffer = RequireArrayBuffer(thisValue, Realm);
         EnsureNotShared(buffer);
@@ -135,13 +135,13 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
     }
 
     [JsHostMethod("transfer", Length = 0d)]
-    public object? Transfer(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Transfer(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var buffer = RequireArrayBuffer(thisValue, Realm);
         EnsureNotShared(buffer);
         EnsureNotDetached(buffer, "ArrayBuffer.prototype.transfer");
 
-        var newByteLength = args.Count > 0 && !ReferenceEquals(args[0], Symbol.Undefined)
+        var newByteLength = args.Count > 0 && !args[0].IsUndefined
             ? ToIndex(args[0], Realm)
             : buffer.ByteLength;
 
@@ -158,17 +158,17 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
         }
 
         buffer.Detach();
-        return target;
+        return JsValue.FromObjectUnsafe(target);
     }
 
     [JsHostMethod("transferToFixedLength", Length = 0d)]
-    public object? TransferToFixedLength(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue TransferToFixedLength(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var buffer = RequireArrayBuffer(thisValue, Realm);
         EnsureNotShared(buffer);
         EnsureNotDetached(buffer, "ArrayBuffer.prototype.transferToFixedLength");
 
-        var newByteLength = args.Count > 0 && !ReferenceEquals(args[0], Symbol.Undefined)
+        var newByteLength = args.Count > 0 && !args[0].IsUndefined
             ? ToIndex(args[0], Realm)
             : buffer.ByteLength;
 
@@ -185,7 +185,7 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
         }
 
         buffer.Detach();
-        return target;
+        return JsValue.FromObjectUnsafe(target);
     }
 
     protected override void ConfigurePrototype()
@@ -222,7 +222,7 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
         }
     }
 
-    private void DefineAccessor(JsObject target, string name, Func<object?, object> getter, bool enumerable)
+    private void DefineAccessor(JsObject target, string name, Func<JsValue, JsValue> getter, bool enumerable)
     {
         var getterFn = new HostFunction((thisVal, _) => getter(thisVal), Realm)
         {

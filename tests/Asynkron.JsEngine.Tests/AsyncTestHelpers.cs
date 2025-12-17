@@ -15,51 +15,60 @@ internal static class AsyncTestHelpers
         engine.SetGlobalFunction("__delay", args =>
         {
             var ms = 0;
-            if (args.Count > 0 && args[0] is double delayMs)
+            if (args.Count > 0 && args[0].TryGetDouble(out var delayMs))
             {
                 ms = (int)delayMs;
             }
 
-            var value = args.Count > 1 ? args[1] : null;
+            var value = args.Count > 1 ? args[1] : JsValue.Undefined;
             var promiseConstructor = StandardLibrary.CreatePromiseConstructor(engine.RealmState);
-            if (promiseConstructor is not IJsCallable promiseCtor)
+            if (!JsValue.FromObjectUnsafe(promiseConstructor).TryGetObject<IJsCallable>(out var promiseCtor))
             {
-                return null;
+                return JsValue.Undefined;
             }
 
             var executor = new HostFunction((_, execArgs) =>
             {
                 if (execArgs.Count < 2 ||
-                    execArgs[0] is not IJsCallable resolve ||
-                    execArgs[1] is not IJsCallable reject)
+                    !execArgs[0].TryGetObject<IJsCallable>(out var resolve) ||
+                    !execArgs[1].TryGetObject<IJsCallable>(out var reject))
                 {
-                    return null;
+                    return JsValue.Undefined;
                 }
 
-                engine.ScheduleTask(async () =>
+                void ResolveContinuation()
                 {
                     try
                     {
-                        await Task.Delay(ms).ConfigureAwait(false);
-                        resolve.Invoke(new object?[] { value }, null);
+                        resolve.Invoke([value], JsValue.Undefined);
                     }
                     catch (Exception ex)
                     {
-                        reject.Invoke(new object?[] { ex.Message }, null);
+                        reject.Invoke([new JsValue(ex.Message)], JsValue.Undefined);
                     }
+                }
 
-                    await Task.CompletedTask.ConfigureAwait(false);
-                });
+                if (ms == 0)
+                {
+                    // Zero delay - schedule directly on event queue
+                    engine.ScheduleTask(ResolveContinuation);
+                }
+                else
+                {
+                    // Non-zero delay - use ScheduleAfterTask to track pending work
+                    // while the delay runs on the thread pool
+                    engine.ScheduleAfterTask(Task.Delay(ms), ResolveContinuation);
+                }
 
-                return null;
+                return JsValue.Undefined;
             });
 
             if (promiseCtor is HostFunction hostCtor)
             {
-                return hostCtor.InvokeWithContext(new object?[] { executor }, null, null, hostCtor);
+                return hostCtor.InvokeWithContext([(JsValue)executor], JsValue.Undefined, null, (JsValue)hostCtor);
             }
 
-            return promiseCtor.Invoke(new object?[] { executor }, null);
+            return promiseCtor.Invoke([(JsValue)executor], JsValue.Undefined);
         });
     }
 }

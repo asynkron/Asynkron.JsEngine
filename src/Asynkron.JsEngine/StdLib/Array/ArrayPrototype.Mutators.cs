@@ -9,16 +9,16 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class ArrayPrototype
 {
     [JsHostMethod("push", Length = 1d)]
-    public object? Push(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Push(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.push", Realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), "Array.prototype.push", Realm);
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls push
         const string ReentrancyKey = "__inPush__";
-        if (accessor.TryGetProperty(ReentrancyKey, out var inPushFlag) && !ReferenceEquals(inPushFlag, Symbol.Undefined))
+        if (accessor.TryGetProperty(ReentrancyKey, out var inPushFlag) && !inPushFlag.IsUndefined)
         {
             // Already in push, return current length to break recursion
-            return 0d;
+            return new JsValue(0d);
         }
 
         try
@@ -40,31 +40,31 @@ public sealed partial class ArrayPrototype
 
             // Set length using ToUint32 semantics
             accessor.SetProperty("length", (double)newLength);
-            return (double)newLength;
+            return new JsValue((double)newLength);
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, Symbol.Undefined);
+            accessor.SetProperty(ReentrancyKey, JsValue.Undefined);
         }
     }
 
     [JsHostMethod("pop", Length = 0d)]
-    public object? Pop(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Pop(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         const string MethodName = "Array.prototype.pop";
-        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), MethodName, Realm);
         // Re-entrancy: if sorting in progress, avoid mutating length/elements
-        if (accessor.TryGetProperty("__sorting__", out var sortingFlag) && !ReferenceEquals(sortingFlag, Symbol.Undefined))
+        if (accessor.TryGetProperty("__sorting__", out var sortingFlag) && !sortingFlag.IsUndefined)
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls pop
         const string ReentrancyKey = "__inPop__";
-        if (accessor.TryGetProperty(ReentrancyKey, out var inPopFlag) && !ReferenceEquals(inPopFlag, Symbol.Undefined))
+        if (accessor.TryGetProperty(ReentrancyKey, out var inPopFlag) && !inPopFlag.IsUndefined)
         {
             // Already in pop, return undefined to break recursion
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
         try
@@ -76,7 +76,7 @@ public sealed partial class ArrayPrototype
             if (length == 0)
             {
                 accessor.SetProperty("length", 0d);
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             var newLength = length - 1;
@@ -84,31 +84,31 @@ public sealed partial class ArrayPrototype
             var elementExists = TryGetExistingElement(accessor, key, out var element);
             DeletePropertyOrThrow(objectLike, key, elementExists, MethodName, Realm);
             accessor.SetProperty("length", (double)newLength);
-            return elementExists ? element : Symbol.Undefined;
+            return elementExists ? element : JsValue.Undefined;
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, Symbol.Undefined);
+            accessor.SetProperty(ReentrancyKey, JsValue.Undefined);
         }
     }
 
     [JsHostMethod("shift", Length = 0d)]
-    public object? Shift(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Shift(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         const string MethodName = "Array.prototype.shift";
-        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), MethodName, Realm);
         // Re-entrancy: if sorting in progress, avoid mutating length/elements
-        if (accessor.TryGetProperty("__sorting__", out var sortingFlag) && !ReferenceEquals(sortingFlag, Symbol.Undefined))
+        if (accessor.TryGetProperty("__sorting__", out var sortingFlag) && !sortingFlag.IsUndefined)
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls shift
         const string ReentrancyKey = "__inShift__";
-        if (accessor.TryGetProperty(ReentrancyKey, out var inShiftFlag) && !ReferenceEquals(inShiftFlag, Symbol.Undefined))
+        if (accessor.TryGetProperty(ReentrancyKey, out var inShiftFlag) && !inShiftFlag.IsUndefined)
         {
             // Already in shift, return undefined to break recursion
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
         try
@@ -120,14 +120,14 @@ public sealed partial class ArrayPrototype
             if (length == 0)
             {
                 accessor.SetProperty("length", 0d);
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             object? firstElement = Symbol.Undefined;
             var firstExists = TryGetExistingElement(accessor, "0", out var firstValue);
             if (firstExists)
             {
-                firstElement = firstValue;
+                firstElement = firstValue.ToObject();
             }
 
             for (long k = 1; k < length; k++)
@@ -150,27 +150,27 @@ public sealed partial class ArrayPrototype
             var lastExists = HasProperty(accessor, lastKey);
             DeletePropertyOrThrow(objectLike, lastKey, lastExists, MethodName, Realm);
             accessor.SetProperty("length", (double)(length - 1));
-            return firstElement;
+            return JsValue.FromObjectUnsafe(firstElement);
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, Symbol.Undefined);
+            accessor.SetProperty(ReentrancyKey, JsValue.Undefined);
         }
     }
 
     [JsHostMethod("unshift", Length = 1d)]
-    public object? Unshift(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Unshift(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
         const string MethodName = "Array.prototype.unshift";
-        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), MethodName, realm);
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls unshift
         const string ReentrancyKey = "__inUnshift__";
-        if (accessor.TryGetProperty(ReentrancyKey, out var inUnshiftFlag) && !ReferenceEquals(inUnshiftFlag, Symbol.Undefined))
+        if (accessor.TryGetProperty(ReentrancyKey, out var inUnshiftFlag) && !inUnshiftFlag.IsUndefined)
         {
             // Already in unshift, return 0 to break recursion
-            return 0d;
+            return new JsValue(0d);
         }
 
         try
@@ -209,26 +209,26 @@ public sealed partial class ArrayPrototype
 
             var newLength = length + argCount;
             accessor.SetProperty("length", (double)newLength);
-            return (double)newLength;
+            return new JsValue((double)newLength);
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, Symbol.Undefined);
+            accessor.SetProperty(ReentrancyKey, JsValue.Undefined);
         }
     }
 
     [JsHostMethod("splice", Length = 2d)]
-    public object? Splice(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Splice(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         const string MethodName = "Array.prototype.splice";
-        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), MethodName, Realm);
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls splice
         const string ReentrancyKey = "__inSplice__";
-        if (accessor.TryGetProperty(ReentrancyKey, out var inSpliceFlag) && !ReferenceEquals(inSpliceFlag, Symbol.Undefined))
+        if (accessor.TryGetProperty(ReentrancyKey, out var inSpliceFlag) && !inSpliceFlag.IsUndefined)
         {
             // Already in splice, return empty array to break recursion
-            return ArraySpeciesCreate(thisValue, 0, Realm);
+            return JsValue.FromObjectUnsafe(ArraySpeciesCreate(thisValue, 0, Realm));
         }
 
         try
@@ -238,7 +238,7 @@ public sealed partial class ArrayPrototype
             var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
             var length = (long)ToLengthOrZero(lengthValue);
 
-            var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0]) : 0;
+            var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0].ToObject()) : 0;
             var actualStart = ClampRelativeIndex(startIndex, length);
 
             var insertCount = args.Count > 2 ? args.Count - 2 : 0;
@@ -254,7 +254,7 @@ public sealed partial class ArrayPrototype
             }
             else
             {
-                deleteCountArg = ToIntegerOrInfinity(args[1]);
+                deleteCountArg = ToIntegerOrInfinity(args[1].ToObject());
             }
 
             long actualDeleteCount;
@@ -341,26 +341,26 @@ public sealed partial class ArrayPrototype
             }
 
             accessor.SetProperty("length", (double)newLength);
-            return result;
+            return JsValue.FromObjectUnsafe(result);
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, Symbol.Undefined);
+            accessor.SetProperty(ReentrancyKey, JsValue.Undefined);
         }
     }
 
     [JsHostMethod("reverse", Length = 0d)]
-    public object? Reverse(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Reverse(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         const string MethodName = "Array.prototype.reverse";
-        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), MethodName, Realm);
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls reverse
         const string ReentrancyKey = "__inReverse__";
-        if (accessor.TryGetProperty(ReentrancyKey, out var inReverseFlag) && !ReferenceEquals(inReverseFlag, Symbol.Undefined))
+        if (accessor.TryGetProperty(ReentrancyKey, out var inReverseFlag) && !inReverseFlag.IsUndefined)
         {
             // Already in reverse, return the array to break recursion
-            return accessor;
+            return JsValue.FromObjectUnsafe(accessor);
         }
 
         try
@@ -380,13 +380,13 @@ public sealed partial class ArrayPrototype
                 var lowerExists = TryGetExistingElement(accessor, lowerKey, out var lowerValue);
                 if (!lowerExists)
                 {
-                    lowerValue = Symbol.Undefined;
+                    lowerValue = JsValue.Undefined;
                 }
 
                 var upperExists = TryGetExistingElement(accessor, upperKey, out var upperValue);
                 if (!upperExists)
                 {
-                    upperValue = Symbol.Undefined;
+                    upperValue = JsValue.Undefined;
                 }
 
                 if (lowerExists && upperExists)
@@ -414,25 +414,25 @@ public sealed partial class ArrayPrototype
                 DeletePropertyOrThrow(objectLike, upperKey, upperExists, MethodName, Realm);
             }
 
-            return accessor;
+            return JsValue.FromObjectUnsafe(accessor);
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, Symbol.Undefined);
+            accessor.SetProperty(ReentrancyKey, JsValue.Undefined);
         }
     }
 
     [JsHostMethod("concat", Length = 1d)]
-    public object? Concat(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Concat(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
         const string MethodName = "Array.prototype.concat";
-        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), MethodName, realm);
         var result = ArraySpeciesCreate(thisValue, 0, realm);
         long resultIndex = 0;
 
-        var sources = new object?[args.Count + 1];
-        sources[0] = accessor;
+        var sources = new JsValue[args.Count + 1];
+        sources[0] = JsValue.FromObjectUnsafe(accessor);
         for (var i = 0; i < args.Count; i++)
         {
             sources[i + 1] = args[i];
@@ -474,21 +474,21 @@ public sealed partial class ArrayPrototype
         }
 
         SetArrayLikeLength(result, resultIndex);
-        return result;
+        return JsValue.FromObjectUnsafe(result);
     }
 
     [JsHostMethod("sort", Length = 1d)]
-    public object? Sort(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Sort(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
-        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.sort", realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), "Array.prototype.sort", realm);
         var objectLike = accessor as IJsObjectLike;
 
         // Validate comparefn before touching length (per spec)
         IJsCallable? compareFn = null;
-        if (args.Count > 0 && !ReferenceEquals(args[0], Symbol.Undefined))
+        if (args.Count > 0 && !args[0].IsUndefined)
         {
-            if (args[0] is not IJsCallable callable)
+            if (args[0].ToObject() is not IJsCallable callable)
             {
                 throw ThrowTypeError("Array.prototype.sort comparefn must be callable", realm: realm);
             }
@@ -517,6 +517,37 @@ public sealed partial class ArrayPrototype
             }
         }
 
+        elements.Sort((x, y) => Comparer(x, y));
+
+        // Write sorted values back to the array
+        long index = 0;
+        foreach (var pair in elements)
+        {
+            // Handle case where value is already a boxed JsValue
+            var pairVal = pair.Value is JsValue pjv ? pjv : JsValue.FromObjectUnsafe(pair.Value);
+            accessor.SetProperty(ToIndexString(index++), pairVal);
+        }
+
+        if (objectLike is not null)
+        {
+            for (var k = index; k < length; k++)
+            {
+                objectLike.Delete(ToIndexString(k));
+            }
+        }
+        else
+        {
+            for (var k = index; k < length; k++)
+            {
+                accessor.SetProperty(ToIndexString(k), JsValue.Undefined);
+            }
+        }
+
+        // Clear re-entrancy guard
+        accessor.SetProperty("__sorting__", JsValue.Undefined);
+
+        return JsValue.FromObjectUnsafe(accessor);
+
         int Comparer((object? Value, long OriginalIndex) a, (object? Value, long OriginalIndex) b)
         {
             var aVal = a.Value;
@@ -524,10 +555,13 @@ public sealed partial class ArrayPrototype
 
             if (compareFn is not null)
             {
-                var raw = compareFn.Invoke([aVal, bVal], Symbol.Undefined);
+                // Handle case where values are already boxed JsValues
+                var aArg = aVal is JsValue ajv ? ajv : JsValue.FromObjectUnsafe(aVal);
+                var bArg = bVal is JsValue bjv ? bjv : JsValue.FromObjectUnsafe(bVal);
+                var raw = compareFn.Invoke([aArg, bArg], JsValue.Undefined).ToObject();
                 var ctx = realm?.CreateContext();
                 var num = JsOps.ToNumberWithContext(raw, ctx);
-                if (ctx is not null && ctx.IsThrow)
+                if (ctx?.IsThrow == true)
                 {
                     throw new ThrowSignal(ctx.FlowValue);
                 }
@@ -552,34 +586,5 @@ public sealed partial class ArrayPrototype
             var ord = string.CompareOrdinal(aStr, bStr);
             return ord != 0 ? ord : a.OriginalIndex.CompareTo(b.OriginalIndex);
         }
-
-        elements.Sort((x, y) => Comparer(x, y));
-
-        // Write sorted values back to the array
-        long index = 0;
-        foreach (var pair in elements)
-        {
-            accessor.SetProperty(ToIndexString(index++), pair.Value);
-        }
-
-        if (objectLike is not null)
-        {
-            for (var k = index; k < length; k++)
-            {
-                objectLike.Delete(ToIndexString(k));
-            }
-        }
-        else
-        {
-            for (var k = index; k < length; k++)
-            {
-                accessor.SetProperty(ToIndexString(k), Symbol.Undefined);
-            }
-        }
-
-        // Clear re-entrancy guard
-        accessor.SetProperty("__sorting__", Symbol.Undefined);
-
-        return accessor;
     }
 }

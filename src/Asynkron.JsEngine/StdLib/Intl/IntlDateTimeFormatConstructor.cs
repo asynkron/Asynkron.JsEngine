@@ -10,7 +10,7 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototype, RealmState realm)
     : JsConstructor(prototype, realm)
 {
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var localesArg = args.GetArgument(0);
         var optionsArg = args.GetArgument(1);
@@ -18,10 +18,10 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
         var slots = CreateInternalSlots(localesArg, optionsArg);
         var instance = PrepareThisObject(thisValue);
         IntlDateTimeFormatPrototype.InitializeInternalSlots(instance, slots);
-        return instance;
+        return new JsValue(instance);
     }
 
-    private DateTimeFormatInternalSlots CreateInternalSlots(object? localesArg, object? optionsArg)
+    private DateTimeFormatInternalSlots CreateInternalSlots(JsValue localesArg, JsValue optionsArg)
     {
         var (_, resolvedLocale) = StandardLibrary.ResolveIntlLocales(localesArg, Realm);
 
@@ -38,7 +38,7 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
             ["basic", "best fit"],
             "best fit");
 
-        var timeZoneValue = options is null ? Symbol.Undefined : GetOption(options, "timeZone");
+        var timeZoneValue = options is null ? JsValue.Undefined : GetOption(options, "timeZone");
         var hourCycle = ReadStringOption(
             options,
             "hourCycle",
@@ -74,19 +74,14 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
         return slots;
     }
 
-    private JsObject? NormalizeOptions(object? optionsArg)
+    private JsObject? NormalizeOptions(JsValue optionsArg)
     {
-        if (optionsArg is null)
-        {
-            throw StandardLibrary.ThrowTypeError("Intl.DateTimeFormat options must be an object", realm: Realm);
-        }
-
-        if (ReferenceEquals(optionsArg, Symbol.Undefined))
+        if (optionsArg.IsNullOrUndefined)
         {
             return null;
         }
 
-        if (optionsArg is JsObject jsObject)
+        if (optionsArg.IsObject && optionsArg.AsObject() is JsObject jsObject)
         {
             return jsObject;
         }
@@ -103,12 +98,12 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
         string defaultValue)
     {
         if (options is null || !options.TryGetProperty(propertyName, out var rawValue) ||
-            ReferenceEquals(rawValue, Symbol.Undefined))
+            rawValue.IsUndefined)
         {
             return defaultValue;
         }
 
-        if (rawValue is null || rawValue is not string strValue)
+        if (!rawValue.TryGetString(out var strValue))
         {
             throw StandardLibrary.ThrowTypeError(
                 $"Intl.DateTimeFormat {propertyName} option must be a string", realm: Realm);
@@ -126,12 +121,12 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
     private string ReadCalendarOption(JsObject? options)
     {
         if (options is null || !options.TryGetProperty("calendar", out var value) ||
-            value is null || ReferenceEquals(value, Symbol.Undefined))
+            value.IsUndefined)
         {
             return "gregory";
         }
 
-        if (value is not string calendar)
+        if (!value.TryGetString(out var calendar))
         {
             throw StandardLibrary.ThrowTypeError("Intl.DateTimeFormat calendar option must be a string", realm: Realm);
         }
@@ -147,12 +142,12 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
     private string ReadNumberingSystem(JsObject? options)
     {
         if (options is null || !options.TryGetProperty("numberingSystem", out var value) ||
-            value is null || ReferenceEquals(value, Symbol.Undefined))
+            value.IsUndefined)
         {
             return "latn";
         }
 
-        if (value is not string system)
+        if (!value.TryGetString(out var system))
         {
             throw StandardLibrary.ThrowTypeError(
                 "Intl.DateTimeFormat numberingSystem option must be a string", realm: Realm);
@@ -166,42 +161,32 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
     private string? ReadStyleOption(JsObject? options, string propertyName)
     {
         if (options is null || !options.TryGetProperty(propertyName, out var value) ||
-            value is null || ReferenceEquals(value, Symbol.Undefined))
+            value.IsUndefined)
         {
             return null;
         }
 
-        if (value is not string style)
+        if (!value.TryGetString(out var stringValue))
         {
             throw StandardLibrary.ThrowTypeError(
                 $"Intl.DateTimeFormat {propertyName} option must be a string", realm: Realm);
         }
 
-        return style;
+        return stringValue;
     }
 
     private string? ReadComponentOption(JsObject? options, string propertyName)
     {
         if (options is null || !options.TryGetProperty(propertyName, out var value) ||
-            value is null || ReferenceEquals(value, Symbol.Undefined))
+            value.IsUndefined)
         {
             return null;
         }
 
-        if (value is not string component)
+        if (!value.TryGetString(out var component))
         {
             throw StandardLibrary.ThrowTypeError(
                 $"Intl.DateTimeFormat {propertyName} option must be a string", realm: Realm);
-        }
-
-        bool IsWidthAllowed(string value)
-        {
-            return value is "2-digit" or "numeric";
-        }
-
-        bool IsMonthAllowed(string value)
-        {
-            return value is "2-digit" or "numeric" or "narrow" or "short" or "long";
         }
 
         var isAllowed = propertyName switch
@@ -220,13 +205,24 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
         }
 
         return component;
+
+        bool IsWidthAllowed(string value)
+        {
+            return value is "2-digit" or "numeric";
+        }
+
+        bool IsMonthAllowed(string value)
+        {
+            return value is "2-digit" or "numeric" or "narrow" or "short" or "long";
+        }
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
     {
         var supportedLocales = new HostFunction((_, args) =>
         {
-            return StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
+            var result = StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
+            return JsValue.FromObjectUnsafe(result);
         }, isConstructor: false);
 
         supportedLocales.DefineProperty("length",

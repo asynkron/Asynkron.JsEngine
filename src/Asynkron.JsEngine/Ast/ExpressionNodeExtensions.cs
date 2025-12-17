@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -33,8 +33,8 @@ public static partial class TypedAstEvaluator
 
             if (!JsOps.IsConstructor(baseValue))
             {
-                throw new ThrowSignal(StandardLibrary.CreateTypeError(
-                    "Class extends value is not a constructor or null", context, context.RealmState));
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
+                    "Class extends value is not a constructor or null", context, context.RealmState)));
             }
 
             // Proxy cannot be subclassed because its prototype is undefined.
@@ -42,17 +42,17 @@ public static partial class TypedAstEvaluator
                 TryGetPropertyValue(accessorWithMarker, "__proxyHasNoPrototype__", out var marker, context) &&
                 JsOps.ToBoolean(marker))
             {
-                throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
                     "Class extends value does not have a valid prototype",
                     context,
-                    context.RealmState));
+                    context.RealmState)));
             }
 
             if (baseValue is not IJsEnvironmentAwareCallable callable ||
                 baseValue is not IJsPropertyAccessor accessor)
             {
-                throw new ThrowSignal(StandardLibrary.CreateTypeError(
-                    "Class extends value is not a constructor or null", context, context.RealmState));
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
+                    "Class extends value is not a constructor or null", context, context.RealmState)));
             }
 
             var hasPrototype = TryGetPropertyValue(baseValue, "prototype", out var prototypeValue, context);
@@ -63,10 +63,10 @@ public static partial class TypedAstEvaluator
 
             if (!hasPrototype)
             {
-                throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
                     "Class extends value does not have a valid prototype",
                     context,
-                    context.RealmState));
+                    context.RealmState)));
             }
 
             if (prototypeValue is null)
@@ -79,36 +79,60 @@ public static partial class TypedAstEvaluator
                 return (callable, prototype);
             }
 
-            throw new ThrowSignal(StandardLibrary.CreateTypeError(
+            throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
                 "Class extends value does not have a valid prototype",
                 context,
-                context.RealmState));
+                context.RealmState)));
         }
     }
 
     extension(ExpressionNode expression)
     {
+        /// <summary>
+        /// Ultra-thin hot path for expression evaluation - designed to be inlined.
+        /// Uses explicit if statements instead of switch for minimal IL size.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue EvaluateExpression(JsEnvironment environment,
             EvaluationContext context)
         {
+            // Explicit if statements generate less IL than switch expressions
+            if (expression is LiteralExpression literal) return literal.Value;
+            if (expression is IdentifierExpression identifier) return EvaluateIdentifier(identifier, environment, context);
+            if (expression is BinaryExpression binary) return EvaluateBinary(binary, environment, context);
+            if (expression is CallExpression call) return EvaluateCall(call, environment, context);
+            return expression.EvaluateExpressionSlow(environment, context);
+        }
+
+        /// <summary>
+        /// Slow path for less common expression types. Marked NoInlining to keep hot path small.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private JsValue EvaluateExpressionSlow(JsEnvironment environment,
+            EvaluationContext context)
+        {
+            // Second tier of common expressions
+            switch (expression)
+            {
+                case UnaryExpression unary:
+                    return EvaluateUnary(unary, environment, context);
+                case AssignmentExpression assignment:
+                    return EvaluateAssignment(assignment, environment, context);
+                case MemberExpression member:
+                    return EvaluateMember(member, environment, context);
+                case CallExpression call:
+                    return EvaluateCall(call, environment, context);
+            }
+
+            // Slowest path - set source reference and optionally trace
             context.SourceReference = expression.Source;
-            using var expressionActivity = Activity.Current?
-                .StartEvaluatorActivity($"Expression:{expression.GetType().Name}", context, expression.Source);
 
             return expression switch
             {
-                // Converted to native JsValue
-                LiteralExpression literal => EvaluateLiteral(literal, context),
-                IdentifierExpression identifier => EvaluateIdentifier(identifier, environment, context),
-                BinaryExpression binary => EvaluateBinary(binary, environment, context),
-                UnaryExpression unary => EvaluateUnary(unary, environment, context),
-
-                // Converted to native JsValue (Batch A)
+                RegexLiteralExpression regex => EvaluateRegexLiteral(regex, context),
                 ConditionalExpression conditional => EvaluateConditional(conditional, environment, context),
-                CallExpression call => EvaluateCall(call, environment, context),
-                FunctionExpression functionExpression => JsValue.FromObject(CreateFunctionValue(functionExpression, environment, context,
+                FunctionExpression functionExpression => JsValue.FromObjectUnsafe(CreateFunctionValue(functionExpression, environment, context,
                     createFunctionNameEnvironment: true)),
-                AssignmentExpression assignment => EvaluateAssignment(assignment, environment, context),
                 DestructuringAssignmentExpression destructuringAssignment =>
                     EvaluateDestructuringAssignment(destructuringAssignment, environment, context),
                 PropertyAssignmentExpression propertyAssignment =>
@@ -116,10 +140,9 @@ public static partial class TypedAstEvaluator
                 IndexAssignmentExpression indexAssignment =>
                     EvaluateIndexAssignment(indexAssignment, environment, context),
                 SequenceExpression sequence => EvaluateSequence(sequence, environment, context),
-                MemberExpression member => EvaluateMember(member, environment, context),
                 NewExpression newExpression => EvaluateNew(newExpression, environment, context),
                 NewTargetExpression => environment.TryGet(Symbol.NewTarget, out var newTarget)
-                    ? JsValue.FromObject(newTarget)
+                    ? JsValue.FromObjectUnsafe(newTarget)
                     : JsValue.Undefined,
                 ImportMetaExpression => EvaluateImportMeta(environment, context),
                 ArrayExpression array => EvaluateArray(array, environment, context),
@@ -268,7 +291,7 @@ public static partial class TypedAstEvaluator
 
     extension(ExpressionNode callee)
     {
-        private (object? Callee, object? ThisValue, bool SkippedOptional) EvaluateCallTarget(JsEnvironment environment,
+        private (JsValue Callee, JsValue thisValue, bool SkippedOptional) EvaluateCallTarget(JsEnvironment environment,
             EvaluationContext context)
         {
             if (callee is SuperExpression superExpression)
@@ -307,10 +330,10 @@ public static partial class TypedAstEvaluator
                         $"Super constructor is not available in this context.{GetSourceInfo(context, superExpression.Source)}");
                 }
 
-                var superThis = ReferenceEquals(binding.ThisValue, JsEnvironment.Uninitialized)
-                    ? Symbol.Undefined
-                    : binding.ThisValue;
-                return (dynamicSuperConstructor, superThis, false);
+                var superThis = ReferenceEquals(binding.thisValue, JsEnvironment.Uninitialized)
+                    ? JsValue.Undefined
+                    : binding.thisValue;
+                return (JsValue.FromObjectUnsafe(dynamicSuperConstructor), superThis, false);
             }
 
             if (callee is MemberExpression member)
@@ -320,52 +343,52 @@ public static partial class TypedAstEvaluator
                     var (memberValue, binding) = ResolveSuperMember(member, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
-                        return (Symbol.Undefined, binding.ThisValue, true);
+                        return (JsValue.Undefined, binding.thisValue, true);
                     }
 
-                    return (memberValue, binding.ThisValue, false);
+                    return (memberValue, binding.thisValue, false);
                 }
 
                 var targetJs = EvaluateExpression(member.Target, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return (Symbol.Undefined, null, true);
+                    return (JsValue.Undefined, JsValue.Undefined, true);
                 }
 
-                var target = targetJs.ToObject();
-                if (member.IsOptional && IsNullish(target))
+                if (member.IsOptional && targetJs.IsNullOrUndefined)
                 {
-                    return (null, null, true);
+                    return (JsValue.Undefined, JsValue.Undefined, true);
                 }
 
-                if (IsNullish(target) && HasOptionalChaining(member.Target))
+                if (targetJs.IsNullOrUndefined && HasOptionalChaining(member.Target))
                 {
-                    return (Symbol.Undefined, null, true);
+                    return (JsValue.Undefined, JsValue.Undefined, true);
                 }
 
-                if (IsNullish(target))
+                if (targetJs.IsNullOrUndefined)
                 {
                     var error = StandardLibrary.CreateTypeError(
                         "Cannot read properties of null or undefined",
                         context,
                         context.RealmState);
-                    context.SetThrow(error);
-                    return (Symbol.Undefined, null, true);
+                    context.SetThrow(JsValue.FromObjectUnsafe(error));
+                    return (JsValue.Undefined, JsValue.Undefined, true);
                 }
 
+                var target = targetJs.ToObject();
                 string propertyName;
                 if (member.IsComputed)
                 {
                     var propertyJs = EvaluateExpression(member.Property, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
-                        return (Symbol.Undefined, null, true);
+                        return (JsValue.Undefined, JsValue.Undefined, true);
                     }
 
                     propertyName = JsOps.GetRequiredPropertyName(propertyJs.ToObject(), context);
                     if (context.ShouldStopEvaluation)
                     {
-                        return (Symbol.Undefined, null, true);
+                        return (JsValue.Undefined, JsValue.Undefined, true);
                     }
                 }
                 else
@@ -373,7 +396,7 @@ public static partial class TypedAstEvaluator
                     propertyName = member.Property switch
                     {
                         IdentifierExpression id => id.Name.Name,
-                        LiteralExpression { Value: string s } => s,
+                        LiteralExpression { Value.IsString: true } lit => lit.Value.AsString()!,
                         _ => JsOps.GetRequiredPropertyName(EvaluateExpression(member.Property, environment, context).ToObject(),
                             context)
                     };
@@ -385,18 +408,18 @@ public static partial class TypedAstEvaluator
                     {
                         if (context.ShouldStopEvaluation)
                         {
-                            return (Symbol.Undefined, null, true);
+                            return (JsValue.Undefined, JsValue.Undefined, true);
                         }
 
-                        return (directValue, target, false);
+                        return (JsValue.FromObjectUnsafe(directValue), targetJs, false);
                     }
 
                     if (context.ShouldStopEvaluation)
                     {
-                        return (Symbol.Undefined, null, true);
+                        return (JsValue.Undefined, JsValue.Undefined, true);
                     }
 
-                    return (Symbol.Undefined, target, false);
+                    return (JsValue.Undefined, targetJs, false);
                 }
 
                 var handle = PropertyHandle.Resolve(
@@ -408,32 +431,63 @@ public static partial class TypedAstEvaluator
                 var value = handle.GetValue();
                 if (context.ShouldStopEvaluation)
                 {
-                    return (Symbol.Undefined, null, true);
+                    return (JsValue.Undefined, JsValue.Undefined, true);
                 }
 
-                return (value, target, false);
+                return (JsValue.FromObjectUnsafe(value), targetJs, false);
             }
 
             if (callee is IdentifierExpression identifier)
             {
                 if (environment.TryResolveWithBinding(identifier.Name, context, out var withBinding))
                 {
-                    var withValue = JsEnvironment.GetWithBindingValue(withBinding);
-                    return (withValue, withBinding.BindingObject, false);
+                    try
+                    {
+                        var withValue = JsEnvironment.GetWithBindingValue(withBinding);
+                        return (JsValue.FromObjectUnsafe(withValue), JsValue.FromObjectUnsafe(withBinding.BindingObject), false);
+                    }
+                    catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
+                    {
+                        // Convert to JavaScript ReferenceError so it can be caught by JavaScript try-catch
+                        var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
+                        throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
+                    }
                 }
 
+                // Fast path: use slot-based lookup when available
+                if (identifier.SlotIndex >= 0 && identifier.ScopeId >= 0)
+                {
+                    if (environment.ScopeId == identifier.ScopeId)
+                    {
+                        var slots = environment._slots;
+                        if (slots is not null)
+                        {
+                            return (slots[identifier.SlotIndex], JsValue.Undefined, false);
+                        }
+                    }
+                    else
+                    {
+                        var targetEnv = environment.FindByScopeId(identifier.ScopeId);
+                        if (targetEnv?._slots is not null)
+                        {
+                            return (targetEnv._slots[identifier.SlotIndex], JsValue.Undefined, false);
+                        }
+                    }
+                }
+
+                // Fallback: dictionary-based lookup
                 var reference = environment.ResolveIdentifierAssignmentReference(identifier.Name, context);
                 var calleeValue = AssignmentReferenceResolver.ReadIdentifierValue(reference.GetValue, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return (Symbol.Undefined, null, true);
+                    return (JsValue.Undefined, JsValue.Undefined, true);
                 }
 
-                return (calleeValue, Symbol.Undefined, false);
+                return (JsValue.FromObjectUnsafe(calleeValue), JsValue.Undefined, false);
             }
 
             var directCallee = EvaluateExpression(callee, environment, context);
-            return (directCallee.ToObject(), Symbol.Undefined, false);
+            return (directCallee, JsValue.Undefined, false);
         }
     }
 
@@ -497,7 +551,7 @@ public static partial class TypedAstEvaluator
         {
             return property switch
             {
-                LiteralExpression { Value: string s } => s,
+                LiteralExpression { Value.IsString: true } lit => lit.Value.AsString()!,
                 IdentifierExpression id => id.Name.Name,
                 _ => property.GetType().Name
             };
@@ -515,15 +569,15 @@ public static partial class TypedAstEvaluator
             if (environment.TryFindBinding(Symbol.LexicalThisEnvironment, allowUninitialized: true, out _, out var lexicalEnvValue) &&
                 lexicalEnvValue is JsEnvironment lexicalThisEnv)
             {
-                return JsValue.FromObject(lexicalThisEnv.Get(Symbol.This));
+                return JsValue.FromObjectUnsafe(lexicalThisEnv.Get(Symbol.This));
             }
-            return JsValue.FromObject(environment.Get(Symbol.This));
+            return JsValue.FromObjectUnsafe(environment.Get(Symbol.This));
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                      StringComparison.Ordinal))
         {
             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
-            throw new ThrowSignal(errorObject);
+            throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
         }
     }
 
@@ -536,7 +590,7 @@ public static partial class TypedAstEvaluator
         // If running in module context, this should be set by the module loader
         if (environment.TryGet(Symbol.ImportMeta, out var importMeta))
         {
-            return JsValue.FromObject(importMeta);
+            return JsValue.FromObjectUnsafe(importMeta);
         }
 
         // Return a basic import.meta object with a url property
@@ -545,6 +599,6 @@ public static partial class TypedAstEvaluator
         metaObject.SetPrototype(null);
         // Set a default URL if we can determine it from the environment
         metaObject.SetProperty("url", string.Empty);
-        return JsValue.FromObject(metaObject);
+        return (JsValue)metaObject;
     }
 }

@@ -18,7 +18,7 @@ public static partial class TypedAstEvaluator
         private readonly FunctionExpression _function;
         private readonly bool _hasHoistableDeclarations;
         private readonly JsEnvironment? _lexicalThisEnvironment;
-        private readonly object? _lexicalThis;
+        private readonly JsValue _lexicalThis;
         private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
         private readonly JsObject _properties = new();
         private readonly RealmState _realmState;
@@ -29,6 +29,7 @@ public static partial class TypedAstEvaluator
         private readonly bool _allowIdentifierCache;
         private readonly bool _isSimpleFunction;
         private readonly bool _usesArguments;
+        private readonly bool _argumentsObjectNeeded;
         private readonly bool _canPoolInvocationEnvironment;
         private readonly string _functionDescription;
         private readonly ImmutableArray<Symbol> _parameterNames;
@@ -36,7 +37,7 @@ public static partial class TypedAstEvaluator
         private readonly ImmutableArray<Symbol> _catchParameterTemplate;
         private readonly ImmutableArray<Symbol> _simpleCatchParameterTemplate;
         private readonly ImmutableArray<Symbol> _bodyLexicalTemplate;
-        private static readonly System.Collections.Concurrent.ConcurrentBag<HashSet<Symbol>> SymbolSetPool = new();
+        private static readonly System.Collections.Concurrent.ConcurrentBag<HashSet<Symbol>> SymbolSetPool = [];
         private bool _isConstructorEnabled;
         private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
         private JsObject? _prototypeObject;
@@ -46,6 +47,9 @@ public static partial class TypedAstEvaluator
         private bool _isDerivedClassConstructor;
         private IJsEnvironmentAwareCallable? _superConstructor;
         private IJsPropertyAccessor? _superPrototype;
+        // Precomputed fast path eligibility - combines all conditions except newTarget.IsUndefined
+        // Updated when setters are called that could invalidate fast path
+        private bool _canUseFastPathBase;
 
         public TypedFunction(
             FunctionExpression function,
@@ -74,24 +78,36 @@ public static partial class TypedAstEvaluator
             _bodyLexicalNames = CollectLexicalNames(function.Body).ToArray();
             _hasHoistableDeclarations = HasHoistableDeclarations(function.Body);
             _hasParameterExpressions = HasParameterExpressions(_function);
-            _allowIdentifierCache = AllowsIdentifierCaching(_function);
+            // Allow identifier caching only if the function body has no with/eval AND
+            // the closure chain has no with environments (functions defined inside with blocks
+            // need to check with bindings at runtime)
+            _allowIdentifierCache = AllowsIdentifierCaching(_function) && !closure.HasWithObjectInChain();
             _usesArguments = !IsArrowFunction && UsesArgumentsIdentifier(_function);
 
             // Detect simple functions for fast-path invocation
             // A simple function has: no async, no defaults, no destructuring, no body lexicals, no hoisting needed
             // Note: _hasFunctionNameEnvironment being true is fine - it just means the function name binding is
             // in the outer scope, not that we need extra environment setup during invocation.
-            // IMPORTANT: Must be strict mode - non-strict functions have mapped arguments object that links
-            // argument values to parameter bindings, which the fast-path doesn't support.
+            // For non-strict mode: can use fast path if the function doesn't use 'arguments' identifier,
+            // since mapped arguments object (which links argument values to parameter bindings) is not needed.
+            // Named function expressions that need internal binding (e.g., `var f = function factorial(n) {...}`)
+            // must use the slow path where the internal name binding is created.
             var hasSimpleParams = HasOnlySimpleIdentifierParameters(function);
-            _isSimpleFunction = _isStrict &&
+            var canUseFastPathForStrictness = _isStrict || !_usesArguments;
+            var needsInternalNameBinding = !function.IsArrow && function.Name is not null && !hasFunctionNameEnvironment;
+            // TODO: The fast path has bugs with recursive function calls via outer variable names
+            // (e.g., `var fac = function(n) { return n * fac(n-1); }`) and named function expression
+            // internal bindings. Disabling until these issues are resolved.
+            // See: S13_A3_T* tests, eval-direct tests
+            _isSimpleFunction = false; /*canUseFastPathForStrictness &&
                                !function.IsAsync &&
                                !_wasAsyncFunction &&
                                !_hasParameterExpressions &&
                                _bodyLexicalNames.Length == 0 &&
                                !_hasHoistableDeclarations &&
                                _allowIdentifierCache &&
-                               hasSimpleParams;
+                               hasSimpleParams &&
+                               !needsInternalNameBinding;*/
 
             // Can pool invocation environment if simple function AND no inner functions that would capture it
             _canPoolInvocationEnvironment = _isSimpleFunction &&
@@ -102,32 +118,44 @@ public static partial class TypedAstEvaluator
 
             var parameterNames = new List<Symbol>();
             CollectParameterNamesFromFunction(_function, parameterNames);
-            _parameterNames = parameterNames.ToImmutableArray();
-            _lexicalTemplate = _bodyLexicalNames.ToImmutableArray();
+            _parameterNames = [..parameterNames];
+            _lexicalTemplate = [.._bodyLexicalNames];
             var catchParams = CollectCatchParameterNames(_function.Body);
-            _catchParameterTemplate = catchParams.ToImmutableArray();
+            _catchParameterTemplate = [..catchParams];
             var simpleCatchParams = CollectSimpleCatchParameterNames(_function.Body);
-            _simpleCatchParameterTemplate = simpleCatchParams.ToImmutableArray();
+            _simpleCatchParameterTemplate = [..simpleCatchParams];
             var bodyLexicalSet = new HashSet<Symbol>(_bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
             bodyLexicalSet.ExceptWith(simpleCatchParams);
-            _bodyLexicalTemplate = bodyLexicalSet.ToImmutableArray();
+            _bodyLexicalTemplate = [..bodyLexicalSet];
+
+            // ES2024 9.2.12 FunctionDeclarationInstantiation steps 17-20:
+            // argumentsObjectNeeded is true unless:
+            // - Arrow function (step 18)
+            // - "arguments" is a parameter name (step 19)
+            // - hasParameterExpressions is false AND "arguments" is in functionNames/lexicalNames (step 20)
+            // Note: If hasParameterExpressions is true, arguments object is needed even if body has "let arguments"
+            var argumentsIsParameterName = _parameterNames.Contains(Symbol.Arguments);
+            var argumentsInBodyLexicalNames = bodyLexicalSet.Contains(Symbol.Arguments);
+            var canSkipArgumentsForBodyDeclaration = !_hasParameterExpressions && argumentsInBodyLexicalNames;
+            _argumentsObjectNeeded = !IsArrowFunction && !argumentsIsParameterName && !canSkipArgumentsForBodyDeclaration;
+
             if (IsArrowFunction)
             {
                 try
                 {
                     if (_closure.TryGet(Symbol.This, out var capturedThis))
                     {
-                        _lexicalThis = capturedThis;
+                        _lexicalThis = JsValue.FromObjectUnsafe(capturedThis);
                     }
                     else
                     {
-                        _lexicalThis = Symbol.Undefined;
+                        _lexicalThis = JsValue.Undefined;
                     }
                 }
                 catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                              StringComparison.Ordinal))
                 {
-                    _lexicalThis = JsEnvironment.Uninitialized;
+                    _lexicalThis = JsValue.Uninitialized;
                     _lexicalThisEnvironment = _closure;
                 }
             }
@@ -202,6 +230,12 @@ public static partial class TypedAstEvaluator
                     HasEnumerable = true,
                     HasConfigurable = true
                 });
+
+            // Initialize precomputed fast path eligibility
+            // At construction: _isClassConstructor=false, _capturedPrivateNameScopes=empty, PrivateNameScope=null,
+            // _homeObject=null, _superConstructor=null, _superPrototype=null
+            // So we only need to check _isSimpleFunction and _lexicalThisEnvironment
+            _canUseFastPathBase = _isSimpleFunction && _lexicalThisEnvironment is null;
         }
 
         public bool IsAsyncFunction { get; }
@@ -280,7 +314,7 @@ public static partial class TypedAstEvaluator
 
         public JsEnvironment? CallingJsEnvironment { get; set; }
 
-        public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
+        public JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
         {
             return InvokeWithContext(arguments, thisValue, null);
         }
@@ -314,18 +348,18 @@ public static partial class TypedAstEvaluator
             return _properties.DeleteOwnProperty(name);
         }
 
-        public bool TryGetProperty(string name, object? receiver, out object? value)
+        public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
         {
             // Arrow functions, async functions, and non-constructor functions should not have a "prototype" property
             // Per ES spec: Arrow functions and async functions are not constructors and don't have prototype property
             if (string.Equals(name, "prototype", StringComparison.Ordinal) &&
                 (IsArrowFunction || IsAsyncFunction || _wasAsyncFunction || !_isConstructorEnabled))
             {
-                value = null;
+                value = JsValue.Undefined;
                 return false;
             }
 
-            if (_properties.TryGetProperty(name, receiver ?? this, out value))
+            if (_properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver, out value))
             {
                 return true;
             }
@@ -337,54 +371,67 @@ public static partial class TypedAstEvaluator
             switch (name)
             {
                 case "call":
-                    value = new HostFunction((_, args) =>
+                    value = (JsValue)new HostFunction((thisValue, args) =>
                     {
                         var thisArg = args.GetArgument(0);
                         var callArgs = args.SliceFrom(1);
                         return callable.Invoke(callArgs, thisArg);
-                    });
+                    }, isConstructor: false);
                     return true;
 
                 case "apply":
-                    value = new HostFunction((_, args) =>
+                    value = (JsValue)new HostFunction((thisValue, args) =>
                     {
                         var thisArg = args.GetArgument(0);
-                        IReadOnlyList<object?> argList = args.Count > 1 && args[1] is JsArray jsArray
-                            ? jsArray.Items
-                            : ArgumentSlice.Empty;
+                        IReadOnlyList<JsValue> argList;
+                        if (args.Count > 1 && args[1].TryGetObject<JsArray>(out var jsArray))
+                        {
+                            // items[i] is already JsValue from JsArray.Items
+                            var items = jsArray.Items;
+                            var jsValues = new JsValue[items.Count];
+                            for (var i = 0; i < items.Count; i++)
+                            {
+                                jsValues[i] = items[i];
+                            }
+                            argList = jsValues;
+                        }
+                        else
+                        {
+                            argList = ArgumentSlice.Empty;
+                        }
                         return callable.Invoke(argList, thisArg);
-                    });
+                    }, isConstructor: false);
                     return true;
 
                 case "bind":
-                    value = new HostFunction((_, args) =>
+                    value = (JsValue)new HostFunction((thisValue, args) =>
                     {
                         var boundThis = args.GetArgument(0);
                         var boundArgs = args.SliceFrom(1);
                         var targetIsConstructor = JsOps.IsConstructor(callable);
-                        return HostFunction.CreateBoundFunction(callable, boundThis, boundArgs, targetIsConstructor,
+                        return (JsValue)HostFunction.CreateBoundFunction(callable, boundThis, boundArgs, targetIsConstructor,
                             _realmState);
-                    });
+                    }, isConstructor: false);
                     return true;
             }
 
-            value = null;
+            value = JsValue.Undefined;
             return false;
         }
 
-        public bool TryGetProperty(string name, out object? value)
+        public bool TryGetProperty(string name, out JsValue value)
         {
-            return TryGetProperty(name, this, out value);
+            return TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);
         }
 
-        public void SetProperty(string name, object? value)
+        public void SetProperty(string name, JsValue value)
         {
-            SetProperty(name, value, this);
+            SetProperty(name, value, JsValue.FromObjectUnsafe(this));
         }
 
-        public void SetProperty(string name, object? value, object? receiver)
+        public void SetProperty(string name, JsValue value, JsValue receiver)
         {
-            _properties.SetProperty(name, value, receiver ?? this);
+            _properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver);
         }
 
         PropertyDescriptor? IJsPropertyAccessor.GetOwnPropertyDescriptor(string name)
@@ -420,29 +467,81 @@ public static partial class TypedAstEvaluator
             return _properties.TryDefineProperty(name, descriptor);
         }
 
-        public object? InvokeWithContext(
-            IReadOnlyList<object?> arguments,
-            object? thisValue,
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public JsValue InvokeWithContext(
+            IReadOnlyList<JsValue> arguments,
+            JsValue thisValue,
             EvaluationContext? callingContext,
-            object? newTarget = null)
+            JsValue newTarget = default)
         {
-            // Fast-path for simple functions (no async, no defaults, no lexical declarations)
-            // Skip if this is a constructor call (newTarget set), class constructor, or has super access
-            // Also skip arrow functions with uninitialized this (need to look up this at call time)
-            var canUseFastPath = _isSimpleFunction &&
-                !_isClassConstructor &&
-                (newTarget is null || ReferenceEquals(newTarget, Symbol.Undefined)) &&
-                _capturedPrivateNameScopes.IsDefaultOrEmpty &&
-                PrivateNameScope is null &&
-                _homeObject is null && // Methods with homeObject need super context
-                _superConstructor is null &&
-                _superPrototype is null &&
-                _lexicalThisEnvironment is null; // Arrow functions with dynamic this need full path
-
-            if (canUseFastPath)
+            // Fast-path for simple functions - uses precomputed _canUseFastPathBase
+            // Only check newTarget at runtime (everything else is fixed after construction)
+            if (_canUseFastPathBase && newTarget.IsUndefined)
             {
                 return InvokeSimpleFast(arguments, thisValue, callingContext);
             }
+
+            return InvokeWithContextSlow(arguments, thisValue, callingContext, newTarget);
+        }
+
+        /// <summary>
+        /// Ultra-fast invoke for 1-argument calls - avoids array allocation.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public JsValue InvokeWithContext1(
+            JsValue arg0,
+            JsValue thisValue,
+            EvaluationContext callingContext)
+        {
+            if (_canUseFastPathBase)
+            {
+                return InvokeSimpleFast1(arg0, thisValue, callingContext);
+            }
+            return InvokeWithContextSlow([arg0], thisValue, callingContext, JsValue.Undefined);
+        }
+
+        /// <summary>
+        /// Ultra-fast invoke for 1-argument calls with environment reuse optimization.
+        /// When reuseEnvironment is provided, the callee will reuse it instead of allocating a new one.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public JsValue InvokeWithContext1Reuse(
+            JsValue arg0,
+            JsValue thisValue,
+            EvaluationContext callingContext,
+            JsEnvironment reuseEnvironment)
+        {
+            if (_canUseFastPathBase)
+            {
+                return InvokeSimpleFast1Reuse(arg0, thisValue, callingContext, reuseEnvironment);
+            }
+            return InvokeWithContextSlow([arg0], thisValue, callingContext, JsValue.Undefined);
+        }
+
+        /// <summary>
+        /// Ultra-fast invoke for 2-argument calls - avoids array allocation.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public JsValue InvokeWithContext2(
+            JsValue arg0,
+            JsValue arg1,
+            JsValue thisValue,
+            EvaluationContext callingContext)
+        {
+            if (_canUseFastPathBase)
+            {
+                return InvokeSimpleFast2(arg0, arg1, thisValue, callingContext);
+            }
+            return InvokeWithContextSlow([arg0, arg1], thisValue, callingContext, JsValue.Undefined);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private JsValue InvokeWithContextSlow(
+            IReadOnlyList<JsValue> arguments,
+            JsValue thisValue,
+            EvaluationContext? callingContext,
+            JsValue newTarget)
+        {
 
             var context = _realmState.RentContext(pushScope: false);
             context.AllowIdentifierCache = _allowIdentifierCache;
@@ -456,13 +555,13 @@ public static partial class TypedAstEvaluator
                 entryLogger.LogInformation(
                     "ctor entry func={Function} receiver={Receiver} newTarget={NewTarget}",
                     _function.Name?.Name ?? "<anonymous>",
-                    DescribeValue(thisValue),
-                    DescribeValue(newTarget));
+                    DescribeValue(thisValue.ToObject()),
+                    DescribeValue(newTarget.ToObject()));
             }
-            if (_realmState.Logger is { } logger && _isStrict && !ReferenceEquals(thisValue, Symbol.Undefined))
+            if (_realmState.Logger is { } logger && _isStrict && !thisValue.IsUndefined)
             {
                 logger.LogInformation("TypedFunction strict received thisValue type={Type}",
-                    thisValue?.GetType().Name ?? "null");
+                    thisValue.Kind);
             }
             if (callingContext is not null)
             {
@@ -470,13 +569,13 @@ public static partial class TypedAstEvaluator
                 context.MaxCallDepth = callingContext.MaxCallDepth;
             }
 
-            if (_isClassConstructor && (newTarget is null || ReferenceEquals(newTarget, Symbol.Undefined)))
+            if (_isClassConstructor && newTarget.IsUndefined)
             {
                 var error = StandardLibrary.CreateTypeError(
                     "Class constructor cannot be invoked without 'new'",
                     callingContext ?? context,
                     _realmState);
-                throw new ThrowSignal(error);
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
             }
 
             var hasParameterExpressions = _hasParameterExpressions;
@@ -501,9 +600,13 @@ public static partial class TypedAstEvaluator
                 functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+                // Don't initialize slots for complex parameter expressions (destructuring, defaults)
+                // Values are bound via dictionary, not slots
+                functionEnvironment.ScopeId = _function.ScopeId;
 
                 parameterEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict, _function.Source,
                     _functionDescription, isParameterEnvironment: true);
+                parameterEnvironment.IsArrowFunctionEnvironment = IsArrowFunction;
                 parameterEnvironment.SetBodyLexicalNames(bodyLexicalNames);
 
                 varEnvironment = new JsEnvironment(parameterEnvironment, true, _isStrict, _function.Source,
@@ -515,6 +618,9 @@ public static partial class TypedAstEvaluator
                 functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+                // Don't initialize slots in InvokeWithContext - values are bound via dictionary
+                // Only InvokeSimpleFast uses slot-based parameter binding
+                functionEnvironment.ScopeId = _function.ScopeId;
                 parameterEnvironment = functionEnvironment;
                 varEnvironment = functionEnvironment;
             }
@@ -541,16 +647,16 @@ public static partial class TypedAstEvaluator
 
             if (!IsArrowFunction)
             {
-                var newTargetValue = newTarget ?? Symbol.Undefined;
-                functionEnvironment.Define(Symbol.NewTarget, newTargetValue, true, isLexical: true,
+                var newTargetValue = newTarget.IsUndefined ? JsValue.Undefined : newTarget;
+                functionEnvironment.DefineJsValue(Symbol.NewTarget, newTargetValue, true, isLexical: true,
                     blocksFunctionScopeOverride: true);
             }
 
             // Bind `this`.
-            var boundThis = thisValue;
+            var boundThis = thisValue.ToObject();
             if (IsArrowFunction)
             {
-                var lexicalThis = _lexicalThis;
+                var lexicalThis = _lexicalThis.ToObject();
                 var lexicalThisInitialized = !ReferenceEquals(lexicalThis, JsEnvironment.Uninitialized);
                 if (_lexicalThisEnvironment is not null)
                 {
@@ -576,7 +682,7 @@ public static partial class TypedAstEvaluator
                 {
                     context.MarkThisUninitialized();
                 }
-                functionEnvironment.Define(Symbol.This, boundThis);
+                functionEnvironment.DefineJsValue(Symbol.This, JsValue.FromObjectUnsafe(boundThis));
 
                 // Store a reference to the original environment that owns the `this` binding.
                 // This is needed for super() calls in arrow functions - super() must update
@@ -584,7 +690,7 @@ public static partial class TypedAstEvaluator
                 if (_lexicalThisEnvironment is not null &&
                     _lexicalThisEnvironment.TryFindBinding(Symbol.This, allowUninitialized: true, out var originalThisEnv, out _))
                 {
-                    functionEnvironment.Define(Symbol.LexicalThisEnvironment, originalThisEnv, false, isLexical: true);
+                    functionEnvironment.DefineJsValue(Symbol.LexicalThisEnvironment, JsValue.FromObjectUnsafe(originalThisEnv), false, isLexical: true);
                 }
 
                 var hasCopiedInitialization = false;
@@ -603,7 +709,7 @@ public static partial class TypedAstEvaluator
                 SuperBinding? lexicalSuperBinding = null;
                 if (_superConstructor is not null || _superPrototype is not null)
                 {
-                    lexicalSuperBinding = new SuperBinding(_superConstructor, _superPrototype, boundThis, true);
+                    lexicalSuperBinding = new SuperBinding(_superConstructor, _superPrototype, thisValue, true);
                 }
                 else if (_closure.TryGet(Symbol.Super, out var inheritedSuper) &&
                          inheritedSuper is SuperBinding inheritedSuperBinding)
@@ -617,7 +723,7 @@ public static partial class TypedAstEvaluator
                         "SuperBinding: define lexical for arrow/lexical this protoNull={ProtoNull} thisInit={ThisInit}",
                         lexicalSuperBinding.Prototype is null,
                         lexicalSuperBinding.IsThisInitialized);
-                    functionEnvironment.Define(Symbol.Super, lexicalSuperBinding, false, isLexical: true,
+                    functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(lexicalSuperBinding), false, isLexical: true,
                         blocksFunctionScopeOverride: true);
                     if (!hasCopiedInitialization)
                     {
@@ -629,11 +735,12 @@ public static partial class TypedAstEvaluator
             {
                 if (_isClassConstructor &&
                     ReferenceEquals(boundThis, Symbol.Undefined) &&
-                    newTarget is not null)
+                    !newTarget.IsUndefined)
                 {
                     var constructedThis = new JsObject();
                     constructedThis.RealmState = _realmState;
-                    if (newTarget is IJsPropertyAccessor prototypeSource &&
+                    var newTargetObj = newTarget.ToObject();
+                    if (newTargetObj is IJsPropertyAccessor prototypeSource &&
                         JsOps.TryGetPropertyValue(prototypeSource, "prototype", out var protoVal) &&
                         protoVal is IJsPropertyAccessor protoAccessor)
                     {
@@ -649,18 +756,18 @@ public static partial class TypedAstEvaluator
                         _function.Name?.Name ?? "<anonymous>",
                         DescribeValue(constructedThis),
                         DescribePrototype(constructedThis.PrototypeAccessor ?? constructedThis.Prototype),
-                        newTarget.GetType().Name);
+                        newTargetObj?.GetType().Name ?? "null");
 
                     boundThis = constructedThis;
                 }
 
                 if (!_isStrict)
                 {
-                    if (thisValue is null || ReferenceEquals(thisValue, Symbol.Undefined))
+                    if (thisValue.IsNullish)
                     {
                         boundThis = _realmState.Engine is { GlobalObject: { } globalObj }
                             ? globalObj
-                            : (object)Symbol.Undefined;
+                            : Symbol.Undefined;
                     }
 
                     if (boundThis is not IJsPropertyAccessor &&
@@ -696,7 +803,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 SetThisInitializationStatus(functionEnvironment, initialThisInitialized);
-                functionEnvironment.Define(Symbol.This, initialThisValue);
+                functionEnvironment.DefineJsValue(Symbol.This, JsValue.FromObjectUnsafe(initialThisValue));
 
                 if (_isClassConstructor && initialThisValue is JsObject ctorThis)
                 {
@@ -720,7 +827,7 @@ public static partial class TypedAstEvaluator
                 else
                 {
                     prototypeForSuper = _superPrototype;
-                    if (prototypeForSuper is null && thisValue is JsObject thisObj)
+                    if (prototypeForSuper is null && thisValue.TryGetObject<JsObject>(out var thisObj))
                     {
                         prototypeForSuper = thisObj.Prototype;
                     }
@@ -739,7 +846,7 @@ public static partial class TypedAstEvaluator
                         }
                     }
 
-                    var binding = new SuperBinding(runtimeSuperConstructor, prototypeForSuper, boundThis,
+                    var binding = new SuperBinding(runtimeSuperConstructor, prototypeForSuper, JsValue.FromObjectUnsafe(boundThis),
                         initialThisInitialized);
                     functionEnvironment.RealmState?.Logger?.LogInformation(
                         "SuperBinding: define in function env env={Env} isCtor={IsCtor} isDerivedCtor={IsDerivedCtor} protoNull={ProtoNull} thisInit={ThisInit}",
@@ -748,7 +855,7 @@ public static partial class TypedAstEvaluator
                         _isDerivedClassConstructor,
                         prototypeForSuper is null,
                         initialThisInitialized);
-                    functionEnvironment.Define(Symbol.Super, binding);
+                    functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(binding));
                 }
 
                 if (_isClassConstructor && boundThis is JsObject thisInstance)
@@ -771,7 +878,7 @@ public static partial class TypedAstEvaluator
                                 return thrownDuringInitialization;
                             }
 
-                            return Symbol.Undefined;
+                            return JsValue.Undefined;
                         }
                     }
                 }
@@ -779,26 +886,41 @@ public static partial class TypedAstEvaluator
 
             try
             {
-                if (!IsArrowFunction)
+                // Convert JsValue arguments to object? once - reused for both arguments object and parameter binding
+                var argumentValues = new object?[arguments.Count];
+                for (var i = 0; i < arguments.Count; i++)
+                {
+                    argumentValues[i] = arguments[i].ToObject();
+                }
+
+                // Create arguments object per ES2024 9.2.12 steps 17-20
+                // Note: argumentsObjectNeeded handles all spec conditions (arrow, param name, lexical binding)
+                if (_argumentsObjectNeeded)
                 {
                     // Create the `arguments` binding up front so parameter default expressions can reference it.
                     var argumentsObject =
-                        CreateArgumentsObject(_function, arguments, parameterEnvironment, _realmState, this,
+                        CreateArgumentsObject(_function, argumentValues, parameterEnvironment, _realmState, this,
                             _isStrict);
-                    parameterEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
+                    parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject), isLexical: false);
                     if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
                     {
-                        functionEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
+                        functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject), isLexical: false);
                     }
                 }
 
                 // Named function expressions should see their name inside the body.
                 if (!IsArrowFunction && _function.Name is { } functionName && !_hasFunctionNameEnvironment)
                 {
-                    parameterEnvironment.Define(functionName, this, isConst: true, isLexical: true, blocksFunctionScopeOverride: true);
+                    parameterEnvironment.DefineJsValue(functionName, JsValue.FromObjectUnsafe(this), isConst: true, isLexical: true, blocksFunctionScopeOverride: true);
                 }
 
-                BindFunctionParameters(_function, arguments, parameterEnvironment, context);
+                // Wrap parameter binding and body evaluation in the same try-catch for async functions.
+                // This ensures ThrowSignal exceptions from TDZ errors during parameter default evaluation
+                // are properly caught and converted to rejected promises.
+                try
+                {
+                // Bind parameters using the same converted array
+                BindFunctionParameters(_function, argumentValues, parameterEnvironment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     if (context.IsThrow)
@@ -807,9 +929,12 @@ public static partial class TypedAstEvaluator
                         if (IsAsyncFunction || _wasAsyncFunction)
                         {
                             // Async functions must reject instead of throwing synchronously.
+                            // Use CreateRejectedPromiseFromRealm which uses the RealmState's
+                            // PromiseConstructor, ensuring we always have access to Promise.
                             callingContext?.Clear();
 
-                            return CreateRejectedPromise(thrownDuringBinding, parameterEnvironment);
+                            var rejectedBindingResult = CreateRejectedPromiseFromRealm(thrownDuringBinding);
+                            return rejectedBindingResult is JsValue rejBindJs ? rejBindJs : JsValue.FromObjectUnsafe(rejectedBindingResult);
                         }
 
                         if (callingContext is not null)
@@ -821,7 +946,7 @@ public static partial class TypedAstEvaluator
                         throw new ThrowSignal(thrownDuringBinding);
                     }
 
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
 
                 if (_hasHoistableDeclarations)
@@ -840,9 +965,7 @@ public static partial class TypedAstEvaluator
                     functionEnvironment.DefineFunctionScoped(hoistedName, Symbol.Undefined, false, context: context);
                 }
 
-                try
-                {
-                    var result = EvaluateBlock(
+                    _ = EvaluateBlockJsValue(
                         _function.Body,
                         executionEnvironment,
                         context);
@@ -850,15 +973,17 @@ public static partial class TypedAstEvaluator
                 if (context.IsThrow)
                 {
                     var thrown = context.FlowValue;
+                    var thrownObj = thrown.ToObject();
                     _realmState.Logger?.LogInformation(
                         "InvokeWithContext propagating throw type={ThrowType} callerHasContext={HasCaller} func={FunctionName}",
-                        thrown?.GetType().Name ?? "null",
+                        thrownObj?.GetType().Name ?? "null",
                         callingContext is not null,
                         _function.Name?.Name ?? "<anonymous>");
 
                     if (IsAsyncFunction || _wasAsyncFunction)
                     {
-                        return CreateRejectedPromise(thrown, executionEnvironment);
+                        var rejectedThrowResult = CreateRejectedPromise(thrown, executionEnvironment);
+                        return rejectedThrowResult is JsValue rejThrowJs ? rejThrowJs : JsValue.FromObjectUnsafe(rejectedThrowResult);
                     }
 
                     if (callingContext is not null)
@@ -885,7 +1010,7 @@ public static partial class TypedAstEvaluator
                                 _realmState.Logger?.LogInformation(
                                     "Class constructor returning this={This}",
                                     DescribeValue(currentThis));
-                                return currentThis;
+                                return JsValue.FromObjectUnsafe(currentThis);
                             }
                         }
                         catch (InvalidOperationException ex) when (ex.Message.StartsWith(
@@ -894,23 +1019,24 @@ public static partial class TypedAstEvaluator
                         {
                             // If `this` is uninitialized (e.g., derived ctor without super()), surface a JS ReferenceError.
                             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
-                            throw new ThrowSignal(errorObject);
+                            throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
                         }
                     }
 
-                        return Symbol.Undefined;
+                        return JsValue.Undefined;
                     }
 
                     var value = context.FlowValue;
                     context.ClearReturn();
+                    var valueObj = value.ToObject();
                     if (_isClassConstructor &&
-                        value is not JsObject &&
-                        value is not IJsObjectLike)
+                        !value.TryGetObject<JsObject>(out _) &&
+                        !value.TryGetObject<IJsObjectLike>(out _))
                     {
                         // Per ES spec 9.2.2 [[Construct]] step 13c:
                         // For derived class constructors, if return value is not undefined,
                         // throw TypeError. For base class constructors, fall back to `this`.
-                        if (_isDerivedClassConstructor && !ReferenceEquals(value, Symbol.Undefined))
+                        if (_isDerivedClassConstructor && !ReferenceEquals(valueObj, Symbol.Undefined))
                         {
                             throw StandardLibrary.ThrowTypeError(
                                 "Derived constructors may only return object or undefined",
@@ -925,7 +1051,7 @@ public static partial class TypedAstEvaluator
                             {
                                 _realmState.Logger?.LogInformation(
                                     "Class constructor returning bound this instead of non-object return value");
-                                return currentThis;
+                                return JsValue.FromObjectUnsafe(currentThis);
                             }
 
                             // Per ES spec 9.2.2 [[Construct]] step 15:
@@ -933,13 +1059,13 @@ public static partial class TypedAstEvaluator
                             // throws ReferenceError if `this` is uninitialized (super() not called)
                             if (_isDerivedClassConstructor &&
                                 (ReferenceEquals(currentThis, JsEnvironment.Uninitialized) ||
-                                 ReferenceEquals(value, Symbol.Undefined)))
+                                 ReferenceEquals(valueObj, Symbol.Undefined)))
                             {
                                 var errorObject = StandardLibrary.CreateReferenceError(
                                     "ReferenceError: this is not defined - must call super() in derived class constructor",
                                     context,
                                     context.RealmState);
-                                throw new ThrowSignal(errorObject);
+                                throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
                             }
                         }
                         catch (InvalidOperationException ex) when (ex.Message.StartsWith(
@@ -952,7 +1078,7 @@ public static partial class TypedAstEvaluator
                             if (_isDerivedClassConstructor)
                             {
                                 var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
-                                throw new ThrowSignal(errorObject);
+                                throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
                             }
                             _realmState.Logger?.LogInformation(
                                 "Class constructor missing initialized this; falling back to return value reason={Reason}",
@@ -960,7 +1086,7 @@ public static partial class TypedAstEvaluator
                         }
                     }
 
-                    return value;
+                    return JsValue.FromObjectUnsafe(valueObj);
                 }
 
                 object? completionValue;
@@ -980,11 +1106,15 @@ public static partial class TypedAstEvaluator
                     IsAsyncFunction,
                     _wasAsyncFunction,
                     completionValue?.GetType().Name ?? "null");
-                return CreateResolvedPromise(completionValue, executionEnvironment);
+                var resolvedResult = CreateResolvedPromise(completionValue, executionEnvironment);
+                return resolvedResult is JsValue resolvedJs ? resolvedJs : JsValue.FromObjectUnsafe(resolvedResult);
             }
             catch (ThrowSignal signal) when (IsAsyncFunction || _wasAsyncFunction)
             {
-                return CreateRejectedPromise(signal.ThrownValue, executionEnvironment);
+                // Use CreateRejectedPromiseFromRealm which uses the RealmState's PromiseConstructor
+                // directly, avoiding environment lookup that might fail during parameter binding.
+                var rejectedResult = CreateRejectedPromiseFromRealm(signal.ThrownValue);
+                return rejectedResult is JsValue rejectedJs ? rejectedJs : JsValue.FromObjectUnsafe(rejectedResult);
             }
             finally
             {
@@ -1031,28 +1161,24 @@ public static partial class TypedAstEvaluator
             SymbolSetPool.Add(set);
         }
 
-        private static HashSet<Symbol> CollectCatchParameterNamesPooled(BlockStatement body)
+        /// <summary>
+        /// Creates a rejected promise using the realm's Promise constructor.
+        /// Unlike CreateRejectedPromise which looks up Promise in the environment,
+        /// this method uses the RealmState's PromiseConstructor directly.
+        /// </summary>
+        private object? CreateRejectedPromiseFromRealm(JsValue reason)
         {
-            var set = RentSymbolSet();
-            var names = CollectCatchParameterNames(body);
-            if (names.Count > 0)
+            var promiseCtor = _realmState.PromiseConstructor;
+            if (promiseCtor is IJsPropertyAccessor accessor &&
+                accessor.TryGetProperty("reject", out var rejectValue) &&
+                rejectValue.TryGetObject<IJsCallable>(out var rejectCallable))
             {
-                set.UnionWith(names);
+                return rejectCallable.Invoke([reason], JsValue.FromObjectUnsafe(promiseCtor)).ToObject();
             }
 
-            return set;
-        }
-
-        private static HashSet<Symbol> CollectSimpleCatchParameterNamesPooled(BlockStatement body)
-        {
-            var set = RentSymbolSet();
-            var names = CollectSimpleCatchParameterNames(body);
-            if (names.Count > 0)
-            {
-                set.UnionWith(names);
-            }
-
-            return set;
+            // Fallback if Promise.reject isn't available - return the reason directly
+            // This shouldn't happen in normal operation since Promise is always registered
+            return reason.ToObject();
         }
 
         public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
@@ -1082,22 +1208,35 @@ public static partial class TypedAstEvaluator
         public void SetPrivateNameScope(PrivateNameScope? scope)
         {
             PrivateNameScope = scope;
+            if (scope is not null)
+            {
+                _canUseFastPathBase = false;
+            }
         }
 
         public void SetCapturedPrivateNameScopes(ImmutableArray<PrivateNameScope> scopes)
         {
             _capturedPrivateNameScopes = scopes;
+            if (!scopes.IsDefaultOrEmpty)
+            {
+                _canUseFastPathBase = false;
+            }
         }
 
         public void SetSuperBinding(IJsEnvironmentAwareCallable? superConstructor, IJsPropertyAccessor? superPrototype)
         {
             _superConstructor = superConstructor;
             _superPrototype = superPrototype;
+            if (superConstructor is not null || superPrototype is not null)
+            {
+                _canUseFastPathBase = false;
+            }
         }
 
         public void SetHomeObject(IJsObjectLike homeObject)
         {
             _homeObject = homeObject;
+            _canUseFastPathBase = false;
         }
 
         public void DisableConstruction()
@@ -1121,6 +1260,7 @@ public static partial class TypedAstEvaluator
         {
             _isClassConstructor = true;
             _isDerivedClassConstructor = isDerived;
+            _canUseFastPathBase = false;
         }
 
         public void SetInstanceFields(ImmutableArray<ClassField> fields)
@@ -1138,7 +1278,7 @@ public static partial class TypedAstEvaluator
             // (e.g., FooObj.prototype = anotherFunction). Per ES spec, if the prototype property
             // is not an object, we should use the intrinsic %Object.prototype% instead, but
             // this is handled at the call site.
-            if (_properties.TryGetProperty("prototype", this, out var value) && value is IJsObjectLike objLike)
+            if (_properties.TryGetProperty("prototype", JsValue.FromObjectUnsafe(this), out var value) && value.TryGetObject<IJsObjectLike>(out var objLike))
             {
                 prototype = objLike;
                 // Also cache if it's a JsObject for backwards compatibility
@@ -1165,7 +1305,7 @@ public static partial class TypedAstEvaluator
             // Always check the current prototype property value first, in case it was reassigned
             // (e.g., FooObj.prototype = protoObj). The _prototypeObject cache is only used
             // as a fallback when the property hasn't been explicitly set.
-            if (_properties.TryGetProperty("prototype", this, out var value) && value is JsObject jsObj)
+            if (_properties.TryGetProperty("prototype", JsValue.FromObjectUnsafe(this), out var value) && value.TryGetObject<JsObject>(out var jsObj))
             {
                 _prototypeObject = jsObj;
                 return jsObj;
@@ -1184,7 +1324,7 @@ public static partial class TypedAstEvaluator
                     ? "anonymous function prototype (materialized)"
                     : $"prototype of {_function.Name!.Name} (materialized)"
             };
-            _properties.SetProperty("prototype", created);
+            _properties.SetProperty("prototype", (JsValue)created);
             _prototypeObject = created;
             return created;
         }
@@ -1209,7 +1349,7 @@ public static partial class TypedAstEvaluator
                 return null;
             }
 
-            return new SuperBinding(_superConstructor, prototypeForSuper, instance, true);
+            return new SuperBinding(_superConstructor, prototypeForSuper, JsValue.FromObjectUnsafe(instance), true);
         }
 
         public void InitializeInstance(IJsObjectLike instance, JsEnvironment environment, EvaluationContext context)
@@ -1246,27 +1386,27 @@ public static partial class TypedAstEvaluator
 
                 using var classFieldInitScope = context.EnterClassFieldInitializer();
                 var initEnv = new JsEnvironment(environment, isStrict: true);
-                initEnv.Define(EvalHostFunction.FieldInitializerEvalFlag, true, isConst: true, isLexical: true,
+                initEnv.DefineJsValue(EvalHostFunction.FieldInitializerEvalFlag, JsValue.True, isConst: true, isLexical: true,
                     blocksFunctionScopeOverride: true);
-                initEnv.Define(Symbol.This, instance);
+                initEnv.DefineJsValue(Symbol.This, JsValue.FromObjectUnsafe(instance));
 
                 var fieldSuperBinding = ResolveInstanceFieldSuperBinding(environment, instance);
                 if (fieldSuperBinding is not null)
                 {
-                    initEnv.Define(Symbol.Super, fieldSuperBinding, true, isLexical: true,
+                    initEnv.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(fieldSuperBinding), true, isLexical: true,
                         blocksFunctionScopeOverride: true);
                 }
 
                 if (environment.TryGet(Symbol.NewTarget, out var newTargetValue))
                 {
                     // Class field initializers execute outside of any function body; shadow new.target with undefined.
-                    initEnv.Define(Symbol.NewTarget, Symbol.Undefined, true, isLexical: true,
+                    initEnv.DefineJsValue(Symbol.NewTarget, JsValue.Undefined, true, isLexical: true,
                         blocksFunctionScopeOverride: true);
                 }
 
                 if (environment.TryGet(Symbol.Arguments, out var argumentsValue))
                 {
-                    initEnv.Define(Symbol.Arguments, argumentsValue, isLexical: false);
+                    initEnv.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsValue), isLexical: false);
                 }
 
                 var propertyName = field.Name;
@@ -1570,11 +1710,382 @@ public static partial class TypedAstEvaluator
         /// Fast-path invocation for simple functions. Uses pooled EvaluationContext.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private object? InvokeSimpleFast(IReadOnlyList<object?> arguments, object? thisValue, EvaluationContext? callingContext)
+        private JsValue InvokeSimpleFast(IReadOnlyList<JsValue> arguments, JsValue thisValue, EvaluationContext? callingContext)
+        {
+            // Ultra-fast path for simple recursive functions (no arguments object, poolable environment)
+            // This path has no try/catch to allow inlining
+            if (_canPoolInvocationEnvironment && !_usesArguments && callingContext is not null)
+            {
+                return InvokeSimpleFastCore(arguments, thisValue, callingContext);
+            }
+
+            // Standard fast path with try/catch for exception handling
+            return InvokeSimpleFastWithExceptionHandling(arguments, thisValue, callingContext);
+        }
+
+        /// <summary>
+        /// Ultra-fast 1-argument invoke - avoids array allocation entirely.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue InvokeSimpleFast1(JsValue arg0, JsValue thisValue, EvaluationContext callingContext)
+        {
+            if (_canPoolInvocationEnvironment && !_usesArguments)
+            {
+                return InvokeSimpleFastCore1(arg0, thisValue, callingContext);
+            }
+            return InvokeSimpleFastWithExceptionHandling([arg0], thisValue, callingContext);
+        }
+
+        /// <summary>
+        /// Ultra-fast 1-argument invoke with environment reuse - avoids both array and environment allocation.
+        /// The provided environment is reset and reused instead of allocating a new one.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue InvokeSimpleFast1Reuse(JsValue arg0, JsValue thisValue, EvaluationContext callingContext, JsEnvironment reuseEnvironment)
+        {
+            if (_canPoolInvocationEnvironment && !_usesArguments)
+            {
+                return InvokeSimpleFastCore1Reuse(arg0, thisValue, callingContext, reuseEnvironment);
+            }
+            return InvokeSimpleFastWithExceptionHandling([arg0], thisValue, callingContext);
+        }
+
+        /// <summary>
+        /// Ultra-fast 2-argument invoke - avoids array allocation entirely.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue InvokeSimpleFast2(JsValue arg0, JsValue arg1, JsValue thisValue, EvaluationContext callingContext)
+        {
+            if (_canPoolInvocationEnvironment && !_usesArguments)
+            {
+                return InvokeSimpleFastCore2(arg0, arg1, thisValue, callingContext);
+            }
+            return InvokeSimpleFastWithExceptionHandling([arg0, arg1], thisValue, callingContext);
+        }
+
+        /// <summary>
+        /// Ultra-fast core invocation - no try/catch to allow JIT inlining.
+        /// Only used when we can guarantee no ThrowSignal will escape (errors propagate via context).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue InvokeSimpleFastCore(IReadOnlyList<JsValue> arguments, JsValue thisValue, EvaluationContext callingContext)
+        {
+            // Rent context from pool
+            var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
+            var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: true);
+            context.AllowIdentifierCache = _allowIdentifierCache;
+            context.CallDepth = callingContext.CallDepth;
+            context.MaxCallDepth = callingContext.MaxCallDepth;
+
+            // Rent environment from pool
+            var functionEnvironment = _realmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
+            functionEnvironment.ScopeId = _function.ScopeId;
+            if (_function.SlotCount > 0)
+            {
+                functionEnvironment.InitializeSlots(_function.SlotCount);
+            }
+
+            // Bind this - use lexical this for arrow functions, parameter for others
+            JsValue boundThisValue;
+            if (IsArrowFunction)
+            {
+                boundThisValue = _lexicalThis.IsUndefined ? JsValue.Undefined : _lexicalThis;
+            }
+            else if (_isStrict)
+            {
+                boundThisValue = thisValue;
+            }
+            else
+            {
+                boundThisValue = thisValue.IsNullish
+                    ? (_realmState.Engine is { GlobalObject: { } globalObj } ? (JsValue)globalObj : JsValue.Undefined)
+                    : thisValue;
+            }
+            functionEnvironment._thisValue = boundThisValue;
+            functionEnvironment._hasThisValue = true;
+
+            // Bind parameters to slots
+            var slots = functionEnvironment._slots;
+            if (slots is not null)
+            {
+                for (var i = 0; i < _parameterNames.Length; i++)
+                {
+                    slots[i] = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                }
+            }
+            else
+            {
+                // Fallback when slots not available
+                for (var i = 0; i < _parameterNames.Length; i++)
+                {
+                    var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                    functionEnvironment.DefineParameterFast(_parameterNames[i], value);
+                }
+            }
+
+            // Execute body
+            _ = EvaluateBlockJsValue(_function.Body, functionEnvironment, context);
+
+            // Get result
+            JsValue result;
+            if (context.IsThrow)
+            {
+                result = context.FlowValue;
+                Console.WriteLine($"[DEBUG InvokeSimpleFastCore] context.IsThrow=true, result type: {result.GetType()}, IsUndefined: {result.IsUndefined}, Kind: {result.Kind}");
+                context.Clear();
+                Console.WriteLine($"[DEBUG InvokeSimpleFastCore] Before SetThrow, callingContext.IsThrow: {callingContext.IsThrow}");
+                callingContext.SetThrow(result);
+                Console.WriteLine($"[DEBUG InvokeSimpleFastCore] After SetThrow, callingContext.IsThrow: {callingContext.IsThrow}, callingContext.FlowValue.Kind: {callingContext.FlowValue.Kind}");
+            }
+            else if (context.IsReturn)
+            {
+                result = context.FlowValue;
+                context.ClearReturn();
+            }
+            else
+            {
+                result = JsValue.Undefined;
+            }
+
+            // Return pooled resources
+            _realmState.ReturnContext(context);
+            _realmState.ReturnEnvironment(functionEnvironment);
+
+            return result;
+        }
+
+        /// <summary>
+        /// Ultra-fast 1-argument core invocation - no array allocation, no try/catch.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue InvokeSimpleFastCore1(JsValue arg0, JsValue thisValue, EvaluationContext callingContext)
+        {
+            var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
+            var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: true);
+            context.AllowIdentifierCache = _allowIdentifierCache;
+            context.CallDepth = callingContext.CallDepth;
+            context.MaxCallDepth = callingContext.MaxCallDepth;
+
+            var functionEnvironment = _realmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
+            functionEnvironment.ScopeId = _function.ScopeId;
+            if (_function.SlotCount > 0)
+            {
+                functionEnvironment.InitializeSlots(_function.SlotCount);
+            }
+
+            // Bind this
+            JsValue boundThisValue;
+            if (IsArrowFunction)
+            {
+                boundThisValue = _lexicalThis.IsUndefined ? JsValue.Undefined : _lexicalThis;
+            }
+            else if (_isStrict)
+            {
+                boundThisValue = thisValue;
+            }
+            else
+            {
+                boundThisValue = thisValue.IsNullish
+                    ? (_realmState.Engine is { GlobalObject: { } globalObj } ? (JsValue)globalObj : JsValue.Undefined)
+                    : thisValue;
+            }
+            functionEnvironment._thisValue = boundThisValue;
+            functionEnvironment._hasThisValue = true;
+
+            // Bind single parameter directly - no array allocation
+            var slots = functionEnvironment._slots;
+            if (slots is not null && _parameterNames.Length > 0)
+            {
+                slots[0] = arg0;
+            }
+            else if (_parameterNames.Length > 0)
+            {
+                // Fallback when slots not available
+                functionEnvironment.DefineParameterFast(_parameterNames[0], arg0);
+            }
+
+            _ = EvaluateBlockJsValue(_function.Body, functionEnvironment, context);
+
+            JsValue result;
+            if (context.IsThrow)
+            {
+                result = context.FlowValue;
+                context.Clear();
+                callingContext.SetThrow(result);
+            }
+            else if (context.IsReturn)
+            {
+                result = context.FlowValue;
+                context.ClearReturn();
+            }
+            else
+            {
+                result = JsValue.Undefined;
+            }
+
+            _realmState.ReturnContext(context);
+            _realmState.ReturnEnvironment(functionEnvironment);
+            return result;
+        }
+
+        /// <summary>
+        /// Ultra-fast 1-argument core invocation with environment reuse.
+        /// Reuses the provided environment AND the calling context - avoids all pooling allocations.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue InvokeSimpleFastCore1Reuse(JsValue arg0, JsValue thisValue, EvaluationContext callingContext, JsEnvironment reuseEnvironment)
+        {
+            // Use the calling context directly - no renting needed for simple recursive functions
+            // This avoids ConcurrentStack Node allocations from pool rent/return
+            var context = callingContext;
+
+            // Reuse the provided environment instead of renting a new one
+            // Use ResetForReuse which keeps the slots array to avoid allocation
+            var functionEnvironment = reuseEnvironment;
+            functionEnvironment.ResetForReuse(_closure, true, _isStrict, _function.Source, _functionDescription);
+            functionEnvironment.ScopeId = _function.ScopeId;
+            // Skip InitializeSlots - for simple functions we only have parameters (no local vars),
+            // and we're about to set the parameter slot directly below. This avoids the Array.Fill.
+
+            // Bind this
+            JsValue boundThisValue;
+            if (IsArrowFunction)
+            {
+                boundThisValue = _lexicalThis.IsUndefined ? JsValue.Undefined : _lexicalThis;
+            }
+            else if (_isStrict)
+            {
+                boundThisValue = thisValue;
+            }
+            else
+            {
+                boundThisValue = thisValue.IsNullish
+                    ? (_realmState.Engine is { GlobalObject: { } globalObj } ? (JsValue)globalObj : JsValue.Undefined)
+                    : thisValue;
+            }
+            functionEnvironment._thisValue = boundThisValue;
+            functionEnvironment._hasThisValue = true;
+
+            // Bind single parameter directly - no array allocation, no Array.Fill needed
+            var slots = functionEnvironment._slots;
+            if (slots is not null && _parameterNames.Length > 0)
+            {
+                slots[0] = arg0;
+            }
+            else if (_parameterNames.Length > 0)
+            {
+                // Fallback when slots not available
+                functionEnvironment.DefineParameterFast(_parameterNames[0], arg0);
+            }
+
+            _ = EvaluateBlockJsValue(_function.Body, functionEnvironment, context);
+
+            JsValue result;
+            if (context.IsThrow)
+            {
+                result = context.FlowValue;
+                // Don't clear throw - let it propagate to caller
+            }
+            else if (context.IsReturn)
+            {
+                result = context.FlowValue;
+                context.ClearReturn();
+            }
+            else
+            {
+                result = JsValue.Undefined;
+            }
+
+            // Note: Do NOT return context or environment - caller owns them
+            return result;
+        }
+
+        /// <summary>
+        /// Ultra-fast 2-argument core invocation - no array allocation, no try/catch.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue InvokeSimpleFastCore2(JsValue arg0, JsValue arg1, JsValue thisValue, EvaluationContext callingContext)
+        {
+            var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
+            var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: true);
+            context.AllowIdentifierCache = _allowIdentifierCache;
+            context.CallDepth = callingContext.CallDepth;
+            context.MaxCallDepth = callingContext.MaxCallDepth;
+
+            var functionEnvironment = _realmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
+            functionEnvironment.ScopeId = _function.ScopeId;
+            if (_function.SlotCount > 0)
+            {
+                functionEnvironment.InitializeSlots(_function.SlotCount);
+            }
+
+            // Bind this
+            JsValue boundThisValue;
+            if (IsArrowFunction)
+            {
+                boundThisValue = _lexicalThis.IsUndefined ? JsValue.Undefined : _lexicalThis;
+            }
+            else if (_isStrict)
+            {
+                boundThisValue = thisValue;
+            }
+            else
+            {
+                boundThisValue = thisValue.IsNullish
+                    ? (_realmState.Engine is { GlobalObject: { } globalObj } ? (JsValue)globalObj : JsValue.Undefined)
+                    : thisValue;
+            }
+            functionEnvironment._thisValue = boundThisValue;
+            functionEnvironment._hasThisValue = true;
+
+            // Bind both parameters directly - no array allocation
+            var slots = functionEnvironment._slots;
+            if (slots is not null)
+            {
+                if (_parameterNames.Length > 0) slots[0] = arg0;
+                if (_parameterNames.Length > 1) slots[1] = arg1;
+            }
+            else
+            {
+                // Fallback when slots not available
+                if (_parameterNames.Length > 0) functionEnvironment.DefineParameterFast(_parameterNames[0], arg0);
+                if (_parameterNames.Length > 1) functionEnvironment.DefineParameterFast(_parameterNames[1], arg1);
+            }
+
+            _ = EvaluateBlockJsValue(_function.Body, functionEnvironment, context);
+
+            JsValue result;
+            if (context.IsThrow)
+            {
+                result = context.FlowValue;
+                context.Clear();
+                callingContext.SetThrow(result);
+            }
+            else if (context.IsReturn)
+            {
+                result = context.FlowValue;
+                context.ClearReturn();
+            }
+            else
+            {
+                result = JsValue.Undefined;
+            }
+
+            _realmState.ReturnContext(context);
+            _realmState.ReturnEnvironment(functionEnvironment);
+            return result;
+        }
+
+        /// <summary>
+        /// Standard fast path with exception handling for functions that may throw.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private JsValue InvokeSimpleFastWithExceptionHandling(IReadOnlyList<JsValue> arguments, JsValue thisValue, EvaluationContext? callingContext)
         {
             // Rent context from pool - avoids allocation per call
-            var context = _realmState.RentContext(ScopeKind.Function, ScopeMode.Strict, pushScope: false);
-            context.AllowIdentifierCache = true;
+            var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
+            var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: false);
+            context.AllowIdentifierCache = _allowIdentifierCache;
 
             if (callingContext is not null)
             {
@@ -1587,18 +2098,62 @@ public static partial class TypedAstEvaluator
                 ? _realmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription)
                 : new JsEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
 
-            // Bind this - in strict mode (which fast path requires), this is passed through unchanged.
-            // null should remain null, undefined should remain undefined - no coercion.
-            var boundThis = !IsArrowFunction
-                ? thisValue
-                : _lexicalThis ?? Symbol.Undefined;
-            functionEnvironment.Define(Symbol.This, boundThis);
-
-            // Bind parameters directly - simple identifiers only (not lexical, can be reassigned)
-            for (var i = 0; i < _parameterNames.Length; i++)
+            // Initialize slots for O(1) variable access when scope analysis provided slot count
+            // Always set ScopeId since we use it as indicator for _thisValue validity
+            functionEnvironment.ScopeId = _function.ScopeId;
+            if (_function.SlotCount > 0)
             {
-                var value = i < arguments.Count ? arguments[i] : Symbol.Undefined;
-                functionEnvironment.Define(_parameterNames[i], value, isLexical: false);
+                functionEnvironment.InitializeSlots(_function.SlotCount);
+            }
+
+            // Bind this - keep as JsValue to avoid unnecessary boxing/unboxing
+            JsValue boundThisValue;
+            if (IsArrowFunction)
+            {
+                boundThisValue = _lexicalThis.IsUndefined ? JsValue.Undefined : _lexicalThis;
+            }
+            else if (_isStrict)
+            {
+                // In strict mode, this is passed through unchanged - null/undefined stay as-is
+                boundThisValue = thisValue;
+            }
+            else
+            {
+                // In sloppy mode: null/undefined become global object
+                if (thisValue.IsNullish)
+                {
+                    boundThisValue = _realmState.Engine is { GlobalObject: { } globalObj }
+                        ? (JsValue)globalObj
+                        : JsValue.Undefined;
+                }
+                else
+                {
+                    // Primitives could be boxed, but for simple numeric operations we'll pass through
+                    boundThisValue = thisValue;
+                }
+            }
+            // Bind this using fast field access (avoids dictionary allocation)
+            functionEnvironment._thisValue = boundThisValue;
+            functionEnvironment._hasThisValue = true;
+
+            // Bind parameters directly to slots for O(1) access (avoids dictionary allocation)
+            var slots = functionEnvironment._slots;
+            if (slots is not null)
+            {
+                // Fast path: use slots only, skip dictionary entirely
+                for (var i = 0; i < _parameterNames.Length; i++)
+                {
+                    slots[i] = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                }
+            }
+            else
+            {
+                // Fallback: use dictionary when slots not available
+                for (var i = 0; i < _parameterNames.Length; i++)
+                {
+                    var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                    functionEnvironment.DefineParameterFast(_parameterNames[i], value);
+                }
             }
 
             // Only create arguments object if the function body actually references it
@@ -1607,7 +2162,7 @@ public static partial class TypedAstEvaluator
                 var argumentValues = new object?[arguments.Count];
                 for (var i = 0; i < arguments.Count; i++)
                 {
-                    argumentValues[i] = arguments[i];
+                    argumentValues[i] = arguments[i].ToObject();
                 }
                 var argumentsObject = new JsArgumentsObject(
                     argumentValues,
@@ -1617,12 +2172,12 @@ public static partial class TypedAstEvaluator
                     _realmState,
                     this,
                     isStrict: true);
-                functionEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
+                functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject), isLexical: false);
             }
 
             try
             {
-                var result = EvaluateBlock(_function.Body, functionEnvironment, context);
+                _ = EvaluateBlockJsValue(_function.Body, functionEnvironment, context);
 
                 if (context.IsThrow)
                 {
@@ -1640,10 +2195,10 @@ public static partial class TypedAstEvaluator
                 {
                     var value = context.FlowValue;
                     context.ClearReturn();
-                    return value;
+                    return value; // FlowValue already returns JsValue, no need to wrap
                 }
 
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
             catch (ThrowSignal signal)
             {

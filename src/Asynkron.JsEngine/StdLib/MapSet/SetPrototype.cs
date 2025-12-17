@@ -15,74 +15,74 @@ public sealed partial class SetPrototype
     }
 
     [JsHostMethod("add", Length = 1d)]
-    public object? Add(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Add(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireSet(thisValue);
-        set.Add(args.GetArgument(0));
+        set.Add(args.GetArgument(0).ToObject());
         return thisValue;
     }
 
     [JsHostMethod("has", Length = 1d)]
-    public object Has(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Has(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireSet(thisValue);
-        return set.Has(args.GetArgument(0));
+        return new JsValue(set.Has(args.GetArgument(0).ToObject()));
     }
 
     [JsHostMethod("delete", Length = 1d)]
-    public object Delete(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Delete(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireSet(thisValue);
-        return set.Delete(args.GetArgument(0));
+        return new JsValue(set.Delete(args.GetArgument(0).ToObject()));
     }
 
     [JsHostMethod("clear", Length = 0d)]
-    public object? Clear(object? thisValue, IReadOnlyList<object?> _)
+    public JsValue Clear(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var set = RequireSet(thisValue);
         set.Clear();
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     [JsHostMethod("forEach", Length = 1d)]
-    public object? ForEach(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue ForEach(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireSet(thisValue);
-        if (args.GetArgument(0) is not IJsCallable callback)
+        if (!args.GetArgument(0).TryGetObject<IJsCallable>(out var callback))
         {
             throw StandardLibrary.ThrowTypeError("Set.prototype.forEach callback must be callable", realm: Realm);
         }
 
-        set.ForEach(callback, args.GetArgument(1));
-        return Symbol.Undefined;
+        set.ForEach(callback, args.GetArgument(1).ToObject());
+        return JsValue.Undefined;
     }
 
     [JsHostMethod("entries", Length = 0d)]
-    public object? Entries(object? thisValue, IReadOnlyList<object?> _)
+    public JsValue Entries(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var set = RequireSet(thisValue);
-        return CreateSetIterator(set, SetIterationKind.Entries);
+        return new JsValue(CreateSetIterator(set, SetIterationKind.Entries));
     }
 
     [JsHostMethod("keys", Length = 0d)]
-    public object? Keys(object? thisValue, IReadOnlyList<object?> _)
+    public JsValue Keys(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var set = RequireSet(thisValue);
-        return CreateSetIterator(set, SetIterationKind.Keys);
+        return new JsValue(CreateSetIterator(set, SetIterationKind.Keys));
     }
 
     [JsHostMethod("values", Length = 0d)]
-    public object? Values(object? thisValue, IReadOnlyList<object?> _)
+    public JsValue Values(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var set = RequireSet(thisValue);
-        return CreateSetIterator(set, SetIterationKind.Values);
+        return new JsValue(CreateSetIterator(set, SetIterationKind.Values));
     }
 
     [JsHostGetter("size")]
-    public object Size(object? thisValue)
+    public JsValue Size(JsValue thisValue)
     {
         var set = RequireSet(thisValue);
-        return (double)set.Size;
+        return new JsValue((double)set.Size);
     }
 
     protected override void ConfigurePrototype()
@@ -108,8 +108,10 @@ public sealed partial class SetPrototype
         }
     }
 
-    private JsSet RequireSet(object? candidate)
+    private JsSet RequireSet(JsValue receiver)
     {
+        var candidate = receiver.ToObject();
+
         if (candidate is JsSet set)
         {
             return set;
@@ -141,7 +143,7 @@ public sealed partial class SetPrototype
                     _ => current
                 };
 
-                result.SetProperty("value", value);
+                result.SetProperty("value", JsValue.FromObjectUnsafe(value));
                 result.SetProperty("done", false);
             }
             else

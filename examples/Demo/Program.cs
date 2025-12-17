@@ -1,38 +1,27 @@
 using Asynkron.JsEngine;
 
 var engine = new JsEngine();
-var script = @"
-function Body(x) {
-    this.x = x;
+
+// Test 1: Large integer string conversion (the fix we made)
+Console.WriteLine("=== Test 1: Large Integer String Conversion ===");
+try {
+    var result = await engine.Evaluate(@"
+        var a = 9007199254740991;  // Number.MAX_SAFE_INTEGER
+        var b = 9007199254740992;  // One above MAX_SAFE_INTEGER (exactly 2^53)
+        'a=' + a + ', b=' + b
+    ").ConfigureAwait(false);
+    Console.WriteLine($"  Result: {result}");
+    Console.WriteLine($"  Expected: a=9007199254740991, b=9007199254740992");
+} catch (Exception ex) {
+    Console.WriteLine($"  Exception: {ex.GetType().Name}: {ex.Message}");
 }
 
-Body.prototype.double = function() {
-    return this.x * 2;
-};
-
-function Container(bodies){
-   this.bodies = bodies;
-}
-
-Container.prototype.sum = function(){
-    var total = 0;
-    for (var i = 0; i < this.bodies.length; i++) {
-       var b = this.bodies[i];
-       total += b.double();
-    }
-    return total;
-}
-
-var c = new Container( Array(new Body(5), new Body(10), new Body(15)) );
-c.sum();
-";
-
-try 
-{
-    var result = await engine.Evaluate(script).ConfigureAwait(false);
-    Console.WriteLine($"Success! Result: {result} (expected: 60)");
-}
-catch (Exception ex)
-{
-    Console.WriteLine($"Error: {ex.Message}");
+// Test 2: BigInt vs Number comparison (known issue)
+Console.WriteLine("\n=== Test 2: BigInt vs Number Comparison ===");
+try {
+    var result = await engine.Evaluate("9007199254740993n > 9007199254740992").ConfigureAwait(false);
+    Console.WriteLine($"  9007199254740993n > 9007199254740992 = {result}");
+    Console.WriteLine($"  Expected: true (known issue: currently returns false)");
+} catch (Exception ex) {
+    Console.WriteLine($"  Exception: {ex.GetType().Name}: {ex.Message}");
 }

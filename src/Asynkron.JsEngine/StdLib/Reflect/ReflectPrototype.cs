@@ -8,79 +8,79 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class ReflectPrototype : JsPrototype
 {
     [JsHostMethod("apply", Length = 3d)]
-    public object? Apply(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Apply(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return ReflectApply(thisValue, args, Realm);
     }
 
     [JsHostMethod("construct", Length = 2d)]
-    public object? Construct(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Construct(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return ReflectConstruct(thisValue, args, Realm);
     }
 
     [JsHostMethod("defineProperty", Length = 3d)]
-    public object? DefineProperty(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue DefineProperty(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return ReflectDefineProperty(thisValue, args, Realm);
     }
 
     [JsHostMethod("deleteProperty", Length = 2d)]
-    public object? DeleteProperty(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue DeleteProperty(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return ReflectDeleteProperty(thisValue, args, Realm);
     }
 
     [JsHostMethod("get", Length = 2d)]
-    public object? Get(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Get(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return ReflectGet(thisValue, args, Realm);
     }
 
     [JsHostMethod("getOwnPropertyDescriptor", Length = 2d)]
-    public object? GetOwnPropertyDescriptor(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue GetOwnPropertyDescriptor(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return ReflectGetOwnPropertyDescriptor(thisValue, args, Realm);
     }
 
     [JsHostMethod("getPrototypeOf", Length = 1d)]
-    public object? GetPrototypeOf(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue GetPrototypeOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return ReflectGetPrototypeOf(thisValue, args, Realm);
     }
 
     [JsHostMethod("has", Length = 2d)]
-    public object? Has(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Has(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return ReflectHas(thisValue, args, Realm);
     }
 
     [JsHostMethod("isExtensible", Length = 1d)]
-    public object? IsExtensible(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue IsExtensible(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return ReflectIsExtensible(thisValue, args, Realm);
     }
 
     [JsHostMethod("ownKeys", Length = 1d)]
-    public object? OwnKeys(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue OwnKeys(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return ReflectOwnKeys(thisValue, args, Realm);
     }
 
     [JsHostMethod("preventExtensions", Length = 1d)]
-    public object? PreventExtensions(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue PreventExtensions(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return ReflectPreventExtensions(thisValue, args, Realm);
     }
 
     [JsHostMethod("set", Length = 3d)]
-    public object? Set(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Set(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return ReflectSet(thisValue, args, Realm);
     }
 
     [JsHostMethod("setPrototypeOf", Length = 2d)]
-    public object? SetPrototypeOf(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue SetPrototypeOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return ReflectSetPrototypeOf(thisValue, args, Realm);
     }

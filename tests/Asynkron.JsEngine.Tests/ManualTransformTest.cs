@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.JsTypes;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -13,10 +14,10 @@ public class ManualTransformTest(ITestOutputHelper output)
 
         engine.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             logs.Add(msg);
             output.WriteLine($"LOG: {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         // This is what the transformation SHOULD create

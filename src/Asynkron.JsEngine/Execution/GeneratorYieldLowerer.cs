@@ -412,7 +412,7 @@ internal static class GeneratorYieldLowerer
             var members = definition.Members.ToBuilder();
             var fields = definition.Fields.ToBuilder();
             var changed = false;
-            ExpressionNode? rewrittenExtends = definition.Extends;
+            var rewrittenExtends = definition.Extends;
 
             // Handle extends clause containing yield
             if (definition.Extends is not null && AstShapeAnalyzer.ContainsYield(definition.Extends))
@@ -900,7 +900,7 @@ internal static class GeneratorYieldLowerer
             return true;
         }
 
-        private ImmutableArray<StatementNode> BuildReturnWithYield(
+        private static ImmutableArray<StatementNode> BuildReturnWithYield(
             YieldExpression yieldExpression,
             IdentifierBinding resumeIdentifier,
             SourceReference? returnSource)
@@ -986,10 +986,8 @@ internal static class GeneratorYieldLowerer
             }
 
             var declarator = declaration.Declarators[0];
-            if (declarator.Target is not IdentifierBinding identifierBinding ||
-                declarator.Initializer is not BinaryExpression binary ||
-                binary.Left is not YieldExpression leftYield ||
-                binary.Right is not YieldExpression rightYield)
+            if (declarator.Target is not IdentifierBinding ||
+                declarator.Initializer is not BinaryExpression { Left: YieldExpression leftYield, Right: YieldExpression rightYield } binary)
             {
                 replacement = default;
                 return false;
@@ -1035,9 +1033,8 @@ internal static class GeneratorYieldLowerer
         {
             if (statement is not ExpressionStatement
                 {
-                    Expression: AssignmentExpression assignment
-                } expressionStatement ||
-                assignment.Value is not YieldExpression yieldExpression)
+                    Expression: AssignmentExpression { Value: YieldExpression yieldExpression } assignment
+                } expressionStatement)
             {
                 replacement = default;
                 return false;
@@ -1306,14 +1303,14 @@ internal static class GeneratorYieldLowerer
                             conditionYield.IsDelegated))));
 
                 loopStatements.Add(new IfStatement(forStatement.Source,
-                    new UnaryExpression(forStatement.Source, "!", rewrittenCondition!, true),
+                    new UnaryExpression(forStatement.Source, UnaryOperator.LogicalNot, rewrittenCondition!, true),
                     new BreakStatement(forStatement.Source, null),
                     null));
             }
             else if (forStatement.Condition is not null)
             {
                 loopStatements.Add(new IfStatement(forStatement.Source,
-                    new UnaryExpression(forStatement.Source, "!", forStatement.Condition, true),
+                    new UnaryExpression(forStatement.Source, UnaryOperator.LogicalNot, forStatement.Condition, true),
                     new BreakStatement(forStatement.Source, null),
                     null));
             }
@@ -1476,7 +1473,7 @@ internal static class GeneratorYieldLowerer
                 {
                     var conditionCheck = rewrittenCondition ?? plan.Condition;
                     prologue.Add(new IfStatement(plan.Body.Source,
-                        new UnaryExpression(plan.Body.Source, "!", conditionCheck, true),
+                        new UnaryExpression(plan.Body.Source, UnaryOperator.LogicalNot, conditionCheck, true),
                         new BreakStatement(plan.Body.Source, null),
                         null));
                 }

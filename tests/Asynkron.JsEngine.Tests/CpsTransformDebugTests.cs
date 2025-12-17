@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.JsTypes;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -99,10 +100,10 @@ public class CpsTransformDebugTests(ITestOutputHelper output)
 
         engine.SetGlobalFunction("log", args =>
         {
-            var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             logMessages.Add(message);
             output.WriteLine($"LOG: {message}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""

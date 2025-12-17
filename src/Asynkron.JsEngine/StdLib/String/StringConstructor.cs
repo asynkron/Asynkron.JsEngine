@@ -11,16 +11,16 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
 {
     private HostFunction? _constructor;
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue is JsObject { IsConstructing: true } constructing)
+        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true } constructing)
         {
             ApplyPrototype(constructing, _constructor ?? ConstructFallback);
             InitializeWrapper(constructing, args);
-            return constructing;
+            return new JsValue(constructing);
         }
 
-        return ResolveString(args);
+        return new JsValue(ResolveString(args));
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -30,47 +30,47 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
 
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
-            if (newTarget is null)
+            if (newTarget.IsUndefined)
             {
-                return ResolveString(args);
+                return new JsValue(ResolveString(args));
             }
 
             var target = _constructor ?? constructor;
-            var newTargetCallable = newTarget as IJsCallable ?? target;
-            return ConstructWithNewTarget(args, newTargetCallable, target);
+            var newTargetCallable = newTarget.IsObject ? newTarget.AsObject<IJsCallable>() : null;
+            return ConstructWithNewTarget(args, newTargetCallable ?? target, target);
         });
 
         AttachStatics(constructor);
     }
 
-    private object ConstructWithNewTarget(IReadOnlyList<object?> args, IJsCallable newTarget, IJsCallable targetCtor)
+    private JsValue ConstructWithNewTarget(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
-        var instance = PrepareThisObject(null, assignPrototype: false);
+        var instance = PrepareThisObject(JsValue.Undefined, assignPrototype: false);
         if (proto is not null && instance.Prototype is null)
         {
             instance.SetPrototype(proto);
         }
 
         InitializeWrapper(instance, args);
-        return instance;
+        return new JsValue(instance);
     }
 
-    private void InitializeWrapper(JsObject wrapper, IReadOnlyList<object?> args)
+    private void InitializeWrapper(JsObject wrapper, IReadOnlyList<JsValue> args)
     {
         var str = ResolveString(args);
         InitializeStringWrapper(str, wrapper, Realm);
     }
 
-    private string ResolveString(IReadOnlyList<object?> args)
+    private string ResolveString(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
             return string.Empty;
         }
 
-        var value = args[0];
-        if (value is TypedAstSymbol typedSymbol)
+        var value = args.GetArgument(0);
+        if (value.IsSymbol && value.ObjectValue is TypedAstSymbol typedSymbol)
         {
             return typedSymbol.ToString();
         }
@@ -87,12 +87,12 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
 
     private void AttachStatics(HostFunction constructor)
     {
-        constructor.SetHostedProperty("fromCodePoint", new HostFunction(StringFromCodePoint, Realm, isConstructor: false),
+        constructor.SetHostedProperty("fromCodePoint", new HostFunction(args => JsValue.FromObjectUnsafe(StringFromCodePoint(args)), Realm, isConstructor: false),
             Realm);
-        constructor.SetHostedProperty("fromCharCode", new HostFunction(StringFromCharCode, Realm, isConstructor: false),
+        constructor.SetHostedProperty("fromCharCode", new HostFunction(args => JsValue.FromObjectUnsafe(StringFromCharCode(args)), Realm, isConstructor: false),
             Realm);
-        constructor.SetHostedProperty("raw", new HostFunction(StringRaw, Realm, isConstructor: false), Realm);
-        constructor.SetHostedProperty("escape", new HostFunction(StringEscape, Realm, isConstructor: false), Realm);
+        constructor.SetHostedProperty("raw", new HostFunction(args => JsValue.FromObjectUnsafe(StringRaw(args)), Realm, isConstructor: false), Realm);
+        constructor.SetHostedProperty("escape", new HostFunction(args => JsValue.FromObjectUnsafe(StringEscape(args)), Realm, isConstructor: false), Realm);
     }
 
     private HostFunction ConstructFallback =>

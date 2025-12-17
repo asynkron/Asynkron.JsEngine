@@ -129,8 +129,8 @@ public class DebugClassFieldTests
             // Swallow assertion failures so we can inspect the resulting bindings.
             var thrown = signal.ThrownValue;
             TestContext.Progress.WriteLine(
-                $"test262 throw value: {thrown} ({thrown?.GetType().Name ?? "null"})");
-            if (thrown is JsObject errorObj &&
+                $"test262 throw value: {thrown} ({thrown.ToObject()?.GetType().Name ?? "null"})");
+            if (thrown.TryGetObject<JsObject>(out var errorObj) &&
                 errorObj.TryGetProperty("message", out var message))
             {
                 TestContext.Progress.WriteLine($"test262 throw message: {message}");
@@ -217,10 +217,9 @@ public class DebugClassFieldTests
         catch (ThrowSignal signal)
         {
             var thrown = signal.ThrownValue;
-            Assert.That(thrown, Is.InstanceOf<JsObject>(), "Thrown value should be a JS error object");
-            var error = (JsObject)thrown;
+            Assert.That(thrown.TryGetObject<JsObject>(out var error), Is.True, "Thrown value should be a JS error object");
             error.TryGetProperty("name", out var name);
-            Assert.That(name?.ToString(), Is.EqualTo("TypeError"));
+            Assert.That(name.ToString(), Is.EqualTo("TypeError"));
         }
     }
 

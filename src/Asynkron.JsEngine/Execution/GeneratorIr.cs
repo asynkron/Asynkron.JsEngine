@@ -125,3 +125,11 @@ internal sealed record LeaveWithInstruction(
     Symbol WithScopeSlot,
     int Next)
     : GeneratorInstruction(Next);
+
+/// <summary>
+///     Closes an iterator stored in the given slot. Used in finally blocks for for-of loops.
+/// </summary>
+internal sealed record IteratorCloseInstruction(
+    Symbol IteratorSlot,
+    int Next)
+    : GeneratorInstruction(Next);

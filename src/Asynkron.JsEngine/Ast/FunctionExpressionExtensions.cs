@@ -93,7 +93,7 @@ public static partial class TypedAstEvaluator
 
             foreach (var name in parameterNames)
             {
-                environment.Define(name, JsEnvironment.Uninitialized, isLexical: false,
+                environment.DefineJsValue(name, JsValue.Uninitialized, isLexical: false,
                     blocksFunctionScopeOverride: true);
             }
 
@@ -125,7 +125,7 @@ public static partial class TypedAstEvaluator
                             throw new InvalidOperationException("Rest parameter must have an identifier.");
                         }
 
-                        environment.Define(parameter.Name, restArray, isLexical: false);
+                        environment.DefineJsValue(parameter.Name, JsValue.FromObjectUnsafe(restArray), isLexical: false);
                     }
 
                     continue;
@@ -169,7 +169,7 @@ public static partial class TypedAstEvaluator
                         "Parameter must have an identifier when no pattern is provided.");
                 }
 
-                environment.Define(parameter.Name, value, isLexical: false);
+                environment.DefineJsValue(parameter.Name, JsValue.FromObjectUnsafe(value), isLexical: false);
             }
 
             return;
@@ -410,16 +410,16 @@ public static partial class TypedAstEvaluator
                     break;
             }
 
-            if (functionNameEnvironment is not null)
-            {
+                
+            
                 // Named function expression bindings are immutable but silently fail
                 // assignment in non-strict mode (unlike const which always throws)
-                functionNameEnvironment.Define(functionExpression.Name!, callable,
+                functionNameEnvironment?.DefineJsValue(functionExpression.Name!, JsValue.FromObjectUnsafe(callable),
                     isConst: false,
                     isLexical: true,
                     blocksFunctionScopeOverride: true,
                     isImmutableBinding: true);
-            }
+            
 
             // Per ES spec 13.3.1.4: If IsAnonymousFunctionDefinition(Initializer) is true and
             // hasNameProperty is false, perform SetFunctionName(value, bindingId).

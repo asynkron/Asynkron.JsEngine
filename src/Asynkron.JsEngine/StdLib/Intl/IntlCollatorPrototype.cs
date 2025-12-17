@@ -15,24 +15,24 @@ public sealed partial class IntlCollatorPrototype
     internal static void InitializeInternalSlots(JsObject instance, IntlCollatorInternalSlots slots)
     {
         instance.SetProperty(CollatorBrand, true);
-        instance.SetProperty(SlotsKey, slots);
+        instance.SetProperty(SlotsKey, JsValue.FromObjectUnsafe(slots));
     }
 
     [JsHostGetter("compare", DisplayName = "get compare")]
-    private object GetCompare(object? thisValue)
+    private JsValue GetCompare(JsValue thisValue)
     {
         var collator = ValidateCollatorReceiver(thisValue);
         var slots = GetSlots(collator);
-        return new HostFunction((_, args) =>
+        return (JsValue)new HostFunction((_, args) =>
         {
             var first = args.Count > 0 ? JsValueToString(args[0], Realm) : string.Empty;
             var second = args.Count > 1 ? JsValueToString(args[1], Realm) : string.Empty;
-            return CompareStrings(slots, first, second);
+            return new JsValue(CompareStrings(slots, first, second));
         }, Realm, isConstructor: false);
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    private JsObject ResolvedOptions(object? thisValue, IReadOnlyList<object?> _)
+    private JsValue ResolvedOptions(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var collator = ValidateCollatorReceiver(thisValue);
         var slots = GetSlots(collator);
@@ -44,10 +44,10 @@ public sealed partial class IntlCollatorPrototype
         options.SetProperty("collation", slots.Collation);
         options.SetProperty("numeric", slots.Numeric);
         options.SetProperty("caseFirst", slots.CaseFirst);
-        return options;
+        return new JsValue(options);
     }
 
-    private JsObject ValidateCollatorReceiver(object? thisValue)
+    private JsObject ValidateCollatorReceiver(JsValue thisValue)
     {
         return thisValue.EnsureBrand(CollatorBrand, Realm,
             "Intl.Collator method called on incompatible receiver");
@@ -55,7 +55,7 @@ public sealed partial class IntlCollatorPrototype
 
     private IntlCollatorInternalSlots GetSlots(JsObject collator)
     {
-        if (collator.TryGetProperty(SlotsKey, out var value) && value is IntlCollatorInternalSlots slots)
+        if (collator.TryGetProperty(SlotsKey, out var value) && value.TryGetObject<IntlCollatorInternalSlots>(out var slots))
         {
             return slots;
         }

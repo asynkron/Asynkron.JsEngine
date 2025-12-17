@@ -21,14 +21,14 @@ internal static class IntlNumberFormatter
         {
             var symbol = slots.Culture.NumberFormat.NaNSymbol;
             return IntlNumberFormatResult.FromParts(symbol,
-                new List<NumberFormatPart> { new("nan", symbol) });
+                [new("nan", symbol)]);
         }
 
         if (double.IsPositiveInfinity(value))
         {
             var symbol = slots.Culture.NumberFormat.PositiveInfinitySymbol;
             return IntlNumberFormatResult.FromParts(symbol,
-                new List<NumberFormatPart> { new("infinity", symbol) });
+                [new("infinity", symbol)]);
         }
 
         if (double.IsNegativeInfinity(value))
@@ -37,11 +37,10 @@ internal static class IntlNumberFormatter
             var infinity = slots.Culture.NumberFormat.PositiveInfinitySymbol;
             var formatted = slots.Culture.NumberFormat.NegativeInfinitySymbol;
             return IntlNumberFormatResult.FromParts(formatted,
-                new List<NumberFormatPart>
-                {
-                    new("minusSign", minus),
-                    new("infinity", infinity)
-                });
+            [
+                new("minusSign", minus),
+                new("infinity", infinity)
+            ]);
         }
 
         var quantity = TryCreateDecimalQuantity(value) ?? DecimalQuantity.FromDouble(value);
@@ -582,7 +581,7 @@ internal static class IntlNumberFormatter
             var abs = Math.Abs(value);
             var raw = abs.ToString("G17", CultureInfo.InvariantCulture);
             var exponent = 0;
-            var expIndex = raw.IndexOfAny(new[] { 'e', 'E' });
+            var expIndex = raw.IndexOfAny(['e', 'E']);
             if (expIndex >= 0)
             {
                 exponent = int.Parse(raw[(expIndex + 1)..], CultureInfo.InvariantCulture);

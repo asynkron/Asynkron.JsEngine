@@ -7,32 +7,60 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public static class JsPropertyAccessorExtensions
 {
+    // New JsValue-based signatures (preferred)
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
-        Func<IReadOnlyList<object?>, object?> handler)
+        Func<IReadOnlyList<JsValue>, JsValue> handler)
     {
         var fn = new HostFunction(handler, isConstructor: false);
-        accessor.SetProperty(name, fn);
+        accessor.SetProperty(name, (JsValue)fn);
     }
 
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
-        Func<IReadOnlyList<object?>, RealmState?, object?> handler, RealmState? realmState)
+        Func<IReadOnlyList<JsValue>, RealmState?, JsValue> handler, RealmState? realmState)
     {
         var fn = new HostFunction(args => handler(args, realmState), realmState, isConstructor: false);
-        accessor.SetProperty(name, fn);
+        accessor.SetProperty(name, (JsValue)fn);
     }
 
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
-        Func<object?, IReadOnlyList<object?>, object?> handler)
+        Func<JsValue, IReadOnlyList<JsValue>, JsValue> handler)
     {
         var fn = new HostFunction(handler, isConstructor: false);
-        accessor.SetProperty(name, fn);
+        accessor.SetProperty(name, (JsValue)fn);
     }
 
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
-        Func<object?, IReadOnlyList<object?>, RealmState?, object?> handler, RealmState? realmState)
+        Func<JsValue, IReadOnlyList<JsValue>, RealmState?, JsValue> handler, RealmState? realmState)
     {
-        var fn = new HostFunction(handler, realmState, isConstructor: false);
-        accessor.SetProperty(name, fn);
+        var fn = new HostFunction((thisVal, args) => handler(thisVal, args, realmState), realmState, isConstructor: false);
+        accessor.SetProperty(name, (JsValue)fn);
+    }
+
+    // Legacy object-based signatures (adapter overloads for backwards compatibility)
+    [Obsolete("Use JsValue-based overloads instead")]
+    public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
+        Func<object?, IReadOnlyList<JsValue>, object?> handler)
+    {
+        var fn = new HostFunction((thisVal, args) =>
+        {
+            var result = handler(thisVal.ToObject(), args);
+            // Handle case where handler returns a boxed JsValue
+            return result is JsValue jsv ? jsv : JsValue.FromObjectUnsafe(result);
+        }, isConstructor: false);
+        accessor.SetProperty(name, (JsValue)fn);
+    }
+
+    [Obsolete("Use JsValue-based overloads instead")]
+    public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
+        Func<object?, IReadOnlyList<JsValue>, RealmState?, object?> handler, RealmState? realmState)
+    {
+        var fn = new HostFunction((thisVal, args) =>
+        {
+            var result = handler(thisVal.ToObject(), args, realmState);
+            // Handle case where handler returns a boxed JsValue
+            return result is JsValue jsv ? jsv : JsValue.FromObjectUnsafe(result);
+        }, realmState, isConstructor: false);
+        accessor.SetProperty(name, (JsValue)fn);
     }
 
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name, HostFunction hostFunction,
@@ -44,6 +72,6 @@ public static class JsPropertyAccessorExtensions
         }
 
         hostFunction.IsConstructor = false;
-        accessor.SetProperty(name, hostFunction);
+        accessor.SetProperty(name, (JsValue)hostFunction);
     }
 }

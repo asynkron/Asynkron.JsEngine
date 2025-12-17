@@ -78,8 +78,8 @@ public class WithStatementTests
             """);
 
         var array = Assert.IsType<JsArray>(result);
-        Assert.Equal(1d, array.GetElement(0));
-        Assert.Equal(7d, array.GetElement(1));
+        Assert.Equal(1d, array.GetElement(0).ToObject());
+        Assert.Equal(7d, array.GetElement(1).ToObject());
     }
 
     [Theory]
@@ -135,9 +135,9 @@ public class WithStatementTests
             """);
 
         var array = Assert.IsType<JsArray>(result);
-        Assert.Equal(2d, array.GetElement(0));
-        Assert.Equal("undefined", array.GetElement(1));
-        Assert.Same(Symbol.Undefined, array.GetElement(2));
+        Assert.Equal(2d, array.GetElement(0).ToObject());
+        Assert.Equal("undefined", array.GetElement(1).ToObject());
+        Assert.Same(Symbol.Undefined, array.GetElement(2).ToObject());
     }
 
     [Fact(Timeout = 2000)]
@@ -153,8 +153,8 @@ public class WithStatementTests
             """);
 
         var array = Assert.IsType<JsArray>(result);
-        Assert.Equal("number", array.GetElement(0));
-        Assert.Equal(7d, array.GetElement(1));
+        Assert.Equal("number", array.GetElement(0).ToObject());
+        Assert.Equal(7d, array.GetElement(1).ToObject());
     }
 
     [Fact(Timeout = 2000)]
@@ -195,9 +195,9 @@ public class WithStatementTests
             """);
 
         var array = Assert.IsType<JsArray>(result);
-        Assert.Equal(1d, array.GetElement(0));
+        Assert.Equal(1d, array.GetElement(0).ToObject());
 
-        var logArray = Assert.IsType<JsArray>(array.GetElement(1));
+        var logArray = Assert.IsType<JsArray>(array.GetElement(1).ToObject());
         AssertLogContainsInOrder(logArray, "has:value", "get:value");
     }
 
@@ -231,9 +231,9 @@ public class WithStatementTests
             """);
 
         var array = Assert.IsType<JsArray>(result);
-        Assert.Equal(2d, array.GetElement(0));
+        Assert.Equal(2d, array.GetElement(0).ToObject());
 
-        var logArray = Assert.IsType<JsArray>(array.GetElement(1));
+        var logArray = Assert.IsType<JsArray>(array.GetElement(1).ToObject());
         AssertLogContainsInOrder(logArray, "has:p", "get:p", "set:p");
     }
 
@@ -243,7 +243,7 @@ public class WithStatementTests
         var length = (int)logArray.Length;
         for (var i = 0; i < length && matches < expected.Length; i++)
         {
-            var entry = logArray.GetElement(i)?.ToString();
+            var entry = logArray.GetElement(i).ToObject()?.ToString();
             if (string.Equals(entry, expected[matches], StringComparison.Ordinal))
             {
                 matches++;
@@ -251,5 +251,71 @@ public class WithStatementTests
         }
 
         Assert.Equal(expected.Length, matches);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task With_PropertyShadowsGlobalVariable()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+            var myObj = {
+                parseInt: 'obj_parseInt'
+            };
+
+            var st_parseInt;
+
+            with(myObj) {
+                st_parseInt = parseInt;
+            }
+
+            st_parseInt;
+            """);
+
+        Assert.Equal("obj_parseInt", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task With_FunctionDefinedInsideWithBlockResolvesToWithObject()
+    {
+        // This tests that functions defined inside a with block properly resolve
+        // identifiers through the with object, even though the function's own body
+        // doesn't contain any with statements.
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+            var myObj = {
+                parseInt: function() { return 'obj_parseInt'; }
+            };
+
+            var st_parseInt;
+
+            with(myObj) {
+                var f = function() {
+                    st_parseInt = parseInt;
+                };
+                f();
+            }
+
+            st_parseInt !== parseInt && typeof st_parseInt === 'function';
+            """);
+
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task While_BreakCompletionValue_EmptyBody()
+    {
+        // Test: eval('1; while (true) { break; }') should return undefined
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("eval('1; while (true) { break; }')");
+        Assert.True(ReferenceEquals(result, Symbol.Undefined)); // undefined
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task While_BreakCompletionValue_WithValue()
+    {
+        // Test: eval('2; while (true) { 3; break; }') should return 3
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("eval('2; while (true) { 3; break; }')");
+        Assert.Equal(3.0, result);
     }
 }

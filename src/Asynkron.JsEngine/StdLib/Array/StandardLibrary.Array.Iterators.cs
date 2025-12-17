@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    internal static object CreateArrayIterator(object? thisValue, string methodName, RealmState? realm,
+    internal static object CreateArrayIterator(JsValue thisValue, string methodName, RealmState? realm,
         Func<IJsPropertyAccessor, object?, Func<uint, object?>> projectorFactory)
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, methodName, realm);
@@ -29,18 +29,18 @@ public static partial class StandardLibrary
         iterator.SetHostedProperty(iteratorKey, ReturnIterator, realm);
         return iterator;
 
-        object? Next(object? _, IReadOnlyList<object?> __, RealmState? ___)
+        JsValue Next(JsValue _, IReadOnlyList<JsValue> __, RealmState? ___)
         {
             realm?.Logger?.LogInformation("ArrayIterator.next index={Index}", index);
             if (exhausted)
             {
                 var doneResult = new JsObject(realm?.ObjectPrototype);
-                doneResult.SetProperty("value", Symbol.Undefined);
+                doneResult.SetProperty("value", JsValue.Undefined);
                 doneResult.SetProperty("done", true);
-                return doneResult;
+                return new JsValue(doneResult);
             }
 
-            if (typedAccessor is not null && typedAccessor.IsDetachedOrOutOfBounds())
+            if (typedAccessor?.IsDetachedOrOutOfBounds() == true)
             {
                 throw typedAccessor.CreateOutOfBoundsTypeError();
             }
@@ -50,23 +50,26 @@ public static partial class StandardLibrary
             var result = new JsObject(realm?.ObjectPrototype);
             if (index < length)
             {
-                result.SetProperty("value", projector(index));
+                // Handle case where projector returns a boxed JsValue
+                var projectedVal = projector(index);
+                var valueJs = projectedVal is JsValue pjv ? pjv : JsValue.FromObjectUnsafe(projectedVal);
+                result.SetProperty("value", valueJs);
                 result.SetProperty("done", false);
                 index++;
             }
             else
             {
-                result.SetProperty("value", Symbol.Undefined);
+                result.SetProperty("value", JsValue.Undefined);
                 result.SetProperty("done", true);
                 exhausted = true;
             }
 
-            return result;
+            return new JsValue(result);
         }
 
-        object? ReturnIterator(object? _, IReadOnlyList<object?> __, RealmState? ___)
+        JsValue ReturnIterator(JsValue _, IReadOnlyList<JsValue> __, RealmState? ___)
         {
-            return iterator;
+            return new JsValue(iterator);
         }
     }
 }

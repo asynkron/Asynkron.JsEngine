@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.JsTypes;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -13,9 +14,9 @@ public class AsyncIterableDebugTest(ITestOutputHelper output)
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"[LOG] {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate(@"
@@ -104,9 +105,9 @@ public class AsyncIterableDebugTest(ITestOutputHelper output)
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"[LOG] {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate(@"

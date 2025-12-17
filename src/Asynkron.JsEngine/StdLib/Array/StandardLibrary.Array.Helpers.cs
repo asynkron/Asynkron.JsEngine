@@ -84,15 +84,15 @@ public static partial class StandardLibrary
         return (long)ToLengthOrZero(value, context);
     }
 
-    internal static (IJsPropertyAccessor Accessor, long Length, IJsCallable Callback, object? ThisArg)
-        PrepareArrayIteration(object? receiver, IReadOnlyList<object?> args, RealmState? realm, string methodName)
+    internal static (IJsPropertyAccessor Accessor, long Length, IJsCallable Callback, JsValue ThisArg)
+        PrepareArrayIteration(object? receiver, IReadOnlyList<JsValue> args, RealmState? realm, string methodName)
     {
         var accessor = EnsureArrayLikeReceiver(receiver, methodName, realm);
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var context = realm?.CreateContext();
         var length = (long)ToLengthOrZero(lengthValue, context);
 
-        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        if (args.Count == 0 || args[0].ToObject() is not IJsCallable callback)
         {
             throw ThrowTypeError($"{methodName} requires a callable callback", realm: realm);
         }
@@ -114,7 +114,7 @@ public static partial class StandardLibrary
     internal static double ToLengthOrZero(object? value, EvaluationContext? context = null)
     {
         var number = JsOps.ToNumberWithContext(value, context);
-        if (context is not null && context.IsThrow)
+        if (context?.IsThrow == true)
         {
             throw new ThrowSignal(context.FlowValue);
         }
@@ -131,7 +131,7 @@ public static partial class StandardLibrary
     internal static double ToIntegerOrInfinity(object? value, EvaluationContext? context = null)
     {
         var number = JsOps.ToNumberWithContext(value, context);
-        if (context is not null && context.IsThrow)
+        if (context?.IsThrow == true)
         {
             throw new ThrowSignal(context.FlowValue);
         }
@@ -164,15 +164,15 @@ public static partial class StandardLibrary
         return Math.Min((long)index, length);
     }
 
-    internal static object? ReduceLike(object? thisValue, IReadOnlyList<object?> args, RealmState? realm,
+    internal static object? ReduceLike(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm,
         string methodName, bool fromRight)
     {
-        var accessor = EnsureArrayLikeReceiver(thisValue, methodName, realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), methodName, realm);
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var lengthContext = realm?.CreateContext();
         var length = (long)ToLengthOrZero(lengthValue, lengthContext);
 
-        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        if (args.Count == 0 || args[0].ToObject() is not IJsCallable callback)
         {
             throw ThrowTypeError($"{methodName} requires a callable accumulator", realm: realm);
         }
@@ -183,7 +183,7 @@ public static partial class StandardLibrary
         }
 
         var hasInitial = args.Count > 1;
-        var accumulator = hasInitial ? args[1] : Symbol.Undefined;
+        var accumulator = hasInitial ? args[1].ToObject() : Symbol.Undefined;
         var start = fromRight ? length - 1 : 0;
         var step = fromRight ? -1 : 1;
 
@@ -196,12 +196,12 @@ public static partial class StandardLibrary
                 if (!accumulatorSet)
                 {
                     // No initialValue provided: first present element becomes accumulator
-                    accumulator = value;
+                    accumulator = value.ToObject();
                     accumulatorSet = true;
                 }
                 else
                 {
-                    accumulator = callback.Invoke([accumulator, value, (double)k, accessor], Symbol.Undefined);
+                    accumulator = callback.Invoke([JsValue.FromObjectUnsafe(accumulator), value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], JsValue.Undefined).ToObject();
                 }
             }
 
@@ -216,11 +216,11 @@ public static partial class StandardLibrary
         return accumulator;
     }
 
-    internal static object? SomeLike(object? thisValue, IReadOnlyList<object?> args, RealmState? realm,
+    internal static object? SomeLike(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm,
         string methodName)
     {
         var (accessor, length, callback, thisArg) =
-            PrepareArrayIteration(thisValue, args, realm, methodName);
+            PrepareArrayIteration(thisValue.ToObject(), args, realm, methodName);
 
         for (long k = 0; k < length; k++)
         {
@@ -229,7 +229,7 @@ public static partial class StandardLibrary
                 continue;
             }
 
-            var result = callback.Invoke([value, (double)k, accessor], thisArg);
+            var result = callback.Invoke([value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], thisArg).ToObject();
             if (IsTruthy(result))
             {
                 return true;
@@ -251,6 +251,12 @@ public static partial class StandardLibrary
 
     internal static IJsPropertyAccessor EnsureArrayLikeReceiver(object? receiver, string methodName, RealmState? realm)
     {
+        // Unwrap JsValue first
+        if (receiver is JsValue jsValue)
+        {
+            receiver = jsValue.ToObject();
+        }
+
         if (receiver is null || ReferenceEquals(receiver, Symbol.Undefined))
         {
             throw ThrowTypeError($"{methodName} called on null or undefined", realm: realm);
@@ -285,13 +291,12 @@ public static partial class StandardLibrary
 
         var accessor = target as IJsPropertyAccessor ?? ToPropertyAccessor(target, operation, realm);
         if (!accessor.TryGetProperty(propertyKey, out var candidate) ||
-            candidate is null ||
-            ReferenceEquals(candidate, Symbol.Undefined))
+            candidate.IsNullOrUndefined)
         {
             return false;
         }
 
-        if (candidate is not IJsCallable resolved)
+        if (!candidate.TryGetObject<IJsCallable>(out var resolved))
         {
             throw ThrowTypeError($"{operation} expected a function", realm: realm);
         }
@@ -343,18 +348,17 @@ public static partial class StandardLibrary
     internal static void IteratorClose(IJsPropertyAccessor iterator, RealmState? realm, string operation)
     {
         if (!iterator.TryGetProperty("return", out var returnValue) ||
-            returnValue is null ||
-            ReferenceEquals(returnValue, Symbol.Undefined))
+            returnValue.IsNullOrUndefined)
         {
             return;
         }
 
-        if (returnValue is not IJsCallable callable)
+        if (!returnValue.TryGetObject<IJsCallable>(out var callable))
         {
             throw ThrowTypeError($"{operation} iterator return is not callable", realm: realm);
         }
 
-        callable.Invoke(Array.Empty<object?>(), iterator);
+        callable.Invoke([], JsValue.FromObjectUnsafe(iterator));
     }
 
     internal static void CreateDataPropertyOrThrow(IJsObjectLike target, string propertyKey, object? value,
@@ -382,20 +386,20 @@ public static partial class StandardLibrary
         target.DefineProperty(propertyKey, descriptor);
     }
 
-    internal static bool TryGetExistingElement(IJsPropertyAccessor accessor, long index, out object? value)
+    internal static bool TryGetExistingElement(IJsPropertyAccessor accessor, long index, out JsValue value)
     {
         return TryGetExistingElement(accessor, ToIndexString(index), out value);
     }
 
-    internal static bool TryGetExistingElement(IJsPropertyAccessor accessor, string propertyKey, out object? value)
+    internal static bool TryGetExistingElement(IJsPropertyAccessor accessor, string propertyKey, out JsValue value)
     {
         if (!HasProperty(accessor, propertyKey))
         {
-            value = null;
+            value = JsValue.Undefined;
             return false;
         }
 
-        value = accessor.TryGetProperty(propertyKey, out var obtained) ? obtained : Symbol.Undefined;
+        value = accessor.TryGetProperty(propertyKey, out var obtained) ? obtained : JsValue.Undefined;
         return true;
     }
 
@@ -408,9 +412,9 @@ public static partial class StandardLibrary
     {
         if (realm?.ObjectPrototype is IJsPropertyAccessor objectPrototype &&
             objectPrototype.TryGetProperty("toString", out var toStringValue) &&
-            toStringValue is IJsCallable callable)
+            toStringValue.TryGetObject<IJsCallable>(out var callable))
         {
-            return callable.Invoke([], target);
+            return callable.Invoke([], JsValue.FromObjectUnsafe(target)).ToObject();
         }
 
         return "[object Object]";

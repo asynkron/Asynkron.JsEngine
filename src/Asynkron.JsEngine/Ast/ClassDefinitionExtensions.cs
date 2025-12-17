@@ -106,7 +106,7 @@ public static partial class TypedAstEvaluator
                 baseCtor.SetPrototype(realm.FunctionPrototype);
             }
 
-            prototype.SetProperty("constructor", constructorValue);
+            prototype.SetProperty("constructor", JsValue.FromObjectUnsafe(constructorValue));
 
             if (constructorAccessor is IPropertyDefinitionHost definitionHost &&
                 constructorValue is TypedFunction { IsClassConstructor: true })
@@ -236,7 +236,7 @@ public static partial class TypedAstEvaluator
         }
 
         var classScope = new JsEnvironment(environment, isStrict: true, creatingSource: source, description: "class scope");
-        classScope.Define(className, JsEnvironment.Uninitialized, isConst: true, blocksFunctionScopeOverride: true);
+        classScope.DefineJsValue(className, JsValue.Uninitialized, isConst: true, blocksFunctionScopeOverride: true);
         return (classScope, classScope);
     }
 
@@ -301,6 +301,6 @@ public static partial class TypedAstEvaluator
     {
         using var privateScope = privateScopeFactory?.Invoke();
         var blockEnvironment = CreateStaticInitializationEnvironment(constructorAccessor, environment, out _);
-        EvaluateStatement(block.Body, blockEnvironment, context);
+        _ = EvaluateStatementJsValue(block.Body, blockEnvironment, context);
     }
 }

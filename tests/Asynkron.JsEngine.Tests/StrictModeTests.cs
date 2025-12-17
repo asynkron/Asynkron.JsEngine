@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -60,8 +61,8 @@ public class StrictModeTests
 
             """));
 
-        Assert.Contains("ReferenceError", ex.Message);
-        Assert.Contains("is not defined", ex.Message);
+        Assert.Contains("ReferenceError", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("is not defined", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -97,7 +98,7 @@ public class StrictModeTests
 
             """));
 
-        Assert.Contains("is not defined", ex.Message);
+        Assert.Contains("is not defined", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -162,14 +163,27 @@ public class StrictModeTests
 
         var message = ex switch
         {
-            ThrowSignal signal when signal.ThrownValue is Exception inner => inner.Message,
-            ThrowSignal signal when signal.ThrownValue is IJsPropertyAccessor accessor &&
-                                     accessor.TryGetProperty("message", out var msg) &&
-                                     msg is string s1 => s1,
+            ThrowSignal { ThrownValue: var value } => ExtractMessage(value),
             _ => ex.Message
         };
 
         Assert.Contains("constant", message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ExtractMessage(JsValue value)
+    {
+        if (value.TryGetObject<JsObject>(out var obj) &&
+            obj.TryGetProperty("message", out var msg))
+        {
+            return JsOps.ToJsString(msg.ToObject());
+        }
+
+        if (value.TryGetString(out var str))
+        {
+            return str;
+        }
+
+        return value.ToString();
     }
 
     [Fact(Timeout = 2000)]

@@ -16,7 +16,7 @@ internal readonly struct AssignmentReference
         GlobalBinding,        // Global object property
         WithBinding,          // With statement binding
         Unresolvable,         // Undeclared identifier
-        Delegate,             // Fallback for complex cases (member access, etc.)
+        Delegate // Fallback for complex cases (member access, etc.)
     }
 
     private readonly ReferenceKind _kind;
@@ -180,10 +180,10 @@ internal readonly struct AssignmentReference
         return _kind switch
         {
             ReferenceKind.DeclarativeBinding => ReadDeclarativeBindingJsValue(),
-            ReferenceKind.GlobalBinding => JsValue.FromObject(ReadGlobalBinding()),
-            ReferenceKind.WithBinding => JsValue.FromObject(ReadWithBinding()),
-            ReferenceKind.Unresolvable => JsValue.FromObject(ReadUnresolvable()),
-            ReferenceKind.Delegate => JsValue.FromObject(_delegateGetter!()),
+            ReferenceKind.GlobalBinding => JsValue.FromObjectUnsafe(ReadGlobalBinding()),
+            ReferenceKind.WithBinding => JsValue.FromObjectUnsafe(ReadWithBinding()),
+            ReferenceKind.Unresolvable => JsValue.FromObjectUnsafe(ReadUnresolvable()),
+            ReferenceKind.Delegate => JsValue.FromObjectUnsafe(_delegateGetter!()),
             _ => throw new InvalidOperationException($"Unknown reference kind: {_kind}")
         };
     }
@@ -196,16 +196,16 @@ internal readonly struct AssignmentReference
                 WriteDeclarativeBinding(value);
                 break;
             case ReferenceKind.GlobalBinding:
-                WriteGlobalBinding(value.ToObject());
+                WriteGlobalBinding(value);
                 break;
             case ReferenceKind.WithBinding:
-                WriteWithBinding(value.ToObject());
+                WriteWithBinding(value);
                 break;
             case ReferenceKind.Unresolvable:
-                WriteUnresolvable(value.ToObject());
+                WriteUnresolvable(value);
                 break;
             case ReferenceKind.Delegate:
-                _delegateSetter!(value.ToObject());
+                _delegateSetter!(ConvertJsValueToObject(value));
                 break;
             default:
                 throw new InvalidOperationException($"Unknown reference kind: {_kind}");
@@ -216,12 +216,12 @@ internal readonly struct AssignmentReference
     {
         try
         {
-            return _binding.Read(_name, _context);
+            return _binding.Read();
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
-            _context.SetThrow(errorObject);
+            _context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
             return Symbol.Undefined;
         }
     }
@@ -230,12 +230,12 @@ internal readonly struct AssignmentReference
     {
         try
         {
-            return _binding.ReadJsValue(_name, _context);
+            return _binding.ReadJsValue(_context);
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
-            _context.SetThrow(errorObject);
+            _context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
             return JsValue.Undefined;
         }
     }
@@ -244,7 +244,7 @@ internal readonly struct AssignmentReference
     {
         // Note: Don't rely on _context for write operations as it may be stale in async contexts.
         // The binding's environment has access to the RealmState for logging.
-        _binding.WriteJsValue(_name, value, _isStrict);
+        _binding.WriteJsValue(value, _isStrict);
     }
 
     private object? ReadGlobalBinding()
@@ -256,14 +256,14 @@ internal readonly struct AssignmentReference
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
-            _context.SetThrow(errorObject);
+            _context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
             return Symbol.Undefined;
         }
     }
 
-    private void WriteGlobalBinding(object? value)
+    private void WriteGlobalBinding(JsValue value)
     {
-        JsEnvironment.TrySetWithBindingValue(_globalBinding, value, _context.RealmState);
+        JsEnvironment.TrySetWithBindingValue(_globalBinding, ConvertJsValueToObject(value), _context.RealmState);
     }
 
     private object? ReadWithBinding()
@@ -275,23 +275,24 @@ internal readonly struct AssignmentReference
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
-            _context.SetThrow(errorObject);
+            _context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
             return Symbol.Undefined;
         }
     }
 
-    private void WriteWithBinding(object? value)
+    private void WriteWithBinding(JsValue value)
     {
         if (_isStrict && IsStrictRestrictedName(_name))
         {
-            throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
+            throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateSyntaxError(
                 "Assignment to eval or arguments is not allowed in strict mode.", _context,
-                _context.RealmState));
+                _context.RealmState)));
         }
 
-        if (!JsEnvironment.TrySetWithBindingValue(_globalBinding, value, _context.RealmState))
+        var objValue = ConvertJsValueToObject(value);
+        if (!JsEnvironment.TrySetWithBindingValue(_globalBinding, objValue, _context.RealmState))
         {
-            _withFallbackEnvironment!.Assign(_name, value);
+            _withFallbackEnvironment!.Assign(_name, objValue);
         }
     }
 
@@ -304,14 +305,14 @@ internal readonly struct AssignmentReference
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
-            _context.SetThrow(errorObject);
+            _context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
             return Symbol.Undefined;
         }
     }
 
-    private void WriteUnresolvable(object? value)
+    private void WriteUnresolvable(JsValue value)
     {
-        JsEnvironment.AssignUnresolvable(_name, value, _isStrict, _context, _withFallbackEnvironment);
+        JsEnvironment.AssignUnresolvable(_name, ConvertJsValueToObject(value), _isStrict, _context, _withFallbackEnvironment);
     }
 
     private static bool IsStrictRestrictedName(Symbol name)
@@ -319,10 +320,92 @@ internal readonly struct AssignmentReference
         return string.Equals(name.Name, "eval", StringComparison.Ordinal) ||
                string.Equals(name.Name, "arguments", StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Converts JsValue to object? for compatibility with methods that haven't been migrated yet.
+    /// This manually expands the logic from ToObject() to avoid calling the obsolete method.
+    /// </summary>
+    private static object? ConvertJsValueToObject(JsValue value)
+    {
+        return value.Kind switch
+        {
+            JsValueKind.Undefined => Symbol.Undefined,
+            JsValueKind.Null => null,
+            JsValueKind.Boolean => JsValueCache.GetBoolean(value.NumberValue != 0.0),
+            JsValueKind.Number => JsValueCache.GetNumber(value.NumberValue),
+            JsValueKind.BigInt => value.ObjectValue,
+            JsValueKind.String => value.ObjectValue,
+            JsValueKind.Symbol => value.ObjectValue,
+            JsValueKind.Object => value.ObjectValue,
+            _ => Symbol.Undefined
+        };
+    }
 }
 
 internal static class AssignmentReferenceResolver
 {
+    /// <summary>
+    /// Fastest path - resolve a Symbol directly without any expression object allocation.
+    /// Use this when you already have the Symbol (e.g., from AssignmentExpression.Target).
+    /// </summary>
+    public static AssignmentReference ResolveIdentifierDirect(
+        Symbol name,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var isStrictTarget = context.CurrentScope.IsStrict &&
+                             (string.Equals(name.Name, "eval", StringComparison.Ordinal) ||
+                              string.Equals(name.Name, "arguments", StringComparison.Ordinal));
+
+        if (environment.TryResolveWithBinding(name, context, out var withBinding))
+        {
+            return AssignmentReference.ForWithBinding(
+                withBinding,
+                environment,
+                name,
+                context,
+                isStrictTarget);
+        }
+
+        var reference = environment.ResolveIdentifierAssignmentReference(name, context);
+        if (!isStrictTarget)
+        {
+            return reference;
+        }
+
+        // Wrap in delegate for strict restricted names (eval/arguments)
+        return AssignmentReference.ForDelegate(
+            reference.GetValue,
+            _ => throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateSyntaxError(
+                "Assignment to eval or arguments is not allowed in strict mode.", context,
+                context.RealmState))));
+    }
+
+    /// <summary>
+    /// Fast path for resolving simple identifier expressions without allocating a delegate.
+    /// Use this when you know the expression is an IdentifierExpression or can be unwrapped to one.
+    /// </summary>
+    public static AssignmentReference ResolveIdentifierFast(
+        ExpressionNode expression,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        // Unwrap unary ++/-- expressions to get the underlying identifier
+        while (expression is UnaryExpression { Operator: UnaryOperator.Increment or UnaryOperator.Decrement } unary)
+        {
+            expression = unary.Operand;
+        }
+
+        if (expression is IdentifierExpression identifier)
+        {
+            return ResolveIdentifierDirect(identifier.Name, environment, context);
+        }
+
+        // For non-identifier expressions, throw - caller should use full Resolve method
+        throw new InvalidOperationException(
+            $"ResolveIdentifierFast only supports identifier expressions, got {expression.GetType().Name}");
+    }
+
     public static AssignmentReference Resolve(
         ExpressionNode expression,
         JsEnvironment environment,
@@ -353,7 +436,7 @@ internal static class AssignmentReferenceResolver
             IdentifierExpression identifier => ResolveIdentifier(identifier, environment, context),
             MemberExpression member => ResolveMember(member, environment, context, evaluateExpression,
                 deferPropertyKeyConversion),
-            UnaryExpression { Operator: "++" or "--" } unary =>
+            UnaryExpression { Operator: UnaryOperator.Increment or UnaryOperator.Decrement } unary =>
                 Resolve(unary.Operand, environment, context, evaluateExpression),
             _ => throw new NotSupportedException("Unsupported assignment target.")
         };
@@ -362,32 +445,8 @@ internal static class AssignmentReferenceResolver
     private static AssignmentReference ResolveIdentifier(IdentifierExpression identifier, JsEnvironment environment,
         EvaluationContext context)
     {
-        var isStrictTarget = context.CurrentScope.IsStrict &&
-                             (string.Equals(identifier.Name.Name, "eval", StringComparison.Ordinal) ||
-                              string.Equals(identifier.Name.Name, "arguments", StringComparison.Ordinal));
-
-        if (environment.TryResolveWithBinding(identifier.Name, context, out var withBinding))
-        {
-            return AssignmentReference.ForWithBinding(
-                withBinding,
-                environment,
-                identifier.Name,
-                context,
-                isStrictTarget);
-        }
-
-        var reference = environment.ResolveIdentifierAssignmentReference(identifier.Name, context);
-        if (!isStrictTarget)
-        {
-            return reference;
-        }
-
-        // Wrap in delegate for strict restricted names (eval/arguments)
-        return AssignmentReference.ForDelegate(
-            reference.GetValue,
-            _ => throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
-                "Assignment to eval or arguments is not allowed in strict mode.", context,
-                context.RealmState)));
+        // Delegate to the direct version to avoid code duplication
+        return ResolveIdentifierDirect(identifier.Name, environment, context);
     }
 
     private static AssignmentReference ResolveMember(
@@ -418,11 +477,6 @@ internal static class AssignmentReferenceResolver
 
             var binding = TypedAstEvaluator.ExpectSuperBinding(environment, context);
             string? propertyNameCache = null;
-            string GetPropertyName()
-            {
-                propertyNameCache ??= JsOps.GetRequiredPropertyName(superPropertyValue, context);
-                return propertyNameCache;
-            }
 
             return AssignmentReference.ForDelegate(
                 () =>
@@ -456,7 +510,7 @@ internal static class AssignmentReferenceResolver
                     }
 
                     var propertyName = GetPropertyName();
-                    if (!binding.TrySetProperty(propertyName, newValue, out _) &&
+                    if (!binding.TrySetProperty(propertyName, JsValue.FromObjectUnsafe(newValue), out _) &&
                         context.CurrentScope.IsStrict)
                     {
                         throw StandardLibrary.ThrowTypeError(
@@ -465,6 +519,12 @@ internal static class AssignmentReferenceResolver
                             context.RealmState);
                     }
                 });
+
+            string GetPropertyName()
+            {
+                propertyNameCache ??= JsOps.GetRequiredPropertyName(superPropertyValue, context);
+                return propertyNameCache;
+            }
         }
 
         var target = evaluateExpression(member.Target, environment, context);
@@ -488,6 +548,19 @@ internal static class AssignmentReferenceResolver
         if (deferPropertyKeyConversion)
         {
             string? propertyNameCache = null;
+
+            return AssignmentReference.ForDelegate(
+                () =>
+                {
+                    var handle = GetHandle();
+                    return handle.GetValue();
+                },
+                newValue =>
+                {
+                    var handle = GetHandle();
+                    handle.SetValue(newValue);
+                });
+
             string GetPropertyName()
             {
                 propertyNameCache ??= JsOps.GetRequiredPropertyName(propertyValue, context);
@@ -504,18 +577,6 @@ internal static class AssignmentReferenceResolver
                     context.CurrentScope.IsStrict,
                     allowPrivate: !member.IsComputed);
             }
-
-            return AssignmentReference.ForDelegate(
-                () =>
-                {
-                    var handle = GetHandle();
-                    return handle.GetValue();
-                },
-                newValue =>
-                {
-                    var handle = GetHandle();
-                    handle.SetValue(newValue);
-                });
         }
 
         if (target is TypedArrayBase typedArray &&
@@ -554,7 +615,7 @@ internal static class AssignmentReferenceResolver
         catch (InvalidOperationException ex) when (IsReferenceError(ex))
         {
             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
-            context.SetThrow(errorObject);
+            context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
             return Symbol.Undefined;
         }
     }
@@ -578,7 +639,7 @@ internal static class AssignmentReferenceResolver
 
         if (propertyName.IsPrivateSlotName())
         {
-            target.SetProperty(propertyName, value, receiver);
+            target.SetProperty(propertyName, JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(receiver));
             return;
         }
 
@@ -598,7 +659,7 @@ internal static class AssignmentReferenceResolver
                     return;
                 }
 
-                TypedAstEvaluator.InvokeCallable(ownDescriptor.Set, [value], receiver, context);
+                TypedAstEvaluator.InvokeCallable(ownDescriptor.Set, [JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver), context);
                 return;
             }
 
@@ -613,18 +674,18 @@ internal static class AssignmentReferenceResolver
                 return;
             }
 
-            target.SetProperty(propertyName, value, receiver);
+            target.SetProperty(propertyName, JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(receiver));
             return;
         }
 
         var inheritedSetter = target.GetSetter(propertyName);
         if (inheritedSetter is not null)
         {
-            TypedAstEvaluator.InvokeCallable(inheritedSetter, [value], receiver, context);
+            TypedAstEvaluator.InvokeCallable(inheritedSetter, [JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver), context);
             return;
         }
 
-        IJsPropertyAccessor? prototypeAccessor = target.PrototypeAccessor ?? target.Prototype;
+        var prototypeAccessor = target.PrototypeAccessor ?? target.Prototype;
         while (prototypeAccessor is not null)
         {
             if (prototypeAccessor is JsObject protoObj)
@@ -647,7 +708,7 @@ internal static class AssignmentReferenceResolver
                             return;
                         }
 
-                        TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [value], receiver, context);
+                        TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver), context);
                         return;
                     }
 
@@ -702,7 +763,7 @@ internal static class AssignmentReferenceResolver
                             return;
                         }
 
-                        TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [value], receiver, context);
+                        TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver), context);
                         return;
                     }
 
@@ -733,11 +794,11 @@ internal static class AssignmentReferenceResolver
                     return;
                 }
 
-                prototypeAccessor.SetProperty(propertyName, value, receiver);
+                prototypeAccessor.SetProperty(propertyName, JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(receiver));
                 return;
             }
 
-            prototypeAccessor.SetProperty(propertyName, value, receiver);
+            prototypeAccessor.SetProperty(propertyName, JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(receiver));
             return;
         }
 
@@ -752,6 +813,6 @@ internal static class AssignmentReferenceResolver
             return;
         }
 
-        target.SetProperty(propertyName, value, receiver);
+        target.SetProperty(propertyName, JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(receiver));
     }
 }

@@ -36,7 +36,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         _properties.PreventExtensions();
     }
 
-    public bool TryGetProperty(string name, object? receiver, out object? value)
+    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
         // Handle special 'size' property
         if (string.Equals(name, "size", StringComparison.Ordinal))
@@ -45,23 +45,23 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
             return true;
         }
 
-        return _properties.TryGetProperty(name, receiver ?? this, out value);
+        return _properties.TryGetProperty(name, receiver.IsUndefined ? (JsValue)this : receiver, out value);
     }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, this, out value);
+        return TryGetProperty(name, (JsValue)this, out value);
     }
 
-    public void SetProperty(string name, object? value, object? receiver)
+    public void SetProperty(string name, JsValue value, JsValue receiver)
     {
         IsPlain = false;
-        _properties.SetProperty(name, value, receiver ?? this);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? (JsValue)this : receiver);
     }
 
-    public void SetProperty(string name, object? value)
+    public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, this);
+        SetProperty(name, value, (JsValue)this);
     }
 
     public JsObject? Prototype => _properties.Prototype;
@@ -219,7 +219,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         foreach (var value in _insertionOrder)
             // In Set.forEach, the value is passed as both the first and second argument
         {
-            callback.Invoke([value, value, this], thisArg);
+            callback.Invoke([JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(value), (JsValue)this], JsValue.FromObjectUnsafe(thisArg));
         }
     }
 

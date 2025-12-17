@@ -120,7 +120,7 @@ public class WeakMapTests
                         wm.set("string", "value");
 
             """));
-        Assert.Contains("Invalid value used as weak map key", exception.Message);
+        Assert.Contains("Invalid value used as weak map key", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -133,7 +133,7 @@ public class WeakMapTests
                         wm.set(42, "value");
 
             """));
-        Assert.Contains("Invalid value used as weak map key", exception.Message);
+        Assert.Contains("Invalid value used as weak map key", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -146,7 +146,7 @@ public class WeakMapTests
                         wm.set(true, "value");
 
             """));
-        Assert.Contains("Invalid value used as weak map key", exception.Message);
+        Assert.Contains("Invalid value used as weak map key", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -159,7 +159,7 @@ public class WeakMapTests
                         wm.set(null, "value");
 
             """));
-        Assert.Contains("Invalid value used as weak map key", exception.Message);
+        Assert.Contains("Invalid value used as weak map key", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -173,7 +173,7 @@ public class WeakMapTests
                         wm.set(x, "value");
 
             """));
-        Assert.Contains("Invalid value used as weak map key", exception.Message);
+        Assert.Contains("Invalid value used as weak map key", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]

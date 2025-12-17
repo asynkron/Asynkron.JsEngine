@@ -1,4 +1,6 @@
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -6,17 +8,18 @@ public static partial class TypedAstEvaluator
 {
     extension(ForStatement statement)
     {
-        private object? EvaluateFor(JsEnvironment environment, EvaluationContext context,
+        /// <summary>
+        /// JsValue-returning version for use in hot paths.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue EvaluateForJsValue(JsEnvironment environment, EvaluationContext context,
             Symbol? loopLabel)
         {
             var plan = ((IAstCacheable<LoopPlan>)statement).GetOrCreateCache();
-            var bodyHoist = ((IAstCacheable<HoistPlan>)plan.Body).GetOrCreateCache();
-            var needsLoopEnvironment = bodyHoist.NeedsEnvironment || !plan.PerIterationBindings.IsDefaultOrEmpty;
-
-            var loopEnvironment = needsLoopEnvironment
-                ? new JsEnvironment(environment, creatingSource: statement.Source, description: "for-loop")
-                : environment;
-            return EvaluateLoopPlan(plan, loopEnvironment, context, loopLabel);
+            // Always create a loop environment to ensure for-loops appear in the call stack
+            // for debugging purposes, even when no block-scoped bindings exist
+            var loopEnvironment = new JsEnvironment(environment, creatingSource: statement.Source, description: "for-loop");
+            return EvaluateLoopPlanJsValue(plan, loopEnvironment, context, loopLabel);
         }
     }
 }

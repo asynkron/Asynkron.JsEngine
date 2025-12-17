@@ -43,13 +43,13 @@ public static partial class TypedAstEvaluator
                 if (member.IsStatic &&
                     string.Equals(propertyName, "prototype", StringComparison.Ordinal))
                 {
-                    context.SetThrow(StandardLibrary.CreateTypeError(
+                    context.SetThrow(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
                         "Cannot redefine constructor prototype via static member",
-                        context));
+                        context)));
                     return;
                 }
 
-                object? value = member.Function is FunctionExpression functionExpression
+                var value = member.Function is FunctionExpression functionExpression
                     ? CreateFunctionValue(functionExpression, environment, context,
                         createFunctionNameEnvironment: true,
                         isConstructorFunction: false)

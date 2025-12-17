@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
@@ -25,7 +24,7 @@ internal enum EvalValidationFlags
     ContainsNewTargetInFunctions = 1 << 6,
     ContainsSuperReferenceInFunctions = 1 << 7,
     ContainsSuperCallInFunctions = 1 << 8,
-    ContainsArgumentsInFunctions = 1 << 9,
+    ContainsArgumentsInFunctions = 1 << 9
 }
 
 /// <summary>
@@ -45,7 +44,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             _properties.SetPrototype(functionPrototype);
         }
-        _properties.SetProperty("prototype", new JsObject());
+        _properties.SetProperty("prototype", (JsValue)new JsObject());
     }
 
     internal JsEngine Engine => _engine;
@@ -62,12 +61,14 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
     internal bool IsDirectCall { get; set; }
 
-    public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
+    public JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
     {
-        if (arguments.Count == 0 || arguments[0] is not string code)
+        if (arguments.Count == 0 || !arguments[0].IsString)
         {
-            return arguments.Count > 0 ? arguments[0] : Symbol.Undefined;
+            return arguments.Count > 0 ? arguments[0] : JsValue.Undefined;
         }
+
+        var code = arguments[0].AsString();
 
         var isDirectEval = IsDirectCall;
         IsDirectCall = false;
@@ -84,13 +85,13 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         ParsedProgram program;
         try
         {
-            program = _engine.ParseForExecution(code, forceStrict);
+            program = _engine.ParseProgram(code, forceStrict);
         }
         catch (ParseException parseException)
         {
             var errorObject =
                 StandardLibrary.CreateSyntaxError(parseException.Message, CallingContext, environment.RealmState);
-            throw new ThrowSignal(errorObject);
+            throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
         }
 
         // Scripts evaluated via eval may not contain module syntax (export/import).
@@ -188,6 +189,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         if (isDirectEval)
         {
             var hasSuperBinding = CallingJsEnvironment?.TryGet(Symbol.Super, out _) == true;
+            // TryGet returns object?, and Symbol.NewTarget is stored as Symbol.Undefined when absent
+            // We need to compare with Symbol.Undefined, not JsValue.Undefined
             var hasNewTarget = CallingJsEnvironment?.TryGet(Symbol.NewTarget, out var newTarget) == true &&
                                !ReferenceEquals(newTarget, Symbol.Undefined);
 
@@ -236,7 +239,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             }
             else if (CallingContext.CurrentPrivateNameScope is not null)
             {
-                evalPrivateNameScopes = ImmutableArray.Create(CallingContext.CurrentPrivateNameScope);
+                evalPrivateNameScopes = [CallingContext.CurrentPrivateNameScope];
             }
         }
 
@@ -319,17 +322,21 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         environment.RealmState);
                 }
 
-                // In sloppy direct eval, a parameter named `arguments` (or any matching
-                // parameter binding) blocks new var/function declarations of the same name
-                // (EvalDeclarationInstantiation step 5.d). Only enforce when the parameter
-                // environment actually has that binding; otherwise allow the eval hoist.
+                // ES2024 19.2.1.3 EvalDeclarationInstantiation step 5.b.iii.1.a:
+                // When a function has non-simple parameters (detected by IsParameterEnvironment),
+                // declaring `arguments` via var in direct eval always throws SyntaxError,
+                // regardless of whether an arguments binding already exists.
+                // Check the calling environment (not varEnv) because GetVarEnvironment() returns
+                // the function scope, not the parameter environment.
+                // Exception: Arrow functions don't have their own 'arguments' binding, so this
+                // restriction doesn't apply to them.
                 if (isDirectEval &&
-                    varEnv.IsParameterEnvironment &&
-                    ReferenceEquals(name, Symbol.Arguments) &&
-                    varEnv.HasOwnBinding(Symbol.Arguments))
+                    environment.IsParameterEnvironment &&
+                    !environment.IsArrowFunctionEnvironment &&
+                    ReferenceEquals(name, Symbol.Arguments))
                 {
                     throw StandardLibrary.ThrowSyntaxError(
-                        $"Cannot declare var-scoped binding '{name.Name}' in direct eval due to existing parameter binding.",
+                        "Cannot declare 'arguments' in direct eval inside a function with non-simple parameters.",
                         CallingContext,
                         environment.RealmState);
                 }
@@ -434,7 +441,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             var result = program.Typed.EvaluateProgram(evalEnvironment, _engine.RealmState, CancellationToken.None,
                 ExecutionKind.Eval, createStrictEnvironment: false, inheritedPrivateNameScopes: evalPrivateNameScopes);
 
-            return result;
+            return JsValue.FromObjectUnsafe(result);
         }
         catch (ThrowSignal)
         {
@@ -443,24 +450,24 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
     }
 
-    public bool TryGetProperty(string name, object? receiver, out object? value)
+    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        return _properties.TryGetProperty(name, receiver ?? this, out value);
+        return _properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver, out value);
     }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, this, out value);
+        return TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);
     }
 
-    public void SetProperty(string name, object? value, object? receiver)
+    public void SetProperty(string name, JsValue value, JsValue receiver)
     {
-        _properties.SetProperty(name, value, receiver ?? this);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver);
     }
 
-    public void SetProperty(string name, object? value)
+    public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, this);
+        SetProperty(name, value, JsValue.FromObjectUnsafe(this));
     }
 
     private static void CollectVarDeclaredNames(
@@ -1019,19 +1026,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         Switch
     }
 
-    private static bool ContainsIllegalReturn(ImmutableArray<StatementNode> statements)
-    {
-        foreach (var statement in statements)
-        {
-            if (IsIllegalReturn(statement))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private static bool CanDeclareGlobalFunction(JsEnvironment varEnv, Symbol name)
     {
         var descriptor = varEnv.GetGlobalOwnPropertyDescriptor(name, out var globalObject);
@@ -1048,58 +1042,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                  descriptor.Writable &&
                  descriptor.Enumerable
         };
-    }
-
-    private static bool IsIllegalReturn(StatementNode statement)
-    {
-        while (true)
-        {
-            switch (statement)
-            {
-                case ReturnStatement:
-                    return true;
-                case BlockStatement block:
-                    foreach (var stmt in block.Statements)
-                    {
-                        if (IsIllegalReturn(stmt))
-                        {
-                            return true;
-                        }
-                    }
-                    return false;
-                case IfStatement ifStatement:
-                    return IsIllegalReturn(ifStatement.Then) || (ifStatement.Else is not null && IsIllegalReturn(ifStatement.Else));
-                case WhileStatement whileStatement:
-                    statement = whileStatement.Body;
-                    continue;
-                case DoWhileStatement doWhileStatement:
-                    statement = doWhileStatement.Body;
-                    continue;
-                case ForStatement forStatement:
-                    statement = forStatement.Body;
-                    continue;
-                case ForEachStatement forEachStatement:
-                    statement = forEachStatement.Body;
-                    continue;
-                case WithStatement withStatement:
-                    statement = withStatement.Body;
-                    continue;
-                case SwitchStatement switchStatement:
-                    foreach (var c in switchStatement.Cases)
-                    {
-                        if (IsIllegalReturn(c.Body))
-                        {
-                            return true;
-                        }
-                    }
-                    return false;
-                case TryStatement tryStatement:
-                    return IsIllegalReturn(tryStatement.TryBlock) || (tryStatement.Catch is { Body: not null } catchClause && IsIllegalReturn(catchClause.Body)) || (tryStatement.Finally is not null && IsIllegalReturn(tryStatement.Finally));
-                // Function/class declarations create their own return-valid scope.
-                default:
-                    return false;
-            }
-        }
     }
 
     private static bool ContainsNewTarget(
@@ -2585,7 +2527,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 continue;
             }
 
-            lexicalEnvironment.Define(name, JsEnvironment.Uninitialized, isConst, isLexical: true,
+            lexicalEnvironment.DefineJsValue(name, JsValue.Uninitialized, isConst, isLexical: true,
                 blocksFunctionScopeOverride: true);
         }
     }
@@ -2874,16 +2816,19 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     // For non-computed member expressions with private names (e.g., this.#x),
                     // the Property is a LiteralExpression containing the private name string.
                     if (!memberExpression.IsComputed &&
-                        memberExpression.Property is LiteralExpression { Value: string propName } &&
-                        propName.IsPrivateName())
+                        memberExpression.Property is LiteralExpression { Value.IsString: true } propLit)
                     {
-                        // Check if this private name is valid in available scopes
-                        if (!IsPrivateNameValid(propName, availableScopes))
+                        var propName = propLit.Value.AsString()!;
+                        if (propName.IsPrivateName())
                         {
-                            return propName;
-                        }
+                            // Check if this private name is valid in available scopes
+                            if (!IsPrivateNameValid(propName, availableScopes))
+                            {
+                                return propName;
+                            }
 
-                        return null;
+                            return null;
+                        }
                     }
 
                     // For computed expressions, check the property expression

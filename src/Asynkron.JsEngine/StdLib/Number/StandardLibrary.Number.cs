@@ -31,7 +31,7 @@ public static partial class StandardLibrary
         numberObj.SetHostedProperty("toString", args =>
         {
             var radixArg = args.GetArgument(0);
-            var radixNumber = ReferenceEquals(radixArg, Symbol.Undefined) ? 10d : JsOps.ToNumber(radixArg);
+            var radixNumber = radixArg.IsUndefined ? 10d : JsOps.ToNumber(radixArg.ToObject());
             if (double.IsNaN(radixNumber) || Math.Abs(radixNumber % 1) > double.Epsilon)
             {
                 throw ThrowRangeError("radix must be an integer at least 2 and no greater than 36", realm: realm);
@@ -43,12 +43,12 @@ public static partial class StandardLibrary
                 throw ThrowRangeError("radix must be an integer at least 2 and no greater than 36", realm: realm);
             }
 
-            return NumberToString(num, radix);
+            return (JsValue)NumberToString(num, radix);
         });
 
         numberObj.SetHostedProperty("toFixed", args =>
         {
-            var fractionDigits = args.Count > 0 && args[0] is double d ? (int)d : 0;
+            var fractionDigits = args.Count > 0 && args[0].TryGetDouble(out var d) ? (int)d : 0;
             if (fractionDigits is < 0 or > 100)
             {
                 throw ThrowRangeError("toFixed() digits argument must be between 0 and 100", realm: realm);
@@ -56,31 +56,31 @@ public static partial class StandardLibrary
 
             if (double.IsNaN(num))
             {
-                return "NaN";
+                return (JsValue)"NaN";
             }
 
             if (double.IsInfinity(num))
             {
-                return num > 0 ? "Infinity" : "-Infinity";
+                return (JsValue)(num > 0 ? "Infinity" : "-Infinity");
             }
 
-            return num.ToString("F" + fractionDigits, CultureInfo.InvariantCulture);
+            return (JsValue)num.ToString("F" + fractionDigits, CultureInfo.InvariantCulture);
         });
 
         numberObj.SetHostedProperty("toExponential", args =>
         {
             if (double.IsNaN(num))
             {
-                return "NaN";
+                return (JsValue)"NaN";
             }
 
             if (double.IsInfinity(num))
             {
-                return num > 0 ? "Infinity" : "-Infinity";
+                return (JsValue)(num > 0 ? "Infinity" : "-Infinity");
             }
 
             string result;
-            if (args.Count <= 0 || args[0] is not double d)
+            if (args.Count <= 0 || !args[0].TryGetDouble(out var d))
             {
                 result = num.ToString("e", CultureInfo.InvariantCulture);
             }
@@ -95,29 +95,29 @@ public static partial class StandardLibrary
                 result = num.ToString("e" + fractionDigits, CultureInfo.InvariantCulture);
             }
 
-            return FormatExponentialForJs(result);
+            return (JsValue)FormatExponentialForJs(result);
         });
 
         numberObj.SetHostedProperty("toPrecision", args =>
         {
             if (args.Count == 0)
             {
-                return num.ToString(CultureInfo.InvariantCulture);
+                return (JsValue)num.ToString(CultureInfo.InvariantCulture);
             }
 
             if (double.IsNaN(num))
             {
-                return "NaN";
+                return (JsValue)"NaN";
             }
 
             if (double.IsInfinity(num))
             {
-                return num > 0 ? "Infinity" : "-Infinity";
+                return (JsValue)(num > 0 ? "Infinity" : "-Infinity");
             }
 
-            if (args[0] is not double d)
+            if (!args[0].TryGetDouble(out var d))
             {
-                return num.ToString(CultureInfo.InvariantCulture);
+                return (JsValue)num.ToString(CultureInfo.InvariantCulture);
             }
 
             var precision = (int)d;
@@ -126,7 +126,7 @@ public static partial class StandardLibrary
                 throw ThrowRangeError("toPrecision() precision argument must be between 1 and 100", realm: realm);
             }
 
-            return num.ToString("G" + precision, CultureInfo.InvariantCulture);
+            return (JsValue)num.ToString("G" + precision, CultureInfo.InvariantCulture);
         });
 
         numberObj.SetHostedProperty("valueOf", _ => num);
@@ -137,24 +137,28 @@ public static partial class StandardLibrary
             var optionsArg = args.GetArgument(1);
 
             if (realm is not null &&
-                TryFormatWithIntlNumberFormat(num, localesArg, optionsArg, realm, out var formatted))
+                TryFormatWithIntlNumberFormat(num, localesArg.ToObject(), optionsArg.ToObject(), realm, out var formatted))
             {
-                return formatted;
+                return JsValue.FromObjectUnsafe(formatted);
             }
 
-            if (optionsArg is JsObject options)
+            if (!optionsArg.TryGetObject<JsObject>(out var options) || options is null)
             {
-                var style = options.TryGetProperty("style", out var styleVal) ? styleVal?.ToString() : null;
+                return (JsValue)num.ToString(CultureInfo.InvariantCulture);
+            }
+
+            if (options.TryGetProperty("style", out var styleVal) && !styleVal.IsNullOrUndefined)
+            {
+                var style = JsOps.ToJsString(styleVal);
                 if (string.Equals(style, "unit", StringComparison.OrdinalIgnoreCase) &&
                     options.TryGetProperty("unit", out var unitVal) &&
-                    unitVal is not null &&
-                    !ReferenceEquals(unitVal, Symbol.Undefined))
+                    !unitVal.IsNullOrUndefined)
                 {
-                    return $"{num.ToString(CultureInfo.InvariantCulture)} {unitVal}";
+                    return (JsValue)$"{num.ToString(CultureInfo.InvariantCulture)} {JsOps.ToJsString(unitVal)}";
                 }
             }
 
-            return num.ToString(CultureInfo.InvariantCulture);
+            return (JsValue)num.ToString(CultureInfo.InvariantCulture);
         });
     }
 

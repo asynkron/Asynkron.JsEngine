@@ -1,5 +1,7 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -744,15 +746,14 @@ public class GeneratorTests
 
     private static void AssertIteratorResultTypeError(ThrowSignal signal)
     {
-        if (signal.ThrownValue is Asynkron.JsEngine.JsTypes.JsObject obj &&
-            obj.TryGetProperty("message", out var message) &&
-            message is string msg)
+        if (signal.ThrownValue.TryGetObject<JsObject>(out var obj) &&
+            obj.TryGetProperty("message", out var message))
         {
-            Assert.Equal("Iterator result is not an object.", msg);
+            Assert.Equal("Iterator result is not an object.", JsOps.ToJsString(message.ToObject()));
             return;
         }
 
-        if (signal.ThrownValue is string str)
+        if (signal.ThrownValue.TryGetString(out var str))
         {
             Assert.Equal("Iterator result is not an object.", str);
             return;
@@ -3153,16 +3154,16 @@ public class GeneratorTests
 
         engine.SetGlobalFunction("log", args =>
         {
-            var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             Console.WriteLine($"LOG: {message}");
-            return null;
+            return JsValue.Null;
         });
 
         engine.SetGlobalFunction("markError", _ =>
         {
             errorCaught = true;
             Console.WriteLine("LOG: Error caught!");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""
@@ -3262,8 +3263,8 @@ public class GeneratorTests
         var logs = new List<string>();
         engine.SetGlobalFunction("log", args =>
         {
-            logs.Add(args.Count > 0 ? args[0]?.ToString() ?? "null" : "null");
-            return null;
+            logs.Add(args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null");
+            return JsValue.Null;
         });
 
         var result = await engine.Evaluate("""
@@ -4846,7 +4847,7 @@ public class GeneratorTests
 
         var result = await engine.Evaluate(testCode);
         // Should work - ONE func decl
-        Assert.Contains("\"callCount\":1", result?.ToString() ?? "");
+        Assert.Contains("\"callCount\":1", result?.ToString() ?? "", StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]
@@ -4891,7 +4892,7 @@ public class GeneratorTests
 
         var result = await engine.Evaluate(testCode);
         // This works - having 2 function declarations doesn't break it
-        Assert.Contains("\"callCount\":1", result?.ToString() ?? "");
+        Assert.Contains("\"callCount\":1", result?.ToString() ?? "", StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]
@@ -4939,7 +4940,7 @@ public class GeneratorTests
 
         var result = await engine.Evaluate(testCode);
         // This WORKS - constant args don't trigger the bug
-        Assert.Contains("\"callCount\":1", result?.ToString() ?? "");
+        Assert.Contains("\"callCount\":1", result?.ToString() ?? "", StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]
@@ -4987,7 +4988,7 @@ public class GeneratorTests
 
         var result = await engine.Evaluate(testCode);
         // This is the BUG - referencing variables in function calls causes callCount to be 0
-        Assert.Contains("\"callCount\":1", result?.ToString() ?? "");
+        Assert.Contains("\"callCount\":1", result?.ToString() ?? "", StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]
@@ -5861,8 +5862,8 @@ public class GeneratorTests
             JSON.stringify({ argsLength: args.length, callCount: callCount });
             """);
 
-        Assert.Contains("\"callCount\":1", result?.ToString() ?? "");
-        Assert.Contains("\"argsLength\":1", result?.ToString() ?? "");
+        Assert.Contains("\"callCount\":1", result?.ToString() ?? "", StringComparison.Ordinal);
+        Assert.Contains("\"argsLength\":1", result?.ToString() ?? "", StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]
@@ -5937,7 +5938,7 @@ public class GeneratorTests
             """);
 
         // Direct call should have args[0] = 9876
-        Assert.Contains("\"argsZero\":9876", result?.ToString() ?? "");
+        Assert.Contains("\"argsZero\":9876", result?.ToString() ?? "", StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]
@@ -5982,7 +5983,7 @@ public class GeneratorTests
 
         var resultStr = result?.ToString() ?? "";
         // The callCount should be 1
-        Assert.Contains("\"callCount\":1", resultStr);
+        Assert.Contains("\"callCount\":1", resultStr, StringComparison.Ordinal);
         // Let's see what args.length and args[0] are
     }
 }

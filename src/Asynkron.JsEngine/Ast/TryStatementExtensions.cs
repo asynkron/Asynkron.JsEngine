@@ -7,17 +7,21 @@ public static partial class TypedAstEvaluator
 {
     extension(TryStatement statement)
     {
-        private object? EvaluateTry(JsEnvironment environment, EvaluationContext context)
+        /// <summary>
+        /// JsValue-returning version for use in hot paths.
+        /// </summary>
+        private JsValue EvaluateTryJsValue(JsEnvironment environment, EvaluationContext context)
         {
             context.RealmState.Logger?.LogInformation(
                 "EvaluateTry enter (catch={HasCatch}, finally={HasFinally}) throwFlag={ThrowFlag}",
                 statement.Catch is not null,
                 statement.Finally is not null,
                 context.IsThrow);
-            object? result;
+
+            JsValue result;
             try
             {
-                result = EvaluateBlock(statement.TryBlock, environment, context);
+                result = EvaluateBlockJsValue(statement.TryBlock, environment, context);
             }
             catch (ThrowSignal signal)
             {
@@ -30,7 +34,7 @@ public static partial class TypedAstEvaluator
             {
                 context.RealmState.Logger?.LogInformation(
                     "EvaluateTry handling catch; throw type={ThrowType}",
-                    context.FlowValue?.GetType().Name ?? "null");
+                    !context.FlowValue.IsUndefined ? context.FlowValue.GetType().Name : "undefined");
                 var thrownValue = context.FlowValue;
                 context.Clear();
                 var catchEnv = new JsEnvironment(environment, creatingSource: statement.Catch.Body.Source,
@@ -48,7 +52,7 @@ public static partial class TypedAstEvaluator
                     DefineBindingTarget(statement.Catch.Binding, thrownValue, catchEnv, context, false);
                 }
 
-                result = EvaluateBlock(statement.Catch.Body, catchEnv, context);
+                result = EvaluateBlockJsValue(statement.Catch.Body, catchEnv, context);
             }
 
             if (statement.Finally is null)
@@ -56,52 +60,59 @@ public static partial class TypedAstEvaluator
                 context.RealmState.Logger?.LogInformation(
                     "EvaluateTry exit (no finally) throwFlag={ThrowFlag}",
                     context.IsThrow);
-                // Per ES spec 13.15.8 step 6: If C.[[value]] is empty, return undefined
-                return ReferenceEquals(result, EmptyCompletion) ? Symbol.Undefined : result;
+                // Per ES spec 14.15.2 TryStatement Evaluation:
+                // If C.[[value]] is not empty, return Completion(C).
+                // Return Completion{[[type]]: C.[[type]], [[value]]: undefined, [[target]]: C.[[target]]}.
+                return result.IsUnit ? JsValue.Undefined : result;
             }
 
-            var savedSignal = context.CurrentSignal;
+            var savedState = context.SaveCompletionState();
 
             GeneratorPendingCompletion? pending = null;
             var isGenerator = IsGeneratorContext(environment);
-            if (isGenerator && savedSignal is not null)
+            if (isGenerator && savedState.HasCompletion)
             {
                 pending = GetGeneratorPendingCompletion(environment);
-                switch (savedSignal)
+                if (savedState.IsReturn)
                 {
-                    case ThrowFlowCompletionSignal throwSignal:
-                        pending.HasValue = true;
-                        pending.IsThrow = true;
-                        pending.IsReturn = false;
-                        pending.Value = throwSignal.Value;
-                        break;
-                    case ReturnCompletionSignal returnSignal:
-                        pending.HasValue = true;
-                        pending.IsThrow = false;
-                        pending.IsReturn = true;
-                        pending.Value = returnSignal.Value;
-                        break;
+                    pending.HasValue = true;
+                    pending.IsThrow = false;
+                    pending.IsReturn = true;
+                    // Store JsValue directly - will be boxed in object? but we handle unboxing later
+                    pending.Value = savedState.ReturnValue;
+                }
+                else if (savedState.Signal is ThrowFlowCompletionSignal throwSignal)
+                {
+                    pending.HasValue = true;
+                    pending.IsThrow = true;
+                    pending.IsReturn = false;
+                    // Store JsValue directly - will be boxed in object? but we handle unboxing later
+                    pending.Value = throwSignal.JsValue;
                 }
             }
 
             context.Clear();
-            var finallyResult = EvaluateBlock(statement.Finally, environment, context);
-            if (context.CurrentSignal is not null)
+            var finallyResult = EvaluateBlockJsValue(statement.Finally, environment, context);
+            if (context.ShouldStopEvaluation)
             {
-                // Per ES spec: When finally has an abrupt completion, use its completion value
-                // with UpdateEmpty(F, undefined) - if the value is empty, it becomes undefined.
-                return ReferenceEquals(finallyResult, EmptyCompletion) ? Symbol.Undefined : finallyResult;
+                // Per ES spec 14.15.2 TryStatement Evaluation:
+                // Return Completion(UpdateEmpty(F, undefined)).
+                // When finally has an abrupt completion, apply UpdateEmpty to its completion value.
+                return finallyResult.IsUnit ? JsValue.Undefined : finallyResult;
             }
 
             if (isGenerator && pending?.HasValue == true)
             {
+                // pending.Value might be a boxed JsValue
+                var pendingValueJs = pending.Value is JsValue pjs ? pjs : JsValue.FromObjectUnsafe(pending.Value);
+
                 if (pending.IsThrow)
                 {
-                    context.SetThrow(pending.Value);
+                    context.SetThrow(pendingValueJs);
                 }
                 else if (pending.IsReturn)
                 {
-                    context.SetReturn(pending.Value);
+                    context.SetReturn(pendingValueJs);
                 }
 
                 pending.HasValue = false;
@@ -111,14 +122,16 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                RestoreSignal(context, savedSignal);
+                context.RestoreCompletionState(savedState);
             }
 
             context.RealmState.Logger?.LogInformation(
                 "EvaluateTry exit (with finally) throwFlag={ThrowFlag}",
                 context.IsThrow);
-            // Per ES spec 13.15.8 step 6: If C.[[value]] is empty, return undefined
-            return ReferenceEquals(result, EmptyCompletion) ? Symbol.Undefined : result;
+            // Per ES spec 14.15.2 TryStatement Evaluation:
+            // If C.[[value]] is not empty, return Completion(C).
+            // Return Completion{[[type]]: C.[[type]], [[value]]: undefined, [[target]]: C.[[target]]}.
+            return result.IsUnit ? JsValue.Undefined : result;
         }
     }
 }

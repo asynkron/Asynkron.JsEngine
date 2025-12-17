@@ -9,29 +9,34 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class SymbolPrototype
 {
     [JsHostMethod("toString", Length = 0d)]
-    public object? ToString(object? thisValue, IReadOnlyList<object?> _)
+    public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        return RequireSymbolReceiver(thisValue, Realm).ToString();
+        return new JsValue(RequireSymbolReceiver(thisValue, Realm).ToString());
     }
 
     [JsHostMethod("valueOf", Length = 0d)]
-    public object? ValueOf(object? thisValue, IReadOnlyList<object?> _)
+    public JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        return RequireSymbolReceiver(thisValue, Realm);
+        var symbol = RequireSymbolReceiver(thisValue, Realm);
+        return new JsValue(JsValueKind.Symbol, 0.0, symbol);
     }
 
     [JsHostGetter("description", Configurable = true)]
-    public object? Description(object? thisValue)
+    public JsValue Description(JsValue thisValue)
     {
         var symbol = RequireSymbolReceiver(thisValue, Realm);
-        return symbol.Description ?? (object)Symbol.Undefined;
+        return symbol.Description != null ? new JsValue(symbol.Description) : JsValue.Undefined;
     }
 
     protected override void ConfigurePrototype()
     {
         var toPrimitiveKey = SymbolKeys.GetToPrimitive(Realm);
         Prototype.SetProperty(toPrimitiveKey,
-            new HostFunction((thisValue, _) => RequireSymbolReceiver(thisValue, Realm), Realm, isConstructor: false));
+            new HostFunction((thisValue, _) =>
+            {
+                var symbol = RequireSymbolReceiver(thisValue, Realm);
+                return new JsValue(JsValueKind.Symbol, 0.0, symbol);
+            }, Realm, isConstructor: false));
 
         var toStringTagKey = SymbolKeys.GetToStringTag(Realm);
         Prototype.SetProperty(toStringTagKey, "Symbol");

@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Xunit.Abstractions;
 
@@ -16,9 +17,9 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
 
         engine.SetGlobalFunction("log", args =>
         {
-            var message = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {message}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate("""
@@ -122,9 +123,9 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate(@"
@@ -194,9 +195,9 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate(@"
@@ -264,9 +265,9 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("log", args =>
         {
-            var msg = args.Count > 0 ? args[0]?.ToString() ?? "null" : "null";
+            var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
             output.WriteLine($"LOG: {msg}");
-            return null;
+            return JsValue.Null;
         });
 
         await engine.Evaluate(@"

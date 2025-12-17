@@ -26,7 +26,7 @@ namespace Asynkron.JsEngine.JsTypes;
     private readonly Dictionary<string, PropertyDescriptor> _descriptors = new(StringComparer.Ordinal);
     private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
     private readonly Dictionary<string, object?> _privateFields = new(StringComparer.Ordinal);
-    private readonly LinkedList<string> _propertyInsertionOrder = new();
+    private readonly LinkedList<string> _propertyInsertionOrder = [];
     private readonly Dictionary<string, LinkedListNode<string>> _propertyInsertionNodes = new(StringComparer.Ordinal);
     private bool _trackArrayLength;
     private double _trackedArrayLength;
@@ -96,11 +96,11 @@ namespace Asynkron.JsEngine.JsTypes;
     public bool ContainsKey(string key) => _storage.ContainsKey(key);
     public bool Remove(string key) => _storage.Remove(key);
     public bool TryGetValue(string key, out object? value) => _storage.TryGetValue(key, out value);
-    void ICollection<KeyValuePair<string, object?>>.Add(KeyValuePair<string, object?> item) => ((ICollection<KeyValuePair<string, object?>>)_storage).Add(item);
+    void ICollection<KeyValuePair<string, object?>>.Add(KeyValuePair<string, object?> item) => _storage.Add(item);
     public void Clear() => _storage.Clear();
-    bool ICollection<KeyValuePair<string, object?>>.Contains(KeyValuePair<string, object?> item) => ((ICollection<KeyValuePair<string, object?>>)_storage).Contains(item);
-    void ICollection<KeyValuePair<string, object?>>.CopyTo(KeyValuePair<string, object?>[] array, int arrayIndex) => ((ICollection<KeyValuePair<string, object?>>)_storage).CopyTo(array, arrayIndex);
-    bool ICollection<KeyValuePair<string, object?>>.Remove(KeyValuePair<string, object?> item) => ((ICollection<KeyValuePair<string, object?>>)_storage).Remove(item);
+    bool ICollection<KeyValuePair<string, object?>>.Contains(KeyValuePair<string, object?> item) => _storage.Contains(item);
+    void ICollection<KeyValuePair<string, object?>>.CopyTo(KeyValuePair<string, object?>[] array, int arrayIndex) => _storage.CopyTo(array, arrayIndex);
+    bool ICollection<KeyValuePair<string, object?>>.Remove(KeyValuePair<string, object?> item) => _storage.Remove(item);
     public IEnumerator<KeyValuePair<string, object?>> GetEnumerator() => _storage.GetEnumerator();
     System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => _storage.GetEnumerator();
 
@@ -157,12 +157,19 @@ namespace Asynkron.JsEngine.JsTypes;
         return null;
     }
 
-    public void SetProperty(string name, object? value)
+    // IJsPropertyAccessor interface implementation with JsValue
+    public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, this);
+        SetPropertyInternal(name, value.ToObject(), this);
     }
 
-    public void SetProperty(string name, object? value, object? receiver)
+    public void SetProperty(string name, JsValue value, JsValue receiver)
+    {
+        SetPropertyInternal(name, value.ToObject(), receiver.ToObject());
+    }
+
+    // Internal implementation that uses object? for backward compatibility
+    private void SetPropertyInternal(string name, object? value, object? receiver)
     {
         if (name.IsPrivateSlotName())
         {
@@ -178,7 +185,7 @@ namespace Asynkron.JsEngine.JsTypes;
                         realm: ResolveRealmState(receiver));
                 }
 
-                desc.Set.Invoke([value], receiver ?? this);
+                desc.Set.Invoke([JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver ?? this));
 
                 return;
             }
@@ -213,7 +220,7 @@ namespace Asynkron.JsEngine.JsTypes;
                                 realm: ResolveRealmState(receiver));
                         }
 
-                        inheritedDesc.Set.Invoke([value], receiver ?? this);
+                        inheritedDesc.Set.Invoke([JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver ?? this));
                         return;
                     }
 
@@ -251,7 +258,7 @@ namespace Asynkron.JsEngine.JsTypes;
         {
             if (descriptor!.IsAccessorDescriptor)
             {
-                descriptor.Set?.Invoke([value], receiver ?? this);
+                descriptor.Set?.Invoke([JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver ?? this));
 
                 return;
             }
@@ -278,7 +285,7 @@ namespace Asynkron.JsEngine.JsTypes;
         var setter = GetSetter(name);
         if (setter != null)
         {
-            setter.Invoke([value], receiver ?? this);
+            setter.Invoke([JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver ?? this));
             return;
         }
 
@@ -291,7 +298,7 @@ namespace Asynkron.JsEngine.JsTypes;
             var foundSetter = FindSetterInPrototypeChain(_prototypeAccessor, name);
             if (foundSetter != null)
             {
-                foundSetter.Invoke([value], receiver ?? this);
+                foundSetter.Invoke([JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver ?? this));
                 return;
             }
         }
@@ -343,7 +350,35 @@ namespace Asynkron.JsEngine.JsTypes;
         }
     }
 
-    public bool TryGetProperty(string name, out object? value)
+    // IJsPropertyAccessor interface implementation with JsValue
+    public bool TryGetProperty(string name, out JsValue value)
+    {
+        if (TryGetPropertyInternal(name, out var objValue))
+        {
+            // Handle case where objValue is already a boxed JsValue
+            value = objValue is JsValue jsVal ? jsVal : JsValue.FromObjectUnsafe(objValue);
+            return true;
+        }
+
+        value = JsValue.Undefined;
+        return false;
+    }
+
+    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
+    {
+        if (TryGetPropertyInternal(name, receiver.ToObject(), out var objValue))
+        {
+            // Handle case where objValue is already a boxed JsValue
+            value = objValue is JsValue jsVal ? jsVal : JsValue.FromObjectUnsafe(objValue);
+            return true;
+        }
+
+        value = JsValue.Undefined;
+        return false;
+    }
+
+    // Internal implementation that uses object? for backward compatibility
+    private bool TryGetPropertyInternal(string name, out object? value)
     {
         // Private slots need special handling - go through slow path
         if (name.IsPrivateSlotName())
@@ -366,7 +401,7 @@ namespace Asynkron.JsEngine.JsTypes;
         return TryGetProperty(name, this, 0, null, out value);
     }
 
-    public bool TryGetProperty(string name, object? receiver, out object? value)
+    private bool TryGetPropertyInternal(string name, object? receiver, out object? value)
     {
         // Private slots need special handling - go through slow path
         if (name.IsPrivateSlotName())
@@ -449,6 +484,16 @@ namespace Asynkron.JsEngine.JsTypes;
         return DefinePropertyInternal(name, descriptor);
     }
 
+    /// <summary>
+    /// Defines a property by taking direct ownership of the descriptor without cloning.
+    /// Use this only when the descriptor is freshly created and won't be reused.
+    /// This avoids allocation overhead for internal operations.
+    /// </summary>
+    internal bool DefinePropertyDirect(string name, PropertyDescriptor descriptor)
+    {
+        return DefinePropertyInternalDirect(name, descriptor);
+    }
+
     private void TrackArrayWrite(string name, object? value)
     {
         if (!_trackArrayLength)
@@ -515,6 +560,98 @@ namespace Asynkron.JsEngine.JsTypes;
                     TrackLengthAssignment(newDescriptor.Value);
                 }
                 else if (!newDescriptor.IsAccessorDescriptor)
+                {
+                    TrackArrayIndexWriteIfNeeded(name);
+                }
+            }
+            return true;
+        }
+
+        if (!ValidateDescriptorChange(descriptor, currentDescriptor))
+        {
+            return false;
+        }
+
+        ApplyDescriptorChange(descriptor, currentDescriptor);
+
+        if (!hadStoredDescriptor)
+        {
+            _descriptors[name] = currentDescriptor;
+            if (!hadDataSlot)
+            {
+                TrackPropertyInsertion(name);
+            }
+        }
+
+        AssignDescriptorStorage(name, currentDescriptor);
+        if (_trackArrayLength)
+        {
+            if (string.Equals(name, "length", StringComparison.Ordinal))
+            {
+                TrackLengthAssignment(currentDescriptor.Value);
+            }
+            else if (!currentDescriptor.IsAccessorDescriptor)
+            {
+                TrackArrayIndexWriteIfNeeded(name);
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Internal method that takes direct ownership of the descriptor without cloning.
+    /// Used for internal operations where we know the descriptor is freshly created.
+    /// </summary>
+    private bool DefinePropertyInternalDirect(string name, PropertyDescriptor descriptor)
+    {
+        if (name.IsPrivateSlotName())
+        {
+            if (_privateFields.TryGetValue(name, out var existing) && existing is PropertyDescriptor existingDescriptor)
+            {
+                if (!ValidateDescriptorChange(descriptor, existingDescriptor))
+                {
+                    return false;
+                }
+
+                ApplyDescriptorChange(descriptor, existingDescriptor);
+                _privateFields[name] = existingDescriptor;
+                return true;
+            }
+
+            // Take ownership directly without cloning
+            CompleteDescriptorForNewProperty(descriptor);
+            _privateFields[name] = descriptor;
+            return true;
+        }
+
+        var hadStoredDescriptor = _descriptors.TryGetValue(name, out var storedDescriptor);
+        var hadDataSlot = TryGetValue(name, out var existingValue);
+        var currentDescriptor = storedDescriptor;
+
+        if (!hadStoredDescriptor && hadDataSlot)
+        {
+            currentDescriptor = CreateDataDescriptorFromExistingValue(existingValue);
+        }
+
+        if (currentDescriptor is null)
+        {
+            if (!IsExtensible)
+            {
+                return false;
+            }
+
+            // Take ownership directly without cloning
+            CompleteDescriptorForNewProperty(descriptor);
+            _descriptors[name] = descriptor;
+            TrackPropertyInsertion(name);
+            AssignDescriptorStorage(name, descriptor);
+            if (_trackArrayLength)
+            {
+                if (string.Equals(name, "length", StringComparison.Ordinal))
+                {
+                    TrackLengthAssignment(descriptor.Value);
+                }
+                else if (!descriptor.IsAccessorDescriptor)
                 {
                     TrackArrayIndexWriteIfNeeded(name);
                 }
@@ -1142,8 +1279,9 @@ namespace Asynkron.JsEngine.JsTypes;
                         return true;
                     }
                 }
-                else if (prototype.TryGetProperty(name, effectiveReceiver, out value))
+                else if (prototype.TryGetProperty(name, JsValue.FromObjectUnsafe(effectiveReceiver), out var jsValue))
                 {
+                    value = jsValue.ToObject();
                     return true;
                 }
 
@@ -1218,8 +1356,9 @@ namespace Asynkron.JsEngine.JsTypes;
                     return true;
                 }
             }
-            else if (prototype.TryGetProperty(name, receiver, out value))
+            else if (prototype.TryGetProperty(name, JsValue.FromObjectUnsafe(receiver), out var jsValue))
             {
+                value = jsValue.ToObject();
                 return true;
             }
 
@@ -1261,8 +1400,8 @@ namespace Asynkron.JsEngine.JsTypes;
                             {
                                 value = TypedAstEvaluator.InvokeCallable(
                                     desc.Get,
-                                    Array.Empty<object?>(),
-                                    receiver ?? this,
+                                    [],
+                                    JsValue.FromObjectUnsafe(receiver ?? this),
                                     context,
                                     ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
                             }
@@ -1324,8 +1463,9 @@ namespace Asynkron.JsEngine.JsTypes;
                     return true;
                 }
             }
-            else if (prototype.TryGetProperty(name, receiver ?? this, out value))
+            else if (prototype.TryGetProperty(name, JsValue.FromObjectUnsafe(receiver ?? this), out var jsValue))
             {
+                value = jsValue.ToObject();
                 return true;
             }
 
@@ -1372,8 +1512,8 @@ namespace Asynkron.JsEngine.JsTypes;
                 {
                     value = TypedAstEvaluator.InvokeCallable(
                         virtualDescriptor.Get,
-                        Array.Empty<object?>(),
-                        receiver ?? this,
+                        [],
+                        JsValue.FromObjectUnsafe(receiver ?? this),
                         context,
                         ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
                 }
@@ -1404,8 +1544,8 @@ namespace Asynkron.JsEngine.JsTypes;
                     {
                         value = TypedAstEvaluator.InvokeCallable(
                             descriptor.Get,
-                            Array.Empty<object?>(),
-                            receiver ?? this,
+                            [],
+                            JsValue.FromObjectUnsafe(receiver ?? this),
                             context,
                             ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
                     }

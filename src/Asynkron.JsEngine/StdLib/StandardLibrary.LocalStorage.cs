@@ -16,46 +16,47 @@ public static partial class StandardLibrary
 
         return storage;
 
-        object? GetItem(object? _, IReadOnlyList<object?> args)
+        JsValue GetItem(JsValue _, IReadOnlyList<JsValue> args)
         {
             if (args.Count == 0)
             {
-                return null;
+                return JsValue.Null;
             }
 
-            var key = args[0]?.ToString() ?? string.Empty;
-            return backing.GetValueOrDefault(key);
+            var key = args[0].ToObject()?.ToString() ?? string.Empty;
+            var result = backing.GetValueOrDefault(key);
+            return result is not null ? new JsValue(result) : JsValue.Null;
         }
 
-        object? SetItem(object? _, IReadOnlyList<object?> args)
+        JsValue SetItem(JsValue _, IReadOnlyList<JsValue> args)
         {
             if (args.Count < 2)
             {
-                return null;
+                return JsValue.Undefined;
             }
 
-            var key = args[0]?.ToString() ?? string.Empty;
-            var value = args[1]?.ToString() ?? string.Empty;
+            var key = args[0].ToObject()?.ToString() ?? string.Empty;
+            var value = args[1].ToObject()?.ToString() ?? string.Empty;
             backing[key] = value;
-            return null;
+            return JsValue.Undefined;
         }
 
-        object? RemoveItem(object? _, IReadOnlyList<object?> args)
+        JsValue RemoveItem(JsValue _, IReadOnlyList<JsValue> args)
         {
             if (args.Count == 0)
             {
-                return null;
+                return JsValue.Undefined;
             }
 
-            var key = args[0]?.ToString() ?? string.Empty;
+            var key = args[0].ToObject()?.ToString() ?? string.Empty;
             backing.Remove(key);
-            return null;
+            return JsValue.Undefined;
         }
 
-        object? Clear(object? _, IReadOnlyList<object?> __)
+        JsValue Clear(JsValue _, IReadOnlyList<JsValue> __)
         {
             backing.Clear();
-            return null;
+            return JsValue.Undefined;
         }
     }
 }

@@ -1,4 +1,5 @@
-using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -6,7 +7,24 @@ public static partial class TypedAstEvaluator
 {
     extension(BlockStatement block)
     {
-        private object? EvaluateBlock(
+        /// <summary>
+        /// Evaluates a block statement and returns the completion value as JsValue.
+        /// Returns JsValue.Undefined for empty blocks to match browser behavior.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue EvaluateBlockJsValue(
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            return EvaluateBlockCore(block, environment, context);
+        }
+
+        /// <summary>
+        /// Core block evaluation that returns JsValue directly.
+        /// Returns JsValue.Undefined for empty blocks to match browser behavior.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue EvaluateBlockCore(
             JsEnvironment environment,
             EvaluationContext context)
         {
@@ -19,43 +37,68 @@ public static partial class TypedAstEvaluator
             // Fast path: if the block has no lexical/function decls, execute directly in the incoming environment
             if (!hoistPlan.NeedsEnvironment)
             {
-                var fastResult = EmptyCompletion;
-                foreach (var statement in block.Statements)
-                {
-                    context.ThrowIfCancellationRequested();
-                    var completion = EvaluateStatement(statement, environment, context);
-                    var shouldStop = context.ShouldStopEvaluation;
-                    var shouldCapture =
-                        !ReferenceEquals(completion, EmptyCompletion) &&
-                        (!shouldStop ||
-                         context.IsReturn ||
-                         context.IsThrow ||
-                         context.IsYield ||
-                         context.IsBreak ||
-                         context.IsContinue);
-
-                    if (shouldCapture)
-                    {
-                        fastResult = completion;
-                    }
-
-                    if (shouldStop)
-                    {
-                        break;
-                    }
-                }
-
-                return fastResult;
+                return block.EvaluateBlockFast(environment, context);
             }
 
+            // Slow path: needs new environment for lexical bindings
+            return block.EvaluateBlockSlow(environment, context);
+        }
+
+        /// <summary>
+        /// Fast path for blocks that don't need a new environment.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue EvaluateBlockFast(
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            // Start with Unit (empty completion) - per ES spec, empty blocks return empty completion
+            // which doesn't override previous statement completion values
+            var resultJs = JsValue.Unit;
+            foreach (var statement in block.Statements)
+            {
+                context.ThrowIfCancellationRequested();
+
+                var completionJs = EvaluateStatementJsValue(statement, environment, context);
+                var shouldStop = context.ShouldStopEvaluation;
+                var shouldCapture =
+                    !completionJs.IsUnit &&
+                    (!shouldStop ||
+                     context.IsReturn ||
+                     context.IsThrow ||
+                     context.IsYield ||
+                     context.IsBreak ||
+                     context.IsContinue);
+
+                if (shouldCapture)
+                {
+                    resultJs = completionJs;
+                }
+
+                if (shouldStop)
+                {
+                    break;
+                }
+            }
+
+            return resultJs;
+        }
+
+        /// <summary>
+        /// Slow path for blocks that need a new environment for lexical bindings.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private JsValue EvaluateBlockSlow(
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            // Start with Unit (empty completion) - per ES spec, empty blocks return empty completion
+            // which doesn't override previous statement completion values
+            var resultJs = JsValue.Unit;
             var scope = new JsEnvironment(environment, false, block.IsStrict);
-            var result = EmptyCompletion;
 
             var mode = scope.IsStrict || block.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
             using var scopeHandle = context.PushScope(ScopeKind.Block, mode);
-            using var blockActivity = Activity.Current?.StartEvaluatorActivity("Scope:Block", context, block.Source);
-            blockActivity?.SetTag("js.block.strict", block.IsStrict);
-            blockActivity?.SetTag("js.block.statementCount", block.Statements.Length);
 
             // Per ES spec, lexical declarations (let/const/class) must be hoisted to create
             // bindings in the TDZ (Temporal Dead Zone) BEFORE function hoisting.
@@ -82,10 +125,11 @@ public static partial class TypedAstEvaluator
             foreach (var statement in block.Statements)
             {
                 context.ThrowIfCancellationRequested();
-                var completion = EvaluateStatement(statement, scope, context);
+
+                var completionJs = EvaluateStatementJsValue(statement, scope, context);
                 var shouldStop = context.ShouldStopEvaluation;
                 var shouldCapture =
-                    !ReferenceEquals(completion, EmptyCompletion) &&
+                    !completionJs.IsUnit &&
                     (!shouldStop ||
                      context.IsReturn ||
                      context.IsThrow ||
@@ -95,7 +139,7 @@ public static partial class TypedAstEvaluator
 
                 if (shouldCapture)
                 {
-                    result = completion;
+                    resultJs = completionJs;
                 }
 
                 if (shouldStop)
@@ -104,7 +148,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            return result;
+            return resultJs;
         }
 
         private void InstantiateLexicalBlockFunctions(
@@ -122,9 +166,9 @@ public static partial class TypedAstEvaluator
                 // const binding for its name (the binding is handled by blockEnvironment.Define below).
                 var functionValue = CreateFunctionValue(functionDeclaration.Function, blockEnvironment, context,
                     skipInternalNameBinding: true);
-                blockEnvironment.Define(
+                blockEnvironment.DefineJsValue(
                     functionDeclaration.Name,
-                    functionValue,
+                    JsValue.FromObjectUnsafe(functionValue),
                     isConst: true,
                     isLexical: true,
                     blocksFunctionScopeOverride: true);
@@ -138,7 +182,7 @@ public static partial class TypedAstEvaluator
                 case IdentifierBinding id:
                     if (!blockEnvironment.HasBinding(id.Name))
                     {
-                        blockEnvironment.Define(id.Name, JsEnvironment.Uninitialized, isLexical: true,
+                        blockEnvironment.DefineJsValue(id.Name, JsValue.Uninitialized, isLexical: true,
                             blocksFunctionScopeOverride: true, isConst: isConst);
                     }
                     break;

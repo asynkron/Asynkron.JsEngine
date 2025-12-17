@@ -1,10 +1,12 @@
+using Asynkron.JsEngine.JsTypes;
+
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
     extension(VariableDeclaration declaration)
     {
-        private object? EvaluateVariableDeclaration(JsEnvironment environment,
+        private JsValue EvaluateVariableDeclarationJsValue(JsEnvironment environment,
             EvaluationContext context)
         {
             foreach (var declarator in declaration.Declarators)
@@ -16,7 +18,10 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            return EmptyCompletion;
+            // Per ES spec, variable declarations have an empty completion value.
+            // This must be Unit (not Undefined) so it doesn't overwrite previous
+            // statement results in the program's completion value.
+            return JsValue.Unit;
         }
     }
 }

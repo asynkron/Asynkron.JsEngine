@@ -9,11 +9,11 @@ namespace Asynkron.JsEngine.StdLib;
 [JsConstructor("Proxy", PrototypeType = typeof(ProxyPrototype), Length = 2d, DisplayName = "Proxy")]
 public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
 {
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var target = RequireObject(args.GetArgument(0), "Proxy target must be an object");
         var handler = RequireObject(args.GetArgument(1), "Proxy handler must be an object");
-        return new JsProxy(target, handler, Realm);
+        return JsValue.FromObjectUnsafe(new JsProxy(target, handler, Realm));
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -32,7 +32,7 @@ public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState
             });
 
         DefineBuiltinFunction(constructor.PropertiesObject, "revocable",
-            new HostFunction(Revocable, Realm, isConstructor: false), 2);
+            new HostFunction(args => Revocable(args), Realm, isConstructor: false), 2);
 
         // Marker to make class heritage resolution reject Proxy as a base.
         constructor.DefineProperty("__proxyHasNoPrototype__", new PropertyDescriptor
@@ -48,31 +48,31 @@ public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState
         });
     }
 
-    private IJsObjectLike RequireObject(object? candidate, string message)
+    private IJsObjectLike RequireObject(JsValue candidate, string message)
     {
-        if (candidate is not IJsObjectLike obj)
+        if (candidate.TryGetObject<IJsObjectLike>(out var obj) && obj is not null)
         {
-            throw ThrowTypeError(message, realm: Realm);
+            return obj;
         }
 
-        return obj;
+        throw ThrowTypeError(message, realm: Realm);
     }
 
-    private object? Revocable(object? _, IReadOnlyList<object?> args)
+    private JsValue Revocable(IReadOnlyList<JsValue> args)
     {
         var target = RequireObject(args.GetArgument(0), "Proxy target must be an object");
         var handler = RequireObject(args.GetArgument(1), "Proxy handler must be an object");
 
         var proxy = new JsProxy(target, handler, Realm);
         var container = new JsObject();
-        container.SetProperty("proxy", proxy);
+        container.SetProperty("proxy", JsValue.FromObjectUnsafe(proxy));
 
         container.SetHostedProperty("revoke", (__, _) =>
         {
             proxy.Handler = null;
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         });
 
-        return container;
+        return new JsValue(container);
     }
 }

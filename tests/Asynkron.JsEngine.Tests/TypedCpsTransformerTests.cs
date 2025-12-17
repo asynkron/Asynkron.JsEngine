@@ -242,8 +242,8 @@ public class TypedCpsTransformerTests
                 Assert.Same(Symbol.PromiseIdentifier, identifier.Name);
                 return;
             case MemberExpression member when member.Property is LiteralExpression literal &&
-                                              literal.Value is string literalValue &&
-                                              literalValue == "Promise":
+                                              literal.Value.IsString &&
+string.Equals(literal.Value.AsString(), "Promise", StringComparison.Ordinal):
                 return;
             default:
                 throw new XunitException("Expected Promise constructor.");
@@ -261,11 +261,11 @@ public class TypedCpsTransformerTests
                 break;
             case MemberExpression member:
                 var propertyLiteral = member.Property as LiteralExpression;
-                var literalDetail = propertyLiteral?.Value is null
+                var literalDetail = propertyLiteral is null || propertyLiteral.Value.IsUndefined
                     ? string.Empty
                     : $" value '{propertyLiteral.Value}'";
-                var propertyType = propertyLiteral?.Value is not null
-                    ? $"{member.Property.GetType().Name} ({propertyLiteral.Value.GetType().Name})"
+                var propertyType = propertyLiteral is not null && !propertyLiteral.Value.IsUndefined
+                    ? $"{member.Property.GetType().Name} ({propertyLiteral.Value.Kind})"
                     : member.Property.GetType().Name;
                 throw new XunitException(
                     $"Expected reference to '{propertyName}', but saw member property {propertyType}{literalDetail}.");
@@ -279,10 +279,10 @@ public class TypedCpsTransformerTests
     {
         return property switch
         {
-            LiteralExpression literal when literal.Value is string literalValue &&
-                                          literalValue == propertyName => true,
-            LiteralExpression literal when literal.Value is Symbol literalSymbol &&
-                                          ReferenceEquals(literalSymbol, symbol) => true,
+            LiteralExpression literal when literal.Value.IsString &&
+string.Equals(literal.Value.AsString(), propertyName, StringComparison.Ordinal) => true,
+            LiteralExpression literal when literal.Value.IsSymbol &&
+                                          ReferenceEquals(literal.Value.AsSymbol(), symbol) => true,
             IdentifierExpression identifier when ReferenceEquals(identifier.Name, symbol) => true,
             _ => false
         };

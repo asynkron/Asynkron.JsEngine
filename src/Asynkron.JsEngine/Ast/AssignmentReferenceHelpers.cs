@@ -27,7 +27,7 @@ public static partial class TypedAstEvaluator
                             errorMessage,
                             context,
                             context.RealmState);
-                        context.SetThrow(error);
+                        context.SetThrow(JsValue.FromObjectUnsafe(error));
                         return Symbol.Undefined;
                     }
 
@@ -75,7 +75,7 @@ public static partial class TypedAstEvaluator
                 "Cannot set property on null or undefined.",
                 context,
                 context.RealmState);
-            context.SetThrow(error);
+            context.SetThrow(JsValue.FromObjectUnsafe(error));
             return;
         }
 
@@ -135,7 +135,7 @@ public static partial class TypedAstEvaluator
                         return;
                     }
 
-                    descriptor.Set.Invoke([value], target);
+                    descriptor.Set.Invoke([JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(target));
                     return;
                 }
 
@@ -152,7 +152,7 @@ public static partial class TypedAstEvaluator
                     return;
                 }
 
-                accessor.SetProperty(propertyName, value, target);
+                accessor.SetProperty(propertyName, JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(target));
                 return;
             }
 
@@ -205,7 +205,7 @@ public static partial class TypedAstEvaluator
         var realm = context.RealmState;
 
         // ToObject: convert primitive to wrapper
-        JsObject wrapper = primitiveTarget switch
+        var wrapper = primitiveTarget switch
         {
             string s => StandardLibrary.CreateStringWrapper(s, context, realm),
             bool b => CreateBooleanWrapper(b, realm),
@@ -262,7 +262,7 @@ public static partial class TypedAstEvaluator
             {
                 if (ownDescriptor.Set is not null)
                 {
-                    InvokeCallable(ownDescriptor.Set, [value], receiver, context);
+                    InvokeCallable(ownDescriptor.Set, [JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver), context);
                     return true;
                 }
                 // Accessor with only getter - [[Set]] returns false
@@ -290,7 +290,7 @@ public static partial class TypedAstEvaluator
                 // The trap receives (target, propertyName, value, receiver)
                 try
                 {
-                    proxy.SetProperty(propertyName, value, receiver);
+                    proxy.SetProperty(propertyName, JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(receiver));
                     return true;
                 }
                 catch (ThrowSignal)
@@ -307,7 +307,7 @@ public static partial class TypedAstEvaluator
                 {
                     if (inheritedDescriptor.Set is not null)
                     {
-                        InvokeCallable(inheritedDescriptor.Set, [value], receiver, context);
+                        InvokeCallable(inheritedDescriptor.Set, [JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver), context);
                         return true;
                     }
                     // Accessor with only getter - [[Set]] returns false
@@ -358,7 +358,7 @@ public static partial class TypedAstEvaluator
             obj.SetPrototype(realm.SymbolPrototype);
         }
 
-        obj.SetProperty("__value__", symbol);
+        obj.SetProperty("__value__", (JsValue)symbol);
         return obj;
     }
 

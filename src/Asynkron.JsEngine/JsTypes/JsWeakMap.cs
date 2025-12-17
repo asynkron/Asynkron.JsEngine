@@ -20,24 +20,24 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
         _properties.PreventExtensions();
     }
 
-    public bool TryGetProperty(string name, object? receiver, out object? value)
+    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        return _properties.TryGetProperty(name, receiver ?? this, out value);
+        return _properties.TryGetProperty(name, receiver.IsUndefined ? (JsValue)this : receiver, out value);
     }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, this, out value);
+        return TryGetProperty(name, (JsValue)this, out value);
     }
 
-    public void SetProperty(string name, object? value, object? receiver)
+    public void SetProperty(string name, JsValue value, JsValue receiver)
     {
-        _properties.SetProperty(name, value, receiver ?? this);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? (JsValue)this : receiver);
     }
 
-    public void SetProperty(string name, object? value)
+    public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, this);
+        SetProperty(name, value, (JsValue)this);
     }
 
     public JsObject? Prototype => _properties.Prototype;
@@ -78,31 +78,35 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     ///     Sets the value for the key in the WeakMap. Returns the WeakMap object to allow chaining.
     ///     The key must be an object (not a primitive value).
     /// </summary>
-    public JsWeakMap Set(object? key, object? value)
+    public JsWeakMap Set(JsValue key, JsValue value)
     {
+        var keyObj = UnwrapJsValue(key.ToObject());
+
         // WeakMap only accepts objects as keys
-        if (key == null || !IsObject(key))
+        if (keyObj == null || !IsObject(keyObj))
         {
             throw new Exception("Invalid value used as weak map key");
         }
 
         // Use AddOrUpdate to set the value
-        _entries.Remove(key);
-        _entries.Add(key, value);
+        _entries.Remove(keyObj);
+        _entries.Add(keyObj, value.ToObject());
         return this;
     }
 
     /// <summary>
     ///     Gets the value associated with the key, or undefined if the key doesn't exist.
     /// </summary>
-    public object? Get(object? key)
+    public object? Get(JsValue key)
     {
-        if (key == null || !IsObject(key))
+        var keyObj = UnwrapJsValue(key.ToObject());
+
+        if (keyObj == null || !IsObject(keyObj))
         {
             return Symbol.Undefined;
         }
 
-        if (_entries.TryGetValue(key, out var value))
+        if (_entries.TryGetValue(keyObj, out var value))
         {
             return value;
         }
@@ -113,28 +117,45 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     /// <summary>
     ///     Returns true if the key exists in the WeakMap, false otherwise.
     /// </summary>
-    public bool Has(object? key)
+    public bool Has(JsValue key)
     {
-        if (key == null || !IsObject(key))
+        var keyObj = UnwrapJsValue(key.ToObject());
+
+        if (keyObj == null || !IsObject(keyObj))
         {
             return false;
         }
 
-        return _entries.TryGetValue(key, out _);
+        return _entries.TryGetValue(keyObj, out _);
     }
 
     /// <summary>
     ///     Removes the specified key and its value from the WeakMap.
     ///     Returns true if the key was in the WeakMap and has been removed, false otherwise.
     /// </summary>
-    public bool Delete(object? key)
+    public bool Delete(JsValue key)
     {
-        if (key == null || !IsObject(key))
+        var keyObj = UnwrapJsValue(key.ToObject());
+
+        if (keyObj == null || !IsObject(keyObj))
         {
             return false;
         }
 
-        return _entries.Remove(key);
+        return _entries.Remove(keyObj);
+    }
+
+    /// <summary>
+    ///     Recursively unwraps boxed JsValue to get the underlying object.
+    /// </summary>
+    private static object? UnwrapJsValue(object? value)
+    {
+        while (value is JsValue jsVal)
+        {
+            value = jsVal.ToObject();
+        }
+
+        return value;
     }
 
     /// <summary>

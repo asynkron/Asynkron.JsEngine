@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Ast;
@@ -21,9 +22,12 @@ public static partial class TypedAstEvaluator
 
             if (mode == BindingMode.Assign && environment.IsConstBinding(identifier.Name))
             {
-                throw new ThrowSignal(StandardLibrary.CreateTypeError(
-                    $"Cannot reassign constant '{identifier.Name.Name}'.", context, context.RealmState));
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
+                    $"Cannot reassign constant '{identifier.Name.Name}'.", context, context.RealmState)));
             }
+
+            // Handle case where value is already a boxed JsValue
+            var jsValue = value is JsValue jv ? jv : JsValue.FromObjectUnsafe(value);
 
             switch (mode)
             {
@@ -31,10 +35,10 @@ public static partial class TypedAstEvaluator
                     environment.Assign(identifier.Name, value);
                     break;
                 case BindingMode.DefineLet:
-                    environment.Define(identifier.Name, value, isLexical: true, blocksFunctionScopeOverride: true);
+                    environment.DefineJsValue(identifier.Name, jsValue, isLexical: true, blocksFunctionScopeOverride: true);
                     break;
                 case BindingMode.DefineConst:
-                    environment.Define(identifier.Name, value, true, blocksFunctionScopeOverride: true);
+                    environment.DefineJsValue(identifier.Name, jsValue, true, blocksFunctionScopeOverride: true);
                     break;
                 case BindingMode.DefineVar:
                 {
@@ -90,7 +94,7 @@ public static partial class TypedAstEvaluator
                     }
                     else
                     {
-                        environment.Define(identifier.Name, value, isLexical: false);
+                        environment.DefineJsValue(identifier.Name, jsValue, isLexical: false);
                     }
 
                     break;

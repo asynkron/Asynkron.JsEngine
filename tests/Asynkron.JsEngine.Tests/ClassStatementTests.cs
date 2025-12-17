@@ -117,7 +117,7 @@ public class ClassStatementTests
                 """);
         });
 
-        Assert.Contains("ReferenceError", exception.Message);
+        Assert.Contains("ReferenceError", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -139,7 +139,7 @@ public class ClassStatementTests
                 """);
         });
 
-        Assert.Contains("TypeError", exception.Message);
+        Assert.Contains("TypeError", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -234,9 +234,9 @@ public class ClassStatementTests
             """);
 
         var array = Assert.IsType<Asynkron.JsEngine.JsTypes.JsArray>(result);
-        Assert.True((bool)array.Items[0]!);
-        Assert.True((bool)array.Items[1]!);
-        Assert.True((bool)array.Items[2]!);
+        Assert.True((bool)array.GetElement(0).ToObject()!);
+        Assert.True((bool)array.GetElement(1).ToObject()!);
+        Assert.True((bool)array.GetElement(2).ToObject()!);
     }
 
     [Fact(Timeout = 2000)]
@@ -253,7 +253,7 @@ public class ClassStatementTests
                 """);
         });
 
-        Assert.Contains("TypeError", exception.Message);
+        Assert.Contains("TypeError", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]

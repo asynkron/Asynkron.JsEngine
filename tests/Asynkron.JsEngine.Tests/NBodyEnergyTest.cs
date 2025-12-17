@@ -11,8 +11,8 @@ public class NBodyEnergyTest(ITestOutputHelper output)
 
         engine.SetGlobalFunction("__log", args =>
         {
-            output.WriteLine(string.Join(" ", args.Select(a => a?.ToString() ?? "null")));
-            return null;
+            output.WriteLine(string.Join(" ", args.Select(a => a.ToObject()?.ToString() ?? "null")));
+            return JsTypes.JsValue.Undefined;
         });
 
         var result = await engine.Evaluate(@"

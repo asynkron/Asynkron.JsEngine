@@ -16,21 +16,21 @@ public sealed partial class IntlDurationFormatPrototype
     }
 
     [JsHostMethod("format", Length = 0d)]
-    private string Format(object? thisValue, IReadOnlyList<object?> args)
+    private JsValue Format(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         ValidateReceiver(thisValue);
-        return "PT0S";
+        return new JsValue("PT0S");
     }
 
     [JsHostMethod("formatToParts", Length = 0d)]
-    private JsArray FormatToParts(object? thisValue, IReadOnlyList<object?> args)
+    private JsValue FormatToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         ValidateReceiver(thisValue);
-        return new JsArray(Realm);
+        return JsValue.FromObjectUnsafe(new JsArray(Realm));
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    private JsObject ResolvedOptions(object? thisValue, IReadOnlyList<object?> args)
+    private JsValue ResolvedOptions(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var instance = ValidateReceiver(thisValue);
         var obj = new JsObject();
@@ -57,11 +57,11 @@ public sealed partial class IntlDurationFormatPrototype
         obj.SetProperty("nanoseconds", "auto");
         obj.SetProperty("nanosecondsDisplay", "auto");
         obj.SetProperty("locale",
-            instance.TryGetProperty(LocaleSlot, out var locale) ? locale ?? "en" : "en");
-        return obj;
+            instance.TryGetProperty(LocaleSlot, out var locale) && locale.TryGetString(out var localeStr) ? localeStr : "en");
+        return new JsValue(obj);
     }
 
-    private JsObject ValidateReceiver(object? thisValue)
+    private JsObject ValidateReceiver(JsValue thisValue)
     {
         return thisValue.EnsureBrand(BrandKey, Realm,
             "Intl.DurationFormat method called on incompatible receiver");

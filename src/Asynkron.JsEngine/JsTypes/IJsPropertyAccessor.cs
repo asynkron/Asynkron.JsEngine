@@ -10,9 +10,9 @@ public interface IJsPropertyAccessor
     ///     Tries to get the value of a property by name.
     /// </summary>
     /// <param name="name">The name of the property to get.</param>
-    /// <param name="value">When this method returns, contains the property value if found; otherwise, null.</param>
+    /// <param name="value">When this method returns, contains the property value if found; otherwise, JsValue.Undefined.</param>
     /// <returns>true if the property was found; otherwise, false.</returns>
-    bool TryGetProperty(string name, out object? value);
+    bool TryGetProperty(string name, out JsValue value);
 
     /// <summary>
     ///     Tries to get the value of a property by name, passing through the original receiver.
@@ -21,9 +21,9 @@ public interface IJsPropertyAccessor
     /// </summary>
     /// <param name="name">The name of the property to get.</param>
     /// <param name="receiver">The receiver to use for accessors and prototype lookups.</param>
-    /// <param name="value">When this method returns, contains the property value if found; otherwise, null.</param>
+    /// <param name="value">When this method returns, contains the property value if found; otherwise, JsValue.Undefined.</param>
     /// <returns>true if the property was found; otherwise, false.</returns>
-    bool TryGetProperty(string name, object? receiver, out object? value)
+    bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
         return TryGetProperty(name, out value);
     }
@@ -33,16 +33,16 @@ public interface IJsPropertyAccessor
     /// </summary>
     /// <param name="name">The name of the property to set.</param>
     /// <param name="value">The value to set for the property.</param>
-    void SetProperty(string name, object? value);
+    void SetProperty(string name, JsValue value);
 
     /// <summary>
     ///     Sets the value of a property by name using the provided receiver for accessors.
-    ///     The default implementation falls back to <see cref="SetProperty(string,object?)" />.
+    ///     The default implementation falls back to <see cref="SetProperty(string,JsValue)" />.
     /// </summary>
     /// <param name="name">The name of the property to set.</param>
     /// <param name="value">The value to set for the property.</param>
     /// <param name="receiver">The receiver to bind when invoking setters.</param>
-    void SetProperty(string name, object? value, object? receiver)
+    void SetProperty(string name, JsValue value, JsValue receiver)
     {
         SetProperty(name, value);
     }

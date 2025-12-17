@@ -1,4 +1,5 @@
-using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -6,50 +7,77 @@ public static partial class TypedAstEvaluator
 {
     extension(StatementNode statement)
     {
-        private object? EvaluateStatement(
+        /// <summary>
+        /// Evaluates a statement and returns the completion value as JsValue.
+        /// Tiny hot path for inlining - only handles the most common cases.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue EvaluateStatementJsValue(
             JsEnvironment environment,
             EvaluationContext context,
             Symbol? activeLabel = null)
         {
             context.SourceReference = statement.Source;
             context.ThrowIfCancellationRequested();
-            using var statementActivity = Activity.Current?
-                .StartEvaluatorActivity($"Statement:{statement.GetType().Name}", context, statement.Source);
+
+            // Hot path - explicit type checks for best inlining
+            if (statement is ExpressionStatement expressionStatement)
+                return EvaluateExpression(expressionStatement.Expression, environment, context);
+            if (statement is BlockStatement block)
+                return EvaluateBlockJsValue(block, environment, context);
+            if (statement is IfStatement ifStatement)
+                return EvaluateIfJsValue(ifStatement, environment, context);
+            if (statement is ReturnStatement returnStatement)
+                return EvaluateReturnJsValue(returnStatement, environment, context);
+            if (statement is ForStatement forStatement)
+                return EvaluateForJsValue(forStatement, environment, context, activeLabel);
+            if (statement is EmptyStatement)
+                return JsValue.Unit;
+
+            return statement.EvaluateStatementJsValueSlow(environment, context, activeLabel);
+        }
+
+        /// <summary>
+        /// Slow path for less common statement types - marked NoInlining to keep hot path small.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private JsValue EvaluateStatementJsValueSlow(
+            JsEnvironment environment,
+            EvaluationContext context,
+            Symbol? activeLabel)
+        {
+            // Medium frequency statements
+            switch (statement)
+            {
+                case WhileStatement whileStatement:
+                    return EvaluateWhileJsValue(whileStatement, environment, context, activeLabel);
+                case DoWhileStatement doWhileStatement:
+                    return EvaluateDoWhileJsValue(doWhileStatement, environment, context, activeLabel);
+                case SwitchStatement switchStatement:
+                    return EvaluateSwitchJsValue(switchStatement, environment, context, activeLabel);
+                case TryStatement tryStatement:
+                    return EvaluateTryJsValue(tryStatement, environment, context);
+                case LabeledStatement labeledStatement:
+                    return EvaluateLabeledJsValue(labeledStatement, environment, context);
+            }
+
+            // Low frequency statements with activity tracking
 
             return statement switch
             {
-                BlockStatement block => EvaluateBlock(block, environment, context),
-                ExpressionStatement expressionStatement => EvaluateExpression(expressionStatement.Expression,
-                    environment,
-                    context).ToObject(),
-                ReturnStatement returnStatement => EvaluateReturn(returnStatement, environment, context),
-                ThrowStatement throwStatement => EvaluateThrow(throwStatement, environment, context),
-                VariableDeclaration declaration => EvaluateVariableDeclaration(declaration, environment, context),
-                FunctionDeclaration functionDeclaration => EvaluateFunctionDeclaration(functionDeclaration, environment,
+                ThrowStatement throwStatement => EvaluateThrowJsValue(throwStatement, environment, context),
+                VariableDeclaration declaration => EvaluateVariableDeclarationJsValue(declaration, environment, context),
+                FunctionDeclaration functionDeclaration => EvaluateFunctionDeclarationJsValue(functionDeclaration, environment,
                     context),
-                IfStatement ifStatement => EvaluateIf(ifStatement, environment, context),
-                WhileStatement whileStatement => EvaluateWhile(whileStatement, environment, context, activeLabel),
-                DoWhileStatement doWhileStatement => EvaluateDoWhile(doWhileStatement, environment, context,
+                ForEachStatement forEachStatement => EvaluateForEachJsValue(forEachStatement, environment, context,
                     activeLabel),
-                ForStatement forStatement => EvaluateFor(forStatement, environment, context, activeLabel),
-                ForEachStatement forEachStatement => EvaluateForEach(forEachStatement, environment, context,
-                    activeLabel),
-                BreakStatement breakStatement => EvaluateBreak(breakStatement, context),
-                ContinueStatement continueStatement => EvaluateContinue(continueStatement, context),
-                LabeledStatement labeledStatement => EvaluateLabeled(labeledStatement, environment, context),
-                TryStatement tryStatement => EvaluateTry(tryStatement, environment, context),
-                SwitchStatement switchStatement => EvaluateSwitch(switchStatement, environment, context, activeLabel),
-                ClassDeclaration classDeclaration => EvaluateClass(classDeclaration, environment, context),
-                WithStatement withStatement => EvaluateWith(withStatement, environment, context),
-                EmptyStatement => EmptyCompletion,
+                BreakStatement breakStatement => EvaluateBreakJsValue(breakStatement, context),
+                ContinueStatement continueStatement => EvaluateContinueJsValue(continueStatement, context),
+                ClassDeclaration classDeclaration => EvaluateClassJsValue(classDeclaration, environment, context),
+                WithStatement withStatement => EvaluateWithJsValue(withStatement, environment, context),
                 _ => throw new NotSupportedException(
                     $"Typed evaluator does not yet support '{statement.GetType().Name}'.")
             };
-        }
-
-        private bool IsStrictBlock()
-        {
-            return statement is BlockStatement { IsStrict: true };
         }
 
         private void HoistFromStatement(JsEnvironment environment,

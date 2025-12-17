@@ -11,7 +11,7 @@ public static partial class TypedAstEvaluator
 {
     private sealed class TypedGeneratorInstance
     {
-        private readonly IReadOnlyList<object?> _arguments;
+        private readonly IReadOnlyList<JsValue> _arguments;
         private readonly IJsCallable _callable;
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
@@ -26,8 +26,8 @@ public static partial class TypedAstEvaluator
         private readonly PrivateNameScope? _privateNameScope;
         // Track yield slots that have already produced a value so re-running the body after a
         // nested suspension skips only those slots (per the generator resumption rules).
-        private readonly HashSet<int> _consumedYieldIndices = new();
-        private readonly object? _thisValue;
+        private readonly HashSet<int> _consumedYieldIndices = [];
+        private readonly JsValue _thisValue;
         private readonly Stack<TryFrame> _tryStack = new();
         // Track active with-scope slots for restoration after yield/resume
         private readonly Stack<Symbol> _activeWithScopes = new();
@@ -39,9 +39,9 @@ public static partial class TypedAstEvaluator
         private int _lastYieldIndex = -1;
 
         private Symbol? _pendingAwaitKey;
-        private object? _pendingPromise;
+        private JsValue _pendingPromise;
         private ResumePayloadKind _pendingResumeKind;
-        private object? _pendingResumeValue = Symbol.Undefined;
+        private JsValue _pendingResumeValue = JsValue.Undefined;
         private int _programCounter;
         private bool _privateScopesApplied;
         private GeneratorState _state = GeneratorState.Start;
@@ -49,8 +49,8 @@ public static partial class TypedAstEvaluator
         public TypedGeneratorInstance(
             FunctionExpression function,
             JsEnvironment closure,
-            IReadOnlyList<object?> arguments,
-            object? thisValue,
+            IReadOnlyList<JsValue> arguments,
+            JsValue thisValue,
             IJsCallable callable,
             RealmState realmState,
             bool isLexicallyStrict,
@@ -87,11 +87,11 @@ public static partial class TypedAstEvaluator
             var prototype = ResolveGeneratorPrototype();
             var iterator = CreateGeneratorIteratorObject(
                 args => Next(args.GetArgument(0)),
-                args => Return(args.Count > 0 ? args[0] : null),
-                args => Throw(args.Count > 0 ? args[0] : null),
+                args => Return(args.Count > 0 ? args[0] : JsValue.Undefined),
+                args => Throw(args.Count > 0 ? args[0] : JsValue.Undefined),
                 prototype);
-            iterator.SetProperty(IteratorSymbolPropertyName, new HostFunction((_, _) => iterator));
-            iterator.SetProperty(GeneratorBrandPropertyName, GeneratorBrandMarker);
+            iterator.SetProperty(IteratorSymbolPropertyName, (JsValue)new HostFunction((_, _) => new JsValue(iterator)));
+            iterator.SetProperty(GeneratorBrandPropertyName, JsValue.FromObjectUnsafe(GeneratorBrandMarker));
             return iterator;
         }
 
@@ -100,17 +100,17 @@ public static partial class TypedAstEvaluator
             EnsureExecutionEnvironment();
         }
 
-        private object? Next(object? value)
+        private JsValue Next(JsValue value)
         {
             return ExecutePlan(ResumeMode.Next, value);
         }
 
-        private object? Return(object? value)
+        private JsValue Return(JsValue value)
         {
             return ExecutePlan(ResumeMode.Return, value);
         }
 
-        private object? Throw(object? error)
+        private JsValue Throw(JsValue error)
         {
             return ExecutePlan(ResumeMode.Throw, error);
         }
@@ -122,17 +122,20 @@ public static partial class TypedAstEvaluator
             // 2. If it's an object, use it
             // 3. Otherwise, fall back to %GeneratorPrototype% (the intrinsic default)
             if (_callable is IJsPropertyAccessor accessor &&
-                accessor.TryGetProperty("prototype", out var protoValue) &&
-                protoValue is JsObject prototypeObject)
+                accessor.TryGetProperty("prototype", out var protoValue))
             {
-                return prototypeObject;
+                // protoValue is already a JsValue from TryGetProperty
+                if (protoValue.TryGetObject<JsObject>(out var prototypeObject))
+                {
+                    return prototypeObject;
+                }
             }
 
             // Fall back to %GeneratorPrototype% if the function's .prototype is not an object
             return _realmState.GeneratorPrototype ?? _realmState.ObjectPrototype;
         }
 
-        internal AsyncGeneratorStepResult ExecuteAsyncStep(ResumeMode mode, object? resumeValue)
+        internal AsyncGeneratorStepResult ExecuteAsyncStep(ResumeMode mode, JsValue resumeValue)
         {
             // Reuse the existing ExecutePlan logic but translate its iterator
             // result / exceptions into a structured step result that async
@@ -141,38 +144,39 @@ public static partial class TypedAstEvaluator
             // pending Promises instead of blocking.
             var previousAsyncStepMode = _asyncStepMode;
             _asyncStepMode = true;
-            _pendingPromise = null;
+            _pendingPromise = JsValue.Undefined;
 
             try
             {
                 var result = ExecutePlan(mode, resumeValue);
 
-                if (_pendingPromise is JsObject pending)
+                if (_pendingPromise.TryGetObject<JsObject>(out var pending))
                 {
-                    return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, Symbol.Undefined, false,
-                        pending);
+                    return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, JsValue.Undefined, false,
+                        new JsValue(pending));
                 }
 
-                if (result is JsObject obj &&
+                if (result.TryGetObject<JsObject>(out var obj) &&
                     obj.TryGetProperty("done", out var doneRaw) &&
-                    doneRaw is bool done &&
                     obj.TryGetProperty("value", out var value))
                 {
+                    // doneRaw and value are already JsValue from TryGetProperty
+                    var done = doneRaw.IsTruthy;
                     return done
-                        ? new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Completed, value, true, null)
-                        : new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Yield, value, false, null);
+                        ? new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Completed, value, true, JsValue.Undefined)
+                        : new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Yield, value, false, JsValue.Undefined);
                 }
 
                 // If the plan completed without producing a well-formed iterator
                 // result, treat it as a completed step with undefined.
-                return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Completed, Symbol.Undefined, true, null);
+                return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Completed, JsValue.Undefined, true, JsValue.Undefined);
             }
             catch (PendingAwaitException)
             {
-                if (_pendingPromise is JsObject pending)
+                if (_pendingPromise.TryGetObject<JsObject>(out var pending))
                 {
-                    return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, Symbol.Undefined, false,
-                        pending);
+                    return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, JsValue.Undefined, false,
+                        new JsValue(pending));
                 }
 
                 throw new InvalidOperationException("Async generator awaited a non-promise value.");
@@ -180,7 +184,7 @@ public static partial class TypedAstEvaluator
             finally
             {
                 _asyncStepMode = previousAsyncStepMode;
-                _pendingPromise = null;
+                _pendingPromise = JsValue.Undefined;
             }
         }
 
@@ -252,36 +256,35 @@ public static partial class TypedAstEvaluator
                 ScopeKind.Function,
                 DetermineGeneratorScopeMode());
 
-            object? boundThis = _thisValue;
+            var boundThis = _thisValue;
             if (!_isStrict)
             {
-                if (boundThis is null || ReferenceEquals(boundThis, Symbol.Undefined))
+                if (boundThis.IsNullish)
                 {
-                    boundThis = _realmState.Engine?.GlobalObject;
-                    boundThis ??= Symbol.Undefined;
+                    boundThis = _realmState.Engine?.GlobalObject is { } go ? new JsValue(go) : JsValue.Undefined;
                 }
 
-                if (boundThis is null)
+                if (boundThis.IsNull)
                 {
-                    boundThis = new JsObject
+                    boundThis = new JsValue(new JsObject
                     {
                         RealmState = _realmState
-                    };
+                    });
                 }
-                else if (boundThis is not IJsPropertyAccessor &&
-                         !IsNullish(boundThis) &&
-                         boundThis is not IIsHtmlDda)
+                else if (!boundThis.TryGetObject<IJsPropertyAccessor>(out _) &&
+                         !boundThis.IsNullish &&
+                         !boundThis.TryGetObject<IIsHtmlDda>(out _))
                 {
-                    boundThis = ToObjectForDestructuring(boundThis, generatorContext);
+                    boundThis = JsValue.FromObjectUnsafe(ToObjectForDestructuring(boundThis.ToObject(), generatorContext));
                 }
             }
 
-            functionEnvironment.Define(Symbol.This, boundThis);
-            functionEnvironment.Define(Symbol.YieldResumeContextSymbol, _resumeContext);
-            functionEnvironment.Define(Symbol.GeneratorInstanceSymbol, this);
+            functionEnvironment.DefineJsValue(Symbol.This, boundThis);
+            functionEnvironment.DefineJsValue(Symbol.YieldResumeContextSymbol, JsValue.FromObjectUnsafe(_resumeContext));
+            functionEnvironment.DefineJsValue(Symbol.GeneratorInstanceSymbol, JsValue.FromObjectUnsafe(this));
 
             var superPrototype = _homeObject?.Prototype;
-            if (superPrototype is null && boundThis is JsObject thisObj)
+            if (superPrototype is null && boundThis.TryGetObject<JsObject>(out var thisObj))
             {
                 superPrototype = thisObj.Prototype;
             }
@@ -289,21 +292,28 @@ public static partial class TypedAstEvaluator
             if (superPrototype is not null)
             {
                 var superBinding = new SuperBinding(null, superPrototype, boundThis, true);
-                functionEnvironment.Define(Symbol.Super, superBinding);
+                functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(superBinding));
+            }
+
+            // Convert JsValue arguments to object? for CreateArgumentsObject and BindFunctionParameters
+            var argumentValues = new object?[_arguments.Count];
+            for (var i = 0; i < _arguments.Count; i++)
+            {
+                argumentValues[i] = _arguments[i].ToObject();
             }
 
             var argumentsObject =
-                CreateArgumentsObject(_function, _arguments, parameterEnvironment, _realmState, _callable,
+                CreateArgumentsObject(_function, argumentValues, parameterEnvironment, _realmState, _callable,
                     _isStrict);
-            parameterEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
+            parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject), isLexical: false);
             if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
             {
-                functionEnvironment.Define(Symbol.Arguments, argumentsObject, isLexical: false);
+                functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject), isLexical: false);
             }
 
             if (_function.Name is { } functionName && !_hasFunctionNameEnvironment)
             {
-                parameterEnvironment.Define(functionName, _callable, isConst: true, isLexical: true, blocksFunctionScopeOverride: true);
+                parameterEnvironment.DefineJsValue(functionName, JsValue.FromObjectUnsafe(_callable), isConst: true, isLexical: true, blocksFunctionScopeOverride: true);
             }
 
             HoistVarDeclarations(_function.Body, executionEnvironment, generatorContext,
@@ -311,7 +321,7 @@ public static partial class TypedAstEvaluator
                 catchParameterNames: catchParameterNames,
                 simpleCatchParameterNames: simpleCatchParameterNames);
 
-            BindFunctionParameters(_function, _arguments, parameterEnvironment, generatorContext);
+            BindFunctionParameters(_function, argumentValues, parameterEnvironment, generatorContext);
             if (generatorContext.IsThrow)
             {
                 var thrown = generatorContext.FlowValue;
@@ -327,20 +337,20 @@ public static partial class TypedAstEvaluator
             return executionEnvironment;
         }
 
-        private static JsObject CreateIteratorResult(object? value, bool done)
+        private static JsObject CreateIteratorResult(JsValue value, bool done)
         {
             var result = new JsObject();
             result.SetProperty("value", value);
-            result.SetProperty("done", done);
+            result.SetProperty("done", new JsValue(done));
             return result;
         }
 
         private static IteratorDriverState CreateIteratorDriverState(
-            object? iterable,
+            JsValue iterable,
             IteratorDriverKind kind,
             EvaluationContext context)
         {
-            var iteratorTarget = NormalizeIterableTarget(iterable, context);
+            var iteratorTarget = NormalizeIterableTarget(iterable.ToObject(), context);
 
             if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
             {
@@ -365,7 +375,9 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                environment.Define(symbol, value);
+                // Handle case where value is already a boxed JsValue
+                var jsVal = value is JsValue jv ? jv : JsValue.FromObjectUnsafe(value);
+                environment.DefineJsValue(symbol, jsVal);
             }
         }
 
@@ -381,7 +393,7 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        private object? ExecutePlan(ResumeMode mode, object? resumeValue)
+        private JsValue ExecutePlan(ResumeMode mode, JsValue resumeValue)
         {
             if (_plan is null)
             {
@@ -464,7 +476,7 @@ public static partial class TypedAstEvaluator
                         }
                         else
                         {
-                            environment.Define(awaitKey, newState);
+                            environment.DefineJsValue(awaitKey, JsValue.FromObjectUnsafe(newState));
                         }
                     }
                 }
@@ -481,7 +493,7 @@ public static partial class TypedAstEvaluator
                     switch (instruction)
                     {
                         case StatementInstruction statementInstruction:
-                            EvaluateStatement(statementInstruction.Statement, environment, context);
+                            _ = EvaluateStatementJsValue(statementInstruction.Statement, environment, context);
                             if (context.IsThrow)
                             {
                                 var thrown = context.FlowValue;
@@ -516,19 +528,19 @@ public static partial class TypedAstEvaluator
                                 context.Clear();
                                 _state = GeneratorState.Suspended;
                                 // If we have an original iterator result object, return it to preserve done property
-                                return iteratorResultObject ?? CreateIteratorResult(yieldedSignalValue, false);
+                                return JsValue.FromObjectUnsafe(iteratorResultObject ?? CreateIteratorResult(yieldedSignalValue, false));
                             }
 
                             _programCounter = statementInstruction.Next;
                             continue;
 
                         case YieldInstruction yieldInstruction:
-                            object? yieldedValue = Symbol.Undefined;
+                            var yieldedValue = JsValue.Undefined;
                             var yieldedDuringOperand = false;
                             if (yieldInstruction.YieldExpression is not null)
                             {
                                 yieldedValue = EvaluateExpression(yieldInstruction.YieldExpression, environment,
-                                    context).ToObject();
+                                    context);
                                 if (context.IsThrow)
                                 {
                                     var thrown = context.FlowValue;
@@ -552,14 +564,14 @@ public static partial class TypedAstEvaluator
                                     _programCounter = _currentInstructionIndex;
                                     RecordYield(context);
                                     _state = GeneratorState.Suspended;
-                                    return nestedIteratorResult ?? CreateIteratorResult(yieldedValue, false);
+                                    return JsValue.FromObjectUnsafe(nestedIteratorResult ?? CreateIteratorResult(yieldedValue, false));
                                 }
                             }
 
                             _programCounter = yieldInstruction.Next;
                             RecordYield(context);
                             _state = GeneratorState.Suspended;
-                            return CreateIteratorResult(yieldedValue, false);
+                            return (JsValue)CreateIteratorResult(yieldedValue, false);
 
                         case YieldStarInstruction yieldStarInstruction:
                         {
@@ -576,9 +588,10 @@ public static partial class TypedAstEvaluator
                                 _pendingResumeKind is not ResumePayloadKind.Throw and not ResumePayloadKind.Return)
                             {
                                 var pendingKind = yieldStarState.PendingAbrupt;
+                                // PendingValue is now JsValue, no boxing/unboxing needed
                                 var pendingValue = yieldStarState.PendingValue;
                                 yieldStarState.PendingAbrupt = AbruptKind.None;
-                                yieldStarState.PendingValue = null;
+                                yieldStarState.PendingValue = JsValue.Undefined;
                                 yieldStarState.State = null;
                                 yieldStarState.AwaitingResume = false;
                                 environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
@@ -591,6 +604,7 @@ public static partial class TypedAstEvaluator
                                     }
 
                                     _tryStack.Clear();
+                                    // pendingValue is already JsValue
                                     throw new ThrowSignal(pendingValue);
                                 }
 
@@ -601,6 +615,7 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
+                                    // pendingValue is already JsValue
                                     return CompleteReturn(pendingValue);
                                 }
                             }
@@ -652,7 +667,7 @@ public static partial class TypedAstEvaluator
 
                             while (true)
                             {
-                                object? sendValue = Symbol.Undefined;
+                                var sendValue = JsValue.Undefined;
                                 var hasSendValue = false;
                                 var propagateThrow = false;
                                 var propagateReturn = false;
@@ -665,7 +680,7 @@ public static partial class TypedAstEvaluator
                                     // On first entry to yield*, we pass undefined as the argument
                                     // (the outer generator's first next() argument is ignored per spec)
                                     hasSendValue = true;
-                                    sendValue = Symbol.Undefined;
+                                    sendValue = JsValue.Undefined;
                                     // Mark that we're no longer on first entry for subsequent iterations
                                     isFirstYieldStarEntry = false;
                                 }
@@ -728,12 +743,13 @@ public static partial class TypedAstEvaluator
                                     if (!iteratorResult.Done)
                                     {
                                         yieldStarState.PendingAbrupt = pendingKind;
+                                        // sendValue is already JsValue, no boxing needed
                                         yieldStarState.PendingValue = sendValue;
                                         yieldStarState.AwaitingResume = true;
                                         _programCounter = currentIndex;
                                         _state = GeneratorState.Suspended;
                                         // Use original iterator result object to preserve done/value properties
-                                        return iteratorResult.IteratorResultObject ?? CreateIteratorResult(iteratorResult.Value, false);
+                                        return JsValue.FromObjectUnsafe(iteratorResult.IteratorResultObject ?? CreateIteratorResult(iteratorResult.Value, false));
                                     }
 
                                     yieldStarState.State = null;
@@ -795,10 +811,10 @@ public static partial class TypedAstEvaluator
                                 // Use original iterator result object to preserve done/value properties
                                 if (iteratorResult.IteratorResultObject is { } originalResult)
                                 {
-                                    return originalResult;
+                                    return JsValue.FromObjectUnsafe(originalResult);
                                 }
                                 var resultDone = propagateReturn ? iteratorResult.Done : false;
-                                return CreateIteratorResult(iteratorResult.Value, resultDone);
+                                return (JsValue)CreateIteratorResult(iteratorResult.Value, resultDone);
                             }
 
                             continue;
@@ -818,11 +834,11 @@ public static partial class TypedAstEvaluator
                             {
                                 if (environment.TryGet(resumeSymbol, out _))
                                 {
-                                    environment.Assign(resumeSymbol, resumePayload);
+                                    environment.Assign(resumeSymbol, resumePayload.ToObject());
                                 }
                                 else
                                 {
-                                    environment.Define(resumeSymbol, resumePayload);
+                                    environment.DefineJsValue(resumeSymbol, resumePayload);
                                 }
                             }
 
@@ -848,6 +864,7 @@ public static partial class TypedAstEvaluator
                                     continue;
                                 }
 
+                                // resumeReturnValue is already a JsValue from context.FlowValue
                                 return CompleteReturn(resumeReturnValue);
                             }
 
@@ -872,7 +889,6 @@ public static partial class TypedAstEvaluator
 
                             var completedFrame = _tryStack.Pop();
                             var pending = completedFrame.PendingCompletion;
-                            // Console.WriteLine($"[IR] EndFinally: pending={pending.Kind}, value={pending.Value}, resume={pending.ResumeTarget}, stack={_tryStack.Count}");
                             if (pending.Kind == AbruptKind.None)
                             {
                                 var target = pending.ResumeTarget >= 0
@@ -889,7 +905,9 @@ public static partial class TypedAstEvaluator
                                     continue;
                                 }
 
-                                return CompleteReturn(pending.Value);
+                                // Handle case where pending.Value is already a boxed JsValue
+                                var pendingJs = pending.Value is JsValue pjs ? pjs : JsValue.FromObjectUnsafe(pending.Value);
+                                return CompleteReturn(pendingJs);
                             }
 
                             if (pending.Kind == AbruptKind.Break || pending.Kind == AbruptKind.Continue)
@@ -909,11 +927,13 @@ public static partial class TypedAstEvaluator
                             }
 
                             _tryStack.Clear();
-                            throw new ThrowSignal(pending.Value);
+                            // Handle case where pending.Value is already a boxed JsValue
+                            var throwJs = pending.Value is JsValue tjs ? tjs : JsValue.FromObjectUnsafe(pending.Value);
+                            throw new ThrowSignal(throwJs);
 
                         case IteratorInitInstruction iteratorInitInstruction:
                             var iterableValue = EvaluateExpression(iteratorInitInstruction.IterableExpression,
-                                environment, context).ToObject();
+                                environment, context);
                             if (context.IsThrow)
                             {
                                 var initThrown = context.FlowValue;
@@ -945,7 +965,7 @@ public static partial class TypedAstEvaluator
 
                             if (!driverState.IsAsyncIterator)
                             {
-                                object? currentValue;
+                                JsValue currentValue;
                                 if (driverState.IteratorObject is JsObject iteratorObj)
                                 {
                                     driverState.NextMethod ??= iteratorObj.GetIteratorNextCallable(context);
@@ -953,7 +973,9 @@ public static partial class TypedAstEvaluator
                                         driverState.NextMethod!,
                                         context: context,
                                         callingEnvironment: environment);
-                                    if (nextResult is not JsObject resultObj)
+                                    // Handle case where nextResult is already a boxed JsValue
+                                    var nextResultValue = nextResult is JsValue nrJs ? nrJs : nextResult;
+                                    if (!nextResultValue.TryGetObject<JsObject>(out var resultObj))
                                     {
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
@@ -967,9 +989,10 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
+                                    // yielded is already a JsValue from TryGetProperty
                                     currentValue = resultObj.TryGetProperty("value", out var yielded)
                                         ? yielded
-                                        : Symbol.Undefined;
+                                        : JsValue.Undefined;
                                 }
                                 else if (driverState.Enumerator is IEnumerator<object?> enumerator)
                                 {
@@ -979,7 +1002,7 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
-                                    currentValue = enumerator.Current;
+                                    currentValue = JsValue.FromObjectUnsafe(enumerator.Current);
                                 }
                                 else
                                 {
@@ -987,13 +1010,13 @@ public static partial class TypedAstEvaluator
                                     continue;
                                 }
 
-                                StoreSymbolValue(environment, iteratorMoveNextInstruction.ValueSlot, currentValue);
+                                StoreSymbolValue(environment, iteratorMoveNextInstruction.ValueSlot, currentValue.ToObject());
                                 _programCounter = iteratorMoveNextInstruction.Next;
                                 continue;
                             }
 
-                            object? awaitedValue = null;
-                            object? awaitedNextResult = null;
+                            var awaitedValue = JsValue.Undefined;
+                            var awaitedNextResult = JsValue.Undefined;
 
                             // If we're resuming after a pending await from this
                             // iterator site, consume the resume payload and treat
@@ -1009,6 +1032,7 @@ public static partial class TypedAstEvaluator
 
                                 if (forAwaitResumeKind == ResumePayloadKind.Throw)
                                 {
+                                    // forAwaitResumePayload is already JsValue, no need to box with .ToObject()
                                     if (HandleAbruptCompletion(AbruptKind.Throw, forAwaitResumePayload, environment))
                                     {
                                         continue;
@@ -1020,6 +1044,7 @@ public static partial class TypedAstEvaluator
 
                                 if (forAwaitResumeKind == ResumePayloadKind.Return)
                                 {
+                                    // forAwaitResumePayload is already JsValue, no need to box with .ToObject()
                                     if (HandleAbruptCompletion(AbruptKind.Return, forAwaitResumePayload, environment))
                                     {
                                         continue;
@@ -1039,7 +1064,7 @@ public static partial class TypedAstEvaluator
 
                             if (driverState.IteratorObject is JsObject awaitIteratorObj)
                             {
-                                if (awaitedNextResult is null)
+                                if (awaitedNextResult.IsUndefined)
                                 {
                                     driverState.NextMethod ??= awaitIteratorObj.GetIteratorNextCallable(context);
                                     var nextResult = awaitIteratorObj.InvokeIteratorNext(
@@ -1048,14 +1073,14 @@ public static partial class TypedAstEvaluator
                                         callingEnvironment: environment);
                                     if (!TryAwaitPromiseOrSchedule(nextResult, context, out var awaitedNext))
                                     {
-                                        if (_asyncStepMode && _pendingPromise is JsObject)
+                                        if (_asyncStepMode && _pendingPromise.TryGetObject<JsObject>(out _))
                                         {
                                             driverState.AwaitingNextResult = true;
                                             StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
                                                 driverState);
                                             _state = GeneratorState.Suspended;
                                             _programCounter = iteratorIndex;
-                                            return CreateIteratorResult(Symbol.Undefined, false);
+                                            return (JsValue)CreateIteratorResult(JsValue.Undefined, false);
                                         }
 
                                         if (context.IsThrow)
@@ -1078,14 +1103,14 @@ public static partial class TypedAstEvaluator
                                     awaitedNextResult = awaitedNext;
                                 }
 
-                                if (awaitedNextResult is not JsObject awaitResultObj)
+                                if (!awaitedNextResult.TryGetObject<JsObject>(out var awaitResultObj))
                                 {
                                     _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                     continue;
                                 }
 
                                 var doneAwait = awaitResultObj.TryGetProperty("done", out var awaitDoneValue) &&
-                                                awaitDoneValue is bool and true;
+                                                JsOps.ToBoolean(awaitDoneValue);
                                 if (doneAwait)
                                 {
                                     _programCounter = iteratorMoveNextInstruction.BreakIndex;
@@ -1094,17 +1119,17 @@ public static partial class TypedAstEvaluator
 
                                 var rawValue = awaitResultObj.TryGetProperty("value", out var yieldedAwait)
                                     ? yieldedAwait
-                                    : Symbol.Undefined;
+                                    : JsValue.Undefined;
                                 if (!TryAwaitPromiseOrSchedule(rawValue, context, out var fullyAwaitedValue))
                                 {
-                                    if (_asyncStepMode && _pendingPromise is JsObject)
+                                    if (_asyncStepMode && _pendingPromise.TryGetObject<JsObject>(out _))
                                     {
                                         driverState.AwaitingValue = true;
                                         StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
                                             driverState);
                                         _state = GeneratorState.Suspended;
                                         _programCounter = iteratorIndex;
-                                        return CreateIteratorResult(Symbol.Undefined, false);
+                                        return new JsValue(CreateIteratorResult(JsValue.Undefined, false));
                                     }
 
                                     if (context.IsThrow)
@@ -1135,16 +1160,16 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 var enumerated = awaitEnumerator.Current;
-                                if (!TryAwaitPromiseOrSchedule(enumerated, context, out var awaitedEnumerated))
+                                if (!TryAwaitPromiseOrSchedule(JsValue.FromObjectUnsafe(enumerated), context, out var awaitedEnumerated))
                                 {
-                                    if (_asyncStepMode && _pendingPromise is JsObject)
+                                    if (_asyncStepMode && _pendingPromise.TryGetObject<JsObject>(out _))
                                     {
                                         driverState.AwaitingValue = true;
                                         StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
                                             driverState);
                                         _state = GeneratorState.Suspended;
                                         _programCounter = iteratorIndex;
-                                        return CreateIteratorResult(Symbol.Undefined, false);
+                                        return new JsValue(CreateIteratorResult(JsValue.Undefined, false));
                                     }
 
                                     if (context.IsThrow)
@@ -1173,7 +1198,7 @@ public static partial class TypedAstEvaluator
                             }
 
                             StoreIteratorValue:
-                            StoreSymbolValue(environment, iteratorMoveNextInstruction.ValueSlot, awaitedValue);
+                            StoreSymbolValue(environment, iteratorMoveNextInstruction.ValueSlot, awaitedValue.ToObject());
                             _programCounter = iteratorMoveNextInstruction.Next;
                             continue;
 
@@ -1222,8 +1247,8 @@ public static partial class TypedAstEvaluator
 
                         case ReturnInstruction returnInstruction:
                             var returnValue = returnInstruction.ReturnExpression is null
-                                ? Symbol.Undefined
-                                : EvaluateExpression(returnInstruction.ReturnExpression, environment, context).ToObject();
+                                ? JsValue.Undefined
+                                : EvaluateExpression(returnInstruction.ReturnExpression, environment, context);
                             if (context.IsThrow)
                             {
                                 var pendingThrow = context.FlowValue;
@@ -1244,7 +1269,7 @@ public static partial class TypedAstEvaluator
                                 returnValue = pendingReturn;
                             }
 
-                            if (HandleAbruptCompletion(AbruptKind.Return, returnValue, environment))
+                            if (HandleAbruptCompletion(AbruptKind.Return, returnValue.ToObject(), environment))
                             {
                                 continue;
                             }
@@ -1253,7 +1278,7 @@ public static partial class TypedAstEvaluator
                             _state = GeneratorState.Completed;
                             _done = true;
                             _tryStack.Clear();
-                            return CreateIteratorResult(returnValue, true);
+                            return (JsValue)CreateIteratorResult(returnValue, true);
 
                         case EnterWithInstruction enterWithInstruction:
                         {
@@ -1310,6 +1335,40 @@ public static partial class TypedAstEvaluator
                             continue;
                         }
 
+                        case IteratorCloseInstruction iteratorCloseInstruction:
+                        {
+                            // Get the iterator state from the slot
+                            if (TryGetSymbolValue(environment, iteratorCloseInstruction.IteratorSlot,
+                                    out var iterStateValue) &&
+                                iterStateValue is IteratorDriverState { IteratorObject: JsObject iteratorObj })
+                            {
+                                try
+                                {
+                                    // Call IteratorClose - we don't preserve existing throws because
+                                    // if IteratorClose throws, that error should replace any pending completion
+                                    iteratorObj.IteratorClose(context, preserveExistingThrow: false);
+                                }
+                                catch (ThrowSignal closeThrown)
+                                {
+                                    // IteratorClose threw - this should replace any pending return/throw
+                                    // per ES spec: if IteratorClose throws, return that throw completion
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, closeThrown.ThrownValue, environment))
+                                    {
+                                        // HandleAbruptCompletion updated the pending completion in the try frame.
+                                        // Continue to the next instruction in the finally block.
+                                        _programCounter = iteratorCloseInstruction.Next;
+                                        continue;
+                                    }
+
+                                    _tryStack.Clear();
+                                    throw;
+                                }
+                            }
+
+                            _programCounter = iteratorCloseInstruction.Next;
+                            continue;
+                        }
+
                         default:
                             throw new InvalidOperationException(
                                 $"Unsupported generator instruction {instruction.GetType().Name}");
@@ -1326,7 +1385,7 @@ public static partial class TypedAstEvaluator
                     throw;
                 }
 
-                return CreateIteratorResult(Symbol.Undefined, false);
+                return new JsValue(CreateIteratorResult(JsValue.Undefined, false));
             }
             catch
             {
@@ -1341,7 +1400,7 @@ public static partial class TypedAstEvaluator
             _state = GeneratorState.Completed;
             _done = true;
             _tryStack.Clear();
-            return CreateIteratorResult(Symbol.Undefined, true);
+            return (JsValue)CreateIteratorResult(JsValue.Undefined, true);
         }
 
         private JsEnvironment EnsureExecutionEnvironment()
@@ -1393,110 +1452,12 @@ public static partial class TypedAstEvaluator
             return _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
         }
 
-        private object? ResumeGenerator(ResumeMode mode, object? value)
-        {
-            var completed = _done || _state == GeneratorState.Completed;
-            if (completed)
-            {
-                _state = GeneratorState.Completed;
-                _done = true;
-                _resumeContext.Clear();
-                return FinishExternalCompletion(mode, value);
-            }
-
-            var wasStart = _state == GeneratorState.Start;
-            if ((mode == ResumeMode.Throw || mode == ResumeMode.Return) && wasStart)
-            {
-                _state = GeneratorState.Completed;
-                _done = true;
-                _resumeContext.Clear();
-                return FinishExternalCompletion(mode, value);
-            }
-
-            try
-            {
-                _state = GeneratorState.Executing;
-
-                _executionEnvironment ??= CreateExecutionEnvironment();
-
-                if (!wasStart && _lastYieldIndex >= 0)
-                {
-                    switch (mode)
-                    {
-                        case ResumeMode.Throw:
-                            _resumeContext.SetException(_lastYieldIndex, value);
-                            break;
-                        case ResumeMode.Return:
-                            _resumeContext.SetReturn(_lastYieldIndex, value);
-                            break;
-                        default:
-                            _resumeContext.SetValue(_lastYieldIndex, value);
-                            break;
-                    }
-                }
-
-                var context = _realmState.CreateContext(
-                    ScopeKind.Function,
-                    DetermineGeneratorScopeMode());
-                _executionEnvironment.Define(Symbol.YieldTrackerSymbol, new YieldTracker(_consumedYieldIndices));
-
-                var result = EvaluateBlock(
-                    _function.Body,
-                    _executionEnvironment,
-                    context);
-
-                if (context.IsThrow)
-                {
-                    var thrown = context.FlowValue;
-                    context.Clear();
-                    _state = GeneratorState.Completed;
-                    _done = true;
-                    _resumeContext.Clear();
-                    throw new ThrowSignal(thrown);
-                }
-
-                if (context.IsYield)
-                {
-                    var yielded = context.FlowValue;
-                    // Check if the yield signal includes an original iterator result object (from yield*)
-                    var iteratorResultObject = (context.CurrentSignal as YieldCompletionSignal)?.IteratorResultObject;
-                    RecordYield(context);
-                    context.Clear();
-                    _state = GeneratorState.Suspended;
-                    // If we have an original iterator result object, return it to preserve done property
-                    return iteratorResultObject ?? CreateIteratorResult(yielded, false);
-                }
-
-                if (context.IsReturn)
-                {
-                    var returnValue = context.FlowValue;
-                    context.ClearReturn();
-                    _state = GeneratorState.Completed;
-                    _done = true;
-                    _resumeContext.Clear();
-                    return CreateIteratorResult(returnValue, true);
-                }
-
-                _state = GeneratorState.Completed;
-                _done = true;
-                _resumeContext.Clear();
-                return CreateIteratorResult(result, true);
-            }
-            catch
-            {
-                _state = GeneratorState.Completed;
-                _done = true;
-                _resumeContext.Clear();
-                throw;
-            }
-        }
-
-        private static object? FinishExternalCompletion(ResumeMode mode, object? value)
+        private static JsValue FinishExternalCompletion(ResumeMode mode, JsValue value)
         {
             return mode switch
             {
                 ResumeMode.Throw => throw new ThrowSignal(value),
-                _ => CreateIteratorResult(value, true)
+                _ => (JsValue)CreateIteratorResult(value, true)
             };
         }
 
@@ -1507,12 +1468,14 @@ public static partial class TypedAstEvaluator
             // legacy blocking helper so synchronous generators remain usable.
             if (!_asyncStepMode)
             {
-                var awaitedValueSync = EvaluateExpression(expression.Expression, environment, context).ToObject();
+                // Keep as JsValue to avoid boxing round trips
+                var awaitedValueSync = EvaluateExpression(expression.Expression, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return awaitedValueSync;
                 }
 
+                // awaitedValueSync is already JsValue
                 if (!TryAwaitPromise(awaitedValueSync, context, out var resolvedSync))
                 {
                     return resolvedSync;
@@ -1537,7 +1500,8 @@ public static partial class TypedAstEvaluator
                 return result;
             }
 
-            var awaitedValue = EvaluateExpression(expression.Expression, environment, context).ToObject();
+            // Keep as JsValue to avoid boxing round trips
+            var awaitedValue = EvaluateExpression(expression.Expression, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return awaitedValue;
@@ -1553,18 +1517,19 @@ public static partial class TypedAstEvaluator
                 }
                 else
                 {
-                    environment.Define(awaitKey, existingState);
+                    environment.DefineJsValue(awaitKey, JsValue.FromObjectUnsafe(existingState));
                 }
             }
 
             // Async-aware mode: surface promise-like values as pending steps
             // so AsyncGeneratorInstance can resume via the event queue.
+            // awaitedValue is already JsValue
             if (TryAwaitPromiseOrSchedule(awaitedValue, context, out var resolved))
             {
                 return resolved;
             }
 
-            if (_pendingPromise is not JsObject || awaitKey is null)
+            if (!_pendingPromise.TryGetObject<JsObject>(out _) || awaitKey is null)
             {
                 return resolved;
             }
@@ -1580,12 +1545,14 @@ public static partial class TypedAstEvaluator
             // let the caller observe the pending throw/return.
         }
 
-        private bool TryAwaitPromiseOrSchedule(object? candidate, EvaluationContext context, out object? resolvedValue)
+        private bool TryAwaitPromiseOrSchedule(JsValue candidate, EvaluationContext context, out JsValue resolvedValue)
         {
             var pendingPromise = _pendingPromise;
             var result = AwaitScheduler.TryAwaitPromiseOrSchedule(candidate, _asyncStepMode, ref pendingPromise,
-                context, out resolvedValue);
+                context, out var resolvedObj);
             _pendingPromise = pendingPromise;
+            // resolvedObj is already JsValue from the scheduler
+            resolvedValue = resolvedObj;
             return result;
         }
 
@@ -1601,7 +1568,7 @@ public static partial class TypedAstEvaluator
         }
 
 
-        private void PreparePendingResumeValue(ResumeMode mode, object? resumeValue, bool wasStart)
+        private void PreparePendingResumeValue(ResumeMode mode, JsValue resumeValue, bool wasStart)
         {
             if (wasStart)
             {
@@ -1609,7 +1576,7 @@ public static partial class TypedAstEvaluator
                 // This applies to both regular yield and yield* - the first call to inner iterator's
                 // next() receives undefined, not the outer generator's first next() argument.
                 _pendingResumeKind = ResumePayloadKind.None;
-                _pendingResumeValue = Symbol.Undefined;
+                _pendingResumeValue = JsValue.Undefined;
                 return;
             }
 
@@ -1632,7 +1599,7 @@ public static partial class TypedAstEvaluator
                 "PrepareResume yieldIndex={YieldIndex} kind={Kind} valueType={Type}",
                 _lastYieldIndex,
                 _pendingResumeKind,
-                resumeValue?.GetType().Name ?? "null");
+                resumeValue.ToObject()?.GetType().Name ?? "null");
 
             if (_lastYieldIndex < 0)
             {
@@ -1643,27 +1610,27 @@ public static partial class TypedAstEvaluator
             switch (_pendingResumeKind)
             {
                 case ResumePayloadKind.Throw:
-                    _resumeContext.SetException(resumeSlotIndex, resumeValue);
+                    _resumeContext.SetException(resumeSlotIndex, resumeValue.ToObject());
                     break;
                 case ResumePayloadKind.Return:
-                    _resumeContext.SetReturn(resumeSlotIndex, resumeValue);
+                    _resumeContext.SetReturn(resumeSlotIndex, resumeValue.ToObject());
                     break;
                 default:
-                    _resumeContext.SetValue(resumeSlotIndex, resumeValue);
+                    _resumeContext.SetValue(resumeSlotIndex, resumeValue.ToObject());
                     break;
             }
         }
 
-        private (ResumePayloadKind Kind, object? Value) ConsumeResumeValue()
+        private (ResumePayloadKind Kind, JsValue Value) ConsumeResumeValue()
         {
             var kind = _pendingResumeKind;
             var value = _pendingResumeValue;
             _pendingResumeKind = ResumePayloadKind.None;
-            _pendingResumeValue = Symbol.Undefined;
+            _pendingResumeValue = JsValue.Undefined;
 
             if (kind == ResumePayloadKind.None)
             {
-                return (ResumePayloadKind.Value, Symbol.Undefined);
+                return (ResumePayloadKind.Value, JsValue.Undefined);
             }
 
             return (kind, value);
@@ -1674,7 +1641,7 @@ public static partial class TypedAstEvaluator
             var frame = new TryFrame(instruction.HandlerIndex, instruction.CatchSlotSymbol, instruction.FinallyIndex);
             if (instruction.CatchSlotSymbol is { } slot && !environment.TryGet(slot, out _))
             {
-                environment.Define(slot, Symbol.Undefined);
+                environment.DefineJsValue(slot, JsValue.Undefined);
             }
 
             _tryStack.Push(frame);
@@ -1703,7 +1670,6 @@ public static partial class TypedAstEvaluator
 
         private bool HandleAbruptCompletion(AbruptKind kind, object? value, JsEnvironment environment)
         {
-            // Console.WriteLine($"[IR] HandleAbruptCompletion kind={kind}, value={value}, stack={_tryStack.Count}");
             while (_tryStack.Count > 0)
             {
                 var frame = _tryStack.Peek();
@@ -1718,7 +1684,9 @@ public static partial class TypedAstEvaluator
                         }
                         else
                         {
-                            environment.Define(slot, value);
+                            // Handle case where value is already a boxed JsValue
+                            var valueJs = value is JsValue js ? js : JsValue.FromObjectUnsafe(value);
+                            environment.DefineJsValue(slot, valueJs);
                         }
                     }
 
@@ -1746,13 +1714,96 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        private object? CompleteReturn(object? value)
+        private JsValue CompleteReturn(JsValue value)
         {
+            // Close any active array pattern iterators before completing
+            CloseActiveArrayPatternIterators();
+
             _programCounter = -1;
             _state = GeneratorState.Completed;
             _done = true;
             _tryStack.Clear();
-            return CreateIteratorResult(value, true);
+            return new JsValue(CreateIteratorResult(value, true));
+        }
+
+        private void CloseActiveArrayPatternIterators()
+        {
+            if (_executionEnvironment is null)
+            {
+                return;
+            }
+
+            // Create a fresh context to avoid state interference from the existing context
+            var context = _realmState.CreateContext(ScopeKind.Function, DetermineGeneratorScopeMode());
+
+            // Scan the environment for array pattern states and close their iterators
+            // Array pattern state keys have the prefix "__array_pattern_state_"
+            var statesToClose = new List<(Symbol Key, IJsObjectLike Iterator)>();
+            ScanEnvironmentForArrayPatternStates(_executionEnvironment, statesToClose);
+
+            foreach (var (key, iterator) in statesToClose)
+            {
+                // Clean up the state first (before potential exception)
+                _executionEnvironment.DeleteBinding(key);
+
+                // Close the iterator - if it throws, that error replaces the return completion
+                // Let the exception propagate directly without catching
+                iterator.IteratorClose(context, preserveExistingThrow: false);
+            }
+        }
+
+        private static void ScanEnvironmentForArrayPatternStates(JsEnvironment env, List<(Symbol, IJsObjectLike)> results)
+        {
+            while (true)
+            {
+                const string prefix = "__array_pattern_state_";
+
+                // Scan bindings in this environment
+                foreach (var symbol in env.GetBindingSymbols())
+                {
+                    if (symbol.Name?.StartsWith(prefix, StringComparison.Ordinal) == true && env.TryGet(symbol, out var value) && value is not null && TryGetActiveIteratorFromState(value, out var iterator))
+                    {
+                        results.Add((symbol, iterator));
+                    }
+                }
+
+                // Also scan parent environments
+                if (env.Enclosing is { } parent)
+                {
+                    env = parent;
+                    continue;
+                }
+
+                break;
+            }
+        }
+
+        private static bool TryGetActiveIteratorFromState(object state, out IJsObjectLike iterator)
+        {
+            // Use reflection to check for Iterator and IteratorDone properties
+            // since ArrayPatternState is a private class in ArrayBindingExtensions
+            var type = state.GetType();
+
+            var iteratorProp = type.GetProperty("Iterator");
+            var iteratorDoneProp = type.GetProperty("IteratorDone");
+
+            if (iteratorProp is null || iteratorDoneProp is null)
+            {
+                iterator = null!;
+                return false;
+            }
+
+            var iteratorValue = iteratorProp.GetValue(state);
+            var iteratorDone = iteratorDoneProp.GetValue(state) as bool? ?? true;
+
+            if (iteratorValue is IJsObjectLike jsIterator && !iteratorDone)
+            {
+                iterator = jsIterator;
+                return true;
+            }
+
+            iterator = null!;
+            return false;
         }
 
         private sealed class PendingAwaitException : Exception
@@ -1772,9 +1823,9 @@ public static partial class TypedAstEvaluator
         // state that surfaces promise-like values without blocking.
         internal readonly record struct AsyncGeneratorStepResult(
             AsyncGeneratorStepKind Kind,
-            object? Value,
+            JsValue Value,
             bool Done,
-            object? PendingPromise);
+            JsValue PendingPromise);
 
         internal enum AsyncGeneratorStepKind
         {
@@ -1846,7 +1897,8 @@ public static partial class TypedAstEvaluator
             public DelegatedYieldState? State { get; set; }
             public bool AwaitingResume { get; set; }
             public AbruptKind PendingAbrupt { get; set; }
-            public object? PendingValue { get; set; }
+            // Use JsValue instead of object? to avoid boxing
+            public JsValue PendingValue { get; set; }
         }
     }
 }

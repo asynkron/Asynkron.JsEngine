@@ -1,8 +1,8 @@
 namespace Asynkron.JsEngine.Ast;
 
 using Microsoft.Extensions.Logging;
-using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.StdLib;
+using JsTypes;
+using StdLib;
 
 public static partial class TypedAstEvaluator
 {
@@ -25,11 +25,11 @@ public static partial class TypedAstEvaluator
                 EnsureFunctionScopedVarBinding(environment, targetIdentifier.Name, context);
 
                 var identifierExpression = new IdentifierExpression(declarator.Source, targetIdentifier.Name);
-                preResolvedVarReference = AssignmentReferenceResolver.Resolve(
+                // Use fast path - this is always an identifier expression
+                preResolvedVarReference = AssignmentReferenceResolver.ResolveIdentifierFast(
                     identifierExpression,
                     environment,
-                    context,
-                    (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
+                    context);
                 if (context.ShouldStopEvaluation)
                 {
                     return;
@@ -98,7 +98,7 @@ public static partial class TypedAstEvaluator
                 EnsureFunctionScopedVarBinding(environment, targetIdentifier.Name, context);
                 if (!assignedBlockedBinding)
                 {
-                    resolvedReference.SetValue(JsValue.FromObject(value));
+                    resolvedReference.SetValue(JsValue.FromObjectUnsafe(value));
                 }
 
                 return;

@@ -15,9 +15,14 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     private const uint MaxArrayLength = uint.MaxValue;
 
     // Sentinel value to represent holes in sparse arrays (indices that have never been set)
-    private static readonly object ArrayHole = new();
+    // We use a special JsValue kind or a unique object that we can identify
+    private static readonly object ArrayHoleSentinel = new();
+    private static readonly JsValue ArrayHole = new(JsValueKind.Object, 0.0, ArrayHoleSentinel);
+
+    private static bool IsArrayHole(JsValue value) =>
+        value.Kind == JsValueKind.Object && ReferenceEquals(value.ToObject(), ArrayHoleSentinel);
     private readonly IJsObjectLike? _arrayPrototype;
-    private readonly List<object?> _items = [];
+    private readonly List<JsValue> _items = [];
 
     private readonly JsObject _properties = new();
     private readonly IJsCallable? _rangeErrorCtor;
@@ -29,7 +34,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     public RealmState? RealmState => _realmState;
     private readonly IJsCallable? _typeErrorCtor;
     private uint _length;
-    private Dictionary<uint, object?>? _sparseItems;
+    private Dictionary<uint, JsValue>? _sparseItems;
 
     public JsArray(RealmState? realmState = null)
     {
@@ -52,18 +57,25 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         SetupIterator();
     }
 
-    public JsArray(IEnumerable<object?> items, RealmState? realmState = null)
+    public JsArray(IEnumerable<JsValue> items, RealmState? realmState = null)
         : this(realmState)
     {
-        if (items is not null)
-        {
-            _items.AddRange(items);
-        }
-
+        _items.AddRange(items);
         _length = (uint)_items.Count;
     }
 
-    public IReadOnlyList<object?> Items => _items;
+    /// <summary>
+    /// Convenience constructor that wraps objects in JsValue.
+    /// </summary>
+    public JsArray(IEnumerable<object?> items, RealmState? realmState = null)
+        : this(realmState)
+    {
+        // Handle case where items contain already-boxed JsValue values
+        _items.AddRange(items.Select(item => item is JsValue js ? js : JsValue.FromObjectUnsafe(item)));
+        _length = (uint)_items.Count;
+    }
+
+    public IReadOnlyList<JsValue> Items => _items;
 
     /// <summary>
     ///     Gets the length of the array
@@ -108,7 +120,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
     public IEnumerable<string> Keys => _properties.Keys;
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, out JsValue value)
     {
         if (string.Equals(name, "length", StringComparison.Ordinal))
         {
@@ -116,38 +128,68 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return true;
         }
 
-        if (TryParseArrayIndex(name, out var index))
+        if (!TryParseArrayIndex(name, out var index))
         {
-            // Accessor/data descriptors defined via Object.defineProperty on an
-            // index should override the internal dense/sparse storage.
-            if (_properties.GetOwnPropertyDescriptor(name) is not null &&
-                _properties.TryGetProperty(name, this, out value))
-            {
-                return true;
-            }
-
-            if (TryGetOwnIndex(index, out value))
-            {
-                return true;
-            }
-
-            // For holes, continue lookup on the prototype chain.
-            return _properties.TryGetProperty(name, this, out value);
+            return _properties.TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);
         }
 
-        return _properties.TryGetProperty(name, this, out value);
+        // Accessor/data descriptors defined via Object.defineProperty on an
+        // index should override the internal dense/sparse storage.
+        if (_properties.GetOwnPropertyDescriptor(name) is not null &&
+            _properties.TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value))
+        {
+            return true;
+        }
+
+        if (!TryGetOwnIndex(index, out var jsValue))
+        {
+            return _properties.TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);
+        }
+
+        value = jsValue;
+        return true;
     }
 
-    public void SetProperty(string name, object? value)
-    {
-        SetProperty(name, value, this);
-    }
-
-    public void SetProperty(string name, object? value, object? receiver)
+    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
         if (string.Equals(name, "length", StringComparison.Ordinal))
         {
-            SetLength(value, null);
+            value = (double)_length;
+            return true;
+        }
+
+        if (!TryParseArrayIndex(name, out var index))
+        {
+            return _properties.TryGetProperty(name, receiver, out value);
+        }
+
+        // Accessor/data descriptors defined via Object.defineProperty on an
+        // index should override the internal dense/sparse storage.
+        if (_properties.GetOwnPropertyDescriptor(name) is not null &&
+            _properties.TryGetProperty(name, receiver, out value))
+        {
+            return true;
+        }
+
+        if (!TryGetOwnIndex(index, out var jsValue))
+        {
+            return _properties.TryGetProperty(name, receiver, out value);
+        }
+
+        value = jsValue;
+        return true;
+    }
+
+    public void SetProperty(string name, JsValue value)
+    {
+        SetProperty(name, value, JsValue.FromObjectUnsafe(this));
+    }
+
+    public void SetProperty(string name, JsValue value, JsValue receiver)
+    {
+        if (string.Equals(name, "length", StringComparison.Ordinal))
+        {
+            SetLength(value.ToObject(), null);
             return;
         }
 
@@ -157,7 +199,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return;
         }
 
-        _properties.SetProperty(name, value, receiver ?? this);
+        _properties.SetProperty(name, value, receiver.IsNull || receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver);
     }
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
@@ -174,15 +216,17 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return explicitDescriptor;
         }
 
-        if (TryParseArrayIndex(name, out var index))
+        if (!TryParseArrayIndex(name, out var index))
         {
-            if (index < _length && TryGetOwnIndex(index, out var value))
+            return null;
+        }
+
+        if (index < _length && TryGetOwnIndex(index, out var value))
+        {
+            return new PropertyDescriptor
             {
-                return new PropertyDescriptor
-                {
-                    Value = value, Writable = true, Enumerable = true, Configurable = true
-                };
-            }
+                Value = value, Writable = true, Enumerable = true, Configurable = true
+            };
         }
 
         return null;
@@ -231,19 +275,20 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public bool Delete(string name)
     {
-        if (TryParseArrayIndex(name, out var index))
+        if (!TryParseArrayIndex(name, out var index))
         {
-            var descriptor = _properties.GetOwnPropertyDescriptor(name);
-            if (descriptor is not null && !descriptor.Configurable)
-            {
-                return false;
-            }
-
-            _properties.DeleteOwnProperty(name);
-            return DeleteElement((int)index);
+            return DeleteProperty(name);
         }
 
-        return DeleteProperty(name);
+        var descriptor = _properties.GetOwnPropertyDescriptor(name);
+        if (descriptor?.Configurable == false)
+        {
+            return false;
+        }
+
+        _properties.DeleteOwnProperty(name);
+        return DeleteElement((int)index);
+
     }
 
     public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
@@ -253,16 +298,21 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return DefineLength(descriptor, null, false);
         }
 
-        if (TryParseArrayIndex(name, out var index))
+        if (!TryParseArrayIndex(name, out var index))
         {
-            if (!descriptor.IsAccessorDescriptor)
-            {
-                SetElement(index, descriptor.HasValue ? descriptor.Value : Symbol.Undefined);
-            }
-            else
-            {
-                BumpLength(index + 1);
-            }
+            return _properties.TryDefineProperty(name, descriptor);
+        }
+
+        if (!descriptor.IsAccessorDescriptor)
+        {
+            var val = descriptor.HasValue ? descriptor.Value : Symbol.Undefined;
+            // Handle case where value is already a boxed JsValue
+            var jsVal = val is JsValue jv ? jv : JsValue.FromObjectUnsafe(val);
+            SetElement(index, jsVal);
+        }
+        else
+        {
+            BumpLength(index + 1);
         }
 
         return _properties.TryDefineProperty(name, descriptor);
@@ -278,7 +328,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         // Match the behaviour of Array.prototype.toString / join with
         // the default separator so arrays used as property keys (e.g.
-        // reverse[colorName[key]] in Babel’s color modules) produce a
+        // reverse[colorName[key]] in Babel's color modules) produce a
         // stable comma-joined string rather than a CLR type name.
         if (_items.Count == 0)
         {
@@ -288,13 +338,14 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         var parts = new List<string>(_items.Count);
         foreach (var item in _items)
         {
-            if (ReferenceEquals(item, ArrayHole) || item is null || ReferenceEquals(item, Symbol.Undefined))
+            if (IsArrayHole(item) || item.IsNull || item.IsUndefined)
             {
                 parts.Add(string.Empty);
                 continue;
             }
 
-            parts.Add(Convert.ToString(item, CultureInfo.InvariantCulture) ?? string.Empty);
+            var obj = item.ToObject();
+            parts.Add(Convert.ToString(obj, CultureInfo.InvariantCulture) ?? string.Empty);
         }
 
         return string.Join(",", parts);
@@ -303,28 +354,23 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     /// <summary>
     ///     Gets an element at the specified index (alias for GetElement)
     /// </summary>
-    public object? Get(int index)
+    public JsValue Get(int index)
     {
         return GetElement(index);
     }
 
-    public object? GetElement(int index)
+    public JsValue GetElement(int index)
     {
-        if (index < 0)
-        {
-            return Symbol.Undefined;
-        }
-
-        return GetElement((uint)index);
+        return index < 0 ? JsValue.Undefined : GetElement((uint)index);
     }
 
-    public object? GetElement(uint index)
+    public JsValue GetElement(uint index)
     {
         if (index < _items.Count)
         {
             var item = _items[(int)index];
             // Return undefined for holes in the array
-            return ReferenceEquals(item, ArrayHole) ? Symbol.Undefined : item;
+            return IsArrayHole(item) ? JsValue.Undefined : item;
         }
 
         if (_sparseItems is not null && _sparseItems.TryGetValue(index, out var value))
@@ -332,7 +378,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return value;
         }
 
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     /// <summary>
@@ -343,20 +389,10 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         if (index < _items.Count)
         {
-            return !ReferenceEquals(_items[(int)index], ArrayHole);
+            return !IsArrayHole(_items[(int)index]);
         }
 
         return _sparseItems?.ContainsKey(index) == true;
-    }
-
-    public bool HasOwnIndex(int index)
-    {
-        if (index < 0)
-        {
-            return false;
-        }
-
-        return HasOwnIndex((uint)index);
     }
 
     /// <summary>
@@ -366,18 +402,20 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         for (var i = 0; i < _items.Count; i++)
         {
-            if (!ReferenceEquals(_items[i], ArrayHole))
+            if (!IsArrayHole(_items[i]))
             {
                 yield return (uint)i;
             }
         }
 
-        if (_sparseItems is not null)
+        if (_sparseItems is null)
         {
-            foreach (var key in _sparseItems.Keys)
-            {
-                yield return key;
-            }
+            yield break;
+        }
+
+        foreach (var key in _sparseItems.Keys)
+        {
+            yield return key;
         }
     }
 
@@ -387,7 +425,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         for (var i = 0; i < _items.Count; i++)
         {
-            if (!ReferenceEquals(_items[i], ArrayHole))
+            if (!IsArrayHole(_items[i]))
             {
                 indices.Add((uint)i);
             }
@@ -413,7 +451,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         {
             var propertyName = index.ToString(CultureInfo.InvariantCulture);
             var descriptor = GetOwnPropertyDescriptor(propertyName);
-            var enumerable = descriptor is { HasEnumerable: true } ? descriptor.Enumerable : true;
+            var enumerable = descriptor is not { HasEnumerable: true } || descriptor.Enumerable;
 
             if (!includeNonEnumerable && !enumerable)
             {
@@ -429,18 +467,18 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
     }
 
-    private bool TryGetOwnIndex(uint index, out object? value)
+    private bool TryGetOwnIndex(uint index, out JsValue value)
     {
         if (index < _items.Count)
         {
             var item = _items[(int)index];
-            if (!ReferenceEquals(item, ArrayHole))
+            if (!IsArrayHole(item))
             {
                 value = item;
                 return true;
             }
 
-            value = null;
+            value = JsValue.Undefined;
             return false;
         }
 
@@ -449,18 +487,36 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return true;
         }
 
-        value = null;
+        value = JsValue.Undefined;
         return false;
     }
 
-    public void SetElement(int index, object? value)
+    public void SetElement(int index, JsValue value)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(index);
 
         SetElement((uint)index, value);
     }
 
+    /// <summary>
+    /// Convenience overload that wraps object in JsValue.
+    /// </summary>
+    public void SetElement(int index, object? value)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
+
+        SetElement((uint)index, JsValue.FromObjectUnsafe(value));
+    }
+
+    /// <summary>
+    /// Convenience overload that wraps object in JsValue.
+    /// </summary>
     public void SetElement(uint index, object? value)
+    {
+        SetElement(index, JsValue.FromObjectUnsafe(value));
+    }
+
+    private void SetElement(uint index, JsValue value)
     {
         var extended = false;
         if (index < DenseIndexLimit)
@@ -477,7 +533,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
         else
         {
-            _sparseItems ??= new Dictionary<uint, object?>();
+            _sparseItems ??= new Dictionary<uint, JsValue>();
             _sparseItems[index] = value;
         }
 
@@ -527,21 +583,32 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         return _properties.DeleteOwnProperty(name);
     }
 
-    public void Push(object? value)
+    public void Push(JsValue value)
     {
         _items.Add(value);
         BumpLength((uint)_items.Count);
     }
 
-    public object? Pop()
+    /// <summary>
+    /// Convenience overload that wraps object in JsValue.
+    /// </summary>
+    public void Push(object? value)
+    {
+        // Handle case where value is already a boxed JsValue
+        var jsVal = value is JsValue jv ? jv : JsValue.FromObjectUnsafe(value);
+        _items.Add(jsVal);
+        BumpLength((uint)_items.Count);
+    }
+
+    public JsValue Pop()
     {
         if (_length == 0)
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
         var lastIndex = _length - 1;
-        object? value = Symbol.Undefined;
+        var value = JsValue.Undefined;
 
         if (lastIndex < _items.Count)
         {
@@ -558,14 +625,14 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         SetExplicitLength(_length - 1);
 
         // Return undefined for holes
-        return ReferenceEquals(value, ArrayHole) ? Symbol.Undefined : value;
+        return IsArrayHole(value) ? JsValue.Undefined : value;
     }
 
-    public object? Shift()
+    public JsValue Shift()
     {
         if (_length == 0 || _items.Count == 0)
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
         var value = _items[0];
@@ -573,26 +640,19 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         SetExplicitLength(_length - 1);
 
         // Return undefined for holes
-        return ReferenceEquals(value, ArrayHole) ? Symbol.Undefined : value;
+        return IsArrayHole(value) ? JsValue.Undefined : value;
     }
 
-    public void Unshift(params object?[] values)
+    public void Unshift(params JsValue[] values)
     {
         _items.InsertRange(0, values);
         BumpLength((uint)_items.Count);
     }
 
-    public JsArray Splice(int start, int deleteCount, params object?[] itemsToInsert)
+    public JsArray Splice(int start, int deleteCount, params JsValue[] itemsToInsert)
     {
         // Normalize start index
-        if (start < 0)
-        {
-            start = Math.Max(0, _items.Count + start);
-        }
-        else
-        {
-            start = Math.Min(start, _items.Count);
-        }
+        start = start < 0 ? Math.Max(0, _items.Count + start) : Math.Min(start, _items.Count);
 
         // Normalize delete count
         deleteCount = Math.Max(0, Math.Min(deleteCount, _items.Count - start));
@@ -627,11 +687,13 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             throw CreateRangeError("Invalid array length");
         }
 
-        if (candidateLength > _length)
+        if (candidateLength <= _length)
         {
-            _length = candidateLength;
-            UpdateLengthProperty();
+            return;
         }
+
+        _length = candidateLength;
+        UpdateLengthProperty();
     }
 
     internal bool SetLength(object? value, EvaluationContext? context, bool throwOnWritableFailure = true)
@@ -771,7 +833,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             var iterator = new JsObject();
 
             // Add next() method to iterator
-            iterator.SetProperty("next", new HostFunction((_, _) =>
+            iterator.SetProperty("next", (JsValue)new HostFunction((_, _) =>
             {
                 var result = new JsObject();
                 if (indexHolder[0] < _length)
@@ -783,17 +845,17 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 }
                 else
                 {
-                    result.SetProperty("value", Symbol.Undefined);
+                    result.SetProperty("value", JsValue.Undefined);
                     result.SetProperty("done", true);
                 }
 
-                return result;
+                return new JsValue(result);
             }));
 
-            return iterator;
+            return new JsValue(iterator);
         });
 
-        _properties.SetProperty(iteratorKey, iteratorFunction);
+        _properties.SetProperty(iteratorKey, (JsValue)iteratorFunction);
     }
 
     private static bool TryParseArrayIndex(string propertyName, out uint index)
@@ -959,13 +1021,13 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         var ctor = realm?.RangeErrorConstructor ?? _rangeErrorCtor;
         if (ctor is IJsCallable)
         {
-            var errorObj = ctor.Invoke([message], null);
+            var errorObj = ctor.Invoke([(JsValue)message], JsValue.Undefined);
             return new ThrowSignal(errorObj);
         }
 
         var fallback = new JsObject { ["name"] = "RangeError", ["message"] = message };
 
-        return new ThrowSignal(fallback);
+        return new ThrowSignal((JsValue)fallback);
     }
 
     private ThrowSignal CreateTypeError(string message, EvaluationContext? context = null)
@@ -974,13 +1036,13 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         var ctor = realm?.TypeErrorConstructor ?? _typeErrorCtor;
         if (ctor is IJsCallable)
         {
-            var errorObj = ctor.Invoke([message], null);
+            var errorObj = ctor.Invoke([(JsValue)message], JsValue.Undefined);
             return new ThrowSignal(errorObj);
         }
 
         var fallback = new JsObject { ["name"] = "TypeError", ["message"] = message };
 
-        return new ThrowSignal(fallback);
+        return new ThrowSignal((JsValue)fallback);
     }
 
     private bool FailRangeError(EvaluationContext? context)

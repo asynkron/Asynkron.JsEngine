@@ -8,15 +8,15 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class BooleanPrototype
 {
     [JsHostMethod("toString", Length = 0d)]
-    public object? ToString(object? thisValue, IReadOnlyList<object?> _)
+    public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        return RequireBooleanReceiver(thisValue) ? "true" : "false";
+        return new JsValue(RequireBooleanReceiver(thisValue) ? "true" : "false");
     }
 
     [JsHostMethod("valueOf", Length = 0d)]
-    public object? ValueOf(object? thisValue, IReadOnlyList<object?> _)
+    public JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        return RequireBooleanReceiver(thisValue);
+        return new JsValue(RequireBooleanReceiver(thisValue));
     }
 
     protected override void ConfigurePrototype()
@@ -29,15 +29,31 @@ public sealed partial class BooleanPrototype
         Realm.BooleanPrototype ??= Prototype as JsObject;
     }
 
-    private bool RequireBooleanReceiver(object? receiver)
+    private bool RequireBooleanReceiver(JsValue receiver)
     {
-        return receiver switch
+        if (receiver.TryGetBoolean(out var flag))
         {
-            bool flag => flag,
-            JsObject obj when obj.TryGetProperty("__value__", out var inner) && inner is bool b => b,
-            IJsPropertyAccessor accessor when accessor.TryGetProperty("__value__", out var inner) &&
-                                              inner is bool b => b,
-            _ => throw ThrowTypeError("Boolean method called on non-boolean object", realm: Realm)
-        };
+            return flag;
+        }
+
+        if (receiver.TryGetObject<JsObject>(out var obj) && obj is not null && obj.TryGetProperty("__value__", out var inner))
+        {
+            var innerJsValue = inner;
+            if (innerJsValue.TryGetBoolean(out var boolVal))
+            {
+                return boolVal;
+            }
+        }
+
+        if (receiver.TryGetObject<IJsPropertyAccessor>(out var accessor) && accessor is not null && accessor.TryGetProperty("__value__", out var innerVal))
+        {
+            var innerJsValue = innerVal;
+            if (innerJsValue.TryGetBoolean(out var boolVal))
+            {
+                return boolVal;
+            }
+        }
+
+        throw ThrowTypeError("Boolean method called on non-boolean object", realm: Realm);
     }
 }

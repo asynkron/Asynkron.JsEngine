@@ -35,7 +35,7 @@ public static partial class TypedAstEvaluator
         private void CreateUninitializedLexicalBindings(JsEnvironment environment, bool isConst)
         {
             WalkBindingTargets(target,
-                id => environment.Define(id.Name, JsEnvironment.Uninitialized, isConst,
+                id => environment.DefineJsValue(id.Name, JsValue.Uninitialized, isConst,
                     isLexical: true, blocksFunctionScopeOverride: true));
         }
 
@@ -51,8 +51,7 @@ public static partial class TypedAstEvaluator
             WalkBindingTargets(target,
                 identifier =>
                 {
-                    if (!context.CurrentScope.IsStrict && lexicalNames is not null &&
-                        lexicalNames.Contains(identifier.Name))
+                    if (!context.CurrentScope.IsStrict && lexicalNames?.Contains(identifier.Name) == true)
                     {
                         return;
                     }
@@ -151,17 +150,23 @@ public static partial class TypedAstEvaluator
                     break;
                 case AssignmentTargetBinding assignmentTarget:
                 {
-                    var reference = AssignmentReferenceResolver.Resolve(
-                        assignmentTarget.Expression,
-                        environment,
-                        context,
-                        (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
+                    // Use fast path for identifiers, slow path for member expressions
+                    var reference = assignmentTarget.Expression is IdentifierExpression
+                        ? AssignmentReferenceResolver.ResolveIdentifierFast(
+                            assignmentTarget.Expression, environment, context)
+                        : AssignmentReferenceResolver.Resolve(
+                            assignmentTarget.Expression,
+                            environment,
+                            context,
+                            static (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
                     if (context.ShouldStopEvaluation)
                     {
                         return;
                     }
 
-                    reference.SetValue(JsValue.FromObject(value));
+                    // value might be a boxed JsValue, handle it appropriately
+                    var valueJs = value is JsValue vjs ? vjs : JsValue.FromObjectUnsafe(value);
+                    reference.SetValue(valueJs);
                     break;
                 }
                 default:

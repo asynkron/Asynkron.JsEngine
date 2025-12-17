@@ -1,6 +1,5 @@
 using System.Buffers.Binary;
 using System.Numerics;
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 
@@ -56,7 +55,7 @@ public sealed class JsBigInt64Array(JsArrayBuffer buffer, int byteOffset, int le
         BinaryPrimitives.WriteInt64LittleEndian(span, coerced);
     }
 
-    public override void SetValue(int index, object? value)
+    public override void SetValue(int index, JsValue value)
     {
         SetElement(index, StandardLibrary.ToBigInt(value, realmState: _buffer.RealmState));
     }
@@ -69,20 +68,20 @@ public sealed class JsBigInt64Array(JsArrayBuffer buffer, int byteOffset, int le
         return new JsBigInt(new BigInteger(value));
     }
 
-    internal override object? GetValueForIndex(int index)
+    internal override JsValue GetValueForIndex(int index)
     {
         if (_buffer.IsDetached || IsDetachedOrOutOfBounds())
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
         var currentLength = Length;
         if (index < 0 || index >= currentLength)
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
-        return GetBigIntElement(index);
+        return new JsValue(GetBigIntElement(index));
     }
 
     public override TypedArrayBase Subarray(int begin, int end)

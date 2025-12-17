@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.JsTypes;
+
 namespace Asynkron.JsEngine.Tests;
 
 public class EventQueueTests
@@ -88,12 +90,12 @@ public class EventQueueTests
     public async Task Run_AllowsInteractionWithHostFunctions()
     {
         await using var engine = new JsEngine();
-        var capturedValues = new List<object?>();
+        var capturedValues = new List<JsValue>();
 
         engine.SetGlobalFunction("capture", args =>
         {
             capturedValues.AddRange(args);
-            return null;
+            return JsValue.Null;
         });
 
         engine.ScheduleTask(() => capturedValues.Add("from-task"));

@@ -1,13 +1,16 @@
+using Asynkron.JsEngine.JsTypes;
+
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
     extension(ContinueStatement statement)
     {
-        private object EvaluateContinue(EvaluationContext context)
+        private JsValue EvaluateContinueJsValue(EvaluationContext context)
         {
             context.SetContinue(statement.Label);
-            return EmptyCompletion;
+            // Return Unit (empty completion) per ES spec - UpdateEmpty will preserve the previous value
+            return JsValue.Unit;
         }
     }
 }

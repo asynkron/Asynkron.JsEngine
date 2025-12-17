@@ -49,23 +49,92 @@ string intStr = intValue.ToString(); // BAD: Uses current culture for formatting
 
 Different cultures format numbers differently:
 - US: `3.14` (period as decimal separator)
-- Germany: `3,14` (comma as decimal separator)  
+- Germany: `3,14` (comma as decimal separator)
 - France: `3,14` with thousands separator
 
 JavaScript expects consistent number formatting (US/Invariant style with periods), so we must always use InvariantCulture to match JavaScript behavior.
 
-## Memory Profiling
+## Profiling
 
-> **Detailed Guide**: See [docs/memory-profiling.md](docs/memory-profiling.md) for comprehensive profiling techniques including dotnet-trace, GC dumps, and trace analysis.
+### Python Profiler Script (Recommended)
 
-### Quick Start
+The easiest way to profile JsEngine is using the unified Python profiler script:
+
+```bash
+cd tools
+
+# Profile fibonacci (CPU + memory)
+python3 profile.py fib
+
+# Profile forloop (CPU + memory)
+python3 profile.py forloop
+
+# Profile all benchmarks
+python3 profile.py all
+
+# CPU profiling only
+python3 profile.py fib --cpu
+
+# Memory profiling only
+python3 profile.py fib --memory
+
+# Run Jint comparison benchmarks
+python3 profile.py --compare
+```
+
+The script automatically:
+1. Builds the profile projects
+2. Runs `dotnet-trace` for CPU profiling
+3. Converts traces to speedscope format
+4. Parses the JSON and outputs hot functions
+5. Runs allocation profiling with GC stats
+6. Shows allocation call graphs (who triggered each allocation)
+
+#### Output Example
+
+```
+=== JSENGINE HOT FUNCTIONS ===
+   Time (ms)      Calls  Function
+--------------------------------------------------------------------------------------------------------------
+    38805.39      19533  Asynkron.JsEngine.Ast.TypedAstEvaluator.EvaluateExpression...
+    19769.23       9897  Asynkron.JsEngine.Ast.TypedAstEvaluator+TypedFunction.Invoke...
+    19753.25       9961  Asynkron.JsEngine.Ast.TypedAstEvaluator.EvaluateCall...
+
+JsEngine time: 166928.10 ms (91.8% of total)
+```
+
+#### Allocation Call Graph
+
+The profiler also outputs allocation hotspots with call graphs showing the code paths that triggered allocations:
+
+```
+=== ALLOCATION HOTSPOTS (constructors & allocators) ===
+
+CreateNextIterationEnvironment
+  Calls: 1048
+  Allocated by:
+    <- EvaluateLoopPlanJsValue (1048x, 100%)
+         <- EvaluateForJsValue (4x)
+
+JsArgumentsObject..ctor
+  Calls: 208
+  Allocated by:
+    <- CreateArgumentsObject (208x, 100%)
+         <- TypedFunction.Invoke (362x)
+```
+
+This helps identify which code paths cause the most memory allocations.
+
+### Manual Profiling
+
+#### Quick Start with BenchmarkDotNet
 
 ```bash
 cd benchmarks/Asynkron.JsEngine.Benchmarks
 dotnet run -c Release -- --filter "*Fibonacci*"
 ```
 
-### Capture Detailed Allocation Trace
+#### Capture Detailed Allocation Trace
 
 ```bash
 # Trace what's being allocated (with call stacks)
@@ -83,6 +152,8 @@ dotnet-trace report trace.nettrace topN -n 30
 # Or convert to Speedscope/Chromium format for visualization
 dotnet-trace convert trace.nettrace --format Speedscope
 ```
+
+> **Detailed Guide**: See [docs/memory-profiling.md](docs/memory-profiling.md) for comprehensive profiling techniques including dotnet-trace, GC dumps, and trace analysis.
 
 ### Known Allocation Hotspots
 
@@ -195,3 +266,135 @@ The remaining gap (113 MB vs Jint's 50 MB ≈ 2.3x allocations, 123 ms vs 52 ms 
 ## Other Guidelines
 
 (Add additional coding guidelines here as needed)
+
+## System.Object to JsValue
+
+Many bugs are a result of untyped `object` values being passed around instead of `JsValue`.
+Always ensure proper conversion when interfacing with JavaScript values.
+
+If a method receives `object`, do not add guards casting or checking for JsObject, update the method to accept `JsValue` directly.
+
+## JsValue Overload Pattern for Evaluators
+
+When optimizing evaluator methods to avoid boxing, follow this pattern:
+
+### Problem
+Methods like `EvaluateBlock`, `EvaluateStatement`, `EvaluateIf` return `object?` which causes boxing when the result is a primitive (double, bool, etc.). In hot loops, this creates massive memory allocations.
+
+### Solution
+Add `JsValue`-returning overloads to evaluator methods:
+
+1. **Keep the original method** for compatibility:
+```csharp
+private object? EvaluateBlock(JsEnvironment environment, EvaluationContext context)
+{
+    var (jsResult, hasJsResult, objResult) = EvaluateBlockCore(block, environment, context);
+    return hasJsResult ? jsResult.ToObject() : objResult;
+}
+```
+
+2. **Add a JsValue overload** for hot paths:
+```csharp
+private JsValue EvaluateBlockJsValue(JsEnvironment environment, EvaluationContext context)
+{
+    var (jsResult, hasJsResult, objResult) = EvaluateBlockCore(block, environment, context);
+    return hasJsResult ? jsResult : JsValue.FromObject(objResult);
+}
+```
+
+3. **Extract core logic** that returns both forms without boxing:
+```csharp
+private (JsValue jsResult, bool hasJsResult, object? objResult) EvaluateBlockCore(
+    JsEnvironment environment, EvaluationContext context)
+{
+    // Implementation that tracks JsValue separately from object results
+}
+```
+
+### Where to Apply
+
+Apply this pattern to evaluators called in hot loops:
+
+| Method | File | Priority |
+|--------|------|----------|
+| `EvaluateStatement` | StatementNodeExtensions.cs | High |
+| `EvaluateBlock` | BlockStatementExtensions.cs | High |
+| `EvaluateIf` | IfStatementExtensions.cs | High |
+| `EvaluateExpression` | Already returns JsValue | Done |
+
+### Usage in Loops
+
+In `LoopPlanExtensions.cs`, use the JsValue versions:
+
+```csharp
+// Track loop result as JsValue to avoid boxing on each iteration
+var lastValueJs = JsValue.Undefined;
+
+while (true)
+{
+    // Use JsValue version - no boxing per iteration
+    lastValueJs = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
+    // ...
+}
+
+// Only box at the final return
+return lastValueJs.ToObject();
+```
+
+### Fast Path in EvaluateStatementJsValue
+
+Handle the common cases without boxing:
+
+```csharp
+private JsValue EvaluateStatementJsValue(JsEnvironment environment, EvaluationContext context, Symbol? activeLabel = null)
+{
+    // Fast path for hot loop cases - avoid boxing
+    switch (statement)
+    {
+        case BlockStatement block:
+            return EvaluateBlockJsValue(block, environment, context);
+        case ExpressionStatement expr:
+            return EvaluateExpression(expr.Expression, environment, context);
+        case IfStatement ifStmt:
+            return EvaluateIfJsValue(ifStmt, environment, context);
+    }
+
+    // Slow path for other statements - box the result
+    var result = EvaluateStatement(statement, environment, context, activeLabel);
+    return JsValue.FromObject(result);
+}
+```
+
+### Results
+
+This optimization reduced memory allocation in the ForLoop benchmark:
+- `let` loops (50k iterations): 4.99 MB → 3.84 MB (23% reduction)
+- `var` loops (100k iterations): 29.52 MB → 27.24 MB (8% reduction)
+- Execution time also improved ~19% for `let` loops
+
+## Comparing to Jint
+
+When discussing performance comparisons with Jint:
+
+### Do NOT Say
+- "The performance gap with Jint is likely due to deeper architectural differences"
+- "Bytecode compilation (like Jint's interpreter)" - **Jint is NOT a bytecode interpreter**, it's an AST-walking interpreter like we are
+
+### Do Say
+- "We need to investigate what specific optimizations we can apply"
+- "Let's profile to find the actual bottlenecks"
+- "What are the remaining allocation hotspots?"
+
+### Key Facts About Jint
+- Jint is an **AST-walking interpreter**, not a bytecode interpreter
+- Both Jint and Asynkron.JsEngine evaluate JavaScript by walking the AST
+- Jint uses `readonly struct ExecutionContext` while we use class `EvaluationContext` (required for async/await support)
+- When comparing, always profile and identify specific differences rather than hand-waving about "architecture"
+
+### Investigation Approach
+When we're slower than Jint, the proper approach is:
+1. Profile both engines on the same workload
+2. Compare hot function call counts and time distribution
+3. Identify specific allocations/operations that differ
+4. Create targeted optimizations for each bottleneck
+5. Repeat until parity is achieved or specific trade-offs are understood

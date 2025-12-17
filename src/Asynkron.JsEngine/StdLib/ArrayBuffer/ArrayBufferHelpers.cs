@@ -8,11 +8,17 @@ public static partial class StandardLibrary
 {
     internal static void StoreInternalArrayBuffer(JsObject obj, JsArrayBuffer buffer)
     {
-        obj.SetProperty("_internalArrayBuffer", buffer);
+        obj.SetProperty("_internalArrayBuffer", JsValue.FromObjectUnsafe(buffer));
     }
 
     internal static JsArrayBuffer RequireArrayBuffer(object? thisVal, RealmState realm)
     {
+        // Handle boxed JsValue struct first - unwrap to get the underlying object
+        if (thisVal is JsValue jsVal)
+        {
+            thisVal = jsVal.ToObject();
+        }
+
         if (thisVal is JsArrayBuffer directBuffer)
         {
             return directBuffer;
@@ -25,11 +31,16 @@ public static partial class StandardLibrary
             {
                 return internalBuffer;
             }
+            // Handle case where value is boxed JsValue struct
+            if (descriptor?.Value is JsValue bufJsVal && bufJsVal.TryGetObject<JsArrayBuffer>(out var bufferFromJsValue))
+            {
+                return bufferFromJsValue;
+            }
         }
 
         if (thisVal is IJsPropertyAccessor accessor &&
             accessor.TryGetProperty("_internalArrayBuffer", out var internalVal) &&
-            internalVal is JsArrayBuffer bufferFromAccessor)
+            internalVal.TryGetObject<JsArrayBuffer>(out var bufferFromAccessor))
         {
             return bufferFromAccessor;
         }
@@ -39,18 +50,24 @@ public static partial class StandardLibrary
 
     internal static IJsCallable ArrayBufferSpeciesCreate(object? thisVal, RealmState realm, HostFunction defaultConstructor)
     {
+        // Handle boxed JsValue struct first - unwrap to get the underlying object
+        if (thisVal is JsValue jsVal)
+        {
+            thisVal = jsVal.ToObject();
+        }
+
         if (thisVal is not IJsPropertyAccessor accessor ||
             !accessor.TryGetProperty("constructor", out var ctorVal))
         {
             return defaultConstructor;
         }
 
-        if (ReferenceEquals(ctorVal, Symbol.Undefined))
+        if (ctorVal.IsUndefined)
         {
             return defaultConstructor;
         }
 
-        if (ctorVal is null || ctorVal is not IJsPropertyAccessor ctorAccessor)
+        if (!ctorVal.TryGetObject<IJsPropertyAccessor>(out var ctorAccessor))
         {
             throw ThrowTypeError("Constructor is not an object", realm: realm);
         }
@@ -60,12 +77,12 @@ public static partial class StandardLibrary
             ? candidate
             : ctorVal;
 
-        if (speciesVal is null || ReferenceEquals(speciesVal, Symbol.Undefined))
+        if (speciesVal.IsNullOrUndefined)
         {
             return defaultConstructor;
         }
 
-        if (speciesVal is not IJsCallable callable || !JsOps.IsConstructor(speciesVal))
+        if (!speciesVal.TryGetObject<IJsCallable>(out var callable) || !JsOps.IsConstructor(speciesVal))
         {
             throw ThrowTypeError("ArrayBuffer species constructor is not a constructor", realm: realm);
         }
@@ -73,25 +90,26 @@ public static partial class StandardLibrary
         return callable;
     }
 
-    internal static object? ArrayBufferIsView(object? _, IReadOnlyList<object?> args, RealmState? __)
+    internal static JsValue ArrayBufferIsView(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
-        if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
+        if (args.Count == 0 || args[0].IsNullOrUndefined)
         {
-            return false;
+            return JsValue.False;
         }
 
-        if (args[0] is TypedArrayBase or JsDataView)
+        var arg = args[0];
+        if (arg.TryGetObject<TypedArrayBase>(out _) || arg.TryGetObject<JsDataView>(out _))
         {
-            return true;
+            return JsValue.True;
         }
 
-        if (args[0] is IJsPropertyAccessor accessor &&
+        if (arg.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
             accessor.TryGetProperty("_internalDataView", out var dv) &&
-            dv is JsDataView)
+            dv.TryGetObject<JsDataView>(out _))
         {
-            return true;
+            return JsValue.True;
         }
 
-        return false;
+        return JsValue.False;
     }
 }

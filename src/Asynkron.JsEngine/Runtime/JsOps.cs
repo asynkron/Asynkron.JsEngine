@@ -86,9 +86,55 @@ internal static class JsOps
         return double.IsFinite(value) && value % 1 == 0 && Math.Abs(value % 2) == 1;
     }
 
+    /// <summary>
+    /// ECMAScript-compliant modulo operation that properly handles negative zero.
+    /// Per ES spec 13.15.3: The result of a remainder operation preserves the sign of the dividend.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static double MathMod(double dividend, double divisor)
+    {
+        // If either operand is NaN, return NaN
+        if (double.IsNaN(dividend) || double.IsNaN(divisor))
+        {
+            return double.NaN;
+        }
+
+        // If dividend is infinity, return NaN
+        if (double.IsInfinity(dividend))
+        {
+            return double.NaN;
+        }
+
+        // If divisor is zero, return NaN
+        if (divisor == 0)
+        {
+            return double.NaN;
+        }
+
+        // If divisor is infinity and dividend is finite, result equals dividend (preserves sign)
+        if (double.IsInfinity(divisor))
+        {
+            return dividend;
+        }
+
+        // If dividend is zero, result equals dividend (preserves sign of zero)
+        // This is important: -0 % n = -0
+        if (dividend == 0)
+        {
+            return dividend;
+        }
+
+        // Standard remainder operation
+        return dividend % divisor;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsNullish(this object? value)
     {
+        if (value is JsValue jsValue)
+        {
+            value = jsValue.ToObject();
+        }
         return value is null ||
                (value is Symbol sym && ReferenceEquals(sym, Symbol.Undefined));
     }
@@ -103,6 +149,7 @@ internal static class JsOps
         return value switch
         {
             null => false,
+            JsValue jsValue => ToBoolean(jsValue.ToObject()),
             Symbol sym when ReferenceEquals(sym, Symbol.Undefined) => false,
             IIsHtmlDda => false,
             bool b => b,
@@ -127,36 +174,47 @@ internal static class JsOps
 
     public static object ToNumeric(object? value, EvaluationContext? context = null)
     {
-        return ToNumericResult(value, context).ToObject();
+        var result = ToNumericAsJsValue(value, context);
+        // Important: explicit casts to object to avoid implicit JsValue conversions
+        if (result.IsNumber) return (object)result;
+        if (result.IsBigInt) return result.AsBigInt();
+        return (object)result;
     }
 
     /// <summary>
-    /// Converts a value to numeric without boxing. Use this for internal arithmetic operations.
-    /// Only call ToObject() on the result when you need to return to JS.
+    /// Converts a value to numeric as JsValue without boxing. Use this for internal arithmetic operations.
+    /// Returns JsValue with Number or BigInt kind. On error, returns JsValue.Undefined (check context.IsThrow).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static NumericResult ToNumericResult(object? value, EvaluationContext? context = null)
+    internal static JsValue ToNumericAsJsValue(object? value, EvaluationContext? context = null)
     {
         // Fast paths for already-numeric types (avoid full conversion)
-        if (value is double d) return new NumericResult(d);
-        if (value is JsBigInt bi) return new NumericResult(bi);
-        if (value is int i) return new NumericResult((double)i);
+        if (value is double d) return new JsValue(d);
+        if (value is JsBigInt bi) return new JsValue(bi);
+        if (value is int i) return new JsValue((double)i);
+        if (value is JsValue jsv)
+        {
+            if (jsv.IsNumber || jsv.IsBigInt) return jsv;
+            // Handle JsValue kinds that have null ObjectValue specially
+            // to avoid null being treated as 0 in ToNumericCore
+            if (jsv.Kind == JsValueKind.Undefined) return JsValue.NaN;
+            if (jsv.Kind == JsValueKind.Null) return JsValue.Zero;
+            if (jsv.Kind == JsValueKind.Boolean) return new JsValue(jsv.NumberValue);
+            return ToNumericCore(jsv.ObjectValue, context);
+        }
 
         return ToNumericCore(value, context);
     }
 
     public static double ToNumberWithContext(object? value, EvaluationContext? context = null)
     {
-        var result = ToNumericCore(value, context);
-        return result.Kind switch
-        {
-            NumericKind.Number => result.NumberValue,
-            NumericKind.BigInt => (double)result.BigIntValue!.Value,
-            _ => double.NaN
-        };
+        var result = ToNumericAsJsValue(value, context);
+        if (result.IsNumber) return result.NumberValue;
+        if (result.IsBigInt) return (double)result.AsBigInt().Value;
+        return double.NaN;
     }
 
-    private static NumericResult ToNumericCore(
+    private static JsValue ToNumericCore(
         object? value,
         EvaluationContext? context)
     {
@@ -165,56 +223,81 @@ internal static class JsOps
         {
             if (++iterations > 20)
             {
-                return new NumericResult(double.NaN);
+                return JsValue.NaN;
             }
 
             switch (value)
             {
                 case null:
-                    return new NumericResult(0d);
+                    return JsValue.Zero;
+                case JsValue jsValue:
+                    switch (jsValue.Kind)
+                    {
+                        case JsValueKind.Undefined:
+                            return JsValue.NaN;
+                        case JsValueKind.Null:
+                            return JsValue.Zero;
+                        case JsValueKind.Boolean:
+                        case JsValueKind.Number:
+                            return new JsValue(jsValue.NumberValue);
+                        case JsValueKind.BigInt:
+                            if (jsValue.ObjectValue is JsBigInt jsBigInt)
+                            {
+                                return new JsValue(jsBigInt);
+                            }
+                            return JsValue.NaN;
+                        case JsValueKind.String:
+                        case JsValueKind.Symbol:
+                        case JsValueKind.Object:
+                            value = jsValue.ObjectValue;
+                            continue;
+                        default:
+                            value = jsValue.ToObject();
+                            continue;
+                    }
                 case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
                 case IIsHtmlDda:
-                    return new NumericResult(double.NaN);
+                    return JsValue.NaN;
                 case Symbol:
                 case TypedAstSymbol:
                 {
                     var error = CreateTypeError("Cannot convert a Symbol value to a number", context);
                     if (context is null)
                     {
-                        throw new ThrowSignal(error);
+                        throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
                     }
 
-                    context.SetThrow(error);
-                    return NumericResult.Error;
+                    context.SetThrow(JsValue.FromObjectUnsafe(error));
+                    return JsValue.Undefined; // Error state - caller should check context.IsThrow
                 }
                 case JsBigInt bigInt:
-                    return new NumericResult(bigInt);
+                    return new JsValue(bigInt);
                 case double d:
-                    return new NumericResult(d);
+                    return new JsValue(d);
                 case float f:
-                    return new NumericResult((double)f);
+                    return new JsValue(f);
                 case decimal m:
-                    return new NumericResult((double)m);
+                    return new JsValue((double)m);
                 case int i:
-                    return new NumericResult((double)i);
+                    return new JsValue((double)i);
                 case uint ui:
-                    return new NumericResult((double)ui);
+                    return new JsValue(ui);
                 case long l:
-                    return new NumericResult((double)l);
+                    return new JsValue(l);
                 case ulong ul:
-                    return new NumericResult((double)ul);
+                    return new JsValue(ul);
                 case short s:
-                    return new NumericResult((double)s);
+                    return new JsValue(s);
                 case ushort us:
-                    return new NumericResult((double)us);
+                    return new JsValue(us);
                 case byte b:
-                    return new NumericResult((double)b);
+                    return new JsValue(b);
                 case sbyte sb:
-                    return new NumericResult((double)sb);
+                    return new JsValue(sb);
                 case bool flag:
-                    return new NumericResult(flag ? 1d : 0d);
+                    return flag ? JsValue.One : JsValue.Zero;
                 case string str:
-                    return new NumericResult(NumericStringParser.ParseJsNumber(str));
+                    return new JsValue(NumericStringParser.ParseJsNumber(str));
             }
 
             switch (value)
@@ -232,7 +315,7 @@ internal static class JsOps
                         // Symbol wrappers should behave like their unboxed symbol value for ToNumeric
                         // so mixed BigInt/Symbol cases throw correctly.
                         if (jsObj.TryGetProperty("SymbolData", out var symbolData) &&
-                            symbolData is TypedAstSymbol sym)
+                            symbolData.TryGetObject<TypedAstSymbol>(out var sym))
                         {
                             value = sym;
                             continue;
@@ -247,17 +330,17 @@ internal static class JsOps
 
                     if (context?.IsThrow == true)
                     {
-                        return NumericResult.Error;
+                        return JsValue.Undefined; // Error state - caller should check context.IsThrow
                     }
 
                     var error = CreateTypeError("Cannot convert object to primitive value", context);
                     if (context is null)
                     {
-                        throw new ThrowSignal(error);
+                        throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
                     }
 
-                    context.SetThrow(error);
-                    return NumericResult.Error;
+                    context.SetThrow(JsValue.FromObjectUnsafe(error));
+                    return JsValue.Undefined; // Error state - caller should check context.IsThrow
                 }
                 default:
                     throw new InvalidOperationException($"Cannot convert value '{value}' to a number.");
@@ -284,8 +367,8 @@ internal static class JsOps
                 {
                     var result = TypedAstEvaluator.InvokeCallable(
                         toPrimFn,
-                        new object?[] { "number" },
-                        accessor,
+                        [new JsValue("number")],
+                        JsValue.FromObjectUnsafe(accessor),
                         context,
                         accessor is JsObject obj ? obj.RealmState?.Engine?.GlobalEnvironment : null);
                     if (context?.IsThrow == true)
@@ -361,10 +444,10 @@ internal static class JsOps
         var error = CreateTypeError("Cannot convert object to primitive value", context);
         if (context is null)
         {
-            throw new ThrowSignal(error);
+            throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
         }
 
-        context.SetThrow(error);
+        context.SetThrow(JsValue.FromObjectUnsafe(error));
 
         return false;
     }
@@ -443,8 +526,8 @@ internal static class JsOps
                     };
                     var result = TypedAstEvaluator.InvokeCallable(
                         toPrimFn,
-                        [hintString],
-                        accessor,
+                        [new JsValue(hintString)],
+                        JsValue.FromObjectUnsafe(accessor),
                         context,
                         accessor is JsObject obj ? obj.RealmState?.Engine?.GlobalEnvironment : null);
                     if (context?.IsThrow == true)
@@ -795,8 +878,13 @@ internal static class JsOps
         }
 
         // Step 5b: If one is BigInt and the other is Number, do mixed-type comparison
-        if ((leftNumeric is JsBigInt && rightNumeric is double) ||
-            (leftNumeric is double && rightNumeric is JsBigInt))
+        // Note: ToNumeric may return a boxed JsValue for numbers (not a raw double), so we need to
+        // check both `double` and `JsValue` with IsNumber to correctly identify numeric values.
+        var leftIsNumber = TryGetNumericDouble(leftNumeric, out var leftDouble);
+        var rightIsNumber = TryGetNumericDouble(rightNumeric, out var rightDouble);
+
+        if ((leftNumeric is JsBigInt && rightIsNumber) ||
+            (leftIsNumber && rightNumeric is JsBigInt))
         {
             JsBigInt bigIntValue;
             double numberValue;
@@ -805,13 +893,13 @@ internal static class JsOps
             if (leftNumeric is JsBigInt)
             {
                 bigIntValue = (JsBigInt)leftNumeric;
-                numberValue = (double)rightNumeric;
+                numberValue = rightDouble;
                 bigIntIsLeft = true;
             }
             else
             {
                 bigIntValue = (JsBigInt)rightNumeric;
-                numberValue = (double)leftNumeric;
+                numberValue = leftDouble;
                 bigIntIsLeft = false;
             }
 
@@ -926,6 +1014,24 @@ internal static class JsOps
         };
     }
 
+    // Helper method to extract a double from a numeric value (either raw double or boxed JsValue)
+    // Returns true if the value is a number, false otherwise.
+    private static bool TryGetNumericDouble(object? value, out double result)
+    {
+        if (value is double d)
+        {
+            result = d;
+            return true;
+        }
+        if (value is JsValue jsv && jsv.IsNumber)
+        {
+            result = jsv.NumberValue;
+            return true;
+        }
+        result = 0;
+        return false;
+    }
+
     // Helper method to compare a BigInteger to a double without precision loss
     private static int CompareBigIntToDouble(BigInteger bigInt, double number)
     {
@@ -966,6 +1072,10 @@ internal static class JsOps
             {
                 case null:
                     return "null";
+                case JsValue jsValue:
+                    // Unwrap JsValue and continue with the inner value
+                    value = jsValue.ToObject();
+                    continue;
                 case string s:
                     return s;
                 case JsBigInt bigInt:
@@ -1038,12 +1148,26 @@ internal static class JsOps
 
         var sign = value < 0 ? "-" : string.Empty;
         var abs = Math.Abs(value);
+
+        // Fast path: if it's a whole number that fits in a long, use integer conversion.
+        // This avoids precision loss from floating-point format strings for large integers.
+        // The format "0.###################" rounds incorrectly for values near and above 2^53.
+        // Note: Any integer that fits in a double without fraction is exactly representable
+        // up to the limits of double precision, and can be safely converted to long.
+        if (abs == Math.Truncate(abs) && abs <= (double)long.MaxValue)
+        {
+            var intVal = (long)abs;
+            return sign + intVal.ToString(CultureInfo.InvariantCulture);
+        }
+
         var exponent = (int)Math.Floor(Math.Log10(abs));
         var useExponential = exponent < -6 || exponent >= 21;
 
         if (!useExponential)
         {
             // Fixed-point form for the mid-range magnitude.
+            // Use "0.###################" format for non-integers - it works correctly for these.
+            // Only large integers near MAX_SAFE_INTEGER need the special handling above.
             var fixedText = abs.ToString("0.###################", CultureInfo.InvariantCulture);
             return sign + fixedText;
         }
@@ -1057,86 +1181,18 @@ internal static class JsOps
         return $"{sign}{mantissa}e{expStr}";
     }
 
-    private static bool TryConvertObjectToPropertyKey(IJsPropertyAccessor accessor, out object? key,
-        EvaluationContext? context)
-    {
-        key = null;
-
-        var attempted = false;
-
-        if (TryInvokePropertyMethod(accessor, "toString", out var toStringResult, context))
-        {
-            attempted = true;
-            if (IsPropertyKeyPrimitive(toStringResult))
-            {
-                key = toStringResult;
-                return true;
-            }
-        }
-
-        if (context?.IsThrow == true)
-        {
-            key = null;
-            return false;
-        }
-
-        if (TryInvokePropertyMethod(accessor, "valueOf", out var valueOfResult, context))
-        {
-            attempted = true;
-            if (IsPropertyKeyPrimitive(valueOfResult))
-            {
-                key = valueOfResult;
-                return true;
-            }
-        }
-
-        if (context?.IsThrow == true)
-        {
-            key = null;
-            return false;
-        }
-
-        if (!attempted)
-        {
-            return false;
-        }
-
-        key = null;
-
-        var error = CreateTypeError("Cannot convert object to property key", context);
-        if (context is null)
-        {
-            throw new ThrowSignal(error);
-        }
-
-        context.SetThrow(error);
-        return false;
-    }
-
-    private static bool IsPropertyKeyPrimitive(object? candidate)
-    {
-        if (candidate is JsObject jsObj && jsObj.TryGetValue("__value__", out var inner))
-        {
-            candidate = inner;
-        }
-
-        return candidate is null or string or bool or double or float or decimal or int or uint
-            or long or ulong or short or ushort or byte or sbyte or Symbol or TypedAstSymbol
-            or JsBigInt;
-    }
-
     private static bool TryInvokePropertyMethod(IJsPropertyAccessor accessor, string methodName, out object? result,
         EvaluationContext? context)
     {
         result = null;
-        if (!accessor.TryGetProperty(methodName, out var method) || method is not IJsCallable callable)
+        if (!accessor.TryGetProperty(methodName, out var method) || !method.TryGetObject<IJsCallable>(out var callable))
         {
             return false;
         }
 
         try
         {
-            result = TypedAstEvaluator.InvokeCallable(callable, Array.Empty<object?>(), accessor, context,
+            result = TypedAstEvaluator.InvokeCallable(callable, [], JsValue.FromObjectUnsafe(accessor), context,
                 accessor is JsObject obj ? obj.RealmState?.Engine?.GlobalEnvironment : null);
             return context?.IsThrow != true;
         }
@@ -1528,6 +1584,20 @@ internal static class JsOps
     public static bool TryGetPropertyValue(object? target, string propertyName, out object? value,
         EvaluationContext? context = null)
     {
+        // Unwrap JsValue early so property access works on wrapped callables/objects
+        if (target is JsValue jsVal)
+        {
+            target = jsVal.ToObject();
+        }
+
+        var debugTargetName = propertyName is "sameValue" or "valueOf"
+            ? target?.GetType().Name ?? "null"
+            : null;
+        if (debugTargetName is not null)
+        {
+            Console.WriteLine($"DEBUG TryGetPropertyValue entering: prop={propertyName}, targetType={debugTargetName}, target={target}");
+        }
+
         if (target is IJsPropertyAccessor propertyAccessor)
         {
             try
@@ -1540,8 +1610,9 @@ internal static class JsOps
                 // For Symbol primitives, first try own properties, then fall back to Symbol.prototype
                 if (propertyAccessor is TypedAstSymbol symbol)
                 {
-                    if (symbol.TryGetProperty(propertyName, out value))
+                    if (symbol.TryGetProperty(propertyName, out var jsValue))
                     {
+                        value = jsValue.ToObject();
                         return true;
                     }
 
@@ -1556,18 +1627,24 @@ internal static class JsOps
                     return false;
                 }
 
-                return propertyAccessor.TryGetProperty(propertyName, target, out value);
+                if (propertyAccessor.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), out var jsVal2))
+                {
+                    value = jsVal2.ToObject();
+                    return true;
+                }
+                value = null;
+                return false;
             }
             catch (ThrowSignal signal)
             {
-                if (context is not null)
+                if (context is null)
                 {
-                    context.SetThrow(signal.ThrownValue);
-                    value = signal.ThrownValue;
-                    return true;
+                    throw;
                 }
 
-                throw;
+                context.SetThrow(signal.ThrownValue);
+                value = signal.ThrownValue;
+                return true;
             }
         }
 
@@ -1649,6 +1726,11 @@ internal static class JsOps
         }
 
         value = null;
+
+        if (debugTargetName is not null)
+        {
+            Console.WriteLine($"DEBUG TryGetPropertyValue miss: prop={propertyName}, targetType={debugTargetName}, target={target}");
+        }
         return false;
     }
 
@@ -1712,6 +1794,9 @@ internal static class JsOps
         {
             switch (value)
             {
+                case JsValue jsValue:
+                    value = jsValue.ToObject();
+                    continue;
                 case JsProxy proxy:
                     value = proxy.Target;
                     continue;
@@ -1789,7 +1874,7 @@ internal static class JsOps
     {
         if (target is IJsPropertyAccessor accessor)
         {
-            accessor.SetProperty(propertyName, value, target);
+            accessor.SetProperty(propertyName, JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(target));
             return;
         }
 
@@ -1840,7 +1925,7 @@ internal static class JsOps
                             return true;
                         }
 
-                        TypedAstEvaluator.InvokeCallable(ownDescriptor.Set, [value], jsArray, context);
+                        TypedAstEvaluator.InvokeCallable(ownDescriptor.Set, [JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(jsArray), context);
                         return true;
                     }
 
@@ -1882,7 +1967,7 @@ internal static class JsOps
                                 return true;
                             }
 
-                            TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [value], jsArray, context);
+                            TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(jsArray), context);
                             return true;
                         }
 
@@ -1925,13 +2010,13 @@ internal static class JsOps
                 return true;
             }
 
-            jsArray.SetProperty(propertyName, value, jsArray);
+            jsArray.SetProperty(propertyName, JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(jsArray));
             return true;
         }
 
         if (target is TypedArrayBase typedArray && TryResolveArrayIndex(propertyKey, out var typedIndex, context))
         {
-            typedArray.SetValue(typedIndex, value);
+            typedArray.SetValue(typedIndex, JsValue.FromObjectUnsafe(value));
             return true;
         }
 
@@ -1996,66 +2081,4 @@ internal static class JsOps
         return true;
     }
 
-    internal enum NumericKind
-    {
-        Number,
-        BigInt,
-        Error
-    }
-
-    /// <summary>
-    /// Result struct for numeric operations that avoids boxing doubles.
-    /// The double value is stored directly in the struct, not as object.
-    /// Use this internally for arithmetic operations to avoid boxing/unboxing.
-    /// </summary>
-    internal readonly struct NumericResult
-    {
-        public readonly NumericKind Kind;
-        public readonly double NumberValue;
-        public readonly JsBigInt? BigIntValue;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public NumericResult(double value)
-        {
-            Kind = NumericKind.Number;
-            NumberValue = value;
-            BigIntValue = null;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public NumericResult(JsBigInt value)
-        {
-            Kind = NumericKind.BigInt;
-            NumberValue = 0;
-            BigIntValue = value;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private NumericResult(NumericKind kind)
-        {
-            Kind = kind;
-            NumberValue = double.NaN;
-            BigIntValue = null;
-        }
-
-        public static NumericResult Error => new(NumericKind.Error);
-
-        public bool IsNumber => Kind == NumericKind.Number;
-        public bool IsBigInt => Kind == NumericKind.BigInt;
-        public bool IsError => Kind == NumericKind.Error;
-
-        /// <summary>
-        /// Boxes the result to object. Only call this when you need to return to JS.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public object ToObject()
-        {
-            return Kind switch
-            {
-                NumericKind.BigInt => BigIntValue!,
-                NumericKind.Number => JsValueCache.GetNumber(NumberValue),
-                _ => JsValueCache.BoxedNaN
-            };
-        }
-    }
 }

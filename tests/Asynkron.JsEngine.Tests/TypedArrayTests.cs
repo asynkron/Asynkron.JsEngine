@@ -713,9 +713,9 @@ public class TypedArrayTests
                                            """);
         var obj = Assert.IsType<JsObject>(result);
         var vals = Assert.IsType<JsArray>(obj["vals"]);
-        Assert.Equal(1d, vals.GetElement(0));
-        Assert.Equal(2d, vals.GetElement(1));
-        Assert.Equal(3d, vals.GetElement(2));
+        Assert.Equal(1d, vals.GetElement(0).ToObject());
+        Assert.Equal(2d, vals.GetElement(1).ToObject());
+        Assert.Equal(3d, vals.GetElement(2).ToObject());
         Assert.Equal(true, obj["sameProto"]);
     }
 
@@ -736,11 +736,11 @@ public class TypedArrayTests
         Assert.Equal(false, obj["outcome"]);
         var calls = Assert.IsType<JsArray>(obj["calls"]);
         Assert.Equal(3d, calls.Length);
-        var first = Assert.IsType<JsObject>(calls.GetElement(0));
+        var first = Assert.IsType<JsObject>(calls.GetElement(0).ToObject());
         Assert.Equal(1d, first["value"]);
         Assert.Equal(0d, first["index"]);
         Assert.Equal(true, first["same"]);
-        var third = Assert.IsType<JsObject>(calls.GetElement(2));
+        var third = Assert.IsType<JsObject>(calls.GetElement(2).ToObject());
         Assert.Equal(3d, third["value"]);
     }
 
@@ -783,9 +783,9 @@ public class TypedArrayTests
         var obj = Assert.IsType<JsObject>(result);
         Assert.Equal(true, obj["same"]);
         var values = Assert.IsType<JsArray>(obj["values"]);
-        Assert.Equal(3d, values.GetElement(0));
-        Assert.Equal(2d, values.GetElement(1));
-        Assert.Equal(1d, values.GetElement(2));
+        Assert.Equal(3d, values.GetElement(0).ToObject());
+        Assert.Equal(2d, values.GetElement(1).ToObject());
+        Assert.Equal(1d, values.GetElement(2).ToObject());
     }
 
     [Fact(Timeout = 2000)]
@@ -798,9 +798,9 @@ public class TypedArrayTests
                                                        return [arr[0], arr[1], arr[2]];
                                            """);
         var arr = Assert.IsType<JsArray>(result);
-        var first = Assert.IsType<JsBigInt>(arr.GetElement(0));
-        var second = Assert.IsType<JsBigInt>(arr.GetElement(1));
-        var third = Assert.IsType<JsBigInt>(arr.GetElement(2));
+        var first = Assert.IsType<JsBigInt>(arr.GetElement(0).ToObject());
+        var second = Assert.IsType<JsBigInt>(arr.GetElement(1).ToObject());
+        var third = Assert.IsType<JsBigInt>(arr.GetElement(2).ToObject());
         Assert.Equal(new JsBigInt(3), first);
         Assert.Equal(new JsBigInt(-2), second);
         Assert.Equal(new JsBigInt(1), third);
@@ -816,10 +816,10 @@ public class TypedArrayTests
                                                        return [arr[0], arr[1], arr[2], arr[3]];
                                            """);
         var vals = Assert.IsType<JsArray>(result);
-        Assert.Equal(1d, vals.GetElement(0));
-        Assert.Equal(9d, vals.GetElement(1));
-        Assert.Equal(9d, vals.GetElement(2));
-        Assert.Equal(4d, vals.GetElement(3));
+        Assert.Equal(1d, vals.GetElement(0).ToObject());
+        Assert.Equal(9d, vals.GetElement(1).ToObject());
+        Assert.Equal(9d, vals.GetElement(2).ToObject());
+        Assert.Equal(4d, vals.GetElement(3).ToObject());
     }
 
     [Fact(Timeout = 2000)]
@@ -832,8 +832,8 @@ public class TypedArrayTests
                                                        return [arr[0], arr[1]];
                                            """);
         var vals = Assert.IsType<JsArray>(result);
-        Assert.Equal(0d, vals.GetElement(0));
-        Assert.Equal(0d, vals.GetElement(1));
+        Assert.Equal(0d, vals.GetElement(0).ToObject());
+        Assert.Equal(0d, vals.GetElement(1).ToObject());
     }
 
     [Fact(Timeout = 2000)]
@@ -846,10 +846,10 @@ public class TypedArrayTests
                                                        return [arr[0], arr[1], arr[2], arr[3]];
                                            """);
         var vals = Assert.IsType<JsArray>(result);
-        Assert.Equal(1d, vals.GetElement(0));
-        Assert.Equal(3d, vals.GetElement(1));
-        Assert.Equal(4d, vals.GetElement(2));
-        Assert.Equal(4d, vals.GetElement(3));
+        Assert.Equal(1d, vals.GetElement(0).ToObject());
+        Assert.Equal(3d, vals.GetElement(1).ToObject());
+        Assert.Equal(4d, vals.GetElement(2).ToObject());
+        Assert.Equal(4d, vals.GetElement(3).ToObject());
     }
 
     [Fact(Timeout = 2000)]
@@ -862,10 +862,10 @@ public class TypedArrayTests
                                                        return [arr[0], arr[1], arr[2], arr[3]];
                                            """);
         var vals = Assert.IsType<JsArray>(result);
-        Assert.Equal(1d, vals.GetElement(0));
-        Assert.Equal(2d, vals.GetElement(1));
-        Assert.Equal(2d, vals.GetElement(2));
-        Assert.Equal(3d, vals.GetElement(3));
+        Assert.Equal(1d, vals.GetElement(0).ToObject());
+        Assert.Equal(2d, vals.GetElement(1).ToObject());
+        Assert.Equal(2d, vals.GetElement(2).ToObject());
+        Assert.Equal(3d, vals.GetElement(3).ToObject());
     }
 
     [Fact(Timeout = 2000)]
@@ -878,10 +878,10 @@ public class TypedArrayTests
                                                        return [spliced[0], spliced[1], spliced[2], spliced[3]];
                                            """);
         var arr = Assert.IsType<JsArray>(result);
-        Assert.Equal(1d, arr.GetElement(0));
-        Assert.Equal(99d, arr.GetElement(1));
-        Assert.Equal(100d, arr.GetElement(2));
-        Assert.Equal(4d, arr.GetElement(3));
+        Assert.Equal(1d, arr.GetElement(0).ToObject());
+        Assert.Equal(99d, arr.GetElement(1).ToObject());
+        Assert.Equal(100d, arr.GetElement(2).ToObject());
+        Assert.Equal(4d, arr.GetElement(3).ToObject());
     }
 
     [Fact(Timeout = 2000)]
@@ -894,9 +894,9 @@ public class TypedArrayTests
                                                        return [spliced.length, spliced[0], spliced[1]];
                                            """);
         var arr = Assert.IsType<JsArray>(result);
-        Assert.Equal(2d, arr.GetElement(0));
-        Assert.Equal(1d, arr.GetElement(1));
-        Assert.Equal(42d, arr.GetElement(2));
+        Assert.Equal(2d, arr.GetElement(0).ToObject());
+        Assert.Equal(1d, arr.GetElement(1).ToObject());
+        Assert.Equal(42d, arr.GetElement(2).ToObject());
     }
 
     [Fact(Timeout = 2000)]

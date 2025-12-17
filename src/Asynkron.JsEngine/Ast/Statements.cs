@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Threading;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Parser;
 
@@ -17,7 +16,7 @@ public sealed record BlockStatement(SourceReference? Source, ImmutableArray<Stat
 
     HoistPlan IAstCacheable<HoistPlan>.GetOrCreateCache()
     {
-        return AstCache.GetOrCreate(ref _cachedHoistPlan, () => HoistPlan.Build(this));
+        return AstCache.GetOrCreate(ref _cachedHoistPlan, this, static block => HoistPlan.Build(block));
     }
 
     internal bool TryGetContainsInnerFunction(out bool contains)
@@ -141,7 +140,15 @@ public sealed record ExpressionStatement(SourceReference? Source, ExpressionNode
 /// <summary>
 ///     Represents a return statement.
 /// </summary>
-public sealed record ReturnStatement(SourceReference? Source, ExpressionNode? Expression) : StatementNode(Source);
+/// <param name="Source">Source reference.</param>
+/// <param name="Expression">The return expression, or null for bare return.</param>
+/// <param name="UseArgumentPreEvaluation">When true, the return expression contains multiple calls
+/// that can benefit from pre-evaluating all arguments before making any calls. This enables
+/// environment reuse for ALL calls, not just the rightmost one.</param>
+public sealed record ReturnStatement(
+    SourceReference? Source,
+    ExpressionNode? Expression,
+    bool UseArgumentPreEvaluation = false) : StatementNode(Source);
 
 /// <summary>
 ///     Represents a throw statement.
@@ -177,10 +184,10 @@ public sealed record WhileStatement(SourceReference? Source, ExpressionNode Cond
 
     LoopPlan IAstCacheable<LoopPlan>.GetOrCreateCache()
     {
-        return AstCache.GetOrCreate(ref _cachedPlan, () =>
+        return AstCache.GetOrCreate(ref _cachedPlan, this, static self =>
         {
-            var isStrict = Body is BlockStatement { IsStrict: true };
-            if (!LoopNormalizer.TryNormalize(this, isStrict, out var plan, out var failureReason))
+            var isStrict = self.Body is BlockStatement { IsStrict: true };
+            if (!LoopNormalizer.TryNormalize(self, isStrict, out var plan, out var failureReason))
             {
                 throw new NotSupportedException(failureReason ?? "Failed to normalize while loop.");
             }
@@ -200,10 +207,10 @@ public sealed record DoWhileStatement(SourceReference? Source, StatementNode Bod
 
     LoopPlan IAstCacheable<LoopPlan>.GetOrCreateCache()
     {
-        return AstCache.GetOrCreate(ref _cachedPlan, () =>
+        return AstCache.GetOrCreate(ref _cachedPlan, this, static self =>
         {
-            var isStrict = Body is BlockStatement { IsStrict: true };
-            if (!LoopNormalizer.TryNormalize(this, isStrict, out var plan, out var failureReason))
+            var isStrict = self.Body is BlockStatement { IsStrict: true };
+            if (!LoopNormalizer.TryNormalize(self, isStrict, out var plan, out var failureReason))
             {
                 throw new NotSupportedException(failureReason ?? "Failed to normalize do/while loop.");
             }
@@ -233,10 +240,10 @@ public sealed record ForStatement(
 
     LoopPlan IAstCacheable<LoopPlan>.GetOrCreateCache()
     {
-        return AstCache.GetOrCreate(ref _cachedPlan, () =>
+        return AstCache.GetOrCreate(ref _cachedPlan, this, static self =>
         {
-            var isStrict = Body is BlockStatement { IsStrict: true };
-            if (!LoopNormalizer.TryNormalize(this, isStrict, out var plan, out var failureReason))
+            var isStrict = self.Body is BlockStatement { IsStrict: true };
+            if (!LoopNormalizer.TryNormalize(self, isStrict, out var plan, out var failureReason))
             {
                 throw new NotSupportedException(failureReason ?? "Failed to normalize for loop.");
             }
@@ -261,14 +268,14 @@ public sealed record ForEachStatement(
 
     IteratorDriverPlan IAstCacheable<IteratorDriverPlan>.GetOrCreateCache()
     {
-        return AstCache.GetOrCreate(ref _cachedPlan, () =>
+        return AstCache.GetOrCreate(ref _cachedPlan, this, static self =>
         {
-            var isStrict = Body is BlockStatement { IsStrict: true };
-            var planBody = Body is BlockStatement blockBody
+            var isStrict = self.Body is BlockStatement { IsStrict: true };
+            var planBody = self.Body is BlockStatement blockBody
                 ? blockBody
-                : new BlockStatement(Source, [Body], isStrict);
+                : new BlockStatement(self.Source, [self.Body], isStrict);
 
-            return IteratorDriverFactory.CreatePlan(this, planBody);
+            return IteratorDriverFactory.CreatePlan(self, planBody);
         });
     }
 }
@@ -316,7 +323,7 @@ public sealed record SwitchStatement(
 
     SwitchInstantiationPlan IAstCacheable<SwitchInstantiationPlan>.GetOrCreateCache()
     {
-        return AstCache.GetOrCreate(ref _cachedInstantiationPlan, () =>
+        return AstCache.GetOrCreate(ref _cachedInstantiationPlan, this, static self =>
         {
             var lexicalBindings = ImmutableArray.CreateBuilder<SwitchLexicalBinding>();
             var functionBindings = ImmutableArray.CreateBuilder<SwitchFunctionBinding>();
@@ -324,7 +331,7 @@ public sealed record SwitchStatement(
 
             var isStrict = false;
 
-            foreach (var switchCase in Cases)
+            foreach (var switchCase in self.Cases)
             {
                 if (switchCase.Body.IsStrict)
                 {

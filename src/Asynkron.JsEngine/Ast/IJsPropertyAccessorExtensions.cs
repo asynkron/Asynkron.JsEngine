@@ -27,7 +27,7 @@ public static partial class TypedAstEvaluator
                 if (context.ShouldStopEvaluation)
                 {
                     realm?.Logger?.LogInformation("TryInvokeSymbolMethod stopDuringLookup flowType={FlowType}",
-                        context.FlowValue?.GetType().Name ?? "null");
+                        context.FlowValue.GetType().Name ?? "null");
                     result = callable;
                     return true;
                 }
@@ -36,8 +36,8 @@ public static partial class TypedAstEvaluator
                     callable?.GetType().Name ?? "null");
                 result = InvokeCallable(
                     callable!,
-                    Array.Empty<object?>(),
-                    thisArg,
+                    [],
+                    JsValue.FromObjectUnsafe(thisArg),
                     context,
                     context.RealmState?.Engine?.GlobalEnvironment);
                 realm?.Logger?.LogInformation("TryInvokeSymbolMethod completed stop={Stop} resultType={ResultType}",
@@ -51,7 +51,7 @@ public static partial class TypedAstEvaluator
             if (context.ShouldStopEvaluation)
             {
                 realm?.Logger?.LogInformation("TryInvokeSymbolMethod stopAfterLookup flowType={FlowType}",
-                    context.FlowValue?.GetType().Name ?? "null");
+                    context.FlowValue.GetType().Name ?? "null");
                 result = context.FlowValue;
                 return true;
             }
@@ -61,11 +61,19 @@ public static partial class TypedAstEvaluator
 
             bool TryGetCallable(object propertyKey, out IJsCallable? callable)
             {
-                if (JsOps.TryGetPropertyValue(target, propertyKey, out var candidate, context) &&
-                    candidate is IJsCallable found)
+                if (JsOps.TryGetPropertyValue(target, propertyKey, out var candidate, context))
                 {
-                    callable = found;
-                    return true;
+                    // Unwrap JsValue if present
+                    if (candidate is JsValue jsVal)
+                    {
+                        candidate = jsVal.ToObject();
+                    }
+
+                    if (candidate is IJsCallable found)
+                    {
+                        callable = found;
+                        return true;
+                    }
                 }
 
                 if (context.ShouldStopEvaluation)
@@ -77,7 +85,7 @@ public static partial class TypedAstEvaluator
                 if (candidate is not null && !ReferenceEquals(candidate, Symbol.Undefined))
                 {
                     var error = StandardLibrary.CreateTypeError("Iterator method is not callable", context, realm);
-                    context.SetThrow(error);
+                    context.SetThrow(JsValue.FromObjectUnsafe(error));
                     callable = null;
                     return true;
                 }
@@ -113,7 +121,7 @@ public static partial class TypedAstEvaluator
     {
         private JsObject EnsurePrototype(RealmState realm)
         {
-            if (constructor.TryGetProperty("prototype", out var prototypeValue) && prototypeValue is JsObject prototype)
+            if (constructor.TryGetProperty("prototype", out var prototypeValue) && prototypeValue.TryGetObject<JsObject>(out var prototype))
             {
                 if (prototype.Prototype is null && realm.ObjectPrototype is not null)
                 {
@@ -129,7 +137,7 @@ public static partial class TypedAstEvaluator
                 Origin = "constructor.prototype (auto-created)"
             };
 
-            constructor.SetProperty("prototype", created);
+            constructor.SetProperty("prototype", (JsValue)created);
             return created;
         }
     }

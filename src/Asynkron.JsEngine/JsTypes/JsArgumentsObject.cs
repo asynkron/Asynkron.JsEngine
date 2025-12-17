@@ -50,21 +50,21 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             {
                 Value = _values[i], Writable = true, Enumerable = true, Configurable = true
             };
-            _backing.DefineProperty(name, descriptor);
-            TrackDescriptor(name, descriptor);
+            _backing.DefinePropertyDirect(name, descriptor);
+            TrackDescriptorDirect(name, descriptor);
         }
 
-        _backing.DefineProperty("length",
+        _backing.DefinePropertyDirect("length",
             new PropertyDescriptor
             {
                 Value = (double)_values.Length, Writable = true, Enumerable = false, Configurable = true
             });
 
-        _backing.DefineProperty("__arguments__",
+        _backing.DefinePropertyDirect("__arguments__",
             new PropertyDescriptor { Value = true, Writable = false, Enumerable = false, Configurable = false });
 
         var tagKey = SymbolKeys.GetToStringTag(realm);
-        _backing.DefineProperty(tagKey,
+        _backing.DefinePropertyDirect(tagKey,
             new PropertyDescriptor { Value = "Arguments", Writable = false, Enumerable = false, Configurable = true });
 
         if (callee is not null)
@@ -79,8 +79,8 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             else
             {
                 var thrower = new HostFunction((_, _) =>
-                    throw new ThrowSignal(StandardLibrary.CreateTypeError(
-                        "Access to callee is not allowed in strict mode.", realm.CreateContext(), realm)),
+                    throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
+                        "Access to callee is not allowed in strict mode.", realm.CreateContext(), realm))),
                     isConstructor: false);
 
                 _calleeDescriptor = new PropertyDescriptor
@@ -89,13 +89,13 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
                 };
             }
 
-            _backing.DefineProperty("callee", _calleeDescriptor);
+            _backing.DefinePropertyDirect("callee", _calleeDescriptor);
         }
 
         var iteratorKey = SymbolKeys.GetIterator(realm);
         if (TryGetArrayIterator(realm, iteratorKey, out var iteratorValue))
         {
-            _backing.DefineProperty(iteratorKey,
+            _backing.DefinePropertyDirect(iteratorKey,
                 new PropertyDescriptor
                 {
                     Value = iteratorValue, Writable = true, Enumerable = false, Configurable = true
@@ -149,36 +149,38 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         _backing.Seal();
     }
 
-    public bool TryGetProperty(string name, object? receiver, out object? value)
+    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
         if (TryResolveIndex(name, out var index) &&
             _mappedEnabled &&
             index < _mappedParameters.Length &&
             _mappedParameters[index] is { } mappedSymbol)
         {
-            value = _environment.Get(mappedSymbol);
+            value = JsValue.FromObjectUnsafe(_environment.Get(mappedSymbol));
             return true;
         }
 
-        return _backing.TryGetProperty(name, receiver ?? this, out value);
+        return _backing.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver, out value);
     }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, this, out value);
+        return TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);
     }
 
-    public void SetProperty(string name, object? value)
+    public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, this);
+        SetProperty(name, value, JsValue.FromObjectUnsafe(this));
     }
 
-    public void SetProperty(string name, object? value, object? receiver)
+    public void SetProperty(string name, JsValue value, JsValue receiver)
     {
         var descriptor = _backing.GetOwnPropertyDescriptor(name);
         var hasWritable = descriptor?.HasWritable ?? false;
         var isAccessor = descriptor?.IsAccessorDescriptor == true;
         var isWritable = !isAccessor && (!hasWritable || descriptor?.Writable != false);
+
+        var valueObj = value.ToObject();
 
         if (TryResolveIndex(name, out var index) &&
             _mappedEnabled &&
@@ -186,11 +188,11 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             index < _mappedParameters.Length &&
             _mappedParameters[index] is { } mappedSymbol)
         {
-            _values[index] = value;
-            WithSuppressedObserver(() => _environment.Assign(mappedSymbol, value));
+            _values[index] = valueObj;
+            WithSuppressedObserver(() => _environment.Assign(mappedSymbol, valueObj));
         }
 
-        _backing.SetProperty(name, value, receiver ?? this);
+        _backing.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver);
     }
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
@@ -205,10 +207,10 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
             if (_mappedEnabled)
             {
-                _backing.TryGetProperty("callee", this, out var calleeValue);
+                _backing.TryGetProperty("callee", JsValue.FromObjectUnsafe(this), out var calleeValue);
                 return new PropertyDescriptor
                 {
-                    Value = calleeValue ?? _calleeDescriptor.Value,
+                    Value = calleeValue.ToObject() ?? _calleeDescriptor.Value,
                     Writable = true,
                     Enumerable = false,
                     Configurable = true
@@ -392,7 +394,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
     private ThrowSignal CreateDefineTypeError()
     {
-        return new ThrowSignal(StandardLibrary.CreateTypeError("Cannot redefine property", null, _realm));
+        return new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError("Cannot redefine property", null, _realm)));
     }
 
     private static bool IsDescriptorCompatible(PropertyDescriptor current, PropertyDescriptor candidate)
@@ -462,6 +464,15 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         _ownDescriptors[name] = CloneDescriptor(descriptor);
     }
 
+    /// <summary>
+    /// Tracks a descriptor by taking direct ownership without cloning.
+    /// Used in constructor where we create fresh descriptors.
+    /// </summary>
+    private void TrackDescriptorDirect(string name, PropertyDescriptor descriptor)
+    {
+        _ownDescriptors[name] = descriptor;
+    }
+
     private PropertyDescriptor NormalizeDescriptor(string name, PropertyDescriptor descriptor,
         PropertyDescriptor? existing)
     {
@@ -488,7 +499,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         {
             if (_backing.TryGetProperty(name, out var existingValue))
             {
-                normalized.Value = existingValue;
+                normalized.Value = existingValue.ToObject();
             }
             else if (existing.HasValue)
             {
@@ -561,14 +572,14 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         if (realmState.ArrayPrototype is IJsPropertyAccessor arrayPrototype &&
             arrayPrototype.TryGetProperty(iteratorKey, out var protoIterator))
         {
-            iteratorValue = protoIterator;
+            iteratorValue = protoIterator.ToObject();
             return true;
         }
 
         var temp = new JsArray(realmState);
         if (temp.TryGetProperty(iteratorKey, out var tmpIterator))
         {
-            iteratorValue = tmpIterator;
+            iteratorValue = tmpIterator.ToObject();
             return true;
         }
 

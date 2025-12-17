@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
@@ -8,10 +9,15 @@ public static partial class TypedAstEvaluator
 {
     extension(LoopPlan plan)
     {
-        private object? EvaluateLoopPlan(JsEnvironment environment, EvaluationContext context,
+        /// <summary>
+        /// JsValue-returning version of EvaluateLoopPlan for use in hot paths.
+        /// Avoids boxing on each iteration and at the final return.
+        /// </summary>
+        private JsValue EvaluateLoopPlanJsValue(JsEnvironment environment, EvaluationContext context,
             Symbol? loopLabel)
         {
-            object? lastValue = Symbol.Undefined;
+            // Use JsValue to track the loop body result to avoid boxing on each iteration
+            var lastValueJs = JsValue.Undefined;
 
             if (context.AllowIdentifierCache && plan.LoopPlanHasDynamicScope())
             {
@@ -22,11 +28,14 @@ public static partial class TypedAstEvaluator
             {
                 foreach (var statement in plan.LeadingStatements)
                 {
-                    var leadingCompletion = EvaluateStatement(statement, environment, context, loopLabel);
+                    // Leading statements (e.g., for loop initializer) are evaluated for side effects only.
+                    // Per ES spec (14.7.4.7), the initializer does NOT contribute to the loop's completion value.
+                    // The loop's completion value comes solely from the body; if the body never executes,
+                    // the result is undefined.
+                    _ = EvaluateStatementJsValue(statement, environment, context, loopLabel);
                     if (context.ShouldStopEvaluation)
                     {
-                        lastValue = leadingCompletion;
-                        return NormalizeLoopCompletion(lastValue);
+                        return lastValueJs;
                     }
                 }
             }
@@ -41,19 +50,44 @@ public static partial class TypedAstEvaluator
                 ? plan.CreatePerIterationEnvironment(environment, context)
                 : environment;
 
+            // Fast path: if body is a single statement without block environment needs,
+            // we can skip block dispatch overhead entirely (like Jint's ProbablyBlockStatement)
+            var singleStatement = plan.SingleBodyStatement;
+
             while (true)
             {
                 context.ThrowIfCancellationRequested();
 
-            if (!plan.ConditionAfterBody)
-            {
-                if (!ExecuteCondition(plan, iterationEnvironment, context))
+                if (!plan.ConditionAfterBody)
                 {
-                    break;
+                    if (!ExecuteCondition(plan, iterationEnvironment, context))
+                    {
+                        break;
+                    }
                 }
-            }
 
-                lastValue = EvaluateStatement(plan.Body, iterationEnvironment, context, loopLabel);
+                // Fast path: execute single statement directly without block overhead
+                // Note: We do NOT pass loopLabel to inner statements - the block evaluation doesn't either.
+                // Inner loops get their own labels via LabeledStatement. Passing our loopLabel would cause
+                // inner loops to incorrectly handle labeled breaks/continues meant for the outer loop.
+                JsValue bodyResult;
+                if (singleStatement is not null)
+                {
+                    bodyResult = EvaluateStatementJsValue(singleStatement, iterationEnvironment, context);
+                }
+                else
+                {
+                    bodyResult = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
+                }
+
+                // Apply UpdateEmpty semantics (ES spec 13.7.3.6 step 2.f):
+                // Only update the completion value if body returned a non-empty value.
+                // This preserves the previous completion value when break/continue has empty completion.
+                if (!bodyResult.IsUnit)
+                {
+                    lastValueJs = bodyResult;
+                }
+
                 if (context.IsReturn || context.IsThrow)
                 {
                     break;
@@ -61,8 +95,10 @@ public static partial class TypedAstEvaluator
 
                 if (context.TryClearContinue(loopLabel))
                 {
-                    // Create new per-iteration environment before increment
-                    if (hasPerIterationBindings)
+                    // Create new per-iteration environment before increment, but only if there are closures
+                    // that might capture loop variable values. When allowIterationEnvPooling is true, no closures
+                    // exist, so we can skip the expensive environment refresh and just mutate bindings in place.
+                    if (hasPerIterationBindings && !allowIterationEnvPooling)
                     {
                         iterationEnvironment = plan.CreateNextIterationEnvironment(iterationEnvironment, context);
                     }
@@ -90,8 +126,10 @@ public static partial class TypedAstEvaluator
                     break;
                 }
 
-                // Create new per-iteration environment before increment
-                if (hasPerIterationBindings)
+                // Create new per-iteration environment before increment, but only if there are closures
+                // that might capture loop variable values. When allowIterationEnvPooling is true, no closures
+                // exist, so we can skip the expensive environment refresh and just mutate bindings in place.
+                if (hasPerIterationBindings && !allowIterationEnvPooling)
                 {
                     iterationEnvironment = plan.CreateNextIterationEnvironment(iterationEnvironment, context);
                 }
@@ -122,7 +160,7 @@ public static partial class TypedAstEvaluator
                 // Otherwise keep the final iteration environment alive for any closures that captured it.
             }
 
-            return NormalizeLoopCompletion(lastValue);
+            return lastValueJs;
         }
 
         private JsEnvironment CreatePerIterationEnvironment(JsEnvironment currentIterationEnvironment,
@@ -156,7 +194,7 @@ public static partial class TypedAstEvaluator
                 JsValue currentValue;
                 try
                 {
-                    currentValue = currentIterationEnvironment.GetIdentifierJsValue(bindingName, context);
+                    currentValue = context.GetIdentifier(currentIterationEnvironment, bindingName);
                 }
                 catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                            StringComparison.Ordinal))
@@ -168,7 +206,7 @@ public static partial class TypedAstEvaluator
                     {
                         try
                         {
-                            errorObject = callable.Invoke([ex.Message], Symbol.Undefined);
+                            errorObject = callable.Invoke([new JsValue(ex.Message)], JsValue.Undefined).ToObject();
                         }
                         catch (ThrowSignal signal)
                         {
@@ -176,8 +214,8 @@ public static partial class TypedAstEvaluator
                         }
                     }
 
-                    context.SetThrow(errorObject);
-                    currentValue = JsValue.FromObject(errorObject);
+                    context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
+                    currentValue = JsValue.FromObjectUnsafe(errorObject);
                 }
 
                 var isConstBinding = currentIterationEnvironment.IsConstBinding(bindingName);
@@ -210,13 +248,22 @@ public static partial class TypedAstEvaluator
                     return currentIterationEnvironment;
                 }
 
+                const int StackAllocLimit = 8;
+
                 var outerEnvironment = currentIterationEnvironment.Enclosing ?? currentIterationEnvironment;
 
                 // Snapshot current values before we reset the environment instance.
-                // Use JsValue[] to avoid boxing primitives.
+                // Use pooled buffers to avoid per-iteration heap allocations.
                 var count = bindings.Length;
-                var values = new JsValue[count];
-                var constFlags = new bool[count];
+
+                // JsValue is a managed type (contains object reference) and cannot be stack-allocated
+                var rentedValues = ArrayPool<JsValue>.Shared.Rent(count);
+                var valueSpan = rentedValues.AsSpan(0, count);
+
+                bool[]? rentedConstFlags = null;
+                var constFlagSpan = count <= StackAllocLimit
+                    ? stackalloc bool[StackAllocLimit]
+                    : (rentedConstFlags = ArrayPool<bool>.Shared.Rent(count)).AsSpan(0, count);
 
                 for (var i = 0; i < count; i++)
                 {
@@ -224,7 +271,7 @@ public static partial class TypedAstEvaluator
                     JsValue currentValue;
                     try
                     {
-                        currentValue = currentIterationEnvironment.GetIdentifierJsValue(bindingName, context);
+                        currentValue = context.GetIdentifier(currentIterationEnvironment, bindingName);
                     }
                     catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                                StringComparison.Ordinal))
@@ -236,7 +283,7 @@ public static partial class TypedAstEvaluator
                         {
                             try
                             {
-                                errorObject = callable.Invoke([ex.Message], Symbol.Undefined);
+                                errorObject = callable.Invoke([new JsValue(ex.Message)], JsValue.Undefined).ToObject();
                             }
                             catch (ThrowSignal signal)
                             {
@@ -244,12 +291,12 @@ public static partial class TypedAstEvaluator
                             }
                         }
 
-                        context.SetThrow(errorObject);
-                        currentValue = JsValue.FromObject(errorObject);
+                        context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
+                        currentValue = JsValue.FromObjectUnsafe(errorObject);
                     }
 
-                    values[i] = currentValue;
-                    constFlags[i] = currentIterationEnvironment.IsConstBinding(bindingName);
+                    valueSpan[i] = currentValue;
+                    constFlagSpan[i] = currentIterationEnvironment.IsConstBinding(bindingName);
                 }
 
                 // Reset the environment in place to mimic a fresh per-iteration lexical environment,
@@ -268,12 +315,19 @@ public static partial class TypedAstEvaluator
                     var bindingName = bindings[i];
                     currentIterationEnvironment.DefineJsValue(
                         bindingName,
-                        values[i],
-                        isConst: constFlags[i],
+                        valueSpan[i],
+                        isConst: constFlagSpan[i],
                         isGlobalConstant: false,
                         isLexical: true,
                         blocksFunctionScopeOverride: false,
                         canDelete: false);
+                }
+
+                ArrayPool<JsValue>.Shared.Return(rentedValues, clearArray: true);
+
+                if (rentedConstFlags is not null)
+                {
+                    ArrayPool<bool>.Shared.Return(rentedConstFlags, clearArray: true);
                 }
 
                 return currentIterationEnvironment;
@@ -297,7 +351,7 @@ public static partial class TypedAstEvaluator
             {
                 foreach (var statement in plan.ConditionPrologue)
                 {
-                    _ = EvaluateStatement(statement, environment, context);
+                    _ = EvaluateStatementJsValue(statement, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return false;
@@ -323,7 +377,17 @@ public static partial class TypedAstEvaluator
 
             foreach (var statement in plan.PostIteration)
             {
-                _ = EvaluateStatement(statement, environment, context);
+                // Post-iteration steps usually contain a simple expression (e.g., i++).
+                // We don't need its completion value, so evaluate expression statements
+                // directly to avoid ToObject/GetNumber boxing on every iteration.
+                if (statement is ExpressionStatement expr)
+                {
+                    _ = EvaluateExpression(expr.Expression, environment, context);
+                }
+                else
+                {
+                    _ = EvaluateStatementJsValue(statement, environment, context);
+                }
                 if (context.ShouldStopEvaluation)
                 {
                     return false;

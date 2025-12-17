@@ -38,7 +38,7 @@ public class GeneratorYieldLowererTests
         var declTemp = Assert.IsType<VariableDeclaration>(statements[0]);
         var declTempDeclarator = Assert.Single(declTemp.Declarators);
         var declTempId = Assert.IsType<IdentifierBinding>(declTempDeclarator.Target);
-        Assert.StartsWith("__yield_lower_resume", declTempId.Name.Name);
+        Assert.StartsWith("__yield_lower_resume", declTempId.Name.Name, StringComparison.Ordinal);
         Assert.Null(declTempDeclarator.Initializer);
 
         // Assignment to the temp: __yield_lower_resume0 = yield "v";
@@ -60,7 +60,7 @@ public class GeneratorYieldLowererTests
         var returnTemp = Assert.IsType<VariableDeclaration>(statements[3]);
         var returnTempDeclarator = Assert.Single(returnTemp.Declarators);
         var returnTempId = Assert.IsType<IdentifierBinding>(returnTempDeclarator.Target);
-        Assert.StartsWith("__yield_lower_resume", returnTempId.Name.Name);
+        Assert.StartsWith("__yield_lower_resume", returnTempId.Name.Name, StringComparison.Ordinal);
         Assert.Null(returnTempDeclarator.Initializer);
 
         // Assignment to return temp: __yield_lower_resume1 = yield "r";
@@ -104,7 +104,7 @@ public class GeneratorYieldLowererTests
 
         var tempDecl = Assert.IsType<VariableDeclaration>(statements[0]);
         var tempBinding = Assert.IsType<IdentifierBinding>(Assert.Single(tempDecl.Declarators).Target);
-        Assert.StartsWith("__yield_lower_resume", tempBinding.Name.Name);
+        Assert.StartsWith("__yield_lower_resume", tempBinding.Name.Name, StringComparison.Ordinal);
 
         var tempAssign = Assert.IsType<ExpressionStatement>(statements[1]);
         var tempAssignExpr = Assert.IsType<AssignmentExpression>(tempAssign.Expression);
@@ -152,7 +152,7 @@ public class GeneratorYieldLowererTests
     {
         var condition = new BinaryExpression(
             null,
-            "&&",
+            BinaryOperator.LogicalAnd,
             new YieldExpression(null, new LiteralExpression(null, "left"), false),
             new YieldExpression(null, new LiteralExpression(null, "right"), false));
 
@@ -226,7 +226,7 @@ public class GeneratorYieldLowererTests
     {
         var condition = new BinaryExpression(
             null,
-            "+",
+            BinaryOperator.Add,
             new LiteralExpression(null, 1),
             new YieldExpression(null, new LiteralExpression(null, "side"), false));
 
@@ -291,7 +291,7 @@ public class GeneratorYieldLowererTests
 
         var tempDecl = Assert.IsType<VariableDeclaration>(statements[0]);
         var tempBinding = Assert.IsType<IdentifierBinding>(Assert.Single(tempDecl.Declarators).Target);
-        Assert.StartsWith("__yield_lower_resume", tempBinding.Name.Name);
+        Assert.StartsWith("__yield_lower_resume", tempBinding.Name.Name, StringComparison.Ordinal);
 
         var loweredWhile = Assert.IsType<WhileStatement>(statements[1]);
         var loweredBody = Assert.IsType<BlockStatement>(loweredWhile.Body);
@@ -369,7 +369,7 @@ public class GeneratorYieldLowererTests
             iSymbol,
             new BinaryExpression(
                 null,
-                "+",
+                BinaryOperator.Add,
                 new IdentifierExpression(null, iSymbol),
                 new YieldExpression(null, new LiteralExpression(null, "inc"), false)));
 
@@ -397,11 +397,11 @@ public class GeneratorYieldLowererTests
 
         var condTempDecl = Assert.IsType<VariableDeclaration>(statements[1]);
         var condTemp = Assert.IsType<IdentifierBinding>(Assert.Single(condTempDecl.Declarators).Target);
-        Assert.StartsWith("__yield_lower_resume", condTemp.Name.Name);
+        Assert.StartsWith("__yield_lower_resume", condTemp.Name.Name, StringComparison.Ordinal);
 
         var incTempDecl = Assert.IsType<VariableDeclaration>(statements[2]);
         var incTemp = Assert.IsType<IdentifierBinding>(Assert.Single(incTempDecl.Declarators).Target);
-        Assert.StartsWith("__yield_lower_resume", incTemp.Name.Name);
+        Assert.StartsWith("__yield_lower_resume", incTemp.Name.Name, StringComparison.Ordinal);
 
         var loweredWhile = Assert.IsType<WhileStatement>(statements[3]);
         var loopBlock = Assert.IsType<BlockStatement>(loweredWhile.Body);
@@ -442,14 +442,14 @@ public class GeneratorYieldLowererTests
 
         var increment = new BinaryExpression(
             null,
-            "+",
+            BinaryOperator.Add,
             new YieldExpression(null, new LiteralExpression(null, "a"), false),
             new YieldExpression(null, new LiteralExpression(null, "b"), false));
 
         var forStatement = new ForStatement(
             null,
             initializer,
-            new BinaryExpression(null, "<", new IdentifierExpression(null, iSymbol), new LiteralExpression(null, 1)),
+            new BinaryExpression(null, BinaryOperator.LessThan, new IdentifierExpression(null, iSymbol), new LiteralExpression(null, 1)),
             increment,
             new ExpressionStatement(null, new LiteralExpression(null, "body")));
 
@@ -476,8 +476,8 @@ public class GeneratorYieldLowererTests
         var incTempDecl2 = Assert.IsType<VariableDeclaration>(statements[2]);
         var incTemp2 = Assert.IsType<IdentifierBinding>(Assert.Single(incTempDecl2.Declarators).Target);
 
-        Assert.StartsWith("__yield_lower_resume", incTemp1.Name.Name);
-        Assert.StartsWith("__yield_lower_resume", incTemp2.Name.Name);
+        Assert.StartsWith("__yield_lower_resume", incTemp1.Name.Name, StringComparison.Ordinal);
+        Assert.StartsWith("__yield_lower_resume", incTemp2.Name.Name, StringComparison.Ordinal);
         Assert.NotEqual(incTemp1.Name, incTemp2.Name);
 
         var loweredWhile = Assert.IsType<WhileStatement>(statements[3]);
@@ -513,7 +513,7 @@ public class GeneratorYieldLowererTests
         var targetSymbol = Symbol.Intern("value");
         var initializer = new BinaryExpression(
             null,
-            "+",
+            BinaryOperator.Add,
             new YieldExpression(null, new LiteralExpression(null, "a"), false),
             new YieldExpression(null, new LiteralExpression(null, "b"), false));
 

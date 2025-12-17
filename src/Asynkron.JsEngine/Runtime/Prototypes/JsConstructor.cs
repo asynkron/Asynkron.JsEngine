@@ -17,9 +17,9 @@ public abstract class JsConstructor(IJsObjectLike prototype, RealmState realm)
     ///     Unless <paramref name="assignPrototype" /> is false, the prototype passed to the constructor
     ///     will be installed on the resulting object.
     /// </summary>
-    protected JsObject PrepareThisObject(object? thisValue, bool assignPrototype = true)
+    protected JsObject PrepareThisObject(JsValue thisValue, bool assignPrototype = true)
     {
-        if (thisValue is JsObject { IsConstructing: true } existing)
+        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true } existing)
         {
             if (assignPrototype && existing.Prototype is null && Prototype is not null)
             {
@@ -39,7 +39,7 @@ public abstract class JsConstructor(IJsObjectLike prototype, RealmState realm)
         return instance;
     }
 
-    protected abstract object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args);
+    protected abstract JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args);
 
     protected virtual void ConfigureConstructor(HostFunction constructor)
     {

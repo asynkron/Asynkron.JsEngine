@@ -27,7 +27,7 @@ public static partial class StandardLibrary
         }
 
         var holder = new JsObject();
-        holder.SetProperty("", parsed);
+        holder.SetProperty("", JsValue.FromObjectUnsafe(parsed));
 
         return ApplyJsonReviver(reviver, holder, "", context, realm);
     }
@@ -77,110 +77,112 @@ public static partial class StandardLibrary
     {
         if (!holder.TryGetProperty(name, out var value))
         {
-            value = null;
+            value = JsValue.Null;
         }
 
-        switch (value)
+        if (value.TryGetObject<JsObject>(out var jsObj) && jsObj is not null)
         {
-            case JsObject obj:
+            var obj = jsObj;
+            foreach (var key in obj.Keys.ToArray())
             {
-                foreach (var key in obj.Keys.ToArray())
+                var revived = ApplyJsonReviver(reviver, obj, key, context, realm);
+                if (ReferenceEquals(revived, Symbol.Undefined))
                 {
-                    var revived = ApplyJsonReviver(reviver, obj, key, context, realm);
-                    if (ReferenceEquals(revived, Symbol.Undefined))
-                    {
-                        obj.Delete(key);
-                    }
-                    else
-                    {
-                        obj.SetProperty(key, revived);
-                    }
+                    obj.Delete(key);
                 }
-
-                break;
+                else
+                {
+                    obj.SetProperty(key, JsValue.FromObjectUnsafe(revived));
+                }
             }
-            case JsArray arr:
+        }
+        else if (value.TryGetObject<JsArray>(out var arr) && arr is not null)
+        {
+            var length = (int)arr.Length;
+            for (var i = 0; i < length; i++)
             {
-                var length = (int)arr.Length;
-                for (var i = 0; i < length; i++)
+                var revived = ApplyJsonReviver(reviver, arr,
+                    i.ToString(CultureInfo.InvariantCulture), context, realm);
+                if (ReferenceEquals(revived, Symbol.Undefined))
                 {
-                    var revived = ApplyJsonReviver(reviver, arr,
-                        i.ToString(CultureInfo.InvariantCulture), context, realm);
-                    if (ReferenceEquals(revived, Symbol.Undefined))
-                    {
-                        arr.DeleteElement(i);
-                    }
-                    else
-                    {
-                        arr.SetElement(i, revived);
-                    }
+                    arr.DeleteElement(i);
                 }
-
-                break;
+                else
+                {
+                    arr.SetElement(i, revived);
+                }
             }
         }
 
-        var replacement = reviver.Invoke([name, value], holder);
-        return replacement;
+        var replacement = reviver.Invoke([new JsValue(name), value], JsValue.FromObjectUnsafe(holder));
+        return replacement.ToObject();
     }
 
     internal static string StringifyValue(object? value, int depth = 0)
     {
-        if (depth > 100)
+        while (true)
         {
-            return "null"; // Prevent stack overflow
-        }
+            if (depth > 100)
+            {
+                return "null"; // Prevent stack overflow
+            }
 
-        switch (value)
-        {
-            case null:
-                return "null";
-
-            case bool b:
-                return b ? "true" : "false";
-
-            case double d:
-                if (double.IsNaN(d) || double.IsInfinity(d))
-                {
+            switch (value)
+            {
+                case null:
                     return "null";
-                }
 
-                return d.ToString(CultureInfo.InvariantCulture);
+                case JsValue jsValue:
+                    // Unwrap JsValue and recursively stringify the inner value
+                    value = jsValue.ToObject();
+                    continue;
 
-            case string s:
-                return JsonSerializer.Serialize(s);
+                case bool b:
+                    return b ? "true" : "false";
 
-            case JsArray arr:
-                var arrItems = new List<string>();
-                foreach (var item in arr.Items)
-                {
-                    arrItems.Add(StringifyValue(item, depth + 1));
-                }
-
-                return "[" + string.Join(",", arrItems) + "]";
-
-            case JsObject obj:
-                var objProps = new List<string>();
-                foreach (var kvp in obj)
-                {
-                    // Skip functions and internal properties
-                    if (kvp.Value is IJsCallable || kvp.Key.StartsWith("_", StringComparison.Ordinal))
+                case double d:
+                    if (double.IsNaN(d) || double.IsInfinity(d))
                     {
-                        continue;
+                        return "null";
                     }
 
-                    var key = JsonSerializer.Serialize(kvp.Key);
-                    var val = StringifyValue(kvp.Value, depth + 1);
-                    objProps.Add($"{key}:{val}");
-                }
+                    return d.ToString(CultureInfo.InvariantCulture);
 
-                return "{" + string.Join(",", objProps) + "}";
+                case string s:
+                    return JsonSerializer.Serialize(s);
 
-            case IJsCallable:
-                return "undefined";
+                case JsArray arr:
+                    var arrItems = new List<string>();
+                    foreach (var item in arr.Items)
+                    {
+                        arrItems.Add(StringifyValue(item, depth + 1));
+                    }
 
-            default:
-                return JsonSerializer.Serialize(value?.ToString() ?? "");
+                    return "[" + string.Join(",", arrItems) + "]";
+
+                case JsObject obj:
+                    var objProps = new List<string>();
+                    foreach (var kvp in obj)
+                    {
+                        // Skip functions and internal properties
+                        if (kvp.Value is IJsCallable || kvp.Key.StartsWith("_", StringComparison.Ordinal))
+                        {
+                            continue;
+                        }
+
+                        var key = JsonSerializer.Serialize(kvp.Key);
+                        var val = StringifyValue(kvp.Value, depth + 1);
+                        objProps.Add($"{key}:{val}");
+                    }
+
+                    return "{" + string.Join(",", objProps) + "}";
+
+                case IJsCallable:
+                    return "undefined";
+
+                default:
+                    return JsonSerializer.Serialize(value?.ToString() ?? "");
+            }
         }
     }
 }

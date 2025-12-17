@@ -6,29 +6,20 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    private struct ArrayPatternIterator
+    private struct ArrayPatternIterator(IJsObjectLike? iterator, IEnumerator<JsValue>? enumerator)
     {
-        private readonly IJsObjectLike? _iterator;
-        private readonly IEnumerator<object?>? _enumerator;
-        private IJsCallable? _nextMethod;
+        private IJsCallable? _nextMethod = null;
 
-        public ArrayPatternIterator(IJsObjectLike? iterator, IEnumerator<object?>? enumerator)
+        public (JsValue Value, bool Done) Next(EvaluationContext context)
         {
-            _iterator = iterator;
-            _enumerator = enumerator;
-            _nextMethod = null;
-        }
-
-        public (object? Value, bool Done) Next(EvaluationContext context)
-        {
-            if (_iterator is null)
+            if (iterator is null)
             {
-                return _enumerator?.MoveNext() != true ? (Symbol.Undefined, true) : (_enumerator.Current, false);
+                return enumerator?.MoveNext() != true ? (JsValue.Undefined, true) : (enumerator.Current, false);
             }
 
-            _nextMethod ??= _iterator.GetIteratorNextCallable(context);
-            var candidate = _iterator.InvokeIteratorNext(_nextMethod, context: context);
-            if (candidate is not IJsObjectLike result)
+            _nextMethod ??= iterator.GetIteratorNextCallable(context);
+            var candidate = iterator.InvokeIteratorNext(_nextMethod, context: context);
+            if (!candidate.TryGetObject<IJsObjectLike>(out var result))
             {
                 throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);
             }
@@ -38,12 +29,12 @@ public static partial class TypedAstEvaluator
 
             if (done)
             {
-                return (Symbol.Undefined, true);
+                return (JsValue.Undefined, true);
             }
 
             var value = JsOps.TryGetPropertyValue(result, "value", out var yielded, context)
-                ? yielded
-                : Symbol.Undefined;
+                ? JsValue.FromObjectUnsafe(yielded)
+                : JsValue.Undefined;
 
             return (value, false);
         }

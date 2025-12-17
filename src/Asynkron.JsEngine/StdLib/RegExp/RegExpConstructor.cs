@@ -10,16 +10,17 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
 {
     private HostFunction? _constructor;
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue is JsObject { IsConstructing: true } constructing)
+        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true } constructing)
         {
             var target = _constructor ?? ConstructFallback;
             return ConstructRegExp(args, target, target, constructing);
         }
 
         var targetCtor = _constructor ?? ConstructFallback;
-        return ConstructRegExp(args, targetCtor, targetCtor, thisValue as JsObject);
+        var providedThis = thisValue.IsObject ? thisValue.AsObject() as JsObject : null;
+        return ConstructRegExp(args, targetCtor, targetCtor, providedThis);
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -31,14 +32,24 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
         constructor.SetInvokeWithContext((args, thisArg, _, newTarget) =>
         {
             var targetCtor = _constructor ?? constructor;
-            var effectiveNewTarget = newTarget as IJsCallable ?? targetCtor;
-            return ConstructRegExp(args, effectiveNewTarget, targetCtor, thisArg as JsObject);
+            IJsCallable effectiveNewTarget;
+            if (newTarget.TryGetObject<IJsCallable>(out var callable))
+            {
+                effectiveNewTarget = callable;
+            }
+            else
+            {
+                effectiveNewTarget = targetCtor;
+            }
+            JsObject? thisObj = null;
+            thisArg.TryGetObject<JsObject>(out thisObj);
+            return ConstructRegExp(args, effectiveNewTarget, targetCtor, thisObj);
         });
 
         DefineLegacyRegExpAccessors(constructor, Realm);
     }
 
-    private object ConstructRegExp(IReadOnlyList<object?> args, IJsCallable newTarget, IJsCallable targetCtor,
+    private JsValue ConstructRegExp(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor,
         JsObject? thisArg)
     {
         var provided = thisArg is JsObject jsObj &&
@@ -46,12 +57,12 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
             ? jsObj
             : null;
         var instance = PrepareTargetInstance(provided, newTarget, targetCtor);
-        return InitializeRegExp(args, instance);
+        return (JsValue)InitializeRegExp(args, instance);
     }
 
     private JsObject PrepareTargetInstance(JsObject? provided, IJsCallable newTarget, IJsCallable targetCtor)
     {
-        var instance = provided ?? PrepareThisObject(null, assignPrototype: false);
+        var instance = provided ?? PrepareThisObject(JsValue.Undefined, assignPrototype: false);
         if (instance.RealmState is null)
         {
             instance.RealmState = Realm;
@@ -69,22 +80,22 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
         return instance;
     }
 
-    private JsObject InitializeRegExp(IReadOnlyList<object?> args, JsObject? target)
+    private JsObject InitializeRegExp(IReadOnlyList<JsValue> args, JsObject? target)
     {
         if (args.Count == 0)
         {
             return CreateRegExpLiteral("(?:)", "", Realm, target);
         }
 
-        if (args is [JsObject { } existingObj] &&
+        if (args.Count == 1 && args[0].IsObject && args[0].AsObject() is JsObject existingObj &&
             existingObj.TryGetProperty("__regex__", out var internalRegex) &&
-            internalRegex is JsRegExp existing)
+            internalRegex.TryGetObject<JsRegExp>(out var existing))
         {
             return CreateRegExpLiteral(existing.Pattern, existing.Flags, Realm, target);
         }
 
-        var pattern = args[0]?.ToString() ?? string.Empty;
-        var flags = args.Count > 1 ? args[1]?.ToString() ?? string.Empty : string.Empty;
+        var pattern = JsOps.ToJsString(args[0].ToObject()) ?? string.Empty;
+        var flags = args.Count > 1 ? JsOps.ToJsString(args[1].ToObject()) ?? string.Empty : string.Empty;
         return CreateRegExpLiteral(pattern, flags, Realm, target);
     }
 

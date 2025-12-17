@@ -22,24 +22,24 @@ public sealed class JsWeakSet : IJsObjectLike, IPropertyDefinitionHost, IExtensi
         _properties.PreventExtensions();
     }
 
-    public bool TryGetProperty(string name, object? receiver, out object? value)
+    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        return _properties.TryGetProperty(name, receiver ?? this, out value);
+        return _properties.TryGetProperty(name, receiver.IsUndefined ? (JsValue)this : receiver, out value);
     }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, this, out value);
+        return TryGetProperty(name, (JsValue)this, out value);
     }
 
-    public void SetProperty(string name, object? value, object? receiver)
+    public void SetProperty(string name, JsValue value, JsValue receiver)
     {
-        _properties.SetProperty(name, value, receiver ?? this);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? (JsValue)this : receiver);
     }
 
-    public void SetProperty(string name, object? value)
+    public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, this);
+        SetProperty(name, value, (JsValue)this);
     }
 
     public JsObject? Prototype => _properties.Prototype;
@@ -80,18 +80,20 @@ public sealed class JsWeakSet : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     ///     Adds a value to the WeakSet. Returns the WeakSet object to allow chaining.
     ///     The value must be an object (not a primitive value).
     /// </summary>
-    public JsWeakSet Add(object? value)
+    public JsWeakSet Add(JsValue value)
     {
+        var obj = value.ToObject();
+
         // WeakSet only accepts objects as values
-        if (value == null || !IsObject(value))
+        if (obj == null || !IsObject(obj))
         {
             throw new Exception("Invalid value used in weak set");
         }
 
         // If already present, do nothing; otherwise add it
-        if (!_values.TryGetValue(value, out _))
+        if (!_values.TryGetValue(obj, out _))
         {
-            _values.Add(value, null);
+            _values.Add(obj, null);
         }
 
         return this;
@@ -100,28 +102,32 @@ public sealed class JsWeakSet : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     /// <summary>
     ///     Returns true if the value exists in the WeakSet, false otherwise.
     /// </summary>
-    public bool Has(object? value)
+    public bool Has(JsValue value)
     {
-        if (value == null || !IsObject(value))
+        var obj = value.ToObject();
+
+        if (obj == null || !IsObject(obj))
         {
             return false;
         }
 
-        return _values.TryGetValue(value, out _);
+        return _values.TryGetValue(obj, out _);
     }
 
     /// <summary>
     ///     Removes the specified value from the WeakSet.
     ///     Returns true if the value was in the WeakSet and has been removed, false otherwise.
     /// </summary>
-    public bool Delete(object? value)
+    public bool Delete(JsValue value)
     {
-        if (value == null || !IsObject(value))
+        var obj = value.ToObject();
+
+        if (obj == null || !IsObject(obj))
         {
             return false;
         }
 
-        return _values.Remove(value);
+        return _values.Remove(obj);
     }
 
     /// <summary>

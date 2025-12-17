@@ -63,7 +63,7 @@ internal static class LoopNormalizer
                 {
                     CollectBindingNames(declarator.Target, bindingNames);
                 }
-                perIterationBindings = bindingNames.ToImmutableArray();
+                perIterationBindings = [..bindingNames];
             }
         }
 

@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
@@ -8,7 +9,7 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class JsonPrototype : JsPrototype
 {
     [JsHostMethod("parse", Length = 2d)]
-    public object? Parse(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Parse(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -16,22 +17,22 @@ public sealed partial class JsonPrototype : JsPrototype
         }
 
         var context = Realm.CreateContext();
-        var jsonStr = JsOps.ToJsString(args[0], context);
-        var reviver = args.GetArgument(1);
-        return ParseJsonWithReviver(jsonStr, Realm, context, reviver);
+        var jsonStr = JsOps.ToJsString(args[0].ToObject(), context);
+        var reviver = args.GetArgument(1).ToObject();
+        return JsValue.FromObjectUnsafe(ParseJsonWithReviver(jsonStr, Realm, context, reviver));
     }
 
     [JsHostMethod("stringify", Length = 3d)]
-    public object? Stringify(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue Stringify(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
-            return "undefined";
+            return new JsValue("undefined");
         }
 
-        var value = args[0];
+        var value = args[0].ToObject();
 
         // TODO: replacer and space are not yet supported; fallback to basic stringify.
-        return StringifyValue(value);
+        return new JsValue(StringifyValue(value));
     }
 }

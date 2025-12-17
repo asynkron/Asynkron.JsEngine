@@ -1,4 +1,3 @@
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -15,57 +14,54 @@ public sealed partial class IntlNumberFormatPrototype
     internal static void InitializeInternalSlots(JsObject instance, IntlNumberFormatInternalSlots slots)
     {
         instance.SetProperty(NumberFormatBrand, true);
-        instance.SetProperty(SlotsKey, slots);
+        instance.SetProperty(SlotsKey, JsValue.FromObjectUnsafe(slots));
     }
 
     [JsHostGetter("format", DisplayName = "get format")]
-    public HostFunction GetFormat(object? thisValue)
+    public JsValue GetFormat(JsValue thisValue)
     {
         var nf = ValidateNumberFormatReceiver(thisValue);
-        return CreateBoundFormatFunction(value => FormatNumberValue(nf, value));
+        return (JsValue)CreateBoundFormatFunction(value => new JsValue(FormatNumberValue(nf, value)));
     }
 
     [JsHostMethod("formatToParts", Length = 0d)]
-    public JsArray FormatToParts(object? thisValue, IReadOnlyList<object?> args)
+    public JsValue FormatToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var nf = ValidateNumberFormatReceiver(thisValue);
         var value = args.GetArgument(0);
         var result = FormatNumberResult(nf, value);
         var partsArray = new JsArray(Realm);
-        var parts = result.Parts ?? new List<NumberFormatPart>
-        {
-            new("literal", result.Formatted)
-        };
+        var parts = result.Parts ?? [new("literal", result.Formatted)];
         foreach (var part in parts)
         {
             var entry = new JsObject(Realm.ObjectPrototype);
-            entry.SetProperty("type", part.Type);
-            entry.SetProperty("value", part.Value);
+            entry.SetProperty("type", (JsValue)part.Type);
+            entry.SetProperty("value", (JsValue)part.Value);
             partsArray.Push(entry);
         }
 
-        return partsArray;
+        return JsValue.FromObjectUnsafe(partsArray);
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    public JsObject ResolvedOptions(object? thisValue, IReadOnlyList<object?> _)
+    public JsValue ResolvedOptions(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var nf = ValidateNumberFormatReceiver(thisValue);
-        return CreateNumberFormatResolvedOptions(nf);
+        return new JsValue(CreateNumberFormatResolvedOptions(nf));
     }
 
-    private JsObject ValidateNumberFormatReceiver(object? thisValue)
+    private JsObject ValidateNumberFormatReceiver(JsValue thisValue)
     {
         return thisValue.EnsureBrand(NumberFormatBrand, Realm,
             "Intl.NumberFormat method called on incompatible receiver");
     }
 
-    private string FormatNumberValue(JsObject nf, object? value)
+    private string FormatNumberValue(JsObject nf, JsValue value)
     {
         return FormatNumberResult(nf, value).Formatted;
     }
 
-    private IntlNumberFormatResult FormatNumberResult(JsObject nf, object? value)
+    private IntlNumberFormatResult FormatNumberResult(JsObject nf, JsValue value)
     {
         var context = Realm.CreateContext();
         object numericValue;
@@ -97,41 +93,41 @@ public sealed partial class IntlNumberFormatPrototype
     {
         var slots = GetSlots(nf);
         var obj = new JsObject(Realm.ObjectPrototype);
-        obj.SetProperty("locale", slots.Locale);
-        obj.SetProperty("numberingSystem", slots.NumberingSystem);
-        obj.SetProperty("style", slots.Style);
-        obj.SetProperty("currency", slots.Currency is { Length: > 0 } currencyValue ? currencyValue : Symbol.Undefined);
+        obj.SetProperty("locale", (JsValue)slots.Locale);
+        obj.SetProperty("numberingSystem", (JsValue)slots.NumberingSystem);
+        obj.SetProperty("style", (JsValue)slots.Style);
+        obj.SetProperty("currency", slots.Currency is { Length: > 0 } currencyValue ? (JsValue)currencyValue : JsValue.Undefined);
         obj.SetProperty("currencyDisplay",
-            slots.Style == "currency" ? slots.CurrencyDisplay : Symbol.Undefined);
+            slots.Style == "currency" ? (JsValue)slots.CurrencyDisplay : JsValue.Undefined);
         obj.SetProperty("currencySign",
-            slots.Style == "currency" ? slots.CurrencySign : "standard");
+            (JsValue)(slots.Style == "currency" ? slots.CurrencySign : "standard"));
         obj.SetProperty("minimumIntegerDigits", (double)slots.MinimumIntegerDigits);
         if (slots.UseSignificantDigits)
         {
             obj.SetProperty("minimumSignificantDigits", (double)(slots.MinimumSignificantDigits ?? 1));
             obj.SetProperty("maximumSignificantDigits", (double)(slots.MaximumSignificantDigits ?? 21));
-            obj.SetProperty("minimumFractionDigits", Symbol.Undefined);
-            obj.SetProperty("maximumFractionDigits", Symbol.Undefined);
+            obj.SetProperty("minimumFractionDigits", JsValue.Undefined);
+            obj.SetProperty("maximumFractionDigits", JsValue.Undefined);
         }
         else
         {
-            obj.SetProperty("minimumSignificantDigits", Symbol.Undefined);
-            obj.SetProperty("maximumSignificantDigits", Symbol.Undefined);
+            obj.SetProperty("minimumSignificantDigits", JsValue.Undefined);
+            obj.SetProperty("maximumSignificantDigits", JsValue.Undefined);
             obj.SetProperty("minimumFractionDigits", (double)slots.MinimumFractionDigits);
             obj.SetProperty("maximumFractionDigits", (double)slots.MaximumFractionDigits);
         }
-        obj.SetProperty("useGrouping", slots.UseGrouping ? "auto" : "never");
-        obj.SetProperty("notation", slots.Notation);
-        obj.SetProperty("signDisplay", slots.SignDisplay);
+        obj.SetProperty("useGrouping", (JsValue)(slots.UseGrouping ? "auto" : "never"));
+        obj.SetProperty("notation", (JsValue)slots.Notation);
+        obj.SetProperty("signDisplay", (JsValue)slots.SignDisplay);
         if (slots.Style == "unit")
         {
-            obj.SetProperty("unit", slots.Unit is { Length: > 0 } unitValue ? unitValue : Symbol.Undefined);
-            obj.SetProperty("unitDisplay", slots.UnitDisplay);
+            obj.SetProperty("unit", slots.Unit is { Length: > 0 } unitValue ? (JsValue)unitValue : JsValue.Undefined);
+            obj.SetProperty("unitDisplay", (JsValue)slots.UnitDisplay);
         }
         else
         {
-            obj.SetProperty("unit", Symbol.Undefined);
-            obj.SetProperty("unitDisplay", Symbol.Undefined);
+            obj.SetProperty("unit", JsValue.Undefined);
+            obj.SetProperty("unitDisplay", JsValue.Undefined);
         }
 
         return obj;
@@ -139,14 +135,14 @@ public sealed partial class IntlNumberFormatPrototype
 
     private IntlNumberFormatInternalSlots GetSlots(JsObject nf)
     {
-        if (nf.TryGetProperty(SlotsKey, out var slotsValue) && slotsValue is IntlNumberFormatInternalSlots slots)
+        if (nf.TryGetProperty(SlotsKey, out var slotsValue) && slotsValue.TryGetObject<IntlNumberFormatInternalSlots>(out var slots))
         {
             return slots;
         }
 
         throw ThrowTypeError("Intl.NumberFormat instance is missing internal slots", realm: Realm);
     }
-    private HostFunction CreateBoundFormatFunction(Func<object?, object?> formatter)
+    private HostFunction CreateBoundFormatFunction(Func<JsValue, JsValue> formatter)
     {
         var function = new HostFunction((_, args) => formatter(args.GetArgument(0)), Realm, isConstructor: false);
         DefineFormatFunctionMetadata(function);
@@ -157,14 +153,14 @@ public sealed partial class IntlNumberFormatPrototype
     {
         function.DefineProperty("length", new PropertyDescriptor
         {
-            Value = 1d,
+            Value = (JsValue)1d,
             Writable = false,
             Enumerable = false,
             Configurable = true
         });
         function.DefineProperty("name", new PropertyDescriptor
         {
-            Value = string.Empty,
+            Value = (JsValue)string.Empty,
             Writable = false,
             Enumerable = false,
             Configurable = true

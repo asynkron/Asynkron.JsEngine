@@ -10,10 +10,11 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
 {
     private HostFunction? _constructor;
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var targetCtor = _constructor ?? ConstructFallback;
-        return ConstructDate(args, targetCtor, targetCtor, thisValue as JsObject, null);
+        var providedThis = thisValue.IsObject ? thisValue.AsObject() as JsObject : null;
+        return JsValue.FromObjectUnsafe(ConstructDate(args, targetCtor, targetCtor, providedThis, null));
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -23,29 +24,30 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
 
         constructor.SetInvokeWithContext((args, thisValue, context, newTarget) =>
         {
-            if (newTarget is null)
+            if (newTarget.IsUndefined)
             {
                 var current = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 var local = ConvertMillisecondsToLocal(current, Realm);
-                return FormatDateToJsString(local, Realm);
+                return new JsValue(FormatDateToJsString(local, Realm));
             }
 
             var target = _constructor ?? constructor;
-            var effectiveNewTarget = newTarget as IJsCallable ?? target;
-            return ConstructDate(args, effectiveNewTarget, target, thisValue as JsObject, context);
+            var effectiveNewTarget = newTarget.TryGetObject<IJsCallable>(out var nt) ? nt : target;
+            var thisObj = thisValue.TryGetObject(out var jsObj) ? jsObj : null;
+            return JsValue.FromObjectUnsafe(ConstructDate(args, effectiveNewTarget, target, thisObj, context));
         });
 
         AttachStatics(constructor);
     }
 
     private object ConstructDate(
-        IReadOnlyList<object?> args,
+        IReadOnlyList<JsValue> args,
         IJsCallable newTarget,
         IJsCallable targetCtor,
         JsObject? providedThis,
         EvaluationContext? context)
     {
-        var instance = PrepareThisObject(providedThis, assignPrototype: false);
+        var instance = PrepareThisObject(providedThis != null ? new JsValue(providedThis) : JsValue.Undefined, assignPrototype: false);
         instance.RealmState ??= Realm;
 
         if (instance.Prototype is null)
@@ -65,7 +67,7 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
     private void AttachStatics(HostFunction constructor)
     {
         constructor.SetHostedProperty("now",
-            new HostFunction(_ => (double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Realm, isConstructor: false),
+            new HostFunction(_ => new JsValue((double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()), Realm, isConstructor: false),
             Realm);
 
         constructor.SetHostedProperty("UTC", new HostFunction(args => DateUtc(args, Realm), Realm, isConstructor: false),

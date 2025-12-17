@@ -13,7 +13,7 @@ public sealed class JsPromise
     private bool _handlersScheduled;
 
     private PromiseState _state = PromiseState.Pending;
-    private object? _value;
+    private JsValue _value;
 
     public JsPromise(JsEngine engine)
     {
@@ -24,11 +24,11 @@ public sealed class JsPromise
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static bool TryGetInternalPromise(object? candidate, out JsPromise? promise)
+    internal static bool TryGetInternalPromise(JsValue candidate, out JsPromise? promise)
     {
-        if (candidate is JsObject jsObject &&
-            jsObject.TryGetProperty(InternalPromiseKey, out var inner) &&
-            inner is JsPromise jsPromise)
+        if (candidate.IsObject &&
+            candidate.AsObject().TryGetProperty(InternalPromiseKey, out var inner) &&
+            inner.TryGetObject<JsPromise>(out var jsPromise))
         {
             promise = jsPromise;
             return true;
@@ -47,7 +47,7 @@ public sealed class JsPromise
     ///     Resolves the promise with the given value.
     ///     If the value is a thenable, the promise adopts the thenable's eventual state.
     /// </summary>
-    public void Resolve(object? value)
+    public void Resolve(JsValue value)
     {
         if (_state != PromiseState.Pending)
         {
@@ -55,9 +55,10 @@ public sealed class JsPromise
         }
 
         // Check if value is a thenable (has a callable 'then' property)
-        if (value is IJsPropertyAccessor accessor &&
+        if (value.IsObject &&
+            value.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
             accessor.TryGetProperty("then", out var thenValue) &&
-            thenValue is IJsCallable thenMethod)
+            thenValue.TryGetObject<IJsCallable>(out var thenMethod))
         {
             // Value is a thenable - adopt its state
             ResolveThenable(accessor, thenMethod);
@@ -82,7 +83,11 @@ public sealed class JsPromise
         try
         {
             // Call thenable.then(resolve, reject)
-            thenMethod.Invoke([resolveCallback, rejectCallback], thenable);
+            // Wrap callbacks in HostFunction so they can be passed as JsValue
+            var resolveFn = new HostFunction(args => { resolveCallback.Invoke(args, JsValue.Undefined); return JsValue.Undefined; }, isConstructor: false);
+            var rejectFn = new HostFunction(args => { rejectCallback.Invoke(args, JsValue.Undefined); return JsValue.Undefined; }, isConstructor: false);
+            var thenableValue = JsValue.FromObjectUnsafe(thenable);
+            thenMethod.Invoke([(JsValue)resolveFn, (JsValue)rejectFn], thenableValue);
         }
         catch (ThrowSignal signal)
         {
@@ -97,7 +102,7 @@ public sealed class JsPromise
             // If then() throws any other exception, reject with undefined
             if (_state == PromiseState.Pending)
             {
-                Reject(null);
+                Reject(JsValue.Undefined);
             }
         }
     }
@@ -105,7 +110,7 @@ public sealed class JsPromise
     /// <summary>
     ///     Rejects the promise with the given reason.
     /// </summary>
-    public void Reject(object? reason)
+    public void Reject(JsValue reason)
     {
         if (_state != PromiseState.Pending)
         {
@@ -134,11 +139,11 @@ public sealed class JsPromise
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool TryGetSettled(out object? value, out bool isRejected)
+    internal bool TryGetSettled(out JsValue value, out bool isRejected)
     {
         if (_state == PromiseState.Pending)
         {
-            value = null;
+            value = JsValue.Undefined;
             isRejected = false;
             return false;
         }
@@ -214,7 +219,7 @@ public sealed class JsPromise
             }
             catch (Exception ex)
             {
-                nextPromise.Reject(ex.Message);
+                nextPromise.Reject(new JsValue(ex.Message));
             }
             finally
             {
@@ -232,7 +237,7 @@ public sealed class JsPromise
     {
         if (onFulfilled != null)
         {
-            var result = onFulfilled.Invoke([_value], null);
+            var result = onFulfilled.Invoke([_value], JsValue.Undefined);
             ResolveWithPossibleThenable(result, nextPromise);
         }
         else
@@ -245,7 +250,7 @@ public sealed class JsPromise
     {
         if (onRejected != null)
         {
-            var result = onRejected.Invoke([_value], null);
+            var result = onRejected.Invoke([_value], JsValue.Undefined);
             ResolveWithPossibleThenable(result, nextPromise);
         }
         else
@@ -255,17 +260,20 @@ public sealed class JsPromise
         }
     }
 
-    private static void ResolveWithPossibleThenable(object? result, JsPromise nextPromise)
+    private static void ResolveWithPossibleThenable(JsValue result, JsPromise nextPromise)
     {
         // If the result is a promise (JsObject with "then" method), chain it
-        if (result is JsObject resultObj &&
-            resultObj.TryGetProperty("then", out var thenMethod) &&
-            thenMethod is IJsCallable thenCallable)
+        if (result.IsObject &&
+            result.AsObject().TryGetProperty("then", out var thenMethod) &&
+            thenMethod.TryGetObject<IJsCallable>(out var thenCallable))
         {
             // Use lightweight callback objects instead of closures
             var resolveCallback = new ChainResolveCallback(nextPromise);
             var rejectCallback = new ChainRejectCallback(nextPromise);
-            thenCallable.Invoke([resolveCallback, rejectCallback], resultObj);
+            // Wrap callbacks in HostFunction so they can be passed as JsValue
+            var resolveFn = new HostFunction(args => { resolveCallback.Invoke(args, JsValue.Undefined); return JsValue.Undefined; }, isConstructor: false);
+            var rejectFn = new HostFunction(args => { rejectCallback.Invoke(args, JsValue.Undefined); return JsValue.Undefined; }, isConstructor: false);
+            thenCallable.Invoke([(JsValue)resolveFn, (JsValue)rejectFn], result);
         }
         else
         {
@@ -289,19 +297,17 @@ public sealed class JsPromise
 
         public ThenableResolveCallback(JsPromise promise) => _promise = promise;
 
-        public object? Invoke(IReadOnlyList<object?> args, object? thisValue)
+        public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
         {
             if (_promise._state != PromiseState.Pending)
             {
-                return null;
+                return JsValue.Undefined;
             }
 
-            var result = args.Count > 0 ? args[0] : null;
+            var result = args.Count > 0 ? args[0] : JsValue.Undefined;
             _promise.Resolve(result);
-            return null;
+            return JsValue.Undefined;
         }
-
-        public bool IsConstructor => false;
     }
 
     /// <summary>
@@ -313,19 +319,17 @@ public sealed class JsPromise
 
         public ThenableRejectCallback(JsPromise promise) => _promise = promise;
 
-        public object? Invoke(IReadOnlyList<object?> args, object? thisValue)
+        public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
         {
             if (_promise._state != PromiseState.Pending)
             {
-                return null;
+                return JsValue.Undefined;
             }
 
-            var reason = args.Count > 0 ? args[0] : null;
+            var reason = args.Count > 0 ? args[0] : JsValue.Undefined;
             _promise.Reject(reason);
-            return null;
+            return JsValue.Undefined;
         }
-
-        public bool IsConstructor => false;
     }
 
     /// <summary>
@@ -337,13 +341,11 @@ public sealed class JsPromise
 
         public ChainResolveCallback(JsPromise nextPromise) => _nextPromise = nextPromise;
 
-        public object? Invoke(IReadOnlyList<object?> args, object? thisValue)
+        public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
         {
-            _nextPromise.Resolve(args.Count > 0 ? args[0] : null);
-            return null;
+            _nextPromise.Resolve(args.Count > 0 ? args[0] : JsValue.Undefined);
+            return JsValue.Undefined;
         }
-
-        public bool IsConstructor => false;
     }
 
     /// <summary>
@@ -355,12 +357,10 @@ public sealed class JsPromise
 
         public ChainRejectCallback(JsPromise nextPromise) => _nextPromise = nextPromise;
 
-        public object? Invoke(IReadOnlyList<object?> args, object? thisValue)
+        public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
         {
-            _nextPromise.Reject(args.Count > 0 ? args[0] : null);
-            return null;
+            _nextPromise.Reject(args.Count > 0 ? args[0] : JsValue.Undefined);
+            return JsValue.Undefined;
         }
-
-        public bool IsConstructor => false;
     }
 }

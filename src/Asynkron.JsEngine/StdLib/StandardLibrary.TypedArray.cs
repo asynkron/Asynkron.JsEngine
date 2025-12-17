@@ -35,7 +35,7 @@ public static partial class StandardLibrary
             var valuesIterator = new HostFunction((thisValue, _) =>
             {
                 var typedArray = ValidateTypedArrayReceiver(thisValue, "%TypedArray%.prototype.values", realm);
-                return CreateArrayIteratorObject(typedArray, idx => typedArray.GetValueForIndex((int)idx), realm);
+                return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(typedArray, idx => typedArray.GetValueForIndex((int)idx), realm));
             }, realm, isConstructor: false);
             valuesIterator.DefineProperty("name",
                 new PropertyDescriptor { Value = "values", Writable = false, Enumerable = false, Configurable = true });
@@ -45,7 +45,7 @@ public static partial class StandardLibrary
             var keysIterator = new HostFunction((thisValue, _) =>
             {
                 var typedArray = ValidateTypedArrayReceiver(thisValue, "%TypedArray%.prototype.keys", realm);
-                return CreateArrayIteratorObject(typedArray, idx => (double)idx, realm);
+                return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(typedArray, idx => (double)idx, realm));
             }, realm, isConstructor: false);
             keysIterator.DefineProperty("name",
                 new PropertyDescriptor { Value = "keys", Writable = false, Enumerable = false, Configurable = true });
@@ -55,7 +55,7 @@ public static partial class StandardLibrary
             var entriesIterator = new HostFunction((thisValue, _) =>
             {
                 var typedArray = ValidateTypedArrayReceiver(thisValue, "%TypedArray%.prototype.entries", realm);
-                return CreateArrayIteratorObject(
+                return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(
                     typedArray,
                     idx =>
                     {
@@ -64,7 +64,7 @@ public static partial class StandardLibrary
                         pair.Push(typedArray.GetValueForIndex((int)idx));
                         return pair;
                     },
-                    realm);
+                    realm));
             }, realm, isConstructor: false);
             entriesIterator.DefineProperty("name",
                 new PropertyDescriptor { Value = "entries", Writable = false, Enumerable = false, Configurable = true });
@@ -100,12 +100,15 @@ public static partial class StandardLibrary
             DefineTypedArrayFunction(proto, "toSorted", 1d, TypedArrayToSorted, realm);
             DefineTypedArrayFunction(proto, "toSpliced", 2d, TypedArrayToSpliced, realm);
             DefineTypedArrayFunction(proto, "with", 2d, TypedArrayWith, realm);
-            proto.SetHostedProperty("indexOf", TypedArrayIndexOf, realm);
-            proto.SetHostedProperty("lastIndexOf", TypedArrayLastIndexOf, realm);
-            proto.SetHostedProperty("includes", TypedArrayIncludes, realm);
+            proto.SetHostedProperty("indexOf",
+                (thisValue, args, realmState) => TypedArrayIndexOf(thisValue, args, realmState), realm);
+            proto.SetHostedProperty("lastIndexOf",
+                (thisValue, args, realmState) => TypedArrayLastIndexOf(thisValue, args, realmState), realm);
+            proto.SetHostedProperty("includes",
+                (thisValue, args, realmState) => TypedArrayIncludes(thisValue, args, realmState), realm);
             proto.SetHostedProperty("some",
                 (thisValue, someArgs, realmState) =>
-                    SomeLike(thisValue, someArgs, realmState, "%TypedArray%.prototype.some"), realm);
+                    SomeLike(JsValue.FromObjectUnsafe(thisValue), someArgs.Select(a => a).ToList(), realmState, "%TypedArray%.prototype.some"), realm);
 
             realm.TypedArrayPrototype = proto;
         }
@@ -143,14 +146,14 @@ public static partial class StandardLibrary
         var prototype = new JsObject();
 
         HostFunction constructor = null!;
-        constructor = new HostFunction((thisValue, args) => ConstructTypedArray(args, thisValue ?? constructor));
+        constructor = new HostFunction((thisValue, args) => JsValue.FromObjectUnsafe(ConstructTypedArray(args, thisValue.IsNullish ? (JsValue)constructor : thisValue)));
         constructor.RealmState = realm;
         constructor.SetInvokeWithContext(
-            (args, _, _, newTarget) => ConstructTypedArray(args, newTarget ?? constructor));
+            (args, _, _, newTarget) => JsValue.FromObjectUnsafe(ConstructTypedArray(args, newTarget.IsNullish ? (JsValue)constructor : newTarget)));
 
-        constructor.SetProperty("BYTES_PER_ELEMENT", (double)bytesPerElement);
+        constructor.SetProperty("BYTES_PER_ELEMENT", JsValue.FromNumber((double)bytesPerElement));
         prototype.SetPrototype(realm.ObjectPrototype);
-        prototype.SetProperty("constructor", constructor);
+        prototype.SetProperty("constructor", (JsValue)constructor);
         var toStringTagKey = SymbolKeys.GetToStringTag(realm);
         prototype.DefineProperty(toStringTagKey,
             new PropertyDescriptor
@@ -168,7 +171,7 @@ public static partial class StandardLibrary
         constructor.DefineProperty("of",
             new PropertyDescriptor
             {
-                Value = new HostFunction(TypedArrayOf, isConstructor: false),
+                Value = new HostFunction((thisValue, args) => JsValue.FromObjectUnsafe(TypedArrayOf(thisValue, args)), isConstructor: false),
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -176,7 +179,7 @@ public static partial class StandardLibrary
         constructor.DefineProperty("from",
             new PropertyDescriptor
             {
-                Value = new HostFunction(TypedArrayFrom, isConstructor: false),
+                Value = new HostFunction((thisValue, args) => JsValue.FromObjectUnsafe(TypedArrayFrom(thisValue, args)), isConstructor: false),
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -201,29 +204,29 @@ public static partial class StandardLibrary
         prototype.DeleteOwnProperty("lastIndexOf");
         prototype.DeleteOwnProperty("includes");
 
-        constructor.SetProperty("prototype", prototype);
+        constructor.SetProperty("prototype", (JsValue)prototype);
         constructor.Properties.SetPrototype(sharedTypedArrayCtor.PropertiesObject);
 
         return constructor;
 
-        IJsPropertyAccessor ResolvePrototype(object? newTarget)
+        IJsPropertyAccessor ResolvePrototype(JsValue newTarget)
         {
-            if (newTarget is IJsPropertyAccessor accessor &&
+            if (newTarget.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
                 accessor.TryGetProperty("prototype", out var protoVal) &&
-                protoVal is IJsPropertyAccessor protoObj)
+                protoVal.TryGetObject<IJsPropertyAccessor>(out var protoObj))
             {
                 return protoObj;
             }
 
-            if (newTarget is not null &&
+            if (!newTarget.IsNullish &&
                 TryGetRealmInfo(newTarget, out var newTargetRealmState, out var newTargetRealmObject))
             {
                 var realmGlobal = newTargetRealmObject ?? newTargetRealmState?.Engine?.GlobalObject;
                 if (realmGlobal is not null &&
                     realmGlobal.TryGetProperty(constructorName, out var realmCtor) &&
-                    realmCtor is IJsPropertyAccessor realmCtorAccessor &&
+                    realmCtor.TryGetObject<IJsPropertyAccessor>(out var realmCtorAccessor) &&
                     realmCtorAccessor.TryGetProperty("prototype", out var realmProtoVal) &&
-                    realmProtoVal is IJsPropertyAccessor realmProto)
+                    realmProtoVal.TryGetObject<IJsPropertyAccessor>(out var realmProto))
                 {
                     return realmProto;
                 }
@@ -237,14 +240,14 @@ public static partial class StandardLibrary
             return prototype;
         }
 
-        T CreateTargetFromLength(int length, object? newTarget)
+        T CreateTargetFromLength(int length, JsValue newTarget)
         {
             var target = fromLength(length, realm);
             target.SetPrototype(ResolvePrototype(newTarget));
             return target;
         }
 
-        object? ConstructTypedArray(IReadOnlyList<object?> args, object? newTarget)
+        object? ConstructTypedArray(IReadOnlyList<JsValue> args, JsValue newTarget)
         {
             if (args.Count == 0)
             {
@@ -255,17 +258,17 @@ public static partial class StandardLibrary
             realm.Logger?.LogInformation(
                 "TypedArray ctor entry {Ctor} arg0Type={ArgType} newTargetType={NewTargetType}",
                 constructorName,
-                firstArg?.GetType().Name ?? "null",
-                newTarget?.GetType().Name ?? "null");
+                firstArg.GetType().Name,
+                newTarget.GetType().Name);
 
             // TypedArray(length)
-            if (firstArg is double d)
+            if (firstArg.TryGetDouble(out var d))
             {
                 return CreateTargetFromLength((int)d, newTarget);
             }
 
             // TypedArray(array)
-            if (firstArg is JsArray array)
+            if (firstArg.TryGetObject<JsArray>(out var array))
             {
                 var ta = fromArray(array, realm);
                 ta.SetPrototype(ResolvePrototype(newTarget));
@@ -273,7 +276,7 @@ public static partial class StandardLibrary
             }
 
             // TypedArray(typedArray)
-            if (firstArg is TypedArrayBase srcTypedArray)
+            if (firstArg.TryGetObject<TypedArrayBase>(out var srcTypedArray))
             {
                 if (srcTypedArray.IsDetachedOrOutOfBounds())
                 {
@@ -291,7 +294,7 @@ public static partial class StandardLibrary
                     srcTypedArray.Buffer.Resizable);
                 var ta = CreateTargetFromLength(length, newTarget);
                 realm.Logger?.LogInformation("TypedArray ctor target length={Length} newTarget={NewTargetType}", ta.Length,
-                    newTarget?.GetType().Name ?? "null");
+                    newTarget.GetType().Name);
                 if (length == 0)
                 {
                     realm.Logger?.LogInformation(
@@ -306,8 +309,8 @@ public static partial class StandardLibrary
                 {
                     var value = srcTypedArray switch
                     {
-                        JsBigInt64Array bi64 => bi64.GetBigIntElement(i),
-                        JsBigUint64Array bu64 => bu64.GetBigIntElement(i),
+                        JsBigInt64Array bi64 => (JsValue)bi64.GetBigIntElement(i),
+                        JsBigUint64Array bu64 => (JsValue)bu64.GetBigIntElement(i),
                         _ => srcTypedArray.GetValueForIndex(i)
                     };
                     if (i < 8)
@@ -321,13 +324,13 @@ public static partial class StandardLibrary
             }
 
             // TypedArray(buffer, byteOffset, length)
-            if (firstArg is JsArrayBuffer buffer)
+            if (firstArg.TryGetObject<JsArrayBuffer>(out var buffer))
             {
-                var byteOffset = args.Count > 1 && args[1] is double d1 ? (int)d1 : 0;
+                var byteOffset = args.Count > 1 && args[1].TryGetDouble(out var d1) ? (int)d1 : 0;
 
-                var lengthProvided = args.Count > 2 && args[2] is double;
+                var lengthProvided = args.Count > 2 && args[2].TryGetDouble(out var _);
                 var length = lengthProvided
-                    ? (int)(double)args[2]!
+                    ? (int)args[2].ToNumber()
                     : (buffer.ByteLength - byteOffset) / bytesPerElement;
                 var isLengthTracking = buffer.Resizable && !lengthProvided;
 
@@ -339,16 +342,16 @@ public static partial class StandardLibrary
             return CreateTargetFromLength(0, newTarget);
         }
 
-        object? TypedArrayOf(object? thisValue, IReadOnlyList<object?> args)
+        object? TypedArrayOf(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
-            if (thisValue is not HostFunction ctor)
+            if (!thisValue.TryGetObject<HostFunction>(out var ctor))
             {
                 throw ThrowTypeError("%TypedArray%.of called on incompatible receiver");
             }
 
             var length = args.Count;
-            var taObj = ctor.Invoke([(double)length], ctor);
-            if (taObj is not TypedArrayBase typed)
+            var taObj = ctor.Invoke([JsValue.FromNumber((double)length)], (JsValue)ctor);
+            if (!taObj.TryGetObject<TypedArrayBase>(out var typed))
             {
                 throw ThrowTypeError("%TypedArray%.of constructor did not return a typed array");
             }
@@ -361,22 +364,23 @@ public static partial class StandardLibrary
             return typed;
         }
 
-        object? TypedArrayFrom(object? thisValue, IReadOnlyList<object?> args)
+        object? TypedArrayFrom(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
-            var callingEnv = (thisValue as HostFunction)?.CallingJsEnvironment;
-            var targetProtoSource = thisValue ?? constructor;
+            thisValue.TryGetObject<HostFunction>(out var hostFunc);
+            var callingEnv = hostFunc?.CallingJsEnvironment;
+            var targetProtoSource = thisValue.IsNullish ? (JsValue)constructor : thisValue;
             IJsCallable? mapFn = null;
-            object? mapThis = Symbol.Undefined;
+            var mapThis = JsValue.Undefined;
 
             switch (args.Count)
             {
                 case 0:
                     return CreateTarget(0);
-                case > 1 when !ReferenceEquals(args[1], Symbol.Undefined):
+                case > 1 when !args[1].IsUndefined:
                 {
-                    if (args[1] is not IJsCallable callableMap)
+                    if (!args[1].TryGetObject<IJsCallable>(out var callableMap))
                     {
-                        throw new ThrowSignal(WrapTypeError("mapfn is not callable", callingEnv));
+                        throw new ThrowSignal(JsValue.FromObjectUnsafe(WrapTypeError("mapfn is not callable", callingEnv)));
                     }
 
                     mapFn = callableMap;
@@ -386,65 +390,66 @@ public static partial class StandardLibrary
             }
 
             var source = args[0];
-            switch (source)
+            if (source.TryGetObject<JsArray>(out var jsArray))
             {
-                case JsArray jsArray:
+                var target = CreateTarget(jsArray.Items.Count);
+                for (var i = 0; i < jsArray.Items.Count; i++)
                 {
-                    var target = CreateTarget(jsArray.Items.Count);
-                    for (var i = 0; i < jsArray.Items.Count; i++)
-                    {
-                        target.SetValue(i, ApplyMap(i, jsArray.Items[i]));
-                    }
-
-                    return target;
+                    target.SetValue(i, ApplyMap(i, jsArray.Items[i]));
                 }
-                case TypedArrayBase typedSource:
+
+                return target;
+            }
+
+            if (source.TryGetObject<TypedArrayBase>(out var typedSource))
+            {
+                var target = CreateTarget(typedSource.Length);
+                for (var i = 0; i < typedSource.Length; i++)
                 {
-                    var target = CreateTarget(typedSource.Length);
-                    for (var i = 0; i < typedSource.Length; i++)
+                    // GetElement/GetBigIntElement return raw numbers/BigInt, need to wrap
+                    var value = typedSource switch
                     {
-                        object? value = typedSource switch
-                        {
-                            JsBigInt64Array bi64 => bi64.GetBigIntElement(i),
-                            JsBigUint64Array bu64 => bu64.GetBigIntElement(i),
-                            _ => typedSource.GetElement(i)
-                        };
-                        target.SetValue(i, ApplyMap(i, value));
-                    }
-
-                    return target;
+                        JsBigInt64Array bi64 => (JsValue)bi64.GetBigIntElement(i),
+                        JsBigUint64Array bu64 => (JsValue)bu64.GetBigIntElement(i),
+                        _ => typedSource.GetElement(i)
+                    };
+                    // ApplyMap returns JsValue, no additional wrapping needed
+                    target.SetValue(i, ApplyMap(i, value));
                 }
+
+                return target;
             }
 
             var iteratorKey = SymbolKeys.Iterator;
-            if (source is IJsPropertyAccessor accessor &&
+            if (source.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
                 accessor.TryGetProperty(iteratorKey, out var methodVal) &&
-                !ReferenceEquals(methodVal, Symbol.Undefined))
+                !methodVal.IsUndefined)
             {
-                if (methodVal is not IJsCallable callableIterator)
+                if (!methodVal.TryGetObject<IJsCallable>(out var callableIterator))
                 {
-                    throw new ThrowSignal(WrapTypeError("Iterator method is not callable", callingEnv));
+                    throw new ThrowSignal(JsValue.FromObjectUnsafe(WrapTypeError("Iterator method is not callable", callingEnv)));
                 }
 
                 var iteratorObj = callableIterator.Invoke([], source);
-                if (iteratorObj is not IJsPropertyAccessor iteratorAccessor)
+                if (!iteratorObj.TryGetObject<IJsPropertyAccessor>(out var iteratorAccessor))
                 {
-                    throw new ThrowSignal(WrapTypeError("Iterator method did not return an object", callingEnv));
+                    throw new ThrowSignal(JsValue.FromObjectUnsafe(WrapTypeError("Iterator method did not return an object", callingEnv)));
                 }
 
                 if (!iteratorAccessor.TryGetProperty("next", out var nextVal) ||
-                    nextVal is not IJsCallable nextCallable)
+                    !nextVal.TryGetObject<IJsCallable>(out var nextCallable))
                 {
-                    throw new ThrowSignal(WrapTypeError("Iterator result does not expose next", callingEnv));
+                    throw new ThrowSignal(JsValue.FromObjectUnsafe(WrapTypeError("Iterator result does not expose next", callingEnv)));
                 }
 
-                var collected = new List<object?>();
+                // Use List<JsValue> to avoid boxing from TryGetProperty results
+                var collected = new List<JsValue>();
                 while (true)
                 {
                     var nextResult = nextCallable.Invoke([], iteratorObj);
-                    if (nextResult is not IJsPropertyAccessor nextResultAccessor)
+                    if (!nextResult.TryGetObject<IJsPropertyAccessor>(out var nextResultAccessor))
                     {
-                        throw new ThrowSignal(WrapTypeError("Iterator result is not an object", callingEnv));
+                        throw new ThrowSignal(JsValue.FromObjectUnsafe(WrapTypeError("Iterator result is not an object", callingEnv)));
                     }
 
                     var done = nextResultAccessor.TryGetProperty("done", out var doneVal) &&
@@ -454,6 +459,7 @@ public static partial class StandardLibrary
                         var target = CreateTarget(collected.Count);
                         for (var i = 0; i < collected.Count; i++)
                         {
+                            // collected[i] is JsValue, ApplyMap returns JsValue, no wrapping needed
                             target.SetValue(i, ApplyMap(i, collected[i]));
                         }
 
@@ -462,12 +468,12 @@ public static partial class StandardLibrary
 
                     var value = nextResultAccessor.TryGetProperty("value", out var valueVal)
                         ? valueVal
-                        : Symbol.Undefined;
+                        : JsValue.Undefined;
                     collected.Add(value);
                 }
             }
 
-            if (source is IJsPropertyAccessor arrayLike &&
+            if (source.TryGetObject<IJsPropertyAccessor>(out var arrayLike) &&
                 arrayLike.TryGetProperty("length", out var lengthVal))
             {
                 var lenNumber = JsOps.ToNumberWithContext(lengthVal);
@@ -479,7 +485,8 @@ public static partial class StandardLibrary
                 {
                     var key = i.ToString(CultureInfo.InvariantCulture);
                     var hasElement = arrayLike.TryGetProperty(key, out var element);
-                    target.SetValue(i, ApplyMap(i, hasElement ? element : Symbol.Undefined));
+                    // ApplyMap returns JsValue, no wrapping needed
+                    target.SetValue(i, ApplyMap(i, hasElement ? element : JsValue.Undefined));
                 }
 
                 return target;
@@ -507,13 +514,14 @@ public static partial class StandardLibrary
                     return new InvalidOperationException(message);
                 }
 
-                var errorValue = typeErrorCtor.Invoke([message], null);
-                if (errorValue is JsObject errorObj)
+                var errorValue = typeErrorCtor.Invoke([(JsValue)message], JsValue.Undefined);
+                if (errorValue.TryGetObject<JsObject>(out var errorObj))
                 {
-                    errorObj.SetProperty("constructor", typeErrorCtor);
+                    errorObj.SetProperty("constructor", JsValue.FromObjectUnsafe(typeErrorCtor));
+                    return errorObj;
                 }
 
-                return errorValue ?? new InvalidOperationException(message);
+                return new InvalidOperationException(message);
             }
 
             TypedArrayBase CreateTarget(int length)
@@ -523,9 +531,9 @@ public static partial class StandardLibrary
                 return target;
             }
 
-            object? ApplyMap(int index, object? value)
+            JsValue ApplyMap(int index, JsValue value)
             {
-                return mapFn is null ? value : mapFn.Invoke([value, (double)index], mapThis);
+                return mapFn is null ? value : mapFn.Invoke([value, JsValue.FromNumber((double)index)], mapThis);
             }
         }
     }
@@ -661,14 +669,15 @@ public static partial class StandardLibrary
             realm);
     }
 
-    private static object? TypedArrayMap(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    private static object? TypedArrayMap(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
+        if (thisValue is JsValue jsVal) thisValue = jsVal.ToObject();
         if (thisValue is not TypedArrayBase typedArray)
         {
             throw ThrowTypeError("TypedArray.prototype.map called on incompatible receiver", realm: realm);
         }
 
-        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
         {
             throw ThrowTypeError("TypedArray.prototype.map expects a callable callback", realm: realm);
         }
@@ -698,22 +707,23 @@ public static partial class StandardLibrary
                 break;
             }
 
+            // GetValueForIndex returns JsValue, no wrapping needed
             var value = typedArray.GetValueForIndex(k);
-            var mapped = callback.Invoke([value, (double)k, typedArray], thisArg);
+            var mapped = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
             result.SetValue(k, mapped);
         }
 
         return result;
     }
 
-    private static object? TypedArrayFilter(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    private static object? TypedArrayFilter(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
             throw ThrowTypeError("TypedArray.prototype.filter called on incompatible receiver", realm: realm);
         }
 
-        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
         {
             throw ThrowTypeError("TypedArray.prototype.filter expects a callable callback", realm: realm);
         }
@@ -730,7 +740,8 @@ public static partial class StandardLibrary
         }
 
         var length = typedArray.Length;
-        var kept = new List<object?>();
+        // Use List<JsValue> to avoid boxing from GetValueForIndex
+        var kept = new List<JsValue>();
         for (var k = 0; k < length; k++)
         {
             if (typedArray.IsDetachedOrOutOfBounds())
@@ -743,8 +754,9 @@ public static partial class StandardLibrary
                 break;
             }
 
+            // GetValueForIndex returns JsValue, no wrapping needed
             var value = typedArray.GetValueForIndex(k);
-            var result = callback.Invoke([value, (double)k, typedArray], thisArg);
+            var result = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
             if (IsTruthy(result))
             {
                 kept.Add(value);
@@ -754,13 +766,14 @@ public static partial class StandardLibrary
         var filtered = TypedArraySpeciesCreate(typedArray, kept.Count, realm);
         for (var i = 0; i < kept.Count; i++)
         {
+            // kept is List<JsValue>, no wrapping needed
             filtered.SetValue(i, kept[i]);
         }
 
         return filtered;
     }
 
-    private static object? TypedArrayReduce(object? thisValue, IReadOnlyList<object?> args, RealmState? realm,
+    private static object? TypedArrayReduce(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm,
         string methodName, bool fromRight)
     {
         if (thisValue is not TypedArrayBase typedArray)
@@ -768,7 +781,7 @@ public static partial class StandardLibrary
             throw ThrowTypeError($"{methodName} called on incompatible receiver", realm: realm);
         }
 
-        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
         {
             throw ThrowTypeError($"{methodName} requires a callable accumulator", realm: realm);
         }
@@ -789,7 +802,7 @@ public static partial class StandardLibrary
 
         object? accumulator = Symbol.Undefined;
         var hasAccumulator = false;
-        if (args.Count > 1 && !ReferenceEquals(args[1], Symbol.Undefined))
+        if (args.Count > 1 && !args[1].IsUndefined)
         {
             accumulator = args[1];
             hasAccumulator = true;
@@ -809,6 +822,7 @@ public static partial class StandardLibrary
                 break;
             }
 
+            // GetValueForIndex returns JsValue, no wrapping needed
             var value = typedArray.GetValueForIndex(k);
             visited++;
 
@@ -819,7 +833,9 @@ public static partial class StandardLibrary
             }
             else
             {
-                accumulator = callback.Invoke([accumulator, value, (double)k, typedArray], Symbol.Undefined);
+                // value is JsValue from GetValueForIndex, accumulator is JsValue from callback or initial value
+                var accumulatorJs = accumulator is JsValue accJs ? accJs : JsValue.FromObjectUnsafe(accumulator);
+                accumulator = callback.Invoke([accumulatorJs, value, JsValue.FromNumber((double)k), (JsValue)typedArray], JsValue.Undefined);
             }
 
             k += step;
@@ -833,14 +849,14 @@ public static partial class StandardLibrary
         return accumulator;
     }
 
-    private static object? TypedArrayEvery(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    private static object? TypedArrayEvery(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
             throw ThrowTypeError("TypedArray.prototype.every called on incompatible receiver", realm: realm);
         }
 
-        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
         {
             throw ThrowTypeError("TypedArray.prototype.every expects a callable callback", realm: realm);
         }
@@ -855,9 +871,9 @@ public static partial class StandardLibrary
         {
             var strictField = callback.GetType().GetField("_isStrict", BindingFlags.NonPublic | BindingFlags.Instance);
             var strictValue = strictField?.GetValue(callback);
-            var thisArgKind = thisArg is Symbol sym && ReferenceEquals(sym, Symbol.Undefined)
+            var thisArgKind = thisArg.IsUndefined
                 ? "undefined"
-                : thisArg?.GetType().Name ?? "null";
+                : thisArg.GetType().Name;
             logger.LogInformation(
                 "TypedArray.every callback type={Type} strict={Strict} thisArg={ThisArg}",
                 callback.GetType().Name,
@@ -873,8 +889,9 @@ public static partial class StandardLibrary
         var length = typedArray.Length;
         for (var k = 0; k < length; k++)
         {
+            // GetValueForIndex returns JsValue, no wrapping needed
             var value = typedArray.GetValueForIndex(k);
-            var result = callback.Invoke([value, (double)k, typedArray], thisArg);
+            var result = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
             if (!IsTruthy(result))
             {
                 return false;
@@ -884,14 +901,14 @@ public static partial class StandardLibrary
         return true;
     }
 
-    private static object? TypedArrayFind(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    private static object? TypedArrayFind(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
             throw ThrowTypeError("TypedArray.prototype.find called on incompatible receiver", realm: realm);
         }
 
-        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
         {
             throw ThrowTypeError("TypedArray.prototype.find expects a callable callback", realm: realm);
         }
@@ -911,25 +928,25 @@ public static partial class StandardLibrary
         for (var k = 0; k < length; k++)
         {
             var key = k.ToString(CultureInfo.InvariantCulture);
-            var value = typedArray.TryGetProperty(key, typedArray, out var candidate) ? candidate : Symbol.Undefined;
-            var match = callback.Invoke([value, (double)k, typedArray], thisArg);
+            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate) ? candidate : JsValue.Undefined;
+            var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
             if (IsTruthy(match))
             {
                 return value;
             }
         }
 
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
-    private static object? TypedArrayFindIndex(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    private static object? TypedArrayFindIndex(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
             throw ThrowTypeError("TypedArray.prototype.findIndex called on incompatible receiver", realm: realm);
         }
 
-        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
         {
             throw ThrowTypeError("TypedArray.prototype.findIndex expects a callable callback", realm: realm);
         }
@@ -949,8 +966,8 @@ public static partial class StandardLibrary
         for (var k = 0; k < length; k++)
         {
             var key = k.ToString(CultureInfo.InvariantCulture);
-            var value = typedArray.TryGetProperty(key, typedArray, out var candidate) ? candidate : Symbol.Undefined;
-            var match = callback.Invoke([value, (double)k, typedArray], thisArg);
+            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate) ? candidate : JsValue.Undefined;
+            var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
             if (IsTruthy(match))
             {
                 return (double)k;
@@ -960,14 +977,14 @@ public static partial class StandardLibrary
         return -1d;
     }
 
-    private static object? TypedArrayFindLast(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    private static object? TypedArrayFindLast(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
             throw ThrowTypeError("TypedArray.prototype.findLast called on incompatible receiver", realm: realm);
         }
 
-        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
         {
             throw ThrowTypeError("TypedArray.prototype.findLast expects a callable callback", realm: realm);
         }
@@ -987,25 +1004,25 @@ public static partial class StandardLibrary
         for (var k = length - 1; k >= 0; k--)
         {
             var key = k.ToString(CultureInfo.InvariantCulture);
-            var value = typedArray.TryGetProperty(key, typedArray, out var candidate) ? candidate : Symbol.Undefined;
-            var match = callback.Invoke([value, (double)k, typedArray], thisArg);
+            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate) ? candidate : JsValue.Undefined;
+            var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
             if (IsTruthy(match))
             {
                 return value;
             }
         }
 
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
-    private static object? TypedArrayFindLastIndex(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    private static object? TypedArrayFindLastIndex(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
             throw ThrowTypeError("TypedArray.prototype.findLastIndex called on incompatible receiver", realm: realm);
         }
 
-        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
         {
             throw ThrowTypeError("TypedArray.prototype.findLastIndex expects a callable callback", realm: realm);
         }
@@ -1025,8 +1042,8 @@ public static partial class StandardLibrary
         for (var k = length - 1; k >= 0; k--)
         {
             var key = k.ToString(CultureInfo.InvariantCulture);
-            var value = typedArray.TryGetProperty(key, typedArray, out var candidate) ? candidate : Symbol.Undefined;
-            var match = callback.Invoke([value, (double)k, typedArray], thisArg);
+            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate) ? candidate : JsValue.Undefined;
+            var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
             if (IsTruthy(match))
             {
                 return (double)k;
@@ -1036,14 +1053,14 @@ public static partial class StandardLibrary
         return -1d;
     }
 
-    private static object? TypedArrayForEach(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    private static object? TypedArrayForEach(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
             throw ThrowTypeError("TypedArray.prototype.forEach called on incompatible receiver", realm: realm);
         }
 
-        if (args.Count == 0 || args[0] is not IJsCallable callback)
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
         {
             throw ThrowTypeError("TypedArray.prototype.forEach expects a callable callback", realm: realm);
         }
@@ -1072,14 +1089,15 @@ public static partial class StandardLibrary
                 break;
             }
 
+            // GetValueForIndex returns JsValue, no wrapping needed
             var value = typedArray.GetValueForIndex(k);
-            callback.Invoke([value, (double)k, typedArray], thisArg);
+            callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
         }
 
         return Symbol.Undefined;
     }
 
-    private static object? TypedArrayFill(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    private static object? TypedArrayFill(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
@@ -1117,7 +1135,7 @@ public static partial class StandardLibrary
         return typedArray;
     }
 
-    private static object? TypedArrayCopyWithin(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    private static object? TypedArrayCopyWithin(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
@@ -1175,7 +1193,7 @@ public static partial class StandardLibrary
         return typedArray;
     }
 
-    private static object? TypedArrayReverse(object? thisValue, IReadOnlyList<object?> _, RealmState? realm)
+    private static object? TypedArrayReverse(object? thisValue, IReadOnlyList<JsValue> _, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
@@ -1213,7 +1231,7 @@ public static partial class StandardLibrary
         return typedArray;
     }
 
-    private static object? TypedArrayToReversed(object? thisValue, IReadOnlyList<object?> _, RealmState? realm)
+    private static object? TypedArrayToReversed(object? thisValue, IReadOnlyList<JsValue> _, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
@@ -1241,7 +1259,7 @@ public static partial class StandardLibrary
         return result;
     }
 
-    private static object? TypedArrayToSorted(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    private static object? TypedArrayToSorted(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
@@ -1254,9 +1272,9 @@ public static partial class StandardLibrary
         }
 
         IJsCallable? compareFn = null;
-        if (args.Count > 0 && !ReferenceEquals(args[0], Symbol.Undefined))
+        if (args.Count > 0 && !args[0].IsUndefined)
         {
-            if (args[0] is not IJsCallable callable)
+            if (!args[0].TryGetObject<IJsCallable>(out var callable) )
             {
                 throw ThrowTypeError("TypedArray.prototype.toSorted comparator must be callable", realm: realm);
             }
@@ -1265,7 +1283,8 @@ public static partial class StandardLibrary
         }
 
         var length = typedArray.Length;
-        var values = new List<object?>(length);
+        // Use List<JsValue> to avoid boxing from GetValueForIndex
+        var values = new List<JsValue>(length);
         for (var i = 0; i < length; i++)
         {
             if (typedArray.IsDetachedOrOutOfBounds())
@@ -1276,29 +1295,33 @@ public static partial class StandardLibrary
             values.Add(typedArray.GetValueForIndex(i));
         }
 
-        values.Sort((Comparison<object?>)Comparer);
+        values.Sort(Comparer);
 
         var result = TypedArraySpeciesCreate(typedArray, length, realm);
         for (var i = 0; i < values.Count; i++)
         {
+            // values[i] is already JsValue, no wrapping needed
             result.SetValue(i, values[i]);
         }
 
         return result;
 
-        int Comparer(object? left, object? right)
+        int Comparer(JsValue left, JsValue right)
         {
             if (compareFn is not null)
             {
-                var result = compareFn.Invoke([left, right], Symbol.Undefined);
+                // left and right are already JsValue, no wrapping needed
+                var result = compareFn.Invoke([left, right], JsValue.Undefined);
                 var numeric = JsOps.ToNumber(result);
                 return numeric > 0 ? 1 : numeric < 0 ? -1 : 0;
             }
 
             if (typedArray.IsBigIntArray)
             {
-                var leftBig = left as JsBigInt ?? ToBigInt(left, realmState: realm);
-                var rightBig = right as JsBigInt ?? ToBigInt(right, realmState: realm);
+                var leftObj = left.ToObject();
+                var rightObj = right.ToObject();
+                var leftBig = leftObj as JsBigInt ?? ToBigInt(leftObj, realmState: realm);
+                var rightBig = rightObj as JsBigInt ?? ToBigInt(rightObj, realmState: realm);
                 return leftBig.Value.CompareTo(rightBig.Value);
             }
 
@@ -1318,7 +1341,7 @@ public static partial class StandardLibrary
         }
     }
 
-    private static object? TypedArrayToSpliced(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    private static object? TypedArrayToSpliced(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
@@ -1334,7 +1357,7 @@ public static partial class StandardLibrary
         var start = args.Count > 0 ? ToIntegerOrInfinity(args[0], realm?.CreateContext()) : 0;
         var actualStart = ClampRelativeIndex(start, length);
 
-        var deleteCountIsUndefined = args.Count <= 1 || ReferenceEquals(args[1], Symbol.Undefined);
+        var deleteCountIsUndefined = args.Count <= 1 || args[1].IsUndefined;
         int actualDeleteCount;
         if (deleteCountIsUndefined)
         {
@@ -1388,7 +1411,7 @@ public static partial class StandardLibrary
         return result;
     }
 
-    private static object? TypedArrayWith(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    private static object? TypedArrayWith(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typedArray)
         {
@@ -1439,9 +1462,9 @@ public static partial class StandardLibrary
     }
 
     private static void DefineTypedArrayFunction(JsObject target, string name, double length,
-        Func<object?, IReadOnlyList<object?>, RealmState?, object?> handler, RealmState realm)
+        Func<object?, IReadOnlyList<JsValue>, RealmState?, object?> handler, RealmState realm)
     {
-        var fn = new HostFunction(handler, realm, isConstructor: false);
+        var fn = new HostFunction((thisValue, args) => JsValue.FromObjectUnsafe(handler(thisValue.ToObject(), args, realm)), realm, isConstructor: false);
         fn.DefineProperty("name",
             new PropertyDescriptor { Value = name, Writable = false, Enumerable = false, Configurable = true });
         fn.DefineProperty("length",
@@ -1451,7 +1474,7 @@ public static partial class StandardLibrary
             new PropertyDescriptor { Value = fn, Writable = true, Enumerable = false, Configurable = true });
     }
 
-    private static object? TypedArrayIndexOf(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    private static object? TypedArrayIndexOf(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typed)
         {
@@ -1461,7 +1484,7 @@ public static partial class StandardLibrary
         return TypedArrayBase.IndexOfInternal(typed, args);
     }
 
-    private static object? TypedArrayLastIndexOf(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    private static object? TypedArrayLastIndexOf(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typed)
         {
@@ -1471,7 +1494,7 @@ public static partial class StandardLibrary
         return TypedArrayBase.LastIndexOfInternal(typed, args);
     }
 
-    private static object? TypedArrayIncludes(object? thisValue, IReadOnlyList<object?> args, RealmState? realm)
+    private static object? TypedArrayIncludes(object? thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (thisValue is not TypedArrayBase typed)
         {
@@ -1483,6 +1506,12 @@ public static partial class StandardLibrary
 
     private static TypedArrayBase ValidateTypedArrayReceiver(object? thisValue, string methodName, RealmState? realm)
     {
+        // Unwrap JsValue if present
+        if (thisValue is JsValue jsVal)
+        {
+            thisValue = jsVal.ToObject();
+        }
+
         if (thisValue is not TypedArrayBase typedArray)
         {
             throw ThrowTypeError($"{methodName} called on incompatible receiver", realm: realm);
@@ -1499,31 +1528,32 @@ public static partial class StandardLibrary
     private static TypedArrayBase TypedArraySpeciesCreate(TypedArrayBase exemplar, int length, RealmState? realm)
     {
         length = Math.Max(length, 0);
-        object? constructorValue = null;
+        var constructorValue = JsValue.Undefined;
 
-        if (exemplar.TryGetProperty("constructor", exemplar, out var ctorValue))
+        if (exemplar.TryGetProperty("constructor", (JsValue)exemplar, out var ctorValue))
         {
             constructorValue = ctorValue;
         }
 
-        if (constructorValue is IJsPropertyAccessor ctorAccessor &&
+        // Check if constructor value is an object with [Symbol.species]
+        if (constructorValue.TryGetObject<IJsPropertyAccessor>(out var ctorAccessor) &&
             ctorAccessor.TryGetProperty(SymbolSpeciesKey, out var speciesValue))
         {
             constructorValue = speciesValue;
         }
 
-        if (constructorValue is null || ReferenceEquals(constructorValue, Symbol.Undefined))
+        if (constructorValue.IsNullOrUndefined)
         {
             return CreateDefaultTypedArray(exemplar, length);
         }
 
-        if (!JsOps.IsConstructor(constructorValue) || constructorValue is not IJsCallable callable)
+        if (!JsOps.IsConstructor(constructorValue) || !constructorValue.TryGetObject<IJsCallable>(out var callable))
         {
             throw ThrowTypeError("TypedArray species constructor must be a constructor", realm: realm);
         }
 
-        var constructed = callable.Invoke([(double)length], null);
-        if (constructed is not TypedArrayBase typedResult)
+        var constructed = callable.Invoke([JsValue.FromNumber((double)length)], JsValue.Undefined);
+        if (!constructed.TryGetObject<TypedArrayBase>(out var typedResult))
         {
             throw ThrowTypeError("TypedArray species constructor did not return a TypedArray instance", realm: realm);
         }

@@ -1,5 +1,5 @@
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Ast;
@@ -8,147 +8,226 @@ public static partial class TypedAstEvaluator
 {
     extension(UnaryExpression expression)
     {
+        /// <summary>
+        /// Hot path for unary expressions - handles common operators without try/catch.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue EvaluateUnary(JsEnvironment environment,
             EvaluationContext context)
         {
+            var op = expression.Operator;
+
+            // Hot path: increment/decrement on simple identifiers with slots
+            if (op == UnaryOperator.Increment || op == UnaryOperator.Decrement)
+            {
+                var targetOperand = expression.Operand;
+                while (targetOperand is UnaryExpression { Operator: UnaryOperator.Increment or UnaryOperator.Decrement } nested)
+                    targetOperand = nested.Operand;
+
+                if (targetOperand is IdentifierExpression identifier)
+                {
+                    // When there's a with object in the chain, we must use reference-based approach
+                    // to preserve the binding object for PutValue even if property is deleted during GetValue
+                    if (environment.HasWithObjectInChain())
+                    {
+                        return expression.EvaluateUnaryMemberIncrement(environment, context);
+                    }
+
+                    // Fastest path: slot-based access
+                    if (identifier.SlotIndex >= 0 && identifier.ScopeId >= 0)
+                    {
+                        var targetEnv = environment.ScopeId == identifier.ScopeId
+                            ? environment
+                            : environment.FindByScopeId(identifier.ScopeId);
+
+                        if (targetEnv?._slots is not null)
+                        {
+                            var slotValue = targetEnv._slots[identifier.SlotIndex];
+
+                            // Fast path for Number (most common case in loops)
+                            if (slotValue.Kind == JsValueKind.Number)
+                            {
+                                var d = slotValue.NumberValue;
+                                var updatedValue = d + (op == UnaryOperator.Increment ? 1 : -1);
+                                targetEnv._slots[identifier.SlotIndex] = new JsValue(updatedValue);
+                                return expression.IsPrefix ? new JsValue(updatedValue) : new JsValue(d);
+                            }
+
+                            // Non-numeric slot values
+                            var slotOldNumeric = ToNumericValue(slotValue, context);
+                            if (context.ShouldStopEvaluation)
+                                return context.FlowValue;
+
+                            var slotUpdated = op == UnaryOperator.Increment
+                                ? IncrementValue(slotOldNumeric, context)
+                                : DecrementValue(slotOldNumeric, context);
+                            targetEnv._slots[identifier.SlotIndex] = slotUpdated;
+                            return expression.IsPrefix ? slotUpdated : slotOldNumeric;
+                        }
+                    }
+
+                    // Direct identifier path (no slot)
+                    var currentJsValue = context.GetIdentifier(environment, identifier.Name);
+                    if (context.ShouldStopEvaluation)
+                        return context.FlowValue;
+
+                    if (currentJsValue.Kind == JsValueKind.Number)
+                    {
+                        var d = currentJsValue.NumberValue;
+                        var updatedValue = d + (op == UnaryOperator.Increment ? 1 : -1);
+                        environment.SetIdentifierJsValue(identifier.Name, new JsValue(updatedValue), context);
+                        return expression.IsPrefix ? new JsValue(updatedValue) : new JsValue(d);
+                    }
+
+                    var oldNumeric = ToNumericValue(currentJsValue, context);
+                    if (context.ShouldStopEvaluation)
+                        return context.FlowValue;
+
+                    var updated = op == UnaryOperator.Increment
+                        ? IncrementValue(oldNumeric, context)
+                        : DecrementValue(oldNumeric, context);
+                    environment.SetIdentifierJsValue(identifier.Name, updated, context);
+                    return expression.IsPrefix ? updated : oldNumeric;
+                }
+
+                // Member expression increment/decrement - slow path with try/catch
+                return expression.EvaluateUnaryMemberIncrement(environment, context);
+            }
+
+            // Hot path: logical not
+            if (op == UnaryOperator.LogicalNot)
+            {
+                var operand = EvaluateExpression(expression.Operand, environment, context);
+                if (context.ShouldStopEvaluation)
+                    return JsValue.Undefined;
+                return operand.IsTruthy ? JsValue.False : JsValue.True;
+            }
+
+            // Other operators - slow path
+            return expression.EvaluateUnarySlow(environment, context);
+        }
+
+        /// <summary>
+        /// Slow path for member expression increment/decrement - requires try/catch for ReferenceError.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private JsValue EvaluateUnaryMemberIncrement(JsEnvironment environment, EvaluationContext context)
+        {
             try
             {
-                switch (expression.Operator)
+                var reference = AssignmentReferenceResolver.Resolve(
+                    expression.Operand,
+                    environment,
+                    context,
+                    static (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
+
+                var refCurrentJsValue = reference.GetJsValue();
+
+                if (refCurrentJsValue.Kind == JsValueKind.Number)
                 {
-                    case "++" or "--":
+                    var d = refCurrentJsValue.NumberValue;
+                    var updatedValue = d + (expression.Operator == UnaryOperator.Increment ? 1 : -1);
+                    reference.SetValue(new JsValue(updatedValue));
+                    return expression.IsPrefix ? new JsValue(updatedValue) : new JsValue(d);
+                }
+
+                var refOldNumeric = ToNumericValue(refCurrentJsValue, context);
+                if (context.ShouldStopEvaluation)
+                    return context.FlowValue;
+
+                var refUpdated = expression.Operator == UnaryOperator.Increment
+                    ? IncrementValue(refOldNumeric, context)
+                    : DecrementValue(refOldNumeric, context);
+                reference.SetValue(refUpdated);
+                return expression.IsPrefix ? refUpdated : refOldNumeric;
+            }
+            catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
+            {
+                return HandleReferenceErrorUnary(ex, environment, context);
+            }
+        }
+
+        /// <summary>
+        /// Slow path for other unary operators (typeof, delete, plus, minus, etc.).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private JsValue EvaluateUnarySlow(JsEnvironment environment, EvaluationContext context)
+        {
+            switch (expression.Operator)
+            {
+                case UnaryOperator.Delete:
+                    return EvaluateDelete(expression.Operand, environment, context) ? JsValue.True : JsValue.False;
+
+                case UnaryOperator.TypeOf:
+                {
+                    if (expression.Operand is IdentifierExpression identifier)
                     {
-                        var reference = AssignmentReferenceResolver.Resolve(
-                            expression.Operand,
-                            environment,
-                            context,
-                            (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
+                        var hasBinding = environment.HasBinding(identifier.Name);
+                        var operandValue = EvaluateExpression(expression.Operand, environment, context);
 
-                        // Use GetJsValue() to avoid boxing for declarative bindings
-                        var currentJsValue = reference.GetJsValue();
-
-                        // Fast path for Number (most common case) - avoid boxing entirely
-                        if (currentJsValue.Kind == JsValueKind.Number)
+                        if (context.IsThrow)
                         {
-                            var d = currentJsValue.NumberValue;
-                            var updatedValue = d + (expression.Operator == "++" ? 1 : -1);
-                            reference.SetValue(new JsValue(updatedValue));
-                            return expression.IsPrefix ? new JsValue(updatedValue) : new JsValue(d);
-                        }
-
-                        // Fall back to object path for non-numeric values
-                        var currentValue = currentJsValue.ToObject();
-
-                        // Per ES spec, convert to numeric first (handles both Number and BigInt)
-                        var oldNumeric = JsOps.ToNumeric(currentValue, context);
-                        if (context.ShouldStopEvaluation)
-                        {
-                            return JsValue.FromObject(context.FlowValue);
-                        }
-
-                        // Calculate new value (increment/decrement the already-converted numeric value)
-                        var updated = expression.Operator == "++"
-                            ? IncrementValue(JsValue.FromObject(oldNumeric), context)
-                            : DecrementValue(JsValue.FromObject(oldNumeric), context);
-                        reference.SetValue(updated);
-
-                        // Postfix returns the old numeric value (after conversion but before increment/decrement)
-                        // Prefix returns the new value (after increment/decrement)
-                        return expression.IsPrefix ? updated : JsValue.FromObject(oldNumeric);
-                    }
-                    case "delete":
-                        return EvaluateDelete(expression.Operand, environment, context) ? JsValue.True : JsValue.False;
-                    case "typeof":
-                    {
-                        // The typeof operator has special semantics: it returns "undefined"
-                        // for UNDECLARED references instead of throwing ReferenceError.
-                        // However, it MUST throw for bindings in the Temporal Dead Zone (TDZ).
-                        // Property getters MUST be invoked during evaluation (ES2024 13.5.3).
-
-                        // For simple identifiers, check if the binding exists to distinguish
-                        // between undeclared variables and TDZ variables
-                        if (expression.Operand is IdentifierExpression identifier)
-                        {
-                            // Check if this identifier has a binding (even if uninitialized)
-                            var hasBinding = environment.HasBinding(identifier.Name);
-
-                            // Evaluate the operand (which will throw if in TDZ)
-                            var operandValue = EvaluateExpression(expression.Operand, environment, context);
-
-                            // If evaluation threw a ReferenceError
-                            if (context.IsThrow)
+                            if (!hasBinding)
                             {
-                                // Only suppress the error if the variable was truly undeclared
-                                // (no binding exists). If a binding exists, it's a TDZ error
-                                // and should propagate.
-                                if (!hasBinding)
-                                {
-                                    // Clear the error and return "undefined" for undeclared variables
-                                    context.Clear();
-                                    return new JsValue("undefined");
-                                }
-
-                                // Let TDZ errors propagate
-                                return JsValue.Undefined;
+                                context.Clear();
+                                return new JsValue("undefined");
                             }
-
-                            if (context.ShouldStopEvaluation)
-                            {
-                                return JsValue.Undefined;
-                            }
-
-                            return new JsValue(GetTypeofStringValue(operandValue));
-                        }
-
-                        // For non-identifier operands, evaluate normally
-                        var value = EvaluateExpression(expression.Operand, environment, context);
-                        if (context.ShouldStopEvaluation)
-                        {
                             return JsValue.Undefined;
                         }
 
-                        return new JsValue(GetTypeofStringValue(value));
+                        if (context.ShouldStopEvaluation)
+                            return JsValue.Undefined;
+
+                        return new JsValue(GetTypeofStringValue(operandValue));
                     }
-                }
 
-                var operand = EvaluateExpression(expression.Operand, environment, context);
-                if (context.ShouldStopEvaluation)
-                {
-                    return JsValue.Undefined;
-                }
+                    var value = EvaluateExpression(expression.Operand, environment, context);
+                    if (context.ShouldStopEvaluation)
+                        return JsValue.Undefined;
 
-                return expression.Operator switch
-                {
-                    "!" => operand.IsTruthy ? JsValue.False : JsValue.True,
-                    "+" => operand.IsBigInt
-                        ? throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number", context)
-                        : new JsValue(ToNumberValue(operand, context)),
-                    "-" => NegateValue(operand, context),
-                    "~" => BitwiseNotValue(operand, context),
-                    "void" => JsValue.Undefined,
-                    _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet.")
-                };
+                    return new JsValue(GetTypeofStringValue(value));
+                }
             }
-            catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
-                         StringComparison.Ordinal))
+
+            var operand = EvaluateExpression(expression.Operand, environment, context);
+            if (context.ShouldStopEvaluation)
+                return JsValue.Undefined;
+
+            return expression.Operator switch
             {
-                object? errorObject = ex.Message;
+                UnaryOperator.Plus => operand.IsBigInt
+                    ? throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number", context)
+                    : new JsValue(ToNumberValue(operand, context)),
+                UnaryOperator.Minus => NegateValue(operand, context),
+                UnaryOperator.BitwiseNot => BitwiseNotValue(operand, context),
+                UnaryOperator.Void => JsValue.Undefined,
+                _ => throw new NotSupportedException($"Operator '{expression.Operator}' is not supported yet.")
+            };
+        }
 
-                if (environment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
-                    ctor is IJsCallable callable)
+        /// <summary>
+        /// Handles ReferenceError exceptions from unary operations.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static JsValue HandleReferenceErrorUnary(InvalidOperationException ex, JsEnvironment environment, EvaluationContext context)
+        {
+            object? errorObject = ex.Message;
+
+            if (environment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
+                ctor is IJsCallable callable)
+            {
+                try
                 {
-                    try
-                    {
-                        errorObject = callable.Invoke([ex.Message], Symbol.Undefined);
-                    }
-                    catch (ThrowSignal signal)
-                    {
-                        errorObject = signal.ThrownValue;
-                    }
+                    errorObject = callable.Invoke([new JsValue(ex.Message)], JsValue.Undefined).ToObject();
                 }
-
-                context.SetThrow(errorObject);
-                return JsValue.FromObject(errorObject);
+                catch (ThrowSignal signal)
+                {
+                    errorObject = signal.ThrownValue;
+                }
             }
+
+            context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
+            return JsValue.FromObjectUnsafe(errorObject);
         }
     }
 
@@ -196,6 +275,6 @@ public static partial class TypedAstEvaluator
             return new JsValue((double)~Converters.JsNumericConversions.ToInt32(operand.NumberValue));
         }
 
-        return JsValue.FromObject(BitwiseNot(operand.ToObject(), context));
+        return JsValue.FromObjectUnsafe(BitwiseNot(operand.ToObject(), context));
     }
 }

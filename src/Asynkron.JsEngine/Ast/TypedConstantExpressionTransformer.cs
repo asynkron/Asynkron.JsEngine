@@ -467,7 +467,7 @@ public sealed class TypedConstantExpressionTransformer
         if (TryGetLiteralValue(left, out var leftValue) && TryGetLiteralValue(right, out var rightValue) &&
             TryFoldBinary(expression.Operator, leftValue, rightValue, out var foldedValue))
         {
-            return new LiteralExpression(expression.Source, foldedValue);
+            return new LiteralExpression(expression.Source, ToJsValue(foldedValue));
         }
 
         if (ReferenceEquals(left, expression.Left) && ReferenceEquals(right, expression.Right))
@@ -484,7 +484,7 @@ public sealed class TypedConstantExpressionTransformer
         if (TryGetLiteralValue(operand, out var operandValue) &&
             TryFoldUnary(expression.Operator, operandValue, out var foldedValue))
         {
-            return new LiteralExpression(expression.Source, foldedValue);
+            return new LiteralExpression(expression.Source, ToJsValue(foldedValue));
         }
 
         return ReferenceEquals(operand, expression.Operand) ? expression : expression with { Operand = operand };
@@ -698,7 +698,15 @@ public sealed class TypedConstantExpressionTransformer
     {
         if (expression is LiteralExpression literal && IsFoldableLiteral(literal.Value))
         {
-            value = literal.Value;
+            // Extract the underlying value from JsValue for constant folding
+            value = literal.Value.Kind switch
+            {
+                JsValueKind.Null => null,
+                JsValueKind.Boolean => literal.Value.IsBoolean && literal.Value.NumberValue != 0,
+                JsValueKind.Number => literal.Value.NumberValue,
+                JsValueKind.String => literal.Value.AsString(),
+                _ => null
+            };
             return true;
         }
 
@@ -706,51 +714,67 @@ public sealed class TypedConstantExpressionTransformer
         return false;
     }
 
-    private static bool IsFoldableLiteral(object? value)
+    private static bool IsFoldableLiteral(JsValue value)
     {
-        return value is double || value is string || value is bool || value is null;
+        return value.Kind is JsValueKind.Number
+            or JsValueKind.String
+            or JsValueKind.Boolean
+            or JsValueKind.Null;
     }
 
-    private static bool TryFoldBinary(string op, object? left, object? right, out object? value)
+    private static JsValue ToJsValue(object? value)
+    {
+        return value switch
+        {
+            null => JsValue.Null,
+            true => JsValue.True,
+            false => JsValue.False,
+            double d => new JsValue(d),
+            string s => new JsValue(s),
+            _ => JsValue.FromObjectUnsafe(value)
+        };
+    }
+
+    private static bool TryFoldBinary(BinaryOperator op, object? left, object? right, out object? value)
     {
         value = null;
         return op switch
         {
-            "+" => TryFoldAddition(left, right, out value),
-            "-" => TryFoldSubtraction(left, right, out value),
-            "*" => TryFoldMultiplication(left, right, out value),
-            "/" => TryFoldDivision(left, right, out value),
-            "%" => TryFoldModulo(left, right, out value),
-            "**" => TryFoldExponentiation(left, right, out value),
-            "&&" => TryFoldLogicalAnd(left, right, out value),
-            "||" => TryFoldLogicalOr(left, right, out value),
-            "==" => TryFoldEquals(left, right, out value),
-            "!=" => TryFoldNotEquals(left, right, out value),
-            "===" => TryFoldStrictEquals(left, right, out value),
-            "!==" => TryFoldStrictNotEquals(left, right, out value),
-            "<" => TryFoldLessThan(left, right, out value),
-            "<=" => TryFoldLessThanOrEqual(left, right, out value),
-            ">" => TryFoldGreaterThan(left, right, out value),
-            ">=" => TryFoldGreaterThanOrEqual(left, right, out value),
-            "&" => TryFoldBitwiseAnd(left, right, out value),
-            "|" => TryFoldBitwiseOr(left, right, out value),
-            "^" => TryFoldBitwiseXor(left, right, out value),
-            "<<" => TryFoldLeftShift(left, right, out value),
-            ">>" => TryFoldRightShift(left, right, out value),
-            ">>>" => TryFoldUnsignedRightShift(left, right, out value),
+            BinaryOperator.Add => TryFoldAddition(left, right, out value),
+            BinaryOperator.Subtract => TryFoldSubtraction(left, right, out value),
+            BinaryOperator.Multiply => TryFoldMultiplication(left, right, out value),
+            BinaryOperator.Divide => TryFoldDivision(left, right, out value),
+            BinaryOperator.Modulo => TryFoldModulo(left, right, out value),
+            BinaryOperator.Power => TryFoldExponentiation(left, right, out value),
+            BinaryOperator.LogicalAnd => TryFoldLogicalAnd(left, right, out value),
+            BinaryOperator.LogicalOr => TryFoldLogicalOr(left, right, out value),
+            BinaryOperator.Equal => TryFoldEquals(left, right, out value),
+            BinaryOperator.NotEqual => TryFoldNotEquals(left, right, out value),
+            BinaryOperator.StrictEqual => TryFoldStrictEquals(left, right, out value),
+            BinaryOperator.StrictNotEqual => TryFoldStrictNotEquals(left, right, out value),
+            BinaryOperator.LessThan => TryFoldLessThan(left, right, out value),
+            BinaryOperator.LessThanOrEqual => TryFoldLessThanOrEqual(left, right, out value),
+            BinaryOperator.GreaterThan => TryFoldGreaterThan(left, right, out value),
+            BinaryOperator.GreaterThanOrEqual => TryFoldGreaterThanOrEqual(left, right, out value),
+            BinaryOperator.BitwiseAnd => TryFoldBitwiseAnd(left, right, out value),
+            BinaryOperator.BitwiseOr => TryFoldBitwiseOr(left, right, out value),
+            BinaryOperator.BitwiseXor => TryFoldBitwiseXor(left, right, out value),
+            BinaryOperator.LeftShift => TryFoldLeftShift(left, right, out value),
+            BinaryOperator.RightShift => TryFoldRightShift(left, right, out value),
+            BinaryOperator.UnsignedRightShift => TryFoldUnsignedRightShift(left, right, out value),
             _ => false
         };
     }
 
-    private static bool TryFoldUnary(string op, object? operand, out object? value)
+    private static bool TryFoldUnary(UnaryOperator op, object? operand, out object? value)
     {
         value = null;
         return op switch
         {
-            "unary-" => TryFoldUnaryMinus(operand, out value),
-            "unary+" => TryFoldUnaryPlus(operand, out value),
-            "!" => TryFoldLogicalNot(operand, out value),
-            "~" => TryFoldBitwiseNot(operand, out value),
+            UnaryOperator.Minus => TryFoldUnaryMinus(operand, out value),
+            UnaryOperator.Plus => TryFoldUnaryPlus(operand, out value),
+            UnaryOperator.LogicalNot => TryFoldLogicalNot(operand, out value),
+            UnaryOperator.BitwiseNot => TryFoldBitwiseNot(operand, out value),
             _ => false
         };
     }
@@ -1120,11 +1144,6 @@ public sealed class TypedConstantExpressionTransformer
     private static bool LooseEquals(object? left, object? right)
     {
         return JsOps.LooseEquals(left, right);
-    }
-
-    private static double StringToNumber(string str)
-    {
-        return NumericStringParser.ParseJsNumber(str);
     }
 
     private static bool StrictEquals(object? left, object? right)

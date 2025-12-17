@@ -1,4 +1,6 @@
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -6,34 +8,74 @@ public static partial class TypedAstEvaluator
 {
     extension(IdentifierExpression identifier)
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue EvaluateIdentifier(JsEnvironment environment,
             EvaluationContext context)
         {
-            try
+            // Fast path: slot-based access using ScopeId to find the declaring environment.
+            // This enables O(1) slot access for variables in any scope (local or closure).
+            if (identifier.SlotIndex >= 0 && identifier.ScopeId >= 0)
             {
-                return environment.GetIdentifierJsValue(identifier.Name, context);
-            }
-            catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
-                                                           StringComparison.Ordinal))
-            {
-                object? errorObject = ex.Message;
-
-                if (environment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
-                    ctor is IJsCallable callable)
+                // Fastest path: current environment matches (most common case for local variables)
+                if (environment.ScopeId == identifier.ScopeId)
                 {
-                    try
+                    var slots = environment._slots;
+                    if (slots is not null)
                     {
-                        errorObject = callable.Invoke([ex.Message], Symbol.Undefined);
-                    }
-                    catch (ThrowSignal signal)
-                    {
-                        errorObject = signal.ThrownValue;
+                        var value = slots[identifier.SlotIndex];
+                        // Check for TDZ (Temporal Dead Zone) - uninitialized let/const bindings
+                        if (value.IsUninitialized)
+                        {
+                            return HandleTdzError(identifier.Name, context);
+                        }
+                        return value;
                     }
                 }
-
-                context.SetThrow(errorObject);
-                return JsValue.FromObject(errorObject);
+                else
+                {
+                    // Traverse up to find the environment with matching ScopeId
+                    var targetEnv = environment.FindByScopeId(identifier.ScopeId);
+                    if (targetEnv?._slots is not null)
+                    {
+                        var value = targetEnv._slots[identifier.SlotIndex];
+                        // Check for TDZ (Temporal Dead Zone) - uninitialized let/const bindings
+                        if (value.IsUninitialized)
+                        {
+                            return HandleTdzError(identifier.Name, context);
+                        }
+                        return value;
+                    }
+                }
             }
+
+            // Fallback: use dictionary-based lookup
+            if (environment.TryGetIdentifierJsValue(identifier.Name, context, out var value2))
+            {
+                return value2;
+            }
+
+            // Slow path: identifier not found - create proper error
+            return HandleIdentifierNotFound(identifier.Name, environment, context);
         }
+    }
+
+    private static JsValue HandleIdentifierNotFound(Symbol name, JsEnvironment environment, EvaluationContext context)
+    {
+        var errorObject = StandardLibrary.CreateReferenceError(
+            $"{name.Name} is not defined",
+            context,
+            context.RealmState);
+        context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
+        return JsValue.FromObjectUnsafe(errorObject);
+    }
+
+    private static JsValue HandleTdzError(Symbol name, EvaluationContext context)
+    {
+        var errorObject = StandardLibrary.CreateReferenceError(
+            $"Cannot access '{name.Name}' before initialization",
+            context,
+            context.RealmState);
+        context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
+        return JsValue.FromObjectUnsafe(errorObject);
     }
 }

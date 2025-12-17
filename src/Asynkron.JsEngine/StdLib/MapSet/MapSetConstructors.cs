@@ -1,4 +1,3 @@
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -11,11 +10,11 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
 {
     private HostFunction? _constructor;
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue is JsObject { IsConstructing: true } constructing)
+        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true } constructing)
         {
-            return ConstructMap(args, _constructor ?? ConstructFallback, _constructor ?? ConstructFallback, constructing);
+            return JsValue.FromObjectUnsafe(ConstructMap(args, _constructor ?? ConstructFallback, _constructor ?? ConstructFallback, constructing));
         }
 
         throw ThrowTypeError("Constructor Map requires 'new'", realm: Realm);
@@ -29,17 +28,17 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
 
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
-            if (newTarget is not IJsCallable callable)
+            if (!newTarget.TryGetObject<IJsCallable>(out var callable))
             {
                 throw ThrowTypeError("Constructor Map requires 'new'", realm: Realm);
             }
 
             var target = _constructor ?? constructor;
-            return ConstructMap(args, callable, target);
+            return JsValue.FromObjectUnsafe(ConstructMap(args, callable, target));
         });
     }
 
-    private object ConstructMap(IReadOnlyList<object?> args, IJsCallable newTarget, IJsCallable targetCtor,
+    private object ConstructMap(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor,
         JsObject? providedThis = null)
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
@@ -67,37 +66,38 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
         return receiver;
     }
 
-    private void PopulateMap(JsMap map, IReadOnlyList<object?> args)
+    private void PopulateMap(JsMap map, IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
+        if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
         {
             return;
         }
 
-        if (args[0] is not JsArray entries)
+        if (!args[0].TryGetObject<JsArray>(out var entries))
         {
             return;
         }
 
         foreach (var entry in entries.Items)
         {
-            object? key;
-            object? value;
-            switch (entry)
+            JsValue key;
+            JsValue value;
+            if (entry.TryGetObject<JsArray>(out var pair))
             {
-                case JsArray pair:
-                    key = pair.GetElement(0);
-                    value = pair.GetElement(1);
-                    break;
-                case IJsPropertyAccessor accessor:
-                    accessor.TryGetProperty("0", out key);
-                    accessor.TryGetProperty("1", out value);
-                    break;
-                default:
-                    continue;
+                key = pair.GetElement(0);
+                value = pair.GetElement(1);
+            }
+            else if (entry.TryGetObject<IJsPropertyAccessor>(out var accessor))
+            {
+                accessor.TryGetProperty("0", out key);
+                accessor.TryGetProperty("1", out value);
+            }
+            else
+            {
+                continue;
             }
 
-            map.Set(key, value);
+            map.Set(key.ToObject(), value.ToObject());
         }
     }
 
@@ -110,11 +110,11 @@ public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState r
 {
     private HostFunction? _constructor;
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue is JsObject { IsConstructing: true } constructing)
+        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true } constructing)
         {
-            return ConstructSet(args, _constructor ?? ConstructFallback, _constructor ?? ConstructFallback, constructing);
+            return JsValue.FromObjectUnsafe(ConstructSet(args, _constructor ?? ConstructFallback, _constructor ?? ConstructFallback, constructing));
         }
 
         throw ThrowTypeError("Constructor Set requires 'new'", realm: Realm);
@@ -128,17 +128,17 @@ public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState r
 
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
-            if (newTarget is not IJsCallable callable)
+            if (!newTarget.TryGetObject<IJsCallable>(out var callable))
             {
                 throw ThrowTypeError("Constructor Set requires 'new'", realm: Realm);
             }
 
             var target = _constructor ?? constructor;
-            return ConstructSet(args, callable, target);
+            return JsValue.FromObjectUnsafe(ConstructSet(args, callable, target));
         });
     }
 
-    private object ConstructSet(IReadOnlyList<object?> args, IJsCallable newTarget, IJsCallable targetCtor,
+    private object ConstructSet(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor,
         JsObject? providedThis = null)
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
@@ -166,21 +166,21 @@ public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState r
         return receiver;
     }
 
-    private void PopulateSet(JsSet set, IReadOnlyList<object?> args)
+    private void PopulateSet(JsSet set, IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
+        if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
         {
             return;
         }
 
-        if (args[0] is not JsArray values)
+        if (!args[0].TryGetObject<JsArray>(out var values))
         {
             return;
         }
 
         foreach (var value in values.Items)
         {
-            set.Add(value);
+            set.Add(value.ToObject());
         }
     }
 
@@ -193,11 +193,11 @@ public sealed partial class WeakMapConstructor(IJsObjectLike prototype, RealmSta
 {
     private HostFunction? _constructor;
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue is JsObject { IsConstructing: true })
+        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true })
         {
-            return ConstructWeakMap(args, _constructor ?? ConstructFallback);
+            return JsValue.FromObjectUnsafe(ConstructWeakMap(args, _constructor ?? ConstructFallback));
         }
 
         throw ThrowTypeError("Constructor WeakMap requires 'new'", realm: Realm);
@@ -211,17 +211,17 @@ public sealed partial class WeakMapConstructor(IJsObjectLike prototype, RealmSta
 
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
-            if (newTarget is not IJsCallable callable)
+            if (!newTarget.TryGetObject<IJsCallable>(out var callable))
             {
                 throw ThrowTypeError("Constructor WeakMap requires 'new'", realm: Realm);
             }
 
             var target = _constructor ?? constructor;
-            return ConstructWeakMap(args, callable, target);
+            return JsValue.FromObjectUnsafe(ConstructWeakMap(args, callable, target));
         });
     }
 
-    private object ConstructWeakMap(IReadOnlyList<object?> args, IJsCallable newTarget, IJsCallable? targetCtor = null)
+    private object ConstructWeakMap(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable? targetCtor = null)
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor ?? newTarget, Realm) ?? Prototype;
         var instance = new JsWeakMap();
@@ -230,21 +230,21 @@ public sealed partial class WeakMapConstructor(IJsObjectLike prototype, RealmSta
         return instance;
     }
 
-    private void PopulateWeakMap(JsWeakMap map, IReadOnlyList<object?> args)
+    private void PopulateWeakMap(JsWeakMap map, IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
+        if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
         {
             return;
         }
 
-        if (args[0] is not JsArray entries)
+        if (!args[0].TryGetObject<JsArray>(out var entries))
         {
             return;
         }
 
         foreach (var entry in entries.Items)
         {
-            if (entry is not JsArray { Items.Count: >= 2 } pair)
+            if (!entry.TryGetObject<JsArray>(out var pair) || pair.Items.Count < 2)
             {
                 continue;
             }
@@ -269,11 +269,11 @@ public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmSta
 {
     private HostFunction? _constructor;
 
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue is JsObject { IsConstructing: true })
+        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true })
         {
-            return ConstructWeakSet(args, _constructor ?? ConstructFallback);
+            return JsValue.FromObjectUnsafe(ConstructWeakSet(args, _constructor ?? ConstructFallback));
         }
 
         throw ThrowTypeError("Constructor WeakSet requires 'new'", realm: Realm);
@@ -287,17 +287,17 @@ public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmSta
 
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
-            if (newTarget is not IJsCallable callable)
+            if (!newTarget.TryGetObject<IJsCallable>(out var callable))
             {
                 throw ThrowTypeError("Constructor WeakSet requires 'new'", realm: Realm);
             }
 
             var target = _constructor ?? constructor;
-            return ConstructWeakSet(args, callable, target);
+            return JsValue.FromObjectUnsafe(ConstructWeakSet(args, callable, target));
         });
     }
 
-    private object ConstructWeakSet(IReadOnlyList<object?> args, IJsCallable newTarget, IJsCallable? targetCtor = null)
+    private object ConstructWeakSet(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable? targetCtor = null)
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor ?? newTarget, Realm) ?? Prototype;
         var instance = new JsWeakSet();
@@ -306,14 +306,14 @@ public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmSta
         return instance;
     }
 
-    private void PopulateWeakSet(JsWeakSet set, IReadOnlyList<object?> args)
+    private void PopulateWeakSet(JsWeakSet set, IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || args[0] is null || ReferenceEquals(args[0], Symbol.Undefined))
+        if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
         {
             return;
         }
 
-        if (args[0] is not JsArray values)
+        if (!args[0].TryGetObject<JsArray>(out var values))
         {
             return;
         }
@@ -322,7 +322,9 @@ public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmSta
         {
             try
             {
-                set.Add(value);
+                // Handle case where value is already a boxed JsValue
+                var jsVal = value is JsValue jv ? jv : value;
+                set.Add(jsVal);
             }
             catch (Exception ex)
             {

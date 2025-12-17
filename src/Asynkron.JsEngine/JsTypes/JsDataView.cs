@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using Asynkron.JsEngine.Ast;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -55,126 +54,126 @@ public sealed class JsDataView : IJsPropertyAccessor
         // instance is used as the `this` value when called from JavaScript.
         _getInt8 = CreateMethod((target, args) =>
         {
-            var offset = args.Count > 0 && args[0] is double d ? (int)d : 0;
-            return (double)target.GetInt8(offset);
+            var offset = args.Count > 0 && args[0].TryGetDouble(out var d) ? (int)d : 0;
+            return new JsValue((double)target.GetInt8(offset));
         });
 
         _setInt8 = CreateMethod((target, args) =>
         {
-            var offset = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
-            var value = args.Count > 1 && args[1] is double d2 ? (sbyte)(int)d2 : (sbyte)0;
+            var offset = args.Count > 0 && args[0].TryGetDouble(out var d1) ? (int)d1 : 0;
+            var value = args.Count > 1 && args[1].TryGetDouble(out var d2) ? (sbyte)(int)d2 : (sbyte)0;
             target.SetInt8(offset, value);
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         });
 
         _getUint8 = CreateMethod((target, args) =>
         {
-            var offset = args.Count > 0 && args[0] is double d ? (int)d : 0;
-            return (double)target.GetUint8(offset);
+            var offset = args.Count > 0 && args[0].TryGetDouble(out var d) ? (int)d : 0;
+            return new JsValue((double)target.GetUint8(offset));
         });
 
         _setUint8 = CreateMethod((target, args) =>
         {
-            var offset = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
-            var value = args.Count > 1 && args[1] is double d2 ? (byte)(int)d2 : (byte)0;
+            var offset = args.Count > 0 && args[0].TryGetDouble(out var d1) ? (int)d1 : 0;
+            var value = args.Count > 1 && args[1].TryGetDouble(out var d2) ? (byte)(int)d2 : (byte)0;
             target.SetUint8(offset, value);
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         });
 
         _getInt16 = CreateMethod((target, args) =>
         {
-            var offset = args.Count > 0 && args[0] is double d ? (int)d : 0;
-            var littleEndian = args.Count > 1 && args[1] is bool and true;
-            return (double)target.GetInt16(offset, littleEndian);
+            var offset = args.Count > 0 && args[0].TryGetDouble(out var d) ? (int)d : 0;
+            var littleEndian = args.Count > 1 && args[1].IsTruthy;
+            return new JsValue((double)target.GetInt16(offset, littleEndian));
         });
 
         _setInt16 = CreateMethod((target, args) =>
         {
-            var offset = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
-            var value = args.Count > 1 && args[1] is double d2 ? (short)(int)d2 : (short)0;
-            var littleEndian = args.Count > 2 && args[2] is bool and true;
+            var offset = args.Count > 0 && args[0].TryGetDouble(out var d1) ? (int)d1 : 0;
+            var value = args.Count > 1 && args[1].TryGetDouble(out var d2) ? (short)(int)d2 : (short)0;
+            var littleEndian = args.Count > 2 && args[2].IsTruthy;
             target.SetInt16(offset, value, littleEndian);
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         });
 
         _getUint16 = CreateMethod((target, args) =>
         {
-            var offset = args.Count > 0 && args[0] is double d ? (int)d : 0;
-            var littleEndian = args.Count > 1 && args[1] is bool and true;
-            return (double)target.GetUint16(offset, littleEndian);
+            var offset = args.Count > 0 && args[0].TryGetDouble(out var d) ? (int)d : 0;
+            var littleEndian = args.Count > 1 && args[1].IsTruthy;
+            return new JsValue((double)target.GetUint16(offset, littleEndian));
         });
 
         _setUint16 = CreateMethod((target, args) =>
         {
-            var offset = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
-            var value = args.Count > 1 && args[1] is double d2 ? (ushort)(int)d2 : (ushort)0;
-            var littleEndian = args.Count > 2 && args[2] is bool and true;
+            var offset = args.Count > 0 && args[0].TryGetDouble(out var d1) ? (int)d1 : 0;
+            var value = args.Count > 1 && args[1].TryGetDouble(out var d2) ? (ushort)(int)d2 : (ushort)0;
+            var littleEndian = args.Count > 2 && args[2].IsTruthy;
             target.SetUint16(offset, value, littleEndian);
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         });
 
         _getInt32 = CreateMethod((target, args) =>
         {
-            var offset = args.Count > 0 && args[0] is double d ? (int)d : 0;
-            var littleEndian = args.Count > 1 && args[1] is bool and true;
-            return (double)target.GetInt32(offset, littleEndian);
+            var offset = args.Count > 0 && args[0].TryGetDouble(out var d) ? (int)d : 0;
+            var littleEndian = args.Count > 1 && args[1].IsTruthy;
+            return new JsValue((double)target.GetInt32(offset, littleEndian));
         });
 
         _setInt32 = CreateMethod((target, args) =>
         {
-            var offset = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
-            var value = args.Count > 1 && args[1] is double d2 ? (int)d2 : 0;
-            var littleEndian = args.Count > 2 && args[2] is bool and true;
+            var offset = args.Count > 0 && args[0].TryGetDouble(out var d1) ? (int)d1 : 0;
+            var value = args.Count > 1 && args[1].TryGetDouble(out var d2) ? (int)d2 : 0;
+            var littleEndian = args.Count > 2 && args[2].IsTruthy;
             target.SetInt32(offset, value, littleEndian);
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         });
 
         _getUint32 = CreateMethod((target, args) =>
         {
-            var offset = args.Count > 0 && args[0] is double d ? (int)d : 0;
-            var littleEndian = args.Count > 1 && args[1] is bool and true;
-            return (double)target.GetUint32(offset, littleEndian);
+            var offset = args.Count > 0 && args[0].TryGetDouble(out var d) ? (int)d : 0;
+            var littleEndian = args.Count > 1 && args[1].IsTruthy;
+            return new JsValue((double)target.GetUint32(offset, littleEndian));
         });
 
         _setUint32 = CreateMethod((target, args) =>
         {
-            var offset = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
-            var value = args.Count > 1 && args[1] is double d2 ? (uint)d2 : 0u;
-            var littleEndian = args.Count > 2 && args[2] is bool and true;
+            var offset = args.Count > 0 && args[0].TryGetDouble(out var d1) ? (int)d1 : 0;
+            var value = args.Count > 1 && args[1].TryGetDouble(out var d2) ? (uint)d2 : 0u;
+            var littleEndian = args.Count > 2 && args[2].IsTruthy;
             target.SetUint32(offset, value, littleEndian);
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         });
 
         _getFloat32 = CreateMethod((target, args) =>
         {
-            var offset = args.Count > 0 && args[0] is double d ? (int)d : 0;
-            var littleEndian = args.Count > 1 && args[1] is bool and true;
-            return (double)target.GetFloat32(offset, littleEndian);
+            var offset = args.Count > 0 && args[0].TryGetDouble(out var d) ? (int)d : 0;
+            var littleEndian = args.Count > 1 && args[1].IsTruthy;
+            return new JsValue((double)target.GetFloat32(offset, littleEndian));
         });
 
         _setFloat32 = CreateMethod((target, args) =>
         {
-            var offset = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
-            var value = args.Count > 1 && args[1] is double d2 ? (float)d2 : 0f;
-            var littleEndian = args.Count > 2 && args[2] is bool and true;
+            var offset = args.Count > 0 && args[0].TryGetDouble(out var d1) ? (int)d1 : 0;
+            var value = args.Count > 1 && args[1].TryGetDouble(out var d2) ? (float)d2 : 0f;
+            var littleEndian = args.Count > 2 && args[2].IsTruthy;
             target.SetFloat32(offset, value, littleEndian);
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         });
 
         _getFloat64 = CreateMethod((target, args) =>
         {
-            var offset = args.Count > 0 && args[0] is double d ? (int)d : 0;
-            var littleEndian = args.Count > 1 && args[1] is bool and true;
-            return target.GetFloat64(offset, littleEndian);
+            var offset = args.Count > 0 && args[0].TryGetDouble(out var d) ? (int)d : 0;
+            var littleEndian = args.Count > 1 && args[1].IsTruthy;
+            return new JsValue(target.GetFloat64(offset, littleEndian));
         });
 
         _setFloat64 = CreateMethod((target, args) =>
         {
-            var offset = args.Count > 0 && args[0] is double d1 ? (int)d1 : 0;
-            var value = args.Count > 1 && args[1] is double d2 ? d2 : 0.0;
-            var littleEndian = args.Count > 2 && args[2] is bool and true;
+            var offset = args.Count > 0 && args[0].TryGetDouble(out var d1) ? (int)d1 : 0;
+            var value = args.Count > 1 && args[1].TryGetDouble(out var d2) ? d2 : 0.0;
+            var littleEndian = args.Count > 2 && args[2].IsTruthy;
             target.SetFloat64(offset, value, littleEndian);
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         });
     }
 
@@ -184,9 +183,9 @@ public sealed class JsDataView : IJsPropertyAccessor
 
     public int ByteLength { get; }
 
-    public bool TryGetProperty(string name, object? receiver, out object? value)
+    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        if (_properties.TryGetProperty(name, receiver ?? this, out value))
+        if (_properties.TryGetProperty(name, receiver.IsUndefined ? (JsValue)this : receiver, out value))
         {
             return true;
         }
@@ -194,79 +193,79 @@ public sealed class JsDataView : IJsPropertyAccessor
         switch (name)
         {
             case "buffer":
-                value = Buffer;
+                value = JsValue.FromObjectUnsafe(Buffer);
                 return true;
             case "byteLength":
-                value = (double)ByteLength;
+                value = new JsValue((double)ByteLength);
                 return true;
             case "byteOffset":
-                value = (double)ByteOffset;
+                value = new JsValue((double)ByteOffset);
                 return true;
             case "getInt8":
-                value = _getInt8;
+                value = (JsValue)_getInt8;
                 return true;
             case "setInt8":
-                value = _setInt8;
+                value = (JsValue)_setInt8;
                 return true;
             case "getUint8":
-                value = _getUint8;
+                value = (JsValue)_getUint8;
                 return true;
             case "setUint8":
-                value = _setUint8;
+                value = (JsValue)_setUint8;
                 return true;
             case "getInt16":
-                value = _getInt16;
+                value = (JsValue)_getInt16;
                 return true;
             case "setInt16":
-                value = _setInt16;
+                value = (JsValue)_setInt16;
                 return true;
             case "getUint16":
-                value = _getUint16;
+                value = (JsValue)_getUint16;
                 return true;
             case "setUint16":
-                value = _setUint16;
+                value = (JsValue)_setUint16;
                 return true;
             case "getInt32":
-                value = _getInt32;
+                value = (JsValue)_getInt32;
                 return true;
             case "setInt32":
-                value = _setInt32;
+                value = (JsValue)_setInt32;
                 return true;
             case "getUint32":
-                value = _getUint32;
+                value = (JsValue)_getUint32;
                 return true;
             case "setUint32":
-                value = _setUint32;
+                value = (JsValue)_setUint32;
                 return true;
             case "getFloat32":
-                value = _getFloat32;
+                value = (JsValue)_getFloat32;
                 return true;
             case "setFloat32":
-                value = _setFloat32;
+                value = (JsValue)_setFloat32;
                 return true;
             case "getFloat64":
-                value = _getFloat64;
+                value = (JsValue)_getFloat64;
                 return true;
             case "setFloat64":
-                value = _setFloat64;
+                value = (JsValue)_setFloat64;
                 return true;
         }
 
-        value = null;
+        value = JsValue.Undefined;
         return false;
     }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, this, out value);
+        return TryGetProperty(name, (JsValue)this, out value);
     }
 
-    public void SetProperty(string name, object? value)
+    public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, this);
+        SetProperty(name, value, (JsValue)this);
     }
 
-    public void SetProperty(string name, object? value, object? receiver)
+    public void SetProperty(string name, JsValue value, JsValue receiver)
     {
         switch (name)
         {
@@ -276,7 +275,7 @@ public sealed class JsDataView : IJsPropertyAccessor
                 throw new InvalidOperationException($"Cannot assign to read-only property '{name}' on DataView.");
         }
 
-        _properties.SetProperty(name, value, receiver ?? this);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? (JsValue)this : receiver);
     }
 
     /// <summary>
@@ -465,17 +464,17 @@ public sealed class JsDataView : IJsPropertyAccessor
         }
     }
 
-    private HostFunction CreateMethod(Func<JsDataView, IReadOnlyList<object?>, object?> implementation)
+    private HostFunction CreateMethod(Func<JsDataView, IReadOnlyList<JsValue>, JsValue> implementation)
     {
-        return new HostFunction((thisValue, args) =>
+        return new HostFunction((JsValue thisValue, IReadOnlyList<JsValue> args) =>
         {
             var target = ResolveThis(thisValue, this);
             return implementation(target, args);
         });
     }
 
-    private static JsDataView ResolveThis(object? thisValue, JsDataView fallback)
+    private static JsDataView ResolveThis(JsValue thisValue, JsDataView fallback)
     {
-        return thisValue as JsDataView ?? fallback;
+        return thisValue.TryGetObject<JsDataView>(out var dv) ? dv : fallback;
     }
 }

@@ -31,19 +31,19 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            IReadOnlyList<object?> args;
+            IReadOnlyList<JsValue> args;
             if (!hasSpread)
             {
                 if (expression.Arguments.Length == 0)
                 {
-                    args = Array.Empty<object?>();
+                    args = [];
                 }
                 else
                 {
-                    var argsArray = new object?[expression.Arguments.Length];
+                    var argsArray = new JsValue[expression.Arguments.Length];
                     for (var i = 0; i < expression.Arguments.Length; i++)
                     {
-                        argsArray[i] = EvaluateExpression(expression.Arguments[i].Expression, environment, context).ToObject();
+                        argsArray[i] = EvaluateExpression(expression.Arguments[i].Expression, environment, context);
                         if (context.ShouldStopEvaluation)
                         {
                             return JsValue.Undefined;
@@ -55,7 +55,7 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                var argsBuilder = ImmutableArray.CreateBuilder<object?>(expression.Arguments.Length);
+                var argsBuilder = ImmutableArray.CreateBuilder<JsValue>(expression.Arguments.Length);
                 foreach (var argument in expression.Arguments)
                 {
                     if (argument.IsSpread)
@@ -66,7 +66,7 @@ public static partial class TypedAstEvaluator
                             return JsValue.Undefined;
                         }
 
-                        foreach (var item in EnumerateSpread(spreadValueJs.ToObject(), context))
+                        foreach (var item in EnumerateSpread(spreadValueJs, context))
                         {
                             argsBuilder.Add(item);
                         }
@@ -79,7 +79,7 @@ public static partial class TypedAstEvaluator
                         continue;
                     }
 
-                    argsBuilder.Add(EvaluateExpression(argument.Expression, environment, context).ToObject());
+                    argsBuilder.Add(EvaluateExpression(argument.Expression, environment, context));
                     if (context.ShouldStopEvaluation)
                     {
                         return JsValue.Undefined;
@@ -92,41 +92,41 @@ public static partial class TypedAstEvaluator
             if (constructor is not IJsCallable callable)
             {
                 var notCtor = StandardLibrary.CreateTypeError("Target is not a constructor", context, realm);
-                throw new ThrowSignal(notCtor);
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(notCtor));
             }
 
             if (constructor is HostFunction hostFunction &&
                 (!hostFunction.IsConstructor || hostFunction.DisallowConstruct))
             {
                 var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke([hostFunction.ConstructErrorMessage ?? "is not a constructor"], null)
-                    : new InvalidOperationException(
+                    ? typeErrorCtor.Invoke([(JsValue)(hostFunction.ConstructErrorMessage ?? "is not a constructor")], JsValue.Null).ToObject()
+                    : (object?)new InvalidOperationException(
                         hostFunction.ConstructErrorMessage ?? "Target is not a constructor.");
-                throw new ThrowSignal(error);
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
             }
 
             if (constructor is TypedFunction { IsArrowFunction: true })
             {
                 var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke(["Target is not a constructor"], null)
-                    : new InvalidOperationException("Target is not a constructor.");
-                throw new ThrowSignal(error);
+                    ? typeErrorCtor.Invoke([(JsValue)"Target is not a constructor"], JsValue.Null).ToObject()
+                    : (object?)new InvalidOperationException("Target is not a constructor.");
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
             }
 
             if (constructor is TypedFunction { DisallowConstruct: true })
             {
                 var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke(["Target is not a constructor"], null)
-                    : new InvalidOperationException("Target is not a constructor.");
-                throw new ThrowSignal(error);
+                    ? typeErrorCtor.Invoke([(JsValue)"Target is not a constructor"], JsValue.Null).ToObject()
+                    : (object?)new InvalidOperationException("Target is not a constructor.");
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
             }
 
-            if (constructor is TypedAstEvaluator.TypedGeneratorFactory)
+            if (constructor is TypedGeneratorFactory)
             {
                 var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke(["Generator functions cannot be constructed with 'new'"], null)
-                    : new InvalidOperationException("Generator functions cannot be constructed with 'new'.");
-                throw new ThrowSignal(error);
+                    ? typeErrorCtor.Invoke([(JsValue)"Generator functions cannot be constructed with 'new'"], JsValue.Null).ToObject()
+                    : (object?)new InvalidOperationException("Generator functions cannot be constructed with 'new'.");
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
             }
 
             var typedConstructor = constructor as TypedFunction;
@@ -134,28 +134,6 @@ public static partial class TypedAstEvaluator
             var logger = realm?.Logger;
 
             JsObject? instance = null;
-            string DescribePrototype(object? proto)
-            {
-                if (proto is null)
-                {
-                    return "null";
-                }
-
-                if (proto is JsObject jsObj)
-                {
-                    var origin = string.IsNullOrEmpty(jsObj.Origin) ? "unknown" : jsObj.Origin;
-                    return $"JsObject@{RuntimeHelpers.GetHashCode(jsObj)} origin='{origin}'";
-                }
-
-                return $"{proto.GetType().Name}@{RuntimeHelpers.GetHashCode(proto)}";
-            }
-
-            string DescribeInstance(JsObject obj)
-            {
-                var proto = obj.PrototypeAccessor ?? obj.Prototype;
-                var origin = string.IsNullOrEmpty(obj.Origin) ? "unknown" : obj.Origin;
-                return $"JsObject@{RuntimeHelpers.GetHashCode(obj)} origin='{origin}' proto={DescribePrototype(proto)}";
-            }
 
             if (!isDerivedClassCtor)
             {
@@ -204,20 +182,20 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            object? result;
+            JsValue result;
             instance?.BeginConstruction();
             try
             {
-                object? receiver = isDerivedClassCtor ? Symbol.Undefined : instance;
+                var receiver = isDerivedClassCtor ? JsValue.Undefined : (JsValue)instance;
                 if (typedConstructor is not null)
                 {
                     result = typedConstructor.InvokeWithContext(args, receiver, context,
-                        constructor);
+                        JsValue.FromObjectUnsafe(constructor));
                 }
                 else if (callable is HostFunction hostFn)
                 {
                     result = hostFn.InvokeWithContext(args, receiver, context,
-                        constructor);
+                        JsValue.FromObjectUnsafe(constructor));
                 }
                 else
                 {
@@ -227,7 +205,7 @@ public static partial class TypedAstEvaluator
             catch (ThrowSignal signal)
             {
                 context.SetThrow(signal.ThrownValue);
-                return JsValue.FromObject(signal.ThrownValue);
+                return signal.ThrownValue;
             }
             finally
             {
@@ -300,18 +278,19 @@ public static partial class TypedAstEvaluator
             // expose their members through IJsPropertyAccessor/IJsCallable. Treat any
             // such object-like result as the constructed value; otherwise fall back to
             // the auto-created instance.
-            var constructedResult = result switch
+            var resultObject = result.IsObject ? result.ObjectValue : null;
+            var constructedResultObject = resultObject switch
             {
-                IJsPropertyAccessor => result,
-                IJsCallable => result,
-                _ => instance ?? result
+                IJsPropertyAccessor => resultObject,
+                IJsCallable => resultObject,
+                _ => instance ?? resultObject
             };
 
             // If the constructor did not supply its own object, ensure the returned
             // instance carries the constructor's current prototype object.
             if (!isDerivedClassCtor &&
                 typedConstructor is not null &&
-                constructedResult is JsObject constructedJsObj &&
+                constructedResultObject is JsObject constructedJsObj &&
                 ReferenceEquals(constructedJsObj, instance))
             {
                 // Use TryGetPrototypeValue to get any object-like prototype (including functions)
@@ -332,14 +311,37 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            if (logger is not null && constructedResult is JsObject constructed)
+            if (logger is not null && constructedResultObject is JsObject constructed)
             {
                 logger.LogInformation("new: returning instance={Instance} proto={Proto}",
                     DescribeInstance(constructed),
                     DescribePrototype(constructed.PrototypeAccessor ?? constructed.Prototype));
             }
 
-            return JsValue.FromObject(constructedResult);
+            return JsValue.FromObjectUnsafe(constructedResultObject);
+
+            string DescribePrototype(object? proto)
+            {
+                if (proto is null)
+                {
+                    return "null";
+                }
+
+                if (proto is JsObject jsObj)
+                {
+                    var origin = string.IsNullOrEmpty(jsObj.Origin) ? "unknown" : jsObj.Origin;
+                    return $"JsObject@{RuntimeHelpers.GetHashCode(jsObj)} origin='{origin}'";
+                }
+
+                return $"{proto.GetType().Name}@{RuntimeHelpers.GetHashCode(proto)}";
+            }
+
+            string DescribeInstance(JsObject obj)
+            {
+                var proto = obj.PrototypeAccessor ?? obj.Prototype;
+                var origin = string.IsNullOrEmpty(obj.Origin) ? "unknown" : obj.Origin;
+                return $"JsObject@{RuntimeHelpers.GetHashCode(obj)} origin='{origin}' proto={DescribePrototype(proto)}";
+            }
         }
     }
 }

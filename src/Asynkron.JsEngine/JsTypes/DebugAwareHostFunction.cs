@@ -6,13 +6,13 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public sealed class DebugAwareHostFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor
 {
-    private readonly Func<JsEnvironment, EvaluationContext, IReadOnlyList<object?>, object?> _handler;
+    private readonly Func<JsEnvironment, EvaluationContext, IReadOnlyList<JsValue>, JsValue> _handler;
     private readonly JsObject _properties = new();
 
-    public DebugAwareHostFunction(Func<JsEnvironment, EvaluationContext, IReadOnlyList<object?>, object?> handler)
+    public DebugAwareHostFunction(Func<JsEnvironment, EvaluationContext, IReadOnlyList<JsValue>, JsValue> handler)
     {
         _handler = handler ?? throw new ArgumentNullException(nameof(handler));
-        _properties.SetProperty("prototype", new JsObject());
+        _properties.SetProperty("prototype", (JsValue)new JsObject());
     }
 
     // Store the environment and context for the invoke
@@ -24,7 +24,7 @@ public sealed class DebugAwareHostFunction : IJsEnvironmentAwareCallable, IJsPro
     /// </summary>
     public JsEnvironment? CallingJsEnvironment { get; set; }
 
-    public object? Invoke(IReadOnlyList<object?> arguments, object? thisValue)
+    public JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
     {
         if (CurrentJsEnvironment is null || CurrentContext is null)
         {
@@ -34,23 +34,23 @@ public sealed class DebugAwareHostFunction : IJsEnvironmentAwareCallable, IJsPro
         return _handler(CurrentJsEnvironment, CurrentContext, arguments);
     }
 
-    public bool TryGetProperty(string name, object? receiver, out object? value)
+    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        return _properties.TryGetProperty(name, receiver ?? this, out value);
+        return _properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver, out value);
     }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, this, out value);
+        return TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);
     }
 
-    public void SetProperty(string name, object? value, object? receiver)
+    public void SetProperty(string name, JsValue value, JsValue receiver)
     {
-        _properties.SetProperty(name, value, receiver ?? this);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver);
     }
 
-    public void SetProperty(string name, object? value)
+    public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, this);
+        SetProperty(name, value, JsValue.FromObjectUnsafe(this));
     }
 }

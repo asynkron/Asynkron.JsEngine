@@ -1,4 +1,3 @@
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -9,12 +8,12 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, RealmState realm)
     : JsConstructor(prototype, realm)
 {
-    protected override object? ConstructInstance(object? thisValue, IReadOnlyList<object?> args)
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var slots = CreateInternalSlots(args.GetArgument(0), args.GetArgument(1));
         var instance = PrepareThisObject(thisValue);
         IntlCollatorPrototype.InitializeInternalSlots(instance, slots);
-        return instance;
+        return new JsValue(instance);
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -38,12 +37,13 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
         supportedLocalesOf.Delete("prototype");
     }
 
-    private JsArray SupportedLocalesOf(IReadOnlyList<object?> args)
+    private JsValue SupportedLocalesOf(IReadOnlyList<JsValue> args)
     {
-        return StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
+        var result = StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
+        return JsValue.FromObjectUnsafe(result);
     }
 
-    private IntlCollatorInternalSlots CreateInternalSlots(object? localesArg, object? optionsArg)
+    private IntlCollatorInternalSlots CreateInternalSlots(JsValue localesArg, JsValue optionsArg)
     {
         var (_, resolvedLocale) = StandardLibrary.ResolveIntlLocales(localesArg, Realm);
         var baseLocale = IntlUtilities.RemoveUnicodeExtensions(resolvedLocale);
@@ -94,8 +94,13 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
 
     private string ResolveCollationOption(IJsPropertyAccessor? options)
     {
-        if (options is null || !options.TryGetProperty("collation", out var value) ||
-            ReferenceEquals(value, Symbol.Undefined))
+        if (options is null || !options.TryGetProperty("collation", out var rawValue))
+        {
+            return string.Empty;
+        }
+
+        var value = rawValue;
+        if (value.IsUndefined)
         {
             return string.Empty;
         }
@@ -121,17 +126,17 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
         var entries = new List<(string Key, List<string> Values)>();
         if (!string.Equals(collation, "default", StringComparison.Ordinal))
         {
-            entries.Add(("co", new List<string> { collation }));
+            entries.Add(("co", [collation]));
         }
 
         if (numeric)
         {
-            entries.Add(("kn", new List<string>()));
+            entries.Add(("kn", []));
         }
 
         if (!string.Equals(caseFirst, "false", StringComparison.Ordinal))
         {
-            entries.Add(("kf", new List<string> { caseFirst }));
+            entries.Add(("kf", [caseFirst]));
         }
 
         if (entries.Count == 0)

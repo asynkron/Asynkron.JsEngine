@@ -1,4 +1,3 @@
-using System;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -11,7 +10,7 @@ public static partial class TypedAstEvaluator
 {
     extension(IteratorDriverPlan plan)
     {
-        private object? ExecuteIteratorDriver(IJsObjectLike iterator,
+        private JsValue ExecuteIteratorDriverJsValue(IJsObjectLike iterator,
             IEnumerator<object?>? enumerator,
             JsEnvironment loopEnvironment,
             JsEnvironment outerEnvironment,
@@ -19,7 +18,7 @@ public static partial class TypedAstEvaluator
             Symbol? loopLabel,
             Func<JsEnvironment>? rentIterationEnvironment = null)
         {
-            object? lastValue = Symbol.Undefined;
+            var lastValueJs = JsValue.Undefined;
             var iteratorDone = false;
 
             var state = new IteratorDriverState
@@ -82,6 +81,12 @@ public static partial class TypedAstEvaluator
                     throw new ThrowSignal(thrown);
                 }
 
+                // Unwrap JsValue struct if present
+                if (nextResult is JsValue jsVal)
+                {
+                    nextResult = jsVal.ToObject();
+                }
+
                 if (nextResult is IJsObjectLike resultObj)
                 {
                     var done = resultObj.TryGetProperty("done", out var doneValue) &&
@@ -92,12 +97,13 @@ public static partial class TypedAstEvaluator
                         break;
                     }
 
-                    object? value;
+                    JsValue value;
                     try
                     {
+                        // TryGetProperty returns JsValue, keep as JsValue to avoid boxing
                         value = resultObj.TryGetProperty("value", out var yielded)
                             ? yielded
-                            : Symbol.Undefined;
+                            : JsValue.Undefined;
                     }
                     catch (ThrowSignal)
                     {
@@ -120,7 +126,13 @@ public static partial class TypedAstEvaluator
                             throw new ThrowSignal(context.FlowValue);
                         }
 
-                        lastValue = EvaluateStatement(plan.Body, iterationEnvironment, context, loopLabel);
+                        // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
+                        // Only update V (completion value) if result.[[Value]] is not empty
+                        var bodyResult = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
+                        if (!bodyResult.IsUnit)
+                        {
+                            lastValueJs = bodyResult;
+                        }
                         if (context.IsThrow)
                         {
                             throw new ThrowSignal(context.FlowValue);
@@ -145,10 +157,10 @@ public static partial class TypedAstEvaluator
                         context.RealmState.Logger?.LogInformation(
                             "Iterator.next non-object result; throwing TypeError (label={Label})",
                             loopLabel?.Name ?? "<none>");
-                        context.SetThrow(typeError);
+                        context.SetThrow(JsValue.FromObjectUnsafe(typeError));
                         iteratorDone =
                             false; // force IteratorClose on exit for abrupt completion paths that require it
-                        throw new ThrowSignal(typeError);
+                        throw new ThrowSignal(JsValue.FromObjectUnsafe(typeError));
                     }
 
                     // Enumerator path (non-object next)
@@ -165,7 +177,13 @@ public static partial class TypedAstEvaluator
                         throw new ThrowSignal(context.FlowValue);
                     }
 
-                    lastValue = EvaluateStatement(plan.Body, iterationEnvironment, context, loopLabel);
+                    // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
+                    // Only update V (completion value) if result.[[Value]] is not empty
+                    var bodyResult2 = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
+                    if (!bodyResult2.IsUnit)
+                    {
+                        lastValueJs = bodyResult2;
+                    }
                     if (context.IsThrow)
                     {
                         throw new ThrowSignal(context.FlowValue);
@@ -193,11 +211,11 @@ public static partial class TypedAstEvaluator
                 IteratorClose(state.IteratorObject, context, context.IsThrow);
                 if (context.IsThrow)
                 {
-                    return lastValue;
+                    return lastValueJs;
                 }
             }
 
-            return lastValue;
+            return lastValueJs;
         }
     }
 }

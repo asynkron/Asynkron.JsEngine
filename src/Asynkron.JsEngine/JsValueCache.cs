@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine;
 
@@ -102,6 +103,12 @@ public static class JsValueCache
     private static readonly ObjectPool<object?[]> Pool2 = new(PoolSize, static () => new object?[2]);
     private static readonly ObjectPool<object?[]> Pool3 = new(PoolSize, static () => new object?[3]);
     private static readonly ObjectPool<object?[]> Pool4 = new(PoolSize, static () => new object?[4]);
+
+    // JsValue argument array pools - avoid boxing when passing arguments to functions
+    private static readonly ObjectPool<JsValue[]> JsValuePool1 = new(PoolSize, static () => new JsValue[1]);
+    private static readonly ObjectPool<JsValue[]> JsValuePool2 = new(PoolSize, static () => new JsValue[2]);
+    private static readonly ObjectPool<JsValue[]> JsValuePool3 = new(PoolSize, static () => new JsValue[3]);
+    private static readonly ObjectPool<JsValue[]> JsValuePool4 = new(PoolSize, static () => new JsValue[4]);
 
     static JsValueCache()
     {
@@ -335,6 +342,60 @@ public static class JsValueCache
         array[2] = arg2;
         return array;
     }
+
+    /// <summary>
+    /// Rents a JsValue argument array of the specified size from the pool.
+    /// Avoids boxing when passing arguments to functions.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue[] RentJsValueArray(int size)
+    {
+        return size switch
+        {
+            1 => JsValuePool1.Rent(),
+            2 => JsValuePool2.Rent(),
+            3 => JsValuePool3.Rent(),
+            4 => JsValuePool4.Rent(),
+            _ => new JsValue[size]
+        };
+    }
+
+    /// <summary>
+    /// Returns a JsValue argument array to the pool. Arrays larger than 4 are not pooled.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void ReturnJsValueArray(JsValue[] array)
+    {
+        var length = array.Length;
+        if (length == 0 || length > 4) return;
+
+        // Reset to default (Undefined) to allow GC of any object references
+        switch (length)
+        {
+            case 1:
+                array[0] = default;
+                JsValuePool1.Return(array);
+                break;
+            case 2:
+                array[0] = default;
+                array[1] = default;
+                JsValuePool2.Return(array);
+                break;
+            case 3:
+                array[0] = default;
+                array[1] = default;
+                array[2] = default;
+                JsValuePool3.Return(array);
+                break;
+            case 4:
+                array[0] = default;
+                array[1] = default;
+                array[2] = default;
+                array[3] = default;
+                JsValuePool4.Return(array);
+                break;
+        }
+    }
 }
 
 /// <summary>
@@ -372,7 +433,7 @@ public readonly struct PooledArgumentArray : IDisposable, IReadOnlyList<object?>
 
     public void Dispose()
     {
-        if (_array is not null && _array.Length <= 4)
+        if (_array?.Length <= 4)
         {
             JsValueCache.ReturnArgumentArray(_array);
         }

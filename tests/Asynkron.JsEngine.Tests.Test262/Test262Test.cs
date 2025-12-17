@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.IO;
 using System.Reflection;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
@@ -7,7 +6,6 @@ using Test262Harness;
 
 namespace Asynkron.JsEngine.Tests.Test262;
 
-[Test262ActivityTrace]
 public abstract partial class Test262Test
 {
     private static readonly ConcurrentDictionary<string, ParsedProgram> HarnessProgramCache =
@@ -137,7 +135,7 @@ try {
         return HarnessProgramCache.GetOrAdd(source, static s =>
         {
             var parserEngine = new JsEngine();
-            return parserEngine.ParseForExecution(s);
+            return parserEngine.ParseProgram(s);
         });
     }
 
@@ -183,7 +181,7 @@ try {
             {
                 var value = args[0];
                 // Convert to string representation
-                return value?.ToString() ?? "";
+                return value.ToObject()?.ToString() ?? "";
             }
 
             return "";
@@ -196,8 +194,8 @@ try {
             ["evalScript"] = new HostFunction(args => args.Count switch
             {
                 > 1 => throw new Exception("only script parsing supported"),
-                > 0 when args[0] is string script => EvalScriptSync(engine, script),
-                _ => null
+                > 0 when args[0].ToObject() is string script => JsValue.FromObjectUnsafe(EvalScriptSync(engine, script)),
+                _ => JsValue.Undefined
             }),
 
             // createRealm function - not fully implemented but needed for compatibility
@@ -209,7 +207,7 @@ try {
                 var realmGlobal = realmEngine.GlobalObject;
                 realmGlobal["global"] = realmGlobal;
 
-                return realmGlobal;
+                return (JsValue)realmGlobal;
             }),
 
             // detachArrayBuffer function - placeholder implementation
@@ -217,32 +215,33 @@ try {
             {
                 if (args.Count == 0)
                 {
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
 
-                switch (args[0])
+                if (args[0].TryGetObject<TypedArrayBase>(out var view))
                 {
-                    case TypedArrayBase view:
-                        view.Buffer.Detach();
-                        break;
-                    case JsArrayBuffer buffer:
-                        buffer.Detach();
-                        break;
-                    case IJsPropertyAccessor accessor when accessor.TryGetProperty("buffer", out var inner) &&
-                                                           inner is JsArrayBuffer innerBuffer:
-                        innerBuffer.Detach();
-                        break;
+                    view.Buffer.Detach();
+                }
+                else if (args[0].TryGetObject<JsArrayBuffer>(out var buffer))
+                {
+                    buffer.Detach();
+                }
+                else if (args[0].TryGetObject<IJsPropertyAccessor>(out var accessor) &&
+                         accessor.TryGetProperty("buffer", out var inner) &&
+                         inner.TryGetObject<JsArrayBuffer>(out var innerBuffer))
+                {
+                    innerBuffer.Detach();
                 }
 
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }),
 
             // Host hook for resizable ArrayBuffers
             ["createResizableArrayBuffer"] = new HostFunction(args =>
             {
-                var length = args.Count > 0 && args[0] is double d ? (int)d : 0;
-                var max = args.Count > 1 && args[1] is double d2 ? (int)d2 : length;
-                return new JsArrayBuffer(length, max);
+                var length = args.Count > 0 && args[0].TryGetDouble(out var d) ? (int)d : 0;
+                var max = args.Count > 1 && args[1].TryGetDouble(out var d2) ? (int)d2 : length;
+                return JsValue.FromObjectUnsafe(new JsArrayBuffer(length, max));
             }),
 
             // gc function - triggers garbage collection
@@ -250,7 +249,7 @@ try {
             {
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
-                return null;
+                return JsValue.Null;
             }),
 
             // HTMLDDA-like object used by Test262 harness
@@ -544,22 +543,24 @@ try {
         // Prototype [[Prototype]] should be Object.prototype when available.
         var prototype = new JsObject();
         if (engine.GlobalObject.TryGetValue("Object", out var objectCtor) &&
-            objectCtor is IJsPropertyAccessor objAccessor &&
+            objectCtor is JsValue objectCtorValue &&
+            objectCtorValue.TryGetObject<IJsPropertyAccessor>(out var objAccessor) &&
             objAccessor.TryGetProperty("prototype", out var objectProto) &&
-            objectProto is JsObject protoObj)
+            objectProto.TryGetObject<JsObject>(out var protoObj))
         {
             prototype.SetPrototype(protoObj);
         }
 
         var constructor = new HostFunction((_, _) =>
         {
-            object? error = "%AbstractModuleSource% is not constructable";
-            if (engine.GlobalObject.TryGetValue("TypeError", out var typeErrorValue) &&
-                typeErrorValue is IJsCallable typeErrorCtor)
+            var error = (JsValue)"%AbstractModuleSource% is not constructable";
+            if (engine.GlobalObject.TryGetValue("TypeError", out var typeErrorObj) &&
+                typeErrorObj is JsValue typeErrorValue &&
+                typeErrorValue.TryGetObject<IJsCallable>(out var typeErrorCtor))
             {
                 try
                 {
-                    error = typeErrorCtor.Invoke([error], null);
+                    error = typeErrorCtor.Invoke([error], JsValue.Undefined);
                 }
                 catch (ThrowSignal signal)
                 {
@@ -612,14 +613,14 @@ try {
 
         var toStringTagGetter = new HostFunction((thisValue, _) =>
         {
-            if (thisValue is JsObject obj &&
+            if (thisValue.TryGetObject(out var obj) &&
                 obj.TryGetProperty("__moduleSourceClassName__", out var name) &&
-                name is string tag)
+                name.TryGetObject<string>(out var tag))
             {
                 return tag;
             }
 
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         });
 
         var toStringTagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
@@ -636,9 +637,10 @@ try {
         }
 
         if (engine.GlobalObject.TryGetValue("Function", out var functionCtor) &&
-            functionCtor is IJsPropertyAccessor fnAccessor &&
+            functionCtor is JsValue functionCtorValue &&
+            functionCtorValue.TryGetObject<IJsPropertyAccessor>(out var fnAccessor) &&
             fnAccessor.TryGetProperty("prototype", out var fnProto) &&
-            fnProto is JsObject fnProtoObj)
+            fnProto.TryGetObject<JsObject>(out var fnProtoObj))
         {
             constructor.SetPrototype(fnProtoObj);
         }

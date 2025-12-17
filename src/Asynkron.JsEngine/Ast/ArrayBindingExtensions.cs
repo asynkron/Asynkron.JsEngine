@@ -45,26 +45,6 @@ public static partial class TypedAstEvaluator
             var hasPendingElement = resumeState?.HasPendingElement == true;
             var pendingValue = resumeState?.PendingValue;
             var pendingDone = resumeState?.PendingDone ?? false;
-            void CloseIterator(bool preserveExistingThrow, object? existingThrowOverride = null)
-            {
-                if (iterator is null)
-                {
-                    return;
-                }
-
-                try
-                {
-                    IteratorClose(iterator, context, preserveExistingThrow, existingThrowOverride);
-                }
-                catch (ThrowSignal)
-                {
-                    iteratorThrew = true;
-                    if (!preserveExistingThrow)
-                    {
-                        throw;
-                    }
-                }
-            }
 
             try
             {
@@ -156,8 +136,11 @@ public static partial class TypedAstEvaluator
                     }
 
                     var usedDefault = false;
-                    if (element.DefaultValue is not null &&
-                        ReferenceEquals(elementValue, Symbol.Undefined))
+                    // Check for undefined: could be Symbol.Undefined, JsValue.Undefined, or null
+                    var isUndefined = ReferenceEquals(elementValue, Symbol.Undefined) ||
+                                      (elementValue is JsValue jsVal && jsVal.IsUndefined) ||
+                                      elementValue is null;
+                    if (element.DefaultValue is not null && isUndefined)
                     {
                         usedDefault = true;
                         elementValue = EvaluateExpression(element.DefaultValue, environment, context).ToObject();
@@ -190,7 +173,7 @@ public static partial class TypedAstEvaluator
 
                     if (preResolvedReference is { } resolvedReference)
                     {
-                        resolvedReference.SetValue(JsValue.FromObject(elementValue));
+                        resolvedReference.SetValue(JsValue.FromObjectUnsafe(elementValue));
                     }
                     else
                     {
@@ -306,7 +289,7 @@ public static partial class TypedAstEvaluator
 
                     if (preResolvedRest is { } resolvedRestReference)
                     {
-                        resolvedRestReference.SetValue(JsValue.FromObject(restArray));
+                        resolvedRestReference.SetValue(JsValue.FromObjectUnsafe(restArray));
                     }
                     else
                     {
@@ -345,12 +328,54 @@ public static partial class TypedAstEvaluator
 
             if (iterator is not null && !iteratorDone)
             {
+                // When inside a generator context, don't close the iterator immediately.
+                // Instead, save the state so CloseActiveArrayPatternIterators can find it
+                // when the generator completes/returns.
+                if (context.InGeneratorContext && stateKey is { })
+                {
+                    SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
+                        binding.Elements.Length, null, iteratorDone, false, null, false);
+                    return;
+                }
+
                 CloseIterator(context.IsThrow);
             }
 
             if (stateKey is { })
             {
                 ClearArrayPatternState(stateKey, environment);
+            }
+
+            return;
+
+            void CloseIterator(bool preserveExistingThrow, JsValue existingThrowOverride = default)
+            {
+                if (iterator is null)
+                {
+                    return;
+                }
+
+                try
+                {
+                    IteratorClose(iterator, context, preserveExistingThrow, existingThrowOverride);
+                }
+                catch (ThrowSignal)
+                {
+                    iteratorThrew = true;
+                    if (!preserveExistingThrow)
+                    {
+                        throw;
+                    }
+                }
+                finally
+                {
+                    // Mark the iterator as closed so CloseActiveArrayPatternIterators doesn't try again
+                    if (stateKey is not null && environment.TryGet(stateKey, out var stateObj) && stateObj is ArrayPatternState state)
+                    {
+                        state.IteratorDone = true;
+                        state.Iterator = null;
+                    }
+                }
             }
         }
     }
@@ -368,7 +393,7 @@ public static partial class TypedAstEvaluator
 
     private static void SaveArrayPatternState(Symbol stateKey, JsEnvironment environment,
         IJsObjectLike? iterator,
-        IEnumerator<object?>? enumerator,
+        IEnumerator<JsValue>? enumerator,
         bool iteratorDone,
         int nextElementIndex,
         object? pendingValue,
@@ -397,7 +422,7 @@ public static partial class TypedAstEvaluator
         }
         else
         {
-            environment.Define(stateKey, state, isConst: false, isLexical: true, canDelete: true);
+            environment.DefineJsValue(stateKey, JsValue.FromObjectUnsafe(state), isConst: false, isLexical: true, canDelete: true);
         }
     }
 
@@ -410,7 +435,7 @@ public static partial class TypedAstEvaluator
     {
         public bool ConsumingRest { get; set; }
 
-        public IEnumerator<object?>? Enumerator { get; set; }
+        public IEnumerator<JsValue>? Enumerator { get; set; }
 
         public bool HasPendingElement { get; set; }
 

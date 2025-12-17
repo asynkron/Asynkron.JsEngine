@@ -15,15 +15,12 @@ public sealed class TypedAstParser(
     bool allowTopLevelAwait = false,
     IJsEngineOptions? options = null)
 {
-    private readonly bool _allowTopLevelAwait = allowTopLevelAwait;
-    private readonly bool _forceStrict = forceStrict;
     private readonly IJsEngineOptions _options = options ?? JsEngineOptions.Default;
-    private readonly string _source = source ?? string.Empty;
     private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
 
     public ProgramNode ParseProgram()
     {
-        var direct = new DirectParser(_tokens, _source, _forceStrict, _allowTopLevelAwait, _options);
+        var direct = new DirectParser(_tokens, source, forceStrict, allowTopLevelAwait, _options);
         return direct.ParseProgram();
     }
 
@@ -38,10 +35,7 @@ public sealed class TypedAstParser(
         bool allowTopLevelAwait,
         IJsEngineOptions options)
     {
-        private readonly bool _allowTopLevelAwait = allowTopLevelAwait;
-        private readonly bool _forceStrict = forceStrict;
         private readonly Stack<FunctionContext> _functionContexts = new();
-        private readonly IJsEngineOptions _options = options ?? JsEngineOptions.Default;
         private readonly string _source = source ?? string.Empty;
         private readonly Stack<bool> _strictContexts = new();
         private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
@@ -56,14 +50,14 @@ public sealed class TypedAstParser(
         private bool InAsyncContext => _functionContexts.Count > 0 && _functionContexts.Peek().IsAsync;
 
         private bool IsAwaitAllowed =>
-            InAsyncContext || (_allowTopLevelAwait && _functionContexts.Count == 0);
+            InAsyncContext || (allowTopLevelAwait && _functionContexts.Count == 0);
 
         private bool InStrictContext => _strictContexts.Count > 0 && _strictContexts.Peek();
 
         public ProgramNode ParseProgram()
         {
             var statements = ImmutableArray.CreateBuilder<StatementNode>();
-            var isStrict = _forceStrict || CheckForUseStrictDirective();
+            var isStrict = forceStrict || CheckForUseStrictDirective();
 
             using (EnterStrictContext(isStrict))
             {
@@ -2092,7 +2086,7 @@ public sealed class TypedAstParser(
                 var rightExpr = ParseShift();
                 return new BinaryExpression(
                     CreateSourceReference(privateToken),
-                    "in",
+                    BinaryOperator.In,
                     privateExpr,
                     rightExpr);
             }
@@ -2209,47 +2203,47 @@ public sealed class TypedAstParser(
         {
             if (Match(TokenType.PlusPlus))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), "++", ParseUnary(), true);
+                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.Increment, ParseUnary(), true);
             }
 
             if (Match(TokenType.MinusMinus))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), "--", ParseUnary(), true);
+                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.Decrement, ParseUnary(), true);
             }
 
             if (Match(TokenType.Bang))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), "!", ParseUnary(), true);
+                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.LogicalNot, ParseUnary(), true);
             }
 
             if (Match(TokenType.Minus))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), "-", ParseUnary(), true);
+                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.Minus, ParseUnary(), true);
             }
 
             if (Match(TokenType.Plus))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), "+", ParseUnary(), true);
+                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.Plus, ParseUnary(), true);
             }
 
             if (Match(TokenType.Tilde))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), "~", ParseUnary(), true);
+                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.BitwiseNot, ParseUnary(), true);
             }
 
             if (Match(TokenType.Typeof))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), "typeof", ParseUnary(), true);
+                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.TypeOf, ParseUnary(), true);
             }
 
             if (Match(TokenType.Void))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), "void", ParseUnary(), true);
+                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.Void, ParseUnary(), true);
             }
 
             if (Match(TokenType.Delete))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), "delete", ParseUnary(), true);
+                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.Delete, ParseUnary(), true);
             }
 
             if (Check(TokenType.Yield))
@@ -2315,7 +2309,7 @@ public sealed class TypedAstParser(
                 if (!HasLineTerminatorBefore())
                 {
                     var op = Advance();
-                    return new UnaryExpression(CreateSourceReference(op), "++", expr, false);
+                    return new UnaryExpression(CreateSourceReference(op), UnaryOperator.Increment, expr, false);
                 }
 
                 return expr;
@@ -2326,7 +2320,7 @@ public sealed class TypedAstParser(
                 if (!HasLineTerminatorBefore())
                 {
                     var op = Advance();
-                    return new UnaryExpression(CreateSourceReference(op), "--", expr, false);
+                    return new UnaryExpression(CreateSourceReference(op), UnaryOperator.Decrement, expr, false);
                 }
 
                 return expr;
@@ -2349,7 +2343,7 @@ public sealed class TypedAstParser(
             {
                 var token = Previous();
                 EnsureNumericLiteralAllowed(token);
-                expr = new LiteralExpression(CreateSourceReference(token), token.Literal);
+                expr = new LiteralExpression(CreateSourceReference(token), new JsValue((double)token.Literal!));
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
@@ -2357,13 +2351,15 @@ public sealed class TypedAstParser(
             {
                 var token = Previous();
                 EnsureNumericLiteralAllowed(token);
-                expr = new LiteralExpression(CreateSourceReference(token), token.Literal);
+                expr = new LiteralExpression(CreateSourceReference(token), new JsValue((JsBigInt)token.Literal!));
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
             if (Match(TokenType.RegexLiteral))
             {
-                expr = new LiteralExpression(CreateSourceReference(Previous()), Previous().Literal);
+                var token = Previous();
+                var regex = (RegexLiteralValue)token.Literal!;
+                expr = new RegexLiteralExpression(CreateSourceReference(token), regex.Pattern, regex.Flags);
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
@@ -2371,7 +2367,7 @@ public sealed class TypedAstParser(
             {
                 var token = Previous();
                 var literalValue = GetStringLiteralValue(token);
-                expr = new LiteralExpression(CreateSourceReference(token), literalValue);
+                expr = new LiteralExpression(CreateSourceReference(token), new JsValue(literalValue));
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
@@ -2383,19 +2379,19 @@ public sealed class TypedAstParser(
 
             if (Match(TokenType.True))
             {
-                expr = new LiteralExpression(CreateSourceReference(Previous()), true);
+                expr = new LiteralExpression(CreateSourceReference(Previous()), JsValue.True);
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
             if (Match(TokenType.False))
             {
-                expr = new LiteralExpression(CreateSourceReference(Previous()), false);
+                expr = new LiteralExpression(CreateSourceReference(Previous()), JsValue.False);
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
             if (Match(TokenType.Null))
             {
-                expr = new LiteralExpression(CreateSourceReference(Previous()), null);
+                expr = new LiteralExpression(CreateSourceReference(Previous()), JsValue.Null);
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
 
@@ -2488,7 +2484,7 @@ public sealed class TypedAstParser(
                     }
 
                     // import.meta is only valid in module context.
-                    if (!_options.AllowImportMeta)
+                    if (!options.AllowImportMeta)
                     {
                         throw new ParseException(
                             "'import.meta' is only valid in module code.",
@@ -2567,10 +2563,10 @@ public sealed class TypedAstParser(
                 var operand = ParseUnary();
                 var op = token.Type switch
                 {
-                    TokenType.Tilde => "~",
-                    TokenType.Typeof => "typeof",
-                    TokenType.Void => "void",
-                    TokenType.Delete => "delete",
+                    TokenType.Tilde => UnaryOperator.BitwiseNot,
+                    TokenType.Typeof => UnaryOperator.TypeOf,
+                    TokenType.Void => UnaryOperator.Void,
+                    TokenType.Delete => UnaryOperator.Delete,
                     _ => throw new InvalidOperationException()
                 };
                 var unary = new UnaryExpression(CreateSourceReference(token), op, operand, true);
@@ -3059,9 +3055,8 @@ public sealed class TypedAstParser(
             foreach (var text in values)
             {
                 // If text is null, the cooked value is undefined (ES2018 tagged template literal revision)
-                // Use Symbol.Undefined to represent JavaScript's undefined value
-                object? value = text is null ? Symbol.Undefined : text;
-                var literal = new LiteralExpression(null, value);
+                var jsValue = text is null ? JsValue.Undefined : new JsValue(text);
+                var literal = new LiteralExpression(null, jsValue);
                 elements.Add(new ArrayElement(null, literal, false));
             }
 
@@ -3084,7 +3079,7 @@ public sealed class TypedAstParser(
 
             // Create a new DirectParser directly to preserve the current function context (generator/async).
             // This allows yield/await to be recognized inside template interpolations within generators/async functions.
-            var embeddedParser = new DirectParser(tokens, wrappedSource, InStrictContext, _allowTopLevelAwait, _options);
+            var embeddedParser = new DirectParser(tokens, wrappedSource, InStrictContext, allowTopLevelAwait, options);
 
             // Propagate the current function context to the embedded parser
             if (InGeneratorContext || InAsyncContext)
@@ -3396,8 +3391,51 @@ public sealed class TypedAstParser(
         private static BinaryExpression CreateBinaryExpression(string op, ExpressionNode left, ExpressionNode right)
         {
             var source = left.Source ?? right.Source;
-            return new BinaryExpression(source, op, left, right);
+            var binaryOp = op switch
+            {
+                "+" => BinaryOperator.Add,
+                "-" => BinaryOperator.Subtract,
+                "*" => BinaryOperator.Multiply,
+                "/" => BinaryOperator.Divide,
+                "%" => BinaryOperator.Modulo,
+                "**" => BinaryOperator.Power,
+                "==" => BinaryOperator.Equal,
+                "!=" => BinaryOperator.NotEqual,
+                "===" => BinaryOperator.StrictEqual,
+                "!==" => BinaryOperator.StrictNotEqual,
+                "<" => BinaryOperator.LessThan,
+                "<=" => BinaryOperator.LessThanOrEqual,
+                ">" => BinaryOperator.GreaterThan,
+                ">=" => BinaryOperator.GreaterThanOrEqual,
+                "&&" => BinaryOperator.LogicalAnd,
+                "||" => BinaryOperator.LogicalOr,
+                "??" => BinaryOperator.NullishCoalescing,
+                "&" => BinaryOperator.BitwiseAnd,
+                "|" => BinaryOperator.BitwiseOr,
+                "^" => BinaryOperator.BitwiseXor,
+                "<<" => BinaryOperator.LeftShift,
+                ">>" => BinaryOperator.RightShift,
+                ">>>" => BinaryOperator.UnsignedRightShift,
+                "in" => BinaryOperator.In,
+                "instanceof" => BinaryOperator.InstanceOf,
+                _ => throw new NotSupportedException($"Unknown binary operator: {op}")
+            };
+            return new BinaryExpression(source, binaryOp, left, right);
         }
+
+        private static UnaryOperator ParseUnaryOperator(string op) => op switch
+        {
+            "+" => UnaryOperator.Plus,
+            "-" => UnaryOperator.Minus,
+            "!" => UnaryOperator.LogicalNot,
+            "~" => UnaryOperator.BitwiseNot,
+            "typeof" => UnaryOperator.TypeOf,
+            "void" => UnaryOperator.Void,
+            "delete" => UnaryOperator.Delete,
+            "++" => UnaryOperator.Increment,
+            "--" => UnaryOperator.Decrement,
+            _ => throw new NotSupportedException($"Unknown unary operator: {op}")
+        };
 
         private static ExpressionNode CreateMemberAssignment(
             MemberExpression member,

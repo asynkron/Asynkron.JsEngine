@@ -16,9 +16,9 @@ o.bar = 2;
 
         var obj = Assert.IsType<JsTypes.JsObject>(result);
         Assert.True(obj.TryGetProperty("own", out var own));
-        Assert.False((bool)own!);
+        Assert.False(own.AsBoolean());
         Assert.True(obj.TryGetProperty("value", out var value));
-        Assert.Equal(1d, (double)value!);
+        Assert.Equal(1d, value.AsDouble());
     }
 
     [Fact]
@@ -36,6 +36,6 @@ o.bar = 2;
 ");
         });
 
-        Assert.IsType<JsTypes.JsObject>(ex.ThrownValue);
+        Assert.IsType<JsTypes.JsObject>(ex.ThrownValue.ToObject());
     }
 }

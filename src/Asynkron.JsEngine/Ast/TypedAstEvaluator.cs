@@ -33,7 +33,7 @@ public static partial class TypedAstEvaluator
     private static readonly string IteratorSymbolPropertyName = SymbolKeys.Iterator;
 
     private static readonly object GeneratorBrandMarker = new();
-    private static readonly object EmptyCompletion = new();
+    private static readonly object EmptyCompletion = JsValue.UnitSentinel;
 
     private static bool TryConvertToWithBindingObject(
         object? value,
@@ -51,7 +51,7 @@ public static partial class TypedAstEvaluator
             {
                 var error = StandardLibrary.CreateTypeError("Cannot convert undefined or null to object", context,
                     context.RealmState);
-                context.SetThrow(error);
+                context.SetThrow(JsValue.FromObjectUnsafe(error));
                 bindingObject = null;
                 return false;
             }
@@ -108,7 +108,7 @@ public static partial class TypedAstEvaluator
             }
 
             var typeError = StandardLibrary.CreateTypeError("Iterator is not an object", context, context.RealmState);
-            context.SetThrow(typeError);
+            context.SetThrow(JsValue.FromObjectUnsafe(typeError));
             return false;
         }
 
@@ -129,7 +129,7 @@ public static partial class TypedAstEvaluator
             }
 
             var typeError = StandardLibrary.CreateTypeError("Iterator is not an object", context, context.RealmState);
-            context.SetThrow(typeError);
+            context.SetThrow(JsValue.FromObjectUnsafe(typeError));
             return false;
         }
 
@@ -137,7 +137,7 @@ public static partial class TypedAstEvaluator
     }
 
 
-    private static bool IsPromiseLike(object? candidate)
+    private static bool IsPromiseLike(JsValue candidate)
     {
         return AwaitScheduler.IsPromiseLike(candidate);
     }
@@ -170,7 +170,7 @@ public static partial class TypedAstEvaluator
     // It keeps async/await and async iteration usable for now but must be replaced by
     // a non-blocking, event-loop-integrated continuation model once the async IR
     // pipeline is in place.
-    private static bool TryAwaitPromise(object? candidate, EvaluationContext context, out object? resolvedValue)
+    private static bool TryAwaitPromise(JsValue candidate, EvaluationContext context, out JsValue resolvedValue)
     {
         return AwaitScheduler.TryAwaitPromiseSync(
             candidate,
@@ -334,48 +334,12 @@ public static partial class TypedAstEvaluator
         throw new InvalidOperationException("Cannot iterate properties of non-object value.");
     }
 
-    private static IEnumerable<object?> EnumerateValues(object? value, EvaluationContext context)
-    {
-        switch (value)
-        {
-            case JsArray array:
-                foreach (var item in array.Items)
-                {
-                    yield return item;
-                }
-
-                yield break;
-            case string s:
-                foreach (var ch in s)
-                {
-                    yield return ch.ToString();
-                }
-
-                yield break;
-            case IEnumerable<object?> enumerable:
-                foreach (var item in enumerable)
-                {
-                    yield return item;
-                }
-
-                yield break;
-        }
-
-        throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
-    }
-
-
-    private static object? NormalizeLoopCompletion(object? completion)
-    {
-        return ReferenceEquals(completion, EmptyCompletion) ? Symbol.Undefined : completion;
-    }
-
     private static DelegatedYieldState CreateDelegatedState(object? iterable, EvaluationContext context)
     {
         var iteratorTarget = NormalizeIterableTarget(iterable, context);
         if (context.ShouldStopEvaluation)
         {
-            return DelegatedYieldState.FromEnumerable(Array.Empty<object?>());
+            return DelegatedYieldState.FromEnumerable([]);
         }
 
         if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
@@ -385,14 +349,14 @@ public static partial class TypedAstEvaluator
 
         if (context.ShouldStopEvaluation)
         {
-            return DelegatedYieldState.FromEnumerable(Array.Empty<object?>());
+            return DelegatedYieldState.FromEnumerable([]);
         }
 
         throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
     }
 
 
-    private static ImmutableArray<object?> FreezeArguments(ImmutableArray<object?>.Builder builder)
+    private static ImmutableArray<JsValue> FreezeArguments(ImmutableArray<JsValue>.Builder builder)
     {
         return builder.Count == builder.Capacity
             ? builder.MoveToImmutable()
@@ -404,52 +368,56 @@ public static partial class TypedAstEvaluator
         if (!environment.TryGet(Symbol.PromiseIdentifier, out var promiseCtor) ||
             promiseCtor is not IJsPropertyAccessor accessor ||
             !accessor.TryGetProperty("reject", out var rejectValue) ||
-            rejectValue is not IJsCallable rejectCallable)
+            !rejectValue.TryGetObject<IJsCallable>(out var rejectCallable))
         {
             return reason;
         }
 
         try
         {
-            return rejectCallable.Invoke([reason], promiseCtor);
+            // Handle case where reason is already a boxed JsValue
+            var reasonArg = reason is JsValue reasonJs ? reasonJs : JsValue.FromObjectUnsafe(reason);
+            return rejectCallable.Invoke([reasonArg], JsValue.FromObjectUnsafe(promiseCtor)).ToObject();
         }
         catch (ThrowSignal signal)
         {
-            return signal.ThrownValue;
+            return signal.ThrownValue.ToObject();
         }
     }
 
     private static object? CreateResolvedPromise(object? value, JsEnvironment environment)
     {
-        object? resolveCandidate = null;
+        var resolveCandidate = JsValue.Undefined;
         if (!environment.TryGet(Symbol.PromiseIdentifier, out var promiseCtor) ||
             promiseCtor is not IJsPropertyAccessor accessor ||
             !accessor.TryGetProperty("resolve", out resolveCandidate) ||
-            resolveCandidate is not IJsCallable resolveCallable)
+            !resolveCandidate.TryGetObject<IJsCallable>(out var resolveCallable))
         {
             environment.RealmState?.Logger?.LogInformation(
                 "CreateResolvedPromise falling back (promiseCtorType={CtorType}, hasResolve={HasResolve}, resolveCallable={ResolveCallable})",
                 promiseCtor?.GetType().Name ?? "null",
                 promiseCtor is IJsPropertyAccessor a && a.TryGetProperty("resolve", out _),
-                resolveCandidate is IJsCallable);
+                resolveCandidate.TryGetObject<IJsCallable>(out _));
             return value;
         }
 
         try
         {
-            return resolveCallable.Invoke([value], promiseCtor);
+            // Handle case where value is already a boxed JsValue
+            var valueArg = value is JsValue valJs ? valJs : JsValue.FromObjectUnsafe(value);
+            return resolveCallable.Invoke([valueArg], JsValue.FromObjectUnsafe(promiseCtor)).ToObject();
         }
         catch (ThrowSignal signal)
         {
-            return signal.ThrownValue;
+            return signal.ThrownValue.ToObject();
         }
     }
 
 
     // SpreadElement runtime semantics (ECMA-262 §12.2.5.2) use GetIterator on the operand.
-    private static IEnumerable<object?> EnumerateSpread(object? value, EvaluationContext context)
+    private static IEnumerable<JsValue> EnumerateSpread(JsValue value, EvaluationContext context)
     {
-        if (!TryGetIteratorForDestructuring(value, context, out var iterator, out var enumerator))
+        if (!TryGetIteratorForDestructuring(value.ToObject(), context, out var iterator, out var enumerator))
         {
             if (context.ShouldStopEvaluation)
             {
@@ -465,8 +433,9 @@ public static partial class TypedAstEvaluator
         }
 
         var logger = context.RealmState?.Logger;
+        var valueObj = value.ToObject();
         logger?.LogInformation("EnumerateSpread start valueType={Type} hasIterator={HasIterator} hasEnumerator={HasEnum}",
-            value?.GetType().Name ?? "null",
+            valueObj?.GetType().Name ?? "null",
             iterator is not null,
             enumerator is not null);
         var iteratorRecord = new ArrayPatternIterator(iterator, enumerator);
@@ -495,8 +464,9 @@ public static partial class TypedAstEvaluator
 
                 if (index < 5 || index % 1000 == 0)
                 {
+                    var itemObj = item.ToObject();
                     logger?.LogInformation("EnumerateSpread yield index={Index} type={Type}", index,
-                        item?.GetType().Name ?? "null");
+                        itemObj?.GetType().Name ?? "null");
                 }
 
                 yield return item;
@@ -569,6 +539,13 @@ public static partial class TypedAstEvaluator
 
         if (leftPrimitive is string || rightPrimitive is string)
         {
+            if (IsRealSymbol(leftPrimitive) || IsRealSymbol(rightPrimitive))
+            {
+                throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context);
+            }
+
+            return JsOps.ToJsString(leftPrimitive, context) + JsOps.ToJsString(rightPrimitive, context);
+
             bool IsRealSymbol(object? v)
             {
                 return v switch
@@ -578,23 +555,16 @@ public static partial class TypedAstEvaluator
                     _ => false
                 };
             }
-
-            if (IsRealSymbol(leftPrimitive) || IsRealSymbol(rightPrimitive))
-            {
-                throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context);
-            }
-
-            return JsOps.ToJsString(leftPrimitive, context) + JsOps.ToJsString(rightPrimitive, context);
         }
 
-        // Use NumericResult to avoid boxing
-        var leftNumeric = JsOps.ToNumericResult(leftPrimitive, context);
+        // Use JsValue-based conversion to avoid boxing
+        var leftNumeric = ToNumericValue(leftPrimitive is JsValue leftJs ? leftJs : JsValue.FromObjectUnsafe(leftPrimitive), context);
         if (context.ShouldStopEvaluation)
         {
             return context.FlowValue;
         }
 
-        var rightNumeric = JsOps.ToNumericResult(rightPrimitive, context);
+        var rightNumeric = ToNumericValue(rightPrimitive is JsValue rightJs ? rightJs : JsValue.FromObjectUnsafe(rightPrimitive), context);
         if (context.ShouldStopEvaluation)
         {
             return context.FlowValue;
@@ -603,13 +573,13 @@ public static partial class TypedAstEvaluator
         // Both are numbers - most common case
         if (leftNumeric.IsNumber && rightNumeric.IsNumber)
         {
-            return JsValueCache.GetNumber(leftNumeric.NumberValue + rightNumeric.NumberValue);
+            return new JsValue(leftNumeric.NumberValue + rightNumeric.NumberValue);
         }
 
         // Both are BigInt
         if (leftNumeric.IsBigInt && rightNumeric.IsBigInt)
         {
-            return leftNumeric.BigIntValue! + rightNumeric.BigIntValue!;
+            return new JsValue(leftNumeric.AsBigInt() + rightNumeric.AsBigInt());
         }
 
         // Mixed types - error
@@ -620,7 +590,7 @@ public static partial class TypedAstEvaluator
         }
 
         // Fallback
-        return JsValueCache.GetNumber(leftNumeric.NumberValue + rightNumeric.NumberValue);
+        return new JsValue(leftNumeric.NumberValue + rightNumeric.NumberValue);
     }
 
     private static object Subtract(object? left, object? right, EvaluationContext context)
@@ -667,7 +637,7 @@ public static partial class TypedAstEvaluator
 
                 return l % r;
             },
-            (l, r) => l % r,
+            JsOps.MathMod,
             context);
     }
 
@@ -696,29 +666,29 @@ public static partial class TypedAstEvaluator
         Func<double, double, double> numericOp,
         EvaluationContext context)
     {
-        // Use NumericResult to avoid boxing during the operation
-        var leftNumeric = JsOps.ToNumericResult(left, context);
+        // Use JsValue-based conversion to avoid boxing during the operation
+        var leftNumeric = ToNumericValue(left is JsValue ljs ? ljs : JsValue.FromObjectUnsafe(left), context);
         if (context.ShouldStopEvaluation)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
-        var rightNumeric = JsOps.ToNumericResult(right, context);
+        var rightNumeric = ToNumericValue(right is JsValue rjs ? rjs : JsValue.FromObjectUnsafe(right), context);
         if (context.ShouldStopEvaluation)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         // Both are numbers - most common case
         if (leftNumeric.IsNumber && rightNumeric.IsNumber)
         {
-            return JsValueCache.GetNumber(numericOp(leftNumeric.NumberValue, rightNumeric.NumberValue));
+            return new JsValue(numericOp(leftNumeric.NumberValue, rightNumeric.NumberValue));
         }
 
         // Both are BigInt
         if (leftNumeric.IsBigInt && rightNumeric.IsBigInt)
         {
-            return bigIntOp(leftNumeric.BigIntValue!, rightNumeric.BigIntValue!, context);
+            return bigIntOp(leftNumeric.AsBigInt(), rightNumeric.AsBigInt(), context);
         }
 
         // Mixed types - error
@@ -729,7 +699,7 @@ public static partial class TypedAstEvaluator
         }
 
         // Fallback (shouldn't reach here normally)
-        return JsValueCache.GetNumber(numericOp(leftNumeric.NumberValue, rightNumeric.NumberValue));
+        return new JsValue(numericOp(leftNumeric.NumberValue, rightNumeric.NumberValue));
     }
 
     private static bool LooseEquals(object? left, object? right, EvaluationContext context)
@@ -778,7 +748,7 @@ public static partial class TypedAstEvaluator
         var numeric = JsOps.ToNumeric(operand, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         if (numeric is JsBigInt bigInt)
@@ -801,7 +771,7 @@ public static partial class TypedAstEvaluator
         var numeric = JsOps.ToNumeric(operand, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         if (numeric is JsBigInt bigInt)
@@ -825,13 +795,13 @@ public static partial class TypedAstEvaluator
         var leftNumeric = JsOps.ToNumeric(left, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         var rightNumeric = JsOps.ToNumeric(right, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         if (leftNumeric is JsBigInt leftBigInt && rightNumeric is JsBigInt rightBigInt)
@@ -868,13 +838,13 @@ public static partial class TypedAstEvaluator
         var leftNumeric = JsOps.ToNumeric(left, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         var rightNumeric = JsOps.ToNumeric(right, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         if (leftNumeric is JsBigInt leftBigInt && rightNumeric is JsBigInt rightBigInt)
@@ -911,13 +881,13 @@ public static partial class TypedAstEvaluator
         var leftNumeric = JsOps.ToNumeric(left, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         var rightNumeric = JsOps.ToNumeric(right, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         if (leftNumeric is JsBigInt || rightNumeric is JsBigInt)
@@ -948,13 +918,13 @@ public static partial class TypedAstEvaluator
         var leftNumeric = JsOps.ToNumeric(left, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         var rightNumeric = JsOps.ToNumeric(right, context);
         if (context.IsThrow)
         {
-            return context.FlowValue ?? Symbol.Undefined;
+            return context.FlowValue;
         }
 
         if (leftNumeric is JsBigInt leftBigInt && rightNumeric is JsBigInt rightBigInt)
@@ -1031,10 +1001,10 @@ public static partial class TypedAstEvaluator
         // Throw TypeError for primitives (boolean, number, string, null, undefined)
         if (target is not IJsPropertyAccessor)
         {
-            context.SetThrow(StandardLibrary.CreateTypeError(
+            context.SetThrow(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
                 "Right-hand side of 'in' is not an object",
                 context,
-                context.RealmState));
+                context.RealmState)));
             return false;
         }
 
@@ -1069,8 +1039,8 @@ public static partial class TypedAstEvaluator
     {
         if (right is not IJsPropertyAccessor)
         {
-            context.SetThrow(StandardLibrary.CreateTypeError("Right-hand side of 'instanceof' is not an object",
-                context));
+            context.SetThrow(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError("Right-hand side of 'instanceof' is not an object",
+                context)));
             return false;
         }
 
@@ -1087,14 +1057,14 @@ public static partial class TypedAstEvaluator
             {
                 if (hasInstance is not IJsCallable callable)
                 {
-                    context.SetThrow(StandardLibrary.CreateTypeError("@@hasInstance is not callable", context));
+                    context.SetThrow(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError("@@hasInstance is not callable", context)));
                     return false;
                 }
 
                 try
                 {
-                    var result = callable.Invoke([left], right);
-                    return JsOps.ToBoolean(result);
+                    var result = callable.Invoke([JsValue.FromObjectUnsafe(left)], JsValue.FromObjectUnsafe(right));
+                    return JsOps.ToBoolean(result.ToObject());
                 }
                 catch (ThrowSignal signal)
                 {
@@ -1113,8 +1083,8 @@ public static partial class TypedAstEvaluator
             return OrdinaryHasInstance(left, right, context);
         }
 
-        context.SetThrow(StandardLibrary.CreateTypeError("Right-hand side of 'instanceof' is not callable",
-            context));
+        context.SetThrow(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError("Right-hand side of 'instanceof' is not callable",
+            context)));
         return false;
     }
 
@@ -1133,8 +1103,8 @@ public static partial class TypedAstEvaluator
         if (!TryGetPropertyValue(constructor, "prototype", out var prototype, context) ||
             prototype is not IJsPropertyAccessor prototypeObject)
         {
-            context.SetThrow(
-                StandardLibrary.CreateTypeError("Function has non-object prototype in instanceof check", context));
+            context.SetThrow(JsValue.FromObjectUnsafe(
+                StandardLibrary.CreateTypeError("Function has non-object prototype in instanceof check", context)));
             return false;
         }
 
@@ -1161,7 +1131,7 @@ public static partial class TypedAstEvaluator
 
     // Array/object destructuring uses iterator protocol (ECMA-262 §14.1.5).
     private static bool TryGetIteratorForDestructuring(object? value, EvaluationContext context,
-        out IJsObjectLike? iterator, [MustDisposeResource] out IEnumerator<object?>? enumerator)
+        out IJsObjectLike? iterator, [MustDisposeResource] out IEnumerator<JsValue>? enumerator)
     {
         iterator = null;
         enumerator = null;
@@ -1204,7 +1174,7 @@ public static partial class TypedAstEvaluator
             // Fallback: treat objects with a callable `next` as iterators even if
             // @@iterator is missing so generator objects still participate in
             // destructuring when their symbol lookup fails.
-            if (!iteratorTarget.TryGetProperty("next", out var nextVal) || nextVal is not IJsCallable)
+            if (!iteratorTarget.TryGetProperty("next", out var nextVal) || !nextVal.TryGetObject<IJsCallable>(out _))
             {
                 return false;
             }
@@ -1218,7 +1188,7 @@ public static partial class TypedAstEvaluator
             case string s:
                 enumerator = EnumerateStringCharacters(s);
                 return true;
-            case IEnumerable<object?> enumerable:
+            case IEnumerable<JsValue> enumerable:
                 enumerator = enumerable.GetEnumerator();
                 return true;
         }
@@ -1228,23 +1198,25 @@ public static partial class TypedAstEvaluator
 
 
     [MustDisposeResource]
-    private static IEnumerator<object?> EnumerateStringCharacters(string value)
+    private static IEnumerator<JsValue> EnumerateStringCharacters(string value)
     {
-        IEnumerable<object?> Enumerate()
+        return Enumerate().GetEnumerator();
+
+        IEnumerable<JsValue> Enumerate()
         {
             foreach (var ch in value)
             {
                 yield return ch.ToString();
             }
         }
-
-        return Enumerate().GetEnumerator();
     }
 
     [MustDisposeResource]
-    private static IEnumerator<object?> EnumerateTypedArrayValues(TypedArrayBase typedArray)
+    private static IEnumerator<JsValue> EnumerateTypedArrayValues(TypedArrayBase typedArray)
     {
-        IEnumerable<object?> Enumerate()
+        return Enumerate().GetEnumerator();
+
+        IEnumerable<JsValue> Enumerate()
         {
             var length = typedArray.Length;
             for (var i = 0; i < length; i++)
@@ -1252,13 +1224,23 @@ public static partial class TypedAstEvaluator
                 yield return typedArray.GetValueForIndex(i);
             }
         }
-
-        return Enumerate().GetEnumerator();
     }
 
     private static IJsObjectLike ToObjectForDestructuring(object? value, EvaluationContext context)
     {
         var realm = context.RealmState;
+
+        // Handle boxed JsValue structs - unwrap and check for null/undefined
+        if (value is JsValue jsValue)
+        {
+            if (jsValue.IsNull || jsValue.IsUndefined)
+            {
+                throw StandardLibrary.ThrowTypeError("Cannot destructure undefined or null", context, realm);
+            }
+            // Unwrap the JsValue and recurse with the underlying object
+            value = jsValue.ToObject();
+        }
+
         switch (value)
         {
             case null:
@@ -1284,9 +1266,9 @@ public static partial class TypedAstEvaluator
     }
 
     private static JsObject CreateGeneratorIteratorObject(
-        Func<IReadOnlyList<object?>, object?> next,
-        Func<IReadOnlyList<object?>, object?> @return,
-        Func<IReadOnlyList<object?>, object?> @throw,
+        Func<IReadOnlyList<JsValue>, JsValue> next,
+        Func<IReadOnlyList<JsValue>, JsValue> @return,
+        Func<IReadOnlyList<JsValue>, JsValue> @throw,
         JsObject? prototype)
     {
         var iterator = new JsObject();
@@ -1295,9 +1277,9 @@ public static partial class TypedAstEvaluator
             iterator.SetPrototype(prototype);
         }
 
-        iterator.SetProperty("next", new HostFunction(next));
-        iterator.SetProperty("return", new HostFunction(@return));
-        iterator.SetProperty("throw", new HostFunction(@throw));
+        iterator.SetProperty("next", (JsValue)new HostFunction(next));
+        iterator.SetProperty("return", (JsValue)new HostFunction(@return));
+        iterator.SetProperty("throw", (JsValue)new HostFunction(@throw));
         return iterator;
     }
 }

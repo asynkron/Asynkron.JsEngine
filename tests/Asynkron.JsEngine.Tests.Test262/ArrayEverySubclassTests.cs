@@ -100,12 +100,12 @@ record;";
         await using var engine = new JsEngine();
         engine.SetGlobalFunction("detach", args =>
         {
-            if (args.Count > 0 && args[0] is JsArrayBuffer buffer)
+            if (args.Count > 0 && args[0].TryGetObject<JsArrayBuffer>(out var buffer))
             {
                 buffer.Detach();
             }
 
-            return null;
+            return JsValue.Undefined;
         });
 
         var script = """

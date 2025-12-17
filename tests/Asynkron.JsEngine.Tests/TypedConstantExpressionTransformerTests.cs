@@ -10,9 +10,9 @@ public class TypedConstantExpressionTransformerTests
         var transformer = new TypedConstantExpressionTransformer();
         var expression = new BinaryExpression(
             Source: null,
-            Operator: "+",
+            Operator: BinaryOperator.Add,
             Left: new LiteralExpression(null, 1d),
-            Right: new BinaryExpression(null, "*", new LiteralExpression(null, 2d), new LiteralExpression(null, 3d)));
+            Right: new BinaryExpression(null, BinaryOperator.Multiply, new LiteralExpression(null, 2d), new LiteralExpression(null, 3d)));
         var program = new ProgramNode(null,
             [new ExpressionStatement(null, expression)], false);
 
@@ -32,7 +32,7 @@ public class TypedConstantExpressionTransformerTests
             Body:
             [
                 new ExpressionStatement(null,
-                    new BinaryExpression(null, "+",
+                    new BinaryExpression(null, BinaryOperator.Add,
                         new IdentifierExpression(null, Symbol.Intern("value")),
                         new LiteralExpression(null, 1d)))
             ],
@@ -53,7 +53,7 @@ public class TypedConstantExpressionTransformerTests
         var transformer = new TypedConstantExpressionTransformer();
         var expression = new BinaryExpression(
             Source: null,
-            Operator: "/",
+            Operator: BinaryOperator.Divide,
             Left: new LiteralExpression(null, numerator),
             Right: new LiteralExpression(null, denominator));
         var program = new ProgramNode(

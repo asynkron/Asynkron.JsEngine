@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.JsTypes;
+
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
@@ -32,7 +34,7 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                environment.Define(key, state);
+                environment.DefineJsValue(key, JsValue.FromObjectUnsafe(state));
             }
         }
 

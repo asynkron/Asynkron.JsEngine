@@ -20,7 +20,7 @@ public static partial class TypedAstEvaluator
                         return JsValue.Undefined;
                     }
 
-                    foreach (var item in EnumerateSpread(spreadValueJs.ToObject(), context))
+                    foreach (var item in EnumerateSpread(spreadValueJs, context))
                     {
                         array.Push(item);
                     }
@@ -48,7 +48,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            return JsValue.FromObject(array);
+            return JsValue.FromObjectUnsafe(array);
         }
     }
 }

@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Ast;
@@ -17,14 +18,15 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
     private static readonly ConcurrentDictionary<int, string> PropertyKeyCache = new();
     private static int NextId;
 
-    private static readonly HostFunction SymbolToStringFunction = new((thisValue, _) =>
+    private static readonly HostFunction SymbolToStringFunction = new((JsValue thisValue, IReadOnlyList<JsValue> _) =>
     {
-        if (thisValue is TypedAstSymbol typed)
+        // Use TryUnwrap instead of TryGetObject because Symbol JsValues have Kind=Symbol, not Object
+        if (thisValue.TryUnwrap<TypedAstSymbol>(out var typed))
         {
-            return typed.ToString();
+            return new JsValue(typed.ToString());
         }
 
-        return "Symbol()";
+        return new JsValue("Symbol()");
     }, isConstructor: false);
 
     private readonly int _id;
@@ -43,52 +45,56 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
     /// </summary>
     public string? Description { get; }
 
-    public bool TryGetProperty(string name, out object? value)
+    public bool TryGetProperty(string name, out JsValue value)
     {
         if (string.Equals(name, "toString", StringComparison.Ordinal))
         {
-            value = SymbolToStringFunction;
+            value = (JsValue)SymbolToStringFunction;
             return true;
         }
 
         if (string.Equals(name, "valueOf", StringComparison.Ordinal))
         {
-            value = new HostFunction((thisValue, _) => Unbox(thisValue), isConstructor: false);
+            value = (JsValue)new HostFunction((JsValue thisValue, IReadOnlyList<JsValue> _) => (JsValue)Unbox(thisValue), isConstructor: false);
             return true;
         }
 
         var toPrimitiveKey = PropertyKey(Symbols.ToPrimitive);
         if (string.Equals(name, toPrimitiveKey, StringComparison.Ordinal))
         {
-            value = new HostFunction((thisValue, _) => Unbox(thisValue), isConstructor: false);
+            value = (JsValue)new HostFunction((JsValue thisValue, IReadOnlyList<JsValue> _) => (JsValue)Unbox(thisValue), isConstructor: false);
             return true;
         }
 
         var toStringTagKey = PropertyKey(Symbols.ToStringTag);
         if (string.Equals(name, toStringTagKey, StringComparison.Ordinal))
         {
-            value = "Symbol";
+            value = (JsValue)"Symbol";
             return true;
         }
 
-        value = null;
+        value = JsValue.Undefined;
         return false;
 
-        TypedAstSymbol Unbox(object? receiver)
+        TypedAstSymbol Unbox(JsValue receiver)
         {
-            switch (receiver)
+            // For primitive symbols: Kind=Symbol, ObjectValue=TypedAstSymbol
+            if (receiver.IsSymbol && receiver.TryUnwrap<TypedAstSymbol>(out var sym))
             {
-                case TypedAstSymbol sym:
-                    return sym;
-                case JsObject obj when obj.TryGetProperty("__value__", out var inner) && inner is TypedAstSymbol s:
-                    return s;
-                default:
-                    throw StandardLibrary.ThrowTypeError("Symbol.prototype valueOf called on incompatible receiver");
+                return sym;
             }
+            // For boxed symbols: Kind=Object, ObjectValue=JsObject with __value__
+            if (receiver.TryGetObject<JsObject>(out var obj) &&
+                obj.TryGetProperty("__value__", out var inner) &&
+                inner.IsSymbol && inner.TryUnwrap<TypedAstSymbol>(out var innerSym))
+            {
+                return innerSym;
+            }
+            throw StandardLibrary.ThrowTypeError("Symbol.prototype valueOf called on incompatible receiver");
         }
     }
 
-    public void SetProperty(string name, object? value)
+    public void SetProperty(string name, JsValue value)
     {
         // Symbols are immutable; ignore assignments.
     }
@@ -96,7 +102,7 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
     {
         return TryGetProperty(name, out var value)
-            ? new PropertyDescriptor { Value = value, Writable = true, Enumerable = false, Configurable = true }
+            ? new PropertyDescriptor { Value = value.ToObject(), Writable = true, Enumerable = false, Configurable = true }
             : null;
     }
 
@@ -134,12 +140,12 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
         return PropertyKeyCache.GetOrAdd(hash, h => $"@@symbol:{h}");
     }
 
-    public static string PropertyKey(TypedAstSymbol symbol, Runtime.RealmState? realm)
+    public static string PropertyKey(TypedAstSymbol symbol, RealmState? realm)
     {
         return PropertyKey(symbol);
     }
 
-    public static string PropertyKey(string wellKnownName, Runtime.RealmState? realm = null)
+    public static string PropertyKey(string wellKnownName, RealmState? realm = null)
     {
         if (realm is not null && realm.TryGetSymbolPropertyKey(wellKnownName, out var cached))
         {
@@ -147,10 +153,7 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
         }
 
         var computed = PropertyKey(For(wellKnownName));
-        if (realm is not null)
-        {
-            realm.GetSymbolPropertyKey(wellKnownName);
-        }
+        realm?.GetSymbolPropertyKey(wellKnownName);
 
         return computed;
     }

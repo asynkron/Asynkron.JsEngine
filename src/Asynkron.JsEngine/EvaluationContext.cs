@@ -1,11 +1,27 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine;
+
+/// <summary>
+///     Represents a saved completion state for try-finally handling.
+/// </summary>
+public readonly struct CompletionState(bool isReturn, JsValue returnValue, ICompletionSignal? signal)
+{
+    public bool IsReturn { get; } = isReturn;
+    public JsValue ReturnValue { get; } = returnValue;
+    public ICompletionSignal? Signal { get; } = signal;
+
+    /// <summary>
+    ///     Returns true if there's any completion to restore.
+    /// </summary>
+    public bool HasCompletion => IsReturn || Signal is not null;
+}
 
 /// <summary>
 ///     Tracks the current control flow state during evaluation using typed signals.
@@ -40,6 +56,18 @@ public sealed class EvaluationContext(
     internal bool AllowIdentifierCache { get; set; }
 
     /// <summary>
+    /// Resolves an identifier using the appropriate path based on whether 'with' statements
+    /// are in scope. This branches once instead of checking per-identifier access.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal JsValue GetIdentifier(JsEnvironment environment, Symbol name)
+    {
+        return AllowIdentifierCache
+            ? environment.GetIdentifierJsValueDirect(name, this)
+            : environment.GetIdentifierJsValueWithScope(name, this);
+    }
+
+    /// <summary>
     ///     Realm-specific state (prototypes/constructors) for the current execution.
     /// </summary>
     public RealmState RealmState { get; } = realmState ?? throw new ArgumentNullException(nameof(realmState));
@@ -58,8 +86,13 @@ public sealed class EvaluationContext(
 
     /// <summary>
     ///     The current control flow signal, if any.
+    ///     Note: For returns, we use _isReturn/_returnValue directly to avoid allocation.
     /// </summary>
     public ICompletionSignal? CurrentSignal { get; private set; }
+
+    // Fast path for returns - avoids allocating ReturnCompletionSignal
+    private bool _isReturn;
+    private JsValue _returnValue;
 
     /// <summary>
     ///     The yield slot index that produced the most recent suspension.
@@ -70,6 +103,12 @@ public sealed class EvaluationContext(
     ///     Tracks dynamic call depth to guard against uncontrolled recursion.
     /// </summary>
     public int CallDepth { get; set; }
+
+    /// <summary>
+    ///     Scratch slot for JsValue to avoid struct copies in hot paths.
+    ///     Used by JsValue.FromDoubleRef when the value isn't in the cache.
+    /// </summary>
+    public JsValue ScratchValue;
 
     /// <summary>
     ///     Maximum allowed dynamic call depth before we bail out.
@@ -107,35 +146,38 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     The value associated with the control flow (for Return, Throw, and Yield signals).
     /// </summary>
-    public object? FlowValue => CurrentSignal switch
+    public JsValue FlowValue
     {
-        ReturnCompletionSignal rs => rs.Value,
-        ThrowFlowCompletionSignal ts => ts.Value,
-        YieldCompletionSignal ys => ys.Value,
-        _ => null
-    };
-
-    /// <summary>
-    ///     The value associated with the control flow as JsValue (for Return, Throw, and Yield signals).
-    ///     Avoids boxing for primitive values.
-    /// </summary>
-    public JsValue FlowJsValue => CurrentSignal switch
-    {
-        ReturnCompletionSignal rs => rs.JsValue,
-        ThrowFlowCompletionSignal ts => ts.JsValue,
-        YieldCompletionSignal ys => ys.JsValue,
-        _ => JsValue.Undefined
-    };
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get
+        {
+            if (_isReturn) return _returnValue;
+            return CurrentSignal switch
+            {
+                ThrowFlowCompletionSignal ts => ts.JsValue,
+                YieldCompletionSignal ys => ys.JsValue,
+                _ => JsValue.Undefined
+            };
+        }
+    }
 
     /// <summary>
     ///     Returns true if evaluation should stop (any signal is present).
     /// </summary>
-    public bool ShouldStopEvaluation => CurrentSignal is not null;
+    public bool ShouldStopEvaluation
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _isReturn || CurrentSignal is not null;
+    }
 
     /// <summary>
     ///     Returns true if the current signal is Return.
     /// </summary>
-    public bool IsReturn => CurrentSignal is ReturnCompletionSignal;
+    public bool IsReturn
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _isReturn;
+    }
 
     /// <summary>
     ///     Returns true if the current signal is Throw.
@@ -148,6 +190,13 @@ public sealed class EvaluationContext(
     ///     the host resumes the job.
     /// </summary>
     public bool DrainAwaitMicrotasks { get; set; } = true;
+
+    /// <summary>
+    ///     When true, array pattern destructuring will NOT close iterators upon completion.
+    ///     Used by generators to defer iterator close until the generator completes/returns.
+    ///     The generator's CloseActiveArrayPatternIterators will handle cleanup.
+    /// </summary>
+    public bool InGeneratorContext { get; set; }
 
     /// <summary>
     ///     Returns true if the current signal is Yield.
@@ -272,17 +321,11 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     Sets the context to Return state with the given value.
     /// </summary>
-    public void SetReturn(object? value)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void SetReturn(JsValue value)
     {
-        CurrentSignal = new ReturnCompletionSignal(value);
-    }
-
-    /// <summary>
-    ///     Sets the context to Return state with the given JsValue, avoiding boxing for primitives.
-    /// </summary>
-    public void SetReturnJsValue(JsValue value)
-    {
-        CurrentSignal = new ReturnCompletionSignal(value);
+        _isReturn = true;
+        _returnValue = value;
     }
 
     /// <summary>
@@ -304,32 +347,16 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     Sets the context to Throw state with the given value.
     /// </summary>
-    public void SetThrow(object? value)
+    public void SetThrow(JsValue value)
     {
-        CurrentSignal = new ThrowFlowCompletionSignal(value);
-    }
-
-    /// <summary>
-    ///     Sets the context to Throw state with the given JsValue, avoiding boxing for primitives.
-    /// </summary>
-    public void SetThrowJsValue(JsValue value)
-    {
+        _isReturn = false;  // Clear return state so FlowValue uses CurrentSignal
         CurrentSignal = new ThrowFlowCompletionSignal(value);
     }
 
     /// <summary>
     ///     Sets the context to Yield state with the given value.
     /// </summary>
-    public void SetYield(object? value, int yieldIndex)
-    {
-        LastYieldIndex = yieldIndex;
-        CurrentSignal = new YieldCompletionSignal(value);
-    }
-
-    /// <summary>
-    ///     Sets the context to Yield state with the given JsValue, avoiding boxing for primitives.
-    /// </summary>
-    public void SetYieldJsValue(JsValue value, int yieldIndex)
+    public void SetYield(JsValue value, int yieldIndex)
     {
         LastYieldIndex = yieldIndex;
         CurrentSignal = new YieldCompletionSignal(value);
@@ -339,7 +366,7 @@ public sealed class EvaluationContext(
     ///     Sets the context to Yield state with the given value and original iterator result object.
     ///     Used by yield* to preserve the original iterator result properties (like done being absent).
     /// </summary>
-    public void SetYieldWithIteratorResult(object? value, int yieldIndex, JsTypes.IJsObjectLike? iteratorResultObject)
+    public void SetYieldWithIteratorResult(JsValue value, int yieldIndex, IJsObjectLike? iteratorResultObject)
     {
         LastYieldIndex = yieldIndex;
         CurrentSignal = new YieldCompletionSignal(value, iteratorResultObject);
@@ -403,12 +430,11 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     Clears the Return signal (used when a function consumes it).
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void ClearReturn()
     {
-        if (CurrentSignal is ReturnCompletionSignal)
-        {
-            CurrentSignal = null;
-        }
+        _isReturn = false;
+        _returnValue = default;
     }
 
     /// <summary>
@@ -416,7 +442,29 @@ public sealed class EvaluationContext(
     /// </summary>
     public void Clear()
     {
+        _isReturn = false;
+        _returnValue = default;
         CurrentSignal = null;
+    }
+
+    /// <summary>
+    ///     Saves the current completion state for later restoration (used by try-finally).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public CompletionState SaveCompletionState()
+    {
+        return new CompletionState(_isReturn, _returnValue, CurrentSignal);
+    }
+
+    /// <summary>
+    ///     Restores a previously saved completion state.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void RestoreCompletionState(in CompletionState state)
+    {
+        _isReturn = state.IsReturn;
+        _returnValue = state.ReturnValue;
+        CurrentSignal = state.Signal;
     }
 
     /// <summary>
@@ -432,6 +480,8 @@ public sealed class EvaluationContext(
         _classFieldInitializerDepth = 0;
         AllowIdentifierCache = false;
         IsStrictSource = false;
+        _isReturn = false;
+        _returnValue = default;
         CurrentSignal = null;
         LastYieldIndex = -1;
         CallDepth = 0;

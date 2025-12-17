@@ -1,4 +1,3 @@
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -10,9 +9,9 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class ErrorPrototype : JsPrototype
 {
     [JsHostMethod("toString", Length = 0d)]
-    public object? ToString(object? thisValue, IReadOnlyList<object?> _)
+    public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        if (thisValue is not IJsPropertyAccessor accessor)
+        if (!thisValue.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
             throw ThrowTypeError("Error.prototype.toString called on non-object", realm: Realm);
         }
@@ -20,24 +19,25 @@ public sealed partial class ErrorPrototype : JsPrototype
         var hasName = accessor.TryGetProperty("name", out var nameValue);
         var hasMessage = accessor.TryGetProperty("message", out var messageValue);
 
-        var nameString = !hasName || ReferenceEquals(nameValue, Symbol.Undefined)
+        // nameValue and messageValue are JsValue structs - use IsUndefined to check
+        var nameString = !hasName || nameValue.IsUndefined
             ? "Error"
             : JsOps.ToJsString(nameValue);
-        var messageString = !hasMessage || ReferenceEquals(messageValue, Symbol.Undefined)
+        var messageString = !hasMessage || messageValue.IsUndefined
             ? string.Empty
             : JsOps.ToJsString(messageValue);
 
         if (nameString.Length == 0)
         {
-            return messageString;
+            return new JsValue(messageString);
         }
 
         if (messageString.Length == 0)
         {
-            return nameString;
+            return new JsValue(nameString);
         }
 
-        return $"{nameString}: {messageString}";
+        return new JsValue($"{nameString}: {messageString}");
     }
 
     protected override void ConfigurePrototype()

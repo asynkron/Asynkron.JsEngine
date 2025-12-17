@@ -38,11 +38,11 @@ public static partial class StandardLibrary
         }
         catch (ParseException ex)
         {
-            throw new ThrowSignal(CreateSyntaxError(ex.Message, realm: realm));
+            throw new ThrowSignal(JsValue.FromObjectUnsafe(CreateSyntaxError(ex.Message, realm: realm)));
         }
         catch (ArgumentException ex)
         {
-            throw new ThrowSignal(CreateSyntaxError(ex.Message, realm: realm));
+            throw new ThrowSignal(JsValue.FromObjectUnsafe(CreateSyntaxError(ex.Message, realm: realm)));
         }
     }
 
@@ -131,16 +131,17 @@ public static partial class StandardLibrary
         }
     }
 
-    internal static JsRegExp? ResolveRegExpInstance(object? thisValue)
+    internal static JsRegExp? ResolveRegExpInstance(JsValue thisValue)
     {
-        if (thisValue is JsRegExp direct)
+        if (thisValue.TryGetObject<JsRegExp>(out var direct))
         {
             return direct;
         }
 
-        if (thisValue is JsObject obj &&
+        if (thisValue.TryGetObject<JsObject>(out var obj) &&
+            obj is not null &&
             obj.TryGetProperty("__regex__", out var internalRegex) &&
-            internalRegex is JsRegExp stored)
+            internalRegex.TryGetObject<JsRegExp>(out var stored))
         {
             return stored;
         }
@@ -164,9 +165,9 @@ public static partial class StandardLibrary
         return false;
     }
 
-    internal static uint ToUint32(object? value)
+    internal static uint ToUint32(JsValue value)
     {
-        var number = JsOps.ToNumber(value);
+        var number = JsOps.ToNumber(value.ToObject());
         if (double.IsNaN(number) || double.IsInfinity(number))
         {
             return 0;
@@ -183,7 +184,7 @@ public static partial class StandardLibrary
         {
             if (descriptor.IsAccessorDescriptor)
             {
-                descriptor.Set?.Invoke([0d], target);
+                descriptor.Set?.Invoke([new JsValue(0d)], new JsValue(target));
                 return;
             }
 
@@ -229,49 +230,19 @@ public static partial class StandardLibrary
 
     internal static void DefineLegacyRegExpAccessors(HostFunction constructor, RealmState realm)
     {
-        RegExpStatics EnsureRegExpReceiver(object? thisValue)
-        {
-            if (!ReferenceEquals(thisValue, realm.RegExpConstructor))
-            {
-                throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm);
-            }
-
-            return realm.RegExpStatics;
-        }
-
-        PropertyDescriptor MakeAccessor(Func<RegExpStatics, object?> getter)
-        {
-            return new PropertyDescriptor
-            {
-                Get = new HostFunction((thisValue, _) =>
-                {
-                    var statics = EnsureRegExpReceiver(thisValue);
-                    return getter(statics);
-                }, isConstructor: false),
-                Set = null,
-                Enumerable = false,
-                Configurable = true
-            };
-        }
-
-        object? GetCapture(RegExpStatics s, int index)
-        {
-            return index < s.Captures.Length ? s.Captures[index] : string.Empty;
-        }
-
         var inputDescriptor = new PropertyDescriptor
         {
             Get = new HostFunction((thisValue, _) =>
             {
                 var statics = EnsureRegExpReceiver(thisValue);
-                return statics.Input;
+                return new JsValue(statics.Input);
             }, isConstructor: false),
             Set = new HostFunction((thisValue, args) =>
             {
                 var statics = EnsureRegExpReceiver(thisValue);
                 var value = args.GetArgument(0);
-                statics.Input = value?.ToString() ?? string.Empty;
-                return null;
+                statics.Input = JsOps.ToPropertyName(value.ToObject()) ?? string.Empty;
+                return JsValue.Undefined;
             }, isConstructor: false),
             Enumerable = false,
             Configurable = true
@@ -303,13 +274,44 @@ public static partial class StandardLibrary
         var multilineDescriptor = new PropertyDescriptor
         {
             Get = new HostFunction((thisValue, _) =>
-                !ReferenceEquals(thisValue, realm.RegExpConstructor)
+                !ReferenceEquals(thisValue.ObjectValue, realm.RegExpConstructor)
                     ? throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm)
-                    : false, isConstructor: false),
+                    : JsValue.False, isConstructor: false),
             Set = null,
             Enumerable = false,
             Configurable = true
         };
         constructor.DefineProperty("multiline", multilineDescriptor);
+        return;
+
+        RegExpStatics EnsureRegExpReceiver(JsValue thisValue)
+        {
+            if (!ReferenceEquals(thisValue.ObjectValue, realm.RegExpConstructor))
+            {
+                throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm);
+            }
+
+            return realm.RegExpStatics;
+        }
+
+        PropertyDescriptor MakeAccessor(Func<RegExpStatics, string> getter)
+        {
+            return new PropertyDescriptor
+            {
+                Get = new HostFunction((thisValue, _) =>
+                {
+                    var statics = EnsureRegExpReceiver(thisValue);
+                    return new JsValue(getter(statics));
+                }, isConstructor: false),
+                Set = null,
+                Enumerable = false,
+                Configurable = true
+            };
+        }
+
+        string GetCapture(RegExpStatics s, int index)
+        {
+            return index < s.Captures.Length ? s.Captures[index] : string.Empty;
+        }
     }
 }

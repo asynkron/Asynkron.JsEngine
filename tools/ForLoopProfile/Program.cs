@@ -3,7 +3,19 @@ using Asynkron.JsEngine;
 
 // Minimal harness to stress the classic for-loop body without BenchmarkDotNet overhead.
 var engine = new JsEngine();
-var script = "for (let i = 0, s = 0; i < 1_000_000; i++) { s += i; }";
+// Wrap the loop in a function so the benchmark runs in a function scope, enabling slot-based
+// locals instead of dictionary-backed globals.
+var script = """
+'use strict';
+function run() {
+    let s = 0;
+    for (let i = 0; i < 1_000_000; i++) {
+        s += i;
+    }
+    return s;
+}
+run();
+""";
 
 // Parse once so we time execution + env churn, not parse.
 var parsed = engine.ParseProgram(script);

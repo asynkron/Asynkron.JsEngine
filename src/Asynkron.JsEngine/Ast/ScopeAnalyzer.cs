@@ -410,9 +410,23 @@ public sealed class ScopeAnalyzer
 
         while (scope is not null)
         {
-            // If we hit a dynamic scope, we can't resolve statically
+            // If we hit a dynamic scope, we can't resolve statically.
+            // But we still need to mark enclosing function scopes as potentially
+            // having closures, since inner functions with dynamic scope may capture
+            // variables from outer scopes at runtime.
             if (scope.IsDynamic)
             {
+                // Mark all enclosing function scopes as having closures
+                // since we can't statically determine which variables are captured
+                var parentScope = scope.Parent;
+                while (parentScope is not null)
+                {
+                    if (parentScope.IsFunctionScope)
+                    {
+                        parentScope.HasClosures = true;
+                    }
+                    parentScope = parentScope.Parent;
+                }
                 return (-1, -1, -1, false);
             }
 
@@ -1068,10 +1082,7 @@ public sealed class ScopeAnalyzer
 
             TemplateLiteralExpression template => ResolveTemplateLiteral(template),
 
-            TaggedTemplateExpression tagged => tagged with
-            {
-                Tag = ResolveExpression(tagged.Tag)
-            },
+            TaggedTemplateExpression tagged => ResolveTaggedTemplate(tagged),
 
             AwaitExpression awaitExpr => awaitExpr with
             {
@@ -1190,6 +1201,24 @@ public sealed class ScopeAnalyzer
             builder.Add(resolvedMember);
         }
         return obj with { Members = builder.MoveToImmutable() };
+    }
+
+    private TaggedTemplateExpression ResolveTaggedTemplate(TaggedTemplateExpression tagged)
+    {
+        var resolvedTag = ResolveExpression(tagged.Tag);
+
+        // Resolve interpolated expressions (e.g., `b` in tag`head${b}tail`)
+        if (tagged.Expressions.Length == 0)
+        {
+            return tagged with { Tag = resolvedTag };
+        }
+
+        var builder = ImmutableArray.CreateBuilder<ExpressionNode>(tagged.Expressions.Length);
+        foreach (var expr in tagged.Expressions)
+        {
+            builder.Add(ResolveExpression(expr));
+        }
+        return tagged with { Tag = resolvedTag, Expressions = builder.MoveToImmutable() };
     }
 
     private TemplateLiteralExpression ResolveTemplateLiteral(TemplateLiteralExpression template)

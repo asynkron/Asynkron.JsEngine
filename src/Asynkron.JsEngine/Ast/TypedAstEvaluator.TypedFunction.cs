@@ -1849,7 +1849,15 @@ public static partial class TypedAstEvaluator
             {
                 for (var i = 0; i < _parameterNames.Length; i++)
                 {
-                    slots[i] = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                    var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                    slots[i] = value;
+                    // When this function has closures (inner functions that capture variables),
+                    // also bind to dictionary so closure lookups via TryLocateBinding work.
+                    // This is needed when inner functions use dynamic scope (with/eval).
+                    if (_function.HasClosures)
+                    {
+                        functionEnvironment.DefineParameterFast(_parameterNames[i], value);
+                    }
                 }
             }
             else
@@ -1934,6 +1942,10 @@ public static partial class TypedAstEvaluator
             if (slots is not null && _parameterNames.Length > 0)
             {
                 slots[0] = arg0;
+                if (_function.HasClosures)
+                {
+                    functionEnvironment.DefineParameterFast(_parameterNames[0], arg0);
+                }
             }
             else if (_parameterNames.Length > 0)
             {
@@ -2004,6 +2016,10 @@ public static partial class TypedAstEvaluator
             if (slots is not null && _parameterNames.Length > 0)
             {
                 slots[0] = arg0;
+                if (_function.HasClosures)
+                {
+                    reuseEnvironment.DefineParameterFast(_parameterNames[0], arg0);
+                }
             }
             else if (_parameterNames.Length > 0)
             {
@@ -2073,8 +2089,22 @@ public static partial class TypedAstEvaluator
             var slots = functionEnvironment._slots;
             if (slots is not null)
             {
-                if (_parameterNames.Length > 0) slots[0] = arg0;
-                if (_parameterNames.Length > 1) slots[1] = arg1;
+                if (_parameterNames.Length > 0)
+                {
+                    slots[0] = arg0;
+                    if (_function.HasClosures)
+                    {
+                        functionEnvironment.DefineParameterFast(_parameterNames[0], arg0);
+                    }
+                }
+                if (_parameterNames.Length > 1)
+                {
+                    slots[1] = arg1;
+                    if (_function.HasClosures)
+                    {
+                        functionEnvironment.DefineParameterFast(_parameterNames[1], arg1);
+                    }
+                }
             }
             else
             {
@@ -2161,10 +2191,17 @@ public static partial class TypedAstEvaluator
             var slots = functionEnvironment._slots;
             if (slots is not null)
             {
-                // Fast path: use slots only, skip dictionary entirely
+                // Fast path: use slots
                 for (var i = 0; i < _parameterNames.Length; i++)
                 {
-                    slots[i] = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                    var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                    slots[i] = value;
+                    // When this function has closures (inner functions that capture variables),
+                    // also bind to dictionary so closure lookups via TryLocateBinding work.
+                    if (_function.HasClosures)
+                    {
+                        functionEnvironment.DefineParameterFast(_parameterNames[i], value);
+                    }
                 }
             }
             else

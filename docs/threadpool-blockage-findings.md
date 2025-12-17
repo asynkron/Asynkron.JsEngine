@@ -4,7 +4,7 @@ This note captures the remaining *engine-level* sources of threadpool blockage d
 
 ## Status (what changed since the first write-up)
 
-### Fixed
+### Fixe
 
 - Engine sync-over-async wait sites (`.GetAwaiter().GetResult()`) are removed:
   - Sync entry points fail fast on async modules instead of blocking.

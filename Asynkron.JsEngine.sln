@@ -21,21 +21,25 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NpmPackageDemo", "examples\
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".meta", ".meta", "{77806389-A6B4-4A95-9671-AC93E23FD073}"
 	ProjectSection(SolutionItems) = preProject
-		continue.md = continue.md
 		AGENTS.md = AGENTS.md
 		README.md = README.md
-		generator-builder.md = generator-builder.md
 		.editorconfig = .editorconfig
-		262tests.md = 262tests.md
-		languagetests.md = languagetests.md
 		worktree.md = worktree.md
-		async.md = async.md
+		CLAUDE.md = CLAUDE.md
+		spec.md = spec.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{CBE37AA6-AD59-4A21-A8B0-4208A190EF53}"
 	ProjectSection(SolutionItems) = preProject
-		docs\fix-restricted-properties.md = docs\fix-restricted-properties.md
-		docs\fix-yield-computed-property-names.md = docs\fix-yield-computed-property-names.md
+		docs\memory-profiling.md = docs\memory-profiling.md
+		docs\loops.md = docs\loops.md
+		docs\jint-vs-jsengine-comparison.md = docs\jint-vs-jsengine-comparison.md
+		docs\bytecode.md = docs\bytecode.md
+		docs\bytecode-migration.md = docs\bytecode-migration.md
+		docs\benchmarks\after-optimizations-2024-12-13.md = docs\benchmarks\after-optimizations-2024-12-13.md
+		docs\benchmarks\baseline-2024-12-13.md = docs\benchmarks\baseline-2024-12-13.md
+		docs\standardlibrary-source-generator.md = docs\standardlibrary-source-generator.md
+		docs\GENERATOR_IR_LIMITATIONS.md = docs\GENERATOR_IR_LIMITATIONS.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Asynkron.JsEngine.Tests.Test262", "tests\Asynkron.JsEngine.Tests.Test262\Asynkron.JsEngine.Tests.Test262.csproj", "{7527CADC-BF6A-4F99-846F-92122ACFB155}"

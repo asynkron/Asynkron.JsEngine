@@ -100,6 +100,8 @@ public static partial class TypedAstEvaluator
             if (expression is LiteralExpression literal) return literal.Value;
             if (expression is IdentifierExpression identifier) return EvaluateIdentifier(identifier, environment, context);
             if (expression is BinaryExpression binary) return EvaluateBinary(binary, environment, context);
+            if (expression is AssignmentExpression assignment) return EvaluateAssignment(assignment, environment, context);
+            if (expression is UnaryExpression unary) return EvaluateUnary(unary, environment, context);
             if (expression is CallExpression call) return EvaluateCall(call, environment, context);
             return expression.EvaluateExpressionSlow(environment, context);
         }

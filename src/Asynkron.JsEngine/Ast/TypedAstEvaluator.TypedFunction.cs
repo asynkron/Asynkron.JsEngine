@@ -1727,12 +1727,21 @@ public static partial class TypedAstEvaluator
         /// </summary>
         private static bool HasOnlySimpleIdentifierParameters(FunctionExpression function)
         {
+            HashSet<Symbol>? seenNames = null;
             foreach (var param in function.Parameters)
             {
                 // Must have Name set and no Pattern/DefaultValue
                 if (param.Name is null || param.Pattern is not null || param.DefaultValue is not null || param.IsRest)
                 {
                     return false;
+                }
+
+                // Check for duplicate parameter names - can't use fast path since
+                // parameter count != slot count when duplicates exist
+                seenNames ??= new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+                if (!seenNames.Add(param.Name))
+                {
+                    return false; // Duplicate parameter name
                 }
             }
             return true;

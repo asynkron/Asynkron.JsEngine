@@ -417,9 +417,16 @@ public static partial class TypedAstEvaluator
             }
 
             // Store the function in the functionNameEnvironment's slot 0 for self-reference
+            // Also register in dictionary with isImmutableBinding=true so eval'd code can detect immutability
             if (functionNameEnvironment is not null)
             {
                 functionNameEnvironment._slots![0] = JsValue.FromObjectUnsafe(callable);
+                // Register as immutable binding in dictionary for eval compatibility
+                // Per ES spec 9.2.10, function name binding is immutable:
+                // - strict mode: assignment throws TypeError
+                // - non-strict mode: assignment is silently ignored
+                functionNameEnvironment.DefineJsValue(functionExpression.Name!, JsValue.FromObjectUnsafe(callable),
+                    isLexical: true, blocksFunctionScopeOverride: true, isImmutableBinding: true);
             }
 
             return callable;

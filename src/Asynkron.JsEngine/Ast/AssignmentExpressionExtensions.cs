@@ -20,7 +20,16 @@ public static partial class TypedAstEvaluator
                     return rhsValue;
                 }
 
-                if (context.CurrentScope.IsStrict)
+                // Find the binding's environment to check its strictness
+                // The binding's environment strictness determines the behavior, not the current execution context
+                var bindingEnv = expression.ScopeId >= 0 && environment.ScopeId == expression.ScopeId
+                    ? environment
+                    : expression.ScopeId >= 0
+                        ? environment.FindByScopeId(expression.ScopeId)
+                        : environment.GetFunctionScope();
+                var isStrictBinding = bindingEnv?.IsStrict ?? environment.IsStrict;
+
+                if (isStrictBinding)
                 {
                     var error = StdLib.StandardLibrary.CreateTypeError(
                         $"Assignment to constant variable '{expression.Target.Name}'.", context, context.RealmState);

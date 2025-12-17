@@ -103,7 +103,13 @@ public static partial class TypedAstEvaluator
                 AssignLoopBinding(statement.Target, value, iterationEnvironment, environment, context,
                     statement.DeclarationKind);
 
-                lastValueJs = EvaluateStatementJsValue(statement.Body, iterationEnvironment, context);
+                // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
+                // Only update V (completion value) if result.[[Value]] is not empty
+                var bodyResult = EvaluateStatementJsValue(statement.Body, iterationEnvironment, context);
+                if (!bodyResult.IsUnit)
+                {
+                    lastValueJs = bodyResult;
+                }
 
                 if (context.IsReturn || context.IsThrow)
                 {

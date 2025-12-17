@@ -60,7 +60,10 @@ public static partial class TypedAstEvaluator
                 context.RealmState.Logger?.LogInformation(
                     "EvaluateTry exit (no finally) throwFlag={ThrowFlag}",
                     context.IsThrow);
-                return result;
+                // Per ES spec 14.15.2 TryStatement Evaluation:
+                // If C.[[value]] is not empty, return Completion(C).
+                // Return Completion{[[type]]: C.[[type]], [[value]]: undefined, [[target]]: C.[[target]]}.
+                return result.IsUnit ? JsValue.Undefined : result;
             }
 
             var savedState = context.SaveCompletionState();
@@ -92,8 +95,10 @@ public static partial class TypedAstEvaluator
             var finallyResult = EvaluateBlockJsValue(statement.Finally, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                // Per ES spec: When finally has an abrupt completion, use its completion value
-                return finallyResult;
+                // Per ES spec 14.15.2 TryStatement Evaluation:
+                // Return Completion(UpdateEmpty(F, undefined)).
+                // When finally has an abrupt completion, apply UpdateEmpty to its completion value.
+                return finallyResult.IsUnit ? JsValue.Undefined : finallyResult;
             }
 
             if (isGenerator && pending?.HasValue == true)
@@ -123,7 +128,10 @@ public static partial class TypedAstEvaluator
             context.RealmState.Logger?.LogInformation(
                 "EvaluateTry exit (with finally) throwFlag={ThrowFlag}",
                 context.IsThrow);
-            return result;
+            // Per ES spec 14.15.2 TryStatement Evaluation:
+            // If C.[[value]] is not empty, return Completion(C).
+            // Return Completion{[[type]]: C.[[type]], [[value]]: undefined, [[target]]: C.[[target]]}.
+            return result.IsUnit ? JsValue.Undefined : result;
         }
     }
 }

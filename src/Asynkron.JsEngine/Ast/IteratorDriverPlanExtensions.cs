@@ -127,7 +127,13 @@ public static partial class TypedAstEvaluator
                             throw new ThrowSignal(context.FlowValue);
                         }
 
-                        lastValueJs = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
+                        // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
+                        // Only update V (completion value) if result.[[Value]] is not empty
+                        var bodyResult = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
+                        if (!bodyResult.IsUnit)
+                        {
+                            lastValueJs = bodyResult;
+                        }
                         if (context.IsThrow)
                         {
                             throw new ThrowSignal(context.FlowValue);
@@ -172,7 +178,13 @@ public static partial class TypedAstEvaluator
                         throw new ThrowSignal(context.FlowValue);
                     }
 
-                    lastValueJs = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
+                    // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
+                    // Only update V (completion value) if result.[[Value]] is not empty
+                    var bodyResult2 = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
+                    if (!bodyResult2.IsUnit)
+                    {
+                        lastValueJs = bodyResult2;
+                    }
                     if (context.IsThrow)
                     {
                         throw new ThrowSignal(context.FlowValue);

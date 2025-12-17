@@ -41,8 +41,7 @@ public static partial class TypedAstEvaluator
             // Per ECMAScript spec 14.6.2 (Runtime Semantics: Evaluation):
             // Return Completion(UpdateEmpty(stmtCompletion, undefined)).
             // UpdateEmpty replaces an empty completion value with undefined.
-            // Note: JsValue.Undefined is used for empty completion
-            return result;
+            return result.IsUnit ? JsValue.Undefined : result;
         }
     }
 }

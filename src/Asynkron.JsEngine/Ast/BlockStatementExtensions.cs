@@ -53,7 +53,9 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment,
             EvaluationContext context)
         {
-            var resultJs = JsValue.Undefined;
+            // Start with Unit (empty completion) - per ES spec, empty blocks return empty completion
+            // which doesn't override previous statement completion values
+            var resultJs = JsValue.Unit;
             foreach (var statement in block.Statements)
             {
                 context.ThrowIfCancellationRequested();
@@ -91,7 +93,9 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment,
             EvaluationContext context)
         {
-            var resultJs = JsValue.Undefined;
+            // Start with Unit (empty completion) - per ES spec, empty blocks return empty completion
+            // which doesn't override previous statement completion values
+            var resultJs = JsValue.Unit;
             var scope = new JsEnvironment(environment, false, block.IsStrict);
 
             var mode = scope.IsStrict || block.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy;

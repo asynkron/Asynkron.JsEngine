@@ -24,7 +24,9 @@ public static partial class TypedAstEvaluator
                 withObject);
             var completion = EvaluateStatementJsValue(statement.Body, withEnv, context);
 
-            return completion;
+            // Per ES spec 14.11.2 step 8: Return Completion(UpdateEmpty(C, undefined))
+            // If body completion is empty, return undefined instead
+            return completion.IsUnit ? JsValue.Undefined : completion;
         }
     }
 }

@@ -27,6 +27,13 @@ public static partial class TypedAstEvaluator
 
                 if (targetOperand is IdentifierExpression identifier)
                 {
+                    // When there's a with object in the chain, we must use reference-based approach
+                    // to preserve the binding object for PutValue even if property is deleted during GetValue
+                    if (environment.HasWithObjectInChain())
+                    {
+                        return expression.EvaluateUnaryMemberIncrement(environment, context);
+                    }
+
                     // Fastest path: slot-based access
                     if (identifier.SlotIndex >= 0 && identifier.ScopeId >= 0)
                     {

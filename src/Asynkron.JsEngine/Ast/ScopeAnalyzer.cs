@@ -1079,7 +1079,7 @@ public sealed class ScopeAnalyzer
 
     private IdentifierExpression ResolveIdentifierExpression(IdentifierExpression identifier)
     {
-        var (depth, slot, scopeId) = ResolveIdentifier(identifier.Name);
+        var (depth, slot, scopeId, _) = ResolveIdentifier(identifier.Name);
         return identifier with { ScopeDepth = depth, SlotIndex = slot, ScopeId = scopeId };
     }
 
@@ -1094,13 +1094,14 @@ public sealed class ScopeAnalyzer
         var resolvedValue = ResolveExpression(assignment.Value);
 
         // Now resolve the target identifier - HasEval will be set correctly
-        var (depth, slot, scopeId) = ResolveIdentifier(assignment.Target);
+        var (depth, slot, scopeId, isImmutable) = ResolveIdentifier(assignment.Target);
         return assignment with
         {
             Value = resolvedValue,
             ScopeDepth = depth,
             SlotIndex = slot,
-            ScopeId = scopeId
+            ScopeId = scopeId,
+            IsImmutableTarget = isImmutable
         };
     }
 

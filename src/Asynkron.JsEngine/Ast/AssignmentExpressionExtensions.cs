@@ -9,6 +9,29 @@ public static partial class TypedAstEvaluator
         private JsValue EvaluateAssignment(JsEnvironment environment,
             EvaluationContext context)
         {
+            // Check for immutable binding (e.g., named function expression name)
+            // Per ECMAScript spec, in strict mode throw TypeError, in non-strict mode silently ignore
+            if (expression.IsImmutableTarget)
+            {
+                // Still need to evaluate RHS for potential side effects
+                var rhsValue = EvaluateExpression(expression.Value, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return rhsValue;
+                }
+
+                if (context.CurrentScope.IsStrict)
+                {
+                    var error = StdLib.StandardLibrary.CreateTypeError(
+                        $"Assignment to constant variable '{expression.Target.Name}'.", context, context.RealmState);
+                    context.SetThrow(JsValue.FromObjectUnsafe(error));
+                    return JsValue.Undefined;
+                }
+
+                // Non-strict mode: silently ignore the assignment, return the evaluated value
+                return rhsValue;
+            }
+
             // Fast path: slot-based assignment using ScopeId to find the declaring environment.
             // This enables O(1) slot access for variables in any scope (local or closure).
             if (expression.SlotIndex >= 0 && expression.ScopeId >= 0)

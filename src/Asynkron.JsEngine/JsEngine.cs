@@ -15,14 +15,15 @@ namespace Asynkron.JsEngine;
 /// </summary>
 public sealed class JsEngine : IAsyncDisposable
 {
-    internal static readonly object UninitializedExportMarker = new();
+    private static readonly object UninitializedExportMarker = new();
     private int _activeTimerCount; // Track registered timers (timeouts/intervals)
-    private readonly Channel<string> _asyncIteratorTraceChannel = Channel.CreateUnbounded<string>();
+    private readonly Channel<string>? _asyncIteratorTraceChannel;
     private readonly bool _asyncIteratorTracingEnabled;
+    private readonly bool _debugMode;
 
     //DEBUG code
-    private readonly Channel<DebugMessage> _debugChannel = Channel.CreateUnbounded<DebugMessage>();
-    private readonly Channel<ExceptionInfo> _exceptionChannel = Channel.CreateUnbounded<ExceptionInfo>();
+    private readonly Channel<DebugMessage>? _debugChannel;
+    private readonly Channel<ExceptionInfo>? _exceptionChannel;
 
     private readonly Dictionary<JsObject, ModuleNamespace> _moduleNamespaces =
         new(ReferenceEqualityComparer<JsObject>.Instance);
@@ -99,7 +100,15 @@ public sealed class JsEngine : IAsyncDisposable
     internal JsEngine(IJsEngineOptions? options, bool skipStdLibInitialization)
     {
         Options = options ?? JsEngineOptions.Default;
-        _asyncIteratorTracingEnabled = false;
+        _debugMode = Options.DebugMode;
+        if (_debugMode)
+        {
+            _asyncIteratorTraceChannel = Channel.CreateUnbounded<string>();
+            _debugChannel = Channel.CreateUnbounded<DebugMessage>();
+            _exceptionChannel = Channel.CreateUnbounded<ExceptionInfo>();
+        }
+
+        _asyncIteratorTracingEnabled = _debugMode;
         RealmState.Options = Options;
         RealmState.Engine = this;
         GlobalEnvironment.SetRealmState(RealmState);
@@ -349,6 +358,11 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public ChannelReader<DebugMessage> DebugMessages()
     {
+        if (_debugChannel is null)
+        {
+            throw new InvalidOperationException("Debug mode is disabled. Enable DebugMode on JsEngineOptions to read debug messages.");
+        }
+
         return _debugChannel.Reader;
     }
 
@@ -357,6 +371,11 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public ChannelReader<ExceptionInfo> Exceptions()
     {
+        if (_exceptionChannel is null)
+        {
+            throw new InvalidOperationException("Debug mode is disabled. Enable DebugMode on JsEngineOptions to read exceptions.");
+        }
+
         return _exceptionChannel.Reader;
     }
 
@@ -365,6 +384,11 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     internal void LogException(Exception exception, string context, JsEnvironment? environment = null)
     {
+        if (_exceptionChannel is null)
+        {
+            return;
+        }
+
         var callStack = environment?.BuildCallStack() ?? [];
         var exceptionInfo = new ExceptionInfo(exception, context, callStack);
         _exceptionChannel.Writer.TryWrite(exceptionInfo);
@@ -376,6 +400,11 @@ public sealed class JsEngine : IAsyncDisposable
     private JsValue CaptureDebugMessage(JsEnvironment environment, EvaluationContext context,
         IReadOnlyList<JsValue> args)
     {
+        if (_debugChannel is null)
+        {
+            return JsValue.Undefined;
+        }
+
         // Get all variables from the current environment and parent scopes
         var variables = environment.GetAllVariables();
 
@@ -394,8 +423,11 @@ public sealed class JsEngine : IAsyncDisposable
         // Get the call stack by traversing the environment chain
         var callStack = environment.BuildCallStack();
 
+        // Get the environment chain for detailed scope debugging
+        var environmentChain = environment.BuildEnvironmentChain();
+
         // Create and write the debug message
-        var debugMessage = new DebugMessage(variables, controlFlowState, callStack);
+        var debugMessage = new DebugMessage(variables, controlFlowState, callStack, environmentChain);
         _debugChannel.Writer.TryWrite(debugMessage);
 
         return JsValue.Undefined;
@@ -408,7 +440,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// <param name="message">Human readable trace message.</param>
     internal void WriteAsyncIteratorTrace(string message)
     {
-        if (!_asyncIteratorTracingEnabled)
+        if (!_asyncIteratorTracingEnabled || _asyncIteratorTraceChannel is null)
         {
             return;
         }
@@ -1470,7 +1502,7 @@ public sealed class JsEngine : IAsyncDisposable
         }
     }
 
-    private ProgramNode EnsureStrictProgram(ProgramNode program)
+    private static ProgramNode EnsureStrictProgram(ProgramNode program)
     {
         return program.IsStrict
             ? program
@@ -3194,7 +3226,7 @@ public sealed class JsEngine : IAsyncDisposable
         moduleEnv.DefineImportBinding(localName, resolved.Module!.Environment, resolved.BindingName);
     }
 
-    private Symbol GetDefaultExportBindingName(ExportDefaultStatement exportDefault)
+    private static Symbol GetDefaultExportBindingName(ExportDefaultStatement exportDefault)
     {
         return exportDefault.Value switch
         {
@@ -3396,7 +3428,7 @@ public sealed class JsEngine : IAsyncDisposable
         HoistFunctionDeclarations(program, moduleEnv);
     }
 
-    private void HoistLexicalDeclarations(ProgramNode program, JsEnvironment moduleEnv)
+    private static void HoistLexicalDeclarations(ProgramNode program, JsEnvironment moduleEnv)
     {
         foreach (var statement in program.Body)
         {
@@ -3404,7 +3436,7 @@ public sealed class JsEngine : IAsyncDisposable
         }
     }
 
-    private void CollectAndHoistLexicals(StatementNode statement, JsEnvironment moduleEnv)
+    private static void CollectAndHoistLexicals(StatementNode statement, JsEnvironment moduleEnv)
     {
         switch (statement)
         {
@@ -3429,7 +3461,7 @@ public sealed class JsEngine : IAsyncDisposable
         }
     }
 
-    private void HoistLexicalBinding(BindingTarget target, JsEnvironment moduleEnv, bool isConst)
+    private static void HoistLexicalBinding(BindingTarget target, JsEnvironment moduleEnv, bool isConst)
     {
         while (true)
         {
@@ -3477,7 +3509,7 @@ public sealed class JsEngine : IAsyncDisposable
         }
     }
 
-    private void HoistVarDeclarations(ProgramNode program, JsEnvironment moduleEnv)
+    private static void HoistVarDeclarations(ProgramNode program, JsEnvironment moduleEnv)
     {
         foreach (var statement in program.Body)
         {
@@ -3485,7 +3517,7 @@ public sealed class JsEngine : IAsyncDisposable
         }
     }
 
-    private void CollectAndHoistVars(StatementNode statement, JsEnvironment moduleEnv)
+    private static void CollectAndHoistVars(StatementNode statement, JsEnvironment moduleEnv)
     {
         switch (statement)
         {
@@ -3513,7 +3545,7 @@ public sealed class JsEngine : IAsyncDisposable
         }
     }
 
-    private void HoistVarBinding(BindingTarget target, JsEnvironment moduleEnv)
+    private static void HoistVarBinding(BindingTarget target, JsEnvironment moduleEnv)
     {
         while (true)
         {
@@ -5199,7 +5231,7 @@ private bool TryEvaluateWhileStatementWithAwait(WhileStatement whileStatement, J
         }
     }
 
-	    private void WaitForAsyncModule(ModuleEntry moduleEntry)
+	    private static void WaitForAsyncModule(ModuleEntry moduleEntry)
 	    {
 	        if (moduleEntry.Evaluated)
 	        {

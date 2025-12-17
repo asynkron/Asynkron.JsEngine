@@ -15,7 +15,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     {
         output.WriteLine("=== Test 1: Direct call to global iterator (no async, no promises) ===");
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -46,7 +46,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     {
         output.WriteLine("=== Test 2: Call iterator from inside async function (but not in Promise chain) ===");
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -82,7 +82,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     {
         output.WriteLine("=== Test 3: Call iterator from inside Promise.then() callback ===");
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -121,7 +121,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     {
         output.WriteLine("=== Test 4: Call iterator from nested Promise.then() chain (mimics CPS) ===");
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -165,7 +165,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     {
         output.WriteLine("=== Test 5: Iterator with closure variables (like real iterator) ===");
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -216,7 +216,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     {
         output.WriteLine("=== Test 6: Use actual __getAsyncIterator and __iteratorNext ===");
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -287,7 +287,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         var globalLogs = new StringBuilder();
 
         // Test LOCAL scope
-        var engine1 = new JsEngine();
+        var engine1 = CreateDebugEngine();
         engine1.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -325,7 +325,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         await Task.Delay(1000);
 
         // Test GLOBAL scope
-        var engine2 = new JsEngine();
+        var engine2 = CreateDebugEngine();
         engine2.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -379,7 +379,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     {
         output.WriteLine("=== Test 8: Create instrumented version of __iteratorNext ===");
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -430,7 +430,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     {
         output.WriteLine("=== Test A: Symbol.iterator() Direct Call on Global Object ===");
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -483,7 +483,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     {
         output.WriteLine("=== Test B: __getAsyncIterator on Global Object ===");
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -539,7 +539,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     {
         output.WriteLine("=== Test C: Recursive Promise Chain (matching CPS loop) ===");
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -603,7 +603,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     {
         output.WriteLine("=== Test D: Compare Different Iterator Creation Methods ===");
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -683,7 +683,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     {
         output.WriteLine("=== Test E: Exception Capture - Does next() throw? ===");
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -742,7 +742,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     {
         output.WriteLine("=== Test H: Check if Promise Rejections are Handled ===");
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
         var rejectionsCaught = new List<string>();
 
         engine.SetGlobalFunction("log", args =>
@@ -837,7 +837,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
     {
         output.WriteLine("=== Test I: Investigate Why Function Bodies Are Empty ===");
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -920,5 +920,10 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         output.WriteLine("  1. How functions are defined (regular/arrow/shorthand)");
         output.WriteLine("  2. Calling from async context");
         output.WriteLine("  3. Something about Symbol.iterator specifically");
+    }
+
+    private static JsEngine CreateDebugEngine()
+    {
+        return new JsEngine(new JsEngineOptions { DebugMode = true });
     }
 }

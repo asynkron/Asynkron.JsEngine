@@ -5,7 +5,7 @@ public class DebugTests
     [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesBasicVariables()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         var source = """
 
@@ -30,7 +30,7 @@ public class DebugTests
     [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesLoopCounter()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         var source = """
 
@@ -54,7 +54,7 @@ public class DebugTests
     [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesAllIterationsInLoop()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         var source = """
 
@@ -80,7 +80,7 @@ public class DebugTests
     [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesFunctionScope()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         var source = """
 
@@ -115,7 +115,7 @@ public class DebugTests
     [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesNestedScopes()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         var source = """
 
@@ -152,7 +152,7 @@ public class DebugTests
     [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesCallStack()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         var source = """
 
@@ -185,7 +185,7 @@ public class DebugTests
     [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesLoopInCallStack()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         var source = """
 
@@ -210,7 +210,7 @@ public class DebugTests
     [Fact(Timeout = 2000)]
     public async Task DebugFunction_CallStackShowsDepth()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         var source = """
 
@@ -253,7 +253,7 @@ public class DebugTests
     [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesControlFlowState()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         var source = """
 
@@ -273,7 +273,7 @@ public class DebugTests
     [Fact(Timeout = 2000)]
     public async Task DebugFunction_WorksInNestedLoops()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         var source = """
 
@@ -303,5 +303,10 @@ public class DebugTests
 
         Assert.Equal(1d, messages[3].Variables["i"]);
         Assert.Equal(1d, messages[3].Variables["j"]);
+    }
+
+    private static JsEngine CreateDebugEngine()
+    {
+        return new JsEngine(new JsEngineOptions { DebugMode = true });
     }
 }

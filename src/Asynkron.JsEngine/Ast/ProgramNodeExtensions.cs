@@ -68,6 +68,13 @@ public static partial class TypedAstEvaluator
                     treatAsGlobalFunctionScope: executionEnvironment.IsGlobalFunctionScope);
             }
 
+            // Set ScopeId for the script environment to enable slot-based variable lookup from nested functions
+            // Note: We don't initialize slots because script-level var/let/const use dictionary-based storage
+            if (program.ScopeId >= 0)
+            {
+                executionEnvironment.ScopeId = program.ScopeId;
+            }
+
             if (executionKind == ExecutionKind.Script)
             {
                 executionEnvironment.RealmState?.Engine?.SetGlobalExecutionScope(

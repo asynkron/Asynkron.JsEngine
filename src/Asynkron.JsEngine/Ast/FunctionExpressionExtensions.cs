@@ -351,24 +351,21 @@ public static partial class TypedAstEvaluator
         {
             var closureEnvironment = environment;
             JsEnvironment? functionNameEnvironment = null;
-            if (createFunctionNameEnvironment &&
-                functionExpression.Name is { } functionName &&
-                !functionExpression.IsArrow)
-            {
-                functionNameEnvironment = new JsEnvironment(
-                    environment,
-                    isFunctionScope: false,
-                    isStrict: context.CurrentScope.IsStrict,
-                    creatingSource: functionExpression.Source,
-                    description: $"FunctionExpression:{functionName.Name}");
-                closureEnvironment = functionNameEnvironment;
-            }
 
-            // For function declarations, the name binding is in the outer scope (mutable var),
-            // so we pass hasFunctionNameEnvironment: true to skip the internal const binding.
-            // For named function expressions with createFunctionNameEnvironment, we also skip
-            // the internal binding since the wrapper environment handles it.
-            var hasFunctionNameEnvironment = functionNameEnvironment is not null || skipInternalNameBinding;
+            // For named function expressions, create an intermediate scope for the function name.
+            // Per ECMAScript spec, the function name is bound in a scope between the outer scope
+            // and the parameter scope, so it's visible inside but not outside.
+            // This environment uses slot-based storage with the ScopeId from scope analysis.
+            var hasFunctionNameEnvironment = skipInternalNameBinding;
+            if (!skipInternalNameBinding && functionExpression.Name is not null &&
+                !functionExpression.IsArrow && functionExpression.FunctionNameScopeId >= 0)
+            {
+                functionNameEnvironment = new JsEnvironment(environment);
+                functionNameEnvironment.ScopeId = functionExpression.FunctionNameScopeId;
+                functionNameEnvironment.InitializeSlots(1); // Only one slot for the function name
+                closureEnvironment = functionNameEnvironment;
+                hasFunctionNameEnvironment = true;
+            }
 
             IJsCallable callable = functionExpression.IsGenerator switch
             {
@@ -410,17 +407,6 @@ public static partial class TypedAstEvaluator
                     break;
             }
 
-                
-            
-                // Named function expression bindings are immutable but silently fail
-                // assignment in non-strict mode (unlike const which always throws)
-                functionNameEnvironment?.DefineJsValue(functionExpression.Name!, JsValue.FromObjectUnsafe(callable),
-                    isConst: false,
-                    isLexical: true,
-                    blocksFunctionScopeOverride: true,
-                    isImmutableBinding: true);
-            
-
             // Per ES spec 13.3.1.4: If IsAnonymousFunctionDefinition(Initializer) is true and
             // hasNameProperty is false, perform SetFunctionName(value, bindingId).
             if (functionExpression.Name is null &&
@@ -428,6 +414,12 @@ public static partial class TypedAstEvaluator
                 callable is IFunctionNameTarget nameTarget)
             {
                 nameTarget.EnsureHasName(inferredName.Name);
+            }
+
+            // Store the function in the functionNameEnvironment's slot 0 for self-reference
+            if (functionNameEnvironment is not null)
+            {
+                functionNameEnvironment._slots![0] = JsValue.FromObjectUnsafe(callable);
             }
 
             return callable;

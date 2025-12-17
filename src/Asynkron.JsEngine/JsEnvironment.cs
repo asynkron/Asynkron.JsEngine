@@ -2433,6 +2433,56 @@ public sealed class JsEnvironment
     }
 
     /// <summary>
+    ///     Builds environment chain information for debugging.
+    ///     Shows ScopeId, slots, and dictionary variables for each environment.
+    /// </summary>
+    public List<EnvironmentInfo> BuildEnvironmentChain()
+    {
+        var chain = new List<EnvironmentInfo>();
+        var current = this;
+        var iterations = 0;
+        const int maxIterations = 100;
+
+        while (current is not null && iterations < maxIterations)
+        {
+            iterations++;
+
+            // Collect dictionary variables
+            var dictVars = new Dictionary<string, object?>();
+            if (current._values is not null)
+            {
+                foreach (var kvp in current._values)
+                {
+                    dictVars[kvp.Key.Name] = kvp.Value.JsValue.ToObject();
+                }
+            }
+
+            // Collect slot variables
+            var slotVars = new Dictionary<int, object?>();
+            if (current._slots is not null)
+            {
+                for (var i = 0; i < current._slots.Length; i++)
+                {
+                    slotVars[i] = current._slots[i].ToObject();
+                }
+            }
+
+            chain.Add(new EnvironmentInfo(
+                current.ScopeId,
+                current._slots is not null,
+                current._slots?.Length ?? 0,
+                dictVars,
+                slotVars,
+                current._description
+            ));
+
+            current = current.Enclosing;
+        }
+
+        return chain;
+    }
+
+    /// <summary>
     ///     Builds a call stack by traversing the enclosing environment chain
     ///     and collecting information about the S-expressions that created each environment.
     /// </summary>

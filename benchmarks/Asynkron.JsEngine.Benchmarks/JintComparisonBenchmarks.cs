@@ -15,7 +15,7 @@ public class JintComparisonBenchmarks
 {
     // Expected results for verification
     // Note: generatorFunction and asyncGeneratorFunction cause Jint to throw (unsupported features)
-    private static readonly Dictionary<string, object> ExpectedResults = new()
+    private static readonly Dictionary<string, object> ExpectedResults = new(StringComparer.Ordinal)
     {
         ["simpleArithmetic"] = 1025.0,
         ["fibonacci"] = 75025.0,
@@ -146,7 +146,7 @@ public class JintComparisonBenchmarks
 
     // Asynkron engine
     private JsEngine _asynkronEngine = null!;
-    private readonly Dictionary<string, ProgramNode> _parsedPrograms = new();
+    private readonly Dictionary<string, ProgramNode> _parsedPrograms = new(StringComparer.Ordinal);
 
     // Jint engine
     private Engine _jintEngine = null!;

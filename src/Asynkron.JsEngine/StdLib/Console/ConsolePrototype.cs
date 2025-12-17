@@ -5,7 +5,7 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 namespace Asynkron.JsEngine.StdLib;
 
 [JsPrototype("console", ObjectKind = PrototypeObjectKind.Object)]
-public sealed partial class ConsolePrototype : JsPrototype
+public sealed partial class ConsolePrototype
 {
     [JsHostMethod("log", Length = 0d)]
     public JsValue Log(JsValue thisValue, IReadOnlyList<JsValue> args)

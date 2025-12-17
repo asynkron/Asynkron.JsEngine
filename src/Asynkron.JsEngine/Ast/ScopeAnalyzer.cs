@@ -34,6 +34,7 @@ public sealed class ScopeAnalyzer
         public int ScopeId { get; } = scopeId;
 
         private readonly Dictionary<Symbol, int> _variables = new(ReferenceEqualityComparer<Symbol>.Instance);
+        private HashSet<Symbol>? _immutableBindings;
         private int _nextSlot;
 
         /// <summary>
@@ -55,6 +56,22 @@ public sealed class ScopeAnalyzer
             _variables[name] = slot;
             return slot;
         }
+
+        /// <summary>
+        /// Declares an immutable variable in this scope (e.g., named function expression name).
+        /// </summary>
+        public int DeclareImmutableVariable(Symbol name)
+        {
+            var slot = DeclareVariable(name);
+            _immutableBindings ??= new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+            _immutableBindings.Add(name);
+            return slot;
+        }
+
+        /// <summary>
+        /// Checks if a variable is an immutable binding.
+        /// </summary>
+        public bool IsImmutable(Symbol name) => _immutableBindings?.Contains(name) ?? false;
 
         /// <summary>
         /// Gets the slot index for a variable declared in this scope.
@@ -94,7 +111,11 @@ public sealed class ScopeAnalyzer
         // Second pass: resolve identifier references
         var resolvedStatements = ResolveStatements(program.Body);
 
-        return program with { Body = resolvedStatements };
+        // Capture slot count and scope ID from the program scope
+        var slotCount = _currentScope!.IsDynamic ? -1 : _currentScope.SlotCount;
+        var scopeId = _currentScope!.IsDynamic ? -1 : _currentScope.ScopeId;
+
+        return program with { Body = resolvedStatements, ScopeId = scopeId, SlotCount = slotCount };
     }
 
     /// <summary>
@@ -105,9 +126,27 @@ public sealed class ScopeAnalyzer
     /// false if it's a named FunctionExpression (name bound inside for self-reference).</param>
     public FunctionExpression AnalyzeFunction(FunctionExpression function, bool isDeclaration = false)
     {
-        var parentScope = _currentScope;
+        var originalParentScope = _currentScope;
         var parentFunctionScope = _currentFunctionScope;
-        _currentScope = new ScopeInfo(parentScope, isFunctionScope: true, isBlockScope: false, scopeId: _nextScopeId++);
+
+        // For named function expressions, create an intermediate scope for the function name
+        // Per ECMAScript spec, the function name is bound in a scope between the outer scope
+        // and the parameter scope, so it's visible inside but not outside
+        // The binding is immutable (per ES spec 9.2.10 SetFunctionName): in strict mode,
+        // assignment throws TypeError; in non-strict mode, assignment is silently ignored.
+        ScopeInfo? functionNameScope = null;
+        var functionNameScopeId = -1;
+        var scopeParent = originalParentScope;
+        if (function.Name is not null && !isDeclaration)
+        {
+            functionNameScope = new ScopeInfo(originalParentScope, isFunctionScope: false, isBlockScope: false, scopeId: _nextScopeId++);
+            functionNameScope.DeclareImmutableVariable(function.Name);
+            functionNameScopeId = functionNameScope.ScopeId;
+            scopeParent = functionNameScope; // Parameter scope's parent is the function name scope
+        }
+
+        // Create the parameter/function body scope
+        _currentScope = new ScopeInfo(scopeParent, isFunctionScope: true, isBlockScope: false, scopeId: _nextScopeId++);
         _currentFunctionScope = _currentScope;
 
         // Declare parameters
@@ -124,13 +163,6 @@ public sealed class ScopeAnalyzer
             }
         }
 
-        // Declare function name for named function expressions (internal binding)
-        // For FunctionDeclarations, the name is bound in the outer scope, not inside
-        if (function.Name is not null && !isDeclaration)
-        {
-            _currentScope.DeclareVariable(function.Name);
-        }
-
         // Collect var declarations (hoisted)
         CollectVarDeclarations(function.Body);
 
@@ -142,10 +174,10 @@ public sealed class ScopeAnalyzer
         var scopeId = _currentScope!.IsDynamic ? -1 : _currentScope.ScopeId;
         var hasClosures = _currentScope.HasClosures || _currentScope.IsDynamic;
 
-        _currentScope = parentScope;
+        _currentScope = originalParentScope;
         _currentFunctionScope = parentFunctionScope;
 
-        return function with { Body = resolvedBody, SlotCount = slotCount, ScopeId = scopeId, HasClosures = hasClosures };
+        return function with { Body = resolvedBody, SlotCount = slotCount, ScopeId = scopeId, HasClosures = hasClosures, FunctionNameScopeId = functionNameScopeId };
     }
 
     #region Declaration Collection
@@ -337,7 +369,7 @@ public sealed class ScopeAnalyzer
 
     #region Identifier Resolution
 
-    private (int depth, int slot, int scopeId) ResolveIdentifier(Symbol name)
+    private (int depth, int slot, int scopeId, bool isImmutable) ResolveIdentifier(Symbol name)
     {
         var scope = _currentScope;
         var depth = 0;
@@ -347,7 +379,7 @@ public sealed class ScopeAnalyzer
             // If we hit a dynamic scope, we can't resolve statically
             if (scope.IsDynamic)
             {
-                return (-1, -1, -1);
+                return (-1, -1, -1, false);
             }
 
             var slot = scope.GetSlot(name);
@@ -361,7 +393,8 @@ public sealed class ScopeAnalyzer
                     scope.HasClosures = true;
                 }
 
-                return (depth, slot, scope.ScopeId);
+                var isImmutable = scope.IsImmutable(name);
+                return (depth, slot, scope.ScopeId, isImmutable);
             }
 
             // Only increment depth when crossing function boundaries
@@ -374,7 +407,7 @@ public sealed class ScopeAnalyzer
         }
 
         // Not found - could be a global or undeclared
-        return (-1, -1, -1);
+        return (-1, -1, -1, false);
     }
 
     private ImmutableArray<StatementNode> ResolveStatements(ImmutableArray<StatementNode> statements)
@@ -506,6 +539,20 @@ public sealed class ScopeAnalyzer
             var resolvedLeftCall = ResolveCallExpression(leftCall) with { CanReuseCallerEnvironment = true };
             var resolvedRightCall = ResolveCallExpression(rightCall) with { CanReuseCallerEnvironment = true };
             var resolvedBinary = binary with { Left = resolvedLeftCall, Right = resolvedRightCall };
+            return returnStmt with { Expression = resolvedBinary, UseArgumentPreEvaluation = true };
+        }
+
+        // Check if we have call * identifier pattern (e.g., return __func(arg-1) * arg)
+        // Pre-evaluate the identifier before the call to preserve its value
+        if (returnStmt.Expression is BinaryExpression binaryCallId &&
+            binaryCallId.Operator is not (BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing) &&
+            binaryCallId.Left is CallExpression callLeft &&
+            binaryCallId.Right is IdentifierExpression idRight &&
+            callLeft.Arguments.Length == 1 && !callLeft.Arguments[0].IsSpread)
+        {
+            var resolvedCall = ResolveCallExpression(callLeft) with { CanReuseCallerEnvironment = true };
+            var resolvedId = ResolveIdentifierExpression(idRight);
+            var resolvedBinary = binaryCallId with { Left = resolvedCall, Right = resolvedId };
             return returnStmt with { Expression = resolvedBinary, UseArgumentPreEvaluation = true };
         }
 
@@ -663,14 +710,14 @@ public sealed class ScopeAnalyzer
     /// <summary>
     /// Collects all variable identifiers referenced in an expression.
     /// </summary>
-    private HashSet<Symbol> CollectReferencedVariables(ExpressionNode expression)
+    private static HashSet<Symbol> CollectReferencedVariables(ExpressionNode expression)
     {
         var variables = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
         CollectVariablesRecursive(expression, variables);
         return variables;
     }
 
-    private void CollectVariablesRecursive(ExpressionNode expression, HashSet<Symbol> variables)
+    private static void CollectVariablesRecursive(ExpressionNode expression, HashSet<Symbol> variables)
     {
         while (true)
         {

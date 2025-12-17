@@ -18,4 +18,10 @@ public interface IJsEngineOptions
     ///     (such as the Function constructor). Defaults to true.
     /// </summary>
     bool AllowImportMeta { get; }
+
+    /// <summary>
+    ///     Enables engine debug facilities such as trace channels and debug message capture. Defaults to false to avoid
+    ///     allocating debug infrastructure when not needed.
+    /// </summary>
+    bool DebugMode { get; }
 }

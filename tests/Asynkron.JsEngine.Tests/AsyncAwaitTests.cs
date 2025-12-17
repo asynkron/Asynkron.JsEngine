@@ -759,7 +759,7 @@ public class AsyncAwaitTests
     {
         // This test proves that a single straight block of awaits actually work
         // by using __debug() to capture state between each await
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -850,5 +850,10 @@ public class AsyncAwaitTests
 
         // Should return "promise" - async function should return rejected promise
         Assert.Equal("promise", result.ToString());
+    }
+
+    private static JsEngine CreateDebugEngine()
+    {
+        return new JsEngine(new JsEngineOptions { DebugMode = true });
     }
 }

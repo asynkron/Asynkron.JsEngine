@@ -72,8 +72,8 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
             }
         ";
 
-        var engine1 = new JsEngine();
-        var engine2 = new JsEngine();
+        var engine1 = CreateDebugEngine();
+        var engine2 = CreateDebugEngine();
 
         // Parse both versions to get S-expressions
         var localParsed = engine1.Parse(localScopeCode);
@@ -109,7 +109,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         var globalResult = new StringBuilder();
 
         // Test with LOCAL scope iterable
-        var engine1 = new JsEngine();
+        var engine1 = CreateDebugEngine();
         engine1.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -170,7 +170,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         localResult.Append("[LOCAL] Final result: '").Append(localFinalResult).Append('\'').AppendLine();
 
         // Test with GLOBAL scope iterable
-        var engine2 = new JsEngine();
+        var engine2 = CreateDebugEngine();
         engine2.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -394,7 +394,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         output.WriteLine("=== INSPECTING ITERATOR OBJECTS ===");
 
         // Test 1: Local scope - manually get iterator and inspect
-        var engine1 = new JsEngine();
+        var engine1 = CreateDebugEngine();
         engine1.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -436,7 +436,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         await Task.Delay(1000);
 
         // Test 2: Global scope - manually get iterator and inspect
-        var engine2 = new JsEngine();
+        var engine2 = CreateDebugEngine();
         engine2.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -485,7 +485,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         output.WriteLine("");
 
         // Test with LOCAL scope iterable - __debug() INSIDE loop body
-        var engine1 = new JsEngine();
+        var engine1 = CreateDebugEngine();
         engine1.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -575,7 +575,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         output.WriteLine("");
 
         // Test with GLOBAL scope iterable - __debug() INSIDE loop body
-        var engine2 = new JsEngine();
+        var engine2 = CreateDebugEngine();
         engine2.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -679,7 +679,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         output.WriteLine("");
 
         // Test with LOCAL scope - manual iteration
-        var engine1 = new JsEngine();
+        var engine1 = CreateDebugEngine();
         engine1.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -744,7 +744,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         output.WriteLine("");
 
         // Test with GLOBAL scope - manual iteration
-        var engine2 = new JsEngine();
+        var engine2 = CreateDebugEngine();
         engine2.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -813,5 +813,10 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         output.WriteLine($"Global scope manual: {(string.Equals(globalManualResult?.ToString(), "xyz", StringComparison.Ordinal) ? "✅ Works" : "❌ Failed")}");
         output.WriteLine("");
         output.WriteLine("If manual iteration works for both, the issue is specific to for-await-of transformation.");
+    }
+
+    private static JsEngine CreateDebugEngine()
+    {
+        return new JsEngine(new JsEngineOptions { DebugMode = true });
     }
 }

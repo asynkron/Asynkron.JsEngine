@@ -13,7 +13,7 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
     [Trait("Category", "AsyncForOfGlobalKnownFailure")]
     public async Task ForAwaitOf_FallbackToSyncIterator()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
@@ -73,7 +73,7 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
     [Trait("Category", "AsyncForOfGlobalKnownFailure")]
     public async Task ForAwaitOf_WithSyncIteratorNoAsync()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         output.WriteLine("=== ForAwaitOf_WithSyncIteratorNoAsync ===");
 
@@ -120,7 +120,7 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
     {
         output.WriteLine("=== Test L: Method Shorthand in for-await-of ===");
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -192,7 +192,7 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
     {
         output.WriteLine("=== Test F: Actual for-await-of with extensive logging ===");
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -200,54 +200,56 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
             return JsValue.Null;
         });
 
-        await engine.Evaluate(@"
-            log('Creating global iterable');
-            let globalIterable = {
-                [Symbol.iterator]() {
-                    log('!!! Symbol.iterator called !!!');
-                    let index = 0;
-                    let iterObj = {
-                        next: function() {
-                            log('!!! next() called, index=' + index + ' !!!');
-                            if (index < 2) {
-                                let val = index++;
-                                log('!!! Returning value=' + val + ' !!!');
-                                return { value: val, done: false };
-                            }
-                            log('!!! Returning done=true !!!');
-                            return { done: true };
-                        }
-                    };
-                    log('!!! Returning iterator object !!!');
-                    return iterObj;
-                }
-            };
+        await engine.Evaluate("""
 
-            async function test() {
-                log('>>> Starting test function');
-                let result = [];
+                                          log('Creating global iterable');
+                                          let globalIterable = {
+                                              [Symbol.iterator]() {
+                                                  log('!!! Symbol.iterator called !!!');
+                                                  let index = 0;
+                                                  let iterObj = {
+                                                      next: function() {
+                                                          log('!!! next() called, index=' + index + ' !!!');
+                                                          if (index < 2) {
+                                                              let val = index++;
+                                                              log('!!! Returning value=' + val + ' !!!');
+                                                              return { value: val, done: false };
+                                                          }
+                                                          log('!!! Returning done=true !!!');
+                                                          return { done: true };
+                                                      }
+                                                  };
+                                                  log('!!! Returning iterator object !!!');
+                                                  return iterObj;
+                                              }
+                                          };
 
-                log('>>> About to enter for-await-of');
-                try {
-                    for await (let item of globalIterable) {
-                        log('>>> INSIDE LOOP, item=' + item);
-                        result.push(item);
-                    }
-                    log('>>> After loop, result=' + JSON.stringify(result));
-                } catch (e) {
-                    log('>>> Exception in loop: ' + e);
-                    throw e;
-                }
+                                          async function test() {
+                                              log('>>> Starting test function');
+                                              let result = [];
 
-                log('>>> Returning result');
-                return result;
-            }
+                                              log('>>> About to enter for-await-of');
+                                              try {
+                                                  for await (let item of globalIterable) {
+                                                      log('>>> INSIDE LOOP, item=' + item);
+                                                      result.push(item);
+                                                  }
+                                                  log('>>> After loop, result=' + JSON.stringify(result));
+                                              } catch (e) {
+                                                  log('>>> Exception in loop: ' + e);
+                                                  throw e;
+                                              }
 
-            log('Calling test()');
-            test()
-                .then(r => log('FINAL: ' + JSON.stringify(r)))
-                .catch(e => log('ERROR: ' + e));
-        ");
+                                              log('>>> Returning result');
+                                              return result;
+                                          }
+
+                                          log('Calling test()');
+                                          test()
+                                              .then(r => log('FINAL: ' + JSON.stringify(r)))
+                                              .catch(e => log('ERROR: ' + e));
+
+                              """);
 
         await Task.Delay(1000);
         output.WriteLine("Actual for-await-of test with extensive logging to pinpoint failure");
@@ -262,7 +264,7 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
     {
         output.WriteLine("=== Test G: Capture Exceptions via Exception Channel ===");
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -270,45 +272,47 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
             return JsValue.Null;
         });
 
-        await engine.Evaluate(@"
-            log('Creating global iterable with iterator');
-            let globalIterable = {
-                [Symbol.iterator]() {
-                    log('Symbol.iterator called');
-                    let index = 0;
-                    return {
-                        next: function() {
-                            log('next() called, index=' + index);
-                            if (index < 2) {
-                                return { value: index++, done: false };
-                            }
-                            return { done: true };
-                        }
-                    };
-                }
-            };
+        await engine.Evaluate("""
 
-            async function test() {
-                log('Starting test');
-                let result = [];
+                                          log('Creating global iterable with iterator');
+                                          let globalIterable = {
+                                              [Symbol.iterator]() {
+                                                  log('Symbol.iterator called');
+                                                  let index = 0;
+                                                  return {
+                                                      next: function() {
+                                                          log('next() called, index=' + index);
+                                                          if (index < 2) {
+                                                              return { value: index++, done: false };
+                                                          }
+                                                          return { done: true };
+                                                      }
+                                                  };
+                                              }
+                                          };
 
-                try {
-                    log('Entering for-await-of');
-                    for await (let item of globalIterable) {
-                        log('Got item: ' + item);
-                        result.push(item);
-                    }
-                    log('Loop completed, result: ' + JSON.stringify(result));
-                } catch (e) {
-                    log('Caught exception: ' + e);
-                }
+                                          async function test() {
+                                              log('Starting test');
+                                              let result = [];
 
-                return result;
-            }
+                                              try {
+                                                  log('Entering for-await-of');
+                                                  for await (let item of globalIterable) {
+                                                      log('Got item: ' + item);
+                                                      result.push(item);
+                                                  }
+                                                  log('Loop completed, result: ' + JSON.stringify(result));
+                                              } catch (e) {
+                                                  log('Caught exception: ' + e);
+                                              }
 
-            test().then(r => log('Done: ' + JSON.stringify(r)))
-                .catch(e => log('Failed: ' + e));
-        ");
+                                              return result;
+                                          }
+
+                                          test().then(r => log('Done: ' + JSON.stringify(r)))
+                                              .catch(e => log('Failed: ' + e));
+
+                              """);
 
         await Task.Delay(1000);
 
@@ -341,5 +345,10 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
         {
             output.WriteLine("⚠️ No exceptions captured - exception may be swallowed elsewhere");
         }
+    }
+
+    private static JsEngine CreateDebugEngine()
+    {
+        return new JsEngine(new JsEngineOptions { DebugMode = true });
     }
 }

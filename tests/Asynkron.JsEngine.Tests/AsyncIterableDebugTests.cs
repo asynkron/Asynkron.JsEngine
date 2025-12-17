@@ -15,7 +15,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     public async Task ForAwaitOf_WithString_Debug()
     {
         // Debug version of the failing string test
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
@@ -74,7 +74,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     public async Task ForAwaitOf_WithArray_CompareWithString()
     {
         // This test PASSES - let's see what's different
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
@@ -119,7 +119,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     {
         // This scenario is now a parse error in strict ECMAScript:
         // for-await-of cannot appear outside an async context.
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         await Assert.ThrowsAsync<ParseException>(async () =>
         {
@@ -141,7 +141,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     public async Task SimpleString_Iterator_Test()
     {
         // Test that strings have an iterator in the first place
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         var result = await engine.Evaluate("""
 
@@ -159,7 +159,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     public async Task SimpleString_ManualIteration_Test()
     {
         // Test manual iteration over a string
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         await engine.Evaluate("""
 
@@ -184,7 +184,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     public async Task Test_OR_Expression_Parsing()
     {
         // Test to see the parsed S-expression for the OR expression
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         // Test simple OR first
         var simpleOr = @"let result = a || b;";
@@ -212,7 +212,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     public async Task ForAwaitOf_WithString_ManualAsyncIteration()
     {
         // Test manual async iteration over a string
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
@@ -264,7 +264,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     public async Task ForAwaitOf_WithBreak_Debug()
     {
         // Debug version of the failing break test
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
@@ -308,7 +308,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     public async Task ForAwaitOf_WithContinue_Debug()
     {
         // Debug version of the failing continue test
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
@@ -350,7 +350,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     public async Task ForAwaitOf_WithGenerator_Debug()
     {
         // Debug version of the failing generator test
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
@@ -396,7 +396,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     public async Task ForAwaitOf_SimpleNoConditions_Debug()
     {
         // Test for-await-of without any break/continue/conditions to isolate the basic iteration
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
@@ -433,7 +433,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
     public async Task ForAwaitOf_WithIfNoBreak_Debug()
     {
         // Test with an if statement but no break to see if if statements work correctly
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
@@ -488,7 +488,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
 
                      """;
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
         var transformedSexpr = engine.Parse(source);
         output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
         output.WriteLine(transformedSexpr.ToString());
@@ -510,7 +510,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
             }
             """;
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
         var (_, typedBefore, _) = engine.ParseWithTransformationSteps(source);
 
         var transformer = new TypedCpsTransformer();
@@ -519,5 +519,10 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         var snapshot = TypedAstSnapshot.Create(transformed);
         output.WriteLine("=== TYPED AST SNAPSHOT ===");
         output.WriteLine(snapshot);
+    }
+
+    private static JsEngine CreateDebugEngine()
+    {
+        return new JsEngine(new JsEngineOptions { DebugMode = true });
     }
 }

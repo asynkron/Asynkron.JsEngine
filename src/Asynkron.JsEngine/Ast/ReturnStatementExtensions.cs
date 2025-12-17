@@ -27,6 +27,15 @@ public static partial class TypedAstEvaluator
                 Interlocked.Increment(ref PreEvalPathCount);
                 jsValue = EvaluateBinaryWithPreEvaluation(binary, leftCall, rightCall, environment, context);
             }
+            // Use specialized pre-evaluation path for call * identifier pattern
+            else if (statement.UseArgumentPreEvaluation &&
+                statement.Expression is BinaryExpression binaryCallId &&
+                binaryCallId.Left is CallExpression callLeft &&
+                binaryCallId.Right is IdentifierExpression idRight)
+            {
+                Interlocked.Increment(ref PreEvalPathCount);
+                jsValue = EvaluateBinaryCallIdentifier(binaryCallId, callLeft, idRight, environment, context);
+            }
             else
             {
                 Interlocked.Increment(ref NormalPathCount);
@@ -127,6 +136,61 @@ public static partial class TypedAstEvaluator
 
         // Phase 4: Apply the binary operator
         return ApplyBinaryOperator(binary.Operator, leftResult, rightResult, context);
+    }
+
+    /// <summary>
+    /// Specialized evaluator for call * identifier pattern.
+    /// Pre-evaluates the identifier before the call to preserve its value.
+    /// Pattern: return call(args) op identifier
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static JsValue EvaluateBinaryCallIdentifier(
+        BinaryExpression binary,
+        CallExpression call,
+        IdentifierExpression identifier,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        // Phase 1: Pre-evaluate the call argument and the identifier
+        // This reads from the environment BEFORE the call modifies it
+
+        var callArg0 = JsValue.Undefined;
+        if (call.Arguments.Length >= 1 && !call.Arguments[0].IsSpread)
+        {
+            callArg0 = EvaluateExpression(call.Arguments[0].Expression, environment, context);
+            if (context.ShouldStopEvaluation) return JsValue.Undefined;
+        }
+
+        // Pre-evaluate the identifier (the right side of the binary expression)
+        var identifierValue = identifier.EvaluateIdentifier(environment, context);
+        if (context.ShouldStopEvaluation) return JsValue.Undefined;
+
+        // Phase 2: Resolve callee
+        var calleeValue = EvaluateExpression(call.Callee, environment, context);
+        if (context.ShouldStopEvaluation) return JsValue.Undefined;
+
+        // Check if it's a TypedFunction with 1 argument (optimal case)
+        if (!calleeValue.TryGetObject<TypedFunction>(out var func) ||
+            func.IsClassConstructor ||
+            call.Arguments.Length != 1 ||
+            call.Arguments[0].IsSpread)
+        {
+            // Fall back to standard evaluation
+            return EvaluateBinaryFallback(binary, environment, context);
+        }
+
+        // Phase 3: Make call with environment reuse
+        if (++context.CallDepth > context.MaxCallDepth)
+        {
+            throw new InvalidOperationException($"Exceeded maximum call depth of {context.MaxCallDepth}.");
+        }
+
+        var callResult = func.InvokeWithContext1Reuse(callArg0, JsValue.Undefined, context, environment);
+        context.CallDepth--;
+        if (context.ShouldStopEvaluation) return JsValue.Undefined;
+
+        // Phase 4: Apply the binary operator using pre-evaluated identifier value
+        return ApplyBinaryOperator(binary.Operator, callResult, identifierValue, context);
     }
 
     /// <summary>

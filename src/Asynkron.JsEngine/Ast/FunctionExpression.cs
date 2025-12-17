@@ -11,6 +11,8 @@ namespace Asynkron.JsEngine.Ast;
 /// <param name="ScopeId">Unique ID for the scope created by this function. -1 means not analyzed.</param>
 /// <param name="HasClosures">True if any inner functions capture variables from this function's scope.
 /// When true, environment reuse optimization is disabled for calls within this function.</param>
+/// <param name="FunctionNameScopeId">For named function expressions, the scope ID of the intermediate scope
+/// that contains the function name binding. -1 if not a named function expression.</param>
 public sealed record FunctionExpression(
     SourceReference? Source,
     Symbol? Name,
@@ -24,5 +26,6 @@ public sealed record FunctionExpression(
     bool IsDefaultDerivedConstructor = false,
     int SlotCount = -1,
     int ScopeId = -1,
-    bool HasClosures = false)
+    bool HasClosures = false,
+    int FunctionNameScopeId = -1)
     : ExpressionNode(Source);

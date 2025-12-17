@@ -10,7 +10,7 @@ public class MethodShorthandParsingTests(ITestOutputHelper output)
     {
         output.WriteLine("=== Test J: Parse and Compare S-Expressions ===");
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -92,7 +92,7 @@ public class MethodShorthandParsingTests(ITestOutputHelper output)
     {
         output.WriteLine("=== Test K: Method Shorthand in Different Contexts ===");
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -184,4 +184,8 @@ public class MethodShorthandParsingTests(ITestOutputHelper output)
         output.WriteLine("This tests method shorthand in progressively complex scenarios");
     }
 
+    private static JsEngine CreateDebugEngine()
+    {
+        return new JsEngine(new JsEngineOptions { DebugMode = true });
+    }
 }

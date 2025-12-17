@@ -87,27 +87,19 @@ public static partial class TypedAstEvaluator
             // Detect simple functions for fast-path invocation
             // A simple function has: no async, no defaults, no destructuring, no body lexicals, no hoisting needed
             // Note: _hasFunctionNameEnvironment being true is fine - it just means the function name binding is
-            // in the outer scope, not that we need extra environment setup during invocation.
+            // in an intermediate scope (for named function expressions), not in the invocation environment.
             // For non-strict mode: can use fast path if the function doesn't use 'arguments' identifier,
             // since mapped arguments object (which links argument values to parameter bindings) is not needed.
-            // Named function expressions that need internal binding (e.g., `var f = function factorial(n) {...}`)
-            // must use the slow path where the internal name binding is created.
             var hasSimpleParams = HasOnlySimpleIdentifierParameters(function);
             var canUseFastPathForStrictness = _isStrict || !_usesArguments;
-            var needsInternalNameBinding = !function.IsArrow && function.Name is not null && !hasFunctionNameEnvironment;
-            // TODO: The fast path has bugs with recursive function calls via outer variable names
-            // (e.g., `var fac = function(n) { return n * fac(n-1); }`) and named function expression
-            // internal bindings. Disabling until these issues are resolved.
-            // See: S13_A3_T* tests, eval-direct tests
-            _isSimpleFunction = false; /*canUseFastPathForStrictness &&
+            _isSimpleFunction = canUseFastPathForStrictness &&
                                !function.IsAsync &&
                                !_wasAsyncFunction &&
                                !_hasParameterExpressions &&
                                _bodyLexicalNames.Length == 0 &&
                                !_hasHoistableDeclarations &&
                                _allowIdentifierCache &&
-                               hasSimpleParams &&
-                               !needsInternalNameBinding;*/
+                               hasSimpleParams;
 
             // Can pool invocation environment if simple function AND no inner functions that would capture it
             _canPoolInvocationEnvironment = _isSimpleFunction &&
@@ -258,6 +250,47 @@ public static partial class TypedAstEvaluator
         public void PreventExtensions()
         {
             _properties.PreventExtensions();
+        }
+
+        /// <summary>
+        /// Coerces 'this' value for non-strict mode function calls.
+        /// In non-strict mode, primitives are boxed to objects and null/undefined become globalThis.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue CoerceThisValueForNonStrict(JsValue thisValue)
+        {
+            // Null/undefined → globalThis
+            if (thisValue.IsNullish)
+            {
+                return _realmState.Engine is { GlobalObject: { } globalObj }
+                    ? (JsValue)globalObj
+                    : JsValue.Undefined;
+            }
+
+            // Primitives → boxed objects
+            if (thisValue.IsNumber)
+            {
+                return JsValue.FromObjectUnsafe(StandardLibrary.CreateNumberWrapper(thisValue.AsDouble(), realm: _realmState));
+            }
+            if (thisValue.IsString)
+            {
+                return JsValue.FromObjectUnsafe(StandardLibrary.CreateStringWrapper(thisValue.AsString(), realm: _realmState));
+            }
+            if (thisValue.IsBoolean)
+            {
+                return JsValue.FromObjectUnsafe(StandardLibrary.CreateBooleanWrapper(thisValue.AsBoolean(), realm: _realmState));
+            }
+            if (thisValue.IsBigInt)
+            {
+                return JsValue.FromObjectUnsafe(StandardLibrary.CreateBigIntWrapper(thisValue.AsBigInt(), realm: _realmState));
+            }
+            if (thisValue.IsSymbol && thisValue.TryUnwrap<TypedAstSymbol>(out var typedSymbol))
+            {
+                return JsValue.FromObjectUnsafe(StandardLibrary.CreateSymbolWrapper(typedSymbol, realm: _realmState));
+            }
+
+            // Already an object
+            return thisValue;
         }
 
         public void EnsureHasName(string name, bool overwriteExisting = false)
@@ -1796,9 +1829,7 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                boundThisValue = thisValue.IsNullish
-                    ? (_realmState.Engine is { GlobalObject: { } globalObj } ? (JsValue)globalObj : JsValue.Undefined)
-                    : thisValue;
+                boundThisValue = CoerceThisValueForNonStrict(thisValue);
             }
             functionEnvironment._thisValue = boundThisValue;
             functionEnvironment._hasThisValue = true;
@@ -1884,9 +1915,7 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                boundThisValue = thisValue.IsNullish
-                    ? (_realmState.Engine is { GlobalObject: { } globalObj } ? (JsValue)globalObj : JsValue.Undefined)
-                    : thisValue;
+                boundThisValue = CoerceThisValueForNonStrict(thisValue);
             }
             functionEnvironment._thisValue = boundThisValue;
             functionEnvironment._hasThisValue = true;
@@ -1956,9 +1985,7 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                boundThisValue = thisValue.IsNullish
-                    ? (_realmState.Engine is { GlobalObject: { } globalObj } ? (JsValue)globalObj : JsValue.Undefined)
-                    : thisValue;
+                boundThisValue = CoerceThisValueForNonStrict(thisValue);
             }
             reuseEnvironment._thisValue = boundThisValue;
             reuseEnvironment._hasThisValue = true;
@@ -2028,9 +2055,7 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                boundThisValue = thisValue.IsNullish
-                    ? (_realmState.Engine is { GlobalObject: { } globalObj } ? (JsValue)globalObj : JsValue.Undefined)
-                    : thisValue;
+                boundThisValue = CoerceThisValueForNonStrict(thisValue);
             }
             functionEnvironment._thisValue = boundThisValue;
             functionEnvironment._hasThisValue = true;
@@ -2116,18 +2141,8 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                // In sloppy mode: null/undefined become global object
-                if (thisValue.IsNullish)
-                {
-                    boundThisValue = _realmState.Engine is { GlobalObject: { } globalObj }
-                        ? (JsValue)globalObj
-                        : JsValue.Undefined;
-                }
-                else
-                {
-                    // Primitives could be boxed, but for simple numeric operations we'll pass through
-                    boundThisValue = thisValue;
-                }
+                // In sloppy mode: null/undefined become global object, primitives get boxed
+                boundThisValue = CoerceThisValueForNonStrict(thisValue);
             }
             // Bind this using fast field access (avoids dictionary allocation)
             functionEnvironment._thisValue = boundThisValue;

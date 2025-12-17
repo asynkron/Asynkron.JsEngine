@@ -547,7 +547,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
     public async Task RegularForOf_WithAwaitInBodyWithDebug()
     {
         // Test that regular for-of with await in body works, using __debug() to inspect state
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
@@ -607,7 +607,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
     public async Task ForAwaitOf_WithArrayWithDebug()
     {
         // Test for-await-of with __debug() to inspect state during iteration
-        await using var engine = new JsEngine();
+        await using var engine = CreateDebugEngine();
 
         await engine.Evaluate("""
 
@@ -644,5 +644,10 @@ public class AsyncIterationTests(ITestOutputHelper output)
 
         Assert.True(debugMessages[2].Variables.ContainsKey("item"));
         Assert.Equal("z", debugMessages[2].Variables["item"]);
+    }
+
+    private static JsEngine CreateDebugEngine()
+    {
+        return new JsEngine(new JsEngineOptions { DebugMode = true });
     }
 }

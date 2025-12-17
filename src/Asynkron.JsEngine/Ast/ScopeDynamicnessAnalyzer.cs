@@ -1068,4 +1068,201 @@ public static partial class TypedAstEvaluator
 
         return false;
     }
+
+    /// <summary>
+    /// Checks if a function body contains any CallExpression where the callee is an identifier
+    /// that is not one of the function's parameters. This detects recursive calls and calls
+    /// to closure-captured functions which cannot use environment reuse optimization.
+    /// </summary>
+    internal static bool ContainsNonParameterCalleeIdentifier(FunctionExpression function, HashSet<Symbol> parameterNames)
+    {
+        var work = new Stack<AstNode>();
+        work.Push(function.Body);
+
+        while (work.Count > 0)
+        {
+            var node = work.Pop();
+            switch (node)
+            {
+                case BlockStatement block:
+                    foreach (var stmt in block.Statements)
+                        work.Push(stmt);
+                    break;
+                case ExpressionStatement exprStmt:
+                    work.Push(exprStmt.Expression);
+                    break;
+                case ReturnStatement ret:
+                    if (ret.Expression is not null)
+                        work.Push(ret.Expression);
+                    break;
+                case IfStatement ifStmt:
+                    work.Push(ifStmt.Condition);
+                    work.Push(ifStmt.Then);
+                    if (ifStmt.Else is not null)
+                        work.Push(ifStmt.Else);
+                    break;
+                case WhileStatement whileStmt:
+                    work.Push(whileStmt.Condition);
+                    work.Push(whileStmt.Body);
+                    break;
+                case DoWhileStatement doWhileStmt:
+                    work.Push(doWhileStmt.Condition);
+                    work.Push(doWhileStmt.Body);
+                    break;
+                case ForStatement forStmt:
+                    if (forStmt.Initializer is not null)
+                        work.Push(forStmt.Initializer);
+                    if (forStmt.Condition is not null)
+                        work.Push(forStmt.Condition);
+                    if (forStmt.Increment is not null)
+                        work.Push(forStmt.Increment);
+                    work.Push(forStmt.Body);
+                    break;
+                case ForEachStatement forEachStmt:
+                    work.Push(forEachStmt.Iterable);
+                    work.Push(forEachStmt.Body);
+                    break;
+                case VariableDeclaration varDecl:
+                    foreach (var declarator in varDecl.Declarators)
+                    {
+                        if (declarator.Initializer is not null)
+                            work.Push(declarator.Initializer);
+                    }
+                    break;
+                case TryStatement tryStmt:
+                    work.Push(tryStmt.TryBlock);
+                    if (tryStmt.Catch is { } catchClause)
+                        work.Push(catchClause.Body);
+                    if (tryStmt.Finally is not null)
+                        work.Push(tryStmt.Finally);
+                    break;
+                case SwitchStatement switchStmt:
+                    work.Push(switchStmt.Discriminant);
+                    foreach (var switchCase in switchStmt.Cases)
+                    {
+                        if (switchCase.Test is not null)
+                            work.Push(switchCase.Test);
+                        work.Push(switchCase.Body);
+                    }
+                    break;
+                case ThrowStatement throwStmt:
+                    work.Push(throwStmt.Expression);
+                    break;
+                case LabeledStatement labeledStmt:
+                    work.Push(labeledStmt.Statement);
+                    break;
+
+                // Key check: CallExpression with identifier callee
+                case CallExpression call:
+                    if (call.Callee is IdentifierExpression calleeId &&
+                        !parameterNames.Contains(calleeId.Name))
+                    {
+                        // The callee is an identifier that's not a parameter - this is a call
+                        // to a closure-captured function (like recursive calls or outer variables)
+                        return true;
+                    }
+                    work.Push(call.Callee);
+                    foreach (var arg in call.Arguments)
+                        work.Push(arg.Expression);
+                    break;
+
+                // Other expressions - continue walking
+                case BinaryExpression binary:
+                    work.Push(binary.Left);
+                    work.Push(binary.Right);
+                    break;
+                case UnaryExpression unary:
+                    work.Push(unary.Operand);
+                    break;
+                case ConditionalExpression cond:
+                    work.Push(cond.Test);
+                    work.Push(cond.Consequent);
+                    work.Push(cond.Alternate);
+                    break;
+                case AssignmentExpression assign:
+                    work.Push(assign.Value);
+                    break;
+                case PropertyAssignmentExpression propAssign:
+                    work.Push(propAssign.Target);
+                    work.Push(propAssign.Property);
+                    work.Push(propAssign.Value);
+                    break;
+                case IndexAssignmentExpression indexAssign:
+                    work.Push(indexAssign.Target);
+                    work.Push(indexAssign.Index);
+                    work.Push(indexAssign.Value);
+                    break;
+                case MemberExpression member:
+                    work.Push(member.Target);
+                    work.Push(member.Property);
+                    break;
+                case NewExpression newExpr:
+                    work.Push(newExpr.Constructor);
+                    foreach (var arg in newExpr.Arguments)
+                        work.Push(arg.Expression);
+                    break;
+                case ArrayExpression array:
+                    foreach (var elem in array.Elements)
+                    {
+                        if (elem.Expression is not null)
+                            work.Push(elem.Expression);
+                    }
+                    break;
+                case ObjectExpression obj:
+                    foreach (var member in obj.Members)
+                    {
+                        if (member.Value is not null)
+                            work.Push(member.Value);
+                        if (member.Function is not null)
+                            continue; // Skip inner functions - they have their own scope
+                    }
+                    break;
+                case SequenceExpression seq:
+                    work.Push(seq.Left);
+                    work.Push(seq.Right);
+                    break;
+                case TemplateLiteralExpression template:
+                    foreach (var part in template.Parts)
+                    {
+                        if (part.Expression is not null)
+                            work.Push(part.Expression);
+                    }
+                    break;
+                case TaggedTemplateExpression tagged:
+                    work.Push(tagged.Tag);
+                    foreach (var expr in tagged.Expressions)
+                        work.Push(expr);
+                    break;
+                case AwaitExpression awaitExpr:
+                    work.Push(awaitExpr.Expression);
+                    break;
+                case YieldExpression yieldExpr:
+                    if (yieldExpr.Expression is not null)
+                        work.Push(yieldExpr.Expression);
+                    break;
+
+                // Skip inner functions - they have their own scope
+                case FunctionExpression:
+                case ClassExpression:
+                case FunctionDeclaration:
+                case ClassDeclaration:
+                    break;
+
+                // Terminals - no action needed
+                case LiteralExpression:
+                case IdentifierExpression:
+                case PrivateIdentifierExpression:
+                case ThisExpression:
+                case SuperExpression:
+                case NewTargetExpression:
+                case ImportMetaExpression:
+                case EmptyStatement:
+                case BreakStatement:
+                case ContinueStatement:
+                    break;
+            }
+        }
+
+        return false;
+    }
 }

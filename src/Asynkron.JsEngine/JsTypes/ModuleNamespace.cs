@@ -195,7 +195,14 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
             if (descriptor.HasValue)
             {
                 var valueObj = descriptor.Value;
-                if (valueObj is not string strValue || !string.Equals(strValue, "Module", StringComparison.Ordinal))
+                string? valueString = valueObj switch
+                {
+                    JsValue jsVal when jsVal.TryGetString(out var str) => str,
+                    string str => str,
+                    _ => null,
+                };
+
+                if (!string.Equals(valueString, "Module", StringComparison.Ordinal))
                 {
                     return false;
                 }

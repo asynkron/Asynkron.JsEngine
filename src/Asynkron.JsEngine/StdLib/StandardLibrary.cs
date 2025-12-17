@@ -49,7 +49,12 @@ public static partial class StandardLibrary
         if (realm?.ReferenceErrorConstructor is IJsCallable callable)
         {
             var result = callable.Invoke([new JsValue(message)], JsValue.Null);
-            return result.IsUndefined ? CreateErrorFallback("ReferenceError", message, realm) : result.ToObject()!;
+            if (result.IsUndefined || result.IsNull)
+            {
+                return CreateErrorFallback("ReferenceError", message, realm);
+            }
+
+            return result.ToObject()!;
         }
 
         return CreateErrorFallback("ReferenceError", message, realm);
@@ -58,6 +63,10 @@ public static partial class StandardLibrary
     internal static ThrowSignal ThrowTypeError(string message, EvaluationContext? context = null,
         RealmState? realm = null)
     {
+        if (message.Contains("Cannot read properties of null or undefined", StringComparison.Ordinal))
+        {
+            Console.WriteLine($"DEBUG ThrowTypeError: {message}\n{Environment.StackTrace}");
+        }
         return new ThrowSignal(JsValue.FromObjectUnsafe(CreateTypeError(message, context, realm)));
     }
 

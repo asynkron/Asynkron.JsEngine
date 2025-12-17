@@ -2345,7 +2345,11 @@ public sealed class JsEnvironment
 
         if (binding.IsStrictReference)
         {
-            throw new InvalidOperationException($"ReferenceError: {propertyName} is not defined");
+            var realm = (binding.BindingObject as JsObject)?.RealmState;
+            // DEBUG: This path should produce a JS ReferenceError when a with-binding disappears.
+            Console.WriteLine($"DEBUG GetWithBindingValue missing property '{propertyName}', strict={binding.IsStrictReference}, bindingObj={binding.BindingObject.GetType().Name}");
+            throw StandardLibrary.ThrowReferenceError($"ReferenceError: {propertyName} is not defined",
+                realm: realm);
         }
 
         return Symbol.Undefined;

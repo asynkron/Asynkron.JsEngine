@@ -360,7 +360,7 @@ public static partial class StandardLibrary
 
             double ConvertToNumber(JsValue input)
             {
-                if (input.TryGetObject<Symbol>(out _) || input.TryGetObject<TypedAstSymbol>(out _))
+                if (input.TryGetSymbol(out _) || input.TryGetObject<TypedAstSymbol>(out _))
                 {
                     throw new ThrowSignal(JsValue.FromObjectUnsafe(CreateTypeError("Cannot convert a Symbol value to a number",
                         null, realm)));

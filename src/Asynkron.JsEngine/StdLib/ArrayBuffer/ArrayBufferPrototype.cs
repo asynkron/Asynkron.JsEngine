@@ -29,7 +29,7 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
 
         var speciesConstructor = ArrayBufferSpeciesCreate(thisValue, Realm, Realm.ArrayBufferConstructor!);
 
-        object newBuffer;
+        object? newBuffer;
         JsArrayBuffer targetBuffer;
         if (ReferenceEquals(speciesConstructor, Realm.ArrayBufferConstructor))
         {
@@ -38,16 +38,17 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
         }
         else
         {
-            newBuffer = Construct(speciesConstructor, [(double)newLen], speciesConstructor, Realm)!;
-            if (newBuffer is not IJsPropertyAccessor)
+            var newBufferValue = Construct(speciesConstructor, [(double)newLen], speciesConstructor, Realm);
+            if (!newBufferValue.TryGetObject<IJsPropertyAccessor>(out var newBufferAccessor))
             {
                 throw ThrowTypeError("ArrayBuffer species constructor did not return an object", realm: Realm);
             }
 
-            targetBuffer = RequireArrayBuffer(newBuffer, Realm);
-            if (!ReferenceEquals(targetBuffer, newBuffer))
+            newBuffer = newBufferAccessor;
+            targetBuffer = RequireArrayBuffer(newBufferValue, Realm);
+            if (!ReferenceEquals(targetBuffer, newBufferAccessor))
             {
-                if (newBuffer is JsObject obj)
+                if (newBufferValue.TryGetObject<JsObject>(out var obj))
                 {
                     StoreInternalArrayBuffer(obj, targetBuffer);
                 }
@@ -64,7 +65,8 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
             throw ThrowTypeError("ArrayBuffer species constructor returned a SharedArrayBuffer", realm: Realm);
         }
 
-        if (ReferenceEquals(newBuffer, thisValue))
+        var original = thisValue is JsValue jsVal ? jsVal.ToObject() : thisValue;
+        if (ReferenceEquals(newBuffer, original))
         {
             throw ThrowTypeError("ArrayBuffer species constructor returned this value", realm: Realm);
         }

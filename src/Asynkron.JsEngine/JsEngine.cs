@@ -456,7 +456,7 @@ public sealed class JsEngine : IAsyncDisposable
         // Scope analysis: resolve variable references to slot indices for O(1) lookup
         typedProgram = _scopeAnalyzer.Analyze(typedProgram);
 
-        if (TypedCpsTransformer.NeedsTransformation(typedProgram))
+        if (!hasTopLevelAwait && TypedCpsTransformer.NeedsTransformation(typedProgram))
         {
             typedProgram = _typedCpsTransformer.Transform(typedProgram);
         }
@@ -2971,11 +2971,6 @@ public sealed class JsEngine : IAsyncDisposable
         ImportPhase phase,
         HashSet<string> exportStarSet)
     {
-        if (moduleEnv.IsAsyncModule && modulePath is { } mp && mp.Contains("top-level-await", StringComparison.Ordinal))
-        {
-            Console.WriteLine($"DEBUG predeclare async module {mp}");
-        }
-
         foreach (var statement in program.Body)
         {
             switch (statement)

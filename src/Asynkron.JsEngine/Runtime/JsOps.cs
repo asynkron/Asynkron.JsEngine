@@ -1584,6 +1584,12 @@ internal static class JsOps
     public static bool TryGetPropertyValue(object? target, string propertyName, out object? value,
         EvaluationContext? context = null)
     {
+        // Unwrap JsValue early so property access works on wrapped callables/objects
+        if (target is JsValue jsVal)
+        {
+            target = jsVal.ToObject();
+        }
+
         var debugTargetName = propertyName is "sameValue" or "valueOf"
             ? target?.GetType().Name ?? "null"
             : null;
@@ -1621,9 +1627,9 @@ internal static class JsOps
                     return false;
                 }
 
-                if (propertyAccessor.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), out var jsVal))
+                if (propertyAccessor.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), out var jsVal2))
                 {
-                    value = jsVal.ToObject();
+                    value = jsVal2.ToObject();
                     return true;
                 }
                 value = null;

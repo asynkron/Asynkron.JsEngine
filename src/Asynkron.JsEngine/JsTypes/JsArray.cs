@@ -1019,7 +1019,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         var realm = context?.RealmState ?? _realmState;
         var ctor = realm?.RangeErrorConstructor ?? _rangeErrorCtor;
-        if (ctor is IJsCallable)
+        if (ctor is not null)
         {
             var errorObj = ctor.Invoke([(JsValue)message], JsValue.Undefined);
             return new ThrowSignal(errorObj);
@@ -1034,7 +1034,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         var realm = context?.RealmState ?? _realmState;
         var ctor = realm?.TypeErrorConstructor ?? _typeErrorCtor;
-        if (ctor is IJsCallable)
+        if (ctor is not null)
         {
             var errorObj = ctor.Invoke([(JsValue)message], JsValue.Undefined);
             return new ThrowSignal(errorObj);

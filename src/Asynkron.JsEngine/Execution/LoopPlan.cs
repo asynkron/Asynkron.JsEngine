@@ -3,13 +3,6 @@ using Asynkron.JsEngine.Ast;
 
 namespace Asynkron.JsEngine.Execution;
 
-internal enum LoopKind
-{
-    While,
-    DoWhile,
-    For
-}
-
 /// <summary>
 ///     Normalized description of a loop that flattens initializer/test/body/increment
 ///     into explicit statement lists the IR builder can consume without re-parsing

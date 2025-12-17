@@ -1,3 +1,6 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
+
 namespace Asynkron.JsEngine.Ast.ShapeAnalyzer;
 
 internal static class AstShapeAnalyzer
@@ -44,7 +47,7 @@ internal static class AstShapeAnalyzer
         return AnalyzeStatement(statement, includeNestedFunctions).HasAwait;
     }
 
-    public static bool TryFindSingleYield(ExpressionNode expression, out YieldExpression yieldExpression)
+    public static bool TryFindSingleYield(ExpressionNode expression,[NotNullWhen(true)] out YieldExpression? yieldExpression)
     {
         var summary = AnalyzeExpression(expression);
         if (summary.YieldCount != 1)
@@ -55,30 +58,31 @@ internal static class AstShapeAnalyzer
 
         var locator = new SingleYieldLocator();
         locator.VisitExpression(expression);
-        yieldExpression = locator.FoundYield!;
+        yieldExpression = locator.FoundYield;
         return yieldExpression is not null;
     }
 
     public static bool TryRewriteSingleYield(
         ExpressionNode expression,
         Symbol replacementSymbol,
-        out YieldExpression yieldExpression,
-        out ExpressionNode rewritten)
+        [NotNullWhen(true)] out YieldExpression? yieldExpression,
+        [NotNullWhen(true)]out ExpressionNode? rewritten)
     {
         var summary = AnalyzeExpression(expression);
         if (summary.YieldCount != 1)
         {
-            yieldExpression = null!;
+            yieldExpression = null;
             rewritten = expression;
             return false;
         }
 
         var rewriter = new SingleYieldRewriter(replacementSymbol);
         rewritten = rewriter.Rewrite(expression);
-        yieldExpression = rewriter.FoundYield!;
+        yieldExpression = rewriter.FoundYield;
         return yieldExpression is not null;
     }
 
+    [StructLayout(LayoutKind.Auto)]
     internal readonly record struct ShapeSummary(
         int YieldCount,
         int DelegatedYieldCount,

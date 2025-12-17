@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Tests.Test262;
 
 public abstract partial class Test262Test
 {
-    private static readonly ConcurrentDictionary<string, ParsedProgram> HarnessProgramCache =
+    private static readonly ConcurrentDictionary<string, ProgramNode> HarnessProgramCache =
         new(StringComparer.Ordinal);
 
     private static readonly ConcurrentDictionary<string, string> SharedModuleSourceCache =
@@ -130,7 +130,7 @@ try {
 ";
 
 
-    private static ParsedProgram GetHarnessProgram(string source)
+    private static ProgramNode GetHarnessProgram(string source)
     {
         return HarnessProgramCache.GetOrAdd(source, static s =>
         {
@@ -195,7 +195,7 @@ try {
             {
                 > 1 => throw new Exception("only script parsing supported"),
                 > 0 when args[0].ToObject() is string script => JsValue.FromObjectUnsafe(EvalScriptSync(engine, script)),
-                _ => JsValue.Undefined
+                _ => JsValue.Undefined,
             }),
 
             // createRealm function - not fully implemented but needed for compatibility
@@ -256,7 +256,7 @@ try {
             ["IsHTMLDDA"] = new HtmlDdaValue(),
 
             // %AbstractModuleSource% intrinsic (minimal host stub for Test262)
-            ["AbstractModuleSource"] = CreateAbstractModuleSource(engine)
+            ["AbstractModuleSource"] = CreateAbstractModuleSource(engine),
         };
 
         engine.SetGlobalValue("$262", obj262);
@@ -276,7 +276,7 @@ try {
                 var diskPaths = new[]
                 {
                     Path.Combine(diskCacheDir, "test", candidate.Replace('/', Path.DirectorySeparatorChar)),
-                    Path.Combine(diskCacheDir, candidate.Replace('/', Path.DirectorySeparatorChar))
+                    Path.Combine(diskCacheDir, candidate.Replace('/', Path.DirectorySeparatorChar)),
                 };
 
                 foreach (var diskPath in diskPaths)
@@ -350,7 +350,7 @@ try {
                     candidate,
                     $"test/{candidate}",
                     candidate.StartsWith("/", StringComparison.Ordinal) ? candidate : $"/{candidate}",
-                    candidate.StartsWith("/", StringComparison.Ordinal) ? $"test{candidate}" : $"/test/{candidate}"
+                    candidate.StartsWith("/", StringComparison.Ordinal) ? $"test{candidate}" : $"/test/{candidate}",
                 };
 
                 foreach (var path in candidatePaths.Distinct(StringComparer.OrdinalIgnoreCase))
@@ -429,12 +429,12 @@ try {
 
                 foreach (var part in parts)
                 {
-                    if (part == ".")
+                    if (string.Equals(part, ".", StringComparison.Ordinal))
                     {
                         continue;
                     }
 
-                    if (part == "..")
+                    if (string.Equals(part, "..", StringComparison.Ordinal))
                     {
                         if (stack.Count > 0)
                         {
@@ -505,7 +505,7 @@ try {
                         }
                     }
 
-                    if (ReferenceEquals(candidate, candidates.Last()))
+                    if (ReferenceEquals(candidate, candidates[^1]))
                     {
                         throw new FileNotFoundException($"Module not found: {normalized}",
                             ex.GetBaseException() ?? ex);
@@ -533,11 +533,6 @@ try {
         return engine;
     }
 
-    private static async Task<object?> ExecuteSource(JsEngine engine, string source)
-    {
-        return await engine.Evaluate(source);
-    }
-
     private static HostFunction CreateAbstractModuleSource(JsEngine engine)
     {
         // Prototype [[Prototype]] should be Object.prototype when available.
@@ -554,24 +549,26 @@ try {
         var constructor = new HostFunction((_, _) =>
         {
             var error = (JsValue)"%AbstractModuleSource% is not constructable";
-            if (engine.GlobalObject.TryGetValue("TypeError", out var typeErrorObj) &&
-                typeErrorObj is JsValue typeErrorValue &&
-                typeErrorValue.TryGetObject<IJsCallable>(out var typeErrorCtor))
+            if (!engine.GlobalObject.TryGetValue("TypeError", out var typeErrorObj) ||
+                typeErrorObj is not JsValue typeErrorValue ||
+                !typeErrorValue.TryGetObject<IJsCallable>(out var typeErrorCtor))
             {
-                try
-                {
-                    error = typeErrorCtor.Invoke([error], JsValue.Undefined);
-                }
-                catch (ThrowSignal signal)
-                {
-                    error = signal.ThrownValue;
-                }
+                throw new ThrowSignal(error);
+            }
+
+            try
+            {
+                error = typeErrorCtor.Invoke([error], JsValue.Undefined);
+            }
+            catch (ThrowSignal signal)
+            {
+                error = signal.ThrownValue;
             }
 
             throw new ThrowSignal(error);
         })
         {
-            IsConstructor = true
+            IsConstructor = true,
         };
 
         constructor.DefineProperty("length", new PropertyDescriptor
@@ -579,7 +576,7 @@ try {
             Value = 0,
             Writable = false,
             Enumerable = false,
-            Configurable = true
+            Configurable = true,
         });
 
         constructor.DefineProperty("name", new PropertyDescriptor
@@ -587,7 +584,7 @@ try {
             Value = "AbstractModuleSource",
             Writable = false,
             Enumerable = false,
-            Configurable = true
+            Configurable = true,
         });
 
         constructor.DefineProperty("prototype", new PropertyDescriptor
@@ -595,7 +592,7 @@ try {
             Value = prototype,
             Writable = false,
             Enumerable = false,
-            Configurable = false
+            Configurable = false,
         });
 
         prototype.DefineProperty("constructor", new PropertyDescriptor
@@ -603,17 +600,15 @@ try {
             Value = constructor,
             Writable = true,
             Enumerable = false,
-            Configurable = true
+            Configurable = true,
         });
         var ctorDescriptor = prototype.GetOwnPropertyDescriptor("constructor");
-        if (ctorDescriptor is not null)
-        {
-            ctorDescriptor.Configurable = true;
-        }
+        ctorDescriptor?.Configurable = true;
 
         var toStringTagGetter = new HostFunction((thisValue, _) =>
         {
             if (thisValue.TryGetObject(out var obj) &&
+                obj != null &&
                 obj.TryGetProperty("__moduleSourceClassName__", out var name) &&
                 name.TryGetObject<string>(out var tag))
             {
@@ -628,13 +623,10 @@ try {
         {
             Get = toStringTagGetter,
             Enumerable = false,
-            Configurable = true
+            Configurable = true,
         });
         var tagDescriptor = prototype.GetOwnPropertyDescriptor(toStringTagKey);
-        if (tagDescriptor is not null)
-        {
-            tagDescriptor.Configurable = true;
-        }
+        tagDescriptor?.Configurable = true;
 
         if (engine.GlobalObject.TryGetValue("Function", out var functionCtor) &&
             functionCtor is JsValue functionCtorValue &&
@@ -661,7 +653,7 @@ try {
         }
         else
         {
-            await ExecuteSource(engine, file.Program);
+            await engine.Evaluate(file.Program);
         }
     }
 

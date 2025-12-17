@@ -12,7 +12,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true })
+        if (thisValue.IsObject && thisValue.AsObject() is { IsConstructing: true })
         {
             var target = _constructor ?? ConstructFallback;
             return JsValue.FromObjectUnsafe(ConstructPromise(args, target, target));

@@ -81,7 +81,7 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
             return null;
         }
 
-        if (optionsArg.IsObject && optionsArg.AsObject() is JsObject jsObject)
+        if (optionsArg.IsObject && optionsArg.AsObject() is { } jsObject)
         {
             return jsObject;
         }

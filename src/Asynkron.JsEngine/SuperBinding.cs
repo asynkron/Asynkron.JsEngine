@@ -28,7 +28,7 @@ public sealed class SuperBinding(
             var descriptor = objectLike.GetOwnPropertyDescriptor(name);
             if (descriptor is not null)
             {
-                if (descriptor.Get is IJsCallable getter)
+                if (descriptor.Get is { } getter)
                 {
                     var result = getter.Invoke([], thisValue);
                     value = result;
@@ -59,7 +59,7 @@ public sealed class SuperBinding(
             var descriptor = ctorObject.GetOwnPropertyDescriptor(name);
             if (descriptor is not null)
             {
-                if (descriptor.Get is IJsCallable getter)
+                if (descriptor.Get is { } getter)
                 {
                     var result = getter.Invoke([], thisValue);
                     value = result;
@@ -102,7 +102,7 @@ public sealed class SuperBinding(
         if (Prototype is IJsObjectLike objectLike)
         {
             var descriptor = objectLike.GetOwnPropertyDescriptor(name);
-            if (descriptor?.Set is IJsCallable setter)
+            if (descriptor?.Set is { } setter)
             {
                 setter.Invoke([value], thisValue);
                 usedSetter = true;
@@ -113,7 +113,7 @@ public sealed class SuperBinding(
         if (Constructor is IJsObjectLike ctorObject)
         {
             var descriptor = ctorObject.GetOwnPropertyDescriptor(name);
-            if (descriptor?.Set is IJsCallable setter)
+            if (descriptor?.Set is { } setter)
             {
                 setter.Invoke([value], thisValue);
                 usedSetter = true;

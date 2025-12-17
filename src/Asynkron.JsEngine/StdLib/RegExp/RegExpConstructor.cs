@@ -12,7 +12,7 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true } constructing)
+        if (thisValue.IsObject && thisValue.AsObject() is { IsConstructing: true } constructing)
         {
             var target = _constructor ?? ConstructFallback;
             return ConstructRegExp(args, target, target, constructing);
@@ -52,7 +52,7 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
     private JsValue ConstructRegExp(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor,
         JsObject? thisArg)
     {
-        var provided = thisArg is JsObject jsObj &&
+        var provided = thisArg is { } jsObj &&
                        (jsObj.IsConstructing || IsRegExpLikeInstance(jsObj, Realm))
             ? jsObj
             : null;
@@ -87,7 +87,7 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
             return CreateRegExpLiteral("(?:)", "", Realm, target);
         }
 
-        if (args.Count == 1 && args[0].IsObject && args[0].AsObject() is JsObject existingObj &&
+        if (args.Count == 1 && args[0].IsObject && args[0].AsObject() is { } existingObj &&
             existingObj.TryGetProperty("__regex__", out var internalRegex) &&
             internalRegex.TryGetObject<JsRegExp>(out var existing))
         {

@@ -56,7 +56,7 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
             return null;
         }
 
-        if (optionsArg.IsObject && optionsArg.AsObject() is JsObject jsObject)
+        if (optionsArg.IsObject && optionsArg.AsObject() is { } jsObject)
         {
             return jsObject;
         }

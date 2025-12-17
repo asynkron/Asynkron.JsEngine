@@ -426,12 +426,12 @@ public static partial class StandardLibrary
         if ((realmState.ArrayConstructor is not null && ReferenceEquals(target, realmState.ArrayConstructor)) ||
             (realmState.ArrayConstructor is not null && ReferenceEquals(newTarget, realmState.ArrayConstructor)))
         {
-            if (newTargetRealmState?.ArrayPrototype is IJsObjectLike realmArrayProtoFromState)
+            if (newTargetRealmState?.ArrayPrototype is { } realmArrayProtoFromState)
             {
                 return realmArrayProtoFromState;
             }
 
-            if (newTargetRealmObject is JsObject &&
+            if (newTargetRealmObject is not null &&
                 newTargetRealmObject.TryGetProperty("Array", out var realmArrayCtor) &&
                 TryGetPrototype(realmArrayCtor.ToObject()!, out var realmArrayProto))
             {

@@ -79,7 +79,7 @@ public static partial class StandardLibrary
 
             var scriptGoalOptions = new JsEngineOptions { AllowImportMeta = false };
 
-            ParsedProgram program;
+            ProgramNode program;
             try
             {
                 program = engine.ParseProgram(functionSource, options: scriptGoalOptions);

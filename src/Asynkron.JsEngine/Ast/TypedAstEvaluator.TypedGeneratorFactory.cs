@@ -445,7 +445,7 @@ public static partial class TypedAstEvaluator
                 AllowImportMeta = false
             };
 
-            ParsedProgram program;
+            ProgramNode program;
             try
             {
                 program = engine.ParseProgram(functionSource, options: scriptGoalOptions);
@@ -542,7 +542,7 @@ public static partial class TypedAstEvaluator
             // which in turn inherits from %Function.prototype%.
             EnsureGeneratorIntrinsics();
 
-            if (_realmState.GeneratorFunctionPrototype is JsObject genFuncProto)
+            if (_realmState.GeneratorFunctionPrototype is { } genFuncProto)
             {
                 _properties.SetPrototype(genFuncProto);
             }

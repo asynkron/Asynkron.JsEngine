@@ -157,7 +157,7 @@ public sealed class ShapeCounter(bool includeNestedFunctions)
                 VisitExpression(parameter.DefaultValue);
             }
 
-            if (parameter.Pattern is BindingTarget { } pattern)
+            if (parameter.Pattern is { } pattern)
             {
                 VisitBinding(pattern);
             }

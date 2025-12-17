@@ -5,51 +5,6 @@ using Asynkron.JsEngine.JsTypes;
 namespace Asynkron.JsEngine;
 
 /// <summary>
-/// A fast, lock-free object pool using a fixed-size array.
-/// Uses Interlocked operations for thread-safety with minimal contention.
-/// </summary>
-internal sealed class ObjectPool<T> where T : class
-{
-    private readonly T?[] _items;
-    private readonly Func<T> _factory;
-
-    public ObjectPool(int size, Func<T> factory)
-    {
-        _items = new T?[size];
-        _factory = factory;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public T Rent()
-    {
-        var items = _items;
-        for (var i = 0; i < items.Length; i++)
-        {
-            var item = items[i];
-            if (item is not null && Interlocked.CompareExchange(ref items[i], null, item) == item)
-            {
-                return item;
-            }
-        }
-        return _factory();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Return(T item)
-    {
-        var items = _items;
-        for (var i = 0; i < items.Length; i++)
-        {
-            if (items[i] is null && Interlocked.CompareExchange(ref items[i], item, null) is null)
-            {
-                return;
-            }
-        }
-        // Pool full, item will be GC'd
-    }
-}
-
-/// <summary>
 /// Provides caching for common JavaScript values and pooling for argument arrays.
 /// This reduces allocations in hot paths like function calls.
 /// </summary>
@@ -396,56 +351,4 @@ public static class JsValueCache
                 break;
         }
     }
-}
-
-/// <summary>
-/// A disposable wrapper for pooled argument arrays that returns them on dispose.
-/// Use with 'using' statement to ensure arrays are returned to the pool.
-/// </summary>
-public readonly struct PooledArgumentArray : IDisposable, IReadOnlyList<object?>
-{
-    private readonly object?[] _array;
-    private readonly int _length;
-
-    public PooledArgumentArray(object?[] array, int length)
-    {
-        _array = array;
-        _length = length;
-    }
-
-    public object? this[int index]
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => index < _length ? _array[index] : throw new IndexOutOfRangeException();
-    }
-
-    public int Count
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _length;
-    }
-
-    public object?[] Array
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _array;
-    }
-
-    public void Dispose()
-    {
-        if (_array?.Length <= 4)
-        {
-            JsValueCache.ReturnArgumentArray(_array);
-        }
-    }
-
-    public IEnumerator<object?> GetEnumerator()
-    {
-        for (var i = 0; i < _length; i++)
-        {
-            yield return _array[i];
-        }
-    }
-
-    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
 }

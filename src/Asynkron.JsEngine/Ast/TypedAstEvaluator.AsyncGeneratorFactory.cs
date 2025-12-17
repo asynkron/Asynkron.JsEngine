@@ -430,7 +430,7 @@ public static partial class TypedAstEvaluator
                 AllowImportMeta = false
             };
 
-            ParsedProgram program;
+            ProgramNode program;
             try
             {
                 program = engine.ParseProgram(functionSource, options: scriptGoalOptions);

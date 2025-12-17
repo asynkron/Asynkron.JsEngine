@@ -49,7 +49,7 @@ public static partial class TypedAstEvaluator
                     return;
                 }
 
-                var value = member.Function is FunctionExpression functionExpression
+                var value = member.Function is { } functionExpression
                     ? CreateFunctionValue(functionExpression, environment, context,
                         createFunctionNameEnvironment: true,
                         isConstructorFunction: false)

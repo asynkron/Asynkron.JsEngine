@@ -1492,7 +1492,7 @@ public static partial class TypedAstEvaluator
                         throw StandardLibrary.ThrowTypeError("Cannot define class field", context, context.RealmState);
                     }
                 }
-                else if (instance is IJsObjectLike objectLike)
+                else if (instance is { } objectLike)
                 {
                     objectLike.DefineProperty(propertyName, descriptor);
                 }

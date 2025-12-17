@@ -86,7 +86,3 @@ public sealed class HtmlDdaValue : IIsHtmlDda, IJsCallable, IJsObjectLike, IProp
         return _backing.TryDefineProperty(name, descriptor);
     }
 }
-
-internal interface IIsHtmlDda
-{
-}

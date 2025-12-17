@@ -64,7 +64,7 @@ public sealed partial class ArrayConstructor : JsConstructor
         }
 
         var instance = new JsArray(Realm);
-        if (thisValue.TryGetObject<JsObject>(out var obj) && obj.Prototype is JsObject providedProto)
+        if (thisValue.TryGetObject<JsObject>(out var obj) && obj.Prototype is { } providedProto)
         {
             instance.SetPrototype(providedProto);
         }

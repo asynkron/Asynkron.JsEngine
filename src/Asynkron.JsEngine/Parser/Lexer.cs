@@ -5,25 +5,6 @@ using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Parser;
 
-internal sealed record TemplateExpression(string ExpressionText);
-
-internal sealed record TemplateStringPart(string RawText, DecodedString Cooked);
-
-internal sealed record RegexLiteralValue(string Pattern, string Flags);
-
-/// <summary>
-/// Distinguishes different brace contexts for regex vs division disambiguation.
-/// </summary>
-internal enum BraceKind
-{
-    /// <summary>Object literal - division follows</summary>
-    ObjectLiteral,
-    /// <summary>Function/method/class body - division follows (produces a value)</summary>
-    FunctionBody,
-    /// <summary>Statement block (if/for/while/etc.) - regex follows (no value)</summary>
-    StatementBlock
-}
-
 public sealed class Lexer(string source, bool allowHtmlComments = true)
 {
     private readonly record struct DigitRun(int Start, int Length, bool HasSeparator)

@@ -908,7 +908,7 @@ internal sealed class SyncGeneratorIrBuilder
 
         ImmutableArray<StatementNode> bodyStatements;
         var isStrict = false;
-        if (plan.Body is BlockStatement block)
+        if (plan.Body is { } block)
         {
             var builder = ImmutableArray.CreateBuilder<StatementNode>(block.Statements.Length + 1);
             builder.Add(bindingStatement);

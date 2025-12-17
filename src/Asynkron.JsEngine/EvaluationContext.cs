@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
@@ -7,21 +6,6 @@ using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine;
-
-/// <summary>
-///     Represents a saved completion state for try-finally handling.
-/// </summary>
-public readonly struct CompletionState(bool isReturn, JsValue returnValue, ICompletionSignal? signal)
-{
-    public bool IsReturn { get; } = isReturn;
-    public JsValue ReturnValue { get; } = returnValue;
-    public ICompletionSignal? Signal { get; } = signal;
-
-    /// <summary>
-    ///     Returns true if there's any completion to restore.
-    /// </summary>
-    public bool HasCompletion => IsReturn || Signal is not null;
-}
 
 /// <summary>
 ///     Tracks the current control flow state during evaluation using typed signals.
@@ -601,75 +585,3 @@ public sealed class EvaluationContext(
         }
     }
 }
-
-public enum ScopeKind
-{
-    Program,
-    Function,
-    Block
-}
-
-public enum ScopeMode
-{
-    Strict,
-    Sloppy
-}
-
-public readonly record struct ScopeFrame(ScopeKind Kind, ScopeMode Mode)
-{
-    public bool IsStrict => Mode == ScopeMode.Strict;
-    public static ScopeFrame Default { get; } = new(ScopeKind.Program, ScopeMode.Strict);
-}
-
-public sealed class PrivateNameScope
-{
-    private static int _nextId;
-    private static readonly ConcurrentDictionary<int, PrivateNameScope> _scopes = new();
-    private readonly int _id = Interlocked.Increment(ref _nextId);
-    private readonly Dictionary<string, string> _map = new(StringComparer.Ordinal);
-
-    public PrivateNameScope()
-    {
-        _scopes[_id] = this;
-    }
-
-    public object BrandToken { get; } = new();
-
-    public bool TryGetKey(string lexeme, out string key)
-    {
-        return _map.TryGetValue(lexeme, out key!);
-    }
-
-    public string GetKey(string lexeme)
-    {
-        if (_map.TryGetValue(lexeme, out var key))
-        {
-            return key;
-        }
-
-        key = $"{lexeme}@{_id}";
-        _map[lexeme] = key;
-        return key;
-    }
-
-    public static bool TryResolveScope(string key, out PrivateNameScope? scope)
-    {
-        scope = null;
-        var separator = key.LastIndexOf('@');
-        if (separator < 0)
-        {
-            return false;
-        }
-
-        if (!int.TryParse(key.AsSpan(separator + 1), out var id))
-        {
-            return false;
-        }
-
-        return _scopes.TryGetValue(id, out scope);
-    }
-}
-
-internal readonly record struct PendingClassFieldInitialization(
-    object Constructor,
-    JsEnvironment Environment);

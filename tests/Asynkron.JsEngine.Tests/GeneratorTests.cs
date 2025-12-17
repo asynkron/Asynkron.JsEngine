@@ -3833,23 +3833,23 @@ public class GeneratorTests
     }
 
     [Fact(Timeout = 5000)]
-    public void Generator_YieldStar_SyncExecution()
+    public async Task Generator_YieldStar_SyncExecution()
     {
         // Test using .Wait() like Test262 harness does
         var engine = new JsEngine();
 
         // Evaluation 1: sta.js using Wait()
-        engine.Evaluate("""
-            function Test262Error(message) {
-              this.message = message || "";
-            }
-            Test262Error.prototype.toString = function () {
-              return "Test262Error: " + this.message;
-            };
-        """).Wait();
+        await engine.Evaluate("""
+                            function Test262Error(message) {
+                              this.message = message || "";
+                            }
+                            Test262Error.prototype.toString = function () {
+                              return "Test262Error: " + this.message;
+                            };
+                        """);
 
         // Evaluation 2: assert.js using Wait()
-        engine.Evaluate("""
+        await engine.Evaluate("""
             function assert(mustBeTrue, message) {
               if (mustBeTrue === true) return;
               throw new Test262Error(message || 'Expected true');
@@ -3863,10 +3863,10 @@ public class GeneratorTests
               message = (message ? message + ' ' : '') + 'Expected SameValue(«' + actual + '», «' + expected + '») to be true';
               throw new Test262Error(message);
             };
-        """).Wait();
+        """);
 
         // Evaluation 3: the actual test using Wait()
-        engine.Evaluate("""
+        await engine.Evaluate("""
             var callCount = 0;
             var spyIterator = {
               next: function() {
@@ -3885,7 +3885,7 @@ public class GeneratorTests
             iter.next(9876);
 
             assert.sameValue(callCount, 1);
-        """).Wait();
+        """);
     }
 
     [Fact(Timeout = 5000)]

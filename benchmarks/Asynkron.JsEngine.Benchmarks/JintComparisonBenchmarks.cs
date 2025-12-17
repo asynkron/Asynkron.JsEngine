@@ -146,7 +146,7 @@ public class JintComparisonBenchmarks
 
     // Asynkron engine
     private JsEngine _asynkronEngine = null!;
-    private readonly Dictionary<string, ParsedProgram> _parsedPrograms = new();
+    private readonly Dictionary<string, ProgramNode> _parsedPrograms = new();
 
     // Jint engine
     private Engine _jintEngine = null!;

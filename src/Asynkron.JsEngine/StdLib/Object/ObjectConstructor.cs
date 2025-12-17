@@ -14,7 +14,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var targetCtor = _constructor ?? ConstructFallback;
-        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true } constructing)
+        if (thisValue.IsObject && thisValue.AsObject() is { IsConstructing: true } constructing)
         {
             ApplyPrototype(constructing, targetCtor);
             return JsValue.FromObjectUnsafe(ConstructCore(args, targetCtor, constructing));

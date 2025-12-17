@@ -994,7 +994,7 @@ public static partial class TypedAstEvaluator
                                         ? yielded
                                         : JsValue.Undefined;
                                 }
-                                else if (driverState.Enumerator is IEnumerator<object?> enumerator)
+                                else if (driverState.Enumerator is { } enumerator)
                                 {
                                     if (!enumerator.MoveNext())
                                     {
@@ -1151,7 +1151,7 @@ public static partial class TypedAstEvaluator
 
                                 awaitedValue = fullyAwaitedValue;
                             }
-                            else if (driverState.Enumerator is IEnumerator<object?> awaitEnumerator)
+                            else if (driverState.Enumerator is { } awaitEnumerator)
                             {
                                 if (!awaitEnumerator.MoveNext())
                                 {

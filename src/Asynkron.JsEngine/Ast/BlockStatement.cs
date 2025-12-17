@@ -1,0 +1,58 @@
+using System.Collections.Immutable;
+using Asynkron.JsEngine.Parser;
+
+namespace Asynkron.JsEngine.Ast;
+
+/// <summary>
+///     Represents a block statement with optional strict mode.
+/// </summary>
+public sealed record BlockStatement(SourceReference? Source, ImmutableArray<StatementNode> Statements, bool IsStrict)
+    : StatementNode(Source), IAstCacheable<HoistPlan>
+{
+    private HoistPlan? _cachedHoistPlan;
+    private int _containsInnerFunctionCache = -1; // -1 unknown, 0 false, 1 true
+    private int _containsDynamicScopeCache = -1; // -1 unknown, 0 false, 1 true
+
+    HoistPlan IAstCacheable<HoistPlan>.GetOrCreateCache()
+    {
+        return AstCache.GetOrCreate(ref _cachedHoistPlan, this, static block => HoistPlan.Build(block));
+    }
+
+    internal bool TryGetContainsInnerFunction(out bool contains)
+    {
+        var value = Volatile.Read(ref _containsInnerFunctionCache);
+        if (value == -1)
+        {
+            contains = default;
+            return false;
+        }
+
+        contains = value == 1;
+        return true;
+    }
+
+    internal void CacheContainsInnerFunction(bool contains)
+    {
+        var value = contains ? 1 : 0;
+        _ = Interlocked.CompareExchange(ref _containsInnerFunctionCache, value, -1);
+    }
+
+    internal bool TryGetContainsDynamicScope(out bool contains)
+    {
+        var value = Volatile.Read(ref _containsDynamicScopeCache);
+        if (value == -1)
+        {
+            contains = default;
+            return false;
+        }
+
+        contains = value == 1;
+        return true;
+    }
+
+    internal void CacheContainsDynamicScope(bool contains)
+    {
+        var value = contains ? 1 : 0;
+        _ = Interlocked.CompareExchange(ref _containsDynamicScopeCache, value, -1);
+    }
+}

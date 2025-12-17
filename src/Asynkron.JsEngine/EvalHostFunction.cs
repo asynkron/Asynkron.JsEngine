@@ -8,26 +8,6 @@ using Microsoft.Extensions.Logging;
 namespace Asynkron.JsEngine;
 
 /// <summary>
-///     Flags collected during a single-pass AST scan for eval validation.
-/// </summary>
-[Flags]
-internal enum EvalValidationFlags
-{
-    None = 0,
-    ContainsNewTarget = 1 << 0,
-    ContainsSuperReference = 1 << 1,
-    ContainsSuperCall = 1 << 2,
-    ContainsArguments = 1 << 3,
-    ContainsIllegalReturn = 1 << 4,
-    ContainsIllegalBreakOrContinue = 1 << 5,
-    // Flags for includeFunctionBodies=true variants
-    ContainsNewTargetInFunctions = 1 << 6,
-    ContainsSuperReferenceInFunctions = 1 << 7,
-    ContainsSuperCallInFunctions = 1 << 8,
-    ContainsArgumentsInFunctions = 1 << 9
-}
-
-/// <summary>
 ///     A special host function for eval() that has access to the calling environment
 ///     and can evaluate code synchronously in that context.
 /// </summary>
@@ -82,7 +62,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         var forceStrict = isDirectEval && (CallingContext?.CurrentScope.IsStrict ?? false);
 
         // Parse the code and build the typed AST so eval shares the same pipeline
-        ParsedProgram program;
+        ProgramNode program;
         try
         {
             program = _engine.ParseProgram(code, forceStrict);
@@ -95,7 +75,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
 
         // Scripts evaluated via eval may not contain module syntax (export/import).
-        foreach (var statement in program.Typed.Body)
+        foreach (var statement in program.Body)
         {
             if (statement is ModuleStatement)
             {
@@ -106,7 +86,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             }
         }
 
-        if (JsEngine.ProgramContainsImportMeta(program.Typed))
+        if (JsEngine.ProgramContainsImportMeta(program))
         {
             throw StandardLibrary.ThrowSyntaxError(
                 "'import.meta' is only valid in module code.",
@@ -119,7 +99,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                                           (CallingJsEnvironment?.HasBinding(FieldInitializerEvalFlag) ?? false);
 
         // Single-pass AST scan to collect all validation flags at once (performance optimization)
-        var validationFlags = ScanForValidationFlags(program.Typed.Body);
+        var validationFlags = ScanForValidationFlags(program.Body);
 
         // Check for super call in initializer (includeFunctionBodies semantics)
         var containsSuperCallInInitializer = (validationFlags & (EvalValidationFlags.ContainsSuperCall | EvalValidationFlags.ContainsSuperCallInFunctions)) != 0;
@@ -215,7 +195,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
         // Check for illegal return (from scanner) and illegal break/continue (needs separate check with label tracking)
         var hasIllegalReturn = (validationFlags & EvalValidationFlags.ContainsIllegalReturn) != 0;
-        var hasIllegalBreakOrContinue = ContainsIllegalBreakOrContinue(program.Typed.Body);
+        var hasIllegalBreakOrContinue = ContainsIllegalBreakOrContinue(program.Body);
 
         if (hasIllegalReturn || hasIllegalBreakOrContinue)
         {
@@ -243,7 +223,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             }
         }
 
-        var invalidPrivateName = FindInvalidPrivateName(program.Typed.Body, evalPrivateNameScopes);
+        var invalidPrivateName = FindInvalidPrivateName(program.Body, evalPrivateNameScopes);
         if (invalidPrivateName is not null)
         {
             throw StandardLibrary.ThrowSyntaxError(
@@ -252,7 +232,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 environment.RealmState);
         }
 
-        var isStrictEval = program.Typed.IsStrict;
+        var isStrictEval = program.IsStrict;
         JsEnvironment lexicalEnv;
         if (!isDirectEval)
         {
@@ -304,10 +284,10 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         // 18.2.1.1 EvalDeclarationInstantiation: non-strict direct eval must
         // reject var declarations that collide with caller lexicals (including parameters).
         var varDeclaredNames = new HashSet<Symbol>();
-        CollectVarDeclaredNames(program.Typed.Body, varDeclaredNames, isStrictEval, false);
-        var lexicallyDeclaredNames = CollectLexicallyDeclaredNames(program.Typed.Body);
-        var lexicalDeclarations = CollectLexicalDeclarations(program.Typed.Body);
-        var varFunctionDeclarations = CollectVarFunctionDeclarations(program.Typed.Body, isStrictEval, false);
+        CollectVarDeclaredNames(program.Body, varDeclaredNames, isStrictEval, false);
+        var lexicallyDeclaredNames = CollectLexicallyDeclaredNames(program.Body);
+        var lexicalDeclarations = CollectLexicalDeclarations(program.Body);
+        var varFunctionDeclarations = CollectVarFunctionDeclarations(program.Body, isStrictEval, false);
         if (!isStrictEval)
         {
             foreach (var name in varDeclaredNames)
@@ -438,7 +418,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     evalPrivateNameScopes.Value.Length,
                     insideClassFieldInitializer);
             }
-            var result = program.Typed.EvaluateProgram(evalEnvironment, _engine.RealmState, CancellationToken.None,
+            var result = program.EvaluateProgram(evalEnvironment, _engine.RealmState, CancellationToken.None,
                 ExecutionKind.Eval, createStrictEnvironment: false, inheritedPrivateNameScopes: evalPrivateNameScopes);
 
             return JsValue.FromObjectUnsafe(result);

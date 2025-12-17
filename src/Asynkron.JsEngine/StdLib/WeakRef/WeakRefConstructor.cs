@@ -13,7 +13,7 @@ public sealed partial class WeakRefConstructor(IJsObjectLike prototype, RealmSta
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var targetCtor = _constructor ?? ConstructFallback;
-        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true } constructing)
+        if (thisValue.IsObject && thisValue.AsObject() is { IsConstructing: true } constructing)
         {
             var target = RequireTargetObject(args);
             ApplyPrototype(constructing, targetCtor);
@@ -56,7 +56,7 @@ public sealed partial class WeakRefConstructor(IJsObjectLike prototype, RealmSta
     private JsValue RequireTargetObject(IReadOnlyList<JsValue> args)
     {
         var target = args.GetArgument(0);
-        if (!target.IsObject || target.AsObject() is not IJsObjectLike)
+        if (!target.IsObject || target.AsObject() is not not null)
         {
             throw ThrowTypeError("WeakRef target must be an object", realm: Realm);
         }

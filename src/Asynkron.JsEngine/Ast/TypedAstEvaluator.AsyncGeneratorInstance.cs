@@ -72,7 +72,7 @@ public static partial class TypedAstEvaluator
             {
                 promiseCtor = promiseFromEnv;
             }
-            else if (realmState.PromiseConstructor is IJsCallable promiseFromRealm)
+            else if (realmState.PromiseConstructor is { } promiseFromRealm)
             {
                 promiseCtor = promiseFromRealm;
             }

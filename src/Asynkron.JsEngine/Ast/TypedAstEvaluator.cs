@@ -11,15 +11,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
 
-public interface ICallableMetadata
-{
-    bool IsArrowFunction { get; }
-
-    bool DisallowConstruct { get; }
-
-    RealmState RealmState { get; }
-}
-
 /// <summary>
 ///     Proof-of-concept evaluator that executes the new typed AST directly instead of walking cons cells.
 ///     The goal is to showcase the recommended shape: a dedicated evaluator with explicit pattern matching

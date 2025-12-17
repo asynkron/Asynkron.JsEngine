@@ -7,16 +7,6 @@ using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Runtime;
 
-/// <summary>
-/// Enum for ToPrimitive hint to avoid string comparisons in hot paths.
-/// </summary>
-internal enum ToPrimitiveHint
-{
-    Default,
-    Number,
-    String
-}
-
 internal static class JsOps
 {
     internal const double NegativeZero = -0.0d;

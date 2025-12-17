@@ -429,10 +429,10 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     ///     Parses JavaScript source code into a typed AST ready for execution.
     ///     Applies constant folding, scope analysis (for slot-based variable access),
-    ///     and CPS transformation (for async/await). Returns a ParsedProgram that
+    ///     and CPS transformation (for async/await). Returns a ProgramNode that
     ///     can be evaluated multiple times without re-parsing.
     /// </summary>
-    public ParsedProgram ParseProgram(
+    public ProgramNode ParseProgram(
         string source,
         bool forceStrict = false,
         bool allowTopLevelAwait = false,
@@ -443,7 +443,7 @@ public sealed class JsEngine : IAsyncDisposable
         var hasTopLevelAwait = ContainsTopLevelAwait(typedProgram);
         if (forceStrict && !typedProgram.IsStrict)
         {
-            typedProgram = new ProgramNode(typedProgram.Source, typedProgram.Body, true);
+            typedProgram = typedProgram with { IsStrict = true };
         }
 
         typedProgram = _typedConstantTransformer.Transform(typedProgram);
@@ -456,7 +456,7 @@ public sealed class JsEngine : IAsyncDisposable
             typedProgram = _typedCpsTransformer.Transform(typedProgram);
         }
 
-        return new ParsedProgram(typedProgram, hasTopLevelAwait);
+        return typedProgram with { HasTopLevelAwait = hasTopLevelAwait };
     }
 
     /// <summary>
@@ -465,12 +465,12 @@ public sealed class JsEngine : IAsyncDisposable
     ///     used earlier for parsing and transformation.
     /// </summary>
     internal object? ExecuteProgram(
-        ParsedProgram program,
+        ProgramNode program,
         JsEnvironment environment,
         CancellationToken cancellationToken = default,
         ExecutionKind executionKind = ExecutionKind.Script)
     {
-        return TypedProgramExecutor.Evaluate(program, environment, RealmState, cancellationToken, executionKind);
+        return program.EvaluateProgram(environment, RealmState, cancellationToken, executionKind);
     }
 
     /// <summary>
@@ -662,7 +662,7 @@ public sealed class JsEngine : IAsyncDisposable
     ///     Evaluates a pre-parsed program and schedules it on the event queue.
     ///     Useful when running the same script repeatedly to avoid re-parsing.
     /// </summary>
-    public Task<object?> Evaluate(ParsedProgram program, CancellationToken cancellationToken = default)
+    public Task<object?> Evaluate(ProgramNode program, CancellationToken cancellationToken = default)
     {
         return Evaluate(program, cancellationToken, sourcePath: null, forceModule: false);
     }
@@ -701,8 +701,8 @@ public sealed class JsEngine : IAsyncDisposable
 
         // Check if the last statement is an expression statement with an identifier
         Symbol? trailingIdentifier = null;
-        if (program.Typed.Body.Length > 0 &&
-            program.Typed.Body[^1] is ExpressionStatement { Expression: IdentifierExpression identifier })
+        if (program.Body.Length > 0 &&
+            program.Body[^1] is ExpressionStatement { Expression: IdentifierExpression identifier })
         {
             trailingIdentifier = identifier.Name;
         }
@@ -724,12 +724,12 @@ public sealed class JsEngine : IAsyncDisposable
     ///     Evaluates a pre-parsed program and drains microtasks before returning.
     ///     Use this overload to avoid reparsing when running the same script many times.
     /// </summary>
-    public async Task<object?> EvaluateAndAwait(ParsedProgram program, CancellationToken cancellationToken = default)
+    public async Task<object?> EvaluateAndAwait(ProgramNode program, CancellationToken cancellationToken = default)
     {
         // Check if the last statement is an expression statement with an identifier
         Symbol? trailingIdentifier = null;
-        if (program.Typed.Body.Length > 0 &&
-            program.Typed.Body[^1] is ExpressionStatement { Expression: IdentifierExpression identifier })
+        if (program.Body.Length > 0 &&
+            program.Body[^1] is ExpressionStatement { Expression: IdentifierExpression identifier })
         {
             trailingIdentifier = identifier.Name;
         }
@@ -771,7 +771,7 @@ public sealed class JsEngine : IAsyncDisposable
     ///     Synchronously evaluates a pre-parsed program without using the event loop.
     ///     Use this to reuse a single parse across many executions.
     /// </summary>
-    public object? EvaluateSync(ParsedProgram program, CancellationToken cancellationToken = default)
+    public object? EvaluateSync(ProgramNode program, CancellationToken cancellationToken = default)
     {
         return EvaluateSyncInternal(program, cancellationToken);
     }
@@ -780,7 +780,7 @@ public sealed class JsEngine : IAsyncDisposable
     ///     Synchronously evaluates a pre-parsed program without using the event loop.
     /// </summary>
 	    private object? EvaluateSyncInternal(
-	        ParsedProgram program,
+	        ProgramNode program,
 	        CancellationToken cancellationToken = default,
 	        string? sourcePath = null,
 	        bool forceModule = false)
@@ -788,8 +788,8 @@ public sealed class JsEngine : IAsyncDisposable
         var combinedToken = CreateEvaluationCancellationToken(cancellationToken, out var timeoutCts);
         try
         {
-            var isModule = forceModule || HasModuleStatements(program.Typed);
-            EnsureImportMetaAllowed(program.Typed, isModule);
+            var isModule = forceModule || HasModuleStatements(program);
+            EnsureImportMetaAllowed(program, isModule);
 	            if (isModule)
 	            {
 	                string? moduleKey = null;
@@ -851,7 +851,7 @@ public sealed class JsEngine : IAsyncDisposable
     ///     Runs synchronously first, then only starts the event loop if async work is pending.
     /// </summary>
     private async Task<object?> Evaluate(
-        ParsedProgram program,
+        ProgramNode program,
         CancellationToken cancellationToken = default,
         string? sourcePath = null,
         bool forceModule = false)
@@ -868,7 +868,7 @@ public sealed class JsEngine : IAsyncDisposable
         {
             // Step 1: Execute the code synchronously first (no event loop)
             object? result;
-            var isModule = forceModule || HasModuleStatements(program.Typed);
+            var isModule = forceModule || HasModuleStatements(program);
             if (isModule)
             {
                 string? moduleKey = null;
@@ -960,7 +960,7 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
 	    private object? EvaluateInline(
-	        ParsedProgram program,
+	        ProgramNode program,
 	        CancellationToken cancellationToken,
 	        string? sourcePath = null,
 	        bool forceModule = false)
@@ -968,8 +968,8 @@ public sealed class JsEngine : IAsyncDisposable
         var combinedToken = CreateEvaluationCancellationToken(cancellationToken, out var timeoutCts);
         try
         {
-            var isModule = forceModule || HasModuleStatements(program.Typed);
-            EnsureImportMetaAllowed(program.Typed, isModule);
+            var isModule = forceModule || HasModuleStatements(program);
+            EnsureImportMetaAllowed(program, isModule);
 	            if (isModule)
 	            {
 	                string? moduleKey = null;
@@ -1470,11 +1470,11 @@ public sealed class JsEngine : IAsyncDisposable
         }
     }
 
-    private ProgramNode EnsureStrictProgram(ParsedProgram program)
+    private ProgramNode EnsureStrictProgram(ProgramNode program)
     {
-        return program.Typed.IsStrict
-            ? program.Typed
-            : new ProgramNode(program.Typed.Source, program.Typed.Body, true);
+        return program.IsStrict
+            ? program
+            : program with { IsStrict = true };
     }
 
     private ModuleEntry CreateModuleEntry(ProgramNode program, JsEnvironment environment, JsObject exports,
@@ -2390,7 +2390,7 @@ public sealed class JsEngine : IAsyncDisposable
 
         // IMPORTANT: Capture the referrer path NOW, before scheduling the task.
         // CallingJsEnvironment and _currentModulePath may change by the time the task runs.
-        var capturedReferrerPath = callee?.CallingJsEnvironment is JsEnvironment env ? env.ModulePath : _currentModulePath;
+        var capturedReferrerPath = callee?.CallingJsEnvironment is { } env ? env.ModulePath : _currentModulePath;
 
         // Run async module loading on threadpool, then schedule sync completion to event loop
         // Track the async work to ensure the event loop waits for it to complete

@@ -13,7 +13,7 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue.IsObject && thisValue.AsObject() is JsObject { IsConstructing: true } constructing)
+        if (thisValue.IsObject && thisValue.AsObject() is { IsConstructing: true } constructing)
         {
             ApplyPrototype(constructing, _constructor ?? ConstructFallback);
             InitializeWrapper(constructing, args);

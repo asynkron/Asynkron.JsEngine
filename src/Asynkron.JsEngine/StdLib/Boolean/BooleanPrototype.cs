@@ -38,8 +38,7 @@ public sealed partial class BooleanPrototype
 
         if (receiver.TryGetObject<JsObject>(out var obj) && obj is not null && obj.TryGetProperty("__value__", out var inner))
         {
-            var innerJsValue = inner;
-            if (innerJsValue.TryGetBoolean(out var boolVal))
+            if (inner.TryGetBoolean(out var boolVal))
             {
                 return boolVal;
             }
@@ -47,8 +46,7 @@ public sealed partial class BooleanPrototype
 
         if (receiver.TryGetObject<IJsPropertyAccessor>(out var accessor) && accessor is not null && accessor.TryGetProperty("__value__", out var innerVal))
         {
-            var innerJsValue = innerVal;
-            if (innerJsValue.TryGetBoolean(out var boolVal))
+            if (innerVal.TryGetBoolean(out var boolVal))
             {
                 return boolVal;
             }

@@ -139,21 +139,19 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         for (var i = 0; i < array.Items.Count; i++)
         {
-            var index = i;
             // Handle case where item is already a boxed JsValue
             var rawItem = array.Items[i];
-            var item = rawItem is JsValue riJs ? riJs : rawItem;
 
             // thenMethod is already a JsValue from TryGetProperty
-            if (item.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
+            if (rawItem.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
                 thenMethod.TryGetObject<IJsCallable>(out var thenCallable))
             {
-                var thenArgs = new JsValue[] { (JsValue)CreateAllResolve(index), (JsValue)CreateAllReject() };
-                thenCallable.Invoke(thenArgs, item);
+                var thenArgs = new JsValue[] { (JsValue)CreateAllResolve(i), (JsValue)CreateAllReject() };
+                thenCallable.Invoke(thenArgs, rawItem);
             }
             else
             {
-                results[index] = item;
+                results[i] = rawItem;
                 remaining--;
                 if (remaining == 0)
                 {
@@ -206,18 +204,17 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         foreach (var item in array.Items)
         {
             // Handle case where item is already a boxed JsValue
-            var jsItem = item is JsValue itemJs ? itemJs : item;
             // thenMethod is already a JsValue from TryGetProperty
-            if (jsItem.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
+            if (item.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
                 thenMethod.TryGetObject<IJsCallable>(out var thenCallable))
             {
                 var thenArgs = new JsValue[] { (JsValue)CreateRaceResolve(), (JsValue)CreateRaceReject() };
-                thenCallable.Invoke(thenArgs, jsItem);
+                thenCallable.Invoke(thenArgs, item);
             }
             else if (!settled)
             {
                 settled = true;
-                resultPromise.Resolve(jsItem);
+                resultPromise.Resolve(item);
             }
         }
 
@@ -278,19 +275,18 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         for (var i = 0; i < array.Items.Count; i++)
         {
-            var index = i;
             // array.Items[i] is already JsValue
             var item = array.Items[i];
             if (item.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
                 // thenMethod is already JsValue from TryGetProperty
                 thenMethod.TryGetObject<IJsCallable>(out var thenCallable))
             {
-                var thenArgs = new JsValue[] { (JsValue)CreateResolve(index), (JsValue)CreateReject(index) };
+                var thenArgs = new JsValue[] { (JsValue)CreateResolve(i), (JsValue)CreateReject(i) };
                 thenCallable.Invoke(thenArgs, item);
             }
             else
             {
-                Resolve(index, item, isRejected: false);
+                Resolve(i, item, isRejected: false);
             }
         }
 

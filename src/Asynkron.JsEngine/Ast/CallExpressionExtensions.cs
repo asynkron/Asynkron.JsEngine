@@ -274,11 +274,9 @@ public static partial class TypedAstEvaluator
                             return JsValue.Undefined;
                         }
 
-                        var spreadValue = spreadValueJs;
-
                         // For default derived constructor super calls, bypass the iterator protocol
                         // and directly iterate array items per ES spec 15.7.14.
-                        if (isDefaultDerivedConstructorSuperCall && spreadValue.TryGetObject<JsArray>(out var jsArray))
+                        if (isDefaultDerivedConstructorSuperCall && spreadValueJs.TryGetObject<JsArray>(out var jsArray))
                         {
                             foreach (var item in jsArray.Items)
                             {
@@ -288,7 +286,7 @@ public static partial class TypedAstEvaluator
                         }
                         else
                         {
-                            foreach (var item in EnumerateSpread(spreadValue, context))
+                            foreach (var item in EnumerateSpread(spreadValueJs, context))
                             {
                                 argsBuilder.Add(item);
                             }

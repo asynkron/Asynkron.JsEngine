@@ -46,7 +46,7 @@ public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmSta
         return instance;
     }
 
-    private void PopulateWeakSet(JsWeakSet set, IReadOnlyList<JsValue> args)
+    private static void PopulateWeakSet(JsWeakSet set, IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
         {
@@ -63,8 +63,7 @@ public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmSta
             try
             {
                 // Handle case where value is already a boxed JsValue
-                var jsVal = value is JsValue jv ? jv : value;
-                set.Add(jsVal);
+                set.Add(value);
             }
             catch (Exception ex)
             {

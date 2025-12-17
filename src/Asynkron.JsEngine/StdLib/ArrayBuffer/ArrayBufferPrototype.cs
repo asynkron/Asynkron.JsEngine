@@ -5,7 +5,7 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 namespace Asynkron.JsEngine.StdLib;
 
 [JsPrototype("ArrayBuffer", ToStringTag = "ArrayBuffer")]
-public sealed partial class ArrayBufferPrototype : JsPrototype
+public sealed partial class ArrayBufferPrototype
 {
     [JsHostMethod("slice", Length = 2d)]
     public JsValue Slice(JsValue thisValue, IReadOnlyList<JsValue> args)
@@ -65,7 +65,7 @@ public sealed partial class ArrayBufferPrototype : JsPrototype
             throw ThrowTypeError("ArrayBuffer species constructor returned a SharedArrayBuffer", realm: Realm);
         }
 
-        var original = thisValue is JsValue jsVal ? jsVal.ToObject() : thisValue;
+        var original = thisValue.ToObject();
         if (ReferenceEquals(newBuffer, original))
         {
             throw ThrowTypeError("ArrayBuffer species constructor returned this value", realm: Realm);

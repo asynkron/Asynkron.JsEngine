@@ -291,21 +291,17 @@ public sealed class JsPromise
     /// <summary>
     ///     Lightweight callback for thenable resolution - avoids closure allocation.
     /// </summary>
-    private sealed class ThenableResolveCallback : IJsCallable
+    private sealed class ThenableResolveCallback(JsPromise promise) : IJsCallable
     {
-        private readonly JsPromise _promise;
-
-        public ThenableResolveCallback(JsPromise promise) => _promise = promise;
-
         public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
         {
-            if (_promise._state != PromiseState.Pending)
+            if (promise._state != PromiseState.Pending)
             {
                 return JsValue.Undefined;
             }
 
             var result = args.Count > 0 ? args[0] : JsValue.Undefined;
-            _promise.Resolve(result);
+            promise.Resolve(result);
             return JsValue.Undefined;
         }
     }
@@ -313,21 +309,17 @@ public sealed class JsPromise
     /// <summary>
     ///     Lightweight callback for thenable rejection - avoids closure allocation.
     /// </summary>
-    private sealed class ThenableRejectCallback : IJsCallable
+    private sealed class ThenableRejectCallback(JsPromise promise) : IJsCallable
     {
-        private readonly JsPromise _promise;
-
-        public ThenableRejectCallback(JsPromise promise) => _promise = promise;
-
         public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
         {
-            if (_promise._state != PromiseState.Pending)
+            if (promise._state != PromiseState.Pending)
             {
                 return JsValue.Undefined;
             }
 
             var reason = args.Count > 0 ? args[0] : JsValue.Undefined;
-            _promise.Reject(reason);
+            promise.Reject(reason);
             return JsValue.Undefined;
         }
     }
@@ -335,15 +327,11 @@ public sealed class JsPromise
     /// <summary>
     ///     Lightweight callback for promise chain resolution - avoids closure allocation.
     /// </summary>
-    private sealed class ChainResolveCallback : IJsCallable
+    private sealed class ChainResolveCallback(JsPromise nextPromise) : IJsCallable
     {
-        private readonly JsPromise _nextPromise;
-
-        public ChainResolveCallback(JsPromise nextPromise) => _nextPromise = nextPromise;
-
         public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
         {
-            _nextPromise.Resolve(args.Count > 0 ? args[0] : JsValue.Undefined);
+            nextPromise.Resolve(args.Count > 0 ? args[0] : JsValue.Undefined);
             return JsValue.Undefined;
         }
     }
@@ -351,15 +339,11 @@ public sealed class JsPromise
     /// <summary>
     ///     Lightweight callback for promise chain rejection - avoids closure allocation.
     /// </summary>
-    private sealed class ChainRejectCallback : IJsCallable
+    private sealed class ChainRejectCallback(JsPromise nextPromise) : IJsCallable
     {
-        private readonly JsPromise _nextPromise;
-
-        public ChainRejectCallback(JsPromise nextPromise) => _nextPromise = nextPromise;
-
         public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
         {
-            _nextPromise.Reject(args.Count > 0 ? args[0] : JsValue.Undefined);
+            nextPromise.Reject(args.Count > 0 ? args[0] : JsValue.Undefined);
             return JsValue.Undefined;
         }
     }

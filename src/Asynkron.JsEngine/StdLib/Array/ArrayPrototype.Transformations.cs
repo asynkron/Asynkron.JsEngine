@@ -11,8 +11,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("join", Length = 1d)]
     public JsValue Join(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var realm = Realm;
-        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.join", realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.join", Realm);
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
@@ -57,8 +56,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("includes", Length = 1d)]
     public JsValue Includes(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var realm = Realm;
-        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.includes", realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.includes", Realm);
 
         var searchElement = args.Count > 0 ? args[0] : JsValue.Undefined;
         var fromIndexArg = args.Count > 1 ? args[1] : 0d;
@@ -156,9 +154,8 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("lastIndexOf", Length = 1d)]
     public JsValue LastIndexOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var realm = Realm;
-        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.lastIndexOf", realm);
-        var evalContext = realm?.CreateContext();
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.lastIndexOf", Realm);
+        var evalContext = Realm?.CreateContext();
         var searchElement = args.Count > 0 ? args[0] : JsValue.Undefined;
         if (accessor is TypedArrayBase typed)
         {
@@ -230,8 +227,7 @@ public sealed partial class ArrayPrototype
             }
 
             // elementObj is already a JsValue from TryGetExistingElement
-            var element = elementObj;
-            if (element.IsNullOrUndefined)
+            if (elementObj.IsNullOrUndefined)
             {
                 parts.Add(string.Empty);
                 continue;
@@ -239,16 +235,16 @@ public sealed partial class ArrayPrototype
 
             string part;
             // method is already a JsValue from TryGetProperty
-            if (element.TryGetObject<IJsPropertyAccessor>(out var elementAccessor) &&
+            if (elementObj.TryGetObject<IJsPropertyAccessor>(out var elementAccessor) &&
                 elementAccessor.TryGetProperty("toLocaleString", out var method) &&
                 method.TryGetObject<IJsCallable>(out var callable))
             {
-                var result = callable.Invoke([locales, options], element);
+                var result = callable.Invoke([locales, options], elementObj);
                 part = JsOps.ToJsString(result);
             }
             else
             {
-                part = JsOps.ToJsString(element);
+                part = JsOps.ToJsString(elementObj);
             }
 
             parts.Add(part);
@@ -260,8 +256,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("slice", Length = 2d)]
     public JsValue Slice(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var realm = Realm;
-        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.slice", realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.slice", Realm);
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
@@ -271,7 +266,7 @@ public sealed partial class ArrayPrototype
         var from = ClampRelativeIndex(startIndex, length);
         var to = ClampRelativeIndex(endIndex, length);
         var count = Math.Max(to - from, 0);
-        var result = ArraySpeciesCreate(thisValue, count, realm);
+        var result = ArraySpeciesCreate(thisValue, count, Realm);
         long targetIndex = 0;
 
         for (var k = from; k < to; k++)
@@ -313,8 +308,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("flat", Length = 0d)]
     public JsValue Flat(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var realm = Realm;
-        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.flat", realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.flat", Realm);
         var depthNum = args.Count > 0 ? ToIntegerOrInfinity(args[0]) : 1;
         long depth;
         if (double.IsNegativeInfinity(depthNum) || depthNum < 0)
@@ -332,8 +326,8 @@ public sealed partial class ArrayPrototype
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var sourceLength = (long)ToLengthOrZero(lengthValue);
 
-        var result = ArraySpeciesCreate(thisValue, 0, realm);
-        var newLength = FlattenIntoArray(result, accessor, sourceLength, 0, depth, null, JsValue.Null, realm,
+        var result = ArraySpeciesCreate(thisValue, 0, Realm);
+        var newLength = FlattenIntoArray(result, accessor, sourceLength, 0, depth, null, JsValue.Null, Realm,
             "Array.prototype.flat");
         SetArrayLikeLength(result, newLength);
         return JsValue.FromObjectUnsafe(result);
@@ -360,8 +354,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("fill", Length = 1d)]
     public JsValue Fill(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var realm = Realm;
-        var target = EnsureArrayLikeReceiver(thisValue, "Array.prototype.fill", realm);
+        var target = EnsureArrayLikeReceiver(thisValue, "Array.prototype.fill", Realm);
         var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
@@ -437,8 +430,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("toSorted", Length = 1d)]
     public JsValue ToSorted(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var realm = Realm;
-        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toSorted", realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toSorted", Realm);
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
@@ -480,7 +472,7 @@ public sealed partial class ArrayPrototype
             });
         }
 
-        var result = ArraySpeciesCreate(thisValue, length, realm);
+        var result = ArraySpeciesCreate(thisValue, length, Realm);
 
         long targetIndex = 0;
         foreach (var value in values)
@@ -519,8 +511,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("toSpliced", Length = 2d)]
     public JsValue ToSpliced(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var realm = Realm;
-        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toSpliced", realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toSpliced", Realm);
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
@@ -552,10 +543,10 @@ public sealed partial class ArrayPrototype
         var newLength = length - actualDeleteCount + insertCount;
         if (newLength > MaxConcreteArrayLength)
         {
-            throw ThrowTypeError("Array.prototype.toSpliced cannot exceed 2^32 - 1 elements", realm: realm);
+            throw ThrowTypeError("Array.prototype.toSpliced cannot exceed 2^32 - 1 elements", realm: Realm);
         }
 
-        var result = ArraySpeciesCreate(thisValue, newLength, realm);
+        var result = ArraySpeciesCreate(thisValue, newLength, Realm);
         long targetIndex = 0;
 
         for (long k = 0; k < actualStart; k++)

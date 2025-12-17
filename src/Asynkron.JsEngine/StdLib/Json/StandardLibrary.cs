@@ -82,17 +82,16 @@ public static partial class StandardLibrary
 
         if (value.TryGetObject<JsObject>(out var jsObj) && jsObj is not null)
         {
-            var obj = jsObj;
-            foreach (var key in obj.Keys.ToArray())
+            foreach (var key in jsObj.Keys.ToArray())
             {
-                var revived = ApplyJsonReviver(reviver, obj, key, context, realm);
+                var revived = ApplyJsonReviver(reviver, jsObj, key, context, realm);
                 if (ReferenceEquals(revived, Symbol.Undefined))
                 {
-                    obj.Delete(key);
+                    jsObj.Delete(key);
                 }
                 else
                 {
-                    obj.SetProperty(key, JsValue.FromObjectUnsafe(revived));
+                    jsObj.SetProperty(key, JsValue.FromObjectUnsafe(revived));
                 }
             }
         }

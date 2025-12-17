@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -974,8 +975,7 @@ public static partial class TypedAstEvaluator
                                         context: context,
                                         callingEnvironment: environment);
                                     // Handle case where nextResult is already a boxed JsValue
-                                    var nextResultValue = nextResult is JsValue nrJs ? nrJs : nextResult;
-                                    if (!nextResultValue.TryGetObject<JsObject>(out var resultObj))
+                                    if (!nextResult.TryGetObject<JsObject>(out var resultObj))
                                     {
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
@@ -1580,18 +1580,12 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            switch (mode)
+            _pendingResumeKind = mode switch
             {
-                case ResumeMode.Throw:
-                    _pendingResumeKind = ResumePayloadKind.Throw;
-                    break;
-                case ResumeMode.Return:
-                    _pendingResumeKind = ResumePayloadKind.Return;
-                    break;
-                default:
-                    _pendingResumeKind = ResumePayloadKind.Value;
-                    break;
-            }
+                ResumeMode.Throw => ResumePayloadKind.Throw,
+                ResumeMode.Return => ResumePayloadKind.Return,
+                _ => ResumePayloadKind.Value
+            };
 
             _pendingResumeValue = resumeValue;
 
@@ -1806,9 +1800,7 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        private sealed class PendingAwaitException : Exception
-        {
-        }
+        private sealed class PendingAwaitException : Exception;
 
 
         private sealed class AwaitState
@@ -1821,6 +1813,7 @@ public static partial class TypedAstEvaluator
         // drive the same IR plan without duplicating the interpreter. This
         // supports yield/completion/throw, and has room for a future "Pending"
         // state that surfaces promise-like values without blocking.
+        [StructLayout(LayoutKind.Auto)]
         internal readonly record struct AsyncGeneratorStepResult(
             AsyncGeneratorStepKind Kind,
             JsValue Value,

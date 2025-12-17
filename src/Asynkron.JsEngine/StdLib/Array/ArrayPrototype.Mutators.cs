@@ -161,9 +161,8 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("unshift", Length = 1d)]
     public JsValue Unshift(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var realm = Realm;
         const string MethodName = "Array.prototype.unshift";
-        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), MethodName, realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), MethodName, Realm);
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls unshift
         const string ReentrancyKey = "__inUnshift__";
@@ -183,7 +182,7 @@ public sealed partial class ArrayPrototype
 
             if (length + argCount > MaxConcreteArrayLength)
             {
-                throw ThrowTypeError("Array.prototype.unshift cannot exceed 2^32 - 1 elements", realm: realm);
+                throw ThrowTypeError("Array.prototype.unshift cannot exceed 2^32 - 1 elements", realm: Realm);
             }
 
             for (var k = length - 1; k >= 0; k--)
@@ -198,7 +197,7 @@ public sealed partial class ArrayPrototype
                 else
                 {
                     var toExists = HasProperty(accessor, toKey);
-                    DeletePropertyOrThrow(objectLike, toKey, toExists, MethodName, realm);
+                    DeletePropertyOrThrow(objectLike, toKey, toExists, MethodName, Realm);
                 }
             }
 
@@ -425,10 +424,9 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("concat", Length = 1d)]
     public JsValue Concat(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var realm = Realm;
         const string MethodName = "Array.prototype.concat";
-        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), MethodName, realm);
-        var result = ArraySpeciesCreate(thisValue, 0, realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), MethodName, Realm);
+        var result = ArraySpeciesCreate(thisValue, 0, Realm);
         long resultIndex = 0;
 
         var sources = new JsValue[args.Count + 1];
@@ -440,13 +438,13 @@ public sealed partial class ArrayPrototype
 
         foreach (var sourceValue in sources)
         {
-            if (IsConcatSpreadable(sourceValue, realm, MethodName, out var spreadAccessor))
+            if (IsConcatSpreadable(sourceValue, Realm, MethodName, out var spreadAccessor))
             {
-                var spreadLength = LengthOfArrayLike(spreadAccessor, realm, MethodName);
+                var spreadLength = LengthOfArrayLike(spreadAccessor, Realm, MethodName);
                 const long MaxSafeIntegerLength = 9007199254740991L; // 2^53 - 1
                 if (resultIndex + spreadLength > MaxSafeIntegerLength)
                 {
-                    throw ThrowTypeError("Array length exceeds 2^53 - 1", realm: realm);
+                    throw ThrowTypeError("Array length exceeds 2^53 - 1", realm: Realm);
                 }
 
                 for (long k = 0; k < spreadLength; k++)
@@ -455,7 +453,7 @@ public sealed partial class ArrayPrototype
                     var toKey = ToIndexString(resultIndex);
                     if (TryGetExistingElement(spreadAccessor, fromKey, out var value))
                     {
-                        CreateDataPropertyOrThrow(result, toKey, value, realm, MethodName);
+                        CreateDataPropertyOrThrow(result, toKey, value, Realm, MethodName);
                     }
 
                     resultIndex++;
@@ -466,10 +464,10 @@ public sealed partial class ArrayPrototype
                 const long MaxSafeIntegerLength = 9007199254740991L; // 2^53 - 1
                 if (resultIndex >= MaxSafeIntegerLength)
                 {
-                    throw ThrowTypeError("Array length exceeds 2^53 - 1", realm: realm);
+                    throw ThrowTypeError("Array length exceeds 2^53 - 1", realm: Realm);
                 }
 
-                CreateDataPropertyOrThrow(result, ToIndexString(resultIndex++), sourceValue, realm, MethodName);
+                CreateDataPropertyOrThrow(result, ToIndexString(resultIndex++), sourceValue, Realm, MethodName);
             }
         }
 

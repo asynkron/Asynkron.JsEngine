@@ -61,14 +61,13 @@ public static partial class TypedAstEvaluator
                     return EvaluateLabeledJsValue(labeledStatement, environment, context);
             }
 
-            // Low frequency statements with activity tracking
+            // Low-frequency statements with activity tracking
 
             return statement switch
             {
                 ThrowStatement throwStatement => EvaluateThrowJsValue(throwStatement, environment, context),
                 VariableDeclaration declaration => EvaluateVariableDeclarationJsValue(declaration, environment, context),
-                FunctionDeclaration functionDeclaration => EvaluateFunctionDeclarationJsValue(functionDeclaration, environment,
-                    context),
+                FunctionDeclaration => EvaluateFunctionDeclarationJsValue(),
                 ForEachStatement forEachStatement => EvaluateForEachJsValue(forEachStatement, environment, context,
                     activeLabel),
                 BreakStatement breakStatement => EvaluateBreakJsValue(breakStatement, context),
@@ -392,13 +391,8 @@ public static partial class TypedAstEvaluator
                         statement = withStatement.Body;
                         continue;
                     case ForStatement forStatement:
-                        if (forStatement.Body is not null)
-                        {
-                            statement = forStatement.Body;
-                            continue;
-                        }
-
-                        break;
+                        statement = forStatement.Body;
+                        continue;
                     case ForEachStatement forEachStatement:
                         statement = forEachStatement.Body;
                         continue;
@@ -465,13 +459,8 @@ public static partial class TypedAstEvaluator
                         statement = withStatement.Body;
                         continue;
                     case ForStatement forStatement:
-                        if (forStatement.Body is not null)
-                        {
-                            statement = forStatement.Body;
-                            continue;
-                        }
-
-                        break;
+                        statement = forStatement.Body;
+                        continue;
                     case ForEachStatement forEachStatement:
                         statement = forEachStatement.Body;
                         continue;

@@ -6,12 +6,9 @@ using Asynkron.JsEngine.Runtime.Prototypes;
 namespace Asynkron.JsEngine.StdLib;
 
 [JsConstructor("Array", PrototypeType = typeof(ArrayPrototype), Length = 1d, DisplayName = "Array")]
-public sealed partial class ArrayConstructor : JsConstructor
+public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState realm)
+    : JsConstructor(prototype, realm)
 {
-    public ArrayConstructor(IJsObjectLike prototype, RealmState realm) : base(prototype, realm)
-    {
-    }
-
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var array = AllocateArrayInstance(thisValue);

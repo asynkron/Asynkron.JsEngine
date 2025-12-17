@@ -403,14 +403,13 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
 
         // trapValueObj is already a JsValue from TryGetProperty
-        var trapValue = trapValueObj;
-        if (trapValue.IsUndefined || trapValue.IsNull)
+        if (trapValueObj.IsUndefined || trapValueObj.IsNull)
         {
             callable = null!;
             return false;
         }
 
-        if (!trapValue.IsObject || !trapValue.TryGetObject<IJsCallable>(out var callableTrap))
+        if (!trapValueObj.IsObject || !trapValueObj.TryGetObject<IJsCallable>(out var callableTrap))
         {
             throw StandardLibrary.ThrowTypeError($"Proxy handler's '{trapName}' trap is not callable", realm: _realm);
         }
@@ -463,24 +462,22 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (descriptorObject.TryGetProperty("get", out var getterValueObj))
         {
-            var getterValue = getterValueObj;
-            if (!getterValue.IsUndefined && (!getterValue.IsObject || !getterValue.TryGetObject<IJsCallable>(out _)))
+            if (!getterValueObj.IsUndefined && (!getterValueObj.IsObject || !getterValueObj.TryGetObject<IJsCallable>(out _)))
             {
                 throw StandardLibrary.ThrowTypeError("Getter must be a function", realm: realm);
             }
 
-            descriptor.Get = getterValue.IsUndefined ? null : getterValue.TryGetObject<IJsCallable>(out var getter) ? getter : null;
+            descriptor.Get = getterValueObj.IsUndefined ? null : getterValueObj.TryGetObject<IJsCallable>(out var getter) ? getter : null;
         }
 
         if (descriptorObject.TryGetProperty("set", out var setterValueObj))
         {
-            var setterValue = setterValueObj;
-            if (!setterValue.IsUndefined && (!setterValue.IsObject || !setterValue.TryGetObject<IJsCallable>(out _)))
+            if (!setterValueObj.IsUndefined && (!setterValueObj.IsObject || !setterValueObj.TryGetObject<IJsCallable>(out _)))
             {
                 throw StandardLibrary.ThrowTypeError("Setter must be a function", realm: realm);
             }
 
-            descriptor.Set = setterValue.IsUndefined ? null : setterValue.TryGetObject<IJsCallable>(out var setter) ? setter : null;
+            descriptor.Set = setterValueObj.IsUndefined ? null : setterValueObj.TryGetObject<IJsCallable>(out var setter) ? setter : null;
         }
 
         if (descriptor is { IsAccessorDescriptor: true, IsDataDescriptor: true })

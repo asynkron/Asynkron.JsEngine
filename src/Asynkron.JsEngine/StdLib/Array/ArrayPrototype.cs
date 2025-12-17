@@ -8,8 +8,6 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("Array", ToStringTag = "Array", ObjectKind = PrototypeObjectKind.Array)]
 public sealed partial class ArrayPrototype
 {
-
-
     protected override void ConfigurePrototype()
     {
         Realm.ArrayPrototype ??= Prototype;

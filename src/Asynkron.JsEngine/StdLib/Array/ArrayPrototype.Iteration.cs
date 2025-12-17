@@ -31,10 +31,9 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("filter", Length = 1d)]
     public JsValue Filter(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var realm = Realm;
         var (accessor, length, callback, thisArg) =
-            PrepareArrayIteration(thisValue, args, realm, "Array.prototype.filter");
-        var result = ArraySpeciesCreate(thisValue, 0, realm);
+            PrepareArrayIteration(thisValue, args, Realm, "Array.prototype.filter");
+        var result = ArraySpeciesCreate(thisValue, 0, Realm);
         long toIndex = 0;
 
         for (long k = 0; k < length; k++)
@@ -68,8 +67,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("reduceRight", Length = 1d)]
     public JsValue ReduceRight(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var realm = Realm;
-        return JsValue.FromObjectUnsafe(ReduceLike(thisValue, args, realm, "Array.prototype.reduceRight", true));
+        return JsValue.FromObjectUnsafe(ReduceLike(thisValue, args, Realm, "Array.prototype.reduceRight", true));
     }
 
     [JsHostMethod("forEach", Length = 1d)]
@@ -94,9 +92,8 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("find", Length = 1d)]
     public JsValue Find(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var realm = Realm;
         var (accessor, length, callback, thisArg) =
-            PrepareArrayIteration(thisValue, args, realm, "Array.prototype.find");
+            PrepareArrayIteration(thisValue, args, Realm, "Array.prototype.find");
 
         for (long k = 0; k < length; k++)
         {
@@ -129,9 +126,8 @@ public sealed partial class ArrayPrototype
             var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
             var match = callback.Invoke([value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], thisArg);
-#pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
-            if (IsTruthy(match.ToObject()))
-#pragma warning restore CS0618
+
+            if (match.IsTruthy)
             {
                 return new JsValue((double)k);
             }
@@ -143,8 +139,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("some", Length = 1d)]
     public JsValue Some(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var realm = Realm;
-        return JsValue.FromObjectUnsafe(SomeLike(thisValue, args, realm, "Array.prototype.some"));
+        return JsValue.FromObjectUnsafe(SomeLike(thisValue, args, Realm, "Array.prototype.some"));
     }
 
     [JsHostMethod("every", Length = 1d)]
@@ -175,9 +170,8 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("findLast", Length = 1d)]
     public JsValue FindLast(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var realm = Realm;
         var (accessor, length, callback, thisArg) =
-            PrepareArrayIteration(thisValue, args, realm, "Array.prototype.findLast");
+            PrepareArrayIteration(thisValue, args, Realm, "Array.prototype.findLast");
 
         for (var k = length - 1; k >= 0; k--)
         {
@@ -186,9 +180,7 @@ public sealed partial class ArrayPrototype
             var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
             var matches = callback.Invoke([value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], thisArg);
-#pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
-            if (IsTruthy(matches.ToObject()))
-#pragma warning restore CS0618
+            if (matches.IsTruthy)
             {
                 return value;
             }
@@ -210,9 +202,7 @@ public sealed partial class ArrayPrototype
             var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
             var matches = callback.Invoke([value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], thisArg);
-#pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
             if (IsTruthy(matches.ToObject()))
-#pragma warning restore CS0618
             {
                 return new JsValue((double)k);
             }

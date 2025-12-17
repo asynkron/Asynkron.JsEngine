@@ -496,15 +496,9 @@ public sealed class EvaluationContext(
         }
     }
 
-    private sealed class ClassFieldInitializerHandle : IDisposable
+    private sealed class ClassFieldInitializerHandle(EvaluationContext context) : IDisposable
     {
-        private readonly EvaluationContext _context;
         private bool _disposed;
-
-        public ClassFieldInitializerHandle(EvaluationContext context)
-        {
-            _context = context;
-        }
 
         public void Dispose()
         {
@@ -513,9 +507,9 @@ public sealed class EvaluationContext(
                 return;
             }
 
-            if (_context._classFieldInitializerDepth > 0)
+            if (context._classFieldInitializerDepth > 0)
             {
-                _context._classFieldInitializerDepth--;
+                context._classFieldInitializerDepth--;
             }
 
             _disposed = true;

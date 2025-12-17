@@ -33,7 +33,7 @@ public static partial class TypedAstEvaluator
                 definition.StaticElements.Length,
                 evaluationEnvironment.IsStrict);
             var resolvedFields =
-                ResolveFieldNames(definition, definition.Fields, evaluationEnvironment, context, privateNameScope);
+                ResolveFieldNames(definition.Fields, evaluationEnvironment, context, privateNameScope);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
@@ -46,8 +46,7 @@ public static partial class TypedAstEvaluator
             }
             var constructorValue = constructorJsValue.ToObject();
 
-            if (constructorValue is not IJsEnvironmentAwareCallable constructor ||
-                constructorValue is not IJsPropertyAccessor constructorAccessor)
+            if (constructorValue is not (IJsEnvironmentAwareCallable and IJsPropertyAccessor constructorAccessor))
             {
                 throw new InvalidOperationException("Class constructor must be callable.");
             }
@@ -163,7 +162,7 @@ public static partial class TypedAstEvaluator
 
         // ClassFieldDefinitionEvaluation evaluates computed field names during class evaluation,
         // so resolve all field keys eagerly in declaration order (static + instance).
-        private ImmutableArray<ClassField> ResolveFieldNames(
+        private static ImmutableArray<ClassField> ResolveFieldNames(
             ImmutableArray<ClassField> fields,
             JsEnvironment environment,
             EvaluationContext context,

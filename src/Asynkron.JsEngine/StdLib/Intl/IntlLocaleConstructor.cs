@@ -5,7 +5,8 @@ using Asynkron.JsEngine.Runtime.Prototypes;
 namespace Asynkron.JsEngine.StdLib.Intl;
 
 [JsConstructor("Intl.Locale", PrototypeType = typeof(IntlLocalePrototype), Length = 1d, DisplayName = "Locale")]
-public sealed partial class IntlLocaleConstructor : JsConstructor
+public sealed partial class IntlLocaleConstructor(IJsObjectLike prototype, RealmState realm)
+    : JsConstructor(prototype, realm)
 {
     private static readonly HashSet<string> HourCycleValues = new(StringComparer.Ordinal)
     {
@@ -16,10 +17,6 @@ public sealed partial class IntlLocaleConstructor : JsConstructor
     {
         "upper", "lower", "false"
     };
-
-    public IntlLocaleConstructor(IJsObjectLike prototype, RealmState realm) : base(prototype, realm)
-    {
-    }
 
     internal static JsObject CreateLocaleFromCanonical(string canonicalTag, RealmState realm, JsObject? prototype = null)
     {
@@ -218,14 +215,13 @@ public sealed partial class IntlLocaleConstructor : JsConstructor
             return false;
         }
 
-        var raw = rawValue;
-        if (raw.IsUndefined)
+        if (rawValue.IsUndefined)
         {
             value = string.Empty;
             return false;
         }
 
-        value = StandardLibrary.JsValueToString(raw, Realm);
+        value = StandardLibrary.JsValueToString(rawValue, Realm);
         return true;
     }
 
@@ -237,14 +233,13 @@ public sealed partial class IntlLocaleConstructor : JsConstructor
             return false;
         }
 
-        var raw = rawValue;
-        if (raw.IsUndefined)
+        if (rawValue.IsUndefined)
         {
             value = false;
             return false;
         }
 
-        value = JsOps.ToBoolean(raw);
+        value = JsOps.ToBoolean(rawValue);
         return true;
     }
 
@@ -268,18 +263,17 @@ public sealed partial class IntlLocaleConstructor : JsConstructor
             return false;
         }
 
-        var raw = rawValue;
-        if (raw.IsUndefined)
+        if (rawValue.IsUndefined)
         {
             return false;
         }
 
-        if (raw.TryGetDouble(out var dbl))
+        if (rawValue.TryGetDouble(out var dbl))
         {
             return TryNormalizeWeekdayFromNumber((int)dbl, out value);
         }
 
-        var str = StandardLibrary.JsValueToString(raw);
+        var str = StandardLibrary.JsValueToString(rawValue);
         if (TryNormalizeWeekdayFromString(str, out value))
         {
             return true;

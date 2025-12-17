@@ -578,7 +578,6 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
             }
 
-            var hasParameterExpressions = _hasParameterExpressions;
             var lexicalNames = RentSymbolSet(_lexicalTemplate);
             var catchParameterNames = RentSymbolSet(_catchParameterTemplate);
             var simpleCatchParameterNames = RentSymbolSet(_simpleCatchParameterTemplate);
@@ -595,7 +594,7 @@ public static partial class TypedAstEvaluator
             JsEnvironment parameterEnvironment;
             JsEnvironment functionEnvironment;
             JsEnvironment varEnvironment;
-            if (hasParameterExpressions)
+            if (_hasParameterExpressions)
             {
                 functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
@@ -1492,9 +1491,9 @@ public static partial class TypedAstEvaluator
                         throw StandardLibrary.ThrowTypeError("Cannot define class field", context, context.RealmState);
                     }
                 }
-                else if (instance is { } objectLike)
+                else if (instance != null)
                 {
-                    objectLike.DefineProperty(propertyName, descriptor);
+                    instance.DefineProperty(propertyName, descriptor);
                 }
                 else
                 {
@@ -1937,13 +1936,11 @@ public static partial class TypedAstEvaluator
         {
             // Use the calling context directly - no renting needed for simple recursive functions
             // This avoids ConcurrentStack Node allocations from pool rent/return
-            var context = callingContext;
 
             // Reuse the provided environment instead of renting a new one
             // Use ResetForReuse which keeps the slots array to avoid allocation
-            var functionEnvironment = reuseEnvironment;
-            functionEnvironment.ResetForReuse(_closure, true, _isStrict, _function.Source, _functionDescription);
-            functionEnvironment.ScopeId = _function.ScopeId;
+            reuseEnvironment.ResetForReuse(_closure, true, _isStrict, _function.Source, _functionDescription);
+            reuseEnvironment.ScopeId = _function.ScopeId;
             // Skip InitializeSlots - for simple functions we only have parameters (no local vars),
             // and we're about to set the parameter slot directly below. This avoids the Array.Fill.
 
@@ -1963,11 +1960,11 @@ public static partial class TypedAstEvaluator
                     ? (_realmState.Engine is { GlobalObject: { } globalObj } ? (JsValue)globalObj : JsValue.Undefined)
                     : thisValue;
             }
-            functionEnvironment._thisValue = boundThisValue;
-            functionEnvironment._hasThisValue = true;
+            reuseEnvironment._thisValue = boundThisValue;
+            reuseEnvironment._hasThisValue = true;
 
             // Bind single parameter directly - no array allocation, no Array.Fill needed
-            var slots = functionEnvironment._slots;
+            var slots = reuseEnvironment._slots;
             if (slots is not null && _parameterNames.Length > 0)
             {
                 slots[0] = arg0;
@@ -1975,21 +1972,21 @@ public static partial class TypedAstEvaluator
             else if (_parameterNames.Length > 0)
             {
                 // Fallback when slots not available
-                functionEnvironment.DefineParameterFast(_parameterNames[0], arg0);
+                reuseEnvironment.DefineParameterFast(_parameterNames[0], arg0);
             }
 
-            _ = EvaluateBlockJsValue(_function.Body, functionEnvironment, context);
+            _ = EvaluateBlockJsValue(_function.Body, reuseEnvironment, callingContext);
 
             JsValue result;
-            if (context.IsThrow)
+            if (callingContext.IsThrow)
             {
-                result = context.FlowValue;
+                result = callingContext.FlowValue;
                 // Don't clear throw - let it propagate to caller
             }
-            else if (context.IsReturn)
+            else if (callingContext.IsReturn)
             {
-                result = context.FlowValue;
-                context.ClearReturn();
+                result = callingContext.FlowValue;
+                callingContext.ClearReturn();
             }
             else
             {

@@ -412,17 +412,13 @@ internal static class AwaitScheduler
     /// <summary>
     ///     Lightweight callback for fulfilled promises - avoids closure allocation.
     /// </summary>
-    private sealed class AwaitFulfilledCallback : IJsCallable
+    private sealed class AwaitFulfilledCallback(PromiseAwaitState state) : IJsCallable
     {
-        private readonly PromiseAwaitState _state;
-
-        public AwaitFulfilledCallback(PromiseAwaitState state) => _state = state;
-
         public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
         {
-            _state.Value = args.Count > 0 ? args[0] : JsValue.Undefined;
-            _state.Fulfilled = 1;
-            Interlocked.Exchange(ref _state.Completed, 1);
+            state.Value = args.Count > 0 ? args[0] : JsValue.Undefined;
+            state.Fulfilled = 1;
+            Interlocked.Exchange(ref state.Completed, 1);
             return JsValue.Undefined;
         }
 
@@ -432,17 +428,13 @@ internal static class AwaitScheduler
     /// <summary>
     ///     Lightweight callback for rejected promises - avoids closure allocation.
     /// </summary>
-    private sealed class AwaitRejectedCallback : IJsCallable
+    private sealed class AwaitRejectedCallback(PromiseAwaitState state) : IJsCallable
     {
-        private readonly PromiseAwaitState _state;
-
-        public AwaitRejectedCallback(PromiseAwaitState state) => _state = state;
-
         public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
         {
-            _state.Value = args.Count > 0 ? args[0] : JsValue.Undefined;
-            _state.Fulfilled = 0;
-            Interlocked.Exchange(ref _state.Completed, 1);
+            state.Value = args.Count > 0 ? args[0] : JsValue.Undefined;
+            state.Fulfilled = 0;
+            Interlocked.Exchange(ref state.Completed, 1);
             return JsValue.Undefined;
         }
 

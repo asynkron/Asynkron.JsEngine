@@ -46,13 +46,14 @@ public static partial class TypedAstEvaluator
                     return payloadValueJs;
                 }
 
-                if (payload.IsReturn)
+                if (!payload.IsReturn)
                 {
-                    context.SetReturn(payloadValueJs);
                     return payloadValueJs;
                 }
 
+                context.SetReturn(payloadValueJs);
                 return payloadValueJs;
+
             }
 
             var yieldedValueJs = expression.Expression is null

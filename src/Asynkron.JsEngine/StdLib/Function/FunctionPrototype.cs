@@ -12,7 +12,7 @@ public sealed partial class FunctionPrototype : JsPrototype
     [JsHostMethod("toString", Length = 0d)]
     public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue.TryGetObject<IJsCallable>(out var callable))
+        if (thisValue.TryGetObject<IJsCallable>(out _))
         {
             return new JsValue("function() { [native code] }");
         }

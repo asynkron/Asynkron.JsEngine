@@ -12,12 +12,12 @@ public sealed class ScopeAnalyzer
     /// <summary>
     /// Information about a scope collected during analysis.
     /// </summary>
-    public sealed class ScopeInfo
+    public sealed class ScopeInfo(ScopeInfo? parent, bool isFunctionScope, bool isBlockScope, int scopeId)
     {
-        public ScopeInfo? Parent { get; }
-        private int Depth { get; }
-        public bool IsFunctionScope { get; }
-        public bool IsBlockScope { get; }
+        public ScopeInfo? Parent { get; } = parent;
+        private int Depth { get; } = parent is null ? 0 : parent.Depth + 1;
+        public bool IsFunctionScope { get; } = isFunctionScope;
+        public bool IsBlockScope { get; } = isBlockScope;
         public bool HasEval { get; set; }
         public bool HasWith { get; set; }
         public bool IsDynamic => HasEval || HasWith || (Parent?.IsDynamic ?? false);
@@ -31,7 +31,7 @@ public sealed class ScopeAnalyzer
         /// <summary>
         /// Unique ID for this scope, used to match variables to their declaring scope at runtime.
         /// </summary>
-        public int ScopeId { get; }
+        public int ScopeId { get; } = scopeId;
 
         private readonly Dictionary<Symbol, int> _variables = new(ReferenceEqualityComparer<Symbol>.Instance);
         private int _nextSlot;
@@ -40,15 +40,6 @@ public sealed class ScopeAnalyzer
         /// The number of slots allocated in this scope.
         /// </summary>
         public int SlotCount => _nextSlot;
-
-        public ScopeInfo(ScopeInfo? parent, bool isFunctionScope, bool isBlockScope, int scopeId)
-        {
-            Parent = parent;
-            Depth = parent is null ? 0 : parent.Depth + 1;
-            IsFunctionScope = isFunctionScope;
-            IsBlockScope = isBlockScope;
-            ScopeId = scopeId;
-        }
 
         /// <summary>
         /// Declares a variable in this scope and assigns it a slot index.

@@ -6,16 +6,10 @@ namespace Asynkron.JsEngine;
 /// A fast, lock-free object pool using a fixed-size array.
 /// Uses Interlocked operations for thread-safety with minimal contention.
 /// </summary>
-internal sealed class ObjectPool<T> where T : class
+internal sealed class ObjectPool<T>(int size, Func<T> factory)
+    where T : class
 {
-    private readonly T?[] _items;
-    private readonly Func<T> _factory;
-
-    public ObjectPool(int size, Func<T> factory)
-    {
-        _items = new T?[size];
-        _factory = factory;
-    }
+    private readonly T?[] _items = new T?[size];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public T Rent()
@@ -29,7 +23,7 @@ internal sealed class ObjectPool<T> where T : class
                 return item;
             }
         }
-        return _factory();
+        return factory();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

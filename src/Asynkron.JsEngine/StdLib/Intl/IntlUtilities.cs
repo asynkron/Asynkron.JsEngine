@@ -877,7 +877,6 @@ internal static class IntlUtilities
 
             if (subtag.Length == 2)
             {
-                var key = subtag;
                 index++;
                 var values = new List<string>();
                 while (index < subtags.Length)
@@ -892,7 +891,7 @@ internal static class IntlUtilities
                     index++;
                 }
 
-                keywords[key] = values;
+                keywords[subtag] = values;
             }
             else
             {
@@ -1076,7 +1075,6 @@ internal static class IntlUtilities
                     continue;
                 }
 
-                var key = next;
                 i++;
                 var typeParts = new List<string>();
                 while (i < subtags.Length && subtags[i].Length > 2)
@@ -1086,7 +1084,7 @@ internal static class IntlUtilities
                 }
 
                 var value = string.Join("-", typeParts);
-                keywords[key] = value;
+                keywords[next] = value;
             }
 
             foreach (var kvp in filteredOverrides)

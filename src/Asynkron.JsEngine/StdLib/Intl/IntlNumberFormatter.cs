@@ -81,8 +81,7 @@ internal static class IntlNumberFormatter
                 FormatDecimal(quantity, slots, slots.UseGrouping, trimTrailingZeros: false).Formatted)
         };
 
-        var showNegative = wasNegative;
-        if (showNegative)
+        if (wasNegative)
         {
             var minus = slots.Culture.NumberFormat.NegativeSign;
             result.Formatted = $"{minus}{result.Formatted}";

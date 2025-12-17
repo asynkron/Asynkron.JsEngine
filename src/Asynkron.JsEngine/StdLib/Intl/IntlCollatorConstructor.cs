@@ -99,13 +99,12 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
             return string.Empty;
         }
 
-        var value = rawValue;
-        if (value.IsUndefined)
+        if (rawValue.IsUndefined)
         {
             return string.Empty;
         }
 
-        var text = StandardLibrary.JsValueToString(value, Realm);
+        var text = StandardLibrary.JsValueToString(rawValue, Realm);
         if (string.IsNullOrEmpty(text))
         {
             throw StandardLibrary.ThrowRangeError("Intl.Collator collation option cannot be empty", realm: Realm);

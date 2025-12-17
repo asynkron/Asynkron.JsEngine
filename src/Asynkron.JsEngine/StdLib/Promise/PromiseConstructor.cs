@@ -96,10 +96,13 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
     {
         var value = args.GetArgument(0);
 
+        // Per ES spec 27.2.4.7 Promise.resolve(x):
+        // If x is a promise and x.constructor is the same as this constructor, return x
         if (value.TryGetObject<JsObject>(out var jsObj) &&
             JsPromise.TryGetInternalPromise(value, out var _) &&
             jsObj.TryGetProperty("constructor", out var ctor) &&
-            ReferenceEquals(ctor, _constructor ?? ConstructFallback))
+            ctor.TryGetObject<IJsCallable>(out var ctorCallable) &&
+            ReferenceEquals(ctorCallable, _constructor ?? ConstructFallback))
         {
             return value;
         }

@@ -24,7 +24,7 @@ public static partial class TypedAstEvaluator
         {
             var args = hasSendValue ? new[] { sendValue } : Array.Empty<JsValue>();
             // Use InvokeCallableJsValue to avoid boxing round-trip
-            return InvokeCallableJsValue(nextMethod, args, new JsValue((JsObject)iterator), context, callingEnvironment);
+            return InvokeCallableJsValue(nextMethod, args, JsValue.FromObjectUnsafe(iterator), context, callingEnvironment);
         }
 
         private IJsCallable GetIteratorNextCallable(EvaluationContext? context)
@@ -83,7 +83,7 @@ public static partial class TypedAstEvaluator
 
             var args = hasArgument ? new[] { argument } : Array.Empty<JsValue>();
             // Use InvokeCallableJsValue to avoid boxing round-trip
-            result = InvokeCallableJsValue(callable, args, new JsValue((JsObject)iterator), context, null);
+            result = InvokeCallableJsValue(callable, args, JsValue.FromObjectUnsafe(iterator), context, null);
 
             // Check if the method threw an error
             if (context.IsThrow)

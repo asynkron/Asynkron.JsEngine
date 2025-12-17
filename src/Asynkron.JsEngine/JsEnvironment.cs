@@ -386,6 +386,7 @@ public sealed class JsEnvironment
             // initialization value even when flagged const.
             if (binding.IsAsyncExportBinding)
             {
+                Console.WriteLine($"DEBUG async export init {name.Name} in {ModulePath ?? "<unknown>"} value={value}");
                 binding.JsValue = value;
                 if (_bindingObservers is not null)
                 {

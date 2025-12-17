@@ -445,6 +445,7 @@ public sealed class JsEngine : IAsyncDisposable
         IJsEngineOptions? options = null)
     {
         var typedProgram = ParseTypedProgram(source, forceStrict, allowTopLevelAwait, allowHtmlComments, options ?? Options);
+        var hasTopLevelAwait = ContainsTopLevelAwait(typedProgram);
         if (forceStrict && !typedProgram.IsStrict)
         {
             typedProgram = new ProgramNode(typedProgram.Source, typedProgram.Body, true);
@@ -460,7 +461,7 @@ public sealed class JsEngine : IAsyncDisposable
             typedProgram = _typedCpsTransformer.Transform(typedProgram);
         }
 
-        return new ParsedProgram(typedProgram);
+        return new ParsedProgram(typedProgram, hasTopLevelAwait);
     }
 
     /// <summary>
@@ -806,7 +807,8 @@ public sealed class JsEngine : IAsyncDisposable
                         entry = CreateModuleEntry(EnsureStrictProgram(program),
                             CreateModuleEnvironment(moduleKey),
                             new JsObject(),
-                            moduleKey);
+                            moduleKey,
+                            program.HasTopLevelAwait);
                         _moduleRegistry[moduleKey] = entry;
                     }
                     entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
@@ -817,10 +819,11 @@ public sealed class JsEngine : IAsyncDisposable
                     entry = CreateModuleEntry(EnsureStrictProgram(program),
                         CreateModuleEnvironment(moduleKey),
                         new JsObject(),
-                        string.Empty);
+                        string.Empty,
+                        program.HasTopLevelAwait);
                     entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
                         new HashSet<string>(StringComparer.Ordinal));
-	                }
+                }
 
 	                EnsureModuleInstantiated(entry);
 	                if (entry.IsAsync || entry.HasAsyncDependency)
@@ -883,7 +886,8 @@ public sealed class JsEngine : IAsyncDisposable
                         entry = CreateModuleEntry(EnsureStrictProgram(program),
                             CreateModuleEnvironment(moduleKey),
                             new JsObject(),
-                            moduleKey);
+                            moduleKey,
+                            program.HasTopLevelAwait);
                         _moduleRegistry[moduleKey] = entry;
                     }
                     entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
@@ -894,7 +898,8 @@ public sealed class JsEngine : IAsyncDisposable
                     entry = CreateModuleEntry(EnsureStrictProgram(program),
                         CreateModuleEnvironment(moduleKey),
                         new JsObject(),
-                        string.Empty);
+                        string.Empty,
+                        program.HasTopLevelAwait);
                     entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
                         new HashSet<string>(StringComparer.Ordinal));
                 }
@@ -982,7 +987,8 @@ public sealed class JsEngine : IAsyncDisposable
                         entry = CreateModuleEntry(EnsureStrictProgram(program),
                             CreateModuleEnvironment(moduleKey),
                             new JsObject(),
-                            moduleKey);
+                            moduleKey,
+                            program.HasTopLevelAwait);
                         _moduleRegistry[moduleKey] = entry;
                     }
                     entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
@@ -993,10 +999,11 @@ public sealed class JsEngine : IAsyncDisposable
                     entry = CreateModuleEntry(EnsureStrictProgram(program),
                         CreateModuleEnvironment(moduleKey),
                         new JsObject(),
-                        string.Empty);
+                        string.Empty,
+                        program.HasTopLevelAwait);
                     entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
                         new HashSet<string>(StringComparer.Ordinal));
-	                }
+                }
 
 	                EnsureModuleInstantiated(entry);
 	                if (entry.IsAsync || entry.HasAsyncDependency)
@@ -1476,11 +1483,11 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     private ModuleEntry CreateModuleEntry(ProgramNode program, JsEnvironment environment, JsObject exports,
-        string modulePath)
+        string modulePath, bool hasTopLevelAwait = false)
     {
         var entry = new ModuleEntry(modulePath ?? string.Empty, program, environment, exports)
         {
-            IsAsync = ContainsTopLevelAwait(program),
+            IsAsync = hasTopLevelAwait || ContainsTopLevelAwait(program),
         };
         environment.IsAsyncModule = entry.IsAsync;
         EnsureModuleImportMeta(entry);
@@ -2664,7 +2671,8 @@ public sealed class JsEngine : IAsyncDisposable
             // Create a module exports object
             var exports = new JsObject();
             var moduleEnv = CreateModuleEnvironment(resolvedPath);
-            entry = CreateModuleEntry(EnsureStrictProgram(program), moduleEnv, exports, resolvedPath);
+            entry = CreateModuleEntry(EnsureStrictProgram(program), moduleEnv, exports, resolvedPath,
+                program.HasTopLevelAwait);
         }
 
         _moduleRegistry[resolvedPath] = entry;
@@ -2792,7 +2800,8 @@ public sealed class JsEngine : IAsyncDisposable
             // Create a module exports object
             var exports = new JsObject();
             var moduleEnv = CreateModuleEnvironment(resolvedPath);
-            entry = CreateModuleEntry(EnsureStrictProgram(program), moduleEnv, exports, resolvedPath);
+            entry = CreateModuleEntry(EnsureStrictProgram(program), moduleEnv, exports, resolvedPath,
+                program.HasTopLevelAwait);
         }
 
         _moduleRegistry[resolvedPath] = entry;
@@ -2962,6 +2971,11 @@ public sealed class JsEngine : IAsyncDisposable
         ImportPhase phase,
         HashSet<string> exportStarSet)
     {
+        if (moduleEnv.IsAsyncModule && modulePath is { } mp && mp.Contains("top-level-await", StringComparison.Ordinal))
+        {
+            Console.WriteLine($"DEBUG predeclare async module {mp}");
+        }
+
         foreach (var statement in program.Body)
         {
             switch (statement)

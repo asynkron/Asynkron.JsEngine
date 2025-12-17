@@ -36,6 +36,21 @@ public sealed class ShapeCounter(bool includeNestedFunctions)
                     }
 
                     return;
+                case ExportDefaultStatement exportDefault:
+                    switch (exportDefault.Value)
+                    {
+                        case ExportDefaultExpression { Expression: { } expr }:
+                            VisitExpression(expr);
+                            break;
+                        case ExportDefaultDeclaration { Declaration: { } decl }:
+                            VisitStatement(decl);
+                            break;
+                    }
+
+                    return;
+                case ExportDeclarationStatement exportDeclaration:
+                    VisitStatement(exportDeclaration.Declaration);
+                    return;
                 case FunctionDeclaration functionDeclaration:
                     if (includeNestedFunctions)
                     {

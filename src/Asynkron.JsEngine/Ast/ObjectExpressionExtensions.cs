@@ -10,6 +10,9 @@ public static partial class TypedAstEvaluator
             EvaluationContext context)
         {
             var obj = new JsObject();
+            // Object literals should carry the current realm so errors/prototypes
+            // resolve correctly when the object is used as an environment record.
+            obj.RealmState = context.RealmState;
             if (context.RealmState.ObjectPrototype is { } objectProto)
             {
                 obj.SetPrototype(objectProto);

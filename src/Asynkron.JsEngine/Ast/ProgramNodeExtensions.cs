@@ -59,9 +59,6 @@ public static partial class TypedAstEvaluator
             using var nameHintHandle = functionNameHint is not null
                 ? context.EnterFunctionNameHint(functionNameHint)
                 : null;
-            using var programActivity =
-                Activity.Current?.StartEvaluatorActivity("Program", context, program.Source);
-            programActivity?.SetTag("js.program.strict", program.IsStrict);
             var executionEnvironment = program.IsStrict && createStrictEnvironment
                 ? new JsEnvironment(environment, true, true,
                     treatAsGlobalFunctionScope: environment.IsGlobalFunctionScope)

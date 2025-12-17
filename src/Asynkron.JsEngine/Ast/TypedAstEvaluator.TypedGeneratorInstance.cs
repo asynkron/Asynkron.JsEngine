@@ -1335,6 +1335,40 @@ public static partial class TypedAstEvaluator
                             continue;
                         }
 
+                        case IteratorCloseInstruction iteratorCloseInstruction:
+                        {
+                            // Get the iterator state from the slot
+                            if (TryGetSymbolValue(environment, iteratorCloseInstruction.IteratorSlot,
+                                    out var iterStateValue) &&
+                                iterStateValue is IteratorDriverState { IteratorObject: JsObject iteratorObj })
+                            {
+                                try
+                                {
+                                    // Call IteratorClose - we don't preserve existing throws because
+                                    // if IteratorClose throws, that error should replace any pending completion
+                                    iteratorObj.IteratorClose(context, preserveExistingThrow: false);
+                                }
+                                catch (ThrowSignal closeThrown)
+                                {
+                                    // IteratorClose threw - this should replace any pending return/throw
+                                    // per ES spec: if IteratorClose throws, return that throw completion
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, closeThrown.ThrownValue, environment))
+                                    {
+                                        // HandleAbruptCompletion updated the pending completion in the try frame.
+                                        // Continue to the next instruction in the finally block.
+                                        _programCounter = iteratorCloseInstruction.Next;
+                                        continue;
+                                    }
+
+                                    _tryStack.Clear();
+                                    throw;
+                                }
+                            }
+
+                            _programCounter = iteratorCloseInstruction.Next;
+                            continue;
+                        }
+
                         default:
                             throw new InvalidOperationException(
                                 $"Unsupported generator instruction {instruction.GetType().Name}");
@@ -1682,11 +1716,94 @@ public static partial class TypedAstEvaluator
 
         private JsValue CompleteReturn(JsValue value)
         {
+            // Close any active array pattern iterators before completing
+            CloseActiveArrayPatternIterators();
+
             _programCounter = -1;
             _state = GeneratorState.Completed;
             _done = true;
             _tryStack.Clear();
             return new JsValue(CreateIteratorResult(value, true));
+        }
+
+        private void CloseActiveArrayPatternIterators()
+        {
+            if (_executionEnvironment is null)
+            {
+                return;
+            }
+
+            // Create a fresh context to avoid state interference from the existing context
+            var context = _realmState.CreateContext(ScopeKind.Function, DetermineGeneratorScopeMode());
+
+            // Scan the environment for array pattern states and close their iterators
+            // Array pattern state keys have the prefix "__array_pattern_state_"
+            var statesToClose = new List<(Symbol Key, IJsObjectLike Iterator)>();
+            ScanEnvironmentForArrayPatternStates(_executionEnvironment, statesToClose);
+
+            foreach (var (key, iterator) in statesToClose)
+            {
+                // Clean up the state first (before potential exception)
+                _executionEnvironment.DeleteBinding(key);
+
+                // Close the iterator - if it throws, that error replaces the return completion
+                // Let the exception propagate directly without catching
+                iterator.IteratorClose(context, preserveExistingThrow: false);
+            }
+        }
+
+        private static void ScanEnvironmentForArrayPatternStates(JsEnvironment env, List<(Symbol, IJsObjectLike)> results)
+        {
+            while (true)
+            {
+                const string prefix = "__array_pattern_state_";
+
+                // Scan bindings in this environment
+                foreach (var symbol in env.GetBindingSymbols())
+                {
+                    if (symbol.Name?.StartsWith(prefix, StringComparison.Ordinal) == true && env.TryGet(symbol, out var value) && value is not null && TryGetActiveIteratorFromState(value, out var iterator))
+                    {
+                        results.Add((symbol, iterator));
+                    }
+                }
+
+                // Also scan parent environments
+                if (env.Enclosing is { } parent)
+                {
+                    env = parent;
+                    continue;
+                }
+
+                break;
+            }
+        }
+
+        private static bool TryGetActiveIteratorFromState(object state, out IJsObjectLike iterator)
+        {
+            // Use reflection to check for Iterator and IteratorDone properties
+            // since ArrayPatternState is a private class in ArrayBindingExtensions
+            var type = state.GetType();
+
+            var iteratorProp = type.GetProperty("Iterator");
+            var iteratorDoneProp = type.GetProperty("IteratorDone");
+
+            if (iteratorProp is null || iteratorDoneProp is null)
+            {
+                iterator = null!;
+                return false;
+            }
+
+            var iteratorValue = iteratorProp.GetValue(state);
+            var iteratorDone = iteratorDoneProp.GetValue(state) as bool? ?? true;
+
+            if (iteratorValue is IJsObjectLike jsIterator && !iteratorDone)
+            {
+                iterator = jsIterator;
+                return true;
+            }
+
+            iterator = null!;
+            return false;
         }
 
         private sealed class PendingAwaitException : Exception

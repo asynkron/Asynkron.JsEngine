@@ -12,6 +12,7 @@ public static partial class TypedAstEvaluator
         /// </summary>
         private JsValue EvaluateTryJsValue(JsEnvironment environment, EvaluationContext context)
         {
+            Console.WriteLine("DEBUG TryStatement: ENTER");
             context.RealmState.Logger?.LogInformation(
                 "EvaluateTry enter (catch={HasCatch}, finally={HasFinally}) throwFlag={ThrowFlag}",
                 statement.Catch is not null,
@@ -30,8 +31,10 @@ public static partial class TypedAstEvaluator
                 context.SetThrow(signal.ThrownValue);
                 result = signal.ThrownValue;
             }
+            Console.WriteLine($"DEBUG TryStatement: after try block, context.IsThrow = {context.IsThrow}, hasCatch = {statement.Catch is not null}");
             if (context.IsThrow && statement.Catch is not null)
             {
+                Console.WriteLine($"DEBUG TryStatement: entering catch block, thrown value type = {context.FlowValue.ToObject()?.GetType().Name}");
                 context.RealmState.Logger?.LogInformation(
                     "EvaluateTry handling catch; throw type={ThrowType}",
                     !context.FlowValue.IsUndefined ? context.FlowValue.GetType().Name : "undefined");

@@ -807,6 +807,14 @@ public sealed class JsEnvironment
         return _values is not null && _values.TryGetValue(name, out var binding) && binding.IsLexical;
     }
 
+    /// <summary>
+    /// Gets all binding symbols defined in this environment (not including parent environments).
+    /// </summary>
+    internal IEnumerable<Symbol> GetBindingSymbols()
+    {
+        return _values?.Keys ?? Enumerable.Empty<Symbol>();
+    }
+
     internal bool TryAssignBlockedBinding(Symbol name, object? value)
     {
         var current = this;

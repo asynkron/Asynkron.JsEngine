@@ -18,6 +18,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             Symbol? activeLabel = null)
         {
+            Console.WriteLine($"DEBUG Statement: {statement.GetType().Name}");
             context.SourceReference = statement.Source;
             context.ThrowIfCancellationRequested();
 
@@ -47,6 +48,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             Symbol? activeLabel)
         {
+            Console.WriteLine($"DEBUG StatementSlow: {statement.GetType().Name}");
             // Medium frequency statements
             switch (statement)
             {
@@ -63,8 +65,6 @@ public static partial class TypedAstEvaluator
             }
 
             // Low frequency statements with activity tracking
-            using var statementActivity = Activity.Current?
-                .StartEvaluatorActivity($"Statement:{statement.GetType().Name}", context, statement.Source);
 
             return statement switch
             {

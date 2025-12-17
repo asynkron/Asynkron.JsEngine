@@ -1907,30 +1907,9 @@ public sealed class JsEngine : IAsyncDisposable
     {
         StartEventLoop();
         var queue = _eventQueue ?? throw new InvalidOperationException("Event loop is not running.");
-        var capturedActivity = Activity.Current;
 
         Interlocked.Increment(ref _pendingTaskCount);
-        queue.Writer.TryWrite(async () =>
-        {
-            var previousActivity = Activity.Current;
-            var activityChanged = !ReferenceEquals(previousActivity, capturedActivity);
-            if (activityChanged)
-            {
-                Activity.Current = capturedActivity;
-            }
-
-            try
-            {
-                await task().ConfigureAwait(false);
-            }
-            finally
-            {
-                if (activityChanged)
-                {
-                    Activity.Current = previousActivity;
-                }
-            }
-        });
+        queue.Writer.TryWrite(async () => { await task().ConfigureAwait(false); });
     }
 
     /// <summary>
@@ -1953,35 +1932,18 @@ public sealed class JsEngine : IAsyncDisposable
     {
         StartEventLoop();
         var queue = _eventQueue ?? throw new InvalidOperationException("Event loop is not running.");
-        var capturedActivity = Activity.Current;
+
 
         // Increment immediately to track pending work
         Interlocked.Increment(ref _pendingTaskCount);
 
-        taskToAwait.ContinueWith(_ =>
+        _ = taskToAwait.ContinueWith(_ =>
         {
             // Task completed on thread pool, now schedule continuation on event loop
             // Write directly to queue - don't use ScheduleTask as that would increment again
             queue.Writer.TryWrite(() =>
             {
-                var previousActivity = Activity.Current;
-                var activityChanged = !ReferenceEquals(previousActivity, capturedActivity);
-                if (activityChanged)
-                {
-                    Activity.Current = capturedActivity;
-                }
-
-                try
-                {
-                    continuation();
-                }
-                finally
-                {
-                    if (activityChanged)
-                    {
-                        Activity.Current = previousActivity;
-                    }
-                }
+                continuation();
 
                 return ValueTask.CompletedTask;
             });
@@ -2003,7 +1965,7 @@ public sealed class JsEngine : IAsyncDisposable
         // Increment immediately to track pending work
         Interlocked.Increment(ref _pendingTaskCount);
 
-        task.ContinueWith(_ =>
+        _ = task.ContinueWith(_ =>
         {
             // Task completed - decrement the counter
             // The task's internal ScheduleTask calls will have their own increment/decrement cycle

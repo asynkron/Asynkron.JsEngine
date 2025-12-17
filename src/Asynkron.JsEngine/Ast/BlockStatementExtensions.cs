@@ -62,6 +62,10 @@ public static partial class TypedAstEvaluator
 
                 var completionJs = EvaluateStatementJsValue(statement, environment, context);
                 var shouldStop = context.ShouldStopEvaluation;
+                if (context.IsThrow)
+                {
+                    Console.WriteLine($"DEBUG BlockFast: after statement, IsThrow = true");
+                }
                 var shouldCapture =
                     !completionJs.IsUnit &&
                     (!shouldStop ||
@@ -78,6 +82,7 @@ public static partial class TypedAstEvaluator
 
                 if (shouldStop)
                 {
+                    Console.WriteLine($"DEBUG BlockFast: shouldStop=true, breaking loop. IsThrow={context.IsThrow}, IsYield={context.IsYield}, IsReturn={context.IsReturn}");
                     break;
                 }
             }
@@ -100,9 +105,6 @@ public static partial class TypedAstEvaluator
 
             var mode = scope.IsStrict || block.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
             using var scopeHandle = context.PushScope(ScopeKind.Block, mode);
-            using var blockActivity = Activity.Current?.StartEvaluatorActivity("Scope:Block", context, block.Source);
-            blockActivity?.SetTag("js.block.strict", block.IsStrict);
-            blockActivity?.SetTag("js.block.statementCount", block.Statements.Length);
 
             // Per ES spec, lexical declarations (let/const/class) must be hoisted to create
             // bindings in the TDZ (Temporal Dead Zone) BEFORE function hoisting.

@@ -1078,11 +1078,13 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     /// <summary>
     /// Returns an enumerator that iterates through the array elements.
     /// This provides a fast path for for-of loops, avoiding iterator result object allocations.
+    /// Per ES spec, length is checked on each iteration to handle array modifications during iteration.
     /// </summary>
     public IEnumerator<JsValue> GetEnumerator()
     {
-        var length = _length;
-        for (uint i = 0; i < length; i++)
+        // Check _length on each iteration - array may be modified during iteration
+        // (e.g., array-contract.js, array-expand.js Test262 tests)
+        for (uint i = 0; i < _length; i++)
         {
             yield return GetElement(i);
         }

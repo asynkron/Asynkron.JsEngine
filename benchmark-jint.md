@@ -105,28 +105,36 @@ The `JsRopeString` optimization reduced memory usage from **4.6 MB → 968 KB** 
 
 The following areas could benefit from similar patterns to `JsRopeString`:
 
-### 1. ✅ Fast Enumerator Path for For-Of (IMPLEMENTED)
+### 1. ⚠️ Fast Enumerator Path for For-Of (REVERTED)
 
-**Problem**: Every iterator `next()` call was creating a new `JsObject` for `{done, value}`.
+**Problem**: Every iterator `next()` call creates a new `JsObject` for `{done, value}`.
 
-**Solution Implemented**:
+**Solution Attempted**:
 - Added `IEnumerable<JsValue>` to `JsArray` for direct enumeration
 - Created `TryGetFastEnumeratorForIteration()` to bypass iterator protocol for known types
-- For-of loops now use `IEnumerator<JsValue>` directly for arrays, typed arrays, and strings
+- For-of loops used `IEnumerator<JsValue>` directly for arrays, typed arrays, and strings
 
-**Results**:
+**Results** (before revert):
 - ForOfIteration: 456 ms → 248 ms (**1.8x faster**)
 - Memory: 1.46 GB → 602 MB (**2.4x less memory**)
+
+**Why Reverted**: Caused Test262 regressions because the fast path didn't handle:
+- Array modification during iteration (array-contract, array-expand)
+- TypedArray resizable buffer changes during iteration
+- Unicode code point iteration for strings (astral plane/surrogate pairs)
+
+**Future Fix**: To re-enable, the enumerators need to:
+- Check array length on each iteration (not cached at start)
+- Handle surrogate pairs for proper Unicode code point iteration
+- Check buffer bounds on each iteration for TypedArrays
 
 ### 2. JsEnvironmentPool Expansion (Low Impact)
 
 **Problem**: `JsEnvironmentPool` exists but only used in regular for/while loops.
 
-**Status**: The pool is already used in `LoopPlanExtensions.cs` for for/while loops. Extending to for-of loops would require careful lifecycle management to ensure environments are returned to the pool at the right time. The for-of fast enumerator optimization already provides significant memory savings, so this is lower priority.
+**Status**: The pool is already used in `LoopPlanExtensions.cs` for for/while loops. Extending to for-of loops would require careful lifecycle management to ensure environments are returned to the pool at the right time.
 
-### 3. ✅ Array Fast-Path Iteration (IMPLEMENTED - same as #1)
-
-This optimization was implemented as part of the Fast Enumerator Path above.
+### 3. Array Fast-Path Iteration (Blocked on #1)
 
 ### 4. Async/Await Microtask Reduction (High Impact - Requires Fix)
 
@@ -135,7 +143,7 @@ This optimization was implemented as part of the Fast Enumerator Path above.
 - AsyncAwait: 226 ms vs Jint's 13 ms (17x slower)
 - Uses ~1.9 GB memory for async iteration
 
-**Status**: Fast enumerator path added to `for await...of` for sync iterables (same optimization as regular `for...of`). However, the benchmark has a known bug where async IIFE doesn't complete, making comparison unreliable.
+**Status**: Fast enumerator path added to `for await...of` for sync iterables (same optimization as regular `for...of`). Async IIFE completion works correctly - the performance difference is due to the CPS transformation overhead, not a bug.
 
 **Root Causes**:
 - CPS transformation overhead for async functions
@@ -143,7 +151,6 @@ This optimization was implemented as part of the Fast Enumerator Path above.
 - Microtask queue processing overhead
 
 **Potential Solutions**:
-- Fix the async IIFE completion bug first (blocks accurate benchmarking)
 - Use .NET async patterns (`IAsyncEnumerator<JsValue>`) with continuation scheduling:
   ```csharp
   // Simpler approach than CPS:

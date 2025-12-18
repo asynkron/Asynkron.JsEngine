@@ -65,26 +65,26 @@ public static partial class TypedAstEvaluator
     /// Fast path for iteration: returns an IEnumerator&lt;JsValue&gt; for known iterable types
     /// without going through the full iterator protocol (which allocates {done, value} objects).
     /// Falls back to null for types that need the full protocol.
+    ///
+    /// The enumerators are spec-compliant:
+    /// - String: iterates by Unicode code points (handles surrogate pairs)
+    ///
+    /// NOTE: JsArray and TypedArray are NOT fast-pathed because:
+    /// - JsArray: can have custom getters on numeric indices that need to be invoked
+    /// - TypedArray: resizable buffer shrink behavior requires proper error propagation
     /// </summary>
     [MustDisposeResource]
     private static IEnumerator<JsValue>? TryGetFastEnumeratorForIteration(object? value, EvaluationContext context)
     {
         return value switch
         {
-            // JsArray implements IEnumerable<JsValue> - use direct enumeration
-            JsArray array => array.GetEnumerator(),
-
-            // TypedArrays - direct element enumeration
-            TypedArrayBase typedArray when !typedArray.IsDetachedOrOutOfBounds() =>
-                EnumerateTypedArrayValues(typedArray),
-
-            // Strings - character enumeration
+            // Strings - Unicode code point enumeration (handles surrogate pairs)
+            // Strings are immutable so no modification concerns
             string s => EnumerateStringCharacters(s),
 
-            // Any IEnumerable<JsValue> - direct enumeration
-            IEnumerable<JsValue> enumerable => enumerable.GetEnumerator(),
-
             // Fall back to null - caller should use full iterator protocol
+            // JsArray: can have custom getters (array-key-get-error test)
+            // TypedArray: resizable buffer shrink needs proper error propagation
             _ => null
         };
     }
@@ -1222,9 +1222,25 @@ public static partial class TypedAstEvaluator
 
         IEnumerable<JsValue> Enumerate()
         {
-            foreach (var ch in value)
+            // Iterate by Unicode code points, not UTF-16 code units.
+            // Astral plane characters (U+10000 and above) are stored as surrogate pairs
+            // and should be yielded as a single string (Test262: string-astral.js)
+            var i = 0;
+            while (i < value.Length)
             {
-                yield return ch.ToString();
+                var ch = value[i];
+                if (char.IsHighSurrogate(ch) && i + 1 < value.Length && char.IsLowSurrogate(value[i + 1]))
+                {
+                    // Surrogate pair - yield both chars as one string
+                    yield return value.Substring(i, 2);
+                    i += 2;
+                }
+                else
+                {
+                    // Single char (BMP character or unpaired surrogate)
+                    yield return ch.ToString();
+                    i++;
+                }
             }
         }
     }
@@ -1236,9 +1252,15 @@ public static partial class TypedAstEvaluator
 
         IEnumerable<JsValue> Enumerate()
         {
-            var length = typedArray.Length;
-            for (var i = 0; i < length; i++)
+            // Check length and bounds on each iteration - buffer may be resized during iteration
+            // (Test262: typedarray-backed-by-resizable-buffer-*.js tests)
+            for (var i = 0; i < typedArray.Length; i++)
             {
+                // Check if buffer is still valid on each iteration
+                if (typedArray.IsDetachedOrOutOfBounds())
+                {
+                    yield break;
+                }
                 yield return typedArray.GetValueForIndex(i);
             }
         }

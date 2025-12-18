@@ -48,6 +48,42 @@ public class IdentifierSlotLoggingTests
     }
 
     [Fact]
+    public async Task WhileLoop_UsesSlotFastPathWithoutMisses()
+    {
+        var logger = new FakeLogger();
+        await using var engine = new JsEngine(new JsEngineOptions
+        {
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate("""
+            'use strict';
+            function run() {
+                let sum = 0;
+                let i = 0;
+                while (i < 10) {
+                    sum += i;
+                    i++;
+                }
+                return sum;
+            }
+            run();
+            """);
+
+        Assert.Equal(45d, JsOps.ToNumber(result));
+        var messages = logger.Collector.Snapshot().Select(r => r.Message).ToArray();
+        var readMisses = messages.Where(m => m.Contains("Identifier slot read miss", StringComparison.Ordinal)).ToArray();
+        var writeMisses = messages.Where(m => m.Contains("Identifier slot write miss", StringComparison.Ordinal)).ToArray();
+
+        // Verify no slot misses for loop variables
+        Assert.DoesNotContain(readMisses, m => m.Contains("name=sum", StringComparison.Ordinal));
+        Assert.DoesNotContain(readMisses, m => m.Contains("name=i", StringComparison.Ordinal));
+        Assert.DoesNotContain(writeMisses, m => m.Contains("name=sum", StringComparison.Ordinal));
+        Assert.DoesNotContain(writeMisses, m => m.Contains("name=i", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task CommonjsModule_ParametersStayInSlots()
     {
         var logger = new FakeLogger();

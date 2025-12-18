@@ -8,9 +8,10 @@ using Microsoft.Extensions.Logging;
 namespace Asynkron.JsEngine.Ast;
 
 /// <summary>
-/// Holds a pre-resolved slot reference for fast variable access in loops.
+/// Represents a resolved reference to a JavaScript variable within its lexical scope.
+/// Provides fast read/write access by holding the environment and slot index.
 /// </summary>
-internal readonly struct ResolvedSlot(JsEnvironment environment, int slotIndex)
+internal readonly struct JsVariable(JsEnvironment environment, int slotIndex)
 {
     public readonly JsEnvironment Environment = environment;
     public readonly int SlotIndex = slotIndex;
@@ -22,6 +23,27 @@ internal readonly struct ResolvedSlot(JsEnvironment environment, int slotIndex)
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Write(JsValue value) => Environment.GetSlotRef(SlotIndex) = value;
+}
+
+/// <summary>
+/// Comparison type for fast loop conditions.
+/// </summary>
+internal enum FastLoopComparison
+{
+    LessThan,           // i < limit (ascending)
+    LessThanOrEqual,    // i <= limit (ascending)
+    GreaterThan,        // i > limit (descending)
+    GreaterThanOrEqual  // i >= limit (descending)
+}
+
+/// <summary>
+/// Arithmetic operation for fast loop accumulators.
+/// </summary>
+internal enum FastLoopOperation
+{
+    Add,      // s += i
+    Subtract, // s -= i
+    Multiply  // s *= i
 }
 
 public static partial class TypedAstEvaluator
@@ -257,36 +279,51 @@ public static partial class TypedAstEvaluator
             }
 
             // Copy the per-iteration bindings from the CURRENT iteration environment to the new environment
+            // Fast path: use direct slot access when slot indices are available
+            var canUseSlotFastPath = iterationSlotCount >= 0 &&
+                                     !iterationSlotIndices.IsDefaultOrEmpty &&
+                                     currentIterationEnvironment.HasSlots &&
+                                     currentIterationEnvironment.ScopeId == iterationScopeId;
+
             for (var i = 0; i < plan.PerIterationBindings.Length; i++)
             {
                 var bindingName = plan.PerIterationBindings[i];
-                // Get the current value from the current iteration environment.
-                // Use direct identifier resolution with JsValue to avoid boxing primitives.
+                var sourceSlotIndex = iterationSlotIndices.Length > i ? iterationSlotIndices[i] : -1;
+
+                // Fast path: direct slot read avoids scope chain traversal
                 JsValue currentValue;
-                try
+                if (canUseSlotFastPath && sourceSlotIndex >= 0)
                 {
-                    currentValue = context.GetIdentifier(currentIterationEnvironment, bindingName);
+                    currentValue = currentIterationEnvironment.GetSlotRef(sourceSlotIndex);
                 }
-                catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
-                                                           StringComparison.Ordinal))
+                else
                 {
-                    object? errorObject = ex.Message;
-
-                    if (currentIterationEnvironment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
-                        ctor is IJsCallable callable)
+                    // Fallback: full identifier resolution
+                    try
                     {
-                        try
-                        {
-                            errorObject = callable.Invoke([new JsValue(ex.Message)], JsValue.Undefined).ToObject();
-                        }
-                        catch (ThrowSignal signal)
-                        {
-                            errorObject = signal.ThrownValue;
-                        }
+                        currentValue = context.GetIdentifier(currentIterationEnvironment, bindingName);
                     }
+                    catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
+                                                               StringComparison.Ordinal))
+                    {
+                        object? errorObject = ex.Message;
 
-                    context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
-                    currentValue = JsValue.FromObjectUnsafe(errorObject);
+                        if (currentIterationEnvironment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
+                            ctor is IJsCallable callable)
+                        {
+                            try
+                            {
+                                errorObject = callable.Invoke([new JsValue(ex.Message)], JsValue.Undefined).ToObject();
+                            }
+                            catch (ThrowSignal signal)
+                            {
+                                errorObject = signal.ThrownValue;
+                            }
+                        }
+
+                        context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
+                        currentValue = JsValue.FromObjectUnsafe(errorObject);
+                    }
                 }
 
                 var isConstBinding = currentIterationEnvironment.IsConstBinding(bindingName);
@@ -302,7 +339,7 @@ public static partial class TypedAstEvaluator
 
                 if (iterationSlotCount >= 0 && newIterationEnvironment.ScopeId == iterationScopeId && !iterationSlotIndices.IsDefaultOrEmpty)
                 {
-                    var targetSlot = iterationSlotIndices.Length > i ? iterationSlotIndices[i] : -1;
+                    var targetSlot = sourceSlotIndex;
                     if (targetSlot >= 0 && newIterationEnvironment.HasSlots)
                     {
                         newIterationEnvironment.SetSlot(0, targetSlot, currentValue);
@@ -332,6 +369,13 @@ public static partial class TypedAstEvaluator
                 // Snapshot current values before we reset the environment instance.
                 // Use pooled buffers to avoid per-iteration heap allocations.
                 var count = bindings.Length;
+                var slotIndices = plan.PerIterationSlotIndices;
+
+                // Fast path: use direct slot access when slot indices are available
+                var canUseSlotFastPath = plan.IterationSlotCount >= 0 &&
+                                         !slotIndices.IsDefaultOrEmpty &&
+                                         currentIterationEnvironment.HasSlots &&
+                                         currentIterationEnvironment.ScopeId == plan.IterationScopeId;
 
                 // JsValue is a managed type (contains object reference) and cannot be stack-allocated
                 var rentedValues = ArrayPool<JsValue>.Shared.Rent(count);
@@ -345,31 +389,42 @@ public static partial class TypedAstEvaluator
                 for (var i = 0; i < count; i++)
                 {
                     var bindingName = bindings[i];
+                    var sourceSlotIndex = slotIndices.Length > i ? slotIndices[i] : -1;
+
+                    // Fast path: direct slot read avoids scope chain traversal
                     JsValue currentValue;
-                    try
+                    if (canUseSlotFastPath && sourceSlotIndex >= 0)
                     {
-                        currentValue = context.GetIdentifier(currentIterationEnvironment, bindingName);
+                        currentValue = currentIterationEnvironment.GetSlotRef(sourceSlotIndex);
                     }
-                    catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
-                                                               StringComparison.Ordinal))
+                    else
                     {
-                        object? errorObject = ex.Message;
-
-                        if (currentIterationEnvironment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
-                            ctor is IJsCallable callable)
+                        // Fallback: full identifier resolution
+                        try
                         {
-                            try
-                            {
-                                errorObject = callable.Invoke([new JsValue(ex.Message)], JsValue.Undefined).ToObject();
-                            }
-                            catch (ThrowSignal signal)
-                            {
-                                errorObject = signal.ThrownValue;
-                            }
+                            currentValue = context.GetIdentifier(currentIterationEnvironment, bindingName);
                         }
+                        catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
+                                                                   StringComparison.Ordinal))
+                        {
+                            object? errorObject = ex.Message;
 
-                        context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
-                        currentValue = JsValue.FromObjectUnsafe(errorObject);
+                            if (currentIterationEnvironment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
+                                ctor is IJsCallable callable)
+                            {
+                                try
+                                {
+                                    errorObject = callable.Invoke([new JsValue(ex.Message)], JsValue.Undefined).ToObject();
+                                }
+                                catch (ThrowSignal signal)
+                                {
+                                    errorObject = signal.ThrownValue;
+                                }
+                            }
+
+                            context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
+                            currentValue = JsValue.FromObjectUnsafe(errorObject);
+                        }
                     }
 
                     valueSpan[i] = currentValue;
@@ -551,8 +606,8 @@ public static partial class TypedAstEvaluator
         }
 
         /// <summary>
-        /// Tries to execute a simple numeric for loop using a fast path that bypasses AST evaluation.
-        /// Pattern: for (let i = 0; i &lt; limit; i++) { s += i; }
+        /// Tries to execute a simple numeric loop using a fast path that bypasses AST evaluation.
+        /// Supports: for, while, do-while with various comparison and arithmetic operators.
         /// </summary>
         private bool TryExecuteFastNumericLoop(
             JsEnvironment environment,
@@ -563,50 +618,222 @@ public static partial class TypedAstEvaluator
             result = JsValue.Undefined;
 
             // Only attempt fast path for simple loops without dynamic scope or per-iteration environments
-            // Note: For `let` loops, AllowIterationEnvironmentPooling indicates no closure captures loop var
             if (!plan.AllowIterationEnvironmentPooling ||
-                plan.ConditionAfterBody ||
                 !plan.ConditionPrologue.IsDefaultOrEmpty ||
                 loopLabel is not null)
             {
                 return false;
             }
 
-            // Check condition pattern: identifier < constant (numeric)
-            if (plan.Condition is not BinaryExpression { Operator: BinaryOperator.LessThan } condBinary)
+            // Extract condition pattern: identifier <op> constant or constant <op> identifier
+            if (!TryExtractConditionPattern(plan, out var loopVarId, out var limit, out var comparison))
             {
                 return false;
             }
 
-            if (condBinary.Left is not IdentifierExpression loopVarId ||
-                loopVarId.ScopeId < 0 || loopVarId.SlotIndex < 0)
+            // Determine expected increment/decrement direction
+            var expectIncrement = comparison is FastLoopComparison.LessThan or FastLoopComparison.LessThanOrEqual;
+
+            // Try for-loop pattern: post-iteration has i++ or i--
+            if (TryMatchForLoopPattern(plan, loopVarId, limit, comparison, expectIncrement, environment, out result))
+            {
+                return true;
+            }
+
+            // Try while/do-while pattern: body has { s <op>= i; i++/i--; }
+            if (TryMatchWhileLoopPattern(plan, loopVarId, limit, comparison, expectIncrement, environment, out result))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Extracts the condition pattern from the loop.
+        /// Supports: i &lt; n, i &lt;= n, i &gt; n, i &gt;= n (and reversed: n &gt; i, etc.)
+        /// </summary>
+        private bool TryExtractConditionPattern(
+            out IdentifierExpression loopVarId,
+            out double limit,
+            out FastLoopComparison comparison)
+        {
+            loopVarId = null!;
+            limit = 0;
+            comparison = default;
+
+            if (plan.Condition is not BinaryExpression condBinary)
             {
                 return false;
             }
 
-            if (condBinary.Right is not LiteralExpression { Value.IsNumber: true } limitLit)
+            // Pattern: identifier <op> literal
+            if (condBinary.Left is IdentifierExpression leftId &&
+                leftId.ScopeId >= 0 && leftId.SlotIndex >= 0 &&
+                condBinary.Right is LiteralExpression { Value.IsNumber: true } rightLit)
             {
-                return false;
+                loopVarId = leftId;
+                limit = rightLit.Value.NumberValue;
+                comparison = condBinary.Operator switch
+                {
+                    BinaryOperator.LessThan => FastLoopComparison.LessThan,
+                    BinaryOperator.LessThanOrEqual => FastLoopComparison.LessThanOrEqual,
+                    BinaryOperator.GreaterThan => FastLoopComparison.GreaterThan,
+                    BinaryOperator.GreaterThanOrEqual => FastLoopComparison.GreaterThanOrEqual,
+                    _ => (FastLoopComparison)(-1)
+                };
+                return (int)comparison >= 0;
             }
 
-            // Check post-iteration pattern: i++ (UnaryExpression with Increment operator)
+            // Pattern: literal <op> identifier (reversed)
+            if (condBinary.Right is IdentifierExpression rightId &&
+                rightId.ScopeId >= 0 && rightId.SlotIndex >= 0 &&
+                condBinary.Left is LiteralExpression { Value.IsNumber: true } leftLit)
+            {
+                loopVarId = rightId;
+                limit = leftLit.Value.NumberValue;
+                // Reverse the comparison: (5 > i) means (i < 5)
+                comparison = condBinary.Operator switch
+                {
+                    BinaryOperator.LessThan => FastLoopComparison.GreaterThan,
+                    BinaryOperator.LessThanOrEqual => FastLoopComparison.GreaterThanOrEqual,
+                    BinaryOperator.GreaterThan => FastLoopComparison.LessThan,
+                    BinaryOperator.GreaterThanOrEqual => FastLoopComparison.LessThanOrEqual,
+                    _ => (FastLoopComparison)(-1)
+                };
+                return (int)comparison >= 0;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Matches for-loop pattern: for (let i = 0; i &lt; limit; i++) { s += i; }
+        /// PostIteration contains i++ or i--, body is single s &lt;op&gt;= i statement.
+        /// </summary>
+        private bool TryMatchForLoopPattern(
+            IdentifierExpression loopVarId,
+            double limit,
+            FastLoopComparison comparison,
+            bool expectIncrement,
+            JsEnvironment environment,
+            out JsValue result)
+        {
+            result = JsValue.Undefined;
+
+            // Check post-iteration pattern: i++ or i--
             if (plan.PostIteration.Length != 1 ||
                 plan.PostIteration[0] is not ExpressionStatement { Expression: UnaryExpression unaryExpr } ||
-                unaryExpr.Operator != UnaryOperator.Increment ||
                 unaryExpr.Operand is not IdentifierExpression postId ||
                 !ReferenceEquals(postId.Name, loopVarId.Name))
             {
                 return false;
             }
 
-            // Check body pattern: single expression statement with compound assignment (s += i)
+            var isIncrement = unaryExpr.Operator == UnaryOperator.Increment;
+            var isDecrement = unaryExpr.Operator == UnaryOperator.Decrement;
+            if (!isIncrement && !isDecrement)
+            {
+                return false;
+            }
+
+            // Verify direction matches expectation
+            if (expectIncrement != isIncrement)
+            {
+                return false;
+            }
+
+            // Check body pattern: single expression statement with compound assignment
             var bodyStatement = plan.SingleBodyStatement;
             if (bodyStatement is not ExpressionStatement { Expression: AssignmentExpression assignExpr })
             {
                 return false;
             }
 
-            // Must be compound assignment (+=)
+            if (!TryExtractAccumulatorPattern(assignExpr, loopVarId, out var accumScopeId, out var accumSlotIndex, out var operation))
+            {
+                return false;
+            }
+
+            return ExecuteFastNumericLoop(loopVarId, limit, comparison, isIncrement, accumScopeId, accumSlotIndex, operation, plan.ConditionAfterBody, environment, out result);
+        }
+
+        /// <summary>
+        /// Matches while/do-while pattern: while (i &lt; limit) { s += i; i++; }
+        /// PostIteration is empty, body contains both s &lt;op&gt;= i and i++/i--.
+        /// </summary>
+        private bool TryMatchWhileLoopPattern(
+            IdentifierExpression loopVarId,
+            double limit,
+            FastLoopComparison comparison,
+            bool expectIncrement,
+            JsEnvironment environment,
+            out JsValue result)
+        {
+            result = JsValue.Undefined;
+
+            // While/do-while loops have empty PostIteration
+            if (!plan.PostIteration.IsDefaultOrEmpty)
+            {
+                return false;
+            }
+
+            // Body must have exactly 2 statements
+            if (plan.Body.Statements.Length != 2)
+            {
+                return false;
+            }
+
+            // First statement: s <op>= i (compound assignment)
+            if (plan.Body.Statements[0] is not ExpressionStatement { Expression: AssignmentExpression assignExpr })
+            {
+                return false;
+            }
+
+            if (!TryExtractAccumulatorPattern(assignExpr, loopVarId, out var accumScopeId, out var accumSlotIndex, out var operation))
+            {
+                return false;
+            }
+
+            // Second statement: i++ or i--
+            if (plan.Body.Statements[1] is not ExpressionStatement { Expression: UnaryExpression unaryExpr } ||
+                unaryExpr.Operand is not IdentifierExpression incrId ||
+                !ReferenceEquals(incrId.Name, loopVarId.Name))
+            {
+                return false;
+            }
+
+            var isIncrement = unaryExpr.Operator == UnaryOperator.Increment;
+            var isDecrement = unaryExpr.Operator == UnaryOperator.Decrement;
+            if (!isIncrement && !isDecrement)
+            {
+                return false;
+            }
+
+            // Verify direction matches expectation
+            if (expectIncrement != isIncrement)
+            {
+                return false;
+            }
+
+            return ExecuteFastNumericLoop(loopVarId, limit, comparison, isIncrement, accumScopeId, accumSlotIndex, operation, plan.ConditionAfterBody, environment, out result);
+        }
+
+        /// <summary>
+        /// Extracts accumulator slot info from a compound assignment expression (s += i, s -= i, s *= i).
+        /// </summary>
+        private static bool TryExtractAccumulatorPattern(
+            AssignmentExpression assignExpr,
+            IdentifierExpression loopVarId,
+            out int accumScopeId,
+            out int accumSlotIndex,
+            out FastLoopOperation operation)
+        {
+            accumScopeId = -1;
+            accumSlotIndex = -1;
+            operation = default;
+
+            // Must be compound assignment
             if (!assignExpr.IsCompoundAssignment)
             {
                 return false;
@@ -618,26 +845,62 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            // For compound assignment s += i, the Value is a BinaryExpression (s + i)
-            // We need: Left is identifier matching Target (s), Right is identifier matching loop var (i)
-            if (assignExpr.Value is not BinaryExpression { Operator: BinaryOperator.Add } addExpr)
+            // For compound assignment s <op>= i, the Value is a BinaryExpression (s <op> i)
+            if (assignExpr.Value is not BinaryExpression binaryExpr)
             {
                 return false;
             }
 
-            // Left of the add should be the accumulator (same as target)
-            if (addExpr.Left is not IdentifierExpression accumIdExpr ||
+            // Determine operation type
+            operation = binaryExpr.Operator switch
+            {
+                BinaryOperator.Add => FastLoopOperation.Add,
+                BinaryOperator.Subtract => FastLoopOperation.Subtract,
+                BinaryOperator.Multiply => FastLoopOperation.Multiply,
+                _ => (FastLoopOperation)(-1)
+            };
+
+            if ((int)operation < 0)
+            {
+                return false;
+            }
+
+            // Left of the operation should be the accumulator (same as target)
+            if (binaryExpr.Left is not IdentifierExpression accumIdExpr ||
                 !ReferenceEquals(accumIdExpr.Name, assignExpr.Target))
             {
                 return false;
             }
 
-            // Right of the add should be the loop variable
-            if (addExpr.Right is not IdentifierExpression rhsId ||
+            // Right of the operation should be the loop variable
+            if (binaryExpr.Right is not IdentifierExpression rhsId ||
                 !ReferenceEquals(rhsId.Name, loopVarId.Name))
             {
                 return false;
             }
+
+            accumScopeId = assignExpr.ScopeId;
+            accumSlotIndex = assignExpr.SlotIndex;
+            return true;
+        }
+
+        /// <summary>
+        /// Executes the tight numeric loop with pre-resolved slot references.
+        /// Supports all comparison operators, increment/decrement, and arithmetic operations.
+        /// </summary>
+        private static bool ExecuteFastNumericLoop(
+            IdentifierExpression loopVarId,
+            double limit,
+            FastLoopComparison comparison,
+            bool isIncrement,
+            int accumScopeId,
+            int accumSlotIndex,
+            FastLoopOperation operation,
+            bool conditionAfterBody,
+            JsEnvironment environment,
+            out JsValue result)
+        {
+            result = JsValue.Undefined;
 
             // Pre-resolve slots
             if (!environment.TryResolveSlot(loopVarId.ScopeId, loopVarId.SlotIndex, out var loopVarEnv) ||
@@ -646,37 +909,77 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            if (!environment.TryResolveSlot(assignExpr.ScopeId, assignExpr.SlotIndex, out var accumEnv) ||
+            if (!environment.TryResolveSlot(accumScopeId, accumSlotIndex, out var accumEnv) ||
                 accumEnv is null)
             {
                 return false;
             }
 
-            var limit = limitLit.Value.NumberValue;
-
-            // Execute the tight loop
             ref var loopVarRef = ref loopVarEnv.GetSlotRef(loopVarId.SlotIndex);
-            ref var accumRef = ref accumEnv.GetSlotRef(assignExpr.SlotIndex);
+            ref var accumRef = ref accumEnv.GetSlotRef(accumSlotIndex);
 
             var lastValue = JsValue.Undefined;
 
-            while (loopVarRef.NumberValue < limit)
+            // Select the appropriate tight loop based on comparison and operation
+            if (conditionAfterBody)
             {
-                // s += i
-                var i = loopVarRef.NumberValue;
-                var s = accumRef.NumberValue;
-                accumRef = new JsValue(s + i);
-                lastValue = accumRef;
+                // do-while: execute body first, then check condition
+                do
+                {
+                    var i = loopVarRef.NumberValue;
+                    var s = accumRef.NumberValue;
 
-                // i++
-                loopVarRef = new JsValue(i + 1);
+                    var newAccum = operation switch
+                    {
+                        FastLoopOperation.Add => s + i,
+                        FastLoopOperation.Subtract => s - i,
+                        FastLoopOperation.Multiply => s * i,
+                        _ => s + i
+                    };
 
-                // Check for cancellation periodically (every 1M iterations would be too infrequent)
-                // But checking every iteration adds overhead. Skip for now - tight loop.
+                    accumRef = new JsValue(newAccum);
+                    lastValue = accumRef;
+                    loopVarRef = new JsValue(isIncrement ? i + 1 : i - 1);
+
+                } while (CheckCondition(loopVarRef.NumberValue, limit, comparison));
+            }
+            else
+            {
+                // while/for: check condition first
+                while (CheckCondition(loopVarRef.NumberValue, limit, comparison))
+                {
+                    var i = loopVarRef.NumberValue;
+                    var s = accumRef.NumberValue;
+
+                    var newAccum = operation switch
+                    {
+                        FastLoopOperation.Add => s + i,
+                        FastLoopOperation.Subtract => s - i,
+                        FastLoopOperation.Multiply => s * i,
+                        _ => s + i
+                    };
+
+                    accumRef = new JsValue(newAccum);
+                    lastValue = accumRef;
+                    loopVarRef = new JsValue(isIncrement ? i + 1 : i - 1);
+                }
             }
 
             result = lastValue;
             return true;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool CheckCondition(double loopVar, double limit, FastLoopComparison comparison)
+        {
+            return comparison switch
+            {
+                FastLoopComparison.LessThan => loopVar < limit,
+                FastLoopComparison.LessThanOrEqual => loopVar <= limit,
+                FastLoopComparison.GreaterThan => loopVar > limit,
+                FastLoopComparison.GreaterThanOrEqual => loopVar >= limit,
+                _ => false
+            };
         }
     }
 }

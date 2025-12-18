@@ -19,15 +19,15 @@ public class JintComparisonBenchmarks
     {
         ["simpleArithmetic"] = 1025.0,
         ["fibonacci"] = 75025.0,
-        ["forLoop"] = 499999500000.0,           // 10x: sum 0..999999
-        ["whileLoop"] = 499999500000.0,         // 10x: sum 0..999999
+        ["forLoop"] = 499999500000.0,           // sum 0..999999 (1M iterations)
+        ["whileLoop"] = 499999500000.0,         // sum 0..999999 (1M iterations)
         ["objectCreation"] = 50000.0,           // 10x
         ["arrayOperations"] = 2343687500.0,     // 10x: adjusted filter threshold
         ["stringOperations"] = 19999.0,         // 10x
-        ["functionCalls"] = 7499925000.0,       // 10x
+        ["functionCalls"] = 7499925000.0,       // 100k iterations: sum of 1.5*i
         ["closures"] = 1275000.0,               // 1000 counters * 50 calls * avg 25.5
-        ["recursion"] = 2395033250000.0,        // 10x
-        ["propertyAccess"] = 30500000.0,        // 10x
+        ["recursion"] = 4790028750000.0,        // 10k iterations: (factorial(12) + sumTo(50)) * 10000
+        ["propertyAccess"] = 30500000.0,        // 500k iterations: 61 * 500000 (same as 50k*10x)
         ["classDefinition"] = 10000.0,          // 10x
         ["destructuring"] = 50000.0,            // 10x
         ["spreadOperator"] = 20000.0,           // 10x
@@ -207,22 +207,30 @@ public class JintComparisonBenchmarks
 
         // For loop intensive
         _forLoop = """
-            let sum = 0;
-            for (let i = 0; i < 100000; i++) {
-                sum += i;
+            'use strict';
+            function run() {
+                let s = 0;
+                for (let i = 0; i < 1_000_000; i++) {
+                    s += i;
+                }
+                return s;
             }
-            sum;
+            run();
             """;
 
         // While loop
         _whileLoop = """
-            let sum = 0;
-            let i = 0;
-            while (i < 100000) {
-                sum += i;
-                i++;
+            'use strict';
+            function run() {
+                let sum = 0;
+                let i = 0;
+                while (i < 1_000_000) {
+                    sum += i;
+                    i++;
+                }
+                return sum;
             }
-            sum;
+            run();
             """;
 
         // Object creation
@@ -271,12 +279,15 @@ public class JintComparisonBenchmarks
             function sub(a, b) { return a - b; }
             function div(a, b) { return a / b; }
 
-            let result = 0;
-            for (let i = 0; i < 20000; i++) {
-                result = add(result, mul(i, 2));
-                result = sub(result, div(i, 2));
+            function run() {
+                let result = 0;
+                for (let i = 0; i < 100_000; i++) {
+                    result = add(result, mul(i, 2));
+                    result = sub(result, div(i, 2));
+                }
+                return result;
             }
-            result;
+            run();
             """;
 
         // Closures
@@ -289,18 +300,21 @@ public class JintComparisonBenchmarks
                 };
             }
 
-            let counters = [];
-            for (let i = 0; i < 200; i++) {
-                counters.push(makeCounter());
-            }
-
-            let sum = 0;
-            for (let i = 0; i < 200; i++) {
-                for (let j = 0; j < 20; j++) {
-                    sum += counters[i]();
+            function run() {
+                let counters = [];
+                for (let i = 0; i < 1000; i++) {
+                    counters.push(makeCounter());
                 }
+
+                let sum = 0;
+                for (let i = 0; i < 1000; i++) {
+                    for (let j = 0; j < 50; j++) {
+                        sum += counters[i]();
+                    }
+                }
+                return sum;
             }
-            sum;
+            run();
             """;
 
         // Recursion (non-fibonacci)
@@ -316,28 +330,35 @@ public class JintComparisonBenchmarks
                 return n + sumTo(n - 1);
             }
 
-            let result = 0;
-            for (let i = 0; i < 1000; i++) {
-                result += factorial(12);
-                result += sumTo(50);
+            function run() {
+                let result = 0;
+                for (let i = 0; i < 10_000; i++) {
+                    result += factorial(12);
+                    result += sumTo(50);
+                }
+                return result;
             }
-            result;
+            run();
             """;
 
         // Property access (deep nesting)
         _propertyAccess = """
-            let obj = {
-                a: { b: { c: { d: { e: 1 } } } },
-                x: 10,
-                y: 20,
-                z: 30
-            };
-            let sum = 0;
-            for (let i = 0; i < 50000; i++) {
-                sum += obj.a.b.c.d.e;
-                sum += obj.x + obj.y + obj.z;
+            'use strict';
+            function run() {
+                let obj = {
+                    a: { b: { c: { d: { e: 1 } } } },
+                    x: 10,
+                    y: 20,
+                    z: 30
+                };
+                let sum = 0;
+                for (let i = 0; i < 500_000; i++) {
+                    sum += obj.a.b.c.d.e;
+                    sum += obj.x + obj.y + obj.z;
+                }
+                return sum;
             }
-            sum;
+            run();
             """;
 
         // Class definition and usage

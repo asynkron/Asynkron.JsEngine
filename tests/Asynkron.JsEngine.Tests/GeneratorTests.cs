@@ -3306,7 +3306,7 @@ public class GeneratorTests
 
         // The test expects done to not be present (since the inner iterator returned { value: 1 } without done)
         // Check that result is a JsObject with value=1 and that it doesn't have a 'done' property
-        var jsResult = result as JsTypes.JsObject;
+        var jsResult = result as JsObject;
         Assert.NotNull(jsResult);
         Assert.True(jsResult.TryGetProperty("value", out var valueVal));
         Assert.Equal(1.0, valueVal);

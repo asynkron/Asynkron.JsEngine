@@ -34,7 +34,7 @@ public class JintParserComparisonBenchmarks
     private IReadOnlyList<Token> _complexProgramTokens = null!;
 
     // Jint parser (uses Esprima internally)
-    private Jint.Engine _jintEngine = null!;
+    private Engine _jintEngine = null!;
 
     [GlobalSetup]
     public void Setup()

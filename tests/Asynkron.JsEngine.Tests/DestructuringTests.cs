@@ -1,6 +1,6 @@
 namespace Asynkron.JsEngine.Tests;
 
-using Asynkron.JsEngine.Ast;
+using Ast;
 
 public class DestructuringTests
 {

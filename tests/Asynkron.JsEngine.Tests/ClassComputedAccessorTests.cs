@@ -59,7 +59,7 @@ public class ClassComputedAccessorTests
             [getterValue, yieldSet];
             """);
 
-        var array = Assert.IsType<Asynkron.JsEngine.JsTypes.JsArray>(result);
+        var array = Assert.IsType<JsTypes.JsArray>(result);
         Assert.Equal("get yield", array.GetElement(0).AsString());
         Assert.Equal("set yield", array.GetElement(1).AsString());
     }

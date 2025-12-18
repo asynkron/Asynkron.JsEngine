@@ -1209,22 +1209,34 @@ public sealed class JsEnvironment
         {
             var targetEnv = FindByScopeId(scopeId);
             var slots = targetEnv?._slots;
-            if (targetEnv is not null && slots is not null && slotIndex < slots.Length && targetEnv._values is not null)
+            if (targetEnv is not null && slots is not null && slotIndex < slots.Length)
             {
-                ref var binding = ref targetEnv._values.GetValueRefOrNullRef(name);
-                if (!Unsafe.IsNullRef(ref binding))
+                if (targetEnv._values is not null)
                 {
-                    targetEnv.WriteResolvedBindingJsValue(targetEnv, ref binding, name, value,
-                        context.CurrentScope.IsStrict);
-                    slots[slotIndex] = value;
-                    targetEnv.RealmState?.Logger?.LogInformation(
-                        "Identifier slot write hit name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
-                        name.Name,
-                        scopeId,
-                        slotIndex,
-                        value.Kind);
-                    return true;
+                    ref var binding = ref targetEnv._values.GetValueRefOrNullRef(name);
+                    if (!Unsafe.IsNullRef(ref binding))
+                    {
+                        targetEnv.WriteResolvedBindingJsValue(targetEnv, ref binding, name, value,
+                            context.CurrentScope.IsStrict);
+                        slots[slotIndex] = value;
+                        targetEnv.RealmState?.Logger?.LogInformation(
+                            "Identifier slot write hit name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                            name.Name,
+                            scopeId,
+                            slotIndex,
+                            value.Kind);
+                        return true;
+                    }
                 }
+
+                slots[slotIndex] = value;
+                targetEnv.RealmState?.Logger?.LogInformation(
+                    "Identifier slot write hit (slot-only) name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                    name.Name,
+                    scopeId,
+                    slotIndex,
+                    value.Kind);
+                return true;
             }
         }
 

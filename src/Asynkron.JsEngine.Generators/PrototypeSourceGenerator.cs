@@ -340,7 +340,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         {
             if (arg.Key == name && arg.Value.Value is double d)
             {
-                return d.ToString("0.############", System.Globalization.CultureInfo.InvariantCulture);
+                return d.ToString("0.############", CultureInfo.InvariantCulture);
             }
         }
 

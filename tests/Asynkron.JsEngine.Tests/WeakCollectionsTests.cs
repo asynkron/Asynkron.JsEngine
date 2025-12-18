@@ -30,7 +30,7 @@ public class WeakCollectionsTests
         Assert.False((bool)hasKey3!);
         Assert.Equal(42.0, value1);
         Assert.Equal("value", value2);
-        Assert.True(value3 is Asynkron.JsEngine.Ast.Symbol); // undefined sentinel
+        Assert.True(value3 is Ast.Symbol); // undefined sentinel
         Assert.True((bool)deleted!);
         Assert.False((bool)hasKey1AfterDelete!);
     }

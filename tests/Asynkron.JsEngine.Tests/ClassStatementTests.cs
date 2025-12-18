@@ -65,7 +65,7 @@ public class ClassStatementTests
             [d.getX(), d.getY()];
             """);
 
-        var array = Assert.IsType<Asynkron.JsEngine.JsTypes.JsArray>(result);
+        var array = Assert.IsType<JsTypes.JsArray>(result);
         Assert.Equal(10.0, array.Items[0]);
         Assert.Equal(20.0, array.Items[1]);
     }
@@ -233,7 +233,7 @@ public class ClassStatementTests
             [d instanceof Derived, d instanceof Base, d instanceof Object];
             """);
 
-        var array = Assert.IsType<Asynkron.JsEngine.JsTypes.JsArray>(result);
+        var array = Assert.IsType<JsTypes.JsArray>(result);
         Assert.True((bool)array.GetElement(0).ToObject()!);
         Assert.True((bool)array.GetElement(1).ToObject()!);
         Assert.True((bool)array.GetElement(2).ToObject()!);

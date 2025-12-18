@@ -403,9 +403,9 @@ public class JsEvaluatorTests
         await using var engine = new JsEngine();
 
         // First, test directly with JsObject - this proves the JsObject API works correctly
-        var testObj = new JsTypes.JsObject();
+        var testObj = new JsObject();
         testObj.SetPrototype(engine.RealmState.ObjectPrototype);
-        testObj.DefineProperty("__proto__", new JsTypes.PropertyDescriptor
+        testObj.DefineProperty("__proto__", new PropertyDescriptor
         {
             Value = 2d,
             Writable = true,

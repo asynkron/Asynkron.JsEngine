@@ -1,6 +1,7 @@
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -95,6 +96,10 @@ public static partial class TypedAstEvaluator
             {
                 environment.DefineJsValue(name, JsValue.Uninitialized, isLexical: false,
                     blocksFunctionScopeOverride: true);
+                environment.RealmState?.Logger?.LogInformation(
+                    "Param hoist name={Name} envScope={ScopeId}",
+                    name.Name,
+                    environment.ScopeId);
             }
 
             var argumentIndex = 0;
@@ -170,6 +175,11 @@ public static partial class TypedAstEvaluator
                 }
 
                 environment.DefineJsValue(parameter.Name, JsValue.FromObjectUnsafe(value), isLexical: false);
+                environment.RealmState?.Logger?.LogInformation(
+                    "Param bind name={Name} envScope={ScopeId} valueKind={Kind}",
+                    parameter.Name.Name,
+                    environment.ScopeId,
+                    value is JsValue v ? v.Kind : JsValue.FromObjectUnsafe(value).Kind);
             }
 
             return;

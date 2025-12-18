@@ -45,4 +45,42 @@ public class IdentifierSlotLoggingTests
         Assert.Contains(messages, m => m.Contains("Identifier slot read hit name=i", StringComparison.Ordinal));
         Assert.Contains(messages, m => m.Contains("Identifier slot write hit name=i", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public async Task CommonjsModule_ParametersStayInSlots()
+    {
+        var logger = new FakeLogger();
+        await using var engine = new JsEngine(new JsEngineOptions
+        {
+            DebugMode = true,
+            Logger = logger
+        });
+
+        const string script = @"
+function createCommonjsModule(fn, basedir, module) {
+    return module = {
+        path: basedir,
+        exports: {},
+        require: function (path, base) {
+            return null;
+        }
+    }, fn(module, module.exports), module.exports;
+}
+
+var browser$5 = createCommonjsModule(function (module, exports) {
+    exports.ok = true;
+});
+
+var result = browser$5.ok === true;
+";
+
+        await engine.Evaluate(script);
+
+        var result = await engine.Evaluate("result;") as bool?;
+        Assert.True(result);
+
+        var messages = logger.Collector.Snapshot().Select(r => r.Message).ToArray();
+        Assert.DoesNotContain(messages, m => m.Contains("Identifier slot read miss name=module", StringComparison.Ordinal));
+        Assert.DoesNotContain(messages, m => m.Contains("Identifier slot write miss name=module", StringComparison.Ordinal));
+    }
 }

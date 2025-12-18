@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace Asynkron.JsEngine;
 
 /// <summary>
@@ -24,4 +26,9 @@ public interface IJsEngineOptions
     ///     allocating debug infrastructure when not needed.
     /// </summary>
     bool DebugMode { get; }
+
+    /// <summary>
+    ///     Optional logger used for realm-level diagnostics such as identifier slot hit/miss tracing.
+    /// </summary>
+    ILogger? Logger { get; }
 }

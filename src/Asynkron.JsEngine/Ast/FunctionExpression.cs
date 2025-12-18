@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine.Ast;
@@ -13,7 +14,7 @@ namespace Asynkron.JsEngine.Ast;
 /// When true, environment reuse optimization is disabled for calls within this function.</param>
 /// <param name="FunctionNameScopeId">For named function expressions, the scope ID of the intermediate scope
 /// that contains the function name binding. -1 if not a named function expression.</param>
-public sealed record FunctionExpression(
+public sealed partial record FunctionExpression(
     SourceReference? Source,
     Symbol? Name,
     ImmutableArray<FunctionParameter> Parameters,
@@ -29,3 +30,9 @@ public sealed record FunctionExpression(
     bool HasClosures = false,
     int FunctionNameScopeId = -1)
     : ExpressionNode(Source);
+
+public sealed partial record FunctionExpression
+{
+    internal ImmutableDictionary<Symbol, int> SlotMap { get; init; } =
+        ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
+}

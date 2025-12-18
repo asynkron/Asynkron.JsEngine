@@ -24,8 +24,7 @@ public static partial class TypedAstEvaluator
             var iterationIndex = 0;
             var hasPerIterationBindings = !plan.PerIterationBindings.IsDefaultOrEmpty;
 
-            if (context.AllowIdentifierCache &&
-                (hasPerIterationBindings || plan.LoopPlanHasDynamicScope()))
+            if (context.AllowIdentifierCache && plan.LoopPlanHasDynamicScope())
             {
                 context.AllowIdentifierCache = false;
             }

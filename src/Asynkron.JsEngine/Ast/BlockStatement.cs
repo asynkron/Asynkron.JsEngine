@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine.Ast;
@@ -12,6 +13,11 @@ public sealed record BlockStatement(SourceReference? Source, ImmutableArray<Stat
     private HoistPlan? _cachedHoistPlan;
     private int _containsInnerFunctionCache = -1; // -1 unknown, 0 false, 1 true
     private int _containsDynamicScopeCache = -1; // -1 unknown, 0 false, 1 true
+
+    internal int ScopeId { get; init; } = -1;
+    internal int SlotCount { get; init; } = -1;
+    internal ImmutableDictionary<Symbol, int> SlotMap { get; init; } =
+        ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
 
     HoistPlan IAstCacheable<HoistPlan>.GetOrCreateCache()
     {

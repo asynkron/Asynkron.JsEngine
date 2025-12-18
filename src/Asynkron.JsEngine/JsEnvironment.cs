@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Collections;
@@ -19,6 +20,8 @@ public sealed class JsEnvironment
     private bool _treatAsGlobalFunctionScope;
 
     private SymbolHybridDictionary<Binding>? _values;
+    private ImmutableDictionary<Symbol, int> _slotMap =
+        ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
 
     /// <summary>
     /// Slot-based storage for fast variable access when scope analysis is available.
@@ -143,6 +146,12 @@ public sealed class JsEnvironment
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void SetSlotMap(ImmutableDictionary<Symbol, int> slotMap)
+    {
+        _slotMap = slotMap;
+    }
+
     /// <summary>
     /// Finds the environment in the chain that has the specified scope ID.
     /// Returns null if not found (caller should fall back to dictionary lookup).
@@ -208,6 +217,23 @@ public sealed class JsEnvironment
         }
 
         env._slots![slotIndex] = value;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void TrySetSlot(Symbol name, JsValue value)
+    {
+        var slots = _slots;
+        if (slots is null || _slotMap.IsEmpty)
+        {
+            return;
+        }
+
+        if (_slotMap.TryGetValue(name, out var slotIndex) &&
+            slotIndex >= 0 &&
+            slotIndex < slots.Length)
+        {
+            slots[slotIndex] = value;
+        }
     }
 
     /// <summary>
@@ -349,6 +375,7 @@ public sealed class JsEnvironment
         IsBodyEnvironment = false;
         _treatAsGlobalFunctionScope = false;
         _inheritStrictness = true;
+        _slotMap = ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
         RealmState = enclosing?.RealmState;
         ModulePath = enclosing?.ModulePath;
         IsAsyncModule = enclosing?.IsAsyncModule ?? false;
@@ -401,6 +428,7 @@ public sealed class JsEnvironment
                 {
                     binding = new Binding(value, isConst, isGlobalConstant, isLexical,
                         blocksFunctionScopeOverride, canDelete, isImmutableBinding);
+                    TrySetSlot(name, value);
                 }
 
                 return;
@@ -413,6 +441,7 @@ public sealed class JsEnvironment
             {
                 NotifyBindingObservers(name, value.ToObject());
             }
+            TrySetSlot(name, value);
             return;
         }
 
@@ -423,6 +452,7 @@ public sealed class JsEnvironment
         {
             NotifyBindingObservers(name, value.ToObject());
         }
+        TrySetSlot(name, value);
     }
 
     /// <summary>
@@ -1120,6 +1150,12 @@ public sealed class JsEnvironment
             if (targetEnv is not null && slots is not null && slotIndex < slots.Length)
             {
                 var slotValue = slots[slotIndex];
+                targetEnv.RealmState?.Logger?.LogInformation(
+                    "Identifier slot read hit name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                    name.Name,
+                    scopeId,
+                    slotIndex,
+                    slotValue.Kind);
                 if (slotValue.IsUninitialized)
                 {
                     var errorObject = StandardLibrary.CreateReferenceError(
@@ -1131,18 +1167,17 @@ public sealed class JsEnvironment
                     return true;
                 }
 
-                // Keep compatibility with existing fallback when slot value is still undefined
-                if (slotValue.IsUndefined &&
-                    targetEnv.TryGetIdentifierJsValue(name, context, out var fallbackTarget))
-                {
-                    value = fallbackTarget;
-                    return true;
-                }
-
                 value = slotValue;
                 return true;
             }
         }
+
+        // Slot path missed or invalid; fall back to regular resolution
+        context.RealmState.Logger?.LogInformation(
+            "Identifier slot read miss name={Name} scopeId={ScopeId} slot={Slot}",
+            name.Name,
+            scopeId,
+            slotIndex);
 
         if (TryGetIdentifierJsValue(name, context, out var resolved))
         {
@@ -1182,11 +1217,22 @@ public sealed class JsEnvironment
                     targetEnv.WriteResolvedBindingJsValue(targetEnv, ref binding, name, value,
                         context.CurrentScope.IsStrict);
                     slots[slotIndex] = value;
+                    targetEnv.RealmState?.Logger?.LogInformation(
+                        "Identifier slot write hit name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                        name.Name,
+                        scopeId,
+                        slotIndex,
+                        value.Kind);
                     return true;
                 }
             }
         }
 
+        context.RealmState.Logger?.LogInformation(
+            "Identifier slot write miss name={Name} scopeId={ScopeId} slot={Slot}",
+            name.Name,
+            scopeId,
+            slotIndex);
         SetIdentifierJsValue(name, value, context);
         return true;
     }
@@ -1506,6 +1552,8 @@ public sealed class JsEnvironment
         {
             bindingEnvironment.GetRootGlobalObject()?.SetProperty(name.Name, value);
         }
+
+        bindingEnvironment.TrySetSlot(name, value);
 
         // Only notify if there are observers (avoid ToObject boxing in hot path)
         if (bindingEnvironment._bindingObservers is not null)

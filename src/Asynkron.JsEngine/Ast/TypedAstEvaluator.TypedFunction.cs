@@ -635,6 +635,7 @@ public static partial class TypedAstEvaluator
                 // Don't initialize slots for complex parameter expressions (destructuring, defaults)
                 // Values are bound via dictionary, not slots
                 functionEnvironment.ScopeId = _function.ScopeId;
+                functionEnvironment.SetSlotMap(_function.SlotMap);
 
                 parameterEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict, _function.Source,
                     _functionDescription, isParameterEnvironment: true);
@@ -653,6 +654,7 @@ public static partial class TypedAstEvaluator
                 // Don't initialize slots in InvokeWithContext - values are bound via dictionary
                 // Only InvokeSimpleFast uses slot-based parameter binding
                 functionEnvironment.ScopeId = _function.ScopeId;
+                functionEnvironment.SetSlotMap(_function.SlotMap);
                 parameterEnvironment = functionEnvironment;
                 varEnvironment = functionEnvironment;
             }
@@ -1821,6 +1823,7 @@ public static partial class TypedAstEvaluator
             // Rent environment from pool
             var functionEnvironment = _realmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
             functionEnvironment.ScopeId = _function.ScopeId;
+            functionEnvironment.SetSlotMap(_function.SlotMap);
             if (_function.SlotCount > 0)
             {
                 functionEnvironment.InitializeSlots(_function.SlotCount);
@@ -1915,6 +1918,7 @@ public static partial class TypedAstEvaluator
 
             var functionEnvironment = _realmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
             functionEnvironment.ScopeId = _function.ScopeId;
+            functionEnvironment.SetSlotMap(_function.SlotMap);
             if (_function.SlotCount > 0)
             {
                 functionEnvironment.InitializeSlots(_function.SlotCount);
@@ -1991,6 +1995,7 @@ public static partial class TypedAstEvaluator
             // Use ResetForReuse which keeps the slots array to avoid allocation
             reuseEnvironment.ResetForReuse(_closure, true, _isStrict, _function.Source, _functionDescription);
             reuseEnvironment.ScopeId = _function.ScopeId;
+            reuseEnvironment.SetSlotMap(_function.SlotMap);
             // Skip InitializeSlots - for simple functions we only have parameters (no local vars),
             // and we're about to set the parameter slot directly below. This avoids the Array.Fill.
 
@@ -2063,6 +2068,7 @@ public static partial class TypedAstEvaluator
 
             var functionEnvironment = _realmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
             functionEnvironment.ScopeId = _function.ScopeId;
+            functionEnvironment.SetSlotMap(_function.SlotMap);
             if (_function.SlotCount > 0)
             {
                 functionEnvironment.InitializeSlots(_function.SlotCount);
@@ -2162,6 +2168,7 @@ public static partial class TypedAstEvaluator
             // Initialize slots for O(1) variable access when scope analysis provided slot count
             // Always set ScopeId since we use it as indicator for _thisValue validity
             functionEnvironment.ScopeId = _function.ScopeId;
+            functionEnvironment.SetSlotMap(_function.SlotMap);
             if (_function.SlotCount > 0)
             {
                 functionEnvironment.InitializeSlots(_function.SlotCount);

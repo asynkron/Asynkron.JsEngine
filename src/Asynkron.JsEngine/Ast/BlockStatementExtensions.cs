@@ -96,6 +96,12 @@ public static partial class TypedAstEvaluator
             // which doesn't override previous statement completion values
             var resultJs = JsValue.Unit;
             var scope = new JsEnvironment(environment, false, block.IsStrict);
+            scope.ScopeId = block.ScopeId;
+            scope.SetSlotMap(block.SlotMap);
+            if (block.SlotCount > 0 && block.ScopeId >= 0)
+            {
+                scope.InitializeSlots(block.SlotCount, block.ScopeId);
+            }
 
             var mode = scope.IsStrict || block.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
             using var scopeHandle = context.PushScope(ScopeKind.Block, mode);

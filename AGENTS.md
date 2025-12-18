@@ -398,3 +398,8 @@ When we're slower than Jint, the proper approach is:
 3. Identify specific allocations/operations that differ
 4. Create targeted optimizations for each bottleneck
 5. Repeat until parity is achieved or specific trade-offs are understood
+
+## Debugging
+
+- **Realm logger assertions**: In tests, inject `new FakeLogger()` (from `Microsoft.Extensions.Logging.Testing`) via `new JsEngine(new JsEngineOptions { DebugMode = true, Logger = fakeLogger })`. Execute the script, then assert on `fakeLogger.Collector.Snapshot()` strings. Example: ensure no slot misses with `Assert.DoesNotContain(messages, m => m.Contains("Identifier slot read miss name=s", StringComparison.Ordinal))` and confirm hits for `i`/`s` to prove the fast path is exercised.
+- **AST slot metadata**: Scope analysis now stamps `FunctionExpression` and `BlockStatement` with `ScopeId`, `SlotCount`, and `SlotMap` (symbol → slot index). You can parse and inspect the analyzed AST (e.g., `var parsed = engine.ParseProgram(script); var runDecl = (FunctionDeclaration)parsed.Body[0]; var slotMap = runDecl.Function.SlotMap; Assert.True(slotMap.ContainsKey(Symbol.Create("i")));`) to verify that specific identifiers received slots in the expected scope before running code.

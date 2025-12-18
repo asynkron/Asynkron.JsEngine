@@ -178,11 +178,21 @@ public sealed class ScopeAnalyzer
         var slotCount = _currentScope!.IsDynamic ? -1 : _currentScope.SlotCount;
         var scopeId = _currentScope!.IsDynamic ? -1 : _currentScope.ScopeId;
         var hasClosures = _currentScope.HasClosures || _currentScope.IsDynamic;
+        var slotMap = CreateSlotMap(_currentScope);
 
         _currentScope = originalParentScope;
         _currentFunctionScope = parentFunctionScope;
 
-        return function with { Parameters = resolvedParameters, Body = resolvedBody, SlotCount = slotCount, ScopeId = scopeId, HasClosures = hasClosures, FunctionNameScopeId = functionNameScopeId };
+        return function with
+        {
+            Parameters = resolvedParameters,
+            Body = resolvedBody,
+            SlotCount = slotCount,
+            ScopeId = scopeId,
+            HasClosures = hasClosures,
+            FunctionNameScopeId = functionNameScopeId,
+            SlotMap = slotMap
+        };
     }
 
     private ImmutableArray<FunctionParameter> ResolveParameters(ImmutableArray<FunctionParameter> parameters)
@@ -544,6 +554,28 @@ public sealed class ScopeAnalyzer
         return (-1, -1, -1, false);
     }
 
+    private static ImmutableDictionary<Symbol, int> CreateSlotMap(ScopeInfo scope)
+    {
+        if (scope.IsDynamic || scope.SlotCount <= 0)
+        {
+            return ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
+        }
+
+        var builder = ImmutableDictionary.CreateBuilder<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
+        foreach (var variable in scope.GetVariables())
+        {
+            var slotIndex = scope.GetSlot(variable);
+            if (slotIndex >= 0)
+            {
+                builder[variable] = slotIndex;
+            }
+        }
+
+        return builder.Count == 0
+            ? ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance)
+            : builder.ToImmutable();
+    }
+
     private ImmutableArray<StatementNode> ResolveStatements(ImmutableArray<StatementNode> statements)
     {
         var builder = ImmutableArray.CreateBuilder<StatementNode>(statements.Length);
@@ -638,10 +670,20 @@ public sealed class ScopeAnalyzer
             CollectLexicalDeclarations(stmt);
         }
 
-        var resolved = block with { Statements = ResolveStatements(block.Statements) };
+        var resolvedStatements = ResolveStatements(block.Statements);
+
+        var slotCount = _currentScope!.IsDynamic ? -1 : _currentScope.SlotCount;
+        var scopeId = _currentScope!.IsDynamic ? -1 : _currentScope.ScopeId;
+        var slotMap = CreateSlotMap(_currentScope);
 
         _currentScope = parentScope;
-        return resolved;
+        return block with
+        {
+            Statements = resolvedStatements,
+            ScopeId = scopeId,
+            SlotCount = slotCount,
+            SlotMap = slotMap
+        };
     }
 
     private ReturnStatement ResolveReturnStatement(ReturnStatement returnStmt)

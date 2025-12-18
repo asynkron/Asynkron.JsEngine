@@ -24,7 +24,15 @@ public static partial class TypedAstEvaluator
         {
             var args = hasSendValue ? new[] { sendValue } : Array.Empty<JsValue>();
             // Use InvokeCallableJsValue to avoid boxing round-trip
-            return InvokeCallableJsValue(nextMethod, args, JsValue.FromObjectUnsafe(iterator), context, callingEnvironment);
+            var result = InvokeCallableJsValue(nextMethod, args, JsValue.FromObjectUnsafe(iterator), context, callingEnvironment);
+
+            // Check if the iterator's next() method threw an error
+            if (context?.IsThrow == true)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+
+            return result;
         }
 
         private IJsCallable GetIteratorNextCallable(EvaluationContext? context)

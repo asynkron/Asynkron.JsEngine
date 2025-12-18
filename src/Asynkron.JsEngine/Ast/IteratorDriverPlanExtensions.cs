@@ -126,6 +126,8 @@ public static partial class TypedAstEvaluator
                             throw new ThrowSignal(context.FlowValue);
                         }
 
+                        SyncIterationSlots(plan, iterationEnvironment, context);
+
                         // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
                         // Only update V (completion value) if result.[[Value]] is not empty
                         var bodyResult = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
@@ -177,6 +179,8 @@ public static partial class TypedAstEvaluator
                         throw new ThrowSignal(context.FlowValue);
                     }
 
+                    SyncIterationSlots(plan, iterationEnvironment, context);
+
                     // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
                     // Only update V (completion value) if result.[[Value]] is not empty
                     var bodyResult2 = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
@@ -216,6 +220,49 @@ public static partial class TypedAstEvaluator
             }
 
             return lastValueJs;
+        }
+
+        private static void SyncIterationSlots(IteratorDriverPlan driverPlan, JsEnvironment iterationEnvironment,
+            EvaluationContext context)
+        {
+            if (driverPlan.IterationSlotCount < 0 ||
+                driverPlan.IterationScopeId < 0 ||
+                driverPlan.PerIterationSlotIndices.IsDefaultOrEmpty ||
+                driverPlan.PerIterationBindings.IsDefaultOrEmpty)
+            {
+                return;
+            }
+
+            if (iterationEnvironment.ScopeId != driverPlan.IterationScopeId)
+            {
+                return;
+            }
+
+            if (!iterationEnvironment.HasSlots)
+            {
+                return;
+            }
+
+            var slotIndices = driverPlan.PerIterationSlotIndices;
+            var bindingNames = driverPlan.PerIterationBindings;
+            var count = Math.Min(slotIndices.Length, bindingNames.Length);
+
+            for (var i = 0; i < count; i++)
+            {
+                var slotIndex = slotIndices[i];
+                if (slotIndex < 0)
+                {
+                    continue;
+                }
+
+                var binding = bindingNames[i];
+                if (!iterationEnvironment.TryGetIdentifierJsValue(binding, context, out var value))
+                {
+                    continue;
+                }
+
+                iterationEnvironment.SetSlot(0, slotIndex, value);
+            }
         }
     }
 }

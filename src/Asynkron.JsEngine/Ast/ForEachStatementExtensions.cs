@@ -65,6 +65,19 @@ public static partial class TypedAstEvaluator
                 if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
                 {
                     var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
+                    Func<JsEnvironment>? rentIterationEnvironment = null;
+                    if (plan.IterationSlotCount >= 0 && plan.IterationScopeId >= 0 &&
+                        statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
+                            or VariableKind.AwaitUsing)
+                    {
+                        rentIterationEnvironment = () =>
+                        {
+                            var env = new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
+                                description: "for-each-iteration");
+                            env.InitializeSlots(plan.IterationSlotCount, plan.IterationScopeId);
+                            return env;
+                        };
+                    }
                     var completion = ExecuteIteratorDriverJsValue(
                         plan,
                         iterator,
@@ -72,7 +85,8 @@ public static partial class TypedAstEvaluator
                         loopEnvironment,
                         environment,
                         context,
-                        loopLabel);
+                        loopLabel,
+                        rentIterationEnvironment);
                     return completion;
                 }
 
@@ -85,6 +99,21 @@ public static partial class TypedAstEvaluator
                 _ => throw new ArgumentOutOfRangeException()
             };
 
+            Func<JsEnvironment>? rentLoopIterationEnv = null;
+            var cachedPlan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
+            if (cachedPlan.IterationSlotCount >= 0 && cachedPlan.IterationScopeId >= 0 &&
+                statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
+                    or VariableKind.AwaitUsing)
+            {
+                rentLoopIterationEnv = () =>
+                {
+                    var env = new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
+                        description: "for-each-iteration");
+                    env.InitializeSlots(cachedPlan.IterationSlotCount, cachedPlan.IterationScopeId);
+                    return env;
+                };
+            }
+
             foreach (var value in values)
             {
                 if (context.ShouldStopEvaluation)
@@ -94,18 +123,22 @@ public static partial class TypedAstEvaluator
 
                 var iterationEnvironment = statement.DeclarationKind is VariableKind.Let or VariableKind.Const
                     or VariableKind.Using or VariableKind.AwaitUsing
-                    ? new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
-                        description: "for-each-iteration")
-                    : loopEnvironment;
+                    ? rentLoopIterationEnv is not null
+                        ? rentLoopIterationEnv()
+                        : new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
+                            description: "for-each-iteration")
+                : loopEnvironment;
 
-                AssignLoopBinding(statement.Target, value, iterationEnvironment, environment, context,
-                    statement.DeclarationKind);
+            AssignLoopBinding(statement.Target, value, iterationEnvironment, environment, context,
+                statement.DeclarationKind);
 
-                // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
-                // Only update V (completion value) if result.[[Value]] is not empty
-                var bodyResult = EvaluateStatementJsValue(statement.Body, iterationEnvironment, context);
-                if (!bodyResult.IsUnit)
-                {
+            SyncIterationSlots(cachedPlan, iterationEnvironment, context);
+
+            // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
+            // Only update V (completion value) if result.[[Value]] is not empty
+            var bodyResult = EvaluateStatementJsValue(statement.Body, iterationEnvironment, context);
+            if (!bodyResult.IsUnit)
+            {
                     lastValueJs = bodyResult;
                 }
 
@@ -158,8 +191,22 @@ public static partial class TypedAstEvaluator
             if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
             {
                 var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
+                Func<JsEnvironment>? rentIterationEnvironment = null;
+                if (plan.IterationSlotCount >= 0 && plan.IterationScopeId >= 0 &&
+                    statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
+                        or VariableKind.AwaitUsing)
+                {
+                    rentIterationEnvironment = () =>
+                    {
+                        var env = new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
+                            description: "for-each-iteration");
+                        env.InitializeSlots(plan.IterationSlotCount, plan.IterationScopeId);
+                        return env;
+                    };
+                }
                 var completion =
-                    ExecuteIteratorDriverJsValue(plan, iterator!, null, loopEnvironment, environment, context, loopLabel);
+                    ExecuteIteratorDriverJsValue(plan, iterator!, null, loopEnvironment, environment, context, loopLabel,
+                        rentIterationEnvironment);
                 return completion;
             }
 

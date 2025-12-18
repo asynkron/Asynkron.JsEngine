@@ -17,7 +17,10 @@ internal sealed record LoopPlan(
     ImmutableArray<StatementNode> PostIteration,
     bool ConditionAfterBody,
     ImmutableArray<Symbol> PerIterationBindings = default,
-    bool AllowIterationEnvironmentPooling = false)
+    bool AllowIterationEnvironmentPooling = false,
+    int IterationScopeId = -1,
+    int IterationSlotCount = -1,
+    ImmutableArray<int> PerIterationSlotIndices = default)
 {
     // Cached analysis for fast-path loop body execution
     private StatementNode? _singleBodyStatement;

@@ -15,6 +15,10 @@ internal static class IteratorDriverFactory
             statement.Iterable,
             statement.Target,
             statement.DeclarationKind,
-            rewrittenBody);
+            rewrittenBody,
+            statement.PerIterationScopeId,
+            statement.PerIterationSlotCount,
+            statement.PerIterationSlotIndices,
+            statement.PerIterationBindings);
     }
 }

@@ -86,7 +86,10 @@ internal static class LoopNormalizer
             EnsureBlock(statement.Body, isStrict),
             postIteration,
             false,
-            perIterationBindings);
+            perIterationBindings,
+            statement.PerIterationScopeId,
+            statement.PerIterationSlotCount,
+            statement.PerIterationSlotIndices);
         failureReason = null;
         return true;
     }
@@ -143,7 +146,10 @@ internal static class LoopNormalizer
         BlockStatement body,
         ImmutableArray<StatementNode> postIteration,
         bool conditionAfterBody,
-        ImmutableArray<Symbol> perIterationBindings = default)
+        ImmutableArray<Symbol> perIterationBindings = default,
+        int iterationScopeId = -1,
+        int iterationSlotCount = -1,
+        ImmutableArray<int> perIterationSlotIndices = default)
     {
         var allowIterationEnvironmentPooling =
             !TypedAstEvaluator.ContainsInnerFunctionExpression(body) &&
@@ -161,7 +167,10 @@ internal static class LoopNormalizer
             postIteration,
             conditionAfterBody,
             perIterationBindings,
-            allowIterationEnvironmentPooling);
+            allowIterationEnvironmentPooling,
+            iterationScopeId,
+            iterationSlotCount,
+            perIterationSlotIndices);
     }
 
     private static bool StatementsContainInnerFunctionExpression(ImmutableArray<StatementNode> statements)

@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Parser;
 
@@ -11,7 +12,10 @@ public sealed record ForStatement(
     StatementNode? Initializer,
     ExpressionNode? Condition,
     ExpressionNode? Increment,
-    StatementNode Body) : StatementNode(Source), IAstCacheable<LoopPlan>
+    StatementNode Body,
+    int PerIterationScopeId = -1,
+    int PerIterationSlotCount = -1,
+    ImmutableArray<int> PerIterationSlotIndices = default) : StatementNode(Source), IAstCacheable<LoopPlan>
 {
     private LoopPlan? _cachedPlan;
 

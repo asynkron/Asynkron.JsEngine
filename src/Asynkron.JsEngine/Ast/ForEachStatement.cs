@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Parser;
 
@@ -12,7 +13,11 @@ public sealed record ForEachStatement(
     ExpressionNode Iterable,
     StatementNode Body,
     ForEachKind Kind,
-    VariableKind? DeclarationKind) : StatementNode(Source), IAstCacheable<IteratorDriverPlan>
+    VariableKind? DeclarationKind,
+    int PerIterationScopeId = -1,
+    int PerIterationSlotCount = -1,
+    ImmutableArray<int> PerIterationSlotIndices = default,
+    ImmutableArray<Symbol> PerIterationBindings = default) : StatementNode(Source), IAstCacheable<IteratorDriverPlan>
 {
     private IteratorDriverPlan? _cachedPlan;
 

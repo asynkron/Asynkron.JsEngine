@@ -28,6 +28,11 @@ public static partial class TypedAstEvaluator
                         {
                             return HandleTdzError(identifier.Name, context);
                         }
+                        if (value.IsUndefined && environment.TryGetIdentifierJsValue(identifier.Name, context, out var fallbackLocal))
+                        {
+                            return fallbackLocal;
+                        }
+
                         return value;
                     }
                 }
@@ -43,6 +48,12 @@ public static partial class TypedAstEvaluator
                         {
                             return HandleTdzError(identifier.Name, context);
                         }
+                        if (value.IsUndefined &&
+                            targetEnv.TryGetIdentifierJsValue(identifier.Name, context, out var fallbackTarget))
+                        {
+                            return fallbackTarget;
+                        }
+
                         return value;
                     }
                 }

@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 
@@ -166,6 +167,10 @@ public static partial class TypedAstEvaluator
         private JsEnvironment CreatePerIterationEnvironment(JsEnvironment currentIterationEnvironment,
             EvaluationContext context)
         {
+            var iterationScopeId = plan.IterationScopeId;
+            var iterationSlotCount = plan.IterationSlotCount;
+            var iterationSlotIndices = plan.PerIterationSlotIndices;
+
             // Per ECMAScript spec 13.7.4.9 CreatePerIterationEnvironment:
             // The new iteration environment's parent should be the OUTER environment (the loop environment),
             // not the current iteration environment
@@ -186,9 +191,15 @@ public static partial class TypedAstEvaluator
                     creatingSource: null,
                     description: "for-iteration");
 
-            // Copy the per-iteration bindings from the CURRENT iteration environment to the new environment
-            foreach (var bindingName in plan.PerIterationBindings)
+            if (iterationSlotCount >= 0)
             {
+                newIterationEnvironment.InitializeSlots(iterationSlotCount, iterationScopeId);
+            }
+
+            // Copy the per-iteration bindings from the CURRENT iteration environment to the new environment
+            for (var i = 0; i < plan.PerIterationBindings.Length; i++)
+            {
+                var bindingName = plan.PerIterationBindings[i];
                 // Get the current value from the current iteration environment.
                 // Use direct identifier resolution with JsValue to avoid boxing primitives.
                 JsValue currentValue;
@@ -220,9 +231,6 @@ public static partial class TypedAstEvaluator
 
                 var isConstBinding = currentIterationEnvironment.IsConstBinding(bindingName);
 
-                // Define the binding in the new iteration environment using JsValue to avoid boxing
-                // Use let semantics (isLexical=true, isConst=false by default, but the original
-                // declaration kind doesn't matter for the copy)
                 newIterationEnvironment.DefineJsValue(
                     bindingName,
                     currentValue,
@@ -231,6 +239,15 @@ public static partial class TypedAstEvaluator
                     isLexical: true,
                     blocksFunctionScopeOverride: false,
                     canDelete: false);
+
+                if (iterationSlotCount >= 0 && newIterationEnvironment.ScopeId == iterationScopeId && !iterationSlotIndices.IsDefaultOrEmpty)
+                {
+                    var targetSlot = iterationSlotIndices.Length > i ? iterationSlotIndices[i] : -1;
+                    if (targetSlot >= 0 && newIterationEnvironment.HasSlots)
+                    {
+                        newIterationEnvironment.SetSlot(0, targetSlot, currentValue);
+                    }
+                }
             }
 
             return newIterationEnvironment;
@@ -310,9 +327,24 @@ public static partial class TypedAstEvaluator
                     isParameterEnvironment: false,
                     isBodyEnvironment: false);
 
+                if (plan.IterationSlotCount >= 0)
+                {
+                    currentIterationEnvironment.InitializeSlots(plan.IterationSlotCount, plan.IterationScopeId);
+                }
+
                 for (var i = 0; i < count; i++)
                 {
                     var bindingName = bindings[i];
+                    var slotIndex = -1;
+                    if (plan.IterationSlotCount >= 0 && currentIterationEnvironment.ScopeId == plan.IterationScopeId)
+                    {
+                        slotIndex = plan.PerIterationSlotIndices.Length > i ? plan.PerIterationSlotIndices[i] : -1;
+                        if (slotIndex >= 0 && currentIterationEnvironment.HasSlots)
+                        {
+                            currentIterationEnvironment.SetSlot(0, slotIndex, valueSpan[i]);
+                        }
+                    }
+
                     currentIterationEnvironment.DefineJsValue(
                         bindingName,
                         valueSpan[i],
@@ -321,6 +353,15 @@ public static partial class TypedAstEvaluator
                         isLexical: true,
                         blocksFunctionScopeOverride: false,
                         canDelete: false);
+
+                    if (plan.IterationSlotCount >= 0 && currentIterationEnvironment.ScopeId == plan.IterationScopeId &&
+                        !plan.PerIterationSlotIndices.IsDefaultOrEmpty)
+                    {
+                        if (slotIndex >= 0 && currentIterationEnvironment.HasSlots)
+                        {
+                            currentIterationEnvironment.SetSlot(0, slotIndex, valueSpan[i]);
+                        }
+                    }
                 }
 
                 ArrayPool<JsValue>.Shared.Return(rentedValues, clearArray: true);
@@ -428,6 +469,25 @@ public static partial class TypedAstEvaluator
 
             var synthetic = new BlockStatement(null, statements, false);
             return ContainsWithOrDirectEval(synthetic);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int GetSlotIndex(ImmutableArray<int> slotIndices, Symbol binding, ImmutableArray<Symbol> bindingNames)
+        {
+            if (slotIndices.IsDefaultOrEmpty || bindingNames.IsDefaultOrEmpty || slotIndices.Length != bindingNames.Length)
+            {
+                return -1;
+            }
+
+            for (var i = 0; i < bindingNames.Length; i++)
+            {
+                if (ReferenceEquals(bindingNames[i], binding))
+                {
+                    return slotIndices[i];
+                }
+            }
+
+            return -1;
         }
     }
 }

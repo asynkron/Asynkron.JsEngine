@@ -1,6 +1,6 @@
-using System.Linq;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.Parser;
+using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Tests.Infrastructure;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -13,25 +13,25 @@ public class LoopScopeAnalysisTests
             let total = 0;
             for (let i = 0, s = 0; i < 3; i++) {
                 total += i;
-                s = s + i;
-            }
-            total;
-            """;
+            s = s + i;
+        }
+        total;
+        """;
 
-        var (analyzed, afterCps) = ParseWithPipeline(source);
-        var forStatement = FindFirst<ForStatement>(analyzed);
+        var pipeline = AstTestHelpers.ParseAndAnalyze(source);
+        var forStatement = AstTestHelpers.FindFirst<ForStatement>(pipeline.Analyzed);
 
         Assert.True(forStatement.PerIterationScopeId >= 0);
         Assert.Equal(2, forStatement.PerIterationSlotCount);
-        Assert.Equal(new[] { 0, 1 }, forStatement.PerIterationSlotIndices.ToArray());
+        Assert.Equal([0, 1], forStatement.PerIterationSlotIndices.ToArray());
 
         var plan = ((IAstCacheable<LoopPlan>)forStatement).GetOrCreateCache();
         Assert.Equal(forStatement.PerIterationScopeId, plan.IterationScopeId);
         Assert.Equal(forStatement.PerIterationSlotCount, plan.IterationSlotCount);
         Assert.Equal(forStatement.PerIterationSlotIndices, plan.PerIterationSlotIndices);
-        Assert.Equal(new[] { "i", "s" }, plan.PerIterationBindings.Select(b => b.Name).ToArray());
+        Assert.Equal(["i", "s"], plan.PerIterationBindings.Select(b => b.Name).ToArray());
 
-        var forStatementAfterCps = FindFirst<ForStatement>(afterCps);
+        var forStatementAfterCps = AstTestHelpers.FindFirst<ForStatement>(pipeline.AfterCps);
         Assert.Equal(forStatement.PerIterationScopeId, forStatementAfterCps.PerIterationScopeId);
         Assert.Equal(forStatement.PerIterationSlotCount, forStatementAfterCps.PerIterationSlotCount);
         Assert.Equal(forStatement.PerIterationSlotIndices, forStatementAfterCps.PerIterationSlotIndices);
@@ -47,14 +47,20 @@ public class LoopScopeAnalysisTests
             }
             """;
 
-        var (analyzed, afterCps) = ParseWithPipeline(source);
-        var forEach = FindFirst<ForEachStatement>(analyzed);
+        var pipeline = AstTestHelpers.ParseAndAnalyze(source);
+        var forEach = AstTestHelpers.FindFirst<ForEachStatement>(pipeline.Analyzed);
+        var keyIdentifier = AstTestHelpers.FindFirst<IdentifierExpression>(
+            pipeline.Analyzed,
+            id => string.Equals(id.Name.Name, "key", StringComparison.Ordinal));
 
         Assert.Equal(ForEachKind.In, forEach.Kind);
+        Assert.Equal(VariableKind.Let, forEach.DeclarationKind);
         Assert.True(forEach.PerIterationScopeId >= 0);
         Assert.Equal(1, forEach.PerIterationSlotCount);
-        Assert.Equal(new[] { 0 }, forEach.PerIterationSlotIndices.ToArray());
-        Assert.Equal(new[] { "key" }, forEach.PerIterationBindings.Select(b => b.Name).ToArray());
+        Assert.Equal([0], forEach.PerIterationSlotIndices.ToArray());
+        Assert.Equal(["key"], forEach.PerIterationBindings.Select(b => b.Name).ToArray());
+        Assert.Equal(forEach.PerIterationScopeId, keyIdentifier.ScopeId);
+        Assert.Equal(0, keyIdentifier.SlotIndex);
 
         var plan = ((IAstCacheable<IteratorDriverPlan>)forEach).GetOrCreateCache();
         Assert.Equal(forEach.PerIterationScopeId, plan.IterationScopeId);
@@ -62,11 +68,17 @@ public class LoopScopeAnalysisTests
         Assert.Equal(forEach.PerIterationSlotIndices, plan.PerIterationSlotIndices);
         Assert.Equal(forEach.PerIterationBindings.Select(b => b.Name), plan.PerIterationBindings.Select(b => b.Name));
 
-        var forEachAfterCps = FindFirst<ForEachStatement>(afterCps);
+        var forEachAfterCps = AstTestHelpers.FindFirst<ForEachStatement>(pipeline.AfterCps);
         Assert.Equal(forEach.PerIterationScopeId, forEachAfterCps.PerIterationScopeId);
         Assert.Equal(forEach.PerIterationSlotCount, forEachAfterCps.PerIterationSlotCount);
         Assert.Equal(forEach.PerIterationSlotIndices, forEachAfterCps.PerIterationSlotIndices);
         Assert.Equal(forEach.PerIterationBindings.Select(b => b.Name), forEachAfterCps.PerIterationBindings.Select(b => b.Name));
+
+        var keyAfterCps = AstTestHelpers.FindFirst<IdentifierExpression>(
+            pipeline.AfterCps,
+            id => id.Name.Name == "key");
+        Assert.Equal(forEach.PerIterationScopeId, keyAfterCps.ScopeId);
+        Assert.Equal(0, keyAfterCps.SlotIndex);
     }
 
     [Fact]
@@ -79,14 +91,14 @@ public class LoopScopeAnalysisTests
             }
             """;
 
-        var (analyzed, afterCps) = ParseWithPipeline(source);
-        var forEach = FindFirst<ForEachStatement>(analyzed);
+        var pipeline = AstTestHelpers.ParseAndAnalyze(source);
+        var forEach = AstTestHelpers.FindFirst<ForEachStatement>(pipeline.Analyzed);
 
         Assert.Equal(ForEachKind.Of, forEach.Kind);
         Assert.True(forEach.PerIterationScopeId >= 0);
         Assert.Equal(2, forEach.PerIterationSlotCount);
-        Assert.Equal(new[] { 0, 1 }, forEach.PerIterationSlotIndices.ToArray());
-        Assert.Equal(new[] { "x", "y" }, forEach.PerIterationBindings.Select(b => b.Name).ToArray());
+        Assert.Equal([0, 1], forEach.PerIterationSlotIndices.ToArray());
+        Assert.Equal(["x", "y"], forEach.PerIterationBindings.Select(b => b.Name).ToArray());
 
         var plan = ((IAstCacheable<IteratorDriverPlan>)forEach).GetOrCreateCache();
         Assert.Equal(forEach.PerIterationScopeId, plan.IterationScopeId);
@@ -94,116 +106,41 @@ public class LoopScopeAnalysisTests
         Assert.Equal(forEach.PerIterationSlotIndices, plan.PerIterationSlotIndices);
         Assert.Equal(forEach.PerIterationBindings.Select(b => b.Name), plan.PerIterationBindings.Select(b => b.Name));
 
-        var forEachAfterCps = FindFirst<ForEachStatement>(afterCps);
+        var forEachAfterCps = AstTestHelpers.FindFirst<ForEachStatement>(pipeline.AfterCps);
         Assert.Equal(forEach.PerIterationBindings.Select(b => b.Name), forEachAfterCps.PerIterationBindings.Select(b => b.Name));
         Assert.Equal(forEach.PerIterationSlotIndices, forEachAfterCps.PerIterationSlotIndices);
     }
 
-    private static (ProgramNode analyzed, ProgramNode afterCps) ParseWithPipeline(string source)
+    [Fact]
+    public async Task ForInLetBinding_BindsActualKeyValueAtRuntime()
     {
-        var lexer = new Lexer(source);
-        var tokens = lexer.Tokenize();
-        var parser = new TypedAstParser(tokens, source);
-        var program = parser.ParseProgram();
-
-        var constant = new TypedConstantExpressionTransformer().Transform(program);
-        var analyzed = new ScopeAnalyzer().Analyze(constant);
-        var cpsTransformed = TypedCpsTransformer.NeedsTransformation(analyzed)
-            ? new TypedCpsTransformer().Transform(analyzed)
-            : analyzed;
-
-        return (analyzed, cpsTransformed);
-    }
-
-    private static T FindFirst<T>(ProgramNode program) where T : class
-    {
-        foreach (var statement in program.Body)
-        {
-            var match = FindInStatement<T>(statement);
-            if (match is not null)
-            {
-                return match;
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+            let obj = { a: 1, b: 2 };
+            let seen = '';
+            for (let key in obj) {
+                seen = key + ':' + (typeof key);
+                break;
             }
-        }
+            seen;
+            """);
 
-        throw new Xunit.Sdk.XunitException($"No {typeof(T).Name} found in program.");
+        Assert.Equal("a:string", result);
     }
 
-    private static T? FindInStatement<T>(StatementNode statement) where T : class
+    [Fact]
+    public async Task ForInLetBinding_AccumulatesKeys()
     {
-        if (statement is T typed)
-        {
-            return typed;
-        }
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+            let obj = { a: 1, b: 2, c: 3 };
+            let keys = '';
+            for (let key in obj) {
+                keys = keys + key;
+            }
+            keys;
+            """);
 
-        switch (statement)
-        {
-            case BlockStatement block:
-                foreach (var child in block.Statements)
-                {
-                    var found = FindInStatement<T>(child);
-                    if (found is not null)
-                    {
-                        return found;
-                    }
-                }
-                break;
-            case IfStatement ifStatement:
-                var inThen = FindInStatement<T>(ifStatement.Then);
-                if (inThen is not null)
-                {
-                    return inThen;
-                }
-                if (ifStatement.Else is not null)
-                {
-                    var inElse = FindInStatement<T>(ifStatement.Else);
-                    if (inElse is not null)
-                    {
-                        return inElse;
-                    }
-                }
-                break;
-            case ForStatement forStatement:
-                return FindInStatement<T>(forStatement.Body);
-            case ForEachStatement forEachStatement:
-                return FindInStatement<T>(forEachStatement.Body);
-            case WhileStatement whileStatement:
-                return FindInStatement<T>(whileStatement.Body);
-            case DoWhileStatement doWhileStatement:
-                return FindInStatement<T>(doWhileStatement.Body);
-            case LabeledStatement labeledStatement:
-                return FindInStatement<T>(labeledStatement.Statement);
-            case TryStatement tryStatement:
-                var inTry = FindInStatement<T>(tryStatement.TryBlock);
-                if (inTry is not null)
-                {
-                    return inTry;
-                }
-                if (tryStatement.Catch is not null)
-                {
-                    var inCatch = FindInStatement<T>(tryStatement.Catch.Body);
-                    if (inCatch is not null)
-                    {
-                        return inCatch;
-                    }
-                }
-                if (tryStatement.Finally is not null)
-                {
-                    return FindInStatement<T>(tryStatement.Finally);
-                }
-                break;
-            case SwitchStatement switchStatement:
-                foreach (var switchCase in switchStatement.Cases)
-                {
-                    var inCase = FindInStatement<T>(switchCase.Body);
-                    if (inCase is not null)
-                    {
-                        return inCase;
-                    }
-                }
-                break;
-        }
-
-        return null;
+        Assert.Equal("abc", result);
     }
 }

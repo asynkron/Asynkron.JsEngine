@@ -399,6 +399,92 @@ public sealed class ScopeAnalyzer
         }
     }
 
+    private static void CollectBindingSlotIndices(BindingTarget target, ScopeInfo scope, List<int> indices)
+    {
+        while (true)
+        {
+            switch (target)
+            {
+                case IdentifierBinding identifier:
+                    indices.Add(scope.GetSlot(identifier.Name));
+                    break;
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        if (element.Target is not null)
+                        {
+                            CollectBindingSlotIndices(element.Target, scope, indices);
+                        }
+                    }
+                    if (arrayBinding.RestElement is not null)
+                    {
+                        target = arrayBinding.RestElement;
+                        continue;
+                    }
+                    break;
+                case ObjectBinding objectBinding:
+                    foreach (var prop in objectBinding.Properties)
+                    {
+                        if (prop.Target is not null)
+                        {
+                            CollectBindingSlotIndices(prop.Target, scope, indices);
+                        }
+                    }
+                    if (objectBinding.RestElement is not null)
+                    {
+                        target = objectBinding.RestElement;
+                        continue;
+                    }
+                    break;
+            }
+
+            break;
+        }
+    }
+
+    private static void CollectBindingNamesInOrder(BindingTarget target, List<Symbol> names)
+    {
+        while (true)
+        {
+            switch (target)
+            {
+                case IdentifierBinding identifier:
+                    names.Add(identifier.Name);
+                    break;
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        if (element.Target is not null)
+                        {
+                            CollectBindingNamesInOrder(element.Target, names);
+                        }
+                    }
+                    if (arrayBinding.RestElement is not null)
+                    {
+                        target = arrayBinding.RestElement;
+                        continue;
+                    }
+                    break;
+                case ObjectBinding objectBinding:
+                    foreach (var prop in objectBinding.Properties)
+                    {
+                        if (prop.Target is not null)
+                        {
+                            CollectBindingNamesInOrder(prop.Target, names);
+                        }
+                    }
+                    if (objectBinding.RestElement is not null)
+                    {
+                        target = objectBinding.RestElement;
+                        continue;
+                    }
+                    break;
+            }
+
+            break;
+        }
+    }
+
     #endregion
 
     #region Identifier Resolution
@@ -880,6 +966,10 @@ public sealed class ScopeAnalyzer
         // For statements with let/const create a new scope
         var needsScope = forStmt.Initializer is VariableDeclaration { Kind: VariableKind.Let or VariableKind.Const };
 
+        var perIterationScopeId = -1;
+        var perIterationSlotCount = -1;
+        List<int>? perIterationSlotIndices = null;
+
         var parentScope = _currentScope;
         if (needsScope)
         {
@@ -891,6 +981,19 @@ public sealed class ScopeAnalyzer
                 foreach (var declarator in initDecl.Declarators)
                 {
                     CollectBindingDeclarations(declarator.Target);
+                }
+            }
+
+            perIterationScopeId = _currentScope.ScopeId;
+            perIterationSlotCount = _currentScope.SlotCount;
+
+            // Capture slot indices for each declared binding (in declaration order)
+            perIterationSlotIndices = new List<int>();
+            if (forStmt.Initializer is VariableDeclaration initDecl2)
+            {
+                foreach (var declarator in initDecl2.Declarators)
+                {
+                    CollectBindingSlotIndices(declarator.Target, _currentScope, perIterationSlotIndices);
                 }
             }
         }
@@ -916,18 +1019,36 @@ public sealed class ScopeAnalyzer
             _currentScope = parentScope;
         }
 
-        return resolved;
+        return resolved with
+        {
+            PerIterationScopeId = perIterationScopeId,
+            PerIterationSlotCount = perIterationSlotCount,
+            PerIterationSlotIndices = perIterationSlotIndices?.ToImmutableArray() ?? default
+        };
     }
 
     private ForEachStatement ResolveForEachStatement(ForEachStatement forEachStmt)
     {
         var needsScope = forEachStmt.DeclarationKind is VariableKind.Let or VariableKind.Const;
 
+        var perIterationScopeId = -1;
+        var perIterationSlotCount = -1;
+        List<int>? perIterationSlotIndices = null;
+        List<Symbol>? perIterationBindings = null;
+
         var parentScope = _currentScope;
         if (needsScope)
         {
             _currentScope = new ScopeInfo(parentScope, isFunctionScope: false, isBlockScope: true, scopeId: _nextScopeId++);
             CollectBindingDeclarations(forEachStmt.Target);
+
+            perIterationScopeId = _currentScope.ScopeId;
+            perIterationSlotCount = _currentScope.SlotCount;
+            perIterationSlotIndices = new List<int>();
+            CollectBindingSlotIndices(forEachStmt.Target, _currentScope, perIterationSlotIndices);
+
+            perIterationBindings = new List<Symbol>();
+            CollectBindingNamesInOrder(forEachStmt.Target, perIterationBindings);
         }
 
         var resolved = forEachStmt with
@@ -941,7 +1062,13 @@ public sealed class ScopeAnalyzer
             _currentScope = parentScope;
         }
 
-        return resolved;
+        return resolved with
+        {
+            PerIterationScopeId = perIterationScopeId,
+            PerIterationSlotCount = perIterationSlotCount,
+            PerIterationSlotIndices = perIterationSlotIndices?.ToImmutableArray() ?? default,
+            PerIterationBindings = perIterationBindings?.ToImmutableArray() ?? default
+        };
     }
 
     private TryStatement ResolveTryStatement(TryStatement tryStmt)

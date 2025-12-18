@@ -1762,8 +1762,11 @@ public static partial class TypedAstEvaluator
                         return true;
                     }
 
-                    frame.PendingCompletion = PendingCompletion.FromAbrupt(kind, value);
-                    return true;
+                    // Per ES spec: when an abrupt completion occurs inside a finally block,
+                    // the new completion replaces the pending one. Pop this frame and
+                    // continue propagating to outer frames.
+                    _tryStack.Pop();
+                    continue;
                 }
 
                 _tryStack.Pop();

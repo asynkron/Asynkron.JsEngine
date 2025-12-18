@@ -75,14 +75,29 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            var propertyValueJs = EvaluateExpression(expression.Property, environment, context);
-            if (context.ShouldStopEvaluation)
+            // Fast path: for non-computed member access with literal string property,
+            // skip expression evaluation and use the property name directly
+            string? propertyName;
+            if (!expression.IsComputed && expression.Property is LiteralExpression { Value.IsString: true } literalProp)
             {
-                return JsValue.Undefined;
+                propertyName = literalProp.Value.AsString();
+            }
+            else
+            {
+                var propertyValueJs = EvaluateExpression(expression.Property, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return JsValue.Undefined;
+                }
+
+                propertyName = JsOps.GetRequiredPropertyName(propertyValueJs.ToObject(), context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return JsValue.Undefined;
+                }
             }
 
-            var propertyName = JsOps.GetRequiredPropertyName(propertyValueJs.ToObject(), context);
-            if (context.ShouldStopEvaluation)
+            if (propertyName is null)
             {
                 return JsValue.Undefined;
             }

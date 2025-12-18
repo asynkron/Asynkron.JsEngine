@@ -62,6 +62,7 @@ public static partial class TypedAstEvaluator
             if (statement.Kind == ForEachKind.Of)
             {
                 var iteratorTarget = NormalizeIterableTarget(iterable, context);
+
                 if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
                 {
                     var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();

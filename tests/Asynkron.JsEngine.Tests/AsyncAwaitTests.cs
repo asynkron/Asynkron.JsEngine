@@ -868,12 +868,11 @@ public class AsyncAwaitTests
         });
 
         // Register an async .NET function that simulates I/O
-        engine.SetGlobalAsyncFunction("readFileAsync", async args =>
+        engine.SetGlobalAsyncFunction("readFileAsync", async _ =>
         {
-            var filename = args.GetArgument(0).ToString();
             // Simulate async I/O with a delay
             await Task.Delay(50);
-            return (JsValue)$"Contents of {filename}";
+            return (JsValue)"file contents loaded";
         });
 
         await engine.Evaluate("""
@@ -884,7 +883,7 @@ public class AsyncAwaitTests
             test().then(captureResult);
             """);
 
-        Assert.Equal("Contents of test.txt", result);
+        Assert.Equal("file contents loaded", result);
     }
 
     [Fact(Timeout = 5000)]

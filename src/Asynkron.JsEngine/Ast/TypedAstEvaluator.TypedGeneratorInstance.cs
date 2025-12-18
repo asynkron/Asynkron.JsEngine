@@ -460,17 +460,22 @@ public static partial class TypedAstEvaluator
             if (_pendingAwaitKey is { } awaitKey)
             {
                 var (kind, value) = ConsumeResumeValue();
-                if (kind == ResumePayloadKind.Value)
+                var isThrow = kind == ResumePayloadKind.Throw;
+
+                // Store the resolved value (or thrown error) in AwaitState so
+                // EvaluateAwaitInGenerator can retrieve it when re-evaluated.
+                if (kind == ResumePayloadKind.Value || isThrow)
                 {
                     if (environment.TryGet(awaitKey, out var stateObj) && stateObj is AwaitState state)
                     {
                         state.HasResult = true;
+                        state.IsThrow = isThrow;
                         state.Result = value;
                         environment.Assign(awaitKey, state);
                     }
                     else
                     {
-                        var newState = new AwaitState { HasResult = true, Result = value };
+                        var newState = new AwaitState { HasResult = true, IsThrow = isThrow, Result = value };
                         if (environment.TryGet(awaitKey, out _))
                         {
                             environment.Assign(awaitKey, newState);
@@ -1496,8 +1501,17 @@ public static partial class TypedAstEvaluator
                 // for this resume, then clear the flag so future iterations
                 // (e.g. in loops) see a fresh await.
                 var result = state.Result;
+                var isThrow = state.IsThrow;
                 environment.Assign(awaitKey, new AwaitState());
                 _pendingAwaitKey = null;
+
+                // If the await was rejected, throw at this point so the
+                // generator's try-catch can handle it.
+                if (isThrow)
+                {
+                    throw new ThrowSignal(result is JsValue jsVal ? jsVal : JsValue.FromObjectUnsafe(result));
+                }
+
                 return result;
             }
 
@@ -1807,6 +1821,7 @@ public static partial class TypedAstEvaluator
         private sealed class AwaitState
         {
             public bool HasResult { get; set; }
+            public bool IsThrow { get; set; }
             public object? Result { get; set; }
         }
 

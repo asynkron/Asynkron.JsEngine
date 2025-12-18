@@ -46,7 +46,7 @@ public sealed partial class WeakMapConstructor(IJsObjectLike prototype, RealmSta
         return instance;
     }
 
-    private void PopulateWeakMap(JsWeakMap map, IReadOnlyList<JsValue> args)
+    private static void PopulateWeakMap(JsWeakMap map, IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
         {

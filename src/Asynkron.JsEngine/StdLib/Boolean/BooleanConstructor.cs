@@ -27,7 +27,7 @@ public sealed partial class BooleanConstructor(IJsObjectLike prototype, RealmSta
         _constructor = constructor;
         Realm.BooleanPrototype ??= Prototype as JsObject;
 
-        constructor.SetInvokeWithContext((args, thisArg, _, newTarget) =>
+        constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
             if (newTarget.IsUndefined)
             {
@@ -48,7 +48,7 @@ public sealed partial class BooleanConstructor(IJsObjectLike prototype, RealmSta
             Prototype;
 
         var instance = PrepareThisObject(JsValue.Undefined, assignPrototype: false);
-        if (resolvedProto is not null && instance.Prototype is null)
+        if (instance.Prototype is null)
         {
             instance.SetPrototype(resolvedProto);
         }
@@ -57,7 +57,7 @@ public sealed partial class BooleanConstructor(IJsObjectLike prototype, RealmSta
         return instance;
     }
 
-    private void InitializeBooleanWrapper(JsObject wrapper, IReadOnlyList<JsValue> args)
+    private static void InitializeBooleanWrapper(JsObject wrapper, IReadOnlyList<JsValue> args)
     {
         var value = JsOps.ToBoolean(args.GetArgument(0));
         wrapper.SetProperty("__value__", value);
@@ -73,9 +73,6 @@ public sealed partial class BooleanConstructor(IJsObjectLike prototype, RealmSta
         }
 
         var proto = ResolveConstructPrototype(target, target, Realm) ?? Prototype;
-        if (proto is not null)
-        {
-            instance.SetPrototype(proto);
-        }
+        instance.SetPrototype(proto);
     }
 }

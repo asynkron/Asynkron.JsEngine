@@ -30,7 +30,7 @@ public static partial class TypedAstEvaluator
             using var scopeHandle = context.PushScope(ScopeKind.Block, scopeMode);
 
             // Hoist lexical declarations from all case bodies
-            InstantiateSwitchLexicalDeclarations(statement, instantiationPlan, switchEnv, context);
+            InstantiateSwitchLexicalDeclarations(instantiationPlan, switchEnv, context);
 
             // V = undefined (spec step 1)
             var completionValue = JsValue.Undefined;
@@ -77,7 +77,7 @@ public static partial class TypedAstEvaluator
 
                 // Evaluate the case clause body statements in the switch environment
                 // We evaluate the statements directly without creating a new block environment
-                var (caseCompletionJs, hasCaseJs) = EvaluateCaseClauseBodyJsValue(statement, switchCase.Body, switchEnv, context);
+                var (caseCompletionJs, hasCaseJs) = EvaluateCaseClauseBodyJsValue(switchCase.Body, switchEnv, context);
 
                 // If R.[[value]] is not empty, let V = R.[[value]] (spec step 4.b.ii)
                 // UpdateEmpty semantics: only update V if the completion is not empty
@@ -102,7 +102,7 @@ public static partial class TypedAstEvaluator
             return completionValue;
         }
 
-        private void InstantiateSwitchLexicalDeclarations(SwitchInstantiationPlan plan, JsEnvironment switchEnv, EvaluationContext context)
+        private static void InstantiateSwitchLexicalDeclarations(SwitchInstantiationPlan plan, JsEnvironment switchEnv, EvaluationContext context)
         {
             foreach (var binding in plan.LexicalBindings)
             {
@@ -146,7 +146,7 @@ public static partial class TypedAstEvaluator
         /// <summary>
         /// Evaluates a case clause body and returns a tuple with the value and whether it produced a value.
         /// </summary>
-        private (JsValue result, bool hasResult) EvaluateCaseClauseBodyJsValue(BlockStatement body, JsEnvironment switchEnv, EvaluationContext context)
+        private static (JsValue result, bool hasResult) EvaluateCaseClauseBodyJsValue(BlockStatement body, JsEnvironment switchEnv, EvaluationContext context)
         {
             // Evaluate statements in the case clause body without creating a new environment
             // The statements are evaluated in the shared switch environment

@@ -53,7 +53,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
         var instance = PrepareThisObject(JsValue.Undefined, assignPrototype: false);
-        if (proto is not null && instance.Prototype is null)
+        if (instance.Prototype is null)
         {
             instance.SetPrototype(proto);
         }
@@ -62,7 +62,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
         return new JsValue(instance);
     }
 
-    private void InitializeNumberWrapper(JsObject wrapper, IReadOnlyList<JsValue> args)
+    private static void InitializeNumberWrapper(JsObject wrapper, IReadOnlyList<JsValue> args)
     {
         var result = args.Count == 0 ? 0d : JsOps.ToNumber(args.GetArgument(0));
         wrapper.SetProperty("__value__", result);
@@ -162,7 +162,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
             return JsValue.NaN;
         }
 
-        var str = JsOps.ToJsString(args[0].ToObject()) ?? "";
+        var str = args[0].ToJsString();
         str = str.Trim();
         if (str.Length == 0)
         {
@@ -179,17 +179,17 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
             }
         }
 
-        if (str.StartsWith("Infinity"))
+        if (str.StartsWith("Infinity", StringComparison.Ordinal))
         {
             return JsValue.PositiveInfinity;
         }
 
-        if (str.StartsWith("+Infinity"))
+        if (str.StartsWith("+Infinity", StringComparison.Ordinal))
         {
             return JsValue.PositiveInfinity;
         }
 
-        if (str.StartsWith("-Infinity"))
+        if (str.StartsWith("-Infinity", StringComparison.Ordinal))
         {
             return JsValue.NegativeInfinity;
         }
@@ -197,14 +197,14 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
         return JsValue.NaN;
     }
 
-    private JsValue NumberParseInt(IReadOnlyList<JsValue> args)
+    private static JsValue NumberParseInt(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
             return JsValue.NaN;
         }
 
-        var str = JsOps.ToJsString(args[0].ToObject()) ?? "";
+        var str = args[0].ToJsString();
         str = str.Trim();
         if (str.Length == 0)
         {
@@ -218,12 +218,12 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
         }
 
         var sign = 1;
-        if (str.StartsWith("-"))
+        if (str.StartsWith("-", StringComparison.Ordinal))
         {
             sign = -1;
             str = str.Substring(1);
         }
-        else if (str.StartsWith("+"))
+        else if (str.StartsWith("+", StringComparison.Ordinal))
         {
             str = str.Substring(1);
         }
@@ -272,9 +272,6 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
         }
 
         var proto = ResolveConstructPrototype(target, target, Realm) ?? Prototype;
-        if (proto is not null)
-        {
-            instance.SetPrototype(proto);
-        }
+        instance.SetPrototype(proto);
     }
 }

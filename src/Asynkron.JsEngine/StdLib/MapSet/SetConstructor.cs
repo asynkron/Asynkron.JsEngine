@@ -52,7 +52,7 @@ public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState r
         else
         {
             var wrapper = providedThis ?? new JsObject { RealmState = Realm };
-            if (wrapper.Prototype is null && proto is not null)
+            if (wrapper.Prototype is null)
             {
                 wrapper.SetPrototype(proto);
             }
@@ -65,7 +65,7 @@ public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState r
         return receiver;
     }
 
-    private void PopulateSet(JsSet set, IReadOnlyList<JsValue> args)
+    private static void PopulateSet(JsSet set, IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
         {

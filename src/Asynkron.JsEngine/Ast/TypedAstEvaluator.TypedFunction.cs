@@ -611,6 +611,38 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
             }
 
+            // Async functions use the generator IR executor for non-blocking await
+            // This routes async functions through TypedGeneratorInstance with _asyncStepMode=true
+            if (IsAsyncFunction && !_isClassConstructor)
+            {
+                _realmState.ReturnContext(context);
+                try
+                {
+                    var executor = new AsyncFunctionExecutor(
+                        _function,
+                        _closure,
+                        arguments,
+                        thisValue,
+                        this,
+                        _realmState,
+                        _isStrict,
+                        _hasFunctionNameEnvironment,
+                        _homeObject,
+                        PrivateNameScope,
+                        _capturedPrivateNameScopes);
+                    return executor.Execute();
+                }
+                catch (ThrowSignal signal)
+                {
+                    if (callingContext is not null)
+                    {
+                        callingContext.SetThrow(signal.ThrownValue);
+                        return signal.ThrownValue;
+                    }
+                    throw;
+                }
+            }
+
             var lexicalNames = RentSymbolSet(_lexicalTemplate);
             var catchParameterNames = RentSymbolSet(_catchParameterTemplate);
             var simpleCatchParameterNames = RentSymbolSet(_simpleCatchParameterTemplate);

@@ -1,0 +1,180 @@
+using System.Collections.Immutable;
+using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
+
+namespace Asynkron.JsEngine.Ast;
+
+public static partial class TypedAstEvaluator
+{
+    /// <summary>
+    ///     Drives an async function to completion using the generator IR executor.
+    ///     Unlike AsyncGeneratorInstance which exposes .next()/.return()/.throw() methods,
+    ///     this class drives execution automatically and returns a single Promise.
+    /// </summary>
+    internal sealed class AsyncFunctionExecutor
+    {
+        private readonly TypedGeneratorInstance _inner;
+        private readonly RealmState _realmState;
+
+        public AsyncFunctionExecutor(
+            FunctionExpression function,
+            JsEnvironment closure,
+            IReadOnlyList<JsValue> arguments,
+            JsValue thisValue,
+            IJsCallable callable,
+            RealmState realmState,
+            bool isLexicallyStrict,
+            bool hasFunctionNameEnvironment,
+            IJsObjectLike? homeObject,
+            PrivateNameScope? privateNameScope,
+            ImmutableArray<PrivateNameScope> capturedPrivateNameScopes)
+        {
+            _realmState = realmState;
+            _inner = new TypedGeneratorInstance(
+                function,
+                closure,
+                arguments,
+                thisValue,
+                callable,
+                realmState,
+                isLexicallyStrict,
+                hasFunctionNameEnvironment,
+                homeObject,
+                privateNameScope,
+                capturedPrivateNameScopes);
+            _inner.Initialize();
+        }
+
+        /// <summary>
+        ///     Executes the async function and returns a Promise that resolves/rejects
+        ///     with the function's completion value or thrown error.
+        /// </summary>
+        public JsValue Execute()
+        {
+            var promiseCtor = _realmState.PromiseConstructor;
+            if (promiseCtor is null)
+            {
+                throw new InvalidOperationException("Promise constructor is not available.");
+            }
+
+            var executor = new HostFunction((_, execArgs) =>
+            {
+                IJsCallable? resolve = null;
+                IJsCallable? reject = null;
+
+                if (execArgs.Count >= 1 && execArgs[0].TryUnwrap(out IJsCallable? res))
+                {
+                    resolve = res;
+                }
+
+                if (execArgs.Count >= 2 && execArgs[1].TryUnwrap(out IJsCallable? rej))
+                {
+                    reject = rej;
+                }
+
+                if (resolve is null || reject is null)
+                {
+                    return JsValue.Undefined;
+                }
+
+                // Start execution - async functions don't receive an argument on first call
+                DriveToCompletion(TypedGeneratorInstance.ResumeMode.Next, JsValue.Undefined, resolve, reject);
+
+                return JsValue.Undefined;
+            });
+
+            if (promiseCtor is HostFunction hostCtor)
+            {
+                return hostCtor.InvokeWithContext([(JsValue)executor], JsValue.Undefined, null, (JsValue)hostCtor);
+            }
+
+            return promiseCtor.Invoke([(JsValue)executor], JsValue.Undefined);
+        }
+
+        private void DriveToCompletion(
+            TypedGeneratorInstance.ResumeMode mode,
+            JsValue argument,
+            IJsCallable resolve,
+            IJsCallable reject)
+        {
+            try
+            {
+                var step = _inner.ExecuteAsyncStep(mode, argument);
+
+                switch (step.Kind)
+                {
+                    case TypedGeneratorInstance.AsyncGeneratorStepKind.Completed:
+                        // Async function completed - resolve with the return value
+                        resolve.Invoke([step.Value], JsValue.Undefined);
+                        break;
+
+                    case TypedGeneratorInstance.AsyncGeneratorStepKind.Yield:
+                        // Async functions don't yield externally - treat as await
+                        // and continue driving to completion
+                        DriveToCompletion(TypedGeneratorInstance.ResumeMode.Next, step.Value, resolve, reject);
+                        break;
+
+                    case TypedGeneratorInstance.AsyncGeneratorStepKind.Throw:
+                        // Async function threw - reject the promise
+                        reject.Invoke([step.Value], JsValue.Undefined);
+                        break;
+
+                    case TypedGeneratorInstance.AsyncGeneratorStepKind.Pending:
+                        // Await hit a pending promise - attach handlers to resume
+                        HandlePendingStep(step, resolve, reject);
+                        break;
+                }
+            }
+            catch (ThrowSignal signal)
+            {
+                // Uncaught exception - reject the promise
+                reject.Invoke([signal.ThrownValue], JsValue.Undefined);
+            }
+            catch (Exception ex)
+            {
+                // Non-JS exception - wrap in error message
+                reject.Invoke([(JsValue)ex.Message], JsValue.Undefined);
+            }
+        }
+
+        private void HandlePendingStep(
+            TypedGeneratorInstance.AsyncGeneratorStepResult step,
+            IJsCallable resolve,
+            IJsCallable reject)
+        {
+            if (!step.PendingPromise.TryGetObject<JsObject>(out var pendingPromise))
+            {
+                reject.Invoke([(JsValue)"Awaited value is not a promise"], JsValue.Undefined);
+                return;
+            }
+
+            if (!pendingPromise.TryGetProperty("then", out var thenValue))
+            {
+                reject.Invoke([(JsValue)"Awaited value has no 'then' method"], JsValue.Undefined);
+                return;
+            }
+
+            if (!thenValue.TryUnwrap(out IJsCallable? thenCallable))
+            {
+                reject.Invoke([(JsValue)"'then' is not callable"], JsValue.Undefined);
+                return;
+            }
+
+            var onFulfilled = new HostFunction((_, args) =>
+            {
+                var value = args.GetArgument(0);
+                DriveToCompletion(TypedGeneratorInstance.ResumeMode.Next, value, resolve, reject);
+                return JsValue.Undefined;
+            });
+
+            var onRejected = new HostFunction((_, args) =>
+            {
+                var reason = args.GetArgument(0);
+                DriveToCompletion(TypedGeneratorInstance.ResumeMode.Throw, reason, resolve, reject);
+                return JsValue.Undefined;
+            });
+
+            thenCallable.Invoke([(JsValue)onFulfilled, (JsValue)onRejected], (JsValue)pendingPromise);
+        }
+    }
+}

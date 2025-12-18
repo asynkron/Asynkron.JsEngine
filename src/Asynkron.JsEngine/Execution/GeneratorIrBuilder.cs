@@ -12,12 +12,12 @@ internal static class GeneratorIrBuilder
 {
     public static bool TryBuild(FunctionExpression function, out GeneratorPlan plan, out string? failureReason)
     {
-        var succeeded = function switch
-        {
-            { IsAsync: true, IsGenerator: true } => AsyncGeneratorIrBuilder.TryBuild(function, out plan,
-                out failureReason),
-            _ => SyncGeneratorIrBuilder.TryBuild(function, out plan, out failureReason)
-        };
+        // All function kinds (generators, async generators, pure async) use the same IR builder.
+        // The difference is in how they're executed:
+        // - Sync generators: caller drives via .next()/.return()/.throw()
+        // - Async generators: same but return Promises
+        // - Pure async functions: run to completion with await suspension
+        var succeeded = SyncGeneratorIrBuilder.TryBuild(function, out plan, out failureReason);
 
         GeneratorIrDiagnostics.ReportResult(function, succeeded, failureReason);
         return succeeded;

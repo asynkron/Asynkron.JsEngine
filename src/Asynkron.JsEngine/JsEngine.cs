@@ -487,10 +487,10 @@ public sealed class JsEngine : IAsyncDisposable
         // Scope analysis: resolve variable references to slot indices for O(1) lookup
         typedProgram = _scopeAnalyzer.Analyze(typedProgram);
 
-        if (!hasTopLevelAwait && TypedCpsTransformer.NeedsTransformation(typedProgram))
-        {
-            typedProgram = _typedCpsTransformer.Transform(typedProgram);
-        }
+        // NOTE: CPS transformation is no longer used for async functions.
+        // Async functions now use the same IR executor as generators, with
+        // _asyncStepMode=true for proper suspend/resume at await points.
+        // This eliminates the overhead of AST rewriting and .then() chains.
 
         return typedProgram with { HasTopLevelAwait = hasTopLevelAwait };
     }

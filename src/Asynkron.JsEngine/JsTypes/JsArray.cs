@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
@@ -8,7 +9,7 @@ namespace Asynkron.JsEngine.JsTypes;
 /// <summary>
 ///     Minimal JavaScript-like array that tracks indexed elements and behaves like an object for property access.
 /// </summary>
-public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider
+public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider, IEnumerable<JsValue>
 {
     private const uint DenseIndexLimit = 1_000_000;
 
@@ -1073,4 +1074,19 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         throw signal;
     }
+
+    /// <summary>
+    /// Returns an enumerator that iterates through the array elements.
+    /// This provides a fast path for for-of loops, avoiding iterator result object allocations.
+    /// </summary>
+    public IEnumerator<JsValue> GetEnumerator()
+    {
+        var length = _length;
+        for (uint i = 0; i < length; i++)
+        {
+            yield return GetElement(i);
+        }
+    }
+
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }

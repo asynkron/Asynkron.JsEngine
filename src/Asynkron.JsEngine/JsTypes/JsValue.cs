@@ -409,7 +409,7 @@ public readonly struct JsValue : IEquatable<JsValue>
 
     /// <summary>Tries to get the string value. Returns true if this is a string.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetString(out string? value)
+    public bool TryGetString([NotNullWhen(true)]out string? value)
     {
         if (Kind == JsValueKind.String)
         {
@@ -427,7 +427,7 @@ public readonly struct JsValue : IEquatable<JsValue>
 
     /// <summary>Tries to get the Symbol value. Returns true if this is a Symbol.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetSymbol(out Symbol? value)
+    public bool TryGetSymbol([NotNullWhen(true)]out Symbol? value)
     {
         if (Kind == JsValueKind.Symbol)
         {
@@ -440,7 +440,7 @@ public readonly struct JsValue : IEquatable<JsValue>
 
     /// <summary>Tries to get the BigInt value. Returns true if this is a BigInt.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetBigInt(out JsBigInt? value)
+    public bool TryGetBigInt([NotNullWhen(true)]out JsBigInt? value)
     {
         if (Kind == JsValueKind.BigInt)
         {
@@ -453,7 +453,7 @@ public readonly struct JsValue : IEquatable<JsValue>
 
     /// <summary>Tries to get the object value. Returns true if this is an object.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetObject(out JsObject? value)
+    public bool TryGetObject([NotNullWhen(true)]out JsObject? value)
     {
         if (Kind == JsValueKind.Object && ObjectValue is JsObject obj)
         {

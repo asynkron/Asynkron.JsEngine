@@ -12,7 +12,7 @@ internal static class AwaitScheduler
 {
     // Reusable callback delegates to avoid allocations in hot path
     [ThreadStatic]
-    private static PromiseAwaitState? t_cachedState;
+    private static PromiseAwaitState? TCachedState;
 
     private sealed class PromiseAwaitState
     {
@@ -31,10 +31,10 @@ internal static class AwaitScheduler
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static PromiseAwaitState RentState()
     {
-        var state = t_cachedState;
+        var state = TCachedState;
         if (state != null)
         {
-            t_cachedState = null;
+            TCachedState = null;
             state.Reset();
             return state;
         }
@@ -45,7 +45,7 @@ internal static class AwaitScheduler
     private static void ReturnState(PromiseAwaitState state)
     {
         state.Reset();
-        t_cachedState = state;
+        TCachedState = state;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -112,7 +112,7 @@ internal static class AwaitScheduler
             return true;
         }
 
-        var engine = context.RealmState?.Engine;
+        var engine = context.RealmState.Engine;
 
         // Fast path: Check if promise is already settled BEFORE draining microtasks
         if (TryGetSettledValueFast(candidate, out var settledValue, out var isRejected))
@@ -125,7 +125,7 @@ internal static class AwaitScheduler
                 return false;
             }
             resolvedValue = settledValue;
-            // Continue to check if settled value is itself a promise
+            // Continue to check if a settled value is itself a promise
             if (!resolvedValue.IsObject)
             {
                 return true;
@@ -278,7 +278,7 @@ internal static class AwaitScheduler
     private static bool HandleDirectPromise(JsPromise promise, EvaluationContext context,
         out JsValue resolvedValue, bool drainMicrotasks)
     {
-        var engine = context.RealmState?.Engine;
+        var engine = context.RealmState.Engine;
 
         // Fast path: already settled
         if (promise.TryGetSettled(out var value, out var isRejected))
@@ -421,8 +421,6 @@ internal static class AwaitScheduler
             Interlocked.Exchange(ref state.Completed, 1);
             return JsValue.Undefined;
         }
-
-        public bool IsConstructor => false;
     }
 
     /// <summary>
@@ -437,7 +435,5 @@ internal static class AwaitScheduler
             Interlocked.Exchange(ref state.Completed, 1);
             return JsValue.Undefined;
         }
-
-        public bool IsConstructor => false;
     }
 }

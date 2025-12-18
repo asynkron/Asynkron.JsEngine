@@ -10,8 +10,8 @@ public static partial class TypedAstEvaluator
 {
     extension(IteratorDriverPlan plan)
     {
-        private JsValue ExecuteIteratorDriverJsValue(IJsObjectLike iterator,
-            IEnumerator<object?>? enumerator,
+        private JsValue ExecuteIteratorDriverJsValue(IJsObjectLike? iterator,
+            IEnumerator<JsValue>? enumerator,
             JsEnvironment loopEnvironment,
             JsEnvironment outerEnvironment,
             EvaluationContext context,
@@ -26,7 +26,7 @@ public static partial class TypedAstEvaluator
                 IteratorObject = iterator,
                 Enumerator = enumerator,
                 IsAsyncIterator = plan.Kind == IteratorDriverKind.Await,
-                NextMethod = iterator.GetIteratorNextCallable(context)
+                NextMethod = iterator?.GetIteratorNextCallable(context)
             };
 
             while (!context.ShouldStopEvaluation)
@@ -58,7 +58,51 @@ public static partial class TypedAstEvaluator
                         break;
                     }
 
-                    nextResult = state.Enumerator.Current;
+                    // FAST PATH: Enumerator yields JsValue directly - skip iterator result unwrapping
+                    // and go directly to body execution. This avoids creating {done, value} objects.
+                    var enumeratorValue = state.Enumerator.Current;
+
+                    var iterationEnvironment = plan.DeclarationKind is VariableKind.Let or VariableKind.Const
+                        or VariableKind.Using or VariableKind.AwaitUsing
+                        ? rentIterationEnvironment?.Invoke() ?? new JsEnvironment(loopEnvironment,
+                            creatingSource: plan.Body.Source, description: "for-each-iteration")
+                        : loopEnvironment;
+
+                    AssignLoopBinding(plan.Target, enumeratorValue, iterationEnvironment, outerEnvironment, context,
+                        plan.DeclarationKind);
+                    if (context.IsThrow)
+                    {
+                        throw new ThrowSignal(context.FlowValue);
+                    }
+
+                    SyncIterationSlots(plan, iterationEnvironment, context);
+
+                    var bodyResult = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
+                    if (!bodyResult.IsUnit)
+                    {
+                        lastValueJs = bodyResult;
+                    }
+                    if (context.IsThrow)
+                    {
+                        throw new ThrowSignal(context.FlowValue);
+                    }
+
+                    if (context.IsReturn || context.IsThrow)
+                    {
+                        break;
+                    }
+
+                    if (context.TryClearContinue(loopLabel))
+                    {
+                        continue;
+                    }
+
+                    if (context.TryClearBreak(loopLabel))
+                    {
+                        break;
+                    }
+
+                    continue; // Skip the iterator protocol handling below
                 }
 
                 if (context.IsThrow)
@@ -81,7 +125,7 @@ public static partial class TypedAstEvaluator
                     throw new ThrowSignal(thrown);
                 }
 
-                // Unwrap JsValue struct if present
+                // Unwrap JsValue struct if present (only for iterator protocol path)
                 if (nextResult is JsValue jsVal)
                 {
                     nextResult = jsVal.ToObject();

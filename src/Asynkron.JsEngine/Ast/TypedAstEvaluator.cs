@@ -61,6 +61,33 @@ public static partial class TypedAstEvaluator
         }
     }
 
+    /// <summary>
+    /// Fast path for iteration: returns an IEnumerator&lt;JsValue&gt; for known iterable types
+    /// without going through the full iterator protocol (which allocates {done, value} objects).
+    /// Falls back to null for types that need the full protocol.
+    /// </summary>
+    [MustDisposeResource]
+    private static IEnumerator<JsValue>? TryGetFastEnumeratorForIteration(object? value, EvaluationContext context)
+    {
+        return value switch
+        {
+            // JsArray implements IEnumerable<JsValue> - use direct enumeration
+            JsArray array => array.GetEnumerator(),
+
+            // TypedArrays - direct element enumeration
+            TypedArrayBase typedArray when !typedArray.IsDetachedOrOutOfBounds() =>
+                EnumerateTypedArrayValues(typedArray),
+
+            // Strings - character enumeration
+            string s => EnumerateStringCharacters(s),
+
+            // Any IEnumerable<JsValue> - direct enumeration
+            IEnumerable<JsValue> enumerable => enumerable.GetEnumerator(),
+
+            // Fall back to null - caller should use full iterator protocol
+            _ => null
+        };
+    }
 
     // Per ECMA-262 §7.4.1/§7.4.2 (GetIterator / GetAsyncIterator) via @@iterator/@@asyncIterator.
     private static bool TryGetIteratorFromProtocols(object? iterable, EvaluationContext context, out IJsObjectLike? iterator)

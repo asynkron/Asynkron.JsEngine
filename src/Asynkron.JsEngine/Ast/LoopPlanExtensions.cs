@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -19,6 +20,8 @@ public static partial class TypedAstEvaluator
         {
             // Use JsValue to track the loop body result to avoid boxing on each iteration
             var lastValueJs = JsValue.Undefined;
+            var logger = context.RealmState.Logger;
+            var iterationIndex = 0;
 
             if (context.AllowIdentifierCache && plan.LoopPlanHasDynamicScope())
             {
@@ -58,6 +61,34 @@ public static partial class TypedAstEvaluator
             while (true)
             {
                 context.ThrowIfCancellationRequested();
+                iterationIndex++;
+
+                if (logger is not null && ShouldLogIteration(iterationIndex))
+                {
+                    if (plan.PerIterationBindings.IsDefaultOrEmpty)
+                    {
+                        logger.LogInformation("Loop iteration {Iteration}: (no per-iteration bindings)", iterationIndex);
+                    }
+                    else
+                    {
+                        var parts = ArrayPool<string>.Shared.Rent(plan.PerIterationBindings.Length);
+                        var partCount = 0;
+                        foreach (var binding in plan.PerIterationBindings)
+                        {
+                            if (iterationEnvironment.TryGetIdentifierJsValue(binding, context, out var value))
+                            {
+                                parts[partCount++] = $"{binding.Name}={value}";
+                            }
+                        }
+
+                        logger.LogInformation(
+                            "Loop iteration {Iteration}: {Bindings}",
+                            iterationIndex,
+                            string.Join(", ", parts.AsSpan(0, partCount).ToArray()));
+
+                        ArrayPool<string>.Shared.Return(parts, clearArray: true);
+                    }
+                }
 
                 if (!plan.ConditionAfterBody)
                 {
@@ -149,6 +180,11 @@ public static partial class TypedAstEvaluator
                 {
                     break;
                 }
+            }
+
+            static bool ShouldLogIteration(int iterationIndex)
+            {
+                return iterationIndex <= 10 || (iterationIndex & (iterationIndex - 1)) == 0;
             }
 
             if (hasPerIterationBindings &&

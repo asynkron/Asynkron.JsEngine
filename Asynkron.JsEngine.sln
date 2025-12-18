@@ -102,6 +102,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AsyncAwaitPendingProfile", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ForOfIterationProfile", "tools\ForOfIterationProfile\ForOfIterationProfile.csproj", "{135E3FC8-7230-42EF-96F1-4A734AFFF6FD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Asynkron.JsEngine.Tests.Helpers", "tests\Asynkron.JsEngine.Tests.Helpers\Asynkron.JsEngine.Tests.Helpers.csproj", "{EC08E5A7-AF36-4FA2-AE61-E27C17F4A091}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -508,6 +510,18 @@ Global
 		{135E3FC8-7230-42EF-96F1-4A734AFFF6FD}.Release|x64.Build.0 = Release|Any CPU
 		{135E3FC8-7230-42EF-96F1-4A734AFFF6FD}.Release|x86.ActiveCfg = Release|Any CPU
 		{135E3FC8-7230-42EF-96F1-4A734AFFF6FD}.Release|x86.Build.0 = Release|Any CPU
+		{EC08E5A7-AF36-4FA2-AE61-E27C17F4A091}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EC08E5A7-AF36-4FA2-AE61-E27C17F4A091}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EC08E5A7-AF36-4FA2-AE61-E27C17F4A091}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{EC08E5A7-AF36-4FA2-AE61-E27C17F4A091}.Debug|x64.Build.0 = Debug|Any CPU
+		{EC08E5A7-AF36-4FA2-AE61-E27C17F4A091}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{EC08E5A7-AF36-4FA2-AE61-E27C17F4A091}.Debug|x86.Build.0 = Debug|Any CPU
+		{EC08E5A7-AF36-4FA2-AE61-E27C17F4A091}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EC08E5A7-AF36-4FA2-AE61-E27C17F4A091}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EC08E5A7-AF36-4FA2-AE61-E27C17F4A091}.Release|x64.ActiveCfg = Release|Any CPU
+		{EC08E5A7-AF36-4FA2-AE61-E27C17F4A091}.Release|x64.Build.0 = Release|Any CPU
+		{EC08E5A7-AF36-4FA2-AE61-E27C17F4A091}.Release|x86.ActiveCfg = Release|Any CPU
+		{EC08E5A7-AF36-4FA2-AE61-E27C17F4A091}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -547,5 +561,6 @@ Global
 		{E551AC46-DDB9-4CE5-BFF7-0891A852C049} = {95C5BFA4-0A4E-46B9-AB43-9040A770C140}
 		{C6B3B6AD-B667-4D5E-96E3-81FE99338A2E} = {95C5BFA4-0A4E-46B9-AB43-9040A770C140}
 		{135E3FC8-7230-42EF-96F1-4A734AFFF6FD} = {95C5BFA4-0A4E-46B9-AB43-9040A770C140}
+		{EC08E5A7-AF36-4FA2-AE61-E27C17F4A091} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

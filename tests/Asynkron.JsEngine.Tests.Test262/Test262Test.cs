@@ -159,10 +159,7 @@ try {
             ? BaseRealmSnapshot.Instance.Value.CreateEngine()
             : new JsEngine { ExecutionTimeout = null };
 
-        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("JSENGINE_TRACE_REALM")))
-        {
-            engine.RealmState.Logger = new ConsoleLogger();
-        }
+        TestEngineFactory.AttachRealmLoggerIfEnabled(engine);
 
         if (file.Flags.Contains("raw"))
         {

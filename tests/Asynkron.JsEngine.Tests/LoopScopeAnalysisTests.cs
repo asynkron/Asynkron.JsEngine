@@ -1,6 +1,6 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
-using Asynkron.JsEngine.Tests.Infrastructure;
+using Asynkron.JsEngine.Tests.Helpers;
 
 namespace Asynkron.JsEngine.Tests;
 

@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Asynkron.JsEngine\Asynkron.JsEngine.csproj" />
+    <ProjectReference Include="..\Asynkron.JsEngine.Tests.Helpers\Asynkron.JsEngine.Tests.Helpers.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -23,6 +24,7 @@
 
   <ItemGroup>
     <Using Include="NUnit.Framework" />
+    <Using Include="Asynkron.JsEngine.Tests.Helpers" />
   </ItemGroup>
 
   <ItemGroup>

@@ -19,10 +19,12 @@
 
     <ItemGroup>
         <Using Include="Xunit" />
+        <Using Include="Asynkron.JsEngine.Tests.Helpers" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\Asynkron.JsEngine\Asynkron.JsEngine.csproj" />
+        <ProjectReference Include="..\Asynkron.JsEngine.Tests.Helpers\Asynkron.JsEngine.Tests.Helpers.csproj" />
     </ItemGroup>
 
     <ItemGroup>

@@ -1,20 +1,17 @@
 using Microsoft.Extensions.Logging;
 
-namespace Asynkron.JsEngine.Tests.Test262;
+namespace Asynkron.JsEngine.Tests.Helpers;
 
-internal sealed class ConsoleLogger(string name = "RealmLogger") : ILogger
+/// <summary>
+/// Simple console logger for realm tracing in tests.
+/// </summary>
+public sealed class ConsoleLogger(string name = "RealmLogger") : ILogger
 {
     private readonly string _name = name;
 
-    public IDisposable BeginScope<TState>(TState state) where TState : notnull
-    {
-        return NullScope.Instance;
-    }
+    public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
 
-    public bool IsEnabled(LogLevel logLevel)
-    {
-        return true;
-    }
+    public bool IsEnabled(LogLevel logLevel) => true;
 
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
         Func<TState, Exception?, string> formatter)

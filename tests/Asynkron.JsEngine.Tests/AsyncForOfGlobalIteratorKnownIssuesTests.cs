@@ -349,6 +349,6 @@ public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
 
     private static JsEngine CreateDebugEngine()
     {
-        return new JsEngine(new JsEngineOptions { DebugMode = true });
+        return TestEngineFactory.CreateDebugEngine(nameof(AsyncForOfGlobalIteratorKnownIssuesTests));
     }
 }

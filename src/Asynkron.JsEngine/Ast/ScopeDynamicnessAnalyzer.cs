@@ -972,7 +972,10 @@ public static partial class TypedAstEvaluator
                 case CallExpression call:
                     work.Push(call.Callee);
                     foreach (var argument in call.Arguments)
+                    {
                         work.Push(argument.Expression);
+                    }
+
                     break;
                 case BinaryExpression binary:
                     work.Push(binary.Left);

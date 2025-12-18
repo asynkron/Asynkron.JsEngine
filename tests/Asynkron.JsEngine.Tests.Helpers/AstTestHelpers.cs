@@ -3,14 +3,14 @@ using System.Reflection;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Parser;
 
-namespace Asynkron.JsEngine.Tests.Infrastructure;
+namespace Asynkron.JsEngine.Tests.Helpers;
 
 /// <summary>
 /// Utility helpers for parsing, analyzing, and traversing typed ASTs in tests.
 /// </summary>
 public static class AstTestHelpers
 {
-    private static readonly BindingFlags ReflectionFlags =
+    private const BindingFlags ReflectionFlags =
         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
     /// <summary>
@@ -46,7 +46,7 @@ public static class AstTestHelpers
             }
         }
 
-        throw new Xunit.Sdk.XunitException($"No node of type {typeof(T).Name} found in AST.");
+        throw new InvalidOperationException($"No node of type {typeof(T).Name} found in AST.");
     }
 
     /// <summary>

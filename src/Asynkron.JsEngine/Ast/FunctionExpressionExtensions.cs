@@ -367,15 +367,22 @@ public static partial class TypedAstEvaluator
                 hasFunctionNameEnvironment = true;
             }
 
+            // Per ES spec, a function's strictness is determined by:
+            // 1. The function body contains "use strict" directive (function.Body.IsStrict)
+            // 2. The function is defined in strict mode code (closureEnvironment.IsStrict)
+            // We use closureEnvironment.IsStrict instead of context.CurrentScope.IsStrict because
+            // the scope stack may not accurately reflect the lexical strictness during function creation.
+            var isLexicallyStrict = closureEnvironment.IsStrict;
+
             IJsCallable callable = functionExpression.IsGenerator switch
             {
                 true when functionExpression.IsAsync => new AsyncGeneratorFactory(functionExpression,
                     closureEnvironment,
-                    context.RealmState, context.CurrentScope.IsStrict, hasFunctionNameEnvironment, isConstructorFunction),
+                    context.RealmState, isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction),
                 true => new TypedGeneratorFactory(functionExpression, closureEnvironment, context.RealmState,
-                    context.CurrentScope.IsStrict, hasFunctionNameEnvironment, isConstructorFunction),
+                    isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction),
                 _ => new TypedFunction(functionExpression, closureEnvironment, context.RealmState,
-                    context.CurrentScope.IsStrict, hasFunctionNameEnvironment, isConstructorFunction)
+                    isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction)
             };
 
             var capturedPrivateScopes = context.CapturePrivateNameScopes();

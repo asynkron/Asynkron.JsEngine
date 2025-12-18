@@ -3,7 +3,7 @@ using Asynkron.JsEngine;
 var engine = new JsEngine();
 var script = """
     let result = "";
-    for (let i = 0; i < 2000; i++) {
+    for (let i = 0; i < 20000; i++) {
         result += "x";
     }
     let upper = result.toUpperCase();

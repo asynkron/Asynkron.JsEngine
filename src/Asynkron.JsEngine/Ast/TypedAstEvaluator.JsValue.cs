@@ -62,9 +62,15 @@ public static partial class TypedAstEvaluator
             throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context);
         }
 
-        var leftStr = ToStringValue(left, context);
-        var rightStr = ToStringValue(right, context);
-        return new JsValue(leftStr + rightStr);
+        // Get underlying string objects (could be string or JsRopeString)
+        // Avoid flattening ropes - use rope concatenation for O(1) concat
+        var leftObj = left.IsString ? left.ObjectValue! : ToStringValue(left, context);
+        var rightObj = right.IsString ? right.ObjectValue! : ToStringValue(right, context);
+
+        // JsRopeString.Concat handles both string and JsRopeString inputs
+        // Returns string for small concatenations, JsRopeString for larger ones
+        var result = JsRopeString.Concat(leftObj, rightObj);
+        return new JsValue(JsValueKind.String, 0.0, result);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -94,7 +100,11 @@ public static partial class TypedAstEvaluator
         //    c. Return the concatenation of lstr and rstr.
         if (leftVal.IsString || rightVal.IsString)
         {
-            return new JsValue(ToStringValue(leftVal, context) + ToStringValue(rightVal, context));
+            // Use rope concatenation for efficiency
+            var leftObj = leftVal.IsString ? leftVal.ObjectValue! : ToStringValue(leftVal, context);
+            var rightObj = rightVal.IsString ? rightVal.ObjectValue! : ToStringValue(rightVal, context);
+            var result = JsRopeString.Concat(leftObj, rightObj);
+            return new JsValue(JsValueKind.String, 0.0, result);
         }
 
         // 8. Let lnum be ? ToNumeric(lprim).

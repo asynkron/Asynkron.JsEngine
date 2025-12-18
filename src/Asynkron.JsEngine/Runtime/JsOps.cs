@@ -288,6 +288,8 @@ internal static class JsOps
                     return flag ? JsValue.One : JsValue.Zero;
                 case string str:
                     return new JsValue(NumericStringParser.ParseJsNumber(str));
+                case JsRopeString rope:
+                    return new JsValue(NumericStringParser.ParseJsNumber(rope.Flatten()));
             }
 
             switch (value)
@@ -1713,6 +1715,37 @@ internal static class JsOps
                 }
 
                 break;
+            case JsRopeString rope:
+            {
+                var ropeStr = rope.Flatten();
+                if (propertyName == "length")
+                {
+                    value = (double)ropeStr.Length;
+                    return true;
+                }
+
+                if (int.TryParse(propertyName, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ropeIndex) &&
+                    ropeIndex >= 0 && ropeIndex < ropeStr.Length)
+                {
+                    value = ropeStr[ropeIndex].ToString();
+                    return true;
+                }
+
+                if (context?.RealmState?.StringPrototype is { } ropeStringProto &&
+                    ropeStringProto.TryGetProperty(propertyName, receiver: ropeStr, context, out value))
+                {
+                    return true;
+                }
+
+                // Fallback when no realm prototype is available yet.
+                var ropeWrapper = StandardLibrary.CreateStringWrapper(ropeStr, context, context?.RealmState);
+                if (ropeWrapper.TryGetProperty(propertyName, receiver: ropeStr, context, out value))
+                {
+                    return true;
+                }
+
+                break;
+            }
         }
 
         value = null;

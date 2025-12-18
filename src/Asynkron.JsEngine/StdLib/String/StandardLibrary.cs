@@ -388,14 +388,20 @@ public static partial class StandardLibrary
 
         JsValue Concat(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
-            //TODO: use stringbuilder
             var result = ResolveString(thisValue);
-            foreach (var arg in args)
+            if (args.Count == 0)
             {
-                result += JsValueToString(arg);
+                return new JsValue(result);
             }
 
-            return new JsValue(result);
+            // Use StringBuilder for multiple concatenations
+            var builder = new StringBuilder(result);
+            foreach (var arg in args)
+            {
+                builder.Append(JsValueToString(arg));
+            }
+
+            return new JsValue(builder.ToString());
         }
 
         JsValue ToLowerCase(JsValue thisValue, IReadOnlyList<JsValue> _)
@@ -446,7 +452,13 @@ public static partial class StandardLibrary
 
             if (separator is null or "")
             {
-                var chars = value.Select(c => c.ToString()).Take(limit).ToArray();
+                // Fast path: avoid LINQ Select(c => c.ToString()) which creates many temporary strings
+                var charCount = Math.Min(value.Length, limit);
+                var chars = new string[charCount];
+                for (var i = 0; i < charCount; i++)
+                {
+                    chars[i] = value[i].ToString();
+                }
                 return JsValue.FromObjectUnsafe(CreateArrayFromStrings(chars, realmState ?? realm));
             }
 
@@ -1149,13 +1161,9 @@ public static partial class StandardLibrary
 
     private static JsArray CreateArrayFromStrings(string[] strings, RealmState? realm)
     {
-        var array = new JsArray(realm);
-        foreach (var s in strings)
-        {
-            array.Push(s);
-        }
-
-        return array;
+        // Use the constructor that accepts IEnumerable<JsValue> for batch initialization
+        // instead of pushing one by one
+        return new JsArray(strings.Select(s => new JsValue(s)), realm);
     }
 
     internal static object? StringFromCodePoint(IReadOnlyList<JsValue> args)

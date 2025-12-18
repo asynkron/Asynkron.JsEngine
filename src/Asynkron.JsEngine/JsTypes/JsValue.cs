@@ -354,7 +354,12 @@ public readonly struct JsValue : IEquatable<JsValue>
 
     /// <summary>Gets the string value. Only valid when IsString is true.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public string AsString() => (string)ObjectValue!;
+    public string AsString() => ObjectValue switch
+    {
+        string s => s,
+        JsRopeString rope => rope.Flatten(),
+        _ => string.Empty
+    };
 
     /// <summary>Gets the BigInt value. Only valid when IsBigInt is true.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -408,7 +413,12 @@ public readonly struct JsValue : IEquatable<JsValue>
     {
         if (Kind == JsValueKind.String)
         {
-            value = (string)ObjectValue!;
+            value = ObjectValue switch
+            {
+                string s => s,
+                JsRopeString rope => rope.Flatten(),
+                _ => string.Empty
+            };
             return true;
         }
         value = null;
@@ -529,6 +539,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             JsValue jsv => jsv, // Already a JsValue (was boxed)
             JsObject jsObj => new JsValue(jsObj),
             string s => new JsValue(s),
+            JsRopeString rope => new JsValue(JsValueKind.String, 0.0, rope), // Rope strings are strings
             double d => new JsValue(d),
             int i => new JsValue((double)i),
             long l => new JsValue((double)l),
@@ -631,7 +642,7 @@ public readonly struct JsValue : IEquatable<JsValue>
                 JsValueKind.Null => false,
                 JsValueKind.Unit => false,
                 JsValueKind.Number => NumberValue != 0.0 && !double.IsNaN(NumberValue),
-                JsValueKind.String => ((string)ObjectValue!).Length > 0,
+                JsValueKind.String => GetStringLength(ObjectValue) > 0,
                 JsValueKind.BigInt => !((JsBigInt)ObjectValue!).Value.IsZero,
                 JsValueKind.Symbol => true,
                 _ => false
@@ -644,6 +655,20 @@ public readonly struct JsValue : IEquatable<JsValue>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => !IsTruthy;
+    }
+
+    /// <summary>
+    /// Gets the length of a string value without flattening ropes.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int GetStringLength(object? value)
+    {
+        return value switch
+        {
+            string s => s.Length,
+            JsRopeString rope => rope.Length,
+            _ => 0
+        };
     }
 
     #endregion
@@ -661,7 +686,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             JsValueKind.Unit => true,
             JsValueKind.Boolean => NumberValue == other.NumberValue,
             JsValueKind.Number => NumberValue.Equals(other.NumberValue), // Handles NaN correctly
-            JsValueKind.String => string.Equals((string)ObjectValue!, (string)other.ObjectValue!, StringComparison.Ordinal),
+            JsValueKind.String => string.Equals(AsString(), other.AsString(), StringComparison.Ordinal),
             JsValueKind.BigInt => ((JsBigInt)ObjectValue!).Equals((JsBigInt)other.ObjectValue!),
             JsValueKind.Symbol or JsValueKind.Object => ReferenceEquals(ObjectValue, other.ObjectValue),
             _ => false,
@@ -679,7 +704,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             JsValueKind.Unit => -1, // Distinct from other singletons
             JsValueKind.Boolean => NumberValue != 0.0 ? 3 : 2,
             JsValueKind.Number => NumberValue.GetHashCode(),
-            JsValueKind.String => ((string)ObjectValue!).GetHashCode(StringComparison.Ordinal),
+            JsValueKind.String => AsString().GetHashCode(StringComparison.Ordinal),
             JsValueKind.BigInt or JsValueKind.Symbol or JsValueKind.Object => ObjectValue!.GetHashCode(),
             _ => 0
         };
@@ -701,7 +726,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             JsValueKind.Unit => "unit",
             JsValueKind.Boolean => NumberValue != 0.0 ? "true" : "false",
             JsValueKind.Number => NumberValue.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            JsValueKind.String => $"\"{ObjectValue}\"",
+            JsValueKind.String => $"\"{AsString()}\"",
             JsValueKind.BigInt => $"{ObjectValue}n",
             JsValueKind.Symbol => ObjectValue?.ToString() ?? "Symbol()",
             JsValueKind.Object => ObjectValue?.ToString() ?? "[object Object]",

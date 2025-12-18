@@ -212,11 +212,10 @@ public static partial class TypedAstEvaluator
 
             thenCallable.Invoke([(JsValue)onFulfilled, (JsValue)onRejected], (JsValue)pendingPromise);
 
-            // Drain microtasks to allow already-settled promise callbacks to fire.
-            // This is necessary because calling .then() on a settled promise queues
-            // a microtask, but we're still in synchronous code. Without draining,
-            // the callback would never fire and the async function would hang.
-            _realmState.Engine?.DrainMicrotasks(force: true);
+            // Don't drain microtasks here - let them drain naturally after synchronous
+            // code completes. This ensures proper async semantics where async functions
+            // suspend at await and synchronous code continues executing.
+            // The engine's DrainMicrotasks() call after ExecuteProgram handles this.
         }
     }
 }

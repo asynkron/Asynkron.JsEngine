@@ -2,6 +2,7 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -11,6 +12,12 @@ namespace Asynkron.JsEngine.Tests;
 [Collection("GeneratorIrCollection")]
 public class GeneratorTests
 {
+    private readonly ITestOutputHelper _testOutputHelper;
+
+    public GeneratorTests(ITestOutputHelper testOutputHelper)
+    {
+        _testOutputHelper = testOutputHelper;
+    }
     // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.
     // The feature is implemented correctly and the test passes when run individually.
 
@@ -3051,10 +3058,10 @@ public class GeneratorTests
 
         var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
 
-        // for await...of does not use generator IR; it stays on the
-        // replay/async path, so no IR plans should have been attempted.
-        Assert.Equal(0, attempts);
-        Assert.Equal(0, succeeded);
+        // Async functions now use generator IR for execution.
+        // The async function with for await...of will use the IR executor.
+        Assert.True(attempts >= 1, "Expected at least one IR plan to be attempted");
+        Assert.True(succeeded >= 1, "Expected at least one IR plan to succeed");
         Assert.Equal(0, failed);
 
         var result = await engine.Evaluate("result;");
@@ -3099,9 +3106,9 @@ public class GeneratorTests
 
         var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
 
-        // Async iteration executes without engaging generator IR.
-        Assert.Equal(0, attempts);
-        Assert.Equal(0, succeeded);
+        // Async functions now use generator IR for execution.
+        Assert.True(attempts >= 1, "Expected at least one IR plan to be attempted");
+        Assert.True(succeeded >= 1, "Expected at least one IR plan to succeed");
         Assert.Equal(0, failed);
 
         var result = await engine.Evaluate("result;");
@@ -3137,8 +3144,9 @@ public class GeneratorTests
 
         var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
 
-        Assert.Equal(0, attempts);
-        Assert.Equal(0, succeeded);
+        // Async functions now use generator IR for execution.
+        Assert.True(attempts >= 1, "Expected at least one IR plan to be attempted");
+        Assert.True(succeeded >= 1, "Expected at least one IR plan to succeed");
         Assert.Equal(0, failed);
 
         var result = await engine.Evaluate("result;");
@@ -3155,14 +3163,14 @@ public class GeneratorTests
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
-            Console.WriteLine($"LOG: {message}");
+            _testOutputHelper.WriteLine($"LOG: {message}");
             return JsValue.Null;
         });
 
         engine.SetGlobalFunction("markError", _ =>
         {
             errorCaught = true;
-            Console.WriteLine("LOG: Error caught!");
+            _testOutputHelper.WriteLine("LOG: Error caught!");
             return JsValue.Null;
         });
 
@@ -3211,8 +3219,9 @@ public class GeneratorTests
 
         var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
 
-        Assert.Equal(0, attempts);
-        Assert.Equal(0, succeeded);
+        // Async functions now use generator IR for execution.
+        Assert.True(attempts >= 1, "Expected at least one IR plan to be attempted");
+        Assert.True(succeeded >= 1, "Expected at least one IR plan to succeed");
         Assert.Equal(0, failed);
         Assert.True(errorCaught);
     }

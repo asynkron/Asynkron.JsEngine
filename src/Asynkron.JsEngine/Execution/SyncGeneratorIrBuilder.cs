@@ -281,9 +281,13 @@ internal sealed class SyncGeneratorIrBuilder
 
                 case ForEachStatement { Kind: ForEachKind.Of } forEachStatement
                     when IsSimpleForOfBinding(forEachStatement):
+                    // For async functions, we need to check for await as well as yield,
+                    // since await expressions require proper suspension/resumption handling.
                     if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing &&
                         !AstShapeAnalyzer.StatementContainsYield(forEachStatement.Body) &&
-                        !AstShapeAnalyzer.ContainsYield(forEachStatement.Iterable))
+                        !AstShapeAnalyzer.StatementContainsAwait(forEachStatement.Body) &&
+                        !AstShapeAnalyzer.ContainsYield(forEachStatement.Iterable) &&
+                        !AstShapeAnalyzer.ContainsAwait(forEachStatement.Iterable))
                     {
                         entryIndex = Append(new StatementInstruction(nextIndex, forEachStatement));
                         return true;

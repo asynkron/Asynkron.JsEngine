@@ -394,21 +394,43 @@ internal static class AwaitScheduler
             return TryAwaitPromiseSync(candidate, context, out resolvedValue, context.DrainAwaitMicrotasks);
         }
 
-        // Async-aware mode: if this is a promise-like object, always suspend.
-        // Per ECMAScript spec, await should ALWAYS queue a microtask continuation,
-        // even for already-settled promises. This ensures correct ordering of
-        // async operations relative to synchronous code.
+        // Async-aware mode: per ECMAScript spec, await should ALWAYS queue a
+        // microtask continuation, even for non-promise values (they get wrapped
+        // in Promise.resolve()). This ensures correct ordering of async operations
+        // relative to synchronous code.
+
         if (IsPromiseLike(candidate))
         {
-            // Always suspend for promises - the .then() handlers will queue
-            // a microtask that resumes execution with the resolved/rejected value.
+            // Already a promise - suspend and attach handlers
             pendingPromise = candidate;
             resolvedValue = JsValue.Undefined;
             return false;
         }
 
-        // Non-promise value in async mode: no need to suspend, just pass
-        // the value through.
+        // Non-promise value: wrap in Promise.resolve() to ensure proper microtask
+        // scheduling. This is critical for `for await` over sync iterables - each
+        // value must suspend to allow synchronous code after the async function
+        // call to execute before the loop continues.
+        var promiseCtor = context.RealmState.PromiseConstructor;
+        if (promiseCtor is IJsPropertyAccessor accessor)
+        {
+            // Use Promise.resolve() to wrap the value
+            if (accessor.TryGetProperty("resolve", out var resolveMethod) &&
+                resolveMethod.TryUnwrap(out IJsCallable? resolveCallable))
+            {
+                var promiseCtorValue = JsValue.FromObjectUnsafe(promiseCtor);
+                var wrappedPromise = resolveCallable.Invoke([candidate], promiseCtorValue);
+                if (wrappedPromise.TryGetObject<JsObject>(out var promiseObj))
+                {
+                    pendingPromise = new JsValue(promiseObj);
+                    resolvedValue = JsValue.Undefined;
+                    return false;
+                }
+            }
+        }
+
+        // Fallback: if we can't create a promise, pass through synchronously
+        // (this shouldn't happen in normal operation)
         resolvedValue = candidate;
         return true;
     }

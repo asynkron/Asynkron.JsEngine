@@ -490,9 +490,13 @@ public static partial class TypedAstEvaluator
                 _pendingAwaitKey = null;
             }
 
-            try
+            var continueAfterCatch = false;
+            do
             {
-                while (_programCounter >= 0 && _programCounter < _plan.Instructions.Length)
+                continueAfterCatch = false;
+                try
+                {
+                    while (_programCounter >= 0 && _programCounter < _plan.Instructions.Length)
                 {
                     _currentInstructionIndex = _programCounter;
                     var instruction = _plan.Instructions[_programCounter];
@@ -1378,30 +1382,51 @@ public static partial class TypedAstEvaluator
                         default:
                             throw new InvalidOperationException(
                                 $"Unsupported generator instruction {instruction.GetType().Name}");
+                        }
                     }
                 }
-            }
-            catch (PendingAwaitException)
-            {
-                // A pending await surfaced from within the generator body.
-                // Async-aware callers translate this into a Pending step so
-                // the generator can resume once the promise settles.
-                if (_asyncStepMode)
+                catch (PendingAwaitException)
                 {
+                    // A pending await surfaced from within the generator body.
+                    // Async-aware callers translate this into a Pending step so
+                    // the generator can resume once the promise settles.
+                    if (_asyncStepMode)
+                    {
+                        throw;
+                    }
+
+                    return new JsValue(CreateIteratorResult(JsValue.Undefined, false));
+                }
+                catch (ThrowSignal signal)
+                {
+                    // A ThrowSignal was thrown from code evaluation (e.g., from EvaluateAwaitInGenerator
+                    // when resuming after a rejected promise). Route it through HandleAbruptCompletion
+                    // to check if there's a JS catch block that can handle it.
+                    if (HandleAbruptCompletion(AbruptKind.Throw, signal.ThrownValue, environment))
+                    {
+                        // A catch block will handle this - continue execution from the catch handler
+                        continueAfterCatch = true;
+                        continue;
+                    }
+
+                    // No catch block - mark as completed and re-throw
+                    _state = GeneratorState.Completed;
+                    _done = true;
+                    _programCounter = -1;
+                    _tryStack.Clear();
+                    _resumeContext.Clear();
                     throw;
                 }
-
-                return new JsValue(CreateIteratorResult(JsValue.Undefined, false));
-            }
-            catch
-            {
-                _state = GeneratorState.Completed;
-                _done = true;
-                _programCounter = -1;
-                _tryStack.Clear();
-                _resumeContext.Clear();
-                throw;
-            }
+                catch
+                {
+                    _state = GeneratorState.Completed;
+                    _done = true;
+                    _programCounter = -1;
+                    _tryStack.Clear();
+                    _resumeContext.Clear();
+                    throw;
+                }
+            } while (continueAfterCatch);
 
             _state = GeneratorState.Completed;
             _done = true;

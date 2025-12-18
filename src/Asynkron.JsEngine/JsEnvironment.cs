@@ -241,6 +241,33 @@ public sealed class JsEnvironment
     /// </summary>
     public bool HasSlots => _slots is not null;
 
+    /// <summary>
+    /// Gets a direct reference to a slot value. This enables zero-overhead read/write
+    /// when the caller has already resolved the target environment.
+    /// WARNING: Caller must ensure slotIndex is valid and _slots is initialized.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ref JsValue GetSlotRef(int slotIndex) => ref _slots![slotIndex];
+
+    /// <summary>
+    /// Resolves an identifier to its target environment and slot index.
+    /// Returns true if the identifier can be accessed via slots, false if dictionary fallback is needed.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryResolveSlot(int scopeId, int slotIndex, out JsEnvironment? targetEnv)
+    {
+        if (scopeId >= 0 && slotIndex >= 0)
+        {
+            targetEnv = FindByScopeId(scopeId);
+            if (targetEnv?._slots is not null && slotIndex < targetEnv._slots.Length)
+            {
+                return true;
+            }
+        }
+        targetEnv = null;
+        return false;
+    }
+
     #endregion
 
     private bool IsStrictLocal { get; set; }

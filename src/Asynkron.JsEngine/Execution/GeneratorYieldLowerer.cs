@@ -919,9 +919,7 @@ internal static class GeneratorYieldLowerer
         private bool TryRewriteYieldingDeclaration(StatementNode statement,
             out ImmutableArray<StatementNode> replacement)
         {
-            if (statement is not VariableDeclaration { Declarators.Length: 1 } declaration ||
-                declaration.Declarators[0] is not { } declarator ||
-                declarator.Initializer is not YieldExpression yieldExpression)
+            if (statement is not VariableDeclaration { Declarators: [{ Initializer: YieldExpression yieldExpression } declarator] } declaration)
             {
                 replacement = default;
                 return false;

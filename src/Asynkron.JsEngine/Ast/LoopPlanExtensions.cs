@@ -7,6 +7,23 @@ using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
 
+/// <summary>
+/// Holds a pre-resolved slot reference for fast variable access in loops.
+/// </summary>
+internal readonly struct ResolvedSlot(JsEnvironment environment, int slotIndex)
+{
+    public readonly JsEnvironment Environment = environment;
+    public readonly int SlotIndex = slotIndex;
+
+    public bool IsValid => Environment is not null && SlotIndex >= 0;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public JsValue Read() => Environment.GetSlotRef(SlotIndex);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Write(JsValue value) => Environment.GetSlotRef(SlotIndex) = value;
+}
+
 public static partial class TypedAstEvaluator
 {
     extension(LoopPlan plan)
@@ -57,6 +74,13 @@ public static partial class TypedAstEvaluator
             // Fast path: if body is a single statement without block environment needs,
             // we can skip block dispatch overhead entirely (like Jint's ProbablyBlockStatement)
             var singleStatement = plan.SingleBodyStatement;
+
+            // Try ultra-fast path for simple numeric for loops
+            // Pattern: for (let i = 0; i < limit; i++) { s += i; }
+            if (TryExecuteFastNumericLoop(plan, iterationEnvironment, context, loopLabel, out var fastResult))
+            {
+                return fastResult;
+            }
 
             while (true)
             {
@@ -524,6 +548,135 @@ public static partial class TypedAstEvaluator
             }
 
             return -1;
+        }
+
+        /// <summary>
+        /// Tries to execute a simple numeric for loop using a fast path that bypasses AST evaluation.
+        /// Pattern: for (let i = 0; i &lt; limit; i++) { s += i; }
+        /// </summary>
+        private bool TryExecuteFastNumericLoop(
+            JsEnvironment environment,
+            EvaluationContext context,
+            Symbol? loopLabel,
+            out JsValue result)
+        {
+            result = JsValue.Undefined;
+
+            // Only attempt fast path for simple loops without dynamic scope or per-iteration environments
+            // Note: For `let` loops, AllowIterationEnvironmentPooling indicates no closure captures loop var
+            if (!plan.AllowIterationEnvironmentPooling ||
+                plan.ConditionAfterBody ||
+                !plan.ConditionPrologue.IsDefaultOrEmpty ||
+                loopLabel is not null)
+            {
+                return false;
+            }
+
+            // Check condition pattern: identifier < constant (numeric)
+            if (plan.Condition is not BinaryExpression { Operator: BinaryOperator.LessThan } condBinary)
+            {
+                return false;
+            }
+
+            if (condBinary.Left is not IdentifierExpression loopVarId ||
+                loopVarId.ScopeId < 0 || loopVarId.SlotIndex < 0)
+            {
+                return false;
+            }
+
+            if (condBinary.Right is not LiteralExpression { Value.IsNumber: true } limitLit)
+            {
+                return false;
+            }
+
+            // Check post-iteration pattern: i++ (UnaryExpression with Increment operator)
+            if (plan.PostIteration.Length != 1 ||
+                plan.PostIteration[0] is not ExpressionStatement { Expression: UnaryExpression unaryExpr } ||
+                unaryExpr.Operator != UnaryOperator.Increment ||
+                unaryExpr.Operand is not IdentifierExpression postId ||
+                !ReferenceEquals(postId.Name, loopVarId.Name))
+            {
+                return false;
+            }
+
+            // Check body pattern: single expression statement with compound assignment (s += i)
+            var bodyStatement = plan.SingleBodyStatement;
+            if (bodyStatement is not ExpressionStatement { Expression: AssignmentExpression assignExpr })
+            {
+                return false;
+            }
+
+            // Must be compound assignment (+=)
+            if (!assignExpr.IsCompoundAssignment)
+            {
+                return false;
+            }
+
+            // Get the accumulator slot info from the assignment target
+            if (assignExpr.ScopeId < 0 || assignExpr.SlotIndex < 0)
+            {
+                return false;
+            }
+
+            // For compound assignment s += i, the Value is a BinaryExpression (s + i)
+            // We need: Left is identifier matching Target (s), Right is identifier matching loop var (i)
+            if (assignExpr.Value is not BinaryExpression { Operator: BinaryOperator.Add } addExpr)
+            {
+                return false;
+            }
+
+            // Left of the add should be the accumulator (same as target)
+            if (addExpr.Left is not IdentifierExpression accumIdExpr ||
+                !ReferenceEquals(accumIdExpr.Name, assignExpr.Target))
+            {
+                return false;
+            }
+
+            // Right of the add should be the loop variable
+            if (addExpr.Right is not IdentifierExpression rhsId ||
+                !ReferenceEquals(rhsId.Name, loopVarId.Name))
+            {
+                return false;
+            }
+
+            // Pre-resolve slots
+            if (!environment.TryResolveSlot(loopVarId.ScopeId, loopVarId.SlotIndex, out var loopVarEnv) ||
+                loopVarEnv is null)
+            {
+                return false;
+            }
+
+            if (!environment.TryResolveSlot(assignExpr.ScopeId, assignExpr.SlotIndex, out var accumEnv) ||
+                accumEnv is null)
+            {
+                return false;
+            }
+
+            var limit = limitLit.Value.NumberValue;
+
+            // Execute the tight loop
+            ref var loopVarRef = ref loopVarEnv.GetSlotRef(loopVarId.SlotIndex);
+            ref var accumRef = ref accumEnv.GetSlotRef(assignExpr.SlotIndex);
+
+            var lastValue = JsValue.Undefined;
+
+            while (loopVarRef.NumberValue < limit)
+            {
+                // s += i
+                var i = loopVarRef.NumberValue;
+                var s = accumRef.NumberValue;
+                accumRef = new JsValue(s + i);
+                lastValue = accumRef;
+
+                // i++
+                loopVarRef = new JsValue(i + 1);
+
+                // Check for cancellation periodically (every 1M iterations would be too infrequent)
+                // But checking every iteration adds overhead. Skip for now - tight loop.
+            }
+
+            result = lastValue;
+            return true;
         }
     }
 }

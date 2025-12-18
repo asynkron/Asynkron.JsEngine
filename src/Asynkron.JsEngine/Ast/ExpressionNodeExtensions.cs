@@ -96,14 +96,17 @@ public static partial class TypedAstEvaluator
         private JsValue EvaluateExpression(JsEnvironment environment,
             EvaluationContext context)
         {
-            // Explicit if statements generate less IL than switch expressions
-            if (expression is LiteralExpression literal) return literal.Value;
-            if (expression is IdentifierExpression identifier) return EvaluateIdentifier(identifier, environment, context);
-            if (expression is BinaryExpression binary) return EvaluateBinary(binary, environment, context);
-            if (expression is AssignmentExpression assignment) return EvaluateAssignment(assignment, environment, context);
-            if (expression is UnaryExpression unary) return EvaluateUnary(unary, environment, context);
-            if (expression is CallExpression call) return EvaluateCall(call, environment, context);
-            return expression.EvaluateExpressionSlow(environment, context);
+            return expression switch
+            {
+                // Explicit if statements generate less IL than switch expressions
+                LiteralExpression literal => literal.Value,
+                IdentifierExpression identifier => EvaluateIdentifier(identifier, environment, context),
+                BinaryExpression binary => EvaluateBinary(binary, environment, context),
+                AssignmentExpression assignment => EvaluateAssignment(assignment, environment, context),
+                UnaryExpression unary => EvaluateUnary(unary, environment, context),
+                CallExpression call => EvaluateCall(call, environment, context),
+                _ => expression.EvaluateExpressionSlow(environment, context)
+            };
         }
 
         /// <summary>

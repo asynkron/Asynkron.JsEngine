@@ -1076,9 +1076,22 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     }
 
     /// <summary>
+    /// Returns true if this array has custom property descriptors (getters/setters) on numeric indices.
+    /// Arrays with custom descriptors cannot use the fast enumeration path because GetElement
+    /// bypasses the property descriptor mechanism.
+    /// </summary>
+    public bool HasCustomIndexedProperties =>
+        // Custom descriptors on indices (e.g., Object.defineProperty(arr, '0', {get: ...}))
+        // are stored in JsObject's _descriptors dictionary, not in _storage.Keys
+        _properties.HasNumericDescriptorKeys();
+
+    /// <summary>
     /// Returns an enumerator that iterates through the array elements.
     /// This provides a fast path for for-of loops, avoiding iterator result object allocations.
     /// Per ES spec, length is checked on each iteration to handle array modifications during iteration.
+    ///
+    /// WARNING: Only use this if HasCustomIndexedProperties is false. GetElement bypasses
+    /// property descriptors and won't invoke custom getters.
     /// </summary>
     public IEnumerator<JsValue> GetEnumerator()
     {

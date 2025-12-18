@@ -105,36 +105,33 @@ The `JsRopeString` optimization reduced memory usage from **4.6 MB → 968 KB** 
 
 The following areas could benefit from similar patterns to `JsRopeString`:
 
-### 1. ⚠️ Fast Enumerator Path for For-Of (REVERTED)
+### 1. ✅ Fast Enumerator Path for For-Of (PARTIAL)
 
 **Problem**: Every iterator `next()` call creates a new `JsObject` for `{done, value}`.
 
-**Solution Attempted**:
-- Added `IEnumerable<JsValue>` to `JsArray` for direct enumeration
-- Created `TryGetFastEnumeratorForIteration()` to bypass iterator protocol for known types
-- For-of loops used `IEnumerator<JsValue>` directly for arrays, typed arrays, and strings
+**Solution Implemented** (strings only):
+- Created `TryGetFastEnumeratorForIteration()` to bypass iterator protocol
+- String enumeration uses fast path with proper Unicode code point handling (surrogate pairs)
+- JsArray and TypedArray fall back to iterator protocol for spec compliance
 
-**Results** (before revert):
-- ForOfIteration: 456 ms → 248 ms (**1.8x faster**)
-- Memory: 1.46 GB → 602 MB (**2.4x less memory**)
+**Why JsArray/TypedArray use iterator protocol**:
+- JsArray: can have custom getters on numeric indices (Test262: array-key-get-error)
+- TypedArray: resizable buffer shrink needs proper error propagation
 
-**Why Reverted**: Caused Test262 regressions because the fast path didn't handle:
-- Array modification during iteration (array-contract, array-expand)
-- TypedArray resizable buffer changes during iteration
-- Unicode code point iteration for strings (astral plane/surrogate pairs)
-
-**Future Fix**: To re-enable, the enumerators need to:
-- Check array length on each iteration (not cached at start)
-- Handle surrogate pairs for proper Unicode code point iteration
-- Check buffer bounds on each iteration for TypedArrays
+**Fixed enumerators** (available but not used in fast path):
+- JsArray: checks `_length` on each iteration (handles array modification)
+- TypedArray: checks bounds on each iteration (handles buffer resize)
+- String: iterates by Unicode code points (handles surrogate pairs)
 
 ### 2. JsEnvironmentPool Expansion (Low Impact)
 
 **Problem**: `JsEnvironmentPool` exists but only used in regular for/while loops.
 
-**Status**: The pool is already used in `LoopPlanExtensions.cs` for for/while loops. Extending to for-of loops would require careful lifecycle management to ensure environments are returned to the pool at the right time.
+**Status**: The pool is already used in `LoopPlanExtensions.cs` for for/while loops. Extending to for-of loops would require careful lifecycle management.
 
-### 3. Array Fast-Path Iteration (Blocked on #1)
+### 3. Array Fast-Path Iteration (Requires Further Investigation)
+
+The JsArray enumerator is fixed but not used due to custom getter concerns. Future optimization could detect "simple" arrays without custom property descriptors and use the fast path for those.
 
 ### 4. Async/Await Microtask Reduction (High Impact - Requires Fix)
 

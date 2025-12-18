@@ -157,6 +157,22 @@ namespace Asynkron.JsEngine.JsTypes;
         return null;
     }
 
+    /// <summary>
+    /// Returns true if any descriptor key is a numeric array index.
+    /// Used by JsArray to detect custom property descriptors (getters/setters) on numeric indices.
+    /// </summary>
+    internal bool HasNumericDescriptorKeys()
+    {
+        foreach (var key in _descriptors.Keys)
+        {
+            if (uint.TryParse(key, out _))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // IJsPropertyAccessor interface implementation with JsValue
     public void SetProperty(string name, JsValue value)
     {

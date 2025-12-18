@@ -67,23 +67,25 @@ public static partial class TypedAstEvaluator
     /// Falls back to null for types that need the full protocol.
     ///
     /// The enumerators are spec-compliant:
+    /// - JsArray: checks length on each iteration, only used if no custom indexed properties
     /// - String: iterates by Unicode code points (handles surrogate pairs)
     ///
-    /// NOTE: JsArray and TypedArray are NOT fast-pathed because:
-    /// - JsArray: can have custom getters on numeric indices that need to be invoked
-    /// - TypedArray: resizable buffer shrink behavior requires proper error propagation
+    /// NOTE: TypedArray is NOT fast-pathed because resizable buffer shrink requires proper error propagation.
     /// </summary>
     [MustDisposeResource]
     private static IEnumerator<JsValue>? TryGetFastEnumeratorForIteration(object? value, EvaluationContext context)
     {
         return value switch
         {
+            // JsArray - fast path only if no custom indexed properties (getters/setters)
+            // Arrays with Object.defineProperty on numeric indices need full iterator protocol
+            JsArray array when !array.HasCustomIndexedProperties => array.GetEnumerator(),
+
             // Strings - Unicode code point enumeration (handles surrogate pairs)
             // Strings are immutable so no modification concerns
             string s => EnumerateStringCharacters(s),
 
             // Fall back to null - caller should use full iterator protocol
-            // JsArray: can have custom getters (array-key-get-error test)
             // TypedArray: resizable buffer shrink needs proper error propagation
             _ => null
         };

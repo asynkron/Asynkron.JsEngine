@@ -1895,6 +1895,127 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
+    ///     Registers an async host function that returns a Promise to JavaScript.
+    ///     The .NET Task is automatically bridged to a JS Promise.
+    /// </summary>
+    /// <param name="name">The name of the global function.</param>
+    /// <param name="handler">An async function that returns a Task&lt;JsValue&gt;.</param>
+    public void SetGlobalAsyncFunction(string name, Func<IReadOnlyList<JsValue>, Task<JsValue>> handler)
+    {
+        SetGlobal(name, new HostFunction(args => CreatePromiseFromTask(handler(args))) { Realm = GlobalObject }, registerBinding: true);
+    }
+
+    /// <summary>
+    ///     Registers an async host function that receives the <c>this</c> binding and returns a Promise.
+    ///     The .NET Task is automatically bridged to a JS Promise.
+    /// </summary>
+    /// <param name="name">The name of the global function.</param>
+    /// <param name="handler">An async function that returns a Task&lt;JsValue&gt;.</param>
+    public void SetGlobalAsyncFunction(string name, Func<JsValue, IReadOnlyList<JsValue>, Task<JsValue>> handler)
+    {
+        GlobalEnvironment.DefineJsValue(Symbol.Intern(name), (JsValue)new HostFunction((thisValue, args) => CreatePromiseFromTask(handler(thisValue, args))) { Realm = GlobalObject });
+    }
+
+    /// <summary>
+    ///     Creates a JavaScript Promise from a .NET Task.
+    ///     When the task completes, the promise is resolved with the result.
+    ///     When the task fails, the promise is rejected with the error message.
+    /// </summary>
+    /// <param name="task">The .NET Task to bridge.</param>
+    /// <returns>A JsValue containing the Promise object.</returns>
+    public JsValue CreatePromiseFromTask(Task<JsValue> task)
+    {
+        var promise = CreateRealmPromise();
+
+        ScheduleAfterTask(
+            task,
+            result => promise.Resolve(result),
+            ex => promise.Reject((JsValue)ex.Message));
+
+        return (JsValue)promise.JsObject;
+    }
+
+    /// <summary>
+    ///     Creates a JavaScript Promise from a .NET Task with a value converter.
+    ///     When the task completes, the result is converted to JsValue and the promise is resolved.
+    ///     When the task fails, the promise is rejected with the error message.
+    /// </summary>
+    /// <typeparam name="T">The type of the task result.</typeparam>
+    /// <param name="task">The .NET Task to bridge.</param>
+    /// <param name="converter">A function to convert the .NET result to JsValue.</param>
+    /// <returns>A JsValue containing the Promise object.</returns>
+    public JsValue CreatePromiseFromTask<T>(Task<T> task, Func<T, JsValue> converter)
+    {
+        var promise = CreateRealmPromise();
+
+        ScheduleAfterTask(
+            task,
+            result => promise.Resolve(converter(result)),
+            ex => promise.Reject((JsValue)ex.Message));
+
+        return (JsValue)promise.JsObject;
+    }
+
+    /// <summary>
+    ///     Creates a JavaScript Promise from a .NET Task that has no result.
+    ///     When the task completes, the promise is resolved with undefined.
+    ///     When the task fails, the promise is rejected with the error message.
+    /// </summary>
+    /// <param name="task">The .NET Task to bridge.</param>
+    /// <returns>A JsValue containing the Promise object.</returns>
+    public JsValue CreatePromiseFromTask(Task task)
+    {
+        var promise = CreateRealmPromise();
+
+        ScheduleAfterTask(
+            task,
+            () => promise.Resolve(JsValue.Undefined),
+            ex => promise.Reject((JsValue)ex.Message));
+
+        return (JsValue)promise.JsObject;
+    }
+
+    /// <summary>
+    ///     Schedules a continuation to run after a non-generic Task completes.
+    /// </summary>
+    private void ScheduleAfterTask(Task taskToAwait, Action onSuccess, Action<Exception> onFailure)
+    {
+        StartEventLoop();
+        var queue = _eventQueue ?? throw new InvalidOperationException("Event loop is not running.");
+
+        Interlocked.Increment(ref _pendingTaskCount);
+
+        _ = taskToAwait.ContinueWith(t =>
+        {
+            queue.Writer.TryWrite(() =>
+            {
+                if (t.IsFaulted)
+                {
+                    var ex = t.Exception?.GetBaseException() ?? t.Exception ?? new Exception("Task faulted");
+                    onFailure(ex);
+                }
+                else if (t.IsCanceled)
+                {
+                    onFailure(new OperationCanceledException("Task was canceled"));
+                }
+                else
+                {
+                    try
+                    {
+                        onSuccess();
+                    }
+                    catch (Exception ex)
+                    {
+                        onFailure(ex);
+                    }
+                }
+
+                return ValueTask.CompletedTask;
+            });
+        }, TaskScheduler.Default);
+    }
+
+    /// <summary>
     ///     Parses and evaluates the provided source code, then processes any scheduled events
     ///     in the event queue. The engine will continue running until the queue is empty
     ///     and all pending timer tasks have completed.

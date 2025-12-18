@@ -852,6 +852,152 @@ public class AsyncAwaitTests
         Assert.Equal("promise", result.ToString());
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task DotNetTask_BridgesToJsPromise_WithAsyncFunction()
+    {
+        await using var engine = new JsEngine();
+        var result = "";
+
+        engine.SetGlobalFunction("captureResult", args =>
+        {
+            if (args.Count > 0)
+            {
+                result = args[0].ToObject()?.ToString() ?? "";
+            }
+            return JsValue.Null;
+        });
+
+        // Register an async .NET function that simulates I/O
+        engine.SetGlobalAsyncFunction("readFileAsync", async args =>
+        {
+            var filename = args.GetArgument(0).ToString();
+            // Simulate async I/O with a delay
+            await Task.Delay(50);
+            return (JsValue)$"Contents of {filename}";
+        });
+
+        await engine.Evaluate("""
+            async function test() {
+                let content = await readFileAsync("test.txt");
+                return content;
+            }
+            test().then(captureResult);
+            """);
+
+        Assert.Equal("Contents of test.txt", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DotNetTask_BridgesToJsPromise_WithMultipleAwaits()
+    {
+        await using var engine = new JsEngine();
+        var result = "";
+
+        engine.SetGlobalFunction("captureResult", args =>
+        {
+            if (args.Count > 0)
+            {
+                result = args[0].ToObject()?.ToString() ?? "";
+            }
+            return JsValue.Null;
+        });
+
+        // Register an async delay function
+        engine.SetGlobalAsyncFunction("delay", async args =>
+        {
+            var ms = (int)args.GetArgument(0).ToNumber();
+            var value = args.GetArgument(1);
+            await Task.Delay(ms);
+            return value;
+        });
+
+        await engine.Evaluate("""
+            async function test() {
+                let a = await delay(10, 100);
+                let b = await delay(10, 200);
+                return a + b;
+            }
+            test().then(captureResult);
+            """);
+
+        Assert.Equal("300", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DotNetTask_BridgesToJsPromise_HandlesRejection()
+    {
+        await using var engine = new JsEngine();
+        var result = "";
+
+        engine.SetGlobalFunction("captureResult", args =>
+        {
+            if (args.Count > 0)
+            {
+                result = args[0].ToObject()?.ToString() ?? "";
+            }
+            return JsValue.Null;
+        });
+
+        // Register an async function that throws
+        engine.SetGlobalAsyncFunction("failingOperation", async _ =>
+        {
+            await Task.Delay(10);
+            throw new InvalidOperationException("Simulated I/O error");
+        });
+
+        await engine.Evaluate("""
+            async function test() {
+                try {
+                    await failingOperation();
+                    return "should not reach";
+                } catch(e) {
+                    return "caught: " + e;
+                }
+            }
+            test().then(captureResult);
+            """);
+
+        Assert.Contains("caught:", result);
+        Assert.Contains("Simulated I/O error", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task CreatePromiseFromTask_WithConverter()
+    {
+        await using var engine = new JsEngine();
+        var result = "";
+
+        engine.SetGlobalFunction("captureResult", args =>
+        {
+            if (args.Count > 0)
+            {
+                result = args[0].ToObject()?.ToString() ?? "";
+            }
+            return JsValue.Null;
+        });
+
+        // Use CreatePromiseFromTask directly with a converter
+        engine.SetGlobalFunction("getNumber", _ =>
+        {
+            var task = Task.Run(async () =>
+            {
+                await Task.Delay(10);
+                return 42;
+            });
+            return engine.CreatePromiseFromTask(task, num => (JsValue)(double)num);
+        });
+
+        await engine.Evaluate("""
+            async function test() {
+                let num = await getNumber();
+                return num * 2;
+            }
+            test().then(captureResult);
+            """);
+
+        Assert.Equal("84", result);
+    }
+
     private static JsEngine CreateDebugEngine()
     {
         return TestEngineFactory.CreateDebugEngine(nameof(AsyncAwaitTests));

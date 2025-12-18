@@ -22,8 +22,10 @@ public static partial class TypedAstEvaluator
             var lastValueJs = JsValue.Undefined;
             var logger = context.RealmState.Logger;
             var iterationIndex = 0;
+            var hasPerIterationBindings = !plan.PerIterationBindings.IsDefaultOrEmpty;
 
-            if (context.AllowIdentifierCache && plan.LoopPlanHasDynamicScope())
+            if (context.AllowIdentifierCache &&
+                (hasPerIterationBindings || plan.LoopPlanHasDynamicScope()))
             {
                 context.AllowIdentifierCache = false;
             }
@@ -45,7 +47,6 @@ public static partial class TypedAstEvaluator
             }
 
             // Check if we need per-iteration environments for lexical bindings
-            var hasPerIterationBindings = !plan.PerIterationBindings.IsDefaultOrEmpty;
             var allowIterationEnvPooling = plan.AllowIterationEnvironmentPooling;
 
             // Per ECMAScript spec 13.7.4.8 ForBodyEvaluation step 2:

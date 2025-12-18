@@ -1273,7 +1273,8 @@ public sealed class ScopeAnalyzer
             ScopeDepth = depth,
             SlotIndex = slot,
             ScopeId = scopeId,
-            IsImmutableTarget = isImmutable
+            IsImmutableTarget = isImmutable,
+            TargetIdentifier = new IdentifierExpression(assignment.Source, assignment.Target, depth, slot, scopeId)
         };
     }
 

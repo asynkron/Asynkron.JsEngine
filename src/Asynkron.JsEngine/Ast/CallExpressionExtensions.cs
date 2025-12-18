@@ -54,18 +54,12 @@ public static partial class TypedAstEvaluator
                     JsValue calleeValue;
                     if (calleeId.SlotIndex >= 0 && calleeId.ScopeId >= 0)
                     {
-                        var targetEnv = environment.ScopeId == calleeId.ScopeId
-                            ? environment
-                            : environment.FindByScopeId(calleeId.ScopeId);
-
-                        if (targetEnv?._slots is not null)
-                        {
-                            calleeValue = targetEnv._slots[calleeId.SlotIndex];
-                        }
-                        else
-                        {
-                            calleeValue = context.GetIdentifier(environment, calleeId.Name);
-                        }
+                        calleeValue = environment.TryReadIdentifierWithSlot(
+                                calleeId,
+                                context,
+                                out var slotCallee)
+                            ? slotCallee
+                            : context.GetIdentifier(environment, calleeId.Name);
                     }
                     else
                     {

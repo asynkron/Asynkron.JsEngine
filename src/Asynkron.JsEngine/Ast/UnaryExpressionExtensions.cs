@@ -34,36 +34,34 @@ public static partial class TypedAstEvaluator
                     }
 
                     // Fastest path: slot-based access
-                    if (identifier.SlotIndex >= 0 && identifier.ScopeId >= 0)
+                    if (identifier.SlotIndex >= 0 && identifier.ScopeId >= 0 &&
+                        environment.TryReadIdentifierWithSlot(identifier, context, out var slotValue))
                     {
-                        var targetEnv = environment.ScopeId == identifier.ScopeId
-                            ? environment
-                            : environment.FindByScopeId(identifier.ScopeId);
-
-                        if (targetEnv?._slots is not null)
+                        if (context.ShouldStopEvaluation)
                         {
-                            var slotValue = targetEnv._slots[identifier.SlotIndex];
-
-                            // Fast path for Number (most common case in loops)
-                            if (slotValue.Kind == JsValueKind.Number)
-                            {
-                                var d = slotValue.NumberValue;
-                                var updatedValue = d + (op == UnaryOperator.Increment ? 1 : -1);
-                                targetEnv._slots[identifier.SlotIndex] = new JsValue(updatedValue);
-                                return expression.IsPrefix ? new JsValue(updatedValue) : new JsValue(d);
-                            }
-
-                            // Non-numeric slot values
-                            var slotOldNumeric = ToNumericValue(slotValue, context);
-                            if (context.ShouldStopEvaluation)
-                                return context.FlowValue;
-
-                            var slotUpdated = op == UnaryOperator.Increment
-                                ? IncrementValue(slotOldNumeric, context)
-                                : DecrementValue(slotOldNumeric, context);
-                            targetEnv._slots[identifier.SlotIndex] = slotUpdated;
-                            return expression.IsPrefix ? slotUpdated : slotOldNumeric;
+                            return context.FlowValue;
                         }
+
+                        // Fast path for Number (most common case in loops)
+                        if (slotValue.Kind == JsValueKind.Number)
+                        {
+                            var d = slotValue.NumberValue;
+                            var updatedValue = d + (op == UnaryOperator.Increment ? 1 : -1);
+                            var updatedJs = new JsValue(updatedValue);
+                        environment.TryWriteIdentifierWithSlot(identifier, updatedJs, context);
+                            return expression.IsPrefix ? updatedJs : new JsValue(d);
+                        }
+
+                        // Non-numeric slot values
+                        var slotOldNumeric = ToNumericValue(slotValue, context);
+                        if (context.ShouldStopEvaluation)
+                            return context.FlowValue;
+
+                        var slotUpdated = op == UnaryOperator.Increment
+                            ? IncrementValue(slotOldNumeric, context)
+                            : DecrementValue(slotOldNumeric, context);
+                        environment.TryWriteIdentifierWithSlot(identifier, slotUpdated, context);
+                        return expression.IsPrefix ? slotUpdated : slotOldNumeric;
                     }
 
                     // Direct identifier path (no slot)

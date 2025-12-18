@@ -43,54 +43,54 @@ public static partial class TypedAstEvaluator
 
             // Fast path: slot-based assignment using ScopeId to find the declaring environment.
             // This enables O(1) slot access for variables in any scope (local or closure).
-            if (expression.SlotIndex >= 0 && expression.ScopeId >= 0)
+            if (expression is { SlotIndex: >= 0, ScopeId: >= 0 })
             {
-                // Find the target environment by ScopeId
-                JsEnvironment? targetEnv;
-                if (environment.ScopeId == expression.ScopeId)
-                {
-                    targetEnv = environment;
-                }
-                else
-                {
-                    targetEnv = environment.FindByScopeId(expression.ScopeId);
-                }
+                var targetIdentifier = expression.TargetIdentifier ??
+                                       new IdentifierExpression(
+                                           expression.Source,
+                                           expression.Target,
+                                           expression.ScopeDepth,
+                                           expression.SlotIndex,
+                                           expression.ScopeId);
 
-                if (targetEnv?._slots is not null)
+                if (expression.IsCompoundAssignment &&
+                    TryEvaluateCompoundAssignmentSlotBased(
+                        expression,
+                        expression.Value,
+                        targetIdentifier,
+                        environment,
+                        context,
+                        out var compoundJsValue,
+                        out var shouldAssignCompound))
                 {
-                    if (expression.IsCompoundAssignment &&
-                        TryEvaluateCompoundAssignmentSlotBased(expression, expression.Value, expression.SlotIndex,
-                            targetEnv, context, out var compoundJsValue, out var shouldAssignCompound))
+                    if (context.ShouldStopEvaluation)
                     {
-                        if (context.ShouldStopEvaluation)
-                        {
-                            return compoundJsValue;
-                        }
-
-                        if (shouldAssignCompound)
-                        {
-                            targetEnv._slots![expression.SlotIndex] = compoundJsValue;
-                        }
-
                         return compoundJsValue;
                     }
 
-                    // Simple slot-based assignment (not compound)
-                    var slotValueJs = EvaluateAssignmentRhsWithNameHintJsValue(expression, expression.Value, environment, context);
-                    if (context.ShouldStopEvaluation)
+                    if (shouldAssignCompound)
                     {
-                        return slotValueJs;
+                        environment.TryWriteIdentifierWithSlot(targetIdentifier, compoundJsValue, context);
                     }
 
-                    targetEnv._slots![expression.SlotIndex] = slotValueJs;
+                    return compoundJsValue;
+                }
+
+                // Simple slot-based assignment (not compound)
+                var slotValueJs = EvaluateAssignmentRhsWithNameHintJsValue(expression, expression.Value, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
                     return slotValueJs;
                 }
+
+                environment.TryWriteIdentifierWithSlot(targetIdentifier, slotValueJs, context);
+                return slotValueJs;
             }
 
             // Fast path for compound assignments on simple identifiers
             // This avoids creating AssignmentReference structs entirely.
             // IMPORTANT: Only use this fast path for non-dynamic scopes (see comment below for simple assignments).
-            if (expression.IsCompoundAssignment && expression.SlotIndex >= 0 && expression.ScopeId >= 0 &&
+            if (expression is { IsCompoundAssignment: true, SlotIndex: >= 0, ScopeId: >= 0 } &&
                 TryEvaluateCompoundAssignmentDirectJsValue(expression, expression.Value, expression.Target,
                     environment, context, out var compoundJsValue2, out var shouldAssignCompound2))
             {
@@ -113,7 +113,7 @@ public static partial class TypedAstEvaluator
             // Dynamic scopes (with eval/with) require resolving the reference BEFORE
             // evaluating the RHS, per ES spec 13.15.2. The fast path evaluates RHS first
             // which breaks code like: with(scope) { x = (delete scope.x, 2); }
-            if (!expression.IsCompoundAssignment && expression.SlotIndex >= 0 && expression.ScopeId >= 0)
+            if (expression is { IsCompoundAssignment: false, SlotIndex: >= 0, ScopeId: >= 0 })
             {
                 var targetValueJs = EvaluateAssignmentRhsWithNameHintJsValue(expression, expression.Value, environment, context);
                 if (context.ShouldStopEvaluation)
@@ -133,11 +133,11 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            // Fallback to AssignmentReference path for other cases
+            // Fallback to the AssignmentReference path for other cases
             var reference = AssignmentReferenceResolver.ResolveIdentifierDirect(
                 expression.Target, environment, context);
 
-            // Use JsValue version of compound assignment to avoid boxing
+            // Use JsValue version of the compound assignment to avoid boxing
             if (expression.IsCompoundAssignment &&
                 TryEvaluateCompoundAssignmentJsValue(expression, expression.Value, reference, environment, context,
                     out var refCompoundJsValue,
@@ -324,9 +324,9 @@ public static partial class TypedAstEvaluator
     /// Only used when ScopeDepth=0 (local variables in the current function scope).
     /// </summary>
     private static bool TryEvaluateCompoundAssignmentSlotBased(
-        AssignmentExpression? assignment,
+        AssignmentExpression assignment,
         ExpressionNode candidate,
-        int slotIndex,
+        IdentifierExpression targetIdentifier,
         JsEnvironment environment,
         EvaluationContext context,
         out JsValue value,
@@ -339,8 +339,22 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        // Direct slot access - O(1) array indexing (ScopeDepth is always 0 here)
-        var leftJs = environment._slots![slotIndex];
+        if (!environment.TryReadIdentifierWithSlot(
+                targetIdentifier,
+                context,
+                out var leftJs))
+        {
+            value = JsValue.Undefined;
+            shouldAssign = false;
+            return false;
+        }
+
+        if (context.ShouldStopEvaluation)
+        {
+            value = leftJs;
+            shouldAssign = false;
+            return true;
+        }
 
         switch (binary.Operator)
         {

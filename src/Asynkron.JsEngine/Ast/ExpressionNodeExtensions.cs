@@ -457,23 +457,16 @@ public static partial class TypedAstEvaluator
                 }
 
                 // Fast path: use slot-based lookup when available
-                if (identifier.SlotIndex >= 0 && identifier.ScopeId >= 0)
+                if (identifier is { SlotIndex: >= 0, ScopeId: >= 0 })
                 {
-                    if (environment.ScopeId == identifier.ScopeId)
+                    if (environment.TryReadIdentifierWithSlot(
+                            identifier.Name,
+                            identifier.ScopeId,
+                            identifier.SlotIndex,
+                            context,
+                            out var slotCallee))
                     {
-                        var slots = environment._slots;
-                        if (slots is not null)
-                        {
-                            return (slots[identifier.SlotIndex], JsValue.Undefined, false);
-                        }
-                    }
-                    else
-                    {
-                        var targetEnv = environment.FindByScopeId(identifier.ScopeId);
-                        if (targetEnv?._slots is not null)
-                        {
-                            return (targetEnv._slots[identifier.SlotIndex], JsValue.Undefined, false);
-                        }
+                        return (slotCallee, JsValue.Undefined, false);
                     }
                 }
 

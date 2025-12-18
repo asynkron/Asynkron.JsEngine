@@ -1106,6 +1106,101 @@ public sealed class JsEnvironment
     }
 
     /// <summary>
+    /// Slot-aware identifier read. Attempts to use the provided scope/slot hint, then falls back to regular resolution.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryReadIdentifierWithSlot(Symbol name, int scopeId, int slotIndex, EvaluationContext context,
+        out JsValue value)
+    {
+        value = default;
+        if (scopeId >= 0 && slotIndex >= 0)
+        {
+            var targetEnv = FindByScopeId(scopeId);
+            var slots = targetEnv?._slots;
+            if (targetEnv is not null && slots is not null && slotIndex < slots.Length)
+            {
+                var slotValue = slots[slotIndex];
+                if (slotValue.IsUninitialized)
+                {
+                    var errorObject = StandardLibrary.CreateReferenceError(
+                        $"Cannot access '{name.Name}' before initialization",
+                        context,
+                        context.RealmState);
+                    value = JsValue.FromObjectUnsafe(errorObject);
+                    context.SetThrow(value);
+                    return true;
+                }
+
+                // Keep compatibility with existing fallback when slot value is still undefined
+                if (slotValue.IsUndefined &&
+                    targetEnv.TryGetIdentifierJsValue(name, context, out var fallbackTarget))
+                {
+                    value = fallbackTarget;
+                    return true;
+                }
+
+                value = slotValue;
+                return true;
+            }
+        }
+
+        if (TryGetIdentifierJsValue(name, context, out var resolved))
+        {
+            value = resolved;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Overload for convenience when call sites already have the identifier node.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryReadIdentifierWithSlot(IdentifierExpression identifier, EvaluationContext context,
+        out JsValue value)
+    {
+        return TryReadIdentifierWithSlot(identifier.Name, identifier.ScopeId, identifier.SlotIndex, context, out value);
+    }
+
+    /// <summary>
+    /// Slot-aware identifier write. Uses slot hint when possible; otherwise falls back to normal write resolution.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryWriteIdentifierWithSlot(Symbol name, int scopeId, int slotIndex, JsValue value,
+        EvaluationContext context)
+    {
+        if (scopeId >= 0 && slotIndex >= 0)
+        {
+            var targetEnv = FindByScopeId(scopeId);
+            var slots = targetEnv?._slots;
+            if (targetEnv is not null && slots is not null && slotIndex < slots.Length && targetEnv._values is not null)
+            {
+                ref var binding = ref targetEnv._values.GetValueRefOrNullRef(name);
+                if (!Unsafe.IsNullRef(ref binding))
+                {
+                    targetEnv.WriteResolvedBindingJsValue(targetEnv, ref binding, name, value,
+                        context.CurrentScope.IsStrict);
+                    slots[slotIndex] = value;
+                    return true;
+                }
+            }
+        }
+
+        SetIdentifierJsValue(name, value, context);
+        return true;
+    }
+
+    /// <summary>
+    /// Overload for convenience when call sites already have the identifier node.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryWriteIdentifierWithSlot(IdentifierExpression identifier, JsValue value, EvaluationContext context)
+    {
+        return TryWriteIdentifierWithSlot(identifier.Name, identifier.ScopeId, identifier.SlotIndex, value, context);
+    }
+
+    /// <summary>
     /// Direct identifier assignment that avoids creating AssignmentReference structs.
     /// This is the fast path for simple identifier assignments in loops.
     /// </summary>

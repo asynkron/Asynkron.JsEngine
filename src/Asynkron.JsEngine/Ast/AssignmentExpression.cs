@@ -23,4 +23,11 @@ public sealed record AssignmentExpression(
     int SlotIndex = -1,
     int ScopeId = -1,
     bool IsImmutableTarget = false)
-    : ExpressionNode(Source);
+    : ExpressionNode(Source)
+{
+    /// <summary>
+    /// Cached identifier expression representing the target with scope metadata.
+    /// Populated by the scope analyzer to avoid recreating at hot call sites.
+    /// </summary>
+    public IdentifierExpression? TargetIdentifier { get; init; }
+}

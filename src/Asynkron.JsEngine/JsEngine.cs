@@ -59,10 +59,9 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     // Module registry: maps module paths to their exported values
-    private readonly Dictionary<string, ModuleEntry> _moduleRegistry = new();
+    private readonly Dictionary<string, ModuleEntry> _moduleRegistry = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<int, CancellationTokenSource> _timers = new();
     private readonly TypedConstantExpressionTransformer _typedConstantTransformer = new();
-    private readonly TypedCpsTransformer _typedCpsTransformer = new();
     private readonly ScopeAnalyzer _scopeAnalyzer = new();
     private Task? _eventLoopTask;
     private int? _eventLoopThreadId;
@@ -520,10 +519,6 @@ public sealed class JsEngine : IAsyncDisposable
         var original = ParseTypedProgram(source, options: Options);
         var constantFolded = _typedConstantTransformer.Transform(original);
         var cpsTransformed = constantFolded;
-        if (TypedCpsTransformer.NeedsTransformation(constantFolded))
-        {
-            cpsTransformed = _typedCpsTransformer.Transform(constantFolded);
-        }
 
         return (original, constantFolded, cpsTransformed);
     }
@@ -1975,12 +1970,30 @@ public sealed class JsEngine : IAsyncDisposable
         // Increment immediately to track pending work
         Interlocked.Increment(ref _pendingTaskCount);
 
-        _ = taskToAwait.ContinueWith(_ =>
+        _ = taskToAwait.ContinueWith(t =>
         {
             // Task completed on thread pool, now schedule continuation on event loop
             // Write directly to queue - don't use ScheduleTask as that would increment again
             queue.Writer.TryWrite(() =>
             {
+                // If the task failed, log the error but still run the continuation
+                // (the continuation may handle the error state)
+                if (t.IsFaulted)
+                {
+                    var ex = t.Exception?.GetBaseException() ?? t.Exception;
+                    if (ex is not null)
+                    {
+                        RealmState.Logger?.LogError(ex,
+                            "[ScheduleAfterTask] Task faulted: {ErrorType}: {ErrorMessage}",
+                            ex.GetType().Name,
+                            ex.Message);
+                    }
+                }
+                else if (t.IsCanceled)
+                {
+                    RealmState.Logger?.LogWarning("[ScheduleAfterTask] Task was canceled.");
+                }
+
                 continuation();
 
                 return ValueTask.CompletedTask;
@@ -2003,8 +2016,25 @@ public sealed class JsEngine : IAsyncDisposable
         // Increment immediately to track pending work
         Interlocked.Increment(ref _pendingTaskCount);
 
-        _ = task.ContinueWith(_ =>
+        _ = task.ContinueWith(t =>
         {
+            // If the task failed, log the error
+            if (t.IsFaulted)
+            {
+                var ex = t.Exception?.GetBaseException() ?? t.Exception;
+                if (ex is not null)
+                {
+                    RealmState.Logger?.LogError(ex,
+                        "[TrackPendingAsyncWork] Tracked task faulted: {ErrorType}: {ErrorMessage}",
+                        ex.GetType().Name,
+                        ex.Message);
+                }
+            }
+            else if (t.IsCanceled)
+            {
+                RealmState.Logger?.LogWarning("[TrackPendingAsyncWork] Tracked task was canceled.");
+            }
+
             // Task completed - decrement the counter
             // The task's internal ScheduleTask calls will have their own increment/decrement cycle
             Interlocked.Decrement(ref _pendingTaskCount);

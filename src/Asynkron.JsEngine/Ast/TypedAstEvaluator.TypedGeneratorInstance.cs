@@ -986,8 +986,15 @@ public static partial class TypedAstEvaluator
                                     // Handle case where nextResult is already a boxed JsValue
                                     if (!nextResult.TryGetObject<JsObject>(out var resultObj))
                                     {
-                                        _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                        continue;
+                                        // Per ES spec 7.4.2: if result is not an object, throw TypeError
+                                        var typeError = JsValue.FromObjectUnsafe(
+                                            StandardLibrary.CreateTypeError("Iterator result is not an object", context, context.RealmState));
+                                        if (HandleAbruptCompletion(AbruptKind.Throw, typeError, environment))
+                                        {
+                                            continue;
+                                        }
+                                        _tryStack.Clear();
+                                        throw new ThrowSignal(typeError);
                                     }
 
                                     var done = resultObj.TryGetProperty("done", out var doneValue) &&
@@ -1026,6 +1033,7 @@ public static partial class TypedAstEvaluator
 
                             var awaitedValue = JsValue.Undefined;
                             var awaitedNextResult = JsValue.Undefined;
+                            var hasAwaitedNextResult = false;
 
                             // If we're resuming after a pending await from this
                             // iterator site, consume the resume payload and treat
@@ -1069,11 +1077,12 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 awaitedNextResult = forAwaitResumePayload;
+                                hasAwaitedNextResult = true;
                             }
 
                             if (driverState.IteratorObject is JsObject awaitIteratorObj)
                             {
-                                if (awaitedNextResult.IsUndefined)
+                                if (!hasAwaitedNextResult)
                                 {
                                     driverState.NextMethod ??= awaitIteratorObj.GetIteratorNextCallable(context);
                                     var nextResult = awaitIteratorObj.InvokeIteratorNext(
@@ -1114,8 +1123,15 @@ public static partial class TypedAstEvaluator
 
                                 if (!awaitedNextResult.TryGetObject<JsObject>(out var awaitResultObj))
                                 {
-                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                    continue;
+                                    // Per ES spec 7.4.2: if result is not an object, throw TypeError
+                                    var typeError = JsValue.FromObjectUnsafe(
+                                        StandardLibrary.CreateTypeError("Iterator result is not an object", context, context.RealmState));
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, typeError, environment))
+                                    {
+                                        continue;
+                                    }
+                                    _tryStack.Clear();
+                                    throw new ThrowSignal(typeError);
                                 }
 
                                 var doneAwait = awaitResultObj.TryGetProperty("done", out var awaitDoneValue) &&
@@ -1402,6 +1418,14 @@ public static partial class TypedAstEvaluator
                     // A ThrowSignal was thrown from code evaluation (e.g., from EvaluateAwaitInGenerator
                     // when resuming after a rejected promise). Route it through HandleAbruptCompletion
                     // to check if there's a JS catch block that can handle it.
+
+                    // Clear any stale throw state from context before handling - this ensures
+                    // finally blocks don't see the stale throw state
+                    if (context.IsThrow)
+                    {
+                        context.Clear();
+                    }
+
                     if (HandleAbruptCompletion(AbruptKind.Throw, signal.ThrownValue, environment))
                     {
                         // A catch block will handle this - continue execution from the catch handler

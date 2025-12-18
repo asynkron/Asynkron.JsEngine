@@ -26,11 +26,9 @@ public static class AstTestHelpers
 
         var constantFolded = new TypedConstantExpressionTransformer().Transform(parsed);
         var analyzed = new ScopeAnalyzer().Analyze(constantFolded);
-        var afterCps = applyCps && TypedCpsTransformer.NeedsTransformation(analyzed)
-            ? new TypedCpsTransformer().Transform(analyzed)
-            : analyzed;
 
-        return new AstPipelineResult(parsed, analyzed, afterCps);
+
+        return new AstPipelineResult(parsed, analyzed, analyzed);
     }
 
     /// <summary>

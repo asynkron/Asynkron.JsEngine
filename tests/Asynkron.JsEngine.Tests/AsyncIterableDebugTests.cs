@@ -513,10 +513,7 @@ public class AsyncIterableDebugTests(ITestOutputHelper output)
         await using var engine = CreateDebugEngine();
         var (_, typedBefore, _) = engine.ParseWithTransformationSteps(source);
 
-        var transformer = new TypedCpsTransformer();
-        var transformed = transformer.Transform(typedBefore);
-
-        var snapshot = TypedAstSnapshot.Create(transformed);
+        var snapshot = TypedAstSnapshot.Create(typedBefore);
         output.WriteLine("=== TYPED AST SNAPSHOT ===");
         output.WriteLine(snapshot);
     }

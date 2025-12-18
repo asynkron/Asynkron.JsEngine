@@ -2003,6 +2003,55 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
+    ///     Schedules a continuation to run on the event queue after an async task completes.
+    ///     The task result is passed to the onSuccess callback, or the exception to onFailure.
+    ///     This is the preferred method for bridging .NET async operations to JS promises.
+    /// </summary>
+    /// <typeparam name="T">The type of the task result.</typeparam>
+    /// <param name="taskToAwait">The external task to wait for (e.g., File.ReadAllTextAsync).</param>
+    /// <param name="onSuccess">Callback invoked with the result when the task succeeds.</param>
+    /// <param name="onFailure">Callback invoked with the exception when the task fails or is canceled.</param>
+    public void ScheduleAfterTask<T>(Task<T> taskToAwait, Action<T> onSuccess, Action<Exception> onFailure)
+    {
+        StartEventLoop();
+        var queue = _eventQueue ?? throw new InvalidOperationException("Event loop is not running.");
+
+        // Increment immediately to track pending work
+        Interlocked.Increment(ref _pendingTaskCount);
+
+        _ = taskToAwait.ContinueWith(t =>
+        {
+            // Task completed on thread pool, now schedule continuation on event loop
+            queue.Writer.TryWrite(() =>
+            {
+                if (t.IsFaulted)
+                {
+                    var ex = t.Exception?.GetBaseException() ?? t.Exception ?? new Exception("Task faulted");
+                    onFailure(ex);
+                }
+                else if (t.IsCanceled)
+                {
+                    onFailure(new OperationCanceledException("Task was canceled"));
+                }
+                else
+                {
+                    try
+                    {
+                        onSuccess(t.Result);
+                    }
+                    catch (Exception ex)
+                    {
+                        // If onSuccess throws, call onFailure
+                        onFailure(ex);
+                    }
+                }
+
+                return ValueTask.CompletedTask;
+            });
+        }, TaskScheduler.Default);
+    }
+
+    /// <summary>
     ///     Tracks a pending async task without scheduling any event queue callbacks.
     ///     The pending task count is incremented immediately, ensuring the event loop waits
     ///     for the task to complete. When the task completes, the count is decremented.

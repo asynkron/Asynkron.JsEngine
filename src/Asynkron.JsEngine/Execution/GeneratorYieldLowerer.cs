@@ -834,7 +834,7 @@ internal static class GeneratorYieldLowerer
             return new IdentifierExpression(yieldExpression.Source, tempBinding.Name);
         }
 
-        private VariableDeclaration CreateYieldDeclaration(
+        private static VariableDeclaration CreateYieldDeclaration(
             SourceReference? source,
             IdentifierBinding tempBinding,
             YieldExpression yieldExpression)
@@ -850,7 +850,7 @@ internal static class GeneratorYieldLowerer
         private bool TryRewriteReturnWithYield(StatementNode statement,
             out ImmutableArray<StatementNode> replacement)
         {
-            if (statement is not ReturnStatement { Expression: { } } returnStatement)
+            if (statement is not ReturnStatement { Expression: not null } returnStatement)
             {
                 replacement = default;
                 return false;

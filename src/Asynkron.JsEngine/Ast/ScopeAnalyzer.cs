@@ -1071,7 +1071,8 @@ public sealed class ScopeAnalyzer
 
     private ForEachStatement ResolveForEachStatement(ForEachStatement forEachStmt)
     {
-        var needsScope = forEachStmt.DeclarationKind is VariableKind.Let or VariableKind.Const;
+        var needsScope = forEachStmt.DeclarationKind is VariableKind.Let or VariableKind.Const
+            or VariableKind.Using or VariableKind.AwaitUsing;
 
         var perIterationScopeId = -1;
         var perIterationSlotCount = -1;

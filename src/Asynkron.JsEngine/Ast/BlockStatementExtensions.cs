@@ -112,16 +112,27 @@ public static partial class TypedAstEvaluator
             // and throw ReferenceError if accessed before initialization.
             foreach (var stmt in block.Statements)
             {
-                if (stmt is VariableDeclaration
+                switch (stmt)
+                {
+                    case VariableDeclaration
                     {
                         Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
-                    } lexDecl)
-                {
-                    var isConst = lexDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
-                    foreach (var declarator in lexDecl.Declarators)
-                    {
-                        HoistLexicalBindingTargetForTdz(block, declarator.Target, scope, isConst);
-                    }
+                    } lexDecl:
+                        var isConst = lexDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
+                        foreach (var declarator in lexDecl.Declarators)
+                        {
+                            HoistLexicalBindingTargetForTdz(block, declarator.Target, scope, isConst);
+                        }
+
+                        break;
+                    case ClassDeclaration classDecl:
+                        if (!scope.HasBinding(classDecl.Name))
+                        {
+                            scope.DefineJsValue(classDecl.Name, JsValue.Uninitialized, isLexical: true,
+                                blocksFunctionScopeOverride: true, isConst: true);
+                        }
+
+                        break;
                 }
             }
 

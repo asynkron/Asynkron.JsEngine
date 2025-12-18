@@ -8,7 +8,6 @@ using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Loggers;
 using BenchmarkDotNet.Order;
 using BenchmarkDotNet.Running;
-using BenchmarkDotNet.Toolchains.InProcess.Emit;
 using Jint;
 
 // Configure benchmark runs
@@ -67,15 +66,10 @@ if (args.Length == 0)
 
 var benchmarkType = args[0].ToLowerInvariant();
 
-// Add short job if requested (uses in-process toolchain to avoid rebuild timeouts)
+// Add short job if requested
 if (args.Contains("--job") && args.Contains("short"))
 {
-    config = config.AddJob(Job.ShortRun.WithToolchain(InProcessEmitToolchain.Instance));
-}
-else
-{
-    // Use in-process toolchain by default to avoid build timeouts
-    config = config.AddJob(Job.Default.WithToolchain(InProcessEmitToolchain.Instance));
+    config = config.AddJob(Job.ShortRun);
 }
 
 switch (benchmarkType)

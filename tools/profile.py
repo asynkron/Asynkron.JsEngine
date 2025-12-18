@@ -748,8 +748,7 @@ class Profiler:
 def main():
     parser = argparse.ArgumentParser(description='JsEngine Profiler')
     parser.add_argument('profile', nargs='?', default='fib',
-                        choices=['fib', 'forloop', 'all'],
-                        help='Profile to run (default: fib)')
+                        help='Profile to run (default: fib). Options: fib, forloop, asyncforof, asyncawait, etc. Use "all" for all profiles')
     parser.add_argument('--cpu', action='store_true', help='Run CPU profiling only')
     parser.add_argument('--memory', action='store_true', help='Run memory profiling only')
     parser.add_argument('--heap', action='store_true', help='Capture heap snapshot (instance counts by type)')
@@ -769,7 +768,14 @@ def main():
         return
 
     # Determine what to profile
-    profiles_to_run = ['fib', 'forloop'] if args.profile == 'all' else [args.profile]
+    if args.profile == 'all':
+        profiles_to_run = list(profiler.profiles.keys())
+    elif args.profile in profiler.profiles:
+        profiles_to_run = [args.profile]
+    else:
+        print(f"Unknown profile: {args.profile}")
+        print(f"Available profiles: {', '.join(profiler.profiles.keys())}")
+        return
 
     # If specific flags are set, only run those; otherwise run cpu+memory by default
     run_cpu = args.cpu or (not args.cpu and not args.memory and not args.heap)

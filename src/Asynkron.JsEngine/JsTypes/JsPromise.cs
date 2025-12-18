@@ -77,17 +77,16 @@ public sealed class JsPromise
     private void ResolveThenable(IJsPropertyAccessor thenable, IJsCallable thenMethod)
     {
         // Create resolve and reject callbacks for the thenable
+        // Use lightweight IJsCallable implementations directly - no HostFunction wrapper needed
         var resolveCallback = new ThenableResolveCallback(this);
         var rejectCallback = new ThenableRejectCallback(this);
 
         try
         {
             // Call thenable.then(resolve, reject)
-            // Wrap callbacks in HostFunction so they can be passed as JsValue
-            var resolveFn = new HostFunction(args => { resolveCallback.Invoke(args, JsValue.Undefined); return JsValue.Undefined; }, isConstructor: false);
-            var rejectFn = new HostFunction(args => { rejectCallback.Invoke(args, JsValue.Undefined); return JsValue.Undefined; }, isConstructor: false);
+            // IJsCallable converts to JsValue via FromObjectUnsafe without allocation
             var thenableValue = JsValue.FromObjectUnsafe(thenable);
-            thenMethod.Invoke([(JsValue)resolveFn, (JsValue)rejectFn], thenableValue);
+            thenMethod.Invoke([JsValue.FromObjectUnsafe(resolveCallback), JsValue.FromObjectUnsafe(rejectCallback)], thenableValue);
         }
         catch (ThrowSignal signal)
         {
@@ -267,13 +266,11 @@ public sealed class JsPromise
             result.AsObject().TryGetProperty("then", out var thenMethod) &&
             thenMethod.TryGetObject<IJsCallable>(out var thenCallable))
         {
-            // Use lightweight callback objects instead of closures
+            // Use lightweight callback objects directly - no HostFunction wrapper needed
+            // IJsCallable converts to JsValue via FromObjectUnsafe without allocation
             var resolveCallback = new ChainResolveCallback(nextPromise);
             var rejectCallback = new ChainRejectCallback(nextPromise);
-            // Wrap callbacks in HostFunction so they can be passed as JsValue
-            var resolveFn = new HostFunction(args => { resolveCallback.Invoke(args, JsValue.Undefined); return JsValue.Undefined; }, isConstructor: false);
-            var rejectFn = new HostFunction(args => { rejectCallback.Invoke(args, JsValue.Undefined); return JsValue.Undefined; }, isConstructor: false);
-            thenCallable.Invoke([(JsValue)resolveFn, (JsValue)rejectFn], result);
+            thenCallable.Invoke([JsValue.FromObjectUnsafe(resolveCallback), JsValue.FromObjectUnsafe(rejectCallback)], result);
         }
         else
         {

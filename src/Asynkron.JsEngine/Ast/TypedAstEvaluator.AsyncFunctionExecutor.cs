@@ -196,26 +196,37 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            var onFulfilled = new HostFunction((_, args) =>
-            {
-                var value = args.GetArgument(0);
-                DriveToCompletion(TypedGeneratorInstance.ResumeMode.Next, value, resolve, reject);
-                return JsValue.Undefined;
-            });
+            // Use lightweight IJsCallable implementations directly - no HostFunction wrapper needed
+            // This avoids allocating HostFunction + its internal JsObject per await point
+            var onFulfilled = new AsyncResumeCallback(this, resolve, reject, isRejection: false);
+            var onRejected = new AsyncResumeCallback(this, resolve, reject, isRejection: true);
 
-            var onRejected = new HostFunction((_, args) =>
-            {
-                var reason = args.GetArgument(0);
-                DriveToCompletion(TypedGeneratorInstance.ResumeMode.Throw, reason, resolve, reject);
-                return JsValue.Undefined;
-            });
-
-            thenCallable.Invoke([(JsValue)onFulfilled, (JsValue)onRejected], (JsValue)pendingPromise);
+            thenCallable.Invoke([JsValue.FromObjectUnsafe(onFulfilled), JsValue.FromObjectUnsafe(onRejected)], (JsValue)pendingPromise);
 
             // Don't drain microtasks here - let them drain naturally after synchronous
             // code completes. This ensures proper async semantics where async functions
             // suspend at await and synchronous code continues executing.
             // The engine's DrainMicrotasks() call after ExecuteProgram handles this.
+        }
+
+        /// <summary>
+        ///     Lightweight callback for async function resume - avoids HostFunction allocation.
+        /// </summary>
+        private sealed class AsyncResumeCallback(
+            AsyncFunctionExecutor executor,
+            IJsCallable resolve,
+            IJsCallable reject,
+            bool isRejection) : IJsCallable
+        {
+            public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
+            {
+                var value = args.Count > 0 ? args[0] : JsValue.Undefined;
+                var mode = isRejection
+                    ? TypedGeneratorInstance.ResumeMode.Throw
+                    : TypedGeneratorInstance.ResumeMode.Next;
+                executor.DriveToCompletion(mode, value, resolve, reject);
+                return JsValue.Undefined;
+            }
         }
     }
 }

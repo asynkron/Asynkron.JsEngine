@@ -394,25 +394,14 @@ internal static class AwaitScheduler
             return TryAwaitPromiseSync(candidate, context, out resolvedValue, context.DrainAwaitMicrotasks);
         }
 
-        // Async-aware mode: if this is a promise-like object, check if it's
-        // already settled before suspending. This is a critical fast path for
-        // `for await...of` over sync iterables and already-resolved promises.
+        // Async-aware mode: if this is a promise-like object, always suspend.
+        // Per ECMAScript spec, await should ALWAYS queue a microtask continuation,
+        // even for already-settled promises. This ensures correct ordering of
+        // async operations relative to synchronous code.
         if (IsPromiseLike(candidate))
         {
-            // FAST PATH: Check if promise is already settled - no need to suspend
-            if (TryGetSettledValueFast(candidate, out var settledValue, out var isRejected))
-            {
-                if (isRejected)
-                {
-                    context.SetThrow(settledValue);
-                    resolvedValue = JsValue.Undefined;
-                    return false;
-                }
-                resolvedValue = settledValue;
-                return true;  // Continue synchronously with settled value
-            }
-
-            // Promise is still pending - need to suspend
+            // Always suspend for promises - the .then() handlers will queue
+            // a microtask that resumes execution with the resolved/rejected value.
             pendingPromise = candidate;
             resolvedValue = JsValue.Undefined;
             return false;

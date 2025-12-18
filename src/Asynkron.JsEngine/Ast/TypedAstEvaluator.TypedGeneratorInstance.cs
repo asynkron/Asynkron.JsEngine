@@ -1159,8 +1159,9 @@ public static partial class TypedAstEvaluator
                                     continue;
                                 }
 
+                                // enumerated is already JsValue from IEnumerator<JsValue>.Current
                                 var enumerated = awaitEnumerator.Current;
-                                if (!TryAwaitPromiseOrSchedule(JsValue.FromObjectUnsafe(enumerated), context, out var awaitedEnumerated))
+                                if (!TryAwaitPromiseOrSchedule(enumerated, context, out var awaitedEnumerated))
                                 {
                                     if (_asyncStepMode && _pendingPromise.TryGetObject<JsObject>(out _))
                                     {

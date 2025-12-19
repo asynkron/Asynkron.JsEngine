@@ -212,8 +212,14 @@ namespace Asynkron.JsEngine.JsTypes;
         // Fast path: no descriptors and no private fields - just set the slot
         if (!name.IsPrivateSlotName() && !_descriptors.ContainsKey(name))
         {
+            // Track if this is a new property before setting it
+            var isNewProperty = !_storage.ContainsKey(name);
             SetJsValue(name, value);
             TrackArrayWriteJsValue(name, value);
+            if (isNewProperty)
+            {
+                TrackPropertyInsertion(name);
+            }
             return;
         }
 

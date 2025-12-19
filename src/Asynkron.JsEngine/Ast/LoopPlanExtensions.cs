@@ -76,7 +76,7 @@ public static partial class TypedAstEvaluator
                     // Per ES spec (14.7.4.7), the initializer does NOT contribute to the loop's completion value.
                     // The loop's completion value comes solely from the body; if the body never executes,
                     // the result is undefined.
-                    _ = EvaluateStatementJsValue(statement, environment, context, loopLabel);
+                    _ = statement.EvaluateStatementJsValue(environment, context, loopLabel);
                     if (context.ShouldStopEvaluation)
                     {
                         return lastValueJs;
@@ -99,7 +99,7 @@ public static partial class TypedAstEvaluator
 
             // Try ultra-fast path for simple numeric for loops
             // Pattern: for (let i = 0; i < limit; i++) { s += i; }
-            if (TryExecuteFastNumericLoop(plan, iterationEnvironment, context, loopLabel, out var fastResult))
+            if (plan.TryExecuteFastNumericLoop(iterationEnvironment, context, loopLabel, out var fastResult))
             {
                 return fastResult;
             }
@@ -138,7 +138,7 @@ public static partial class TypedAstEvaluator
 
                 if (!plan.ConditionAfterBody)
                 {
-                    if (!ExecuteCondition(plan, iterationEnvironment, context))
+                    if (!plan.ExecuteCondition(iterationEnvironment, context))
                     {
                         break;
                     }
@@ -151,11 +151,11 @@ public static partial class TypedAstEvaluator
                 JsValue bodyResult;
                 if (singleStatement is not null)
                 {
-                    bodyResult = EvaluateStatementJsValue(singleStatement, iterationEnvironment, context);
+                    bodyResult = singleStatement.EvaluateStatementJsValue(iterationEnvironment, context);
                 }
                 else
                 {
-                    bodyResult = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
+                    bodyResult = plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);
                 }
 
                 // Apply UpdateEmpty semantics (ES spec 13.7.3.6 step 2.f):
@@ -181,12 +181,12 @@ public static partial class TypedAstEvaluator
                         iterationEnvironment = plan.CreateNextIterationEnvironment(iterationEnvironment, context);
                     }
 
-                    if (!ExecutePostIteration(plan, iterationEnvironment, context))
+                    if (!plan.ExecutePostIteration(iterationEnvironment, context))
                     {
                         break;
                     }
 
-                    if (plan.ConditionAfterBody && !ExecuteCondition(plan, iterationEnvironment, context))
+                    if (plan.ConditionAfterBody && !plan.ExecuteCondition(iterationEnvironment, context))
                     {
                         break;
                     }
@@ -212,7 +212,7 @@ public static partial class TypedAstEvaluator
                     iterationEnvironment = plan.CreateNextIterationEnvironment(iterationEnvironment, context);
                 }
 
-                if (!ExecutePostIteration(plan, iterationEnvironment, context))
+                if (!plan.ExecutePostIteration(iterationEnvironment, context))
                 {
                     break;
                 }
@@ -222,7 +222,7 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
-                if (!ExecuteCondition(plan, iterationEnvironment, context))
+                if (!plan.ExecuteCondition(iterationEnvironment, context))
                 {
                     break;
                 }
@@ -507,7 +507,7 @@ public static partial class TypedAstEvaluator
             {
                 foreach (var statement in plan.ConditionPrologue)
                 {
-                    _ = EvaluateStatementJsValue(statement, environment, context);
+                    _ = statement.EvaluateStatementJsValue(environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return false;
@@ -515,7 +515,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            var test = EvaluateExpression(plan.Condition, environment, context);
+            var test = plan.Condition.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return false;
@@ -538,11 +538,11 @@ public static partial class TypedAstEvaluator
                 // directly to avoid ToObject/GetNumber boxing on every iteration.
                 if (statement is ExpressionStatement expr)
                 {
-                    _ = EvaluateExpression(expr.Expression, environment, context);
+                    _ = expr.Expression.EvaluateExpression(environment, context);
                 }
                 else
                 {
-                    _ = EvaluateStatementJsValue(statement, environment, context);
+                    _ = statement.EvaluateStatementJsValue(environment, context);
                 }
                 if (context.ShouldStopEvaluation)
                 {
@@ -560,9 +560,7 @@ public static partial class TypedAstEvaluator
                 return true;
             }
 
-            if (StatementsContainDynamicScope(plan.LeadingStatements) ||
-                StatementsContainDynamicScope(plan.ConditionPrologue) ||
-                StatementsContainDynamicScope(plan.PostIteration))
+            if (LoopPlan.StatementsContainDynamicScope(plan.LeadingStatements) || LoopPlan.StatementsContainDynamicScope(plan.ConditionPrologue) || LoopPlan.StatementsContainDynamicScope(plan.PostIteration))
             {
                 return true;
             }
@@ -626,7 +624,7 @@ public static partial class TypedAstEvaluator
             }
 
             // Extract condition pattern: identifier <op> constant or constant <op> identifier
-            if (!TryExtractConditionPattern(plan, out var loopVarId, out var limit, out var comparison))
+            if (!plan.TryExtractConditionPattern(out var loopVarId, out var limit, out var comparison))
             {
                 return false;
             }
@@ -635,13 +633,13 @@ public static partial class TypedAstEvaluator
             var expectIncrement = comparison is FastLoopComparison.LessThan or FastLoopComparison.LessThanOrEqual;
 
             // Try for-loop pattern: post-iteration has i++ or i--
-            if (TryMatchForLoopPattern(plan, loopVarId, limit, comparison, expectIncrement, environment, out result))
+            if (plan.TryMatchForLoopPattern(loopVarId, limit, comparison, expectIncrement, environment, out result))
             {
                 return true;
             }
 
             // Try while/do-while pattern: body has { s <op>= i; i++/i--; }
-            if (TryMatchWhileLoopPattern(plan, loopVarId, limit, comparison, expectIncrement, environment, out result))
+            if (plan.TryMatchWhileLoopPattern(loopVarId, limit, comparison, expectIncrement, environment, out result))
             {
                 return true;
             }
@@ -750,12 +748,12 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            if (!TryExtractAccumulatorPattern(assignExpr, loopVarId, out var accumScopeId, out var accumSlotIndex, out var operation))
+            if (!LoopPlan.TryExtractAccumulatorPattern(assignExpr, loopVarId, out var accumScopeId, out var accumSlotIndex, out var operation))
             {
                 return false;
             }
 
-            return ExecuteFastNumericLoop(loopVarId, limit, comparison, isIncrement, accumScopeId, accumSlotIndex, operation, plan.ConditionAfterBody, environment, out result);
+            return LoopPlan.ExecuteFastNumericLoop(loopVarId, limit, comparison, isIncrement, accumScopeId, accumSlotIndex, operation, plan.ConditionAfterBody, environment, out result);
         }
 
         /// <summary>
@@ -790,7 +788,7 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            if (!TryExtractAccumulatorPattern(assignExpr, loopVarId, out var accumScopeId, out var accumSlotIndex, out var operation))
+            if (!LoopPlan.TryExtractAccumulatorPattern(assignExpr, loopVarId, out var accumScopeId, out var accumSlotIndex, out var operation))
             {
                 return false;
             }
@@ -816,7 +814,7 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            return ExecuteFastNumericLoop(loopVarId, limit, comparison, isIncrement, accumScopeId, accumSlotIndex, operation, plan.ConditionAfterBody, environment, out result);
+            return LoopPlan.ExecuteFastNumericLoop(loopVarId, limit, comparison, isIncrement, accumScopeId, accumSlotIndex, operation, plan.ConditionAfterBody, environment, out result);
         }
 
         /// <summary>
@@ -941,12 +939,12 @@ public static partial class TypedAstEvaluator
                     lastValue = accumRef;
                     loopVarRef = new JsValue(isIncrement ? i + 1 : i - 1);
 
-                } while (CheckCondition(loopVarRef.NumberValue, limit, comparison));
+                } while (LoopPlan.CheckCondition(loopVarRef.NumberValue, limit, comparison));
             }
             else
             {
                 // while/for: check condition first
-                while (CheckCondition(loopVarRef.NumberValue, limit, comparison))
+                while (LoopPlan.CheckCondition(loopVarRef.NumberValue, limit, comparison))
                 {
                     var i = loopVarRef.NumberValue;
                     var s = accumRef.NumberValue;

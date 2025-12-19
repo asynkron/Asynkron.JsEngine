@@ -22,15 +22,15 @@ public static partial class TypedAstEvaluator
 
             // Hot path - explicit type checks for best inlining
             if (statement is ExpressionStatement expressionStatement)
-                return EvaluateExpression(expressionStatement.Expression, environment, context);
+                return expressionStatement.Expression.EvaluateExpression(environment, context);
             if (statement is BlockStatement block)
-                return EvaluateBlockJsValue(block, environment, context);
+                return block.EvaluateBlockJsValue(environment, context);
             if (statement is IfStatement ifStatement)
-                return EvaluateIfJsValue(ifStatement, environment, context);
+                return ifStatement.EvaluateIfJsValue(environment, context);
             if (statement is ReturnStatement returnStatement)
-                return EvaluateReturnJsValue(returnStatement, environment, context);
+                return returnStatement.EvaluateReturnJsValue(environment, context);
             if (statement is ForStatement forStatement)
-                return EvaluateForJsValue(forStatement, environment, context, activeLabel);
+                return forStatement.EvaluateForJsValue(environment, context, activeLabel);
             if (statement is EmptyStatement)
                 return JsValue.Unit;
 
@@ -50,30 +50,30 @@ public static partial class TypedAstEvaluator
             switch (statement)
             {
                 case WhileStatement whileStatement:
-                    return EvaluateWhileJsValue(whileStatement, environment, context, activeLabel);
+                    return whileStatement.EvaluateWhileJsValue(environment, context, activeLabel);
                 case DoWhileStatement doWhileStatement:
-                    return EvaluateDoWhileJsValue(doWhileStatement, environment, context, activeLabel);
+                    return doWhileStatement.EvaluateDoWhileJsValue(environment, context, activeLabel);
                 case SwitchStatement switchStatement:
-                    return EvaluateSwitchJsValue(switchStatement, environment, context, activeLabel);
+                    return switchStatement.EvaluateSwitchJsValue(environment, context, activeLabel);
                 case TryStatement tryStatement:
-                    return EvaluateTryJsValue(tryStatement, environment, context);
+                    return tryStatement.EvaluateTryJsValue(environment, context);
                 case LabeledStatement labeledStatement:
-                    return EvaluateLabeledJsValue(labeledStatement, environment, context);
+                    return labeledStatement.EvaluateLabeledJsValue(environment, context);
             }
 
             // Low-frequency statements with activity tracking
 
             return statement switch
             {
-                ThrowStatement throwStatement => EvaluateThrowJsValue(throwStatement, environment, context),
-                VariableDeclaration declaration => EvaluateVariableDeclarationJsValue(declaration, environment, context),
+                ThrowStatement throwStatement => throwStatement.EvaluateThrowJsValue(environment, context),
+                VariableDeclaration declaration => declaration.EvaluateVariableDeclarationJsValue(environment, context),
                 FunctionDeclaration => EvaluateFunctionDeclarationJsValue(),
-                ForEachStatement forEachStatement => EvaluateForEachJsValue(forEachStatement, environment, context,
+                ForEachStatement forEachStatement => forEachStatement.EvaluateForEachJsValue(environment, context,
                     activeLabel),
-                BreakStatement breakStatement => EvaluateBreakJsValue(breakStatement, context),
-                ContinueStatement continueStatement => EvaluateContinueJsValue(continueStatement, context),
-                ClassDeclaration classDeclaration => EvaluateClassJsValue(classDeclaration, environment, context),
-                WithStatement withStatement => EvaluateWithJsValue(withStatement, environment, context),
+                BreakStatement breakStatement => breakStatement.EvaluateBreakJsValue(context),
+                ContinueStatement continueStatement => continueStatement.EvaluateContinueJsValue(context),
+                ClassDeclaration classDeclaration => classDeclaration.EvaluateClassJsValue(environment, context),
+                WithStatement withStatement => withStatement.EvaluateWithJsValue(environment, context),
                 _ => throw new NotSupportedException(
                     $"Typed evaluator does not yet support '{statement.GetType().Name}'.")
             };
@@ -95,24 +95,19 @@ public static partial class TypedAstEvaluator
                     case VariableDeclaration { Kind: VariableKind.Var } varDeclaration when pass == HoistPass.Vars:
                         foreach (var declarator in varDeclaration.Declarators)
                         {
-                            HoistFromBindingTarget(declarator.Target, environment, context, lexicalNames);
+                            declarator.Target.HoistFromBindingTarget(environment, context, lexicalNames);
                         }
 
                         break;
                     case BlockStatement block:
-                        HoistVarDeclarationsPass(
-                            block,
-                            environment,
+                        block.HoistVarDeclarationsPass(environment,
                             context,
-                            hoistFunctionValues,
-                            MergeLexicalNames(block, lexicalNames),
-                            MergeCatchNames(block, catchParameterNames),
-                            MergeSimpleCatchNames(block, simpleCatchParameterNames),
+                            hoistFunctionValues, block.MergeLexicalNames(lexicalNames), block.MergeCatchNames(catchParameterNames), block.MergeSimpleCatchNames(simpleCatchParameterNames),
                             pass,
                             true);
                         break;
                     case IfStatement ifStatement:
-                        HoistFromStatement(ifStatement.Then, environment, context, false,
+                        ifStatement.Then.HoistFromStatement(environment, context, false,
                             lexicalNames, catchParameterNames, simpleCatchParameterNames, pass, true);
                         if (ifStatement.Else is { } elseBranch)
                         {
@@ -142,7 +137,7 @@ public static partial class TypedAstEvaluator
                         if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar &&
                             pass == HoistPass.Vars)
                         {
-                            HoistFromStatement(initVar, environment, context, hoistFunctionValues, lexicalNames,
+                            initVar.HoistFromStatement(environment, context, hoistFunctionValues, lexicalNames,
                                 catchParameterNames, simpleCatchParameterNames, pass,
                                 inBlockScope);
                         }
@@ -154,7 +149,7 @@ public static partial class TypedAstEvaluator
                     case ForEachStatement forEachStatement:
                         if (pass == HoistPass.Vars && forEachStatement.DeclarationKind == VariableKind.Var)
                         {
-                            HoistFromBindingTarget(forEachStatement.Target, environment, context, lexicalNames);
+                            forEachStatement.Target.HoistFromBindingTarget(environment, context, lexicalNames);
                         }
 
                         statement = forEachStatement.Body;
@@ -171,28 +166,19 @@ public static partial class TypedAstEvaluator
                         statement = labeled.Statement;
                         continue;
                     case TryStatement tryStatement:
-                        HoistVarDeclarationsPass(tryStatement.TryBlock, environment, context, false,
-                            MergeLexicalNames(tryStatement.TryBlock, lexicalNames),
-                            MergeCatchNames(tryStatement.TryBlock, catchParameterNames),
-                            MergeSimpleCatchNames(tryStatement.TryBlock, simpleCatchParameterNames),
+                        tryStatement.TryBlock.HoistVarDeclarationsPass(environment, context, false, tryStatement.TryBlock.MergeLexicalNames(lexicalNames), tryStatement.TryBlock.MergeCatchNames(catchParameterNames), tryStatement.TryBlock.MergeSimpleCatchNames(simpleCatchParameterNames),
                             pass,
                             true);
                         if (tryStatement.Catch is { } catchClause)
                         {
-                            HoistVarDeclarationsPass(catchClause.Body, environment, context, false,
-                                MergeLexicalNames(catchClause.Body, lexicalNames),
-                                MergeCatchNames(catchClause.Body, catchParameterNames),
-                                MergeSimpleCatchNames(catchClause.Body, simpleCatchParameterNames),
+                            catchClause.Body.HoistVarDeclarationsPass(environment, context, false, catchClause.Body.MergeLexicalNames(lexicalNames), catchClause.Body.MergeCatchNames(catchParameterNames), catchClause.Body.MergeSimpleCatchNames(simpleCatchParameterNames),
                                 pass,
                                 true);
                         }
 
                         if (tryStatement.Finally is { } finallyBlock)
                         {
-                            HoistVarDeclarationsPass(finallyBlock, environment, context, false,
-                                MergeLexicalNames(finallyBlock, lexicalNames),
-                                MergeCatchNames(finallyBlock, catchParameterNames),
-                                MergeSimpleCatchNames(finallyBlock, simpleCatchParameterNames),
+                            finallyBlock.HoistVarDeclarationsPass(environment, context, false, finallyBlock.MergeLexicalNames(lexicalNames), finallyBlock.MergeCatchNames(catchParameterNames), finallyBlock.MergeSimpleCatchNames(simpleCatchParameterNames),
                                 pass,
                                 true);
                         }
@@ -201,10 +187,7 @@ public static partial class TypedAstEvaluator
                     case SwitchStatement switchStatement:
                         foreach (var switchCase in switchStatement.Cases)
                         {
-                            HoistVarDeclarationsPass(switchCase.Body, environment, context, false,
-                                MergeLexicalNames(switchCase.Body, lexicalNames),
-                                MergeCatchNames(switchCase.Body, catchParameterNames),
-                                MergeSimpleCatchNames(switchCase.Body, simpleCatchParameterNames),
+                            switchCase.Body.HoistVarDeclarationsPass(environment, context, false, switchCase.Body.MergeLexicalNames(lexicalNames), switchCase.Body.MergeCatchNames(catchParameterNames), switchCase.Body.MergeSimpleCatchNames(simpleCatchParameterNames),
                                 pass,
                                 true);
                         }
@@ -233,7 +216,7 @@ public static partial class TypedAstEvaluator
                             // Pass skipInternalNameBinding: true so the TypedFunction doesn't create
                             // an internal const binding for the function name. For function declarations,
                             // the name binding lives in the outer (function/global) scope and is mutable.
-                            var functionValue = CreateFunctionValue(functionDeclaration.Function, environment, context,
+                            var functionValue = functionDeclaration.Function.CreateFunctionValue(environment, context,
                                 skipInternalNameBinding: true);
                             environment.DefineFunctionScoped(
                                 functionDeclaration.Name,
@@ -266,7 +249,7 @@ public static partial class TypedAstEvaluator
                     case BlockStatement block:
                         foreach (var inner in block.Statements)
                         {
-                            CollectLexicalNamesFromStatement(inner, names);
+                            inner.CollectLexicalNamesFromStatement(names);
                         }
 
                         break;
@@ -276,7 +259,7 @@ public static partial class TypedAstEvaluator
                     } letDecl:
                         foreach (var declarator in letDecl.Declarators)
                         {
-                            CollectSymbolsFromBinding(declarator.Target, names);
+                            declarator.Target.CollectSymbolsFromBinding(names);
                         }
 
                         break;
@@ -288,7 +271,7 @@ public static partial class TypedAstEvaluator
                     // they are not treated as lexical bindings here.
                     break;
                     case IfStatement ifStatement:
-                        CollectLexicalNamesFromStatement(ifStatement.Then, names);
+                        ifStatement.Then.CollectLexicalNamesFromStatement(names);
                         if (ifStatement.Else is { } elseBranch)
                         {
                             statement = elseBranch;
@@ -313,7 +296,7 @@ public static partial class TypedAstEvaluator
                         {
                             foreach (var declarator in decl.Declarators)
                             {
-                                CollectSymbolsFromBinding(declarator.Target, names);
+                                declarator.Target.CollectSymbolsFromBinding(names);
                             }
                         }
 
@@ -323,7 +306,7 @@ public static partial class TypedAstEvaluator
                         if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const
                             or VariableKind.Using or VariableKind.AwaitUsing)
                         {
-                            CollectSymbolsFromBinding(forEachStatement.Target, names);
+                            forEachStatement.Target.CollectSymbolsFromBinding(names);
                         }
 
                         statement = forEachStatement.Body;
@@ -331,19 +314,20 @@ public static partial class TypedAstEvaluator
                     case SwitchStatement switchStatement:
                         foreach (var switchCase in switchStatement.Cases)
                         {
-                            CollectLexicalNamesFromStatement(switchCase.Body, names);
+                            switchCase.Body.CollectLexicalNamesFromStatement(names);
                         }
 
                         break;
                     case TryStatement tryStatement:
-                        CollectLexicalNamesFromStatement(tryStatement.TryBlock, names);
+                        tryStatement.TryBlock.CollectLexicalNamesFromStatement(names);
                         if (tryStatement.Catch is { } catchClause)
                         {
                             if (catchClause.Binding is not null)
                             {
-                                CollectSymbolsFromBinding(catchClause.Binding, names);
+                                catchClause.Binding.CollectSymbolsFromBinding(names);
                             }
-                            CollectLexicalNamesFromStatement(catchClause.Body, names);
+
+                            catchClause.Body.CollectLexicalNamesFromStatement(names);
                         }
 
                         if (tryStatement.Finally is { } finallyBlock)
@@ -368,12 +352,12 @@ public static partial class TypedAstEvaluator
                     case BlockStatement block:
                         foreach (var inner in block.Statements)
                         {
-                            CollectCatchNamesFromStatement(inner, names);
+                            inner.CollectCatchNamesFromStatement(names);
                         }
 
                         break;
                     case IfStatement ifStatement:
-                        CollectCatchNamesFromStatement(ifStatement.Then, names);
+                        ifStatement.Then.CollectCatchNamesFromStatement(names);
                         if (ifStatement.Else is { } elseBranch)
                         {
                             statement = elseBranch;
@@ -399,19 +383,20 @@ public static partial class TypedAstEvaluator
                     case SwitchStatement switchStatement:
                         foreach (var switchCase in switchStatement.Cases)
                         {
-                            CollectCatchNamesFromStatement(switchCase.Body, names);
+                            switchCase.Body.CollectCatchNamesFromStatement(names);
                         }
 
                         break;
                     case TryStatement tryStatement:
-                        CollectCatchNamesFromStatement(tryStatement.TryBlock, names);
+                        tryStatement.TryBlock.CollectCatchNamesFromStatement(names);
                         if (tryStatement.Catch is { } catchClause)
                         {
                             if (catchClause.Binding is not null)
                             {
-                                CollectSymbolsFromBinding(catchClause.Binding, names);
+                                catchClause.Binding.CollectSymbolsFromBinding(names);
                             }
-                            CollectCatchNamesFromStatement(catchClause.Body, names);
+
+                            catchClause.Body.CollectCatchNamesFromStatement(names);
                         }
 
                         if (tryStatement.Finally is { } finallyBlock)
@@ -436,12 +421,12 @@ public static partial class TypedAstEvaluator
                     case BlockStatement block:
                         foreach (var inner in block.Statements)
                         {
-                            CollectSimpleCatchNamesFromStatement(inner, names);
+                            inner.CollectSimpleCatchNamesFromStatement(names);
                         }
 
                         break;
                     case IfStatement ifStatement:
-                        CollectSimpleCatchNamesFromStatement(ifStatement.Then, names);
+                        ifStatement.Then.CollectSimpleCatchNamesFromStatement(names);
                         if (ifStatement.Else is { } elseBranch)
                         {
                             statement = elseBranch;
@@ -467,12 +452,12 @@ public static partial class TypedAstEvaluator
                     case SwitchStatement switchStatement:
                         foreach (var switchCase in switchStatement.Cases)
                         {
-                            CollectSimpleCatchNamesFromStatement(switchCase.Body, names);
+                            switchCase.Body.CollectSimpleCatchNamesFromStatement(names);
                         }
 
                         break;
                     case TryStatement tryStatement:
-                        CollectSimpleCatchNamesFromStatement(tryStatement.TryBlock, names);
+                        tryStatement.TryBlock.CollectSimpleCatchNamesFromStatement(names);
                         if (tryStatement.Catch is { } catchClause)
                         {
                             if (catchClause.Binding is IdentifierBinding identifierBinding)
@@ -480,7 +465,7 @@ public static partial class TypedAstEvaluator
                                 names.Add(identifierBinding.Name);
                             }
 
-                            CollectSimpleCatchNamesFromStatement(catchClause.Body, names);
+                            catchClause.Body.CollectSimpleCatchNamesFromStatement(names);
                         }
 
                         if (tryStatement.Finally is { } finallyBlock)

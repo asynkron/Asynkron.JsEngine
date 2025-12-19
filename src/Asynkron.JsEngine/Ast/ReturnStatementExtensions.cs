@@ -41,7 +41,7 @@ public static partial class TypedAstEvaluator
                 Interlocked.Increment(ref NormalPathCount);
                 jsValue = statement.Expression is null
                     ? JsValue.Undefined
-                    : EvaluateExpression(statement.Expression, environment, context);
+                    : statement.Expression.EvaluateExpression(environment, context);
             }
 
             if (context.ShouldStopEvaluation)
@@ -82,7 +82,7 @@ public static partial class TypedAstEvaluator
         var leftArg0 = JsValue.Undefined;
         if (leftCall.Arguments.Length >= 1 && !leftCall.Arguments[0].IsSpread)
         {
-            leftArg0 = EvaluateExpression(leftCall.Arguments[0].Expression, environment, context);
+            leftArg0 = leftCall.Arguments[0].Expression.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation) return JsValue.Undefined;
         }
 
@@ -90,15 +90,15 @@ public static partial class TypedAstEvaluator
         var rightArg0 = JsValue.Undefined;
         if (rightCall.Arguments.Length >= 1 && !rightCall.Arguments[0].IsSpread)
         {
-            rightArg0 = EvaluateExpression(rightCall.Arguments[0].Expression, environment, context);
+            rightArg0 = rightCall.Arguments[0].Expression.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation) return JsValue.Undefined;
         }
 
         // Phase 2: Resolve callees
-        var leftCalleeValue = EvaluateExpression(leftCall.Callee, environment, context);
+        var leftCalleeValue = leftCall.Callee.EvaluateExpression(environment, context);
         if (context.ShouldStopEvaluation) return JsValue.Undefined;
 
-        var rightCalleeValue = EvaluateExpression(rightCall.Callee, environment, context);
+        var rightCalleeValue = rightCall.Callee.EvaluateExpression(environment, context);
         if (context.ShouldStopEvaluation) return JsValue.Undefined;
 
         // Check if both are TypedFunctions with 1 argument (optimal case)
@@ -157,7 +157,7 @@ public static partial class TypedAstEvaluator
         var callArg0 = JsValue.Undefined;
         if (call.Arguments.Length >= 1 && !call.Arguments[0].IsSpread)
         {
-            callArg0 = EvaluateExpression(call.Arguments[0].Expression, environment, context);
+            callArg0 = call.Arguments[0].Expression.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation) return JsValue.Undefined;
         }
 
@@ -166,7 +166,7 @@ public static partial class TypedAstEvaluator
         if (context.ShouldStopEvaluation) return JsValue.Undefined;
 
         // Phase 2: Resolve callee
-        var calleeValue = EvaluateExpression(call.Callee, environment, context);
+        var calleeValue = call.Callee.EvaluateExpression(environment, context);
         if (context.ShouldStopEvaluation) return JsValue.Undefined;
 
         // Check if it's a TypedFunction with 1 argument (optimal case)

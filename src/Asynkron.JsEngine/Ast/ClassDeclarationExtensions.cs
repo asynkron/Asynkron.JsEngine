@@ -9,7 +9,7 @@ public static partial class TypedAstEvaluator
         private JsValue EvaluateClassJsValue(JsEnvironment environment,
             EvaluationContext context)
         {
-            var constructorValue = CreateClassValue(declaration.Definition, environment, context, declaration.Name);
+            var constructorValue = declaration.Definition.CreateClassValue(environment, context, declaration.Name);
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Unit;

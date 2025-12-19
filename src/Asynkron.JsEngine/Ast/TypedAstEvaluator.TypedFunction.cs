@@ -75,9 +75,9 @@ public static partial class TypedAstEvaluator
             _hasFunctionNameEnvironment = hasFunctionNameEnvironment;
             IsArrowFunction = function.IsArrow;
             _isConstructorEnabled = isConstructorFunction;
-            _bodyLexicalNames = CollectLexicalNames(function.Body).ToArray();
-            _hasHoistableDeclarations = HasHoistableDeclarations(function.Body);
-            _hasParameterExpressions = HasParameterExpressions(_function);
+            _bodyLexicalNames = function.Body.CollectLexicalNames().ToArray();
+            _hasHoistableDeclarations = function.Body.HasHoistableDeclarations();
+            _hasParameterExpressions = _function.HasParameterExpressions();
             // Allow identifier caching only if the function body has no with/eval AND
             // the closure chain has no with environments (functions defined inside with blocks
             // need to check with bindings at runtime)
@@ -109,12 +109,12 @@ public static partial class TypedAstEvaluator
             _functionDescription = function.Name is { } funcName ? $"function {funcName.Name}" : "anonymous function";
 
             var parameterNames = new List<Symbol>();
-            CollectParameterNamesFromFunction(_function, parameterNames);
+            _function.CollectParameterNamesFromFunction(parameterNames);
             _parameterNames = [..parameterNames];
             _lexicalTemplate = [.._bodyLexicalNames];
-            var catchParams = CollectCatchParameterNames(_function.Body);
+            var catchParams = _function.Body.CollectCatchParameterNames();
             _catchParameterTemplate = [..catchParams];
-            var simpleCatchParams = CollectSimpleCatchParameterNames(_function.Body);
+            var simpleCatchParams = _function.Body.CollectSimpleCatchParameterNames();
             _simpleCatchParameterTemplate = [..simpleCatchParams];
             var bodyLexicalSet = new HashSet<Symbol>(_bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
             bodyLexicalSet.ExceptWith(simpleCatchParams);
@@ -152,7 +152,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            var paramCount = GetExpectedParameterCount(function.Parameters);
+            var paramCount = function.Parameters.GetExpectedParameterCount();
             var functionNameValue = _function.Name?.Name ?? string.Empty;
             if (_realmState.FunctionPrototype is not null)
             {
@@ -762,13 +762,13 @@ public static partial class TypedAstEvaluator
                 var hasCopiedInitialization = false;
                 if (_closure.TryGet(Symbol.ThisInitialized, out var closureThisInitialized))
                 {
-                    SetThisInitializationStatus(functionEnvironment, JsOps.ToBoolean(closureThisInitialized));
+                    functionEnvironment.SetThisInitializationStatus(JsOps.ToBoolean(closureThisInitialized));
                     hasCopiedInitialization = true;
                 }
                 else if (_closure.TryGet(Symbol.Super, out var closureSuperStatus) &&
                          closureSuperStatus is SuperBinding closureSuperBinding)
                 {
-                    SetThisInitializationStatus(functionEnvironment, closureSuperBinding.IsThisInitialized);
+                    functionEnvironment.SetThisInitializationStatus(closureSuperBinding.IsThisInitialized);
                     hasCopiedInitialization = true;
                 }
 
@@ -793,7 +793,7 @@ public static partial class TypedAstEvaluator
                         blocksFunctionScopeOverride: true);
                     if (!hasCopiedInitialization)
                     {
-                        SetThisInitializationStatus(functionEnvironment, lexicalSuperBinding.IsThisInitialized);
+                        functionEnvironment.SetThisInitializationStatus(lexicalSuperBinding.IsThisInitialized);
                     }
                 }
             }
@@ -868,7 +868,7 @@ public static partial class TypedAstEvaluator
                     boundThis = initialThisValue;
                 }
 
-                SetThisInitializationStatus(functionEnvironment, initialThisInitialized);
+                functionEnvironment.SetThisInitializationStatus(initialThisInitialized);
                 functionEnvironment.DefineJsValue(Symbol.This, JsValue.FromObjectUnsafe(initialThisValue));
 
                 if (_isClassConstructor && initialThisValue is JsObject ctorThis)
@@ -964,8 +964,7 @@ public static partial class TypedAstEvaluator
                 if (_argumentsObjectNeeded)
                 {
                     // Create the `arguments` binding up front so parameter default expressions can reference it.
-                    var argumentsObject =
-                        CreateArgumentsObject(_function, argumentValues, parameterEnvironment, _realmState, this,
+                    var argumentsObject = _function.CreateArgumentsObject(argumentValues, parameterEnvironment, _realmState, this,
                             _isStrict);
                     parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject), isLexical: false);
                     if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
@@ -986,7 +985,7 @@ public static partial class TypedAstEvaluator
                 try
                 {
                 // Bind parameters using the same converted array
-                BindFunctionParameters(_function, argumentValues, parameterEnvironment, context);
+                _function.BindFunctionParameters(argumentValues, parameterEnvironment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     if (context.IsThrow)
@@ -1017,7 +1016,7 @@ public static partial class TypedAstEvaluator
 
                 if (_hasHoistableDeclarations)
                 {
-                    HoistVarDeclarations(_function.Body, executionEnvironment, context,
+                    _function.Body.HoistVarDeclarations(executionEnvironment, context,
                         lexicalNames: lexicalNames,
                         catchParameterNames: catchParameterNames,
                         simpleCatchParameterNames: simpleCatchParameterNames);
@@ -1031,9 +1030,7 @@ public static partial class TypedAstEvaluator
                     functionEnvironment.DefineFunctionScoped(hoistedName, Symbol.Undefined, false, context: context);
                 }
 
-                    _ = EvaluateBlockJsValue(
-                        _function.Body,
-                        executionEnvironment,
+                    _ = _function.Body.EvaluateBlockJsValue(executionEnvironment,
                         context);
 
                 if (context.IsThrow)
@@ -1483,7 +1480,7 @@ public static partial class TypedAstEvaluator
                         throw new InvalidOperationException("Computed class field is missing name expression.");
                     }
 
-                    var nameValue = EvaluateExpression(field.ComputedName, initEnv, context).ToObject();
+                    var nameValue = field.ComputedName.EvaluateExpression(initEnv, context).ToObject();
                     if (context.ShouldStopEvaluation)
                     {
                         return;
@@ -1509,7 +1506,7 @@ public static partial class TypedAstEvaluator
                 object? value = Symbol.Undefined;
                 if (field.Initializer is not null)
                 {
-                    value = EvaluateExpression(field.Initializer, initEnv, context).ToObject();
+                    value = field.Initializer.EvaluateExpression(initEnv, context).ToObject();
                     if (context.ShouldStopEvaluation)
                     {
                         return;
@@ -1522,7 +1519,7 @@ public static partial class TypedAstEvaluator
                         typedFunction.SetSuperBinding(fieldSuperBinding.Constructor, fieldSuperBinding.Prototype);
                     }
 
-                    if (IsAnonymousFunctionDefinitionNode(field.Initializer))
+                    if (ExpressionNode.IsAnonymousFunctionDefinitionNode(field.Initializer))
                     {
                         var displayName = field.IsComputed ? propertyName : field.Name;
                         var atIndex = displayName.IndexOf('@');
@@ -1906,7 +1903,7 @@ public static partial class TypedAstEvaluator
             }
 
             // Execute body
-            _ = EvaluateBlockJsValue(_function.Body, functionEnvironment, context);
+            _ = _function.Body.EvaluateBlockJsValue(functionEnvironment, context);
 
             // Get result
             JsValue result;
@@ -1989,7 +1986,7 @@ public static partial class TypedAstEvaluator
                 functionEnvironment.DefineParameterFast(_parameterNames[0], arg0);
             }
 
-            _ = EvaluateBlockJsValue(_function.Body, functionEnvironment, context);
+            _ = _function.Body.EvaluateBlockJsValue(functionEnvironment, context);
 
             JsValue result;
             if (context.IsThrow)
@@ -2064,7 +2061,7 @@ public static partial class TypedAstEvaluator
                 reuseEnvironment.DefineParameterFast(_parameterNames[0], arg0);
             }
 
-            _ = EvaluateBlockJsValue(_function.Body, reuseEnvironment, callingContext);
+            _ = _function.Body.EvaluateBlockJsValue(reuseEnvironment, callingContext);
 
             JsValue result;
             if (callingContext.IsThrow)
@@ -2151,7 +2148,7 @@ public static partial class TypedAstEvaluator
                 if (_parameterNames.Length > 1) functionEnvironment.DefineParameterFast(_parameterNames[1], arg1);
             }
 
-            _ = EvaluateBlockJsValue(_function.Body, functionEnvironment, context);
+            _ = _function.Body.EvaluateBlockJsValue(functionEnvironment, context);
 
             JsValue result;
             if (context.IsThrow)
@@ -2274,7 +2271,7 @@ public static partial class TypedAstEvaluator
 
             try
             {
-                _ = EvaluateBlockJsValue(_function.Body, functionEnvironment, context);
+                _ = _function.Body.EvaluateBlockJsValue(functionEnvironment, context);
 
                 if (context.IsThrow)
                 {

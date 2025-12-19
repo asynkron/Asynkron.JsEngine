@@ -24,7 +24,7 @@ public static partial class TypedAstEvaluator
                 {
                     case ObjectMemberKind.Property:
                     {
-                        var name = ResolveObjectMemberName(member, environment, context);
+                        var name = member.ResolveObjectMemberName(environment, context);
                         if (context.ShouldStopEvaluation)
                         {
                             return JsValue.Undefined;
@@ -32,7 +32,7 @@ public static partial class TypedAstEvaluator
 
                         var value = member.Value is null
                             ? Symbol.Undefined
-                            : EvaluateExpression(member.Value, environment, context).ToObject();
+                            : member.Value.EvaluateExpression(environment, context).ToObject();
 
                         if (!member.IsComputed &&
                             string.Equals(name, "__proto__", StringComparison.Ordinal) &&
@@ -56,7 +56,7 @@ public static partial class TypedAstEvaluator
                         if (value is IFunctionNameTarget nameTarget &&
                             member.Value is FunctionExpression { Name: null } or ClassExpression { Name: null })
                         {
-                            var displayName = BuildFunctionNameDisplay(name);
+                            var displayName = ObjectExpression.BuildFunctionNameDisplay(name);
                             nameTarget.EnsureHasName(displayName);
                         }
 
@@ -71,7 +71,7 @@ public static partial class TypedAstEvaluator
                 }
                     case ObjectMemberKind.Method:
                     {
-                        var callable = CreateFunctionValue(member.Function!, environment, context,
+                        var callable = member.Function!.CreateFunctionValue(environment, context,
                             isConstructorFunction: false);
                         if (callable is TypedFunction typed)
                         {
@@ -89,7 +89,7 @@ public static partial class TypedAstEvaluator
                             asyncGeneratorFactory.DisableConstruction();
                         }
 
-                        var name = ResolveObjectMemberName(member, environment, context);
+                        var name = member.ResolveObjectMemberName(environment, context);
                         if (context.ShouldStopEvaluation)
                         {
                             return JsValue.Undefined;
@@ -97,7 +97,7 @@ public static partial class TypedAstEvaluator
 
                         if (callable is IFunctionNameTarget nameTarget)
                         {
-                            var displayName = BuildFunctionNameDisplay(name);
+                            var displayName = ObjectExpression.BuildFunctionNameDisplay(name);
                             nameTarget.EnsureHasName(displayName);
                         }
 
@@ -119,15 +119,15 @@ public static partial class TypedAstEvaluator
                             context.CurrentScope.IsStrict,
                             isConstructorFunction: false);
                         getter.SetHomeObject(obj);
-                        var name = ResolveObjectMemberName(member, environment, context);
+                        var name = member.ResolveObjectMemberName(environment, context);
                         if (context.ShouldStopEvaluation)
                         {
                             return JsValue.Undefined;
                         }
 
-                        getter.EnsureHasName($"get {BuildFunctionNameDisplay(name)}");
+                        getter.EnsureHasName($"get {ObjectExpression.BuildFunctionNameDisplay(name)}");
 
-                        DefineAccessorProperty(obj, name, getter, null);
+                        obj.DefineAccessorProperty(name, getter, null);
                         break;
                     }
                     case ObjectMemberKind.Setter:
@@ -139,20 +139,20 @@ public static partial class TypedAstEvaluator
                             context.CurrentScope.IsStrict,
                             isConstructorFunction: false);
                         setter.SetHomeObject(obj);
-                        var name = ResolveObjectMemberName(member, environment, context);
+                        var name = member.ResolveObjectMemberName(environment, context);
                         if (context.ShouldStopEvaluation)
                         {
                             return JsValue.Undefined;
                         }
 
-                        setter.EnsureHasName($"set {BuildFunctionNameDisplay(name)}");
+                        setter.EnsureHasName($"set {ObjectExpression.BuildFunctionNameDisplay(name)}");
 
-                        DefineAccessorProperty(obj, name, null, setter);
+                        obj.DefineAccessorProperty(name, null, setter);
                         break;
                     }
                     case ObjectMemberKind.Field:
                     {
-                        var name = ResolveObjectMemberName(member, environment, context);
+                        var name = member.ResolveObjectMemberName(environment, context);
                         if (context.ShouldStopEvaluation)
                         {
                             return JsValue.Undefined;
@@ -160,7 +160,7 @@ public static partial class TypedAstEvaluator
 
                         var value = member.Value is null
                             ? Symbol.Undefined
-                            : EvaluateExpression(member.Value, environment, context).ToObject();
+                            : member.Value.EvaluateExpression(environment, context).ToObject();
                         obj.DefineProperty(name, new PropertyDescriptor
                         {
                             Value = value,
@@ -172,7 +172,7 @@ public static partial class TypedAstEvaluator
                     }
                     case ObjectMemberKind.Spread:
                     {
-                        var spreadValue = EvaluateExpression(member.Value!, environment, context).ToObject();
+                        var spreadValue = member.Value!.EvaluateExpression(environment, context).ToObject();
                         if (context.ShouldStopEvaluation)
                         {
                             return JsValue.Undefined;
@@ -205,7 +205,7 @@ public static partial class TypedAstEvaluator
                             ? propertyAccessor
                             : ToObjectForDestructuring(spreadValue, context);
 
-                        foreach (var key in GetEnumerableOwnPropertyKeysInOrder(accessor))
+                        foreach (var key in accessor.GetEnumerableOwnPropertyKeysInOrder())
                         {
                             var spreadPropertyValue = accessor.TryGetProperty(key, out var val)
                                 ? val.ToObject()

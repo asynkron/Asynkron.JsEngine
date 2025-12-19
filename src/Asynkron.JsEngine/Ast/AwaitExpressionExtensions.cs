@@ -23,7 +23,7 @@ public static partial class TypedAstEvaluator
                 return result is JsValue resultJs ? resultJs : JsValue.FromObjectUnsafe(result);
             }
 
-            var awaitedValue = EvaluateExpression(expression.Expression, environment, context);
+            var awaitedValue = expression.Expression.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return awaitedValue;

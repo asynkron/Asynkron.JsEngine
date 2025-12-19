@@ -21,7 +21,7 @@ public static partial class TypedAstEvaluator
             JsValue result;
             try
             {
-                result = EvaluateBlockJsValue(statement.TryBlock, environment, context);
+                result = statement.TryBlock.EvaluateBlockJsValue(environment, context);
             }
             catch (ThrowSignal signal)
             {
@@ -49,10 +49,10 @@ public static partial class TypedAstEvaluator
                             new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance) { identifierBinding.Name });
                     }
 
-                    DefineBindingTarget(statement.Catch.Binding, thrownValue, catchEnv, context, false);
+                    statement.Catch.Binding.DefineBindingTarget(thrownValue, catchEnv, context, false);
                 }
 
-                result = EvaluateBlockJsValue(statement.Catch.Body, catchEnv, context);
+                result = statement.Catch.Body.EvaluateBlockJsValue(catchEnv, context);
             }
 
             if (statement.Finally is null)
@@ -69,10 +69,10 @@ public static partial class TypedAstEvaluator
             var savedState = context.SaveCompletionState();
 
             GeneratorPendingCompletion? pending = null;
-            var isGenerator = IsGeneratorContext(environment);
+            var isGenerator = environment.IsGeneratorContext();
             if (isGenerator && savedState.HasCompletion)
             {
-                pending = GetGeneratorPendingCompletion(environment);
+                pending = environment.GetGeneratorPendingCompletion();
                 if (savedState.IsReturn)
                 {
                     pending.HasValue = true;
@@ -92,7 +92,7 @@ public static partial class TypedAstEvaluator
             }
 
             context.Clear();
-            var finallyResult = EvaluateBlockJsValue(statement.Finally, environment, context);
+            var finallyResult = statement.Finally.EvaluateBlockJsValue(environment, context);
             if (context.ShouldStopEvaluation)
             {
                 // Per ES spec 14.15.2 TryStatement Evaluation:

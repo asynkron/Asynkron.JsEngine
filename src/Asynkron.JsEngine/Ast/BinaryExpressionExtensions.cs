@@ -21,16 +21,16 @@ public static partial class TypedAstEvaluator
             // Logical operators evaluate left first and may short-circuit
             if (op == BinaryOperator.LogicalAnd || op == BinaryOperator.LogicalOr || op == BinaryOperator.NullishCoalescing)
             {
-                var left = EvaluateExpression(expression.Left, environment, context);
+                var left = expression.Left.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                     return JsValue.Undefined;
 
                 if (op == BinaryOperator.LogicalAnd)
-                    return left.IsTruthy ? EvaluateExpression(expression.Right, environment, context) : left;
+                    return left.IsTruthy ? expression.Right.EvaluateExpression(environment, context) : left;
                 if (op == BinaryOperator.LogicalOr)
-                    return left.IsTruthy ? left : EvaluateExpression(expression.Right, environment, context);
+                    return left.IsTruthy ? left : expression.Right.EvaluateExpression(environment, context);
                 // NullishCoalescing
-                return left.IsNullOrUndefined ? EvaluateExpression(expression.Right, environment, context) : left;
+                return left.IsNullOrUndefined ? expression.Right.EvaluateExpression(environment, context) : left;
             }
 
             // Slow path: private field In operator, In, InstanceOf
@@ -38,11 +38,11 @@ public static partial class TypedAstEvaluator
                 return expression.EvaluateBinarySlow(environment, context);
 
             // Common case: evaluate both operands then apply operator
-            var leftVal = EvaluateExpression(expression.Left, environment, context);
+            var leftVal = expression.Left.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation)
                 return JsValue.Undefined;
 
-            var rightVal = EvaluateExpression(expression.Right, environment, context);
+            var rightVal = expression.Right.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation)
                 return JsValue.Undefined;
 
@@ -61,7 +61,7 @@ public static partial class TypedAstEvaluator
                 return StrictEqualsValue(leftVal, rightVal) ? JsValue.False : JsValue.True;
 
             // Medium frequency operators
-            return EvaluateBinaryOperator(op, leftVal, rightVal, context);
+            return BinaryExpression.EvaluateBinaryOperator(op, leftVal, rightVal, context);
         }
 
         /// <summary>
@@ -99,18 +99,18 @@ public static partial class TypedAstEvaluator
             // ES2022: Handle private identifier in 'in' operator (#field in obj)
             if (expression.Operator == BinaryOperator.In && expression.Left is PrivateIdentifierExpression privateId)
             {
-                var rightTarget = EvaluateExpression(expression.Right, environment, context);
+                var rightTarget = expression.Right.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                     return JsValue.Undefined;
 
                 return PrivateFieldInOperator(privateId.Name, rightTarget.ToObject(), context) ? JsValue.True : JsValue.False;
             }
 
-            var left = EvaluateExpression(expression.Left, environment, context);
+            var left = expression.Left.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation)
                 return JsValue.Undefined;
 
-            var right = EvaluateExpression(expression.Right, environment, context);
+            var right = expression.Right.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation)
                 return JsValue.Undefined;
 

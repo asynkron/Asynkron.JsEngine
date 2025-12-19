@@ -20,7 +20,7 @@ public static partial class TypedAstEvaluator
                 var propertyName = property.Name;
                 if (property.NameExpression is not null)
                 {
-                    var propertyKeyValueJs = EvaluateExpression(property.NameExpression, environment, context);
+                    var propertyKeyValueJs = property.NameExpression.EvaluateExpression(environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return;
@@ -39,7 +39,7 @@ public static partial class TypedAstEvaluator
                         assignmentTarget.Expression,
                         environment,
                         context,
-                        (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
+                        (e, env, ctx) => e.EvaluateExpression(env, ctx).ToObject());
                     if (context.ShouldStopEvaluation)
                     {
                         return;
@@ -66,7 +66,7 @@ public static partial class TypedAstEvaluator
                 if (ReferenceEquals(propertyValue, Symbol.Undefined) && property.DefaultValue is not null)
                 {
                     usedDefault = true;
-                    propertyValue = EvaluateExpression(property.DefaultValue, environment, context).ToObject();
+                    propertyValue = property.DefaultValue.EvaluateExpression(environment, context).ToObject();
                     if (context.ShouldStopEvaluation)
                     {
                         return;
@@ -74,8 +74,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 if (usedDefault &&
-                    property is { Target: IdentifierBinding identifierTarget, DefaultValue: { } defaultExpression } &&
-                    IsAnonymousFunctionDefinition(defaultExpression) &&
+                    property is { Target: IdentifierBinding identifierTarget, DefaultValue: { } defaultExpression } && defaultExpression.IsAnonymousFunctionDefinition() &&
                     propertyValue is IFunctionNameTarget nameTarget)
                 {
                     nameTarget.EnsureHasName(identifierTarget.Name.Name);
@@ -90,7 +89,7 @@ public static partial class TypedAstEvaluator
                 }
                 else
                 {
-                    ApplyBindingTarget(property.Target, propertyValue, environment, context, mode,
+                    property.Target.ApplyBindingTarget(propertyValue, environment, context, mode,
                         allowNameInference: false, skipBlockedBindingLookup: skipBlockedLookup);
                 }
             }
@@ -129,7 +128,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            ApplyBindingTarget(binding.RestElement, restObject, environment, context, mode, allowNameInference: false);
+            binding.RestElement.ApplyBindingTarget(restObject, environment, context, mode, allowNameInference: false);
         }
     }
 }

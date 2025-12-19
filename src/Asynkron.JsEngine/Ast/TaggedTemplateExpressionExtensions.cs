@@ -11,7 +11,7 @@ public static partial class TypedAstEvaluator
         private JsValue EvaluateTaggedTemplate(JsEnvironment environment,
             EvaluationContext context)
         {
-            var (tagValue, thisValue, skippedOptional) = EvaluateCallTarget(expression.Tag, environment, context);
+            var (tagValue, thisValue, skippedOptional) = expression.Tag.EvaluateCallTarget(environment, context);
             if (context.ShouldStopEvaluation || skippedOptional)
             {
                 return JsValue.Undefined;
@@ -34,7 +34,7 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                var stringsArrayValueJs = EvaluateExpression(expression.StringsArray, environment, context);
+                var stringsArrayValueJs = expression.StringsArray.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return JsValue.Undefined;
@@ -45,7 +45,7 @@ public static partial class TypedAstEvaluator
                     throw new InvalidOperationException("Tagged template strings array is invalid.");
                 }
 
-                var rawStringsArrayValueJs = EvaluateExpression(expression.RawStringsArray, environment, context);
+                var rawStringsArrayValueJs = expression.RawStringsArray.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return JsValue.Undefined;
@@ -56,7 +56,7 @@ public static partial class TypedAstEvaluator
                     throw new InvalidOperationException("Tagged template raw strings array is invalid.");
                 }
 
-                templateObject = (JsArray)CreateTemplateObject(stringsArray, rawStringsArray);
+                templateObject = (JsArray)stringsArray.CreateTemplateObject(rawStringsArray);
 
                 // Cache the template object for subsequent calls to the same parse node
                 realmState?.TemplateObjectCache[expression] = templateObject;
@@ -67,7 +67,7 @@ public static partial class TypedAstEvaluator
 
             foreach (var expr in expression.Expressions)
             {
-                arguments.Add(EvaluateExpression(expr, environment, context));
+                arguments.Add(expr.EvaluateExpression(environment, context));
                 if (context.ShouldStopEvaluation)
                 {
                     return JsValue.Undefined;

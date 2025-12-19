@@ -14,7 +14,7 @@ public static partial class TypedAstEvaluator
             {
                 if (element.IsSpread)
                 {
-                    var spreadValueJs = EvaluateExpression(element.Expression!, environment, context);
+                    var spreadValueJs = element.Expression!.EvaluateExpression(environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return JsValue.Undefined;
@@ -39,7 +39,7 @@ public static partial class TypedAstEvaluator
                 }
                 else
                 {
-                    array.Push(EvaluateExpression(element.Expression, environment, context).ToObject());
+                    array.Push(element.Expression.EvaluateExpression(environment, context).ToObject());
                 }
 
                 if (context.ShouldStopEvaluation)

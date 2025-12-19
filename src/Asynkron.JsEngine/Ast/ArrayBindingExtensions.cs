@@ -29,7 +29,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 throw StandardLibrary.ThrowTypeError(
-                    $"Cannot destructure non-iterable value.{GetSourceInfo(context)}", context);
+                    $"Cannot destructure non-iterable value.{context.GetSourceInfo()}", context);
             }
 
             if (iterator is not null && binding.Elements.Length == 0 && binding.RestElement is null)
@@ -58,7 +58,7 @@ public static partial class TypedAstEvaluator
                             assignmentTarget.Expression,
                             environment,
                             context,
-                            (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
+                            (e, env, ctx) => e.EvaluateExpression(env, ctx).ToObject());
                         if (context.ShouldStopEvaluation)
                         {
                             if (context.IsYield && stateKey is { })
@@ -143,7 +143,7 @@ public static partial class TypedAstEvaluator
                     if (element.DefaultValue is not null && isUndefined)
                     {
                         usedDefault = true;
-                        elementValue = EvaluateExpression(element.DefaultValue, environment, context).ToObject();
+                        elementValue = element.DefaultValue.EvaluateExpression(environment, context).ToObject();
                         if (context.ShouldStopEvaluation)
                         {
                             if (context.IsYield && stateKey is { })
@@ -164,8 +164,7 @@ public static partial class TypedAstEvaluator
                         element is
                         {
                             Target: IdentifierBinding identifierTarget, DefaultValue: { } defaultExpression
-                        } &&
-                        IsAnonymousFunctionDefinition(defaultExpression) &&
+                        } && defaultExpression.IsAnonymousFunctionDefinition() &&
                         elementValue is IFunctionNameTarget nameTarget)
                     {
                         nameTarget.EnsureHasName(identifierTarget.Name.Name);
@@ -177,7 +176,7 @@ public static partial class TypedAstEvaluator
                     }
                     else
                     {
-                        ApplyBindingTarget(element.Target, elementValue, environment, context, mode,
+                        element.Target.ApplyBindingTarget(elementValue, environment, context, mode,
                             allowNameInference: false);
                     }
 
@@ -208,7 +207,7 @@ public static partial class TypedAstEvaluator
                             restTarget.Expression,
                             environment,
                             context,
-                            (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
+                            (e, env, ctx) => e.EvaluateExpression(env, ctx).ToObject());
                         if (context.ShouldStopEvaluation)
                         {
                             if (context.IsYield && stateKey is { })
@@ -293,7 +292,7 @@ public static partial class TypedAstEvaluator
                     }
                     else
                     {
-                        ApplyBindingTarget(binding.RestElement, restArray, environment, context, mode,
+                        binding.RestElement.ApplyBindingTarget(restArray, environment, context, mode,
                             allowNameInference: false);
                     }
                 }
@@ -357,7 +356,7 @@ public static partial class TypedAstEvaluator
 
                 try
                 {
-                    IteratorClose(iterator, context, preserveExistingThrow, existingThrowOverride);
+                    iterator.IteratorClose(context, preserveExistingThrow, existingThrowOverride);
                 }
                 catch (ThrowSignal)
                 {

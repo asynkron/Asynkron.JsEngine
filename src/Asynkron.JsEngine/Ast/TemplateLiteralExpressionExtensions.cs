@@ -24,7 +24,7 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
-                var valueJs = EvaluateExpression(part.Expression, environment, context);
+                var valueJs = part.Expression.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return JsValue.Undefined;

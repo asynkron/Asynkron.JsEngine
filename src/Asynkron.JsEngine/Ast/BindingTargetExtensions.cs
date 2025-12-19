@@ -11,20 +11,20 @@ public static partial class TypedAstEvaluator
         {
             if (declarationKind is null)
             {
-                AssignBindingTarget(target, value, outerEnvironment, context);
+                target.AssignBindingTarget(value, outerEnvironment, context);
                 return;
             }
 
             switch (declarationKind)
             {
                 case VariableKind.Var:
-                    DefineOrAssignVar(target, value, loopEnvironment, context);
+                    target.DefineOrAssignVar(value, loopEnvironment, context);
                     break;
                 case VariableKind.Let:
                 case VariableKind.Const:
                 case VariableKind.Using:
                 case VariableKind.AwaitUsing:
-                    DefineBindingTarget(target, value, loopEnvironment, context,
+                    target.DefineBindingTarget(value, loopEnvironment, context,
                         declarationKind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing);
                     break;
                 default:
@@ -34,22 +34,20 @@ public static partial class TypedAstEvaluator
 
         private void CreateUninitializedLexicalBindings(JsEnvironment environment, bool isConst)
         {
-            WalkBindingTargets(target,
-                id => environment.DefineJsValue(id.Name, JsValue.Uninitialized, isConst,
+            target.WalkBindingTargets(id => environment.DefineJsValue(id.Name, JsValue.Uninitialized, isConst,
                     isLexical: true, blocksFunctionScopeOverride: true));
         }
 
         private void CollectSymbolsFromBinding(HashSet<Symbol> names)
         {
-            WalkBindingTargets(target, id => names.Add(id.Name));
+            target.WalkBindingTargets(id => names.Add(id.Name));
         }
 
         private void HoistFromBindingTarget(JsEnvironment environment,
             EvaluationContext context,
             HashSet<Symbol>? lexicalNames = null)
         {
-            WalkBindingTargets(target,
-                identifier =>
+            target.WalkBindingTargets(identifier =>
                 {
                     if (!context.CurrentScope.IsStrict && lexicalNames?.Contains(identifier.Name) == true)
                     {
@@ -78,7 +76,7 @@ public static partial class TypedAstEvaluator
                                 continue;
                             }
 
-                            WalkBindingTargets(element.Target, onIdentifier);
+                            element.Target.WalkBindingTargets(onIdentifier);
                         }
 
                         if (array.RestElement is null)
@@ -92,7 +90,7 @@ public static partial class TypedAstEvaluator
                     case ObjectBinding obj:
                         foreach (var property in obj.Properties)
                         {
-                            WalkBindingTargets(property.Target, onIdentifier);
+                            property.Target.WalkBindingTargets(onIdentifier);
                         }
 
                         if (obj.RestElement is null)
@@ -112,20 +110,20 @@ public static partial class TypedAstEvaluator
         private void AssignBindingTarget(object? value, JsEnvironment environment,
             EvaluationContext context)
         {
-            ApplyBindingTarget(target, value, environment, context, BindingMode.Assign);
+            target.ApplyBindingTarget(value, environment, context, BindingMode.Assign);
         }
 
         private void DefineBindingTarget(object? value, JsEnvironment environment,
             EvaluationContext context, bool isConst)
         {
-            ApplyBindingTarget(target, value, environment, context,
+            target.ApplyBindingTarget(value, environment, context,
                 isConst ? BindingMode.DefineConst : BindingMode.DefineLet);
         }
 
         private void DefineOrAssignVar(object? value, JsEnvironment environment,
             EvaluationContext context)
         {
-            ApplyBindingTarget(target, value, environment, context, BindingMode.DefineVar);
+            target.ApplyBindingTarget(value, environment, context, BindingMode.DefineVar);
         }
 
         private void ApplyBindingTarget(object? value,
@@ -139,14 +137,14 @@ public static partial class TypedAstEvaluator
             switch (target)
             {
                 case IdentifierBinding identifier:
-                    ApplyIdentifierBinding(identifier, value, environment, context, mode, hasInitializer,
+                    identifier.ApplyIdentifierBinding(value, environment, context, mode, hasInitializer,
                         allowNameInference, skipBlockedBindingLookup);
                     break;
                 case ArrayBinding arrayBinding:
-                    BindArrayPattern(arrayBinding, value, environment, context, mode);
+                    arrayBinding.BindArrayPattern(value, environment, context, mode);
                     break;
                 case ObjectBinding objectBinding:
-                    BindObjectPattern(objectBinding, value, environment, context, mode);
+                    objectBinding.BindObjectPattern(value, environment, context, mode);
                     break;
                 case AssignmentTargetBinding assignmentTarget:
                 {
@@ -158,7 +156,7 @@ public static partial class TypedAstEvaluator
                             assignmentTarget.Expression,
                             environment,
                             context,
-                            static (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
+                            static (e, env, ctx) => e.EvaluateExpression(env, ctx).ToObject());
                     if (context.ShouldStopEvaluation)
                     {
                         return;

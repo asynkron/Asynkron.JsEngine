@@ -22,7 +22,7 @@ public static partial class TypedAstEvaluator
             {
                 // Var bindings are hoisted to the nearest function scope before evaluating
                 // the initializer so resolution targets the correct environment.
-                EnsureFunctionScopedVarBinding(environment, targetIdentifier.Name, context);
+                environment.EnsureFunctionScopedVarBinding(targetIdentifier.Name, context);
 
                 var identifierExpression = new IdentifierExpression(declarator.Source, targetIdentifier.Name);
                 // Use fast path - this is always an identifier expression
@@ -38,14 +38,13 @@ public static partial class TypedAstEvaluator
             // Per ES spec 13.3.1.4: If IsAnonymousFunctionDefinition(Initializer) is true,
             // then perform SetFunctionName(value, bindingId).
             using var functionNameHint = targetIdentifier is not null &&
-                                         declarator.Initializer is not null &&
-                                         IsAnonymousFunctionDefinitionNode(declarator.Initializer)
+                                         declarator.Initializer is not null && ExpressionNode.IsAnonymousFunctionDefinitionNode(declarator.Initializer)
                 ? context.EnterFunctionNameHint(targetIdentifier.Name)
                 : null;
 
             var value = declarator.Initializer is null
                 ? Symbol.Undefined
-                : EvaluateExpression(declarator.Initializer, environment, context).ToObject();
+                : declarator.Initializer.EvaluateExpression(environment, context).ToObject();
 
             if (context.ShouldStopEvaluation)
             {
@@ -95,7 +94,7 @@ public static partial class TypedAstEvaluator
             if (preResolvedVarReference is { } resolvedReference && targetIdentifier is not null)
             {
                 var assignedBlockedBinding = environment.TryAssignBlockedBinding(targetIdentifier.Name, value);
-                EnsureFunctionScopedVarBinding(environment, targetIdentifier.Name, context);
+                environment.EnsureFunctionScopedVarBinding(targetIdentifier.Name, context);
                 if (!assignedBlockedBinding)
                 {
                     resolvedReference.SetValue(JsValue.FromObjectUnsafe(value));
@@ -105,9 +104,8 @@ public static partial class TypedAstEvaluator
             }
 
             // Per ES spec 13.3.1.4: Name inference only applies if IsAnonymousFunctionDefinition(Initializer) is true
-            var allowNameInference = declarator.Initializer is not null &&
-                                    IsAnonymousFunctionDefinitionNode(declarator.Initializer);
-            ApplyBindingTarget(declarator.Target, value, environment, context, mode,
+            var allowNameInference = declarator.Initializer is not null && ExpressionNode.IsAnonymousFunctionDefinitionNode(declarator.Initializer);
+            declarator.Target.ApplyBindingTarget(value, environment, context, mode,
                 declarator.Initializer is not null, allowNameInference);
         }
     }

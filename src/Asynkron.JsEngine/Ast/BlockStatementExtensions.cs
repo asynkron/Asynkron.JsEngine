@@ -16,7 +16,7 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment,
             EvaluationContext context)
         {
-            return EvaluateBlockCore(block, environment, context);
+            return block.EvaluateBlockCore(environment, context);
         }
 
         /// <summary>
@@ -59,7 +59,7 @@ public static partial class TypedAstEvaluator
             {
                 context.ThrowIfCancellationRequested();
 
-                var completionJs = EvaluateStatementJsValue(statement, environment, context);
+                var completionJs = statement.EvaluateStatementJsValue(environment, context);
                 var shouldStop = context.ShouldStopEvaluation;
                 var shouldCapture =
                     !completionJs.IsUnit &&
@@ -121,7 +121,7 @@ public static partial class TypedAstEvaluator
                         var isConst = lexDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
                         foreach (var declarator in lexDecl.Declarators)
                         {
-                            HoistLexicalBindingTargetForTdz(block, declarator.Target, scope, isConst);
+                            block.HoistLexicalBindingTargetForTdz(declarator.Target, scope, isConst);
                         }
 
                         break;
@@ -137,13 +137,13 @@ public static partial class TypedAstEvaluator
             }
 
             // Block-scoped function declarations (strict mode behavior - no AnnexB hoisting)
-            InstantiateLexicalBlockFunctions(block, scope, context);
+            block.InstantiateLexicalBlockFunctions(scope, context);
 
             foreach (var statement in block.Statements)
             {
                 context.ThrowIfCancellationRequested();
 
-                var completionJs = EvaluateStatementJsValue(statement, scope, context);
+                var completionJs = statement.EvaluateStatementJsValue(scope, context);
                 var shouldStop = context.ShouldStopEvaluation;
                 var shouldCapture =
                     !completionJs.IsUnit &&
@@ -181,7 +181,7 @@ public static partial class TypedAstEvaluator
 
                 // Pass skipInternalNameBinding: true so the function doesn't create an internal
                 // const binding for its name (the binding is handled by blockEnvironment.Define below).
-                var functionValue = CreateFunctionValue(functionDeclaration.Function, blockEnvironment, context,
+                var functionValue = functionDeclaration.Function.CreateFunctionValue(blockEnvironment, context,
                     skipInternalNameBinding: true);
                 blockEnvironment.DefineJsValue(
                     functionDeclaration.Name,
@@ -208,22 +208,22 @@ public static partial class TypedAstEvaluator
                     {
                         if (element.Target is { } elementTarget)
                         {
-                            HoistLexicalBindingTargetForTdz(block, elementTarget, blockEnvironment, isConst);
+                            block.HoistLexicalBindingTargetForTdz(elementTarget, blockEnvironment, isConst);
                         }
                     }
                     if (arrayBinding.RestElement is { } restTarget)
                     {
-                        HoistLexicalBindingTargetForTdz(block, restTarget, blockEnvironment, isConst);
+                        block.HoistLexicalBindingTargetForTdz(restTarget, blockEnvironment, isConst);
                     }
                     break;
                 case ObjectBinding objectBinding:
                     foreach (var prop in objectBinding.Properties)
                     {
-                        HoistLexicalBindingTargetForTdz(block, prop.Target, blockEnvironment, isConst);
+                        block.HoistLexicalBindingTargetForTdz(prop.Target, blockEnvironment, isConst);
                     }
                     if (objectBinding.RestElement is { } restObjTarget)
                     {
-                        HoistLexicalBindingTargetForTdz(block, restObjTarget, blockEnvironment, isConst);
+                        block.HoistLexicalBindingTargetForTdz(restObjTarget, blockEnvironment, isConst);
                     }
                     break;
             }
@@ -238,32 +238,30 @@ public static partial class TypedAstEvaluator
             bool inBlockScope = false)
         {
             var effectiveLexicalNames = lexicalNames is null
-                ? CollectLexicalNames(block)
+                ? block.CollectLexicalNames()
                 : [..lexicalNames];
             if (lexicalNames is not null)
             {
-                effectiveLexicalNames.UnionWith(CollectLexicalNames(block));
+                effectiveLexicalNames.UnionWith(block.CollectLexicalNames());
             }
 
             var effectiveCatchNames = catchParameterNames is null
-                ? CollectCatchParameterNames(block)
+                ? block.CollectCatchParameterNames()
                 : [..catchParameterNames];
             if (catchParameterNames is not null)
             {
-                effectiveCatchNames.UnionWith(CollectCatchParameterNames(block));
+                effectiveCatchNames.UnionWith(block.CollectCatchParameterNames());
             }
 
             var effectiveSimpleCatchNames = simpleCatchParameterNames is null
-                ? CollectSimpleCatchParameterNames(block)
+                ? block.CollectSimpleCatchParameterNames()
                 : [..simpleCatchParameterNames];
             if (simpleCatchParameterNames is not null)
             {
-                effectiveSimpleCatchNames.UnionWith(CollectSimpleCatchParameterNames(block));
+                effectiveSimpleCatchNames.UnionWith(block.CollectSimpleCatchParameterNames());
             }
 
-            HoistVarDeclarationsPass(
-                block,
-                environment,
+            block.HoistVarDeclarationsPass(environment,
                 context,
                 hoistFunctionValues,
                 effectiveLexicalNames,
@@ -271,9 +269,7 @@ public static partial class TypedAstEvaluator
                 effectiveSimpleCatchNames,
                 HoistPass.Functions,
                 inBlockScope);
-            HoistVarDeclarationsPass(
-                block,
-                environment,
+            block.HoistVarDeclarationsPass(environment,
                 context,
                 false,
                 effectiveLexicalNames,
@@ -294,7 +290,7 @@ public static partial class TypedAstEvaluator
         {
             foreach (var statement in block.Statements)
             {
-                HoistFromStatement(statement, environment, context, hoistFunctionValues, lexicalNames,
+                statement.HoistFromStatement(environment, context, hoistFunctionValues, lexicalNames,
                     catchParameterNames,
                     simpleCatchParameterNames,
                     pass,
@@ -305,28 +301,28 @@ public static partial class TypedAstEvaluator
         private HashSet<Symbol> MergeLexicalNames(HashSet<Symbol> lexicalNames)
         {
             var merged = new HashSet<Symbol>(lexicalNames);
-            merged.UnionWith(CollectLexicalNames(block));
+            merged.UnionWith(block.CollectLexicalNames());
             return merged;
         }
 
         private HashSet<Symbol> MergeCatchNames(HashSet<Symbol> catchParameterNames)
         {
             var merged = new HashSet<Symbol>(catchParameterNames);
-            merged.UnionWith(CollectCatchParameterNames(block));
+            merged.UnionWith(block.CollectCatchParameterNames());
             return merged;
         }
 
         private HashSet<Symbol> MergeSimpleCatchNames(HashSet<Symbol> simpleCatchParameterNames)
         {
             var merged = new HashSet<Symbol>(simpleCatchParameterNames);
-            merged.UnionWith(CollectSimpleCatchParameterNames(block));
+            merged.UnionWith(block.CollectSimpleCatchParameterNames());
             return merged;
         }
 
         private HashSet<Symbol> CollectLexicalNames()
         {
             var names = new HashSet<Symbol>();
-            CollectLexicalNamesFromStatement(block, names);
+            block.CollectLexicalNamesFromStatement(names);
             return names;
         }
 
@@ -347,14 +343,14 @@ public static partial class TypedAstEvaluator
         private HashSet<Symbol> CollectCatchParameterNames()
         {
             var names = new HashSet<Symbol>();
-            CollectCatchNamesFromStatement(block, names);
+            block.CollectCatchNamesFromStatement(names);
             return names;
         }
 
         private HashSet<Symbol> CollectSimpleCatchParameterNames()
         {
             var names = new HashSet<Symbol>();
-            CollectSimpleCatchNamesFromStatement(block, names);
+            block.CollectSimpleCatchNamesFromStatement(names);
             return names;
         }
 

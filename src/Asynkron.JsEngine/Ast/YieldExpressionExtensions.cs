@@ -11,19 +11,19 @@ public static partial class TypedAstEvaluator
             EvaluationContext context)
         {
             return expression.IsDelegated
-                ? EvaluateDelegatedYield(expression, environment, context)
-                : EvaluateSimpleYield(expression, environment, context);
+                ? expression.EvaluateDelegatedYield(environment, context)
+                : expression.EvaluateSimpleYield(environment, context);
         }
 
         private JsValue EvaluateSimpleYield(JsEnvironment environment,
             EvaluationContext context)
         {
             var logger = environment.RealmState?.Logger;
-            var yieldTracker = GetYieldTracker(environment);
+            var yieldTracker = environment.GetYieldTracker();
             var shouldYield = yieldTracker.ShouldYield(out var yieldIndex);
             if (!shouldYield)
             {
-                var payload = GetResumePayload(environment, yieldIndex);
+                var payload = environment.GetResumePayload(yieldIndex);
                 if (!payload.HasValue)
                 {
                     logger?.LogInformation("Yield skip without payload index={Index}", yieldIndex);
@@ -58,7 +58,7 @@ public static partial class TypedAstEvaluator
 
             var yieldedValueJs = expression.Expression is null
                 ? JsValue.Undefined
-                : EvaluateExpression(expression.Expression, environment, context);
+                : expression.Expression.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return yieldedValueJs;
@@ -77,12 +77,12 @@ public static partial class TypedAstEvaluator
                 throw new InvalidOperationException("yield* requires an expression.");
             }
 
-            var stateKey = GetDelegatedStateKey(expression);
-            var state = GetDelegatedState(stateKey, environment);
+            var stateKey = expression.GetDelegatedStateKey();
+            var state = stateKey.GetDelegatedState(environment);
 
                 if (state is null)
                 {
-                    var iterableJs = EvaluateExpression(expression.Expression, environment, context);
+                    var iterableJs = expression.Expression.EvaluateExpression(environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return iterableJs;
@@ -94,10 +94,10 @@ public static partial class TypedAstEvaluator
                         return context.FlowValue;
                     }
 
-                    StoreDelegatedState(stateKey, environment, state);
+                    stateKey.StoreDelegatedState(environment, state);
                 }
 
-            var tracker = GetYieldTracker(environment);
+            var tracker = environment.GetYieldTracker();
             object? pendingSend = null;
             var hasPendingSend = false;
             var pendingThrow = false;
@@ -108,7 +108,7 @@ public static partial class TypedAstEvaluator
             // on the inner iterator instead of next.
             if (!tracker.ShouldYield(out var initialYieldIndex))
             {
-                var initialPayload = GetResumePayload(environment, initialYieldIndex);
+                var initialPayload = environment.GetResumePayload(initialYieldIndex);
                 if (initialPayload.HasValue)
                 {
                     if (initialPayload.IsThrow)
@@ -157,13 +157,13 @@ public static partial class TypedAstEvaluator
                     if (iteratorResult.PropagateThrow)
                     {
                         context.SetThrow(iteratorResult.Value);
-                        ClearDelegatedState(stateKey, environment);
+                        stateKey.ClearDelegatedState(environment);
                         return iteratorResult.Value;
                     }
 
                     // For return propagation (when inner iterator has no return method),
                     // signal a return completion to the outer generator
-                    ClearDelegatedState(stateKey, environment);
+                    stateKey.ClearDelegatedState(environment);
                     context.SetReturn(iteratorResult.Value);
                     return iteratorResult.Value;
                 }
@@ -171,13 +171,13 @@ public static partial class TypedAstEvaluator
                 var (value, done) = (iteratorResult.Value, iteratorResult.Done);
                 if (done)
                 {
-                    ClearDelegatedState(stateKey, environment);
+                    stateKey.ClearDelegatedState(environment);
                     return value;
                 }
 
                 if (!tracker.ShouldYield(out var yieldIndex))
                 {
-                    var payload = GetResumePayload(environment, yieldIndex);
+                    var payload = environment.GetResumePayload(yieldIndex);
                     if (!payload.HasValue)
                     {
                         // We're skipping this yield point (already consumed).

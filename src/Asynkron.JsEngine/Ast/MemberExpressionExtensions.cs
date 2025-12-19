@@ -24,11 +24,11 @@ public static partial class TypedAstEvaluator
                     "iterator" => (JsValue)Symbols.Iterator,
                     "asyncIterator" => (JsValue)Symbols.AsyncIterator,
                     "toStringTag" => (JsValue)Symbols.ToStringTag,
-                    _ => EvaluateDefaultMember(expression, environment, context)
+                    _ => expression.EvaluateDefaultMember(environment, context)
                 };
             }
 
-            return EvaluateDefaultMember(expression, environment, context);
+            return expression.EvaluateDefaultMember(environment, context);
         }
 
         private JsValue EvaluateDefaultMember(JsEnvironment environment,
@@ -44,11 +44,11 @@ public static partial class TypedAstEvaluator
 
             if (expression.Target is SuperExpression)
             {
-                var (memberValue, _) = ResolveSuperMember(expression, environment, context);
+                var (memberValue, _) = expression.ResolveSuperMember(environment, context);
                 return context.ShouldStopEvaluation ? JsValue.Undefined : memberValue;
             }
 
-            var targetJs = EvaluateExpression(expression.Target, environment, context);
+            var targetJs = expression.Target.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
@@ -84,7 +84,7 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                var propertyValueJs = EvaluateExpression(expression.Property, environment, context);
+                var propertyValueJs = expression.Property.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return JsValue.Undefined;
@@ -142,10 +142,10 @@ public static partial class TypedAstEvaluator
             // This throws ReferenceError if this is uninitialized
             if (!context.IsThisInitialized)
             {
-                throw CreateSuperReferenceError(environment, context, null);
+                throw environment.CreateSuperReferenceError(context, null);
             }
 
-            var binding = ExpectSuperBinding(environment, context);
+            var binding = environment.ExpectSuperBinding(context);
 
             // Per ES spec 12.3.5.3 MakeSuperPropertyReference:
             // 4. Let baseValue be ? env.GetSuperBase().
@@ -161,7 +161,7 @@ public static partial class TypedAstEvaluator
                 return (JsValue.Undefined, binding);
             }
 
-            var propertyValueJs = EvaluateExpression(expression.Property, environment, context);
+            var propertyValueJs = expression.Property.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return (JsValue.Undefined, binding);

@@ -137,7 +137,7 @@ internal static class AssignmentReferenceResolver
                 return AssignmentReference.ForDelegate(() => Symbol.Undefined, _ => { });
             }
 
-            var binding = TypedAstEvaluator.ExpectSuperBinding(environment, context);
+            var binding = environment.ExpectSuperBinding(context);
             string? propertyNameCache = null;
 
             return AssignmentReference.ForDelegate(
@@ -160,7 +160,7 @@ internal static class AssignmentReferenceResolver
                 {
                     if (!binding.IsThisInitialized)
                     {
-                        throw TypedAstEvaluator.CreateSuperReferenceError(environment, context, null);
+                        throw environment.CreateSuperReferenceError(context, null);
                     }
 
                     if (binding.Prototype is null)

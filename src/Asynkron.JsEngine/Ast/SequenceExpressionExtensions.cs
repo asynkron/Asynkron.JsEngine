@@ -9,10 +9,10 @@ public static partial class TypedAstEvaluator
         private JsValue EvaluateSequence(JsEnvironment environment,
             EvaluationContext context)
         {
-            _ = EvaluateExpression(expression.Left, environment, context);
+            _ = expression.Left.EvaluateExpression(environment, context);
             return context.ShouldStopEvaluation
                 ? JsValue.Undefined
-                : EvaluateExpression(expression.Right, environment, context);
+                : expression.Right.EvaluateExpression(environment, context);
         }
     }
 }

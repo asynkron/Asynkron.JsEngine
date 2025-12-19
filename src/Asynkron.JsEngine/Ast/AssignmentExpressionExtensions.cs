@@ -14,7 +14,7 @@ public static partial class TypedAstEvaluator
             if (expression.IsImmutableTarget)
             {
                 // Still need to evaluate RHS for potential side effects
-                var rhsValue = EvaluateExpression(expression.Value, environment, context);
+                var rhsValue = expression.Value.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return rhsValue;
@@ -129,7 +129,7 @@ public static partial class TypedAstEvaluator
                 catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                                StringComparison.Ordinal))
                 {
-                    return HandleReferenceError(ex, environment, context);
+                    return AssignmentExpression.HandleReferenceError(ex, environment, context);
                 }
             }
 
@@ -171,7 +171,7 @@ public static partial class TypedAstEvaluator
             catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                            StringComparison.Ordinal))
             {
-                return HandleReferenceError(ex, environment, context);
+                return AssignmentExpression.HandleReferenceError(ex, environment, context);
             }
         }
 
@@ -550,15 +550,14 @@ public static partial class TypedAstEvaluator
             ? context.EnterFunctionNameHint(assignment!.Target)
             : null;
 
-        var jsValue = EvaluateExpression(rhs, environment, context);
+        var jsValue = rhs.EvaluateExpression(environment, context);
         if (context.ShouldStopEvaluation)
         {
             return jsValue;
         }
 
         if (assignment is not null &&
-            jsValue.ObjectValue is IFunctionNameTarget nameTarget &&
-            IsAnonymousFunctionDefinitionNode(rhs) &&
+            jsValue.ObjectValue is IFunctionNameTarget nameTarget && ExpressionNode.IsAnonymousFunctionDefinitionNode(rhs) &&
             !IsParenthesizedIdentifierAssignment(assignment))
         {
             nameTarget.EnsureHasName(assignment.Target.Name);
@@ -569,8 +568,7 @@ public static partial class TypedAstEvaluator
 
     private static bool ShouldApplyAssignmentNameHint(AssignmentExpression? assignment, ExpressionNode rhs)
     {
-        return assignment is not null &&
-               IsAnonymousFunctionDefinitionNode(rhs) &&
+        return assignment is not null && ExpressionNode.IsAnonymousFunctionDefinitionNode(rhs) &&
                !IsParenthesizedIdentifierAssignment(assignment);
     }
 }

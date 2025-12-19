@@ -95,7 +95,7 @@ public static partial class TypedAstEvaluator
             // Hot path: logical not
             if (op == UnaryOperator.LogicalNot)
             {
-                var operand = EvaluateExpression(expression.Operand, environment, context);
+                var operand = expression.Operand.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                     return JsValue.Undefined;
                 return operand.IsTruthy ? JsValue.False : JsValue.True;
@@ -117,7 +117,7 @@ public static partial class TypedAstEvaluator
                     expression.Operand,
                     environment,
                     context,
-                    static (e, env, ctx) => EvaluateExpression(e, env, ctx).ToObject());
+                    static (e, env, ctx) => e.EvaluateExpression(env, ctx).ToObject());
 
                 var refCurrentJsValue = reference.GetJsValue();
 
@@ -141,7 +141,7 @@ public static partial class TypedAstEvaluator
             }
             catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
             {
-                return HandleReferenceErrorUnary(ex, environment, context);
+                return UnaryExpression.HandleReferenceErrorUnary(ex, environment, context);
             }
         }
 
@@ -154,14 +154,14 @@ public static partial class TypedAstEvaluator
             switch (expression.Operator)
             {
                 case UnaryOperator.Delete:
-                    return EvaluateDelete(expression.Operand, environment, context) ? JsValue.True : JsValue.False;
+                    return expression.Operand.EvaluateDelete(environment, context) ? JsValue.True : JsValue.False;
 
                 case UnaryOperator.TypeOf:
                 {
                     if (expression.Operand is IdentifierExpression identifier)
                     {
                         var hasBinding = environment.HasBinding(identifier.Name);
-                        var operandValue = EvaluateExpression(expression.Operand, environment, context);
+                        var operandValue = expression.Operand.EvaluateExpression(environment, context);
 
                         if (context.IsThrow)
                         {
@@ -179,7 +179,7 @@ public static partial class TypedAstEvaluator
                         return new JsValue(GetTypeofStringValue(operandValue));
                     }
 
-                    var value = EvaluateExpression(expression.Operand, environment, context);
+                    var value = expression.Operand.EvaluateExpression(environment, context);
                     if (context.ShouldStopEvaluation)
                         return JsValue.Undefined;
 
@@ -187,7 +187,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            var operand = EvaluateExpression(expression.Operand, environment, context);
+            var operand = expression.Operand.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation)
                 return JsValue.Undefined;
 

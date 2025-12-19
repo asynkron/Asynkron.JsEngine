@@ -88,7 +88,7 @@ public static partial class TypedAstEvaluator
                 return placeholder;
             }
 
-            if (TryCreateSuperBindingFromThis(environment, context, out var synthesized))
+            if (environment.TryCreateSuperBindingFromThis(context, out var synthesized))
             {
                 environment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(synthesized), false, isLexical: true,
                     blocksFunctionScopeOverride: true);
@@ -184,7 +184,7 @@ public static partial class TypedAstEvaluator
             Exception? inner)
         {
             environment.RealmState?.Logger?.LogInformation("SuperBinding: reference error thisInit? {ThisInit}", context.IsThisInitialized);
-            var message = $"Super is not available in this context.{GetSourceInfo(context)}";
+            var message = $"Super is not available in this context.{context.GetSourceInfo()}";
             return StandardLibrary.ThrowReferenceError(message, context, context.RealmState);
         }
 

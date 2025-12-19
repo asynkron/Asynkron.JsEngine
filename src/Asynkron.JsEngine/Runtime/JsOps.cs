@@ -500,7 +500,7 @@ internal static class JsOps
                 return value;
             }
 
-            if (!IsNullish(toPrimitive) && toPrimitive is not IJsCallable)
+            if (!toPrimitive.IsNullish() && toPrimitive is not IJsCallable)
             {
                 throw StandardLibrary.ThrowTypeError("Cannot convert object to primitive value", context);
             }

@@ -18,7 +18,7 @@ public static partial class TypedAstEvaluator
                 return (null, null);
             }
 
-            var baseJsValue = EvaluateExpression(extendsExpression, environment, context);
+            var baseJsValue = extendsExpression.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return (null, null);
@@ -100,11 +100,11 @@ public static partial class TypedAstEvaluator
             {
                 // Explicit if statements generate less IL than switch expressions
                 LiteralExpression literal => literal.Value,
-                IdentifierExpression identifier => EvaluateIdentifier(identifier, environment, context),
-                BinaryExpression binary => EvaluateBinary(binary, environment, context),
-                AssignmentExpression assignment => EvaluateAssignment(assignment, environment, context),
-                UnaryExpression unary => EvaluateUnary(unary, environment, context),
-                CallExpression call => EvaluateCall(call, environment, context),
+                IdentifierExpression identifier => identifier.EvaluateIdentifier(environment, context),
+                BinaryExpression binary => binary.EvaluateBinary(environment, context),
+                AssignmentExpression assignment => assignment.EvaluateAssignment(environment, context),
+                UnaryExpression unary => unary.EvaluateUnary(environment, context),
+                CallExpression call => call.EvaluateCall(environment, context),
                 _ => expression.EvaluateExpressionSlow(environment, context)
             };
         }
@@ -120,13 +120,13 @@ public static partial class TypedAstEvaluator
             switch (expression)
             {
                 case UnaryExpression unary:
-                    return EvaluateUnary(unary, environment, context);
+                    return unary.EvaluateUnary(environment, context);
                 case AssignmentExpression assignment:
-                    return EvaluateAssignment(assignment, environment, context);
+                    return assignment.EvaluateAssignment(environment, context);
                 case MemberExpression member:
-                    return EvaluateMember(member, environment, context);
+                    return member.EvaluateMember(environment, context);
                 case CallExpression call:
-                    return EvaluateCall(call, environment, context);
+                    return call.EvaluateCall(environment, context);
             }
 
             // Slowest path - set source reference and optionally trace
@@ -134,33 +134,30 @@ public static partial class TypedAstEvaluator
 
             return expression switch
             {
-                RegexLiteralExpression regex => EvaluateRegexLiteral(regex, context),
-                ConditionalExpression conditional => EvaluateConditional(conditional, environment, context),
-                FunctionExpression functionExpression => JsValue.FromObjectUnsafe(CreateFunctionValue(functionExpression, environment, context,
+                RegexLiteralExpression regex => regex.EvaluateRegexLiteral(context),
+                ConditionalExpression conditional => conditional.EvaluateConditional(environment, context),
+                FunctionExpression functionExpression => JsValue.FromObjectUnsafe(functionExpression.CreateFunctionValue(environment, context,
                     createFunctionNameEnvironment: true)),
-                DestructuringAssignmentExpression destructuringAssignment =>
-                    EvaluateDestructuringAssignment(destructuringAssignment, environment, context),
-                PropertyAssignmentExpression propertyAssignment =>
-                    EvaluatePropertyAssignment(propertyAssignment, environment, context),
-                IndexAssignmentExpression indexAssignment =>
-                    EvaluateIndexAssignment(indexAssignment, environment, context),
-                SequenceExpression sequence => EvaluateSequence(sequence, environment, context),
-                NewExpression newExpression => EvaluateNew(newExpression, environment, context),
+                DestructuringAssignmentExpression destructuringAssignment => destructuringAssignment.EvaluateDestructuringAssignment(environment, context),
+                PropertyAssignmentExpression propertyAssignment => propertyAssignment.EvaluatePropertyAssignment(environment, context),
+                IndexAssignmentExpression indexAssignment => indexAssignment.EvaluateIndexAssignment(environment, context),
+                SequenceExpression sequence => sequence.EvaluateSequence(environment, context),
+                NewExpression newExpression => newExpression.EvaluateNew(environment, context),
                 NewTargetExpression => environment.TryGet(Symbol.NewTarget, out var newTarget)
                     ? JsValue.FromObjectUnsafe(newTarget)
                     : JsValue.Undefined,
                 ImportMetaExpression => EvaluateImportMeta(environment, context),
-                ArrayExpression array => EvaluateArray(array, environment, context),
-                ObjectExpression obj => EvaluateObject(obj, environment, context),
-                ClassExpression classExpression => EvaluateClassExpression(classExpression, environment, context),
+                ArrayExpression array => array.EvaluateArray(environment, context),
+                ObjectExpression obj => obj.EvaluateObject(environment, context),
+                ClassExpression classExpression => classExpression.EvaluateClassExpression(environment, context),
                 DecoratorExpression => throw new NotSupportedException("Decorators are not supported."),
-                TemplateLiteralExpression template => EvaluateTemplateLiteral(template, environment, context),
-                TaggedTemplateExpression taggedTemplate => EvaluateTaggedTemplate(taggedTemplate, environment, context),
-                AwaitExpression awaitExpression => EvaluateAwait(awaitExpression, environment, context),
-                YieldExpression yieldExpression => EvaluateYield(yieldExpression, environment, context),
+                TemplateLiteralExpression template => template.EvaluateTemplateLiteral(environment, context),
+                TaggedTemplateExpression taggedTemplate => taggedTemplate.EvaluateTaggedTemplate(environment, context),
+                AwaitExpression awaitExpression => awaitExpression.EvaluateAwait(environment, context),
+                YieldExpression yieldExpression => yieldExpression.EvaluateYield(environment, context),
                 ThisExpression => ResolveThisValue(environment, context),
                 SuperExpression => throw new InvalidOperationException(
-                    $"Super is not available in this context.{GetSourceInfo(context, expression.Source)}"),
+                    $"Super is not available in this context.{context.GetSourceInfo(expression.Source)}"),
                 _ => throw new NotSupportedException(
                     $"Typed evaluator does not yet support '{expression.GetType().Name}'.")
             };
@@ -171,14 +168,13 @@ public static partial class TypedAstEvaluator
             return expression switch
             {
                 IdentifierExpression id => id.Name.Name,
-                MemberExpression member => $"{DescribeCallee(member.Target)}.{DescribeMemberName(member.Property)}",
-                CallExpression call => $"{DescribeCallee(call.Callee)}(...)",
+                MemberExpression member => $"{member.Target.DescribeCallee()}.{member.Property.DescribeMemberName()}",
+                CallExpression call => $"{call.Callee.DescribeCallee()}(...)",
                 _ => expression.GetType().Name
             };
         }
 
-        private bool IsAnonymousFunctionDefinition() =>
-            IsAnonymousFunctionDefinitionNode(expression);
+        private bool IsAnonymousFunctionDefinition() => ExpressionNode.IsAnonymousFunctionDefinitionNode(expression);
 
         internal static bool IsAnonymousFunctionDefinitionNode(ExpressionNode node)
         {
@@ -206,14 +202,14 @@ public static partial class TypedAstEvaluator
                     case CallExpression { IsOptional: false, Callee: IdentifierExpression { Name.Name: "eval" } }:
                         return true;
                     case CallExpression call:
-                        if (ContainsDirectEvalCall(call.Callee))
+                        if (call.Callee.ContainsDirectEvalCall())
                         {
                             return true;
                         }
 
                         foreach (var arg in call.Arguments)
                         {
-                            if (ContainsDirectEvalCall(arg.Expression))
+                            if (arg.Expression.ContainsDirectEvalCall())
                             {
                                 return true;
                             }
@@ -221,21 +217,20 @@ public static partial class TypedAstEvaluator
 
                         return false;
                     case BinaryExpression binary:
-                        return ContainsDirectEvalCall(binary.Left) || ContainsDirectEvalCall(binary.Right);
+                        return binary.Left.ContainsDirectEvalCall() || binary.Right.ContainsDirectEvalCall();
                     case ConditionalExpression cond:
-                        return ContainsDirectEvalCall(cond.Test) || ContainsDirectEvalCall(cond.Consequent) ||
-                               ContainsDirectEvalCall(cond.Alternate);
+                        return cond.Test.ContainsDirectEvalCall() || cond.Consequent.ContainsDirectEvalCall() || cond.Alternate.ContainsDirectEvalCall();
                     case MemberExpression member:
-                        return ContainsDirectEvalCall(member.Target) || ContainsDirectEvalCall(member.Property);
+                        return member.Target.ContainsDirectEvalCall() || member.Property.ContainsDirectEvalCall();
                     case UnaryExpression unary:
                         expression = unary.Operand;
                         continue;
                     case SequenceExpression seq:
-                        return ContainsDirectEvalCall(seq.Left) || ContainsDirectEvalCall(seq.Right);
+                        return seq.Left.ContainsDirectEvalCall() || seq.Right.ContainsDirectEvalCall();
                     case ArrayExpression array:
                         foreach (var element in array.Elements)
                         {
-                            if (element.Expression is not null && ContainsDirectEvalCall(element.Expression))
+                            if (element.Expression is not null && element.Expression.ContainsDirectEvalCall())
                             {
                                 return true;
                             }
@@ -245,12 +240,12 @@ public static partial class TypedAstEvaluator
                     case ObjectExpression obj:
                         foreach (var member in obj.Members)
                         {
-                            if (member.Value is not null && ContainsDirectEvalCall(member.Value))
+                            if (member.Value is not null && member.Value.ContainsDirectEvalCall())
                             {
                                 return true;
                             }
 
-                            if (member.Function is not null && ContainsDirectEvalCall(member.Function))
+                            if (member.Function is not null && member.Function.ContainsDirectEvalCall())
                             {
                                 return true;
                             }
@@ -260,7 +255,7 @@ public static partial class TypedAstEvaluator
                     case TemplateLiteralExpression template:
                         foreach (var part in template.Parts)
                         {
-                            if (part.Expression is not null && ContainsDirectEvalCall(part.Expression))
+                            if (part.Expression is not null && part.Expression.ContainsDirectEvalCall())
                             {
                                 return true;
                             }
@@ -268,15 +263,14 @@ public static partial class TypedAstEvaluator
 
                         return false;
                     case TaggedTemplateExpression tagged:
-                        if (ContainsDirectEvalCall(tagged.Tag) || ContainsDirectEvalCall(tagged.StringsArray) ||
-                            ContainsDirectEvalCall(tagged.RawStringsArray))
+                        if (tagged.Tag.ContainsDirectEvalCall() || tagged.StringsArray.ContainsDirectEvalCall() || tagged.RawStringsArray.ContainsDirectEvalCall())
                         {
                             return true;
                         }
 
                         foreach (var expr in tagged.Expressions)
                         {
-                            if (ContainsDirectEvalCall(expr))
+                            if (expr.ContainsDirectEvalCall())
                             {
                                 return true;
                             }
@@ -307,7 +301,7 @@ public static partial class TypedAstEvaluator
                     environment.GetHashCode(),
                     environment.HasBinding(Symbol.ThisInitialized),
                     environment.HasBinding(Symbol.Super));
-                var binding = ExpectSuperBinding(environment, context);
+                var binding = environment.ExpectSuperBinding(context);
 
                 // Per ES spec 12.3.5.1 SuperCall, the super constructor should be looked up
                 // dynamically via GetSuperConstructor() which gets activeFunction.[[Prototype]].
@@ -332,7 +326,7 @@ public static partial class TypedAstEvaluator
                 if (dynamicSuperConstructor is null)
                 {
                     throw new InvalidOperationException(
-                        $"Super constructor is not available in this context.{GetSourceInfo(context, superExpression.Source)}");
+                        $"Super constructor is not available in this context.{context.GetSourceInfo(superExpression.Source)}");
                 }
 
                 var superThis = ReferenceEquals(binding.thisValue, JsEnvironment.Uninitialized)
@@ -345,7 +339,7 @@ public static partial class TypedAstEvaluator
             {
                 if (member.Target is SuperExpression)
                 {
-                    var (memberValue, binding) = ResolveSuperMember(member, environment, context);
+                    var (memberValue, binding) = member.ResolveSuperMember(environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return (JsValue.Undefined, binding.thisValue, true);
@@ -354,7 +348,7 @@ public static partial class TypedAstEvaluator
                     return (memberValue, binding.thisValue, false);
                 }
 
-                var targetJs = EvaluateExpression(member.Target, environment, context);
+                var targetJs = member.Target.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return (JsValue.Undefined, JsValue.Undefined, true);
@@ -384,7 +378,7 @@ public static partial class TypedAstEvaluator
                 string propertyName;
                 if (member.IsComputed)
                 {
-                    var propertyJs = EvaluateExpression(member.Property, environment, context);
+                    var propertyJs = member.Property.EvaluateExpression(environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return (JsValue.Undefined, JsValue.Undefined, true);
@@ -402,7 +396,7 @@ public static partial class TypedAstEvaluator
                     {
                         IdentifierExpression id => id.Name.Name,
                         LiteralExpression { Value.IsString: true } lit => lit.Value.AsString()!,
-                        _ => JsOps.GetRequiredPropertyName(EvaluateExpression(member.Property, environment, context).ToObject(),
+                        _ => JsOps.GetRequiredPropertyName(member.Property.EvaluateExpression(environment, context).ToObject(),
                             context)
                     };
                 }
@@ -484,7 +478,7 @@ public static partial class TypedAstEvaluator
                 return (JsValue.FromObjectUnsafe(calleeValue), JsValue.Undefined, false);
             }
 
-            var directCallee = EvaluateExpression(callee, environment, context);
+            var directCallee = callee.EvaluateExpression(environment, context);
             return (directCallee, JsValue.Undefined, false);
         }
     }
@@ -505,13 +499,13 @@ public static partial class TypedAstEvaluator
                             context.RealmState);
                     }
 
-                    var targetJs = EvaluateExpression(member.Target, environment, context);
+                    var targetJs = member.Target.EvaluateExpression(environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return false;
                     }
 
-                    var propertyValueJs = EvaluateExpression(member.Property, environment, context);
+                    var propertyValueJs = member.Property.EvaluateExpression(environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return false;
@@ -536,7 +530,7 @@ public static partial class TypedAstEvaluator
                     return outcome is DeleteBindingResult.Deleted or DeleteBindingResult.NotFound;
                 }
                 default:
-                    _ = EvaluateExpression(operand, environment, context);
+                    _ = operand.EvaluateExpression(environment, context);
                     return true;
             }
         }

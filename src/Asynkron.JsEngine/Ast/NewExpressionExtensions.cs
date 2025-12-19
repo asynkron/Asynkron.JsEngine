@@ -13,7 +13,7 @@ public static partial class TypedAstEvaluator
         private JsValue EvaluateNew(JsEnvironment environment, EvaluationContext context)
         {
             var realm = context.RealmState;
-            var constructorJsValue = EvaluateExpression(expression.Constructor, environment, context);
+            var constructorJsValue = expression.Constructor.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
@@ -43,7 +43,7 @@ public static partial class TypedAstEvaluator
                     var argsArray = new JsValue[expression.Arguments.Length];
                     for (var i = 0; i < expression.Arguments.Length; i++)
                     {
-                        argsArray[i] = EvaluateExpression(expression.Arguments[i].Expression, environment, context);
+                        argsArray[i] = expression.Arguments[i].Expression.EvaluateExpression(environment, context);
                         if (context.ShouldStopEvaluation)
                         {
                             return JsValue.Undefined;
@@ -60,7 +60,7 @@ public static partial class TypedAstEvaluator
                 {
                     if (argument.IsSpread)
                     {
-                        var spreadValueJs = EvaluateExpression(argument.Expression, environment, context);
+                        var spreadValueJs = argument.Expression.EvaluateExpression(environment, context);
                         if (context.ShouldStopEvaluation)
                         {
                             return JsValue.Undefined;
@@ -79,7 +79,7 @@ public static partial class TypedAstEvaluator
                         continue;
                     }
 
-                    argsBuilder.Add(EvaluateExpression(argument.Expression, environment, context));
+                    argsBuilder.Add(argument.Expression.EvaluateExpression(environment, context));
                     if (context.ShouldStopEvaluation)
                     {
                         return JsValue.Undefined;

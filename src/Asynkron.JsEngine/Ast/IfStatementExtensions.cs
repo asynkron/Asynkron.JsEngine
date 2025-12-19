@@ -13,7 +13,7 @@ public static partial class TypedAstEvaluator
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue EvaluateIfJsValue(JsEnvironment environment, EvaluationContext context)
         {
-            var test = EvaluateExpression(statement.Condition, environment, context);
+            var test = statement.Condition.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
@@ -28,14 +28,14 @@ public static partial class TypedAstEvaluator
             JsValue result;
             if (branch is BlockStatement block)
             {
-                result = EvaluateBlockJsValue(block, environment, context);
+                result = block.EvaluateBlockJsValue(environment, context);
             }
             else
             {
                 // For simple statements that don't introduce new bindings (return, throw, expression, etc.),
                 // we can reuse the parent environment instead of creating a new one.
                 // Only block statements with let/const need their own lexical environment.
-                result = EvaluateStatementJsValue(branch, environment, context);
+                result = branch.EvaluateStatementJsValue(environment, context);
             }
 
             // Per ECMAScript spec 14.6.2 (Runtime Semantics: Evaluation):

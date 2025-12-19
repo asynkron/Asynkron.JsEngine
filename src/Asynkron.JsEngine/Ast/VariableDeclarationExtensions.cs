@@ -11,7 +11,7 @@ public static partial class TypedAstEvaluator
         {
             foreach (var declarator in declaration.Declarators)
             {
-                EvaluateVariableDeclarator(declaration.Kind, declarator, environment, context);
+                declaration.Kind.EvaluateVariableDeclarator(declarator, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     break;

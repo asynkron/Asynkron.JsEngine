@@ -9,15 +9,15 @@ public static partial class TypedAstEvaluator
         private JsValue EvaluateConditional(JsEnvironment environment,
             EvaluationContext context)
         {
-            var test = EvaluateExpression(expression.Test, environment, context);
+            var test = expression.Test.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
             }
 
             return test.IsTruthy
-                ? EvaluateExpression(expression.Consequent, environment, context)
-                : EvaluateExpression(expression.Alternate, environment, context);
+                ? expression.Consequent.EvaluateExpression(environment, context)
+                : expression.Alternate.EvaluateExpression(environment, context);
         }
     }
 }

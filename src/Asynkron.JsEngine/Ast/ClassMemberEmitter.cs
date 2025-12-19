@@ -18,11 +18,11 @@ internal static class ClassMemberEmitter
             }
             if (member.Kind == ClassMemberKind.Method)
             {
-                DefineMethod(member, propertyName, callable, constructorAccessor, prototype);
+                member.DefineMethod(propertyName, callable, constructorAccessor, prototype);
                 return;
             }
 
-            DefineAccessor(member, propertyName, callable, constructorAccessor, prototype);
+            member.DefineAccessor(propertyName, callable, constructorAccessor, prototype);
         }
 
         private void DefineMethod(string propertyName,

@@ -19,7 +19,7 @@ internal static class JsValueExtensions
         return arr.Items.Count switch
         {
             0 => 0,
-            1 => ToNumber(arr.Items[0]),
+            1 => arr.Items[0].ToNumber(),
             _ => double.NaN
         };
     }
@@ -72,10 +72,10 @@ internal static class JsValueExtensions
                 Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a number"),
                 JsArray arr => ArrayToNumber(arr),
                 JsObject obj => obj.TryGetProperty("__value__", out var inner)
-                    ? ToNumber(inner)
+                    ? inner.ToNumber()
                     : double.NaN,
                 IJsPropertyAccessor accessor => accessor.TryGetProperty("__value__", out var inner)
-                    ? ToNumber(inner)
+                    ? inner.ToNumber()
                     : double.NaN,
                 _ => throw new InvalidOperationException($"Cannot convert value '{value}' to a number.")
             };

@@ -8,7 +8,7 @@ public static partial class TypedAstEvaluator
     {
         private JsValue EvaluateThrowJsValue(JsEnvironment environment, EvaluationContext context)
         {
-            var jsValue = EvaluateExpression(statement.Expression, environment, context);
+            var jsValue = statement.Expression.EvaluateExpression(environment, context);
             // If evaluating the throw expression itself caused an abrupt completion
             // (e.g., ReferenceError from accessing undefined variable), propagate that
             // instead of overwriting with the expression result.

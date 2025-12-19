@@ -14,7 +14,7 @@ public static partial class TypedAstEvaluator
             var thisArg = JsValue.Undefined;
             if (callArguments.Length > 0)
             {
-                thisArg = EvaluateExpression(callArguments[0].Expression, environment, context);
+                thisArg = callArguments[0].Expression.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return Symbol.Undefined;
@@ -24,7 +24,7 @@ public static partial class TypedAstEvaluator
             var argsBuilder = ImmutableArray.CreateBuilder<JsValue>();
             if (callArguments.Length > 1)
             {
-                var argsArrayJs = EvaluateExpression(callArguments[1].Expression, environment, context);
+                var argsArrayJs = callArguments[1].Expression.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return Symbol.Undefined;
@@ -64,7 +64,7 @@ public static partial class TypedAstEvaluator
 
             for (var i = 0; i < callArguments.Length; i++)
             {
-                var argValue = EvaluateExpression(callArguments[i].Expression, environment, context);
+                var argValue = callArguments[i].Expression.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return Symbol.Undefined;

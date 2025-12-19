@@ -18,16 +18,16 @@ public static partial class TypedAstEvaluator
                 // to ensure ReferenceError is thrown if this is uninitialized before any side effects occur
                 if (!context.IsThisInitialized)
                 {
-                    throw CreateSuperReferenceError(environment, context, null);
+                    throw environment.CreateSuperReferenceError(context, null);
                 }
 
-                var superIndexJs = EvaluateExpression(expression.Index, environment, context);
+                var superIndexJs = expression.Index.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return JsValue.Undefined;
                 }
 
-                var superAssignedValueJs = EvaluateExpression(expression.Value, environment, context);
+                var superAssignedValueJs = expression.Value.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return superAssignedValueJs;
@@ -46,14 +46,14 @@ public static partial class TypedAstEvaluator
                     return JsValue.Undefined;
                 }
 
-                var binding = ExpectSuperBinding(environment, context);
+                var binding = environment.ExpectSuperBinding(context);
                 environment.RealmState?.Logger?.LogInformation(
                     "SuperBinding: assign super index protoNull={ProtoNull} thisInit={ThisInit}",
                     binding.Prototype is null,
                     binding.IsThisInitialized);
                 if (!binding.IsThisInitialized)
                 {
-                    throw CreateSuperReferenceError(environment, context, null);
+                    throw environment.CreateSuperReferenceError(context, null);
                 }
 
                 if (binding.Prototype is null)
@@ -77,13 +77,13 @@ public static partial class TypedAstEvaluator
                 return JsValue.FromObjectUnsafe(superAssignedValue);
             }
 
-            var targetJs = EvaluateExpression(expression.Target, environment, context);
+            var targetJs = expression.Target.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
             }
 
-            var indexJs = EvaluateExpression(expression.Index, environment, context);
+            var indexJs = expression.Index.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
@@ -125,7 +125,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            var assignedValueJs = EvaluateExpression(expression.Value, environment, context);
+            var assignedValueJs = expression.Value.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return assignedValueJs;

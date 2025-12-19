@@ -111,7 +111,7 @@ public static partial class TypedAstEvaluator
             logger?.LogInformation("TryGetIteratorFromProtocols keys={Keys}", keysPreview);
         }
 
-        if (TryInvokeSymbolMethod(accessor, iterable, Symbols.AsyncIterator, context, out var asyncIterator))
+        if (accessor.TryInvokeSymbolMethod(iterable, Symbols.AsyncIterator, context, out var asyncIterator))
         {
             logger?.LogInformation("TryGetIteratorFromProtocols asyncIterator invoked stop={Stop} type={IterType}",
                 context.ShouldStopEvaluation,
@@ -132,7 +132,7 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        if (TryInvokeSymbolMethod(accessor, iterable, Symbols.Iterator, context, out var iteratorValue))
+        if (accessor.TryInvokeSymbolMethod(iterable, Symbols.Iterator, context, out var iteratorValue))
         {
             logger?.LogInformation("TryGetIteratorFromProtocols iterator invoked stop={Stop} type={IterType}",
                 context.ShouldStopEvaluation,
@@ -470,7 +470,7 @@ public static partial class TypedAstEvaluator
                 {
                     if (iterator is not null)
                     {
-                        IteratorClose(iterator, context);
+                        iterator.IteratorClose(context);
                     }
 
                     throw new ThrowSignal(context.FlowValue);
@@ -497,7 +497,7 @@ public static partial class TypedAstEvaluator
         {
             if (iterator is not null && context.IsThrow)
             {
-                IteratorClose(iterator, context);
+                iterator.IteratorClose(context);
             }
 
             enumerator?.Dispose();

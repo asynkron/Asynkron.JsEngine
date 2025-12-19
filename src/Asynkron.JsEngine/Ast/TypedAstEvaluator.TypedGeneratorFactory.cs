@@ -577,7 +577,7 @@ public static partial class TypedAstEvaluator
                     });
             }
 
-            var paramCount = GetExpectedParameterCount(_function.Parameters);
+            var paramCount = _function.Parameters.GetExpectedParameterCount();
             _properties.DefineProperty("length",
                 new PropertyDescriptor
                 {

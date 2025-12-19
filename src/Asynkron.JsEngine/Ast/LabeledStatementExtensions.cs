@@ -15,7 +15,7 @@ public static partial class TypedAstEvaluator
             context.PushLabel(statement.Label);
             try
             {
-                var result = EvaluateStatementJsValue(statement.Statement, environment, context, statement.Label);
+                var result = statement.Statement.EvaluateStatementJsValue(environment, context, statement.Label);
 
                 // Per ES spec 13.13.14: If stmtResult.[[Type]] is break and the label matches,
                 // return NormalCompletion(stmtResult.[[Value]]) - i.e., the completion value

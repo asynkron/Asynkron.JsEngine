@@ -149,7 +149,7 @@ public static partial class TypedAstEvaluator
                 // and restore the original completion.
                 if (preserveExistingThrow)
                 {
-                    RestoreSignal(context, savedSignal);
+                    context.RestoreSignal(savedSignal);
                     return;
                 }
                 throw;
@@ -159,7 +159,7 @@ public static partial class TypedAstEvaluator
             {
                 if (preserveExistingThrow)
                 {
-                    RestoreSignal(context, savedSignal);
+                    context.RestoreSignal(savedSignal);
                 }
 
                 return;
@@ -174,7 +174,7 @@ public static partial class TypedAstEvaluator
                         preserveExistingThrow);
                     if (preserveExistingThrow)
                     {
-                        RestoreSignal(context, savedSignal);
+                        context.RestoreSignal(savedSignal);
                         return;
                     }
 
@@ -202,7 +202,7 @@ public static partial class TypedAstEvaluator
                     preserveExistingThrow);
                 if (preserveExistingThrow)
                 {
-                    RestoreSignal(context, savedSignal);
+                    context.RestoreSignal(savedSignal);
                     return;
                 }
 
@@ -211,7 +211,7 @@ public static partial class TypedAstEvaluator
 
             if (preserveExistingThrow)
             {
-                RestoreSignal(context, savedSignal);
+                context.RestoreSignal(savedSignal);
             }
 
             context.RealmState.Logger?.LogInformation(

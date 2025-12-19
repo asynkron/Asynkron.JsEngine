@@ -22,7 +22,7 @@ public static partial class TypedAstEvaluator
                 values[i] = arguments[i];
             }
 
-            var mapped = !isStrict && IsSimpleParameterList(function);
+            var mapped = !isStrict && function.IsSimpleParameterList();
             var mappedParameters = new Symbol?[arguments.Count];
             if (mapped)
             {
@@ -78,7 +78,7 @@ public static partial class TypedAstEvaluator
 
                 if (parameter.Pattern is not null)
                 {
-                    WalkBindingTargets(parameter.Pattern, id => names.Add(id.Name));
+                    parameter.Pattern.WalkBindingTargets(id => names.Add(id.Name));
                 }
             }
         }
@@ -116,7 +116,7 @@ public static partial class TypedAstEvaluator
 
                     if (parameter.Pattern is not null)
                     {
-                        ApplyBindingTarget(parameter.Pattern, restArray, environment, context,
+                        parameter.Pattern.ApplyBindingTarget(restArray, environment, context,
                             BindingMode.DefineParameter);
                         if (context.ShouldStopEvaluation)
                         {
@@ -150,7 +150,7 @@ public static partial class TypedAstEvaluator
                         return;
                     }
 
-                    value = EvaluateExpression(parameter.DefaultValue, environment, context).ToObject();
+                    value = parameter.DefaultValue.EvaluateExpression(environment, context).ToObject();
                     if (context.ShouldStopEvaluation)
                     {
                         return;
@@ -159,7 +159,7 @@ public static partial class TypedAstEvaluator
 
                 if (parameter.Pattern is not null)
                 {
-                    ApplyBindingTarget(parameter.Pattern, value, environment, context, BindingMode.DefineParameter);
+                    parameter.Pattern.ApplyBindingTarget(value, environment, context, BindingMode.DefineParameter);
                     if (context.ShouldStopEvaluation)
                     {
                         return;

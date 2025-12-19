@@ -195,16 +195,16 @@ public static partial class TypedAstEvaluator
                 ? $"function* {name.Name}"
                 : "generator function";
 
-            var hasParameterExpressions = HasParameterExpressions(_function);
-            var lexicalNamesRaw = CollectLexicalNames(_function.Body);
+            var hasParameterExpressions = _function.HasParameterExpressions();
+            var lexicalNamesRaw = _function.Body.CollectLexicalNames();
             var lexicalNames = lexicalNamesRaw.Count == 0
                 ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
                 : new HashSet<Symbol>(lexicalNamesRaw, ReferenceEqualityComparer<Symbol>.Instance);
-            var catchParameterNamesRaw = CollectCatchParameterNames(_function.Body);
+            var catchParameterNamesRaw = _function.Body.CollectCatchParameterNames();
             var catchParameterNames = catchParameterNamesRaw.Count == 0
                 ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
                 : new HashSet<Symbol>(catchParameterNamesRaw, ReferenceEqualityComparer<Symbol>.Instance);
-            var simpleCatchParameterNamesRaw = CollectSimpleCatchParameterNames(_function.Body);
+            var simpleCatchParameterNamesRaw = _function.Body.CollectSimpleCatchParameterNames();
             var simpleCatchParameterNames = simpleCatchParameterNamesRaw.Count == 0
                 ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
                 : new HashSet<Symbol>(simpleCatchParameterNamesRaw, ReferenceEqualityComparer<Symbol>.Instance);
@@ -214,7 +214,7 @@ public static partial class TypedAstEvaluator
             bodyLexicalNames.ExceptWith(simpleCatchParameterNames);
 
             var parameterNames = new List<Symbol>();
-            CollectParameterNamesFromFunction(_function, parameterNames);
+            _function.CollectParameterNamesFromFunction(parameterNames);
             var blockedFunctionVarNames = bodyLexicalNames.Count == 0
                 ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
                 : new HashSet<Symbol>(bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
@@ -303,8 +303,7 @@ public static partial class TypedAstEvaluator
                 argumentValues[i] = _arguments[i].ToObject();
             }
 
-            var argumentsObject =
-                CreateArgumentsObject(_function, argumentValues, parameterEnvironment, _realmState, _callable,
+            var argumentsObject = _function.CreateArgumentsObject(argumentValues, parameterEnvironment, _realmState, _callable,
                     _isStrict);
             parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject), isLexical: false);
             if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
@@ -317,12 +316,12 @@ public static partial class TypedAstEvaluator
                 parameterEnvironment.DefineJsValue(functionName, JsValue.FromObjectUnsafe(_callable), isConst: true, isLexical: true, blocksFunctionScopeOverride: true);
             }
 
-            HoistVarDeclarations(_function.Body, executionEnvironment, generatorContext,
+            _function.Body.HoistVarDeclarations(executionEnvironment, generatorContext,
                 lexicalNames: lexicalNames,
                 catchParameterNames: catchParameterNames,
                 simpleCatchParameterNames: simpleCatchParameterNames);
 
-            BindFunctionParameters(_function, argumentValues, parameterEnvironment, generatorContext);
+            _function.BindFunctionParameters(argumentValues, parameterEnvironment, generatorContext);
             if (generatorContext.IsThrow)
             {
                 var thrown = generatorContext.FlowValue;
@@ -503,7 +502,7 @@ public static partial class TypedAstEvaluator
                     switch (instruction)
                     {
                         case StatementInstruction statementInstruction:
-                            _ = EvaluateStatementJsValue(statementInstruction.Statement, environment, context);
+                            _ = statementInstruction.Statement.EvaluateStatementJsValue(environment, context);
                             if (context.IsThrow)
                             {
                                 var thrown = context.FlowValue;
@@ -549,7 +548,7 @@ public static partial class TypedAstEvaluator
                             var yieldedDuringOperand = false;
                             if (yieldInstruction.YieldExpression is not null)
                             {
-                                yieldedValue = EvaluateExpression(yieldInstruction.YieldExpression, environment,
+                                yieldedValue = yieldInstruction.YieldExpression.EvaluateExpression(environment,
                                     context);
                                 if (context.IsThrow)
                                 {
@@ -636,8 +635,7 @@ public static partial class TypedAstEvaluator
                             if (yieldStarState.State is null)
                             {
                                 _realmState.Logger?.LogInformation("YieldStar: Creating new DelegatedState");
-                                var yieldStarIterable =
-                                    EvaluateExpression(yieldStarInstruction.IterableExpression, environment, context).ToObject();
+                                var yieldStarIterable = yieldStarInstruction.IterableExpression.EvaluateExpression(environment, context).ToObject();
                                 if (context.IsThrow)
                                 {
                                     var thrown = context.FlowValue;
@@ -942,8 +940,7 @@ public static partial class TypedAstEvaluator
                             throw new ThrowSignal(throwJs);
 
                         case IteratorInitInstruction iteratorInitInstruction:
-                            var iterableValue = EvaluateExpression(iteratorInitInstruction.IterableExpression,
-                                environment, context);
+                            var iterableValue = iteratorInitInstruction.IterableExpression.EvaluateExpression(environment, context);
                             if (context.IsThrow)
                             {
                                 var initThrown = context.FlowValue;
@@ -1233,7 +1230,7 @@ public static partial class TypedAstEvaluator
                             continue;
 
                         case BranchInstruction branchInstruction:
-                            var testValue = EvaluateExpression(branchInstruction.Condition, environment, context);
+                            var testValue = branchInstruction.Condition.EvaluateExpression(environment, context);
                             if (context.IsThrow)
                             {
                                 var thrownBranch = context.FlowValue;
@@ -1274,7 +1271,7 @@ public static partial class TypedAstEvaluator
                         case ReturnInstruction returnInstruction:
                             var returnValue = returnInstruction.ReturnExpression is null
                                 ? JsValue.Undefined
-                                : EvaluateExpression(returnInstruction.ReturnExpression, environment, context);
+                                : returnInstruction.ReturnExpression.EvaluateExpression(environment, context);
                             if (context.IsThrow)
                             {
                                 var pendingThrow = context.FlowValue;
@@ -1308,7 +1305,7 @@ public static partial class TypedAstEvaluator
 
                         case EnterWithInstruction enterWithInstruction:
                         {
-                            var objValue = EvaluateExpression(enterWithInstruction.ObjectExpression, environment, context).ToObject();
+                            var objValue = enterWithInstruction.ObjectExpression.EvaluateExpression(environment, context).ToObject();
                             if (context.IsThrow)
                             {
                                 var thrownWith = context.FlowValue;
@@ -1541,7 +1538,7 @@ public static partial class TypedAstEvaluator
 
             // Async-aware mode: use per-site await state so we don't re-run
             // side-effecting expressions after the promise has resolved.
-            var awaitKey = GetAwaitStateKey(expression);
+            var awaitKey = expression.GetAwaitStateKey();
             if (awaitKey is not null &&
                 environment.TryGet(awaitKey, out var stateObj) &&
                 stateObj is AwaitState { HasResult: true } state)
@@ -1565,7 +1562,7 @@ public static partial class TypedAstEvaluator
             }
 
             // Keep as JsValue to avoid boxing round trips
-            var awaitedValue = EvaluateExpression(expression.Expression, environment, context);
+            var awaitedValue = expression.Expression.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return awaitedValue;

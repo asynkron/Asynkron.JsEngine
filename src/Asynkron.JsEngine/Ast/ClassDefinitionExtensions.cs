@@ -19,27 +19,26 @@ public static partial class TypedAstEvaluator
                 className,
                 definition.Source);
 
-            var (superConstructor, superPrototype) = ResolveSuperclass(definition.Extends, evaluationEnvironment, context);
+            var (superConstructor, superPrototype) = definition.Extends.ResolveSuperclass(evaluationEnvironment, context);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
             }
 
-            var privateNameScope = CreatePrivateNameScope(definition);
+            var privateNameScope = definition.CreatePrivateNameScope();
             context.RealmState.Logger?.LogInformation(
                 "Class evaluation start: name='{Name}', fields={FieldCount}, staticElements={StaticCount}, envStrict={EnvStrict}",
                 className?.Name ?? "<anonymous>",
                 definition.Fields.Length,
                 definition.StaticElements.Length,
                 evaluationEnvironment.IsStrict);
-            var resolvedFields =
-                ResolveFieldNames(definition.Fields, evaluationEnvironment, context, privateNameScope);
+            var resolvedFields = ClassDefinition.ResolveFieldNames(definition.Fields, evaluationEnvironment, context, privateNameScope);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
             }
 
-            var constructorJsValue = EvaluateExpression(definition.Constructor, evaluationEnvironment, context);
+            var constructorJsValue = definition.Constructor.EvaluateExpression(evaluationEnvironment, context);
             if (context.ShouldStopEvaluation)
             {
                 return Symbol.Undefined;
@@ -52,7 +51,7 @@ public static partial class TypedAstEvaluator
             }
 
             var realm = context.RealmState;
-            var prototype = EnsurePrototype(constructorAccessor, realm);
+            var prototype = constructorAccessor.EnsurePrototype(realm);
             if (definition.Extends is not null)
             {
                 prototype.SetPrototype(superPrototype);
@@ -71,8 +70,7 @@ public static partial class TypedAstEvaluator
             {
                 typedFunction.SetSuperBinding(superConstructor, superPrototype);
                 var instanceFields = resolvedFields.Where(field => !field.IsStatic).ToImmutableArray();
-                var resolvedInstanceFields =
-                    ResolveInstanceFieldNames(instanceFields, evaluationEnvironment, context, privateNameScope);
+                var resolvedInstanceFields = ClassDefinition.ResolveInstanceFieldNames(instanceFields, evaluationEnvironment, context, privateNameScope);
                 if (context.ShouldStopEvaluation)
                 {
                     return Symbol.Undefined;
@@ -123,7 +121,7 @@ public static partial class TypedAstEvaluator
                 });
             }
 
-            AssignClassMembers(definition.Members, constructorAccessor, prototype, superConstructor, superPrototype,
+            definition.Members.AssignClassMembers(constructorAccessor, prototype, superConstructor, superPrototype,
                 evaluationEnvironment, context, privateNameScope);
             if (context.ShouldStopEvaluation)
             {
@@ -177,7 +175,7 @@ public static partial class TypedAstEvaluator
             foreach (var field in fields)
             {
                 var propertyName = field.Name;
-                if (!field.TryResolveFieldName(expr => EvaluateExpression(expr, environment, context).ToObject(),
+                if (!field.TryResolveFieldName(expr => expr.EvaluateExpression(environment, context).ToObject(),
                         context,
                         privateNameScope,
                         out propertyName))
@@ -300,6 +298,6 @@ public static partial class TypedAstEvaluator
     {
         using var privateScope = privateScopeFactory?.Invoke();
         var blockEnvironment = CreateStaticInitializationEnvironment(constructorAccessor, environment, out _);
-        _ = EvaluateStatementJsValue(block.Body, blockEnvironment, context);
+        _ = block.Body.EvaluateStatementJsValue(blockEnvironment, context);
     }
 }

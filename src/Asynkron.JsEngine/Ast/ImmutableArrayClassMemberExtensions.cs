@@ -15,7 +15,7 @@ public static partial class TypedAstEvaluator
         {
             foreach (var member in members)
             {
-                if (!member.TryResolveMemberName(expr => EvaluateExpression(expr, environment, context).ToObject(),
+                if (!member.TryResolveMemberName(expr => expr.EvaluateExpression(environment, context).ToObject(),
                         context,
                         privateNameScope,
                         out var propertyName))
@@ -35,9 +35,9 @@ public static partial class TypedAstEvaluator
                 var baseDisplayName = member.IsPrivate ? member.Name : propertyName;
                 var displayName = member.Kind switch
                 {
-                    ClassMemberKind.Getter => $"get {BuildFunctionNameDisplay(baseDisplayName)}",
-                    ClassMemberKind.Setter => $"set {BuildFunctionNameDisplay(baseDisplayName)}",
-                    _ => BuildFunctionNameDisplay(baseDisplayName)
+                    ClassMemberKind.Getter => $"get {ObjectExpression.BuildFunctionNameDisplay(baseDisplayName)}",
+                    ClassMemberKind.Setter => $"set {ObjectExpression.BuildFunctionNameDisplay(baseDisplayName)}",
+                    _ => ObjectExpression.BuildFunctionNameDisplay(baseDisplayName)
                 };
 
                 if (member.IsStatic &&
@@ -50,10 +50,10 @@ public static partial class TypedAstEvaluator
                 }
 
                 var value = member.Function is { } functionExpression
-                    ? CreateFunctionValue(functionExpression, environment, context,
+                    ? functionExpression.CreateFunctionValue(environment, context,
                         createFunctionNameEnvironment: true,
                         isConstructorFunction: false)
-                    : EvaluateExpression(member.Function, environment, context).ToObject();
+                    : member.Function.EvaluateExpression(environment, context).ToObject();
                 if (context.ShouldStopEvaluation)
                 {
                     return;

@@ -13,7 +13,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             Symbol? targetLabel)
         {
-            var discriminantJs = EvaluateExpression(statement.Discriminant, environment, context);
+            var discriminantJs = statement.Discriminant.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
@@ -30,7 +30,7 @@ public static partial class TypedAstEvaluator
             using var scopeHandle = context.PushScope(ScopeKind.Block, scopeMode);
 
             // Hoist lexical declarations from all case bodies
-            InstantiateSwitchLexicalDeclarations(instantiationPlan, switchEnv, context);
+            SwitchStatement.InstantiateSwitchLexicalDeclarations(instantiationPlan, switchEnv, context);
 
             // V = undefined (spec step 1)
             var completionValue = JsValue.Undefined;
@@ -49,7 +49,7 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
-                var testJs = EvaluateExpression(switchCase.Test, switchEnv, context);
+                var testJs = switchCase.Test.EvaluateExpression(switchEnv, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return completionValue;
@@ -77,7 +77,7 @@ public static partial class TypedAstEvaluator
 
                 // Evaluate the case clause body statements in the switch environment
                 // We evaluate the statements directly without creating a new block environment
-                var (caseCompletionJs, hasCaseJs) = EvaluateCaseClauseBodyJsValue(switchCase.Body, switchEnv, context);
+                var (caseCompletionJs, hasCaseJs) = SwitchStatement.EvaluateCaseClauseBodyJsValue(switchCase.Body, switchEnv, context);
 
                 // If R.[[value]] is not empty, let V = R.[[value]] (spec step 4.b.ii)
                 // UpdateEmpty semantics: only update V if the completion is not empty
@@ -122,7 +122,7 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
-                var functionValue = CreateFunctionValue(funcBinding.Function, switchEnv, context,
+                var functionValue = funcBinding.Function.CreateFunctionValue(switchEnv, context,
                     skipInternalNameBinding: true);
                 switchEnv.DefineJsValue(
                     funcBinding.Name,
@@ -164,14 +164,14 @@ public static partial class TypedAstEvaluator
                 {
                     // Pass skipInternalNameBinding: true so the function doesn't create an internal
                     // const binding for its name (the binding was already defined during instantiation).
-                    var functionValue = CreateFunctionValue(funcDecl.Function, switchEnv, context,
+                    var functionValue = funcDecl.Function.CreateFunctionValue(switchEnv, context,
                         skipInternalNameBinding: true);
                     switchEnv.Assign(funcDecl.Name, functionValue);
                     // Function declarations have empty completion
                     continue;
                 }
 
-                var completion = EvaluateStatementJsValue(stmt, switchEnv, context);
+                var completion = stmt.EvaluateStatementJsValue(switchEnv, context);
                 var shouldStop = context.ShouldStopEvaluation;
                 // Apply UpdateEmpty semantics: only update result if completion is not empty (Unit)
                 // This preserves the previous value when break/continue have empty completion

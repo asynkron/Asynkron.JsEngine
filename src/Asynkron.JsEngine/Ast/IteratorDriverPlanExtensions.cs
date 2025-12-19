@@ -68,16 +68,16 @@ public static partial class TypedAstEvaluator
                             creatingSource: plan.Body.Source, description: "for-each-iteration")
                         : loopEnvironment;
 
-                    AssignLoopBinding(plan.Target, enumeratorValue, iterationEnvironment, outerEnvironment, context,
+                    plan.Target.AssignLoopBinding(enumeratorValue, iterationEnvironment, outerEnvironment, context,
                         plan.DeclarationKind);
                     if (context.IsThrow)
                     {
                         throw new ThrowSignal(context.FlowValue);
                     }
 
-                    SyncIterationSlots(plan, iterationEnvironment, context);
+                    IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
 
-                    var bodyResult = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
+                    var bodyResult = plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);
                     if (!bodyResult.IsUnit)
                     {
                         lastValueJs = bodyResult;
@@ -112,7 +112,7 @@ public static partial class TypedAstEvaluator
 
                     if (state.IteratorObject is not null && !iteratorDone)
                     {
-                        IteratorClose(state.IteratorObject, context, preserveExistingThrow: true,
+                        state.IteratorObject.IteratorClose(context, preserveExistingThrow: true,
                             existingThrowOverride: thrown);
 
                         if (context.IsThrow)
@@ -163,18 +163,18 @@ public static partial class TypedAstEvaluator
 
                     try
                     {
-                        AssignLoopBinding(plan.Target, value, iterationEnvironment, outerEnvironment, context,
+                        plan.Target.AssignLoopBinding(value, iterationEnvironment, outerEnvironment, context,
                             plan.DeclarationKind);
                         if (context.IsThrow)
                         {
                             throw new ThrowSignal(context.FlowValue);
                         }
 
-                        SyncIterationSlots(plan, iterationEnvironment, context);
+                        IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
 
                         // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
                         // Only update V (completion value) if result.[[Value]] is not empty
-                        var bodyResult = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
+                        var bodyResult = plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);
                         if (!bodyResult.IsUnit)
                         {
                             lastValueJs = bodyResult;
@@ -188,7 +188,7 @@ public static partial class TypedAstEvaluator
                     {
                         if (state.IteratorObject is not null && !iteratorDone)
                         {
-                            IteratorClose(state.IteratorObject, context, preserveExistingThrow: true);
+                            state.IteratorObject.IteratorClose(context, preserveExistingThrow: true);
                         }
 
                         throw;
@@ -216,18 +216,18 @@ public static partial class TypedAstEvaluator
                             creatingSource: plan.Body.Source, description: "for-each-iteration")
                         : loopEnvironment;
 
-                    AssignLoopBinding(plan.Target, nextResult, iterationEnvironment, outerEnvironment, context,
+                    plan.Target.AssignLoopBinding(nextResult, iterationEnvironment, outerEnvironment, context,
                         plan.DeclarationKind);
                     if (context.IsThrow)
                     {
                         throw new ThrowSignal(context.FlowValue);
                     }
 
-                    SyncIterationSlots(plan, iterationEnvironment, context);
+                    IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
 
                     // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
                     // Only update V (completion value) if result.[[Value]] is not empty
-                    var bodyResult2 = EvaluateStatementJsValue(plan.Body, iterationEnvironment, context, loopLabel);
+                    var bodyResult2 = plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);
                     if (!bodyResult2.IsUnit)
                     {
                         lastValueJs = bodyResult2;
@@ -256,7 +256,7 @@ public static partial class TypedAstEvaluator
 
             if (state.IteratorObject is not null && !iteratorDone)
             {
-                IteratorClose(state.IteratorObject, context, context.IsThrow);
+                state.IteratorObject.IteratorClose(context, context.IsThrow);
                 if (context.IsThrow)
                 {
                     return lastValueJs;

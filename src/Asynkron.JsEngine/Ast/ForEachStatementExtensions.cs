@@ -13,7 +13,7 @@ public static partial class TypedAstEvaluator
         {
             if (statement.Kind == ForEachKind.AwaitOf)
             {
-                return EvaluateForAwaitOfJsValue(statement, environment, context, loopLabel);
+                return statement.EvaluateForAwaitOfJsValue(environment, context, loopLabel);
             }
 
             var iterableEnvironment = environment;
@@ -27,7 +27,7 @@ public static partial class TypedAstEvaluator
                 statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment, isConstDeclaration);
             }
 
-            var iterableJsValue = EvaluateExpression(statement.Iterable, iterableEnvironment, context);
+            var iterableJsValue = statement.Iterable.EvaluateExpression(iterableEnvironment, context);
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
@@ -83,9 +83,7 @@ public static partial class TypedAstEvaluator
                 {
                     try
                     {
-                        return ExecuteIteratorDriverJsValue(
-                            plan,
-                            iterator: null,
+                        return plan.ExecuteIteratorDriverJsValue(iterator: null,
                             enumerator: fastEnumerator,
                             loopEnvironment,
                             environment,
@@ -103,9 +101,7 @@ public static partial class TypedAstEvaluator
                 var iteratorTarget = NormalizeIterableTarget(iterable, context);
                 if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
                 {
-                    return ExecuteIteratorDriverJsValue(
-                        plan,
-                        iterator,
+                    return plan.ExecuteIteratorDriverJsValue(iterator,
                         enumerator: null,
                         loopEnvironment,
                         environment,
@@ -153,14 +149,14 @@ public static partial class TypedAstEvaluator
                             description: "for-each-iteration")
                 : loopEnvironment;
 
-            AssignLoopBinding(statement.Target, value, iterationEnvironment, environment, context,
+                statement.Target.AssignLoopBinding(value, iterationEnvironment, environment, context,
                 statement.DeclarationKind);
 
-            SyncIterationSlots(cachedPlan, iterationEnvironment, context);
+                IteratorDriverPlan.SyncIterationSlots(cachedPlan, iterationEnvironment, context);
 
             // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
             // Only update V (completion value) if result.[[Value]] is not empty
-            var bodyResult = EvaluateStatementJsValue(statement.Body, iterationEnvironment, context);
+            var bodyResult = statement.Body.EvaluateStatementJsValue(iterationEnvironment, context);
             if (!bodyResult.IsUnit)
             {
                     lastValueJs = bodyResult;
@@ -199,7 +195,7 @@ public static partial class TypedAstEvaluator
                 statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment, isConstDeclaration);
             }
 
-            var iterableJs = EvaluateExpression(statement.Iterable, iterableEnvironment, context);
+            var iterableJs = statement.Iterable.EvaluateExpression(iterableEnvironment, context);
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
@@ -233,9 +229,7 @@ public static partial class TypedAstEvaluator
             {
                 try
                 {
-                    return ExecuteIteratorDriverJsValue(
-                        plan,
-                        iterator: null,
+                    return plan.ExecuteIteratorDriverJsValue(iterator: null,
                         enumerator: fastEnumerator,
                         loopEnvironment,
                         environment,
@@ -253,9 +247,7 @@ public static partial class TypedAstEvaluator
             var iteratorTarget = NormalizeIterableTarget(iterable, context);
             if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
             {
-                return ExecuteIteratorDriverJsValue(
-                    plan,
-                    iterator,
+                return plan.ExecuteIteratorDriverJsValue(iterator,
                     enumerator: null,
                     loopEnvironment,
                     environment,

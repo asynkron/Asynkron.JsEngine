@@ -20,7 +20,7 @@ public static partial class TypedAstEvaluator
             ImmutableArray<PrivateNameScope>? inheritedPrivateNameScopes = null,
             bool drainAwaitMicrotasks = true)
         {
-            var result = EvaluateProgramJsValue(program, environment, realmState, cancellationToken,
+            var result = program.EvaluateProgramJsValue(environment, realmState, cancellationToken,
                 executionKind, createStrictEnvironment, functionNameHint, inheritedPrivateNameScopes,
                 drainAwaitMicrotasks);
             return result.IsUnit ? Symbol.Undefined : result.ToObject();
@@ -87,10 +87,10 @@ public static partial class TypedAstEvaluator
             using var programScope = context.PushScope(ScopeKind.Program, programMode);
 
             var programBlock = new BlockStatement(program.Source, program.Body, program.IsStrict);
-            var lexicalNames = CollectLexicalNames(programBlock);
+            var lexicalNames = programBlock.CollectLexicalNames();
             var topLevelLexicalNames = CollectTopLevelLexicalNames(program.Body);
-            var catchParameterNames = CollectCatchParameterNames(programBlock);
-            var simpleCatchParameterNames = CollectSimpleCatchParameterNames(programBlock);
+            var catchParameterNames = programBlock.CollectCatchParameterNames();
+            var simpleCatchParameterNames = programBlock.CollectSimpleCatchParameterNames();
             // For bodyLexicalNames used in global/var conflict checks, we only use TOP-LEVEL names.
             // Per ES spec GlobalDeclarationInstantiation, var declarations only conflict with
             // top-level lexical declarations, not with block-scoped let/const in nested blocks.
@@ -221,9 +221,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            HoistVarDeclarations(
-                programBlock,
-                executionEnvironment,
+            programBlock.HoistVarDeclarations(executionEnvironment,
                 context,
                 lexicalNames: lexicalNames,
                 catchParameterNames: catchParameterNames,
@@ -233,7 +231,7 @@ public static partial class TypedAstEvaluator
             foreach (var statement in program.Body)
             {
                 context.ThrowIfCancellationRequested();
-                var completionJs = EvaluateStatementJsValue(statement, executionEnvironment, context);
+                var completionJs = statement.EvaluateStatementJsValue(executionEnvironment, context);
                 var shouldStop = context.ShouldStopEvaluation;
                 var shouldCapture =
                     !completionJs.IsUnit &&

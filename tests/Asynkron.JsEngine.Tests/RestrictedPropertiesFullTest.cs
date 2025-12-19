@@ -3,6 +3,70 @@ namespace Asynkron.JsEngine.Tests;
 public class RestrictedPropertiesFullTest
 {
     [Fact]
+    public async Task Test262_AssertThrows_Pattern()
+    {
+        await using var engine = new JsEngine();
+
+        // Use the exact Test262 assert.throws pattern
+        await engine.Evaluate(@"
+var Test262Error = function(message) {
+    this.message = message || '';
+    this.name = 'Test262Error';
+};
+Test262Error.prototype = new Error();
+Test262Error.prototype.constructor = Test262Error;
+
+function assert(mustBeTrue, message) {
+    if (mustBeTrue === true) return;
+    throw new Test262Error(message);
+}
+
+assert._toString = function(value) {
+    return typeof value === 'symbol' ? value.toString() :
+           String(value);
+};
+
+assert.throws = function (expectedErrorConstructor, func, message) {
+    if (typeof func !== 'function') {
+        throw new Test262Error('assert.throws requires two arguments');
+    }
+    if (message === undefined) message = '';
+    else message += ' ';
+
+    try {
+        func();
+    } catch (thrown) {
+        if (typeof thrown !== 'object' || thrown === null) {
+            throw new Test262Error(message + 'Thrown value was not an object!');
+        }
+        if (thrown.constructor !== expectedErrorConstructor) {
+            throw new Test262Error(message + 'Expected ' + expectedErrorConstructor.name + ' but got ' + thrown.constructor.name);
+        }
+        return; // success
+    }
+
+    throw new Test262Error(message + 'Expected to throw but no exception was thrown');
+};
+
+function* generator() {}
+");
+
+        // Test 1: hasOwnProperty should return false
+        var hasOwnCaller = await engine.Evaluate("generator.hasOwnProperty('caller');");
+        Console.WriteLine($"hasOwnProperty('caller') = {hasOwnCaller}");
+        Assert.False((bool)hasOwnCaller!);
+
+        // Test 2: assert.throws with generator.caller - this is the critical test
+        Console.WriteLine("Running assert.throws for generator.caller access...");
+        await engine.Evaluate(@"
+assert.throws(TypeError, function() {
+    return generator.caller;
+});
+");
+        Console.WriteLine("assert.throws completed successfully!");
+    }
+
+    [Fact]
     public async Task AssertThrows_Works_With_GeneratorCallerAccess()
     {
         await using var engine = new JsEngine();

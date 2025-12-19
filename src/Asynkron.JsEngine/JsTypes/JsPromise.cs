@@ -22,18 +22,34 @@ public sealed class JsPromise
     {
         _engine = engine ?? throw new ArgumentNullException(nameof(engine));
         JsObject = new JsObject();
-        JsObject.DefineProperty(InternalPromiseKey,
-            new PropertyDescriptor { Value = this, Writable = false, Enumerable = false, Configurable = false });
+        // Use fast internal storage instead of DefineProperty to avoid descriptor overhead
+        // The promise reference is internal and doesn't need descriptor semantics
+        JsObject.SetJsValue(InternalPromiseKey, JsValue.FromObjectUnsafe(this));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static bool TryGetInternalPromise(JsValue candidate, out JsPromise? promise)
     {
-        if (candidate.IsObject &&
-            candidate.AsObject().TryGetProperty(InternalPromiseKey, out var inner) &&
+        if (!candidate.IsObject)
+        {
+            promise = null;
+            return false;
+        }
+
+        // Fast path: direct JsObject with internal storage
+        if (candidate.TryGetObject<JsObject>(out var jsObject) &&
+            jsObject.TryGetJsValue(InternalPromiseKey, out var inner) &&
             inner.TryGetObject<JsPromise>(out var jsPromise))
         {
             promise = jsPromise;
+            return true;
+        }
+
+        // Fallback for other object types or when property was set differently
+        if (candidate.AsObject().TryGetProperty(InternalPromiseKey, out var fallbackInner) &&
+            fallbackInner.TryGetObject<JsPromise>(out var fallbackPromise))
+        {
+            promise = fallbackPromise;
             return true;
         }
 

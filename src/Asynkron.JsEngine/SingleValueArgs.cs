@@ -8,16 +8,9 @@ namespace Asynkron.JsEngine;
 /// A zero-allocation wrapper for a single JsValue that implements IReadOnlyList.
 /// Used to avoid array allocations when invoking callables with a single argument.
 /// </summary>
-public readonly struct SingleValueArgs : IReadOnlyList<JsValue>
+[method: MethodImpl(MethodImplOptions.AggressiveInlining)]
+public readonly struct SingleValueArgs(JsValue value) : IReadOnlyList<JsValue>
 {
-    private readonly JsValue _value;
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public SingleValueArgs(JsValue value)
-    {
-        _value = value;
-    }
-
     public int Count
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -29,15 +22,14 @@ public readonly struct SingleValueArgs : IReadOnlyList<JsValue>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get
         {
-            if (index != 0)
-                throw new ArgumentOutOfRangeException(nameof(index));
-            return _value;
+            ArgumentOutOfRangeException.ThrowIfNotEqual(index, 0);
+            return value;
         }
     }
 
     public IEnumerator<JsValue> GetEnumerator()
     {
-        yield return _value;
+        yield return value;
     }
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();

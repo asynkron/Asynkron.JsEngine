@@ -35,10 +35,9 @@ public static partial class TypedAstEvaluator
                     yieldIndex,
                     payload.IsThrow,
                     payload.IsReturn,
-                    payload.Value?.GetType().Name ?? "null");
+                    payload.Value.ObjectValue?.GetType().Name ?? payload.Value.Kind.ToString());
 
-                // payload.Value might be a boxed JsValue (from resumeValue.ToObject())
-                var payloadValueJs = payload.Value is JsValue pjs ? pjs : JsValue.FromObjectUnsafe(payload.Value);
+                var payloadValueJs = payload.Value;
 
                 if (payload.IsThrow)
                 {
@@ -98,7 +97,7 @@ public static partial class TypedAstEvaluator
                 }
 
             var tracker = environment.GetYieldTracker();
-            object? pendingSend = null;
+            var pendingSend = JsValue.Undefined;
             var hasPendingSend = false;
             var pendingThrow = false;
             var pendingReturn = false;
@@ -133,9 +132,7 @@ public static partial class TypedAstEvaluator
                 // Use GetOrFetchNext which returns cached result if available,
                 // or advances the iterator if not. This prevents skipping values
                 // when resuming a generator that has already yielded.
-                // pendingSend might be a boxed JsValue from ResumePayload
-                var pendingSendJs = pendingSend is JsValue psJs ? psJs : JsValue.FromObjectUnsafe(pendingSend);
-                var iteratorResult = state.GetOrFetchNext(pendingSendJs,
+                var iteratorResult = state.GetOrFetchNext(pendingSend,
                     hasPendingSend && !pendingThrow && !pendingReturn,
                     pendingThrow,
                     pendingReturn,
@@ -147,7 +144,7 @@ public static partial class TypedAstEvaluator
                     return JsValue.Undefined;
                 }
 
-                pendingSend = null;
+                pendingSend = JsValue.Undefined;
                 hasPendingSend = false;
                 pendingThrow = false;
                 pendingReturn = false;

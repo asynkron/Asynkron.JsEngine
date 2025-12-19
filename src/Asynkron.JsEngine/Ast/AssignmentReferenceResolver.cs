@@ -72,7 +72,7 @@ internal static class AssignmentReferenceResolver
         ExpressionNode expression,
         JsEnvironment environment,
         EvaluationContext context,
-        Func<ExpressionNode, JsEnvironment, EvaluationContext, object?> evaluateExpression)
+        Func<ExpressionNode, JsEnvironment, EvaluationContext, JsValue> evaluateExpression)
     {
         return Resolve(expression, environment, context, evaluateExpression, deferPropertyKeyConversion: false);
     }
@@ -81,7 +81,7 @@ internal static class AssignmentReferenceResolver
         ExpressionNode expression,
         JsEnvironment environment,
         EvaluationContext context,
-        Func<ExpressionNode, JsEnvironment, EvaluationContext, object?> evaluateExpression)
+        Func<ExpressionNode, JsEnvironment, EvaluationContext, JsValue> evaluateExpression)
     {
         return Resolve(expression, environment, context, evaluateExpression, deferPropertyKeyConversion: true);
     }
@@ -90,7 +90,7 @@ internal static class AssignmentReferenceResolver
         ExpressionNode expression,
         JsEnvironment environment,
         EvaluationContext context,
-        Func<ExpressionNode, JsEnvironment, EvaluationContext, object?> evaluateExpression,
+        Func<ExpressionNode, JsEnvironment, EvaluationContext, JsValue> evaluateExpression,
         bool deferPropertyKeyConversion)
     {
         return expression switch
@@ -115,7 +115,7 @@ internal static class AssignmentReferenceResolver
         MemberExpression member,
         JsEnvironment environment,
         EvaluationContext context,
-        Func<ExpressionNode, JsEnvironment, EvaluationContext, object?> evaluateExpression,
+        Func<ExpressionNode, JsEnvironment, EvaluationContext, JsValue> evaluateExpression,
         bool deferPropertyKeyConversion)
     {
         // Member access uses delegate fallback for now (complex cases)
@@ -153,7 +153,7 @@ internal static class AssignmentReferenceResolver
 
                     var propertyName = GetPropertyName();
                     return binding.TryGetProperty(propertyName, out var value)
-                        ? value
+                        ? value.ToObject()
                         : Symbol.Undefined;
                 },
                 newValue =>
@@ -201,7 +201,7 @@ internal static class AssignmentReferenceResolver
             return AssignmentReference.ForDelegate(() => Symbol.Undefined, _ => { });
         }
 
-        if (target.IsNullish())
+        if (target.IsNullish)
         {
             throw StandardLibrary.ThrowTypeError("Cannot read properties of null or undefined", context,
                 context.RealmState);
@@ -233,7 +233,7 @@ internal static class AssignmentReferenceResolver
             {
                 var propertyName = GetPropertyName();
                 return TypedAstEvaluator.PropertyHandle.Resolve(
-                    target,
+                    target.ToObject(),
                     propertyName,
                     context,
                     context.CurrentScope.IsStrict,
@@ -241,8 +241,8 @@ internal static class AssignmentReferenceResolver
             }
         }
 
-        if (target is TypedArrayBase typedArray &&
-            JsOps.TryResolveArrayIndex(propertyValue, out var typedIndex, context))
+        if (target.ObjectValue is TypedArrayBase typedArray &&
+            JsOps.TryResolveArrayIndex(propertyValue.ToObject(), out var typedIndex, context))
         {
             return AssignmentReference.ForDelegate(
                 () => typedIndex >= 0 && typedIndex < typedArray.Length
@@ -258,7 +258,7 @@ internal static class AssignmentReferenceResolver
         }
 
         var handle = TypedAstEvaluator.PropertyHandle.Resolve(
-            target,
+            target.ToObject(),
             propertyValue,
             context,
             context.CurrentScope.IsStrict,
@@ -268,7 +268,7 @@ internal static class AssignmentReferenceResolver
             newValue => handle.SetValue(newValue));
     }
 
-    internal static object? ReadIdentifierValue(Func<object?> getter, EvaluationContext context)
+    internal static JsValue ReadIdentifierValue(Func<JsValue> getter, EvaluationContext context)
     {
         try
         {
@@ -278,7 +278,7 @@ internal static class AssignmentReferenceResolver
         {
             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
             context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
     }
 
@@ -290,18 +290,19 @@ internal static class AssignmentReferenceResolver
     internal static void AssignObjectProperty(
         JsObject target,
         string propertyName,
-        object? value,
+        JsValue value,
         bool isStrict,
         EvaluationContext? context = null,
         RealmState? realmState = null,
         object? receiver = null)
     {
         receiver ??= target;
+        var receiverValue = JsValue.FromObjectUnsafe(receiver);
         realmState ??= context?.RealmState ?? target.RealmState;
 
         if (propertyName.IsPrivateSlotName())
         {
-            target.SetProperty(propertyName, JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(receiver));
+            target.SetProperty(propertyName, value, receiverValue);
             return;
         }
 
@@ -321,7 +322,7 @@ internal static class AssignmentReferenceResolver
                     return;
                 }
 
-                TypedAstEvaluator.InvokeCallable(ownDescriptor.Set, [JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver), context);
+                TypedAstEvaluator.InvokeCallable(ownDescriptor.Set, [value], receiverValue, context);
                 return;
             }
 
@@ -336,14 +337,14 @@ internal static class AssignmentReferenceResolver
                 return;
             }
 
-            target.SetProperty(propertyName, JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(receiver));
+            target.SetProperty(propertyName, value, receiverValue);
             return;
         }
 
         var inheritedSetter = target.GetSetter(propertyName);
         if (inheritedSetter is not null)
         {
-            TypedAstEvaluator.InvokeCallable(inheritedSetter, [JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver), context);
+            TypedAstEvaluator.InvokeCallable(inheritedSetter, [value], receiverValue, context);
             return;
         }
 
@@ -370,7 +371,7 @@ internal static class AssignmentReferenceResolver
                             return;
                         }
 
-                        TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver), context);
+                        TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [value], receiverValue, context);
                         return;
                     }
 
@@ -389,7 +390,7 @@ internal static class AssignmentReferenceResolver
 
                     target.DefineProperty(propertyName, new PropertyDescriptor
                     {
-                        Value = value,
+                        JsValue = value,
                         Writable = true,
                         Enumerable = inheritedDescriptor.Enumerable,
                         Configurable = inheritedDescriptor.Configurable,
@@ -425,7 +426,7 @@ internal static class AssignmentReferenceResolver
                             return;
                         }
 
-                        TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver), context);
+                        TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [value], receiverValue, context);
                         return;
                     }
 
@@ -444,7 +445,7 @@ internal static class AssignmentReferenceResolver
 
                     target.DefineProperty(propertyName, new PropertyDescriptor
                     {
-                        Value = value,
+                        JsValue = value,
                         Writable = true,
                         Enumerable = inheritedDescriptor.Enumerable,
                         Configurable = inheritedDescriptor.Configurable,
@@ -456,11 +457,11 @@ internal static class AssignmentReferenceResolver
                     return;
                 }
 
-                prototypeAccessor.SetProperty(propertyName, JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(receiver));
+                prototypeAccessor.SetProperty(propertyName, value, receiverValue);
                 return;
             }
 
-            prototypeAccessor.SetProperty(propertyName, JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(receiver));
+            prototypeAccessor.SetProperty(propertyName, value, receiverValue);
             return;
         }
 
@@ -475,6 +476,6 @@ internal static class AssignmentReferenceResolver
             return;
         }
 
-        target.SetProperty(propertyName, JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(receiver));
+        target.SetProperty(propertyName, value, receiverValue);
     }
 }

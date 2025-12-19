@@ -1689,11 +1689,12 @@ public static partial class TypedAstEvaluator
 
             _pendingResumeValue = resumeValue;
 
+            var resumeType = resumeValue.ObjectValue?.GetType().Name ?? resumeValue.Kind.ToString();
             _realmState.Logger?.LogInformation(
                 "PrepareResume yieldIndex={YieldIndex} kind={Kind} valueType={Type}",
                 _lastYieldIndex,
                 _pendingResumeKind,
-                resumeValue.ToObject()?.GetType().Name ?? "null");
+                resumeType);
 
             if (_lastYieldIndex < 0)
             {
@@ -1704,13 +1705,13 @@ public static partial class TypedAstEvaluator
             switch (_pendingResumeKind)
             {
                 case ResumePayloadKind.Throw:
-                    _resumeContext.SetException(resumeSlotIndex, resumeValue.ToObject());
+                    _resumeContext.SetException(resumeSlotIndex, resumeValue);
                     break;
                 case ResumePayloadKind.Return:
-                    _resumeContext.SetReturn(resumeSlotIndex, resumeValue.ToObject());
+                    _resumeContext.SetReturn(resumeSlotIndex, resumeValue);
                     break;
                 default:
-                    _resumeContext.SetValue(resumeSlotIndex, resumeValue.ToObject());
+                    _resumeContext.SetValue(resumeSlotIndex, resumeValue);
                     break;
             }
         }

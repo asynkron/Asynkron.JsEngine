@@ -117,7 +117,7 @@ public static partial class TypedAstEvaluator
                     expression.Operand,
                     environment,
                     context,
-                    static (e, env, ctx) => e.EvaluateExpression(env, ctx).ToObject());
+                    static (e, env, ctx) => e.EvaluateExpression(env, ctx));
 
                 var refCurrentJsValue = reference.GetJsValue();
 

@@ -26,7 +26,7 @@ public static partial class TypedAstEvaluator
                         return;
                     }
 
-                    propertyName = JsOps.GetRequiredPropertyName(propertyKeyValueJs.ToObject(), context);
+                    propertyName = JsOps.GetRequiredPropertyName(propertyKeyValueJs, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return;
@@ -39,7 +39,7 @@ public static partial class TypedAstEvaluator
                         assignmentTarget.Expression,
                         environment,
                         context,
-                        (e, env, ctx) => e.EvaluateExpression(env, ctx).ToObject());
+                        (e, env, ctx) => e.EvaluateExpression(env, ctx));
                     if (context.ShouldStopEvaluation)
                     {
                         return;

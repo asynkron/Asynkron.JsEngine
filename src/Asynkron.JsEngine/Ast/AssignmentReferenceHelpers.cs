@@ -98,7 +98,7 @@ public static partial class TypedAstEvaluator
             AssignmentReferenceResolver.AssignObjectProperty(
                 jsObject,
                 propertyName,
-                value,
+                JsValue.FromObjectUnsafe(value),
                 isStrict,
                 context,
                 context.RealmState,

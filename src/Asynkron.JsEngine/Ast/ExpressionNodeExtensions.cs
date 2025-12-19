@@ -469,13 +469,13 @@ public static partial class TypedAstEvaluator
 
                 // Fallback: dictionary-based lookup
                 var reference = environment.ResolveIdentifierAssignmentReference(identifier.Name, context);
-                var calleeValue = AssignmentReferenceResolver.ReadIdentifierValue(reference.GetValue, context);
+                var calleeValue = AssignmentReferenceResolver.ReadIdentifierValue(reference.GetJsValue, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return (JsValue.Undefined, JsValue.Undefined, true);
                 }
 
-                return (JsValue.FromObjectUnsafe(calleeValue), JsValue.Undefined, false);
+                return (calleeValue, JsValue.Undefined, false);
             }
 
             var directCallee = callee.EvaluateExpression(environment, context);
@@ -513,7 +513,7 @@ public static partial class TypedAstEvaluator
 
                     var handle = PropertyHandle.Resolve(
                         targetJs.ToObject(),
-                        propertyValueJs.ToObject(),
+                        propertyValueJs,
                         context,
                         context.CurrentScope.IsStrict,
                         allowPrivate: !member.IsComputed);

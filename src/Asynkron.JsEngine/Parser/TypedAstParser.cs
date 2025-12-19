@@ -231,7 +231,7 @@ public sealed class TypedAstParser(
             return ParseExpressionStatement();
         }
 
-        private StatementNode ParseWithStatement()
+        private WithStatement ParseWithStatement()
         {
             var withToken = Previous();
             if (InStrictContext)
@@ -246,7 +246,7 @@ public sealed class TypedAstParser(
             return new WithStatement(CreateSourceReference(withToken), obj, body);
         }
 
-        private StatementNode ParseFunctionDeclaration(bool isAsync, Token functionKeyword)
+        private FunctionDeclaration ParseFunctionDeclaration(bool isAsync, Token functionKeyword)
         {
             var isGenerator = Match(TokenType.Star);
             var nameToken = ConsumeBindingIdentifier("Expected function name.");
@@ -256,7 +256,7 @@ public sealed class TypedAstParser(
             return new FunctionDeclaration(source, name, function);
         }
 
-        private StatementNode ParseReturnStatement()
+        private ReturnStatement ParseReturnStatement()
         {
             var keyword = Previous();
             ExpressionNode? expression = null;
@@ -270,7 +270,7 @@ public sealed class TypedAstParser(
             return new ReturnStatement(CreateSourceReference(keyword), expression);
         }
 
-        private StatementNode ParseIfStatement()
+        private IfStatement ParseIfStatement()
         {
             var keyword = Previous();
             Consume(TokenType.LeftParen, "Expected '(' after 'if'.");
@@ -296,7 +296,7 @@ public sealed class TypedAstParser(
             return new WhileStatement(CreateSourceReference(keyword), condition, body);
         }
 
-        private StatementNode ParseDoWhileStatement()
+        private DoWhileStatement ParseDoWhileStatement()
         {
             var keyword = Previous();
             var body = ParseStatement(false);
@@ -312,7 +312,7 @@ public sealed class TypedAstParser(
             return new DoWhileStatement(CreateSourceReference(keyword), body, condition);
         }
 
-        private StatementNode ParseBreakStatement()
+        private BreakStatement ParseBreakStatement()
         {
             var keyword = Previous();
             Symbol? label = null;
@@ -326,7 +326,7 @@ public sealed class TypedAstParser(
             return new BreakStatement(CreateSourceReference(keyword), label);
         }
 
-        private StatementNode ParseContinueStatement()
+        private ContinueStatement ParseContinueStatement()
         {
             var keyword = Previous();
             Symbol? label = null;
@@ -340,7 +340,7 @@ public sealed class TypedAstParser(
             return new ContinueStatement(CreateSourceReference(keyword), label);
         }
 
-        private StatementNode ParseThrowStatement()
+        private ThrowStatement ParseThrowStatement()
         {
             var keyword = Previous();
             if (HasLineTerminatorBefore())
@@ -353,7 +353,7 @@ public sealed class TypedAstParser(
             return new ThrowStatement(CreateSourceReference(keyword), expression);
         }
 
-        private StatementNode ParseExpressionStatement()
+        private ExpressionStatement ParseExpressionStatement()
         {
             var start = Peek();
             var expression = ParseExpression();
@@ -361,7 +361,7 @@ public sealed class TypedAstParser(
             return new ExpressionStatement(CreateSourceReference(start), expression);
         }
 
-        private StatementNode ParseVariableDeclaration(VariableKind kind, bool requireSemicolon = true,
+        private VariableDeclaration ParseVariableDeclaration(VariableKind kind, bool requireSemicolon = true,
             bool allowInitializerless = false)
         {
             var start = Previous();
@@ -2450,7 +2450,7 @@ public sealed class TypedAstParser(
 
             if (Match(TokenType.LeftBracket))
             {
-                var array = ParseArrayLiteral();
+                var array = ParseArrayLiteral;
                 return ApplyCallSuffix(array, allowCallSuffix);
             }
 
@@ -2734,50 +2734,53 @@ public sealed class TypedAstParser(
             return new MemberExpression(sourceReference, target, expression, true, isOptional);
         }
 
-        private ExpressionNode ParseArrayLiteral()
+        private ExpressionNode ParseArrayLiteral
         {
-            var elements = ImmutableArray.CreateBuilder<ArrayElement>();
-            var startToken = Previous();
-            var expectElement = true;
-
-            while (!Check(TokenType.RightBracket))
+            get
             {
-                if (Match(TokenType.Comma))
+                var elements = ImmutableArray.CreateBuilder<ArrayElement>();
+                var startToken = Previous();
+                var expectElement = true;
+
+                while (!Check(TokenType.RightBracket))
                 {
-                    elements.Add(new ArrayElement(null, null, false));
+                    if (Match(TokenType.Comma))
+                    {
+                        elements.Add(new ArrayElement(null, null, false));
+                        expectElement = true;
+                        continue;
+                    }
+
+                    var isSpread = Match(TokenType.DotDotDot);
+                    var previousAllowIn = _allowInExpressions;
+                    _allowInExpressions = true;
+                    try
+                    {
+                        var expr = ParseExpression(false, validateCoverInitializedName: false);
+                        elements.Add(new ArrayElement(expr.Source, expr, isSpread));
+                    }
+                    finally
+                    {
+                        _allowInExpressions = previousAllowIn;
+                    }
+                    expectElement = false;
+
+                    if (!Match(TokenType.Comma))
+                    {
+                        break;
+                    }
+
                     expectElement = true;
-                    continue;
                 }
 
-                var isSpread = Match(TokenType.DotDotDot);
-                var previousAllowIn = _allowInExpressions;
-                _allowInExpressions = true;
-                try
+                if (expectElement && elements.Count > 0 && !Check(TokenType.RightBracket))
                 {
-                    var expr = ParseExpression(false, validateCoverInitializedName: false);
-                    elements.Add(new ArrayElement(expr.Source, expr, isSpread));
-                }
-                finally
-                {
-                    _allowInExpressions = previousAllowIn;
-                }
-                expectElement = false;
-
-                if (!Match(TokenType.Comma))
-                {
-                    break;
+                    throw new ParseException("Expected array element.", Peek(), _source);
                 }
 
-                expectElement = true;
+                Consume(TokenType.RightBracket, "Expected ']' after array literal.");
+                return new ArrayExpression(CreateSourceReference(startToken), elements.ToImmutable());
             }
-
-            if (expectElement && elements.Count > 0 && !Check(TokenType.RightBracket))
-            {
-                throw new ParseException("Expected array element.", Peek(), _source);
-            }
-
-            Consume(TokenType.RightBracket, "Expected ']' after array literal.");
-            return new ArrayExpression(CreateSourceReference(startToken), elements.ToImmutable());
         }
 
         private ExpressionNode ParseObjectLiteral()
@@ -2996,30 +2999,32 @@ public sealed class TypedAstParser(
 
             foreach (var part in parts)
             {
-                if (part is TemplateStringPart templateString)
+                switch (part)
                 {
-                    // Per ES2018 Tagged Template Literal Revision:
-                    // - Invalid escape sequences should NOT throw in tagged templates
-                    // - Instead, they make the cooked value undefined while raw is preserved
-                    // - Legacy octals (\1-\7, \01, etc.) are always invalid in tagged templates
-                    //   (Note: \0 without following octal digit is still valid as null character)
-                    // - \8 and \9 also make the cooked value undefined in tagged templates
-                    var hasInvalidEscape = templateString.Cooked.HasInvalidEscape ||
-                                           templateString.Cooked.HasLegacyOctal ||
-                                           templateString.Cooked.HasLegacyNonOctalEscape;
+                    case TemplateStringPart templateString:
+                    {
+                        // Per ES2018 Tagged Template Literal Revision:
+                        // - Invalid escape sequences should NOT throw in tagged templates
+                        // - Instead, they make the cooked value undefined while raw is preserved
+                        // - Legacy octals (\1-\7, \01, etc.) are always invalid in tagged templates
+                        //   (Note: \0 without following octal digit is still valid as null character)
+                        // - \8 and \9 also make the cooked value undefined in tagged templates
+                        var hasInvalidEscape = templateString.Cooked.HasInvalidEscape ||
+                                               templateString.Cooked.HasLegacyOctal ||
+                                               templateString.Cooked.HasLegacyNonOctalEscape;
 
-                    // For invalid escape sequences, cooked value is null (undefined in JS)
-                    cookedStrings.Add(hasInvalidEscape ? null : templateString.Cooked.Value);
-                    rawStrings.Add(templateString.RawText);
-                }
-                else if (part is string text)
-                {
-                    cookedStrings.Add(text);
-                    rawStrings.Add(text);
-                }
-                else if (part is TemplateExpression expression)
-                {
-                    expressions.Add(ParseTemplateInterpolation(expression.ExpressionText));
+                        // For invalid escape sequences, cooked value is null (undefined in JS)
+                        cookedStrings.Add(hasInvalidEscape ? null : templateString.Cooked.Value);
+                        rawStrings.Add(templateString.RawText);
+                        break;
+                    }
+                    case string text:
+                        cookedStrings.Add(text);
+                        rawStrings.Add(text);
+                        break;
+                    case TemplateExpression expression:
+                        expressions.Add(ParseTemplateInterpolation(expression.ExpressionText));
+                        break;
                 }
             }
 

@@ -57,7 +57,7 @@ public static partial class TypedAstEvaluator
 
         public static PropertyHandle Resolve(
             object? target,
-            object? propertyValue,
+            JsValue propertyValue,
             EvaluationContext context,
             bool isStrict,
             bool allowPrivate = true)

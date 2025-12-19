@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.JsTypes;
+
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
@@ -6,17 +8,17 @@ public static partial class TypedAstEvaluator
     {
         private readonly Dictionary<int, ResumePayload> _pending = new();
 
-        public void SetValue(int yieldIndex, object? value)
+        public void SetValue(int yieldIndex, JsValue value)
         {
             _pending[yieldIndex] = ResumePayload.FromValue(value);
         }
 
-        public void SetException(int yieldIndex, object? value)
+        public void SetException(int yieldIndex, JsValue value)
         {
             _pending[yieldIndex] = ResumePayload.FromThrow(value);
         }
 
-        public void SetReturn(int yieldIndex, object? value)
+        public void SetReturn(int yieldIndex, JsValue value)
         {
             _pending[yieldIndex] = ResumePayload.FromReturn(value);
         }

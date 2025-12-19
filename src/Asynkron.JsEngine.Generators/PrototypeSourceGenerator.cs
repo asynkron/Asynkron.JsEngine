@@ -41,8 +41,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         }
 
         var prototypeAttr = typeSymbol.GetAttributes()
-            .FirstOrDefault(attr => attr.AttributeClass?.ToDisplayString() ==
-                                    "Asynkron.JsEngine.Runtime.Prototypes.JsPrototypeAttribute");
+            .FirstOrDefault(attr => string.Equals(attr.AttributeClass?.ToDisplayString(), "Asynkron.JsEngine.Runtime.Prototypes.JsPrototypeAttribute", StringComparison.Ordinal));
         if (prototypeAttr is null)
         {
             return null;
@@ -50,46 +49,54 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
         var getters = ImmutableArray.CreateBuilder<GetterInfo>();
         var methods = ImmutableArray.CreateBuilder<MethodInfo>();
+        var jsValueType = context.SemanticModel.Compilation.GetTypeByMetadataName("Asynkron.JsEngine.JsTypes.JsValue");
+        var readOnlyListType = context.SemanticModel.Compilation.GetTypeByMetadataName("System.Collections.Generic.IReadOnlyList`1");
 
         foreach (var member in typeSymbol.GetMembers().OfType<IMethodSymbol>())
         {
             foreach (var attr in member.GetAttributes())
             {
                 var attrName = attr.AttributeClass?.ToDisplayString();
-                if (attrName == "Asynkron.JsEngine.Runtime.Prototypes.JsHostGetterAttribute")
+                switch (attrName)
                 {
-                    var propertyName = attr.ConstructorArguments.Length > 0
-                        ? attr.ConstructorArguments[0].Value as string ?? string.Empty
-                        : string.Empty;
-                    if (string.IsNullOrWhiteSpace(propertyName))
+                    case "Asynkron.JsEngine.Runtime.Prototypes.JsHostGetterAttribute":
                     {
-                        continue;
+                        var propertyName = attr.ConstructorArguments.Length > 0
+                            ? attr.ConstructorArguments[0].Value as string ?? string.Empty
+                            : string.Empty;
+                        if (string.IsNullOrWhiteSpace(propertyName))
+                        {
+                            continue;
+                        }
+
+                        var displayName = GetNamedValue(attr, "DisplayName") ?? $"get {propertyName}";
+                        var enumerable = GetNamedBool(attr, "Enumerable");
+                        var configurable = GetNamedBool(attr, "Configurable", defaultValue: true);
+
+                        getters.Add(new GetterInfo(member, propertyName, displayName, enumerable, configurable));
+                        break;
                     }
-
-                    var displayName = GetNamedValue(attr, "DisplayName") ?? $"get {propertyName}";
-                    var enumerable = GetNamedBool(attr, "Enumerable");
-                    var configurable = GetNamedBool(attr, "Configurable", defaultValue: true);
-
-                    getters.Add(new GetterInfo(member, propertyName, displayName, enumerable, configurable));
-                }
-                else if (attrName == "Asynkron.JsEngine.Runtime.Prototypes.JsHostMethodAttribute")
-                {
-                    var propertyName = attr.ConstructorArguments.Length > 0
-                        ? attr.ConstructorArguments[0].Value as string ?? string.Empty
-                        : string.Empty;
-                    if (string.IsNullOrWhiteSpace(propertyName))
+                    case "Asynkron.JsEngine.Runtime.Prototypes.JsHostMethodAttribute":
                     {
-                        continue;
+                        var propertyName = attr.ConstructorArguments.Length > 0
+                            ? attr.ConstructorArguments[0].Value as string ?? string.Empty
+                            : string.Empty;
+                        if (string.IsNullOrWhiteSpace(propertyName))
+                        {
+                            continue;
+                        }
+
+                        var lengthLiteral = GetNamedDouble(attr, "Length");
+                        var displayName = GetNamedValue(attr, "DisplayName") ?? propertyName;
+                        var enumerable = GetNamedBool(attr, "Enumerable");
+                        var configurable = GetNamedBool(attr, "Configurable", true);
+                        var writable = GetNamedBool(attr, "Writable", true);
+
+                        var signature = GetHostMethodSignature(member, jsValueType, readOnlyListType);
+                        methods.Add(new MethodInfo(member, propertyName, displayName, lengthLiteral, enumerable,
+                            configurable, writable, signature));
+                        break;
                     }
-
-                    var lengthLiteral = GetNamedDouble(attr, "Length");
-                    var displayName = GetNamedValue(attr, "DisplayName") ?? propertyName;
-                    var enumerable = GetNamedBool(attr, "Enumerable");
-                    var configurable = GetNamedBool(attr, "Configurable", true);
-                    var writable = GetNamedBool(attr, "Writable", true);
-
-                    methods.Add(new MethodInfo(member, propertyName, displayName, lengthLiteral, enumerable,
-                        configurable, writable));
                 }
             }
         }
@@ -115,8 +122,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         }
 
         var constructorAttr = typeSymbol.GetAttributes()
-            .FirstOrDefault(attr => attr.AttributeClass?.ToDisplayString() ==
-                                    "Asynkron.JsEngine.Runtime.Prototypes.JsConstructorAttribute");
+            .FirstOrDefault(attr => string.Equals(attr.AttributeClass?.ToDisplayString(), "Asynkron.JsEngine.Runtime.Prototypes.JsConstructorAttribute", StringComparison.Ordinal));
         if (constructorAttr is null)
         {
             return null;
@@ -128,7 +134,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         }
 
         var prototypeTypeSymbol = constructorAttr.NamedArguments
-            .Where(pair => pair.Key == "PrototypeType")
+            .Where(pair => string.Equals(pair.Key, "PrototypeType", StringComparison.Ordinal))
             .Select(pair => pair.Value.Value)
             .OfType<INamedTypeSymbol>()
             .FirstOrDefault();
@@ -205,10 +211,22 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         foreach (var method in info.Methods)
         {
             var methodVar = $"method_{Sanitize(method.PropertyName)}";
-            source.Append("        var ").Append(methodVar)
-                .Append(" = new HostFunction((thisValue, args) => typed.")
-                .Append(method.MethodSymbol.Name)
-                .AppendLine("(thisValue, args), realm, isConstructor: false);");
+            source.Append("        var ").Append(methodVar).Append(" = new HostFunction(");
+            switch (method.Signature)
+            {
+                case HostMethodSignature.ArgsOnly:
+                    source.Append("args => typed.").Append(method.MethodSymbol.Name)
+                        .AppendLine("(args), realm, isConstructor: false);");
+                    break;
+                case HostMethodSignature.ThisOnly:
+                    source.Append("(thisValue, _) => typed.").Append(method.MethodSymbol.Name)
+                        .AppendLine("(thisValue), realm, isConstructor: false);");
+                    break;
+                default:
+                    source.Append("(thisValue, args) => typed.").Append(method.MethodSymbol.Name)
+                        .AppendLine("(thisValue, args), realm, isConstructor: false);");
+                    break;
+            }
             source.Append("        ").Append(methodVar)
                 .Append(".DefineProperty(\"length\", new PropertyDescriptor { Value = ")
                 .Append(method.LengthLiteral).Append("d, Writable = false, Enumerable = false, Configurable = true });")
@@ -222,7 +240,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(", Writable = ").Append(method.Writable ? "true" : "false")
                 .Append(", Enumerable = ").Append(method.Enumerable ? "true" : "false")
                 .Append(", Configurable = ").Append(method.Configurable ? "true" : "false")
-                .Append(" });").AppendLine();
+                .AppendLine(" });");
         }
 
         if (!string.IsNullOrEmpty(info.ToStringTag))
@@ -230,7 +248,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             source.AppendLine("        prototype.DefineProperty($\"@@symbol:{TypedAstSymbol.For(\"Symbol.toStringTag\").GetHashCode()}\",");
             source.AppendLine("            new PropertyDescriptor");
             source.AppendLine("            {");
-            source.Append("                Value = \"").Append(info.ToStringTag.Replace("\"", "\\\""))
+            source.Append("                Value = \"").Append(info.ToStringTag?.Replace("\"", "\\\""))
                 .AppendLine("\", Writable = false, Enumerable = false, Configurable = true");
             source.AppendLine("            });");
         }
@@ -312,7 +330,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
     {
         foreach (var arg in attr.NamedArguments)
         {
-            if (arg.Key == name && arg.Value.Value is string s && !string.IsNullOrEmpty(s))
+            if (string.Equals(arg.Key, name, StringComparison.Ordinal) && arg.Value.Value is string s && !string.IsNullOrEmpty(s))
             {
                 return s;
             }
@@ -325,7 +343,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
     {
         foreach (var arg in attr.NamedArguments)
         {
-            if (arg.Key == name && arg.Value.Value is bool b)
+            if (string.Equals(arg.Key, name, StringComparison.Ordinal) && arg.Value.Value is bool b)
             {
                 return b;
             }
@@ -338,7 +356,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
     {
         foreach (var arg in attr.NamedArguments)
         {
-            if (arg.Key == name && arg.Value.Value is double d)
+            if (string.Equals(arg.Key, name, StringComparison.Ordinal) && arg.Value.Value is double d)
             {
                 return d.ToString("0.############", CultureInfo.InvariantCulture);
             }
@@ -352,7 +370,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         var current = typeSymbol;
         while (current is not null)
         {
-            if (current.ToDisplayString() == baseTypeMetadataName)
+            if (string.Equals(current.ToDisplayString(), baseTypeMetadataName, StringComparison.Ordinal))
             {
                 return true;
             }
@@ -375,10 +393,17 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         bool Configurable);
 
     private sealed record MethodInfo(IMethodSymbol MethodSymbol, string PropertyName, string DisplayName,
-        string LengthLiteral, bool Enumerable, bool Configurable, bool Writable);
+        string LengthLiteral, bool Enumerable, bool Configurable, bool Writable, HostMethodSignature Signature);
 
     private sealed record ConstructorInfo(INamedTypeSymbol Symbol, INamedTypeSymbol PrototypeType, string LengthLiteral,
         string DisplayName);
+
+    private enum HostMethodSignature
+    {
+        ThisAndArgs = 0,
+        ThisOnly = 1,
+        ArgsOnly = 2
+    }
 
     private enum PrototypeObjectKind
     {
@@ -391,7 +416,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
     {
         foreach (var arg in attr.NamedArguments)
         {
-            if (arg.Key == "ObjectKind")
+            if (string.Equals(arg.Key, "ObjectKind", StringComparison.Ordinal))
             {
                 var value = arg.Value.Value;
                 if (value is int intValue)
@@ -407,5 +432,61 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         }
 
         return PrototypeObjectKind.Object;
+    }
+
+    private static HostMethodSignature GetHostMethodSignature(
+        IMethodSymbol method,
+        INamedTypeSymbol? jsValueType,
+        INamedTypeSymbol? readOnlyListType)
+    {
+        if (jsValueType is null || readOnlyListType is null)
+        {
+            return HostMethodSignature.ThisAndArgs;
+        }
+
+        var parameters = method.Parameters;
+        if (parameters.Length == 2 &&
+            IsJsValue(parameters[0].Type, jsValueType) &&
+            IsReadOnlyListOfJsValue(parameters[1].Type, readOnlyListType, jsValueType))
+        {
+            return HostMethodSignature.ThisAndArgs;
+        }
+
+        if (parameters.Length == 1)
+        {
+            if (IsJsValue(parameters[0].Type, jsValueType))
+            {
+                return HostMethodSignature.ThisOnly;
+            }
+
+            if (IsReadOnlyListOfJsValue(parameters[0].Type, readOnlyListType, jsValueType))
+            {
+                return HostMethodSignature.ArgsOnly;
+            }
+        }
+
+        return HostMethodSignature.ThisAndArgs;
+    }
+
+    private static bool IsJsValue(ITypeSymbol type, INamedTypeSymbol jsValueType)
+        => SymbolEqualityComparer.Default.Equals(type, jsValueType);
+
+    private static bool IsReadOnlyListOfJsValue(
+        ITypeSymbol type,
+        INamedTypeSymbol readOnlyListType,
+        INamedTypeSymbol jsValueType)
+    {
+        if (type is not INamedTypeSymbol namedType)
+        {
+            return false;
+        }
+
+        if (!SymbolEqualityComparer.Default.Equals(namedType.OriginalDefinition, readOnlyListType))
+        {
+            return false;
+        }
+
+        return namedType.TypeArguments.Length == 1 &&
+               SymbolEqualityComparer.Default.Equals(namedType.TypeArguments[0], jsValueType);
     }
 }

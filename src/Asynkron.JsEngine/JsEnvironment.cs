@@ -2147,7 +2147,7 @@ public sealed class JsEnvironment
             {
                 if (current._withObject is JsObject withObject)
                 {
-                    AssignmentReferenceResolver.AssignObjectProperty(withObject, name.Name, value, isStrictContext, null,
+                    AssignmentReferenceResolver.AssignObjectProperty(withObject, name.Name, JsValue.FromObjectUnsafe(value), isStrictContext, null,
                         realm);
                 }
                 else
@@ -2163,7 +2163,7 @@ public sealed class JsEnvironment
                 // Reached the global scope without finding the variable
                 if (globalObject?.GetOwnPropertyDescriptor(name.Name) is not null)
                 {
-                    AssignmentReferenceResolver.AssignObjectProperty(globalObject, name.Name, value, isStrictContext, null,
+                    AssignmentReferenceResolver.AssignObjectProperty(globalObject, name.Name, JsValue.FromObjectUnsafe(value), isStrictContext, null,
                         realm);
                     return;
                 }
@@ -2496,7 +2496,7 @@ public sealed class JsEnvironment
             AssignmentReferenceResolver.AssignObjectProperty(
                 jsObject,
                 propertyName,
-                value,
+                JsValue.FromObjectUnsafe(value),
                 binding.IsStrictReference,
                 null,
                 realm ?? jsObject.RealmState,

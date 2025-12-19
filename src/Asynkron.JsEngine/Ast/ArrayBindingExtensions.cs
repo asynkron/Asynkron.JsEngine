@@ -58,7 +58,7 @@ public static partial class TypedAstEvaluator
                             assignmentTarget.Expression,
                             environment,
                             context,
-                            (e, env, ctx) => e.EvaluateExpression(env, ctx).ToObject());
+                            (e, env, ctx) => e.EvaluateExpression(env, ctx));
                         if (context.ShouldStopEvaluation)
                         {
                             if (context.IsYield && stateKey is { })
@@ -207,7 +207,7 @@ public static partial class TypedAstEvaluator
                             restTarget.Expression,
                             environment,
                             context,
-                            (e, env, ctx) => e.EvaluateExpression(env, ctx).ToObject());
+                            (e, env, ctx) => e.EvaluateExpression(env, ctx));
                         if (context.ShouldStopEvaluation)
                         {
                             if (context.IsYield && stateKey is { })

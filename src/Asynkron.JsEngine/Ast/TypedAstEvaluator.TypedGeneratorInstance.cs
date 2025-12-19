@@ -1426,6 +1426,13 @@ public static partial class TypedAstEvaluator
                     if (HandleAbruptCompletion(AbruptKind.Throw, signal.ThrownValue, environment))
                     {
                         // A catch block will handle this - continue execution from the catch handler
+                        if (_programCounter == _currentInstructionIndex)
+                        {
+                            // When already inside a finally block, ensure forward progress
+                            // instead of re-executing the same instruction repeatedly.
+                            _programCounter = _currentInstructionIndex + 1;
+                        }
+
                         continueAfterCatch = true;
                         continue;
                     }

@@ -15,8 +15,8 @@ public sealed class RealmState
     private readonly ConcurrentStack<EvaluationContext> _contextPool = new();
     private readonly ConcurrentStack<JsEnvironment> _environmentPool = new();
 
-    public IJsEngineOptions Options { get; internal set; } = JsEngineOptions.Default;
-    internal JsEngine? Engine { get; set; }
+    public IJsEngineOptions Options { get; internal init; } = JsEngineOptions.Default;
+    internal JsEngine? Engine { get; init; }
     public ILogger? Logger { get; set; }
     private readonly Dictionary<string, string> _symbolPropertyKeys = new(StringComparer.Ordinal);
 

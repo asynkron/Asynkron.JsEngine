@@ -933,7 +933,7 @@ public sealed class JsEngine : IAsyncDisposable
                 EnsureModuleInstantiated(entry);
                 if (entry.IsAsync || entry.HasAsyncDependency)
                 {
-                    await EnsureModuleEvaluatedAsync(entry).ConfigureAwait(false);
+                    await EnsureModuleEvaluatedAsync(entry, cancellationToken: combinedToken).ConfigureAwait(false);
                 }
                 else
                 {
@@ -947,7 +947,7 @@ public sealed class JsEngine : IAsyncDisposable
             }
 
             // Flush microtasks queued during synchronous execution before checking the event loop
-            DrainMicrotasks();
+            DrainMicrotasks(cancellationToken: combinedToken);
 
             // Step 2: Check if any async work was scheduled (timers, promises, etc.)
             if (IsEventLoopDrained())
@@ -1042,15 +1042,15 @@ public sealed class JsEngine : IAsyncDisposable
 	                }
 	                else
 	                {
-	                    EnsureModuleEvaluated(entry);
-	                }
+                        EnsureModuleEvaluated(entry);
+                    }
 
-	                DrainMicrotasks();
+	                DrainMicrotasks(cancellationToken: combinedToken);
 	                return UnwrapResult(entry.LastValue);
 	            }
 
             var scriptResult = ExecuteProgram(program, GlobalEnvironment, combinedToken);
-            DrainMicrotasks();
+            DrainMicrotasks(cancellationToken: combinedToken);
             return UnwrapResult(scriptResult);
         }
         finally
@@ -1735,7 +1735,7 @@ public sealed class JsEngine : IAsyncDisposable
 	        }
 	    }
 
-    private Task<object?> EnsureModuleEvaluatedAsync(ModuleEntry entry, bool waitForAsync = true)
+    private Task<object?> EnsureModuleEvaluatedAsync(ModuleEntry entry, bool waitForAsync = true, CancellationToken cancellationToken = default)
     {
         if (entry.Evaluated)
         {
@@ -1786,10 +1786,14 @@ public sealed class JsEngine : IAsyncDisposable
             return entry.EvaluationTask;
         }
 
-        return AwaitModuleEvaluationAsync(entry, entry.EvaluationTask);
+        return AwaitModuleEvaluationAsync(entry, entry.EvaluationTask, cancellationToken);
     }
 
-    private async Task<object?> AwaitModuleEvaluationAsync(ModuleEntry entry, Task<object?> evaluationTask, int callerEpoch = int.MaxValue)
+    private async Task<object?> AwaitModuleEvaluationAsync(
+        ModuleEntry entry,
+        Task<object?> evaluationTask,
+        CancellationToken cancellationToken,
+        int callerEpoch = int.MaxValue)
     {
         if (evaluationTask.IsCompleted)
         {
@@ -1807,7 +1811,7 @@ public sealed class JsEngine : IAsyncDisposable
             if (_eventQueue is null)
             {
                 // Only drain microtasks from epochs before the caller's epoch
-                DrainMicrotasks(maxDrainEpoch);
+                DrainMicrotasks(maxDrainEpoch, cancellationToken: cancellationToken);
                 await Task.Yield();
                 continue;
             }
@@ -1819,7 +1823,7 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         // After evaluation completes, still only drain earlier epochs
-        DrainMicrotasks(maxDrainEpoch);
+        DrainMicrotasks(maxDrainEpoch, cancellationToken: cancellationToken);
         return await evaluationTask.ConfigureAwait(false);
     }
 
@@ -1987,7 +1991,7 @@ public sealed class JsEngine : IAsyncDisposable
 
         _ = taskToAwait.ContinueWith(t =>
         {
-            queue.Writer.TryWrite(() =>
+            var written = queue.Writer.TryWrite(() =>
             {
                 if (t.IsFaulted)
                 {
@@ -2012,6 +2016,12 @@ public sealed class JsEngine : IAsyncDisposable
 
                 return ValueTask.CompletedTask;
             });
+            if (!written)
+            {
+                // Queue is closed; task accounted for but nothing enqueued.
+                Interlocked.Decrement(ref _pendingTaskCount);
+                TrySignalDrainComplete();
+            }
         }, TaskScheduler.Default);
     }
 
@@ -2063,7 +2073,13 @@ public sealed class JsEngine : IAsyncDisposable
         var queue = _eventQueue ?? throw new InvalidOperationException("Event loop is not running.");
 
         Interlocked.Increment(ref _pendingTaskCount);
-        queue.Writer.TryWrite(async () => { await task().ConfigureAwait(false); });
+        var written = queue.Writer.TryWrite(async () => { await task().ConfigureAwait(false); });
+        if (!written)
+        {
+            // If we failed to enqueue (e.g., shutting down), decrement immediately.
+            Interlocked.Decrement(ref _pendingTaskCount);
+            TrySignalDrainComplete();
+        }
     }
 
     /// <summary>
@@ -2095,7 +2111,7 @@ public sealed class JsEngine : IAsyncDisposable
         {
             // Task completed on thread pool, now schedule continuation on event loop
             // Write directly to queue - don't use ScheduleTask as that would increment again
-            queue.Writer.TryWrite(() =>
+            var written = queue.Writer.TryWrite(() =>
             {
                 // If the task failed, log the error but still run the continuation
                 // (the continuation may handle the error state)
@@ -2120,6 +2136,12 @@ public sealed class JsEngine : IAsyncDisposable
                 return ValueTask.CompletedTask;
             });
             // ProcessEventQueue will decrement _pendingTaskCount when this completes
+            if (!written)
+            {
+                // If enqueue fails (queue closed), decrement immediately.
+                Interlocked.Decrement(ref _pendingTaskCount);
+                TrySignalDrainComplete();
+            }
         }, TaskScheduler.Default);
     }
 
@@ -2143,7 +2165,7 @@ public sealed class JsEngine : IAsyncDisposable
         _ = taskToAwait.ContinueWith(t =>
         {
             // Task completed on thread pool, now schedule continuation on event loop
-            queue.Writer.TryWrite(() =>
+            var written = queue.Writer.TryWrite(() =>
             {
                 if (t.IsFaulted)
                 {
@@ -2169,6 +2191,12 @@ public sealed class JsEngine : IAsyncDisposable
 
                 return ValueTask.CompletedTask;
             });
+            if (!written)
+            {
+                // If enqueue fails (queue closed), decrement immediately.
+                Interlocked.Decrement(ref _pendingTaskCount);
+                TrySignalDrainComplete();
+            }
         }, TaskScheduler.Default);
     }
 
@@ -2369,7 +2397,7 @@ public sealed class JsEngine : IAsyncDisposable
     ///     Microtasks from later epochs are preserved for future draining.
     /// </summary>
     /// <param name="maxEpoch">Maximum epoch to drain. Use int.MaxValue to drain all epochs (default).</param>
-    internal void DrainMicrotasks(int maxEpoch = int.MaxValue, bool force = false, [System.Runtime.CompilerServices.CallerMemberName] string? caller = null)
+    internal void DrainMicrotasks(int maxEpoch = int.MaxValue, bool force = false, CancellationToken cancellationToken = default, [System.Runtime.CompilerServices.CallerMemberName] string? caller = null)
     {
         if (_isDrainingMicrotasks)
         {
@@ -2393,6 +2421,8 @@ public sealed class JsEngine : IAsyncDisposable
             List<(Action task, int epoch)>? deferred = null;
             while (true)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 if (_microtaskQueue.Count == 0)
                 {
                     break;

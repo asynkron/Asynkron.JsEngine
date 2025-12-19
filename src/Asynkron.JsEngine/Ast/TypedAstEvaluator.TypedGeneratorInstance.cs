@@ -1524,7 +1524,7 @@ public static partial class TypedAstEvaluator
             if (!_asyncStepMode)
             {
                 // Keep as JsValue to avoid boxing round trips
-                var awaitedValueSync = EvaluateExpression(expression.Expression, environment, context);
+                var awaitedValueSync = expression.Expression.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return awaitedValueSync;

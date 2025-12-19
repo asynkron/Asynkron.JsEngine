@@ -79,13 +79,22 @@ internal static class AwaitScheduler
             return directPromise.TryGetSettled(out value, out isRejected);
         }
 
-        // JsObject wrapping a JsPromise (use IJsObjectLike to handle JsArray etc.)
-        if (candidate.IsObject &&
-            candidate.TryGetObject<IJsObjectLike>(out var obj) &&
-            obj.TryGetProperty(JsPromise.InternalPromiseKey, out var inner) &&
+        // JsObject wrapping a JsPromise - use TryGetJsValue for the internal storage
+        // (matches how JsPromise stores its internal key via SetJsValue, not DefineProperty)
+        if (candidate.TryGetObject<JsObject>(out var jsObject) &&
+            jsObject.TryGetJsValue(JsPromise.InternalPromiseKey, out var inner) &&
             inner.TryGetObject<JsPromise>(out var wrappedPromise))
         {
             return wrappedPromise.TryGetSettled(out value, out isRejected);
+        }
+
+        // Fallback for other IJsObjectLike types (JsArray etc.)
+        if (candidate.IsObject &&
+            candidate.TryGetObject<IJsObjectLike>(out var obj) &&
+            obj.TryGetProperty(JsPromise.InternalPromiseKey, out var fallbackInner) &&
+            fallbackInner.TryGetObject<JsPromise>(out var fallbackPromise))
+        {
+            return fallbackPromise.TryGetSettled(out value, out isRejected);
         }
 
         value = JsValue.Undefined;
@@ -155,7 +164,7 @@ internal static class AwaitScheduler
             }
         }
 
-        // Slow path: need to attach handlers and wait
+        // Slow path: need to attach handlers - but NO BLOCKING
         while (resolvedValue.IsObject && IsPromiseLike(resolvedValue))
         {
             // Use IJsObjectLike to handle JsArray etc. that might be promise-like
@@ -214,46 +223,19 @@ internal static class AwaitScheduler
                 return false;
             }
 
-            // Optimized spin-wait with minimal overhead
-            try
+            // Drain microtasks ONCE - no blocking/spinning
+            if (drainMicrotasks)
             {
-                if (Volatile.Read(ref awaitState.Completed) == 0 && drainMicrotasks)
-                {
-                    // Single microtask drain often resolves synchronous promises
-                    engine?.DrainMicrotasks(force: true);
-
-                    if (Volatile.Read(ref awaitState.Completed) == 0)
-                    {
-                        // Need to wait - use optimized loop
-                        WaitForCompletion(awaitState, context, engine);
-                    }
-                }
-            }
-            catch (InvalidOperationException)
-            {
-                ReturnState(awaitState);
-                throw;
-            }
-            catch (ThrowSignal signal)
-            {
-                ReturnState(awaitState);
-                context.SetThrow(signal.ThrownValue);
-                resolvedValue = JsValue.Undefined;
-                return false;
-            }
-            catch (Exception ex)
-            {
-                ReturnState(awaitState);
-                context.SetThrow((JsValue)ex.Message);
-                resolvedValue = JsValue.Undefined;
-                return false;
+                engine?.DrainMicrotasks(force: true);
             }
 
-            if (Volatile.Read(ref awaitState.Completed) == 0 && !drainMicrotasks)
+            // Check if completed after drain
+            if (Volatile.Read(ref awaitState.Completed) == 0)
             {
+                // Promise is still pending - return false to signal caller should yield
+                // Don't block! Let the caller handle suspension/resumption
                 ReturnState(awaitState);
-                throw new NotSupportedException(
-                    "Promise cannot be awaited synchronously without draining microtasks.");
+                return false;
             }
 
             var fulfilled = awaitState.Fulfilled;
@@ -316,65 +298,6 @@ internal static class AwaitScheduler
         // Need to wait via JsObject wrapper
         resolvedValue = new JsValue(promise.JsObject);
         return TryAwaitPromiseSync(resolvedValue, context, out resolvedValue, drainMicrotasks);
-    }
-
-    private static void WaitForCompletion(PromiseAwaitState awaitState, EvaluationContext context, JsEngine? engine)
-    {
-        var iterations = 0;
-        const int maxIterations = 10_000;
-
-        while (Volatile.Read(ref awaitState.Completed) == 0)
-        {
-            context.ThrowIfCancellationRequested();
-
-            // Try draining microtasks first
-            engine?.DrainMicrotasks(force: true);
-
-            if (Volatile.Read(ref awaitState.Completed) != 0)
-            {
-                break;
-            }
-
-            // Check event loop if engine available
-            if (engine?.IsEventLoopDrained() == false)
-            {
-                engine.StartEventLoop();
-                var drainTask = engine.DrainEventLoopAsync(CancellationToken.None);
-
-                // SpinWait for short-running tasks, then yield
-                var spinWait = new SpinWait();
-                while (!drainTask.IsCompleted)
-                {
-                    context.ThrowIfCancellationRequested();
-                    spinWait.SpinOnce();
-                }
-
-                if (drainTask.IsFaulted)
-                {
-                    throw drainTask.Exception?.GetBaseException() ??
-                          new InvalidOperationException("Event loop drain failed.");
-                }
-
-                if (drainTask.IsCanceled)
-                {
-                    throw new OperationCanceledException(
-                        "Event loop drain was canceled while awaiting a promise.");
-                }
-
-                engine.DrainMicrotasks(force: true);
-            }
-            else
-            {
-                // Use SpinWait for better CPU efficiency
-                Thread.SpinWait(10);
-            }
-
-            if (++iterations > maxIterations)
-            {
-                throw new InvalidOperationException(
-                    "Promise did not resolve after draining microtasks and the event loop.");
-            }
-        }
     }
 
     public static bool TryAwaitPromiseOrSchedule(JsValue candidate, bool asyncStepMode, ref JsValue pendingPromise,

@@ -8,8 +8,11 @@ namespace Asynkron.JsEngine.JsTypes;
 public sealed class JsPromise
 {
     internal const string InternalPromiseKey = "__promise__";
+
     private readonly JsEngine _engine;
-    private readonly List<(IJsCallable? onFulfilled, IJsCallable? onRejected, JsPromise next)> _handlers = [];
+    private List<(IJsCallable? onFulfilled, IJsCallable? onRejected, JsPromise next)> _handlers = [];
+    // Spare list for swapping during ProcessHandlersCore - avoids ToArray and locks
+    private List<(IJsCallable? onFulfilled, IJsCallable? onRejected, JsPromise next)>? _spareHandlers;
     private bool _handlersScheduled;
 
     private PromiseState _state = PromiseState.Pending;
@@ -189,14 +192,13 @@ public sealed class JsPromise
             return;
         }
 
-        // Copy handlers to local array to allow mutation during processing
-        // For small counts, use stack allocation pattern
-        var handlersToProcess = count <= 4
-            ? _handlers.ToArray()  // Small array, minimal overhead
-            : _handlers.ToList().ToArray();  // Larger, use list for efficiency
-        _handlers.Clear();
+        // Swap handlers list with spare to avoid ToArray allocation (no locks needed)
+        // This allows new handlers to be added during processing
+        var handlersToProcess = _handlers;
+        _handlers = _spareHandlers ?? [];
+        _spareHandlers = null;
 
-        for (var i = 0; i < handlersToProcess.Length; i++)
+        for (var i = 0; i < handlersToProcess.Count; i++)
         {
             var (onFulfilled, onRejected, nextPromise) = handlersToProcess[i];
             try
@@ -225,6 +227,10 @@ public sealed class JsPromise
                 _engine.PromiseCallDepth = Math.Max(0, _engine.PromiseCallDepth - 1);
             }
         }
+
+        // Save processed list as spare for next time (no allocation next call)
+        handlersToProcess.Clear();
+        _spareHandlers = handlersToProcess;
 
         if (_handlers.Count > 0)
         {

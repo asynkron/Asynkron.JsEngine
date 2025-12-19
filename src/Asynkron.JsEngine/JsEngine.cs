@@ -2385,6 +2385,8 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         _isDrainingMicrotasks = true;
+        var traceMicrotasks = Environment.GetEnvironmentVariable("JSENGINE_TRACE_MICROTASK") == "1";
+        var drainIterations = 0;
 
         try
         {
@@ -2397,6 +2399,25 @@ public sealed class JsEngine : IAsyncDisposable
                 }
 
                 var (task, taskEpoch) = _microtaskQueue.Dequeue();
+                drainIterations++;
+
+                if (traceMicrotasks && (drainIterations <= 25 || drainIterations % 1000 == 0))
+                {
+                    var target = task.Target;
+                    var targetType = target?.GetType().Name ?? "<null>";
+                    if (target is JsPromise promise)
+                    {
+                        var handlerCount = promise.DebugHandlerCount;
+                        var state = promise.DebugState;
+                        var id = promise.DebugId;
+                        Console.WriteLine(
+                            $"[DrainMicrotasks] iter={drainIterations} epoch={taskEpoch} queue={_microtaskQueue.Count} caller={caller} target={targetType} id={id} state={state} handlers={handlerCount}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[DrainMicrotasks] iter={drainIterations} epoch={taskEpoch} queue={_microtaskQueue.Count} caller={caller} target={targetType}");
+                    }
+                }
 
                 // If this task is from a later epoch than allowed, defer it
                 if (taskEpoch > maxEpoch)
@@ -2426,6 +2447,11 @@ public sealed class JsEngine : IAsyncDisposable
                 {
                     _microtaskQueue.Enqueue(deferredTask);
                 }
+            }
+
+            if (traceMicrotasks)
+            {
+                Console.WriteLine($"[DrainMicrotasks] complete iterations={drainIterations} remaining={_microtaskQueue.Count} caller={caller}");
             }
         }
         finally

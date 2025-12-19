@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 
@@ -70,14 +71,11 @@ public static partial class TypedAstEvaluator
             return resolvedValue;
         }
 
-        private Symbol? GetAwaitStateKey()
+        private Symbol GetAwaitStateKey()
         {
-            if (expression.Source is null)
-            {
-                return null;
-            }
-
-            var key = $"__await_state_{expression.Source.StartPosition}_{expression.Source.EndPosition}";
+            var key = expression.Source is null
+                ? $"__await_state_pc_{RuntimeHelpers.GetHashCode(expression)}"
+                : $"__await_state_{expression.Source.StartPosition}_{expression.Source.EndPosition}";
             return Symbol.Intern(key);
         }
     }

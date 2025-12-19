@@ -157,7 +157,7 @@ try {
     {
         var engine = BaseRealmSnapshot.UseSnapshot
             ? BaseRealmSnapshot.Instance.Value.CreateEngine()
-            : new JsEngine { ExecutionTimeout = null };
+            : new JsEngine { ExecutionTimeout = TimeSpan.FromSeconds(10) };
 
         TestEngineFactory.AttachRealmLoggerIfEnabled(engine);
 

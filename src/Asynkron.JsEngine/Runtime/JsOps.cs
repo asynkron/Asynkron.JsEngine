@@ -54,20 +54,21 @@ internal static class JsOps
             return exponent > 0 ? 0.0 : double.PositiveInfinity;
         }
 
-        if (double.IsInfinity(baseValue))
+        if (!double.IsInfinity(baseValue))
         {
-            var sign = Math.Sign(baseValue);
-            if (exponent > 0)
-            {
-                return sign < 0 && IsOddInteger(exponent)
-                    ? double.NegativeInfinity
-                    : double.PositiveInfinity;
-            }
-
-            return sign < 0 && IsOddInteger(exponent) ? NegativeZero : 0.0;
+            return Math.Pow(baseValue, exponent);
         }
 
-        return Math.Pow(baseValue, exponent);
+        var sign = Math.Sign(baseValue);
+        if (exponent > 0)
+        {
+            return sign < 0 && IsOddInteger(exponent)
+                ? double.NegativeInfinity
+                : double.PositiveInfinity;
+        }
+
+        return sign < 0 && IsOddInteger(exponent) ? NegativeZero : 0.0;
+
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -166,9 +167,9 @@ internal static class JsOps
     {
         var result = ToNumericAsJsValue(value, context);
         // Important: explicit casts to object to avoid implicit JsValue conversions
-        if (result.IsNumber) return (object)result;
+        if (result.IsNumber) return result;
         if (result.IsBigInt) return result.AsBigInt();
-        return (object)result;
+        return result;
     }
 
     /// <summary>
@@ -1197,7 +1198,7 @@ internal static class JsOps
         // The format "0.###################" rounds incorrectly for values near and above 2^53.
         // Note: Any integer that fits in a double without fraction is exactly representable
         // up to the limits of double precision, and can be safely converted to long.
-        if (abs == Math.Truncate(abs) && abs <= (double)long.MaxValue)
+        if (abs == Math.Truncate(abs) && abs <= long.MaxValue)
         {
             var intVal = (long)abs;
             return sign + intVal.ToString(CultureInfo.InvariantCulture);
@@ -1591,7 +1592,7 @@ internal static class JsOps
     /// Per ES spec, [[HasProperty]] uses [[GetOwnProperty]] to check for existence,
     /// it does NOT invoke getters like [[Get]] would.
     /// </summary>
-    public static bool HasProperty(object? target, string propertyName, EvaluationContext? context = null)
+    public static bool HasProperty(object? target, string propertyName)
     {
         // Walk the prototype chain checking for the property via [[GetOwnProperty]]
         // This does NOT invoke getters - it only checks if the property exists
@@ -1605,33 +1606,35 @@ internal static class JsOps
                 {
                     return true;
                 }
+
                 // Move to prototype
                 current = objLike.Prototype;
             }
-            else if (current is IJsPropertyAccessor accessor)
+            else
             {
-                // For non-IJsObjectLike property accessors, fall back to TryGetProperty
-                // but wrap in try-catch to handle poison pill getters
-                try
+                if (current is IJsPropertyAccessor accessor)
                 {
-                    if (accessor.TryGetProperty(propertyName, out _))
+                    // For non-IJsObjectLike property accessors, fall back to TryGetProperty
+                    // but wrap in try-catch to handle poison pill getters
+                    try
                     {
+                        if (accessor.TryGetProperty(propertyName, out _))
+                        {
+                            return true;
+                        }
+                    }
+                    catch (ThrowSignal)
+                    {
+                        // Property exists but getter threw - per spec, HasProperty should return true
+                        // because the property exists (it has a getter descriptor)
                         return true;
                     }
                 }
-                catch (ThrowSignal)
-                {
-                    // Property exists but getter threw - per spec, HasProperty should return true
-                    // because the property exists (it has a getter descriptor)
-                    return true;
-                }
-                break;
-            }
-            else
-            {
+
                 break;
             }
         }
+
         return false;
     }
 
@@ -1656,29 +1659,26 @@ internal static class JsOps
         {
             try
             {
-                if (propertyAccessor is JsObject jsObject)
+                switch (propertyAccessor)
                 {
-                    return jsObject.TryGetProperty(propertyName, target, context, out value);
-                }
-
-                // For Symbol primitives, first try own properties, then fall back to Symbol.prototype
-                if (propertyAccessor is TypedAstSymbol symbol)
-                {
-                    if (symbol.TryGetProperty(propertyName, out var jsValue))
-                    {
+                    case JsObject jsObject:
+                        return jsObject.TryGetProperty(propertyName, target, context, out value);
+                    // For Symbol primitives, first try own properties, then fall back to Symbol.prototype
+                    case TypedAstSymbol symbol when symbol.TryGetProperty(propertyName, out var jsValue):
                         value = jsValue.ToObject();
                         return true;
-                    }
-
                     // Look up in Symbol.prototype chain
-                    var symbolProto = context?.RealmState?.SymbolPrototype;
-                    if (symbolProto is not null && symbolProto.TryGetProperty(propertyName, target, context, out value))
+                    case TypedAstSymbol symbol:
                     {
-                        return true;
-                    }
+                        var symbolProto = context?.RealmState?.SymbolPrototype;
+                        if (symbolProto is not null && symbolProto.TryGetProperty(propertyName, target, context, out value))
+                        {
+                            return true;
+                        }
 
-                    value = null;
-                    return false;
+                        value = null;
+                        return false;
+                    }
                 }
 
                 if (propertyAccessor.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), out var jsVal2))
@@ -1689,12 +1689,8 @@ internal static class JsOps
                 value = null;
                 return false;
             }
-            catch (ThrowSignal signal)
+            catch (ThrowSignal signal) when (context is not null)
             {
-                if (context is null)
-                {
-                    throw;
-                }
 
                 context.SetThrow(signal.ThrownValue);
                 value = signal.ThrownValue;
@@ -1750,7 +1746,7 @@ internal static class JsOps
 
                 break;
             case string str:
-                if (propertyName == "length")
+                if (string.Equals(propertyName, "length", StringComparison.Ordinal))
                 {
                     value = (double)str.Length;
                     return true;
@@ -1780,7 +1776,7 @@ internal static class JsOps
             case JsRopeString rope:
             {
                 var ropeStr = rope.Flatten();
-                if (propertyName == "length")
+                if (string.Equals(propertyName, "length", StringComparison.Ordinal))
                 {
                     value = (double)ropeStr.Length;
                     return true;

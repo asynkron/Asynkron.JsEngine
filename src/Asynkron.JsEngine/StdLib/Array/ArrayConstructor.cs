@@ -185,7 +185,7 @@ var result = StandardLibrary.ArrayIsArray(args.GetArgument(0), Realm);
         HostFunction arrayOf = null!;
         arrayOf = new HostFunction((thisValue, args) =>
         {
-            var result = StandardLibrary.ArrayOf(arrayOf, thisValue, args, Realm);
+            var result = StandardLibrary.ArrayOf(thisValue, args, Realm);
             return JsValue.FromObjectUnsafe(result);
         }, Realm, isConstructor: false);
         StandardLibrary.AttachBuiltinMetadata(arrayOf, "of", 0d);

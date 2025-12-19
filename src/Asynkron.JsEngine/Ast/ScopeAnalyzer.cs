@@ -883,16 +883,6 @@ public sealed class ScopeAnalyzer
         };
     }
 
-    /// <summary>
-    /// Collects all variable identifiers referenced in an expression.
-    /// </summary>
-    private static HashSet<Symbol> CollectReferencedVariables(ExpressionNode expression)
-    {
-        var variables = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
-        CollectVariablesRecursive(expression, variables);
-        return variables;
-    }
-
     private static void CollectVariablesRecursive(ExpressionNode expression, HashSet<Symbol> variables)
     {
         while (true)

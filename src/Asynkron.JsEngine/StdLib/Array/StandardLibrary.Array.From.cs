@@ -10,7 +10,7 @@ public static partial class StandardLibrary
         return ArrayConstructor.CreateConstructor(realm);
     }
 
-    internal static object? ArrayOf(HostFunction host, JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
+    internal static object? ArrayOf(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         const string MethodName = "Array.of";
         var len = args.Count;

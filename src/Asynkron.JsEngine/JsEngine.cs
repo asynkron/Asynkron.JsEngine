@@ -1786,12 +1786,10 @@ public sealed class JsEngine : IAsyncDisposable
             return entry.EvaluationTask;
         }
 
-        return AwaitModuleEvaluationAsync(entry, entry.EvaluationTask, cancellationToken);
+        return AwaitModuleEvaluationAsync(entry.EvaluationTask, cancellationToken);
     }
 
-    private async Task<object?> AwaitModuleEvaluationAsync(
-        ModuleEntry entry,
-        Task<object?> evaluationTask,
+    private async Task<object?> AwaitModuleEvaluationAsync(Task<object?> evaluationTask,
         CancellationToken cancellationToken,
         int callerEpoch = int.MaxValue)
     {
@@ -5490,17 +5488,6 @@ private bool TryEvaluateWhileStatementWithAwait(WhileStatement whileStatement, J
             }
         }
     }
-
-	    private static void WaitForAsyncModule(ModuleEntry moduleEntry)
-	    {
-	        if (moduleEntry.Evaluated)
-	        {
-	            return;
-	        }
-
-	        throw new NotSupportedException(
-	            "Synchronous waiting for async module evaluation is not supported.");
-	    }
 
     /// <summary>
     ///     Processes an import statement and brings imported values into the module environment.

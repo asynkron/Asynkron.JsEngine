@@ -437,7 +437,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             {
                 var args = new JsValue[] { JsValue.FromObjectUnsafe(rejectionErrors), new JsValue("All promises were rejected") };
                 var result = callable.Invoke(args, JsValue.Undefined);
-                return result.IsNullish ? (object)rejectionErrors : (object?)result.AsObject() ?? rejectionErrors;
+                return result.IsNullish ? rejectionErrors : (object?)result.AsObject() ?? rejectionErrors;
             }
             catch
             {

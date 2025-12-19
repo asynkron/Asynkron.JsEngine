@@ -577,7 +577,7 @@ public static partial class TypedAstEvaluator
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
         {
-            return JsValue.FromDouble((double)(JsNumericConversions.ToInt32(left.NumberValue) & JsNumericConversions.ToInt32(right.NumberValue)));
+            return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) & JsNumericConversions.ToInt32(right.NumberValue));
         }
 
         return JsValue.FromObjectUnsafe(BitwiseAnd(left.ToObject(), right.ToObject(), context));
@@ -592,7 +592,7 @@ public static partial class TypedAstEvaluator
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
         {
-            return JsValue.FromDouble((double)(JsNumericConversions.ToInt32(left.NumberValue) | JsNumericConversions.ToInt32(right.NumberValue)));
+            return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) | JsNumericConversions.ToInt32(right.NumberValue));
         }
 
         return JsValue.FromObjectUnsafe(BitwiseOr(left.ToObject(), right.ToObject(), context));
@@ -607,7 +607,7 @@ public static partial class TypedAstEvaluator
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
         {
-            return JsValue.FromDouble((double)(JsNumericConversions.ToInt32(left.NumberValue) ^ JsNumericConversions.ToInt32(right.NumberValue)));
+            return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) ^ JsNumericConversions.ToInt32(right.NumberValue));
         }
 
         return JsValue.FromObjectUnsafe(BitwiseXor(left.ToObject(), right.ToObject(), context));
@@ -622,7 +622,7 @@ public static partial class TypedAstEvaluator
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
         {
-            return JsValue.FromDouble((double)(JsNumericConversions.ToInt32(left.NumberValue) << (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F)));
+            return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) << (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F));
         }
 
         return JsValue.FromObjectUnsafe(LeftShift(left.ToObject(), right.ToObject(), context));
@@ -637,7 +637,7 @@ public static partial class TypedAstEvaluator
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
         {
-            return JsValue.FromDouble((double)(JsNumericConversions.ToInt32(left.NumberValue) >> (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F)));
+            return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) >> (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F));
         }
 
         return JsValue.FromObjectUnsafe(RightShift(left.ToObject(), right.ToObject(), context));
@@ -652,7 +652,7 @@ public static partial class TypedAstEvaluator
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
         {
-            return JsValue.FromDouble((double)(JsNumericConversions.ToUInt32(left.NumberValue) >> (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F)));
+            return JsValue.FromDouble(JsNumericConversions.ToUInt32(left.NumberValue) >> (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F));
         }
 
         return JsValue.FromObjectUnsafe(UnsignedRightShift(left.ToObject(), right.ToObject(), context));

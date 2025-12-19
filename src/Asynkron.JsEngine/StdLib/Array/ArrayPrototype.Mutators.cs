@@ -49,7 +49,7 @@ public sealed partial class ArrayPrototype
     }
 
     [JsHostMethod("pop", Length = 0d)]
-    public JsValue Pop(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Pop(JsValue thisValue)
     {
         const string MethodName = "Array.prototype.pop";
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
@@ -93,7 +93,7 @@ public sealed partial class ArrayPrototype
     }
 
     [JsHostMethod("shift", Length = 0d)]
-    public JsValue Shift(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Shift(JsValue thisValue)
     {
         const string MethodName = "Array.prototype.shift";
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
@@ -247,10 +247,6 @@ public sealed partial class ArrayPrototype
             {
                 deleteCountArg = length - actualStart;
             }
-            else if (args.Count == 1)
-            {
-                deleteCountArg = length - actualStart;
-            }
             else
             {
                 deleteCountArg = ToIntegerOrInfinity(args[1].ToObject());
@@ -349,7 +345,7 @@ public sealed partial class ArrayPrototype
     }
 
     [JsHostMethod("reverse", Length = 0d)]
-    public JsValue Reverse(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Reverse(JsValue thisValue)
     {
         const string MethodName = "Array.prototype.reverse";
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
@@ -515,7 +511,7 @@ public sealed partial class ArrayPrototype
             }
         }
 
-        elements.Sort((x, y) => Comparer(x, y));
+        elements.Sort(Comparer);
 
         // Write sorted values back to the array
         long index = 0;

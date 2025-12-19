@@ -32,7 +32,7 @@ internal sealed class SyncGeneratorIrBuilder
     {
     }
 
-    private bool TryBuildReturnWithYield(ReturnStatement statement, YieldExpression yieldExpression, int nextIndex,
+    private bool TryBuildReturnWithYield(YieldExpression yieldExpression,
         out int entryIndex)
     {
         // Only handle simple `yield` / `yield*` used directly as the return
@@ -301,7 +301,7 @@ internal sealed class SyncGeneratorIrBuilder
 
                 case ReturnStatement returnStatement:
                     if (returnStatement.Expression is YieldExpression yieldReturn &&
-                        TryBuildReturnWithYield(returnStatement, yieldReturn, nextIndex, out entryIndex))
+                        TryBuildReturnWithYield(yieldReturn, out entryIndex))
                     {
                         return true;
                     }

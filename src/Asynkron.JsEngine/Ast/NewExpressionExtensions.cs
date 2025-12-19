@@ -100,7 +100,7 @@ public static partial class TypedAstEvaluator
             {
                 var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
                     ? typeErrorCtor.Invoke([(JsValue)(hostFunction.ConstructErrorMessage ?? "is not a constructor")], JsValue.Null).ToObject()
-                    : (object?)new InvalidOperationException(
+                    : new InvalidOperationException(
                         hostFunction.ConstructErrorMessage ?? "Target is not a constructor.");
                 throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
             }
@@ -109,7 +109,7 @@ public static partial class TypedAstEvaluator
             {
                 var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
                     ? typeErrorCtor.Invoke([(JsValue)"Target is not a constructor"], JsValue.Null).ToObject()
-                    : (object?)new InvalidOperationException("Target is not a constructor.");
+                    : new InvalidOperationException("Target is not a constructor.");
                 throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
             }
 
@@ -117,7 +117,7 @@ public static partial class TypedAstEvaluator
             {
                 var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
                     ? typeErrorCtor.Invoke([(JsValue)"Target is not a constructor"], JsValue.Null).ToObject()
-                    : (object?)new InvalidOperationException("Target is not a constructor.");
+                    : new InvalidOperationException("Target is not a constructor.");
                 throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
             }
 
@@ -125,7 +125,7 @@ public static partial class TypedAstEvaluator
             {
                 var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
                     ? typeErrorCtor.Invoke([(JsValue)"Generator functions cannot be constructed with 'new'"], JsValue.Null).ToObject()
-                    : (object?)new InvalidOperationException("Generator functions cannot be constructed with 'new'.");
+                    : new InvalidOperationException("Generator functions cannot be constructed with 'new'.");
                 throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
             }
 

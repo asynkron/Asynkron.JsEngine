@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class ArrayPrototype
 {
     [JsHostMethod("entries", Length = 0d)]
-    public JsValue Entries(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Entries(JsValue thisValue)
     {
         return JsValue.FromObjectUnsafe(CreateArrayIterator(thisValue, "Array.prototype.entries", Realm, (accessor, _) => idx =>
         {
@@ -19,13 +19,13 @@ public sealed partial class ArrayPrototype
     }
 
     [JsHostMethod("keys", Length = 0d)]
-    public JsValue Keys(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Keys(JsValue thisValue)
     {
         return JsValue.FromObjectUnsafe(CreateArrayIterator(thisValue, "Array.prototype.keys", Realm, (_, _) => idx => new JsValue((double)idx)));
     }
 
     [JsHostMethod("values", Length = 0d)]
-    public JsValue Values(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Values(JsValue thisValue)
     {
         return JsValue.FromObjectUnsafe(CreateArrayIterator(thisValue, "Array.prototype.values", Realm,
             (accessor, _) => idx => GetElementOrUndefinedJsValue(accessor, idx)));

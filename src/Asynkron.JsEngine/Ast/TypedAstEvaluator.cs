@@ -73,13 +73,13 @@ public static partial class TypedAstEvaluator
     /// NOTE: TypedArray is NOT fast-pathed because resizable buffer shrink requires proper error propagation.
     /// </summary>
     [MustDisposeResource]
-    private static IEnumerator<JsValue>? TryGetFastEnumeratorForIteration(object? value, EvaluationContext context)
+    private static IEnumerator<JsValue>? TryGetFastEnumeratorForIteration(object? value)
     {
         return value switch
         {
             // JsArray - fast path only if no custom indexed properties (getters/setters)
             // Arrays with Object.defineProperty on numeric indices need full iterator protocol
-            JsArray array when !array.HasCustomIndexedProperties => array.GetEnumerator(),
+            JsArray { HasCustomIndexedProperties: false } array => array.GetEnumerator(),
 
             // Strings - Unicode code point enumeration (handles surrogate pairs)
             // Strings are immutable so no modification concerns
@@ -1049,7 +1049,7 @@ public static partial class TypedAstEvaluator
         }
 
         // Use [[HasProperty]] semantics - check if property exists in object or its prototype chain
-        return JsOps.HasProperty(target, propertyName, context);
+        return JsOps.HasProperty(target, propertyName);
     }
 
     private static bool InstanceofOperator(object? left, object? right, EvaluationContext context)

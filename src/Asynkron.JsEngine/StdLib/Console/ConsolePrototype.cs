@@ -8,14 +8,14 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class ConsolePrototype
 {
     [JsHostMethod("log", Length = 0d)]
-    public JsValue Log(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Log(IReadOnlyList<JsValue> args)
     {
         Console.WriteLine(FormatConsoleArgs(args));
         return JsValue.Undefined;
     }
 
     [JsHostMethod("error", Length = 0d)]
-    public JsValue Error(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Error(IReadOnlyList<JsValue> args)
     {
         Console.Error.WriteLine(FormatConsoleArgs(args));
         return JsValue.Undefined;
@@ -29,14 +29,14 @@ public sealed partial class ConsolePrototype
     }
 
     [JsHostMethod("info", Length = 0d)]
-    public JsValue Info(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Info(IReadOnlyList<JsValue> args)
     {
         Console.WriteLine(FormatConsoleArgs(args));
         return JsValue.Undefined;
     }
 
     [JsHostMethod("debug", Length = 0d)]
-    public JsValue Debug(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Debug(IReadOnlyList<JsValue> args)
     {
         Console.WriteLine($"Debug: {FormatConsoleArgs(args)}");
         return JsValue.Undefined;

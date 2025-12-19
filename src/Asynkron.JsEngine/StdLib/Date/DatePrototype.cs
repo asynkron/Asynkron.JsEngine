@@ -7,10 +7,10 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 namespace Asynkron.JsEngine.StdLib;
 
 [JsPrototype("Date", ToStringTag = "Date")]
-public sealed partial class DatePrototype : JsPrototype
+public sealed partial class DatePrototype
 {
     [JsHostMethod("getTime", Length = 0d)]
-    public JsValue GetTime(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue GetTime(JsValue thisValue)
     {
         return RequireDateValue(thisValue, Realm, out _);
     }
@@ -26,7 +26,7 @@ public sealed partial class DatePrototype : JsPrototype
     }
 
     [JsHostMethod("getFullYear", Length = 0d)]
-    public JsValue GetFullYear(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue GetFullYear(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         if (double.IsNaN(timeValue))
@@ -39,7 +39,7 @@ public sealed partial class DatePrototype : JsPrototype
     }
 
     [JsHostMethod("getMonth", Length = 0d)]
-    public JsValue GetMonth(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue GetMonth(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         if (double.IsNaN(timeValue))
@@ -52,7 +52,7 @@ public sealed partial class DatePrototype : JsPrototype
     }
 
     [JsHostMethod("getDate", Length = 0d)]
-    public JsValue GetDate(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue GetDate(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         if (double.IsNaN(timeValue))
@@ -65,7 +65,7 @@ public sealed partial class DatePrototype : JsPrototype
     }
 
     [JsHostMethod("getDay", Length = 0d)]
-    public JsValue GetDay(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue GetDay(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         if (double.IsNaN(timeValue))
@@ -78,7 +78,7 @@ public sealed partial class DatePrototype : JsPrototype
     }
 
     [JsHostMethod("getHours", Length = 0d)]
-    public JsValue GetHours(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue GetHours(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         if (double.IsNaN(timeValue))
@@ -91,7 +91,7 @@ public sealed partial class DatePrototype : JsPrototype
     }
 
     [JsHostMethod("getMinutes", Length = 0d)]
-    public JsValue GetMinutes(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue GetMinutes(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         if (double.IsNaN(timeValue))
@@ -104,7 +104,7 @@ public sealed partial class DatePrototype : JsPrototype
     }
 
     [JsHostMethod("getSeconds", Length = 0d)]
-    public JsValue GetSeconds(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue GetSeconds(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         if (double.IsNaN(timeValue))
@@ -117,7 +117,7 @@ public sealed partial class DatePrototype : JsPrototype
     }
 
     [JsHostMethod("getMilliseconds", Length = 0d)]
-    public JsValue GetMilliseconds(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue GetMilliseconds(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         if (double.IsNaN(timeValue))
@@ -130,7 +130,7 @@ public sealed partial class DatePrototype : JsPrototype
     }
 
     [JsHostMethod("getTimezoneOffset", Length = 0d)]
-    public JsValue GetTimezoneOffset(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue GetTimezoneOffset(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         if (double.IsNaN(timeValue))
@@ -143,56 +143,56 @@ public sealed partial class DatePrototype : JsPrototype
     }
 
     [JsHostMethod("getUTCFullYear", Length = 0d)]
-    public JsValue GetUtcFullYear(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue GetUtcFullYear(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         return double.IsNaN(timeValue) ? JsValue.NaN : YearFromTime(timeValue);
     }
 
     [JsHostMethod("getUTCMonth", Length = 0d)]
-    public JsValue GetUtcMonth(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue GetUtcMonth(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         return double.IsNaN(timeValue) ? JsValue.NaN : MonthFromTime(timeValue);
     }
 
     [JsHostMethod("getUTCDate", Length = 0d)]
-    public JsValue GetUtcDate(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue GetUtcDate(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         return double.IsNaN(timeValue) ? JsValue.NaN : DateFromTime(timeValue);
     }
 
     [JsHostMethod("getUTCDay", Length = 0d)]
-    public JsValue GetUtcDay(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue GetUtcDay(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         return double.IsNaN(timeValue) ? JsValue.NaN : WeekDayFromTime(timeValue);
     }
 
     [JsHostMethod("getUTCHours", Length = 0d)]
-    public JsValue GetUtcHours(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue GetUtcHours(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         return double.IsNaN(timeValue) ? JsValue.NaN : HourFromTime(timeValue);
     }
 
     [JsHostMethod("getUTCMinutes", Length = 0d)]
-    public JsValue GetUtcMinutes(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue GetUtcMinutes(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         return double.IsNaN(timeValue) ? JsValue.NaN : MinFromTime(timeValue);
     }
 
     [JsHostMethod("getUTCSeconds", Length = 0d)]
-    public JsValue GetUtcSeconds(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue GetUtcSeconds(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         return double.IsNaN(timeValue) ? JsValue.NaN : SecFromTime(timeValue);
     }
 
     [JsHostMethod("getUTCMilliseconds", Length = 0d)]
-    public JsValue GetUtcMilliseconds(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue GetUtcMilliseconds(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         return double.IsNaN(timeValue) ? JsValue.NaN : MsFromTime(timeValue);
@@ -370,7 +370,7 @@ public sealed partial class DatePrototype : JsPrototype
     }
 
     [JsHostMethod("toISOString", Length = 0d)]
-    public JsValue ToIsoString(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ToIsoString(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         if (double.IsNaN(timeValue) || double.IsInfinity(timeValue))
@@ -383,7 +383,7 @@ public sealed partial class DatePrototype : JsPrototype
     }
 
     [JsHostMethod("toJSON", Length = 1d)]
-    public JsValue ToJson(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ToJson(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out var obj);
         if (double.IsNaN(timeValue) || double.IsInfinity(timeValue))
@@ -397,7 +397,7 @@ public sealed partial class DatePrototype : JsPrototype
         }
 
         // method is already a JsValue from TryGetProperty
-        if (!method.TryGetObject<IJsCallable>(out var fn) || fn is null)
+        if (!method.TryGetObject<IJsCallable>(out var fn))
         {
             throw ThrowTypeError("toISOString is not callable", realm: Realm);
         }
@@ -406,7 +406,7 @@ public sealed partial class DatePrototype : JsPrototype
     }
 
     [JsHostMethod("toString", Length = 0d)]
-    public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ToString(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         if (double.IsNaN(timeValue))
@@ -419,7 +419,7 @@ public sealed partial class DatePrototype : JsPrototype
     }
 
     [JsHostMethod("toDateString", Length = 0d)]
-    public JsValue ToDateString(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ToDateString(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         if (double.IsNaN(timeValue))
@@ -432,7 +432,7 @@ public sealed partial class DatePrototype : JsPrototype
     }
 
     [JsHostMethod("toTimeString", Length = 0d)]
-    public JsValue ToTimeString(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ToTimeString(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         if (double.IsNaN(timeValue))
@@ -445,13 +445,13 @@ public sealed partial class DatePrototype : JsPrototype
     }
 
     [JsHostMethod("valueOf", Length = 0d)]
-    public JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ValueOf(JsValue thisValue)
     {
         return RequireDateValue(thisValue, Realm, out _);
     }
 
     [JsHostMethod("getYear", Length = 0d)]
-    public JsValue GetYear(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue GetYear(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         if (double.IsNaN(timeValue))
@@ -493,7 +493,7 @@ public sealed partial class DatePrototype : JsPrototype
     }
 
     [JsHostMethod("toUTCString", Length = 0d)]
-    public JsValue ToUtcString(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ToUtcString(JsValue thisValue)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out _);
         if (double.IsNaN(timeValue))

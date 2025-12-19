@@ -338,7 +338,7 @@ public static partial class TypedAstEvaluator
                             {
                                 Property: LiteralExpression { Value.IsString: true } formatArgsLit
                             } inner
-                        } && callLit.Value.AsString() == "call" && formatArgsLit.Value.AsString() == "formatArgs")
+                        } && string.Equals(callLit.Value.AsString(), "call", StringComparison.Ordinal) && string.Equals(formatArgsLit.Value.AsString(), "formatArgs", StringComparison.Ordinal))
                     {
                         var targetJs = inner.Target.EvaluateExpression(environment, context);
                         if (context.ShouldStopEvaluation)
@@ -488,23 +488,14 @@ public static partial class TypedAstEvaluator
 
             try
             {
-                if (callable is TypedFunction typedFunction)
+                callResult = callable switch
                 {
-                    callResult = typedFunction.InvokeWithContext(frozenArguments, thisValue, context,
-                        newTargetForCall);
-                }
-                else if (callable is HostFunction hostFunction)
-                {
-                    callResult = hostFunction.InvokeWithContext(
-                        frozenArguments,
-                        thisValue,
-                        context,
-                        newTargetForCall);
-                }
-                else
-                {
-                    callResult = callable.Invoke(frozenArguments, thisValue);
-                }
+                    TypedFunction typedFunction => typedFunction.InvokeWithContext(frozenArguments, thisValue, context,
+                        newTargetForCall),
+                    HostFunction hostFunction => hostFunction.InvokeWithContext(frozenArguments, thisValue, context,
+                        newTargetForCall),
+                    _ => callable.Invoke(frozenArguments, thisValue)
+                };
 
                 if (expression.Callee is SuperExpression)
                 {

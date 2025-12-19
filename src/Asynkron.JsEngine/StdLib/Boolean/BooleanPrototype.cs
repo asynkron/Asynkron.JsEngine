@@ -44,7 +44,7 @@ public sealed partial class BooleanPrototype
             }
         }
 
-        if (receiver.TryGetObject<IJsPropertyAccessor>(out var accessor) && accessor is not null && accessor.TryGetProperty("__value__", out var innerVal))
+        if (receiver.TryGetObject<IJsPropertyAccessor>(out var accessor) && accessor.TryGetProperty("__value__", out var innerVal))
         {
             if (innerVal.TryGetBoolean(out var boolVal))
             {

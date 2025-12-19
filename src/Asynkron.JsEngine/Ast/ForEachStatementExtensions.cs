@@ -78,7 +78,7 @@ public static partial class TypedAstEvaluator
 
                 // FAST PATH: Use IEnumerator<JsValue> for known types (JsArray, TypedArray, string)
                 // This avoids allocating iterator result objects {done, value} per iteration.
-                var fastEnumerator = TryGetFastEnumeratorForIteration(iterable, context);
+                var fastEnumerator = TryGetFastEnumeratorForIteration(iterable);
                 if (fastEnumerator is not null)
                 {
                     try
@@ -209,7 +209,7 @@ public static partial class TypedAstEvaluator
 
             var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
             Func<JsEnvironment>? rentIterationEnvironment = null;
-            if (plan.IterationSlotCount >= 0 && plan.IterationScopeId >= 0 &&
+            if (plan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
                 statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
                     or VariableKind.AwaitUsing)
             {
@@ -224,7 +224,7 @@ public static partial class TypedAstEvaluator
 
             // FAST PATH: Use IEnumerator<JsValue> for sync iterables (arrays, typed arrays, strings)
             // This avoids iterator result object allocations while maintaining async semantics.
-            var fastEnumerator = TryGetFastEnumeratorForIteration(iterable, context);
+            var fastEnumerator = TryGetFastEnumeratorForIteration(iterable);
             if (fastEnumerator is not null)
             {
                 try

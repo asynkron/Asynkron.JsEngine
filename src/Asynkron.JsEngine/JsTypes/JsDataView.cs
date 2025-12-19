@@ -148,7 +148,7 @@ public sealed class JsDataView : IJsPropertyAccessor
         {
             var offset = args.Count > 0 && args[0].TryGetDouble(out var d) ? (int)d : 0;
             var littleEndian = args.Count > 1 && args[1].IsTruthy;
-            return new JsValue((double)target.GetFloat32(offset, littleEndian));
+            return new JsValue(target.GetFloat32(offset, littleEndian));
         });
 
         _setFloat32 = CreateMethod((target, args) =>

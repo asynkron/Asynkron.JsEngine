@@ -25,17 +25,17 @@ internal static class NumericStringParser
             return 0d;
         }
 
-        if (trimmed == "NaN")
+        if (string.Equals(trimmed, "NaN", StringComparison.Ordinal))
         {
             return double.NaN;
         }
 
-        if (trimmed == "Infinity" || trimmed == "+Infinity")
+        if (string.Equals(trimmed, "Infinity", StringComparison.Ordinal) || string.Equals(trimmed, "+Infinity", StringComparison.Ordinal))
         {
             return double.PositiveInfinity;
         }
 
-        if (trimmed == "-Infinity")
+        if (string.Equals(trimmed, "-Infinity", StringComparison.Ordinal))
         {
             return double.NegativeInfinity;
         }
@@ -110,7 +110,7 @@ internal static class NumericStringParser
         // interpretation that matches ECMAScript string-to-number semantics.
         if ((styles & NumberStyles.AllowHexSpecifier) != 0)
         {
-            var padded = string.Concat("0", digits.ToString());
+            var padded = $"0{digits.ToString()}";
             return BigInteger.TryParse(padded, styles, CultureInfo.InvariantCulture, out value);
         }
 

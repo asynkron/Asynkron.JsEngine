@@ -2073,7 +2073,7 @@ public sealed class JsEngine : IAsyncDisposable
         var queue = _eventQueue ?? throw new InvalidOperationException("Event loop is not running.");
 
         Interlocked.Increment(ref _pendingTaskCount);
-        var written = queue.Writer.TryWrite(async () => { await task().ConfigureAwait(false); });
+        var written = queue.Writer.TryWrite(async () => await task().ConfigureAwait(false));
         if (!written)
         {
             // If we failed to enqueue (e.g., shutting down), decrement immediately.

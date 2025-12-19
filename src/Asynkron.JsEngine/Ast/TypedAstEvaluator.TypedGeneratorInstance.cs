@@ -433,6 +433,8 @@ public static partial class TypedAstEvaluator
             var environment = EnsureExecutionEnvironment();
             var context = EnsureEvaluationContext();
             StoreSymbolValue(environment, Symbol.YieldTrackerSymbol, new YieldTracker(_consumedYieldIndices));
+            var traceAsync = Environment.GetEnvironmentVariable("JSENGINE_TRACE_ASYNC") == "1";
+            var traceIterations = 0;
 
             // Restore active with-scopes when resuming
             // The _activeWithScopes stack contains the slots in reverse order (bottom to top)
@@ -498,6 +500,12 @@ public static partial class TypedAstEvaluator
                     while (_programCounter >= 0 && _programCounter < _plan.Instructions.Length)
                 {
                     _currentInstructionIndex = _programCounter;
+                    if (traceAsync && traceIterations < 64)
+                    {
+                        var instructionName = _plan.Instructions[_programCounter].GetType().Name;
+                        Console.WriteLine($"[AsyncStep-PC] pc={_programCounter} instr={instructionName} state={_state} pendingKind={_pendingResumeKind}");
+                        traceIterations++;
+                    }
                     var instruction = _plan.Instructions[_programCounter];
                     switch (instruction)
                     {
@@ -509,6 +517,10 @@ public static partial class TypedAstEvaluator
                                 context.Clear();
                                 if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
                                 {
+                                    if (_programCounter == _currentInstructionIndex)
+                                    {
+                                        _programCounter = statementInstruction.Next;
+                                    }
                                     continue;
                                 }
 
@@ -522,6 +534,10 @@ public static partial class TypedAstEvaluator
                                 context.ClearReturn();
                                 if (HandleAbruptCompletion(AbruptKind.Return, returnSignalValue, environment))
                                 {
+                                    if (_programCounter == _currentInstructionIndex)
+                                    {
+                                        _programCounter = statementInstruction.Next;
+                                    }
                                     continue;
                                 }
 
@@ -856,6 +872,10 @@ public static partial class TypedAstEvaluator
                                 context.Clear();
                                 if (HandleAbruptCompletion(AbruptKind.Throw, thrownPayload, environment))
                                 {
+                                    if (_programCounter == _currentInstructionIndex)
+                                    {
+                                        _programCounter = storeResumeValueInstruction.Next;
+                                    }
                                     continue;
                                 }
 
@@ -869,6 +889,10 @@ public static partial class TypedAstEvaluator
                                 context.ClearReturn();
                                 if (HandleAbruptCompletion(AbruptKind.Return, resumeReturnValue, environment))
                                 {
+                                    if (_programCounter == _currentInstructionIndex)
+                                    {
+                                        _programCounter = storeResumeValueInstruction.Next;
+                                    }
                                     continue;
                                 }
 
@@ -1278,6 +1302,10 @@ public static partial class TypedAstEvaluator
                                 context.Clear();
                                 if (HandleAbruptCompletion(AbruptKind.Throw, pendingThrow, environment))
                                 {
+                                    if (_programCounter == _currentInstructionIndex)
+                                    {
+                                        _programCounter = returnInstruction.Next;
+                                    }
                                     continue;
                                 }
 
@@ -1294,6 +1322,10 @@ public static partial class TypedAstEvaluator
 
                             if (HandleAbruptCompletion(AbruptKind.Return, returnValue.ToObject(), environment))
                             {
+                                if (_programCounter == _currentInstructionIndex)
+                                {
+                                    _programCounter = returnInstruction.Next;
+                                }
                                 continue;
                             }
 

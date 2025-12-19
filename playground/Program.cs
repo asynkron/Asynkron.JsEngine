@@ -12,9 +12,7 @@ internal static class Program
       reject('early-reject');
     });
   } finally {
-    await new Promise(function(resolve, reject) {
-      reject('override');
-    });
+    return 'override';
   }
 };
 
@@ -28,6 +26,7 @@ f().then(
 ";
 
         var engine = new JsEngine();
+        engine.ExecutionTimeout = TimeSpan.FromSeconds(1);
         var t = engine.Evaluate(script);
         var completed = await Task.WhenAny(t, Task.Delay(5000));
         Console.WriteLine($"Evaluate completed: {ReferenceEquals(completed, t)} status={t.Status}");

@@ -317,22 +317,17 @@ internal static class AwaitScheduler
             return TryAwaitPromiseSync(candidate, context, out resolvedValue, context.DrainAwaitMicrotasks);
         }
 
-        // Async-aware mode: check if promise is already settled first.
-        // For already-resolved promises (like Promise.resolve(42)), we can
-        // return the value immediately without suspension.
-        if (TryGetSettledValueFast(candidate, out var settledValue, out var isRejected))
-        {
-            if (isRejected)
-            {
-                context.SetThrow(settledValue);
-                resolvedValue = JsValue.Undefined;
-                return false;
-            }
-            // Promise is already fulfilled - return value without suspension
-            resolvedValue = settledValue;
-            return true;
-        }
-
+        // Async-aware mode: per ECMAScript spec, await should ALWAYS create an
+        // async boundary, even for already-settled promises. This ensures correct
+        // ordering where synchronous code after the async function call runs before
+        // the awaited value is processed.
+        //
+        // Example:
+        //   let x = 0;
+        //   (async () => { x = await Promise.resolve(42); })();
+        //   console.log(x);  // Should print 0, not 42
+        //
+        // So we must suspend even for settled promises to maintain spec compliance.
         if (IsPromiseLike(candidate))
         {
             // Promise is pending - suspend and attach handlers

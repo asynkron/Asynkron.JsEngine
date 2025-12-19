@@ -209,8 +209,23 @@ namespace Asynkron.JsEngine.JsTypes;
     // Fast path for JsValue that avoids boxing entirely
     private void SetPropertyJsValue(string name, JsValue value, JsValue receiver)
     {
-        // Fast path: no descriptors and no private fields - just set the slot
-        if (!name.IsPrivateSlotName() && !_descriptors.ContainsKey(name))
+        // Fast path is only valid when the receiver is this object.
+        // When receiver differs (e.g. function objects using an internal property bag, Reflect.set with explicit receiver),
+        // we must honor full [[Set]] semantics which may invoke inherited setters instead of creating an own property.
+        var receiverIsThis = receiver.IsUndefined ||
+                             (receiver.Kind == JsValueKind.Object && ReferenceEquals(receiver.ObjectValue, this));
+
+        // Fast path: no descriptors and no private fields - just set the slot.
+        //
+        // IMPORTANT: This fast path is only valid when our prototype chain is represented
+        // by JsObject instances (Prototype != null) or there is no prototype at all.
+        // When Prototype is null but _prototypeAccessor is set (e.g. HostFunction/TypedFunction
+        // prototypes like Function.prototype), we must use the full [[Set]] semantics to allow
+        // inherited setters (e.g. poison-pill Function.prototype.caller/arguments) to run.
+        if (receiverIsThis &&
+            !name.IsPrivateSlotName() &&
+            !_descriptors.ContainsKey(name) &&
+            !(Prototype is null && _prototypeAccessor is not null))
         {
             // Track if this is a new property before setting it
             var isNewProperty = !_storage.ContainsKey(name);

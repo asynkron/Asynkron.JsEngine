@@ -571,6 +571,7 @@ public sealed class JsEngine : IAsyncDisposable
         {
             SingleReader = true,
             SingleWriter = false,
+            AllowSynchronousContinuations = true,
         });
         _eventLoopTask = Task.Run(() => ProcessEventQueue(_eventQueue));
     }

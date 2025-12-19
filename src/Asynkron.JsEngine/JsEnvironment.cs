@@ -1647,6 +1647,7 @@ public sealed class JsEnvironment
             value?.GetType().Name ?? "null");
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryLocateBinding(
         Symbol name,
         out JsEnvironment bindingEnvironment,
@@ -1679,6 +1680,7 @@ public sealed class JsEnvironment
         return false;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryResolveGlobalObjectBinding(
         Symbol name,
         EvaluationContext context,
@@ -2454,6 +2456,7 @@ public sealed class JsEnvironment
         return false;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static object? GetWithBindingValue(in ObjectEnvironmentBinding binding)
     {
         var propertyName = binding.PropertyName;

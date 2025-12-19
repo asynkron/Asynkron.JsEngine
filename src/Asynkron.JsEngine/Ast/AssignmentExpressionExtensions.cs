@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Ast;
@@ -540,6 +541,7 @@ public static partial class TypedAstEvaluator
         return true;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static JsValue EvaluateAssignmentRhsWithNameHintJsValue(
         AssignmentExpression? assignment,
         ExpressionNode rhs,
@@ -566,6 +568,7 @@ public static partial class TypedAstEvaluator
         return jsValue;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool ShouldApplyAssignmentNameHint(AssignmentExpression? assignment, ExpressionNode rhs)
     {
         return assignment is not null && ExpressionNode.IsAnonymousFunctionDefinitionNode(rhs) &&

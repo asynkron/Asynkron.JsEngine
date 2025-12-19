@@ -197,6 +197,11 @@ public sealed class EvaluationContext(
     /// </summary>
     public bool IsContinue => CurrentSignal is ContinueCompletionSignal;
 
+    /// <summary>
+    ///     Returns true if the current signal is a pending await suspension.
+    /// </summary>
+    public bool IsPendingAwait => CurrentSignal is PendingAwaitCompletionSignal;
+
     public ScopeFrame CurrentScope => _scopeStack.Count > 0 ? _scopeStack.Peek() : ScopeFrame.Default;
 
     public PrivateNameScope? CurrentPrivateNameScope => _privateNameScopes.Count > 0 ? _privateNameScopes.Peek() : null;
@@ -335,6 +340,15 @@ public sealed class EvaluationContext(
     {
         _isReturn = false;  // Clear return state so FlowValue uses CurrentSignal
         CurrentSignal = new ThrowFlowCompletionSignal(value);
+    }
+
+    /// <summary>
+    ///     Sets the context to PendingAwait state.
+    /// </summary>
+    public void SetPendingAwait()
+    {
+        _isReturn = false;  // Clear return state so FlowValue uses CurrentSignal
+        CurrentSignal = PendingAwaitCompletionSignal.Instance;
     }
 
     /// <summary>

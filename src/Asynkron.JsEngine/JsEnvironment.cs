@@ -524,7 +524,6 @@ public sealed class JsEnvironment
         EvaluationContext? context = null,
         bool blocksFunctionScopeOverride = false,
         bool? globalVarConfigurable = null,
-        bool allowExistingGlobalFunctionRedeclaration = false,
         bool canDelete = false)
     {
         // `var` declarations are hoisted to the nearest function/global scope, so we skip block environments here.
@@ -2471,8 +2470,6 @@ public sealed class JsEnvironment
         }
 
         var realm = (binding.BindingObject as JsObject)?.RealmState;
-        // DEBUG: This path should produce a JS ReferenceError when a with-binding disappears.
-        Console.WriteLine($"DEBUG GetWithBindingValue missing property '{propertyName}', strict={binding.IsStrictReference}, bindingObj={binding.BindingObject.GetType().Name}");
         throw StandardLibrary.ThrowReferenceError($"ReferenceError: {propertyName} is not defined",
             realm: realm);
 

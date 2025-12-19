@@ -1647,14 +1647,6 @@ internal static class JsOps
             target = jsVal.ToObject();
         }
 
-        var debugTargetName = propertyName is "sameValue" or "valueOf"
-            ? target?.GetType().Name ?? "null"
-            : null;
-        if (debugTargetName is not null)
-        {
-            Console.WriteLine($"DEBUG TryGetPropertyValue entering: prop={propertyName}, targetType={debugTargetName}, target={target}");
-        }
-
         if (target is IJsPropertyAccessor propertyAccessor)
         {
             try
@@ -1807,11 +1799,6 @@ internal static class JsOps
         }
 
         value = null;
-
-        if (debugTargetName is not null)
-        {
-            Console.WriteLine($"DEBUG TryGetPropertyValue miss: prop={propertyName}, targetType={debugTargetName}, target={target}");
-        }
         return false;
     }
 

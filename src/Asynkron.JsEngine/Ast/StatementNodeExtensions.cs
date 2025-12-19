@@ -225,7 +225,6 @@ public static partial class TypedAstEvaluator
                                 true,
                                 context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false },
                                 context,
-                                allowExistingGlobalFunctionRedeclaration: false,
                                 canDelete: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false });
                         }
 

@@ -1909,11 +1909,8 @@ public static partial class TypedAstEvaluator
             if (context.IsThrow)
             {
                 result = context.FlowValue;
-                Console.WriteLine($"[DEBUG InvokeSimpleFastCore] context.IsThrow=true, result type: {result.GetType()}, IsUndefined: {result.IsUndefined}, Kind: {result.Kind}");
                 context.Clear();
-                Console.WriteLine($"[DEBUG InvokeSimpleFastCore] Before SetThrow, callingContext.IsThrow: {callingContext.IsThrow}");
                 callingContext.SetThrow(result);
-                Console.WriteLine($"[DEBUG InvokeSimpleFastCore] After SetThrow, callingContext.IsThrow: {callingContext.IsThrow}, callingContext.FlowValue.Kind: {callingContext.FlowValue.Kind}");
             }
             else if (context.IsReturn)
             {

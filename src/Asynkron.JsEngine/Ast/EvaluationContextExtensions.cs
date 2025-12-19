@@ -42,6 +42,9 @@ public static partial class TypedAstEvaluator
                 case ThrowFlowCompletionSignal throwSignal:
                     context.SetThrow(throwSignal.JsValue);
                     break;
+                case PendingAwaitCompletionSignal:
+                    context.SetPendingAwait();
+                    break;
             }
         }
     }

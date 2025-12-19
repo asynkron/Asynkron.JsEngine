@@ -137,12 +137,6 @@ public static partial class TypedAstEvaluator
             {
                 var step = _inner!.ExecuteAsyncStep(mode, argument);
 
-                var traceAsync = Environment.GetEnvironmentVariable("JSENGINE_TRACE_ASYNC") == "1";
-                if (traceAsync)
-                {
-                    Console.WriteLine($"[AsyncStep] mode={mode} kind={step.Kind} done={step.Done} valueType={step.Value.ObjectValue?.GetType().Name ?? step.Value.Kind.ToString()} pendingPromise={step.PendingPromise.ObjectValue?.GetType().Name ?? "<null>"}");
-                }
-
                 switch (step.Kind)
                 {
                     case TypedGeneratorInstance.AsyncGeneratorStepKind.Completed:
@@ -230,13 +224,6 @@ public static partial class TypedAstEvaluator
         {
             public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
             {
-                var traceAsync = Environment.GetEnvironmentVariable("JSENGINE_TRACE_ASYNC") == "1";
-                if (traceAsync)
-                {
-                    var val = args.Count > 0 ? args[0] : JsValue.Undefined;
-                    Console.WriteLine($"[AsyncResume] isRejection={isRejection} valueType={val.ObjectValue?.GetType().Name ?? val.Kind.ToString()}");
-                }
-
                 var value = args.Count > 0 ? args[0] : JsValue.Undefined;
                 var mode = isRejection
                     ? TypedGeneratorInstance.ResumeMode.Throw

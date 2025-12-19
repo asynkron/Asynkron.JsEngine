@@ -332,7 +332,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     // Keep a finite timeout to avoid runaway scripts, but give heavy test cases
     // (e.g., crypto/NBody fixtures) enough headroom to finish.
-    public TimeSpan? ExecutionTimeout { get; set; } = TimeSpan.FromSeconds(10);
+    public TimeSpan? ExecutionTimeout { get; set; }
 
     /// <summary>
     ///     Exposes the global object for realm-like scenarios (e.g. Test262 realms).
@@ -420,6 +420,7 @@ public sealed class JsEngine : IAsyncDisposable
             ContinueCompletionSignal => "Continue",
             ThrowFlowCompletionSignal => "Throw",
             YieldCompletionSignal => "Yield",
+            PendingAwaitCompletionSignal => "PendingAwait",
             _ => "Unknown",
         };
 
@@ -2395,7 +2396,7 @@ public sealed class JsEngine : IAsyncDisposable
     ///     Microtasks from later epochs are preserved for future draining.
     /// </summary>
     /// <param name="maxEpoch">Maximum epoch to drain. Use int.MaxValue to drain all epochs (default).</param>
-    internal void DrainMicrotasks(int maxEpoch = int.MaxValue, bool force = false, CancellationToken cancellationToken = default, [System.Runtime.CompilerServices.CallerMemberName] string? caller = null)
+    internal void DrainMicrotasks(int maxEpoch = int.MaxValue, bool force = false, CancellationToken cancellationToken = default)
     {
         if (_isDrainingMicrotasks)
         {
@@ -2411,7 +2412,7 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         _isDrainingMicrotasks = true;
-        var traceMicrotasks = Environment.GetEnvironmentVariable("JSENGINE_TRACE_MICROTASK") == "1";
+
         var drainIterations = 0;
 
         try
@@ -2428,24 +2429,6 @@ public sealed class JsEngine : IAsyncDisposable
 
                 var (task, taskEpoch) = _microtaskQueue.Dequeue();
                 drainIterations++;
-
-                if (traceMicrotasks && (drainIterations <= 25 || drainIterations % 1000 == 0))
-                {
-                    var target = task.Target;
-                    var targetType = target?.GetType().Name ?? "<null>";
-                    if (target is JsPromise promise)
-                    {
-                        var handlerCount = promise.DebugHandlerCount;
-                        var state = promise.DebugState;
-                        var id = promise.DebugId;
-                        Console.WriteLine(
-                            $"[DrainMicrotasks] iter={drainIterations} epoch={taskEpoch} queue={_microtaskQueue.Count} caller={caller} target={targetType} id={id} state={state} handlers={handlerCount}");
-                    }
-                    else
-                    {
-                        Console.WriteLine($"[DrainMicrotasks] iter={drainIterations} epoch={taskEpoch} queue={_microtaskQueue.Count} caller={caller} target={targetType}");
-                    }
-                }
 
                 // If this task is from a later epoch than allowed, defer it
                 if (taskEpoch > maxEpoch)
@@ -2475,11 +2458,6 @@ public sealed class JsEngine : IAsyncDisposable
                 {
                     _microtaskQueue.Enqueue(deferredTask);
                 }
-            }
-
-            if (traceMicrotasks)
-            {
-                Console.WriteLine($"[DrainMicrotasks] complete iterations={drainIterations} remaining={_microtaskQueue.Count} caller={caller}");
             }
         }
         finally

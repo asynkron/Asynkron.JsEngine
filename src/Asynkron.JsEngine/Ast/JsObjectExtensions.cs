@@ -120,6 +120,7 @@ public static partial class TypedAstEvaluator
                     ReturnCompletionSignal returnSignal => returnSignal.JsValue.GetType().Name,
                     BreakCompletionSignal => "Break",
                     ContinueCompletionSignal => "Continue",
+                    PendingAwaitCompletionSignal => "PendingAwait",
                     _ => "null"
                 });
 

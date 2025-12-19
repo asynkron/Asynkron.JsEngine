@@ -27,7 +27,6 @@ public abstract partial class ErrorConstructorBase(IJsObjectLike prototype, Real
     protected override void ConfigureConstructor(HostFunction constructor)
     {
         _constructor = constructor;
-        var debugEnabled = Realm.Options.DebugMode;
 
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
@@ -50,33 +49,11 @@ public abstract partial class ErrorConstructorBase(IJsObjectLike prototype, Real
 
             if (Prototype is IPropertyDefinitionHost definable)
             {
-                var added = definable.TryDefineProperty("constructor", descriptor);
-                if (debugEnabled)
-                {
-                    Console.WriteLine($"DEBUG ErrorConstructor: added ctor on {ErrorType} prototype via definable={added}");
-                }
+                definable.TryDefineProperty("constructor", descriptor);
             }
             else if (Prototype is JsObject protoObj)
             {
                 protoObj.SetProperty("constructor", constructor);
-                if (debugEnabled)
-                {
-                    Console.WriteLine($"DEBUG ErrorConstructor: set ctor on {ErrorType} prototype via SetProperty");
-                }
-            }
-            else
-            {
-                if (debugEnabled)
-                {
-                    Console.WriteLine($"DEBUG ErrorConstructor: no way to set ctor on {ErrorType} prototype type={Prototype.GetType().Name}");
-                }
-            }
-        }
-        else
-        {
-            if (debugEnabled)
-            {
-                Console.WriteLine($"DEBUG ErrorConstructor: prototype for {ErrorType} already has constructor property");
             }
         }
 

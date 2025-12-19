@@ -172,16 +172,6 @@ public static partial class TypedAstEvaluator
                 // result, treat it as a completed step with undefined.
                 return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Completed, JsValue.Undefined, true, JsValue.Undefined);
             }
-            catch (PendingAwaitException)
-            {
-                if (_pendingPromise.TryGetObject<JsObject>(out var pending))
-                {
-                    return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, JsValue.Undefined, false,
-                        new JsValue(pending));
-                }
-
-                throw new InvalidOperationException("Async generator awaited a non-promise value.");
-            }
             finally
             {
                 _asyncStepMode = previousAsyncStepMode;
@@ -416,7 +406,7 @@ public static partial class TypedAstEvaluator
                 return FinishExternalCompletion(mode, resumeValue);
             }
 
-            if ((mode == ResumeMode.Throw || mode == ResumeMode.Return) && wasStart)
+            if (mode is ResumeMode.Throw or ResumeMode.Return && wasStart)
             {
                 _state = GeneratorState.Completed;
                 _done = true;
@@ -429,8 +419,6 @@ public static partial class TypedAstEvaluator
             var environment = EnsureExecutionEnvironment();
             var context = EnsureEvaluationContext();
             StoreSymbolValue(environment, Symbol.YieldTrackerSymbol, new YieldTracker(_consumedYieldIndices));
-
-            var traceIterations = 0;
 
             // Restore active with-scopes when resuming
             // The _activeWithScopes stack contains the slots in reverse order (bottom to top)
@@ -501,6 +489,10 @@ public static partial class TypedAstEvaluator
                         {
                             case StatementInstruction statementInstruction:
                                 _ = statementInstruction.Statement.EvaluateStatementJsValue(environment, context);
+                                if (TryHandlePendingAwait(context, out var pendingResult))
+                                {
+                                    return pendingResult;
+                                }
                                 if (context.IsThrow)
                                 {
                                     var thrown = context.FlowValue;
@@ -556,6 +548,10 @@ public static partial class TypedAstEvaluator
                                 {
                                     yieldedValue = yieldInstruction.YieldExpression.EvaluateExpression(environment,
                                         context);
+                                    if (TryHandlePendingAwait(context, out var pendingYieldResult))
+                                    {
+                                        return pendingYieldResult;
+                                    }
                                     if (context.IsThrow)
                                     {
                                         var thrown = context.FlowValue;
@@ -610,27 +606,19 @@ public static partial class TypedAstEvaluator
                                     yieldStarState.AwaitingResume = false;
                                     environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
 
-                                    if (pendingKind == AbruptKind.Throw)
+                                    switch (pendingKind)
                                     {
-                                        if (HandleAbruptCompletion(AbruptKind.Throw, pendingValue, environment))
-                                        {
+                                        case AbruptKind.Throw when HandleAbruptCompletion(AbruptKind.Throw, pendingValue, environment):
                                             continue;
-                                        }
-
-                                        _tryStack.Clear();
-                                        // pendingValue is already JsValue
-                                        throw new ThrowSignal(pendingValue);
-                                    }
-
-                                    if (pendingKind == AbruptKind.Return)
-                                    {
-                                        if (HandleAbruptCompletion(AbruptKind.Return, pendingValue, environment))
-                                        {
+                                        case AbruptKind.Throw:
+                                            _tryStack.Clear();
+                                            // pendingValue is already JsValue
+                                            throw new ThrowSignal(pendingValue);
+                                        case AbruptKind.Return when HandleAbruptCompletion(AbruptKind.Return, pendingValue, environment):
                                             continue;
-                                        }
-
                                         // pendingValue is already JsValue
-                                        return CompleteReturn(pendingValue);
+                                        case AbruptKind.Return:
+                                            return CompleteReturn(pendingValue);
                                     }
                                 }
 
@@ -640,7 +628,12 @@ public static partial class TypedAstEvaluator
                                 if (yieldStarState.State is null)
                                 {
                                     _realmState.Logger?.LogInformation("YieldStar: Creating new DelegatedState");
-                                    var yieldStarIterable = yieldStarInstruction.IterableExpression.EvaluateExpression(environment, context).ToObject();
+                                    var yieldStarIterableValue = yieldStarInstruction.IterableExpression.EvaluateExpression(environment, context);
+                                    if (TryHandlePendingAwait(context, out var pendingYieldStarResult))
+                                    {
+                                        return pendingYieldStarResult;
+                                    }
+                                    var yieldStarIterable = yieldStarIterableValue.ToObject();
                                     if (context.IsThrow)
                                     {
                                         var thrown = context.FlowValue;
@@ -820,7 +813,7 @@ public static partial class TypedAstEvaluator
                                     {
                                         return JsValue.FromObjectUnsafe(originalResult);
                                     }
-                                    var resultDone = propagateReturn ? iteratorResult.Done : false;
+                                    var resultDone = propagateReturn && iteratorResult.Done;
                                     return (JsValue)CreateIteratorResult(iteratorResult.Value, resultDone);
                                 }
 
@@ -948,6 +941,10 @@ public static partial class TypedAstEvaluator
 
                             case IteratorInitInstruction iteratorInitInstruction:
                                 var iterableValue = iteratorInitInstruction.IterableExpression.EvaluateExpression(environment, context);
+                                if (TryHandlePendingAwait(context, out var pendingIteratorResult))
+                                {
+                                    return pendingIteratorResult;
+                                }
                                 if (context.IsThrow)
                                 {
                                     var initThrown = context.FlowValue;
@@ -1238,6 +1235,10 @@ public static partial class TypedAstEvaluator
 
                             case BranchInstruction branchInstruction:
                                 var testValue = branchInstruction.Condition.EvaluateExpression(environment, context);
+                                if (TryHandlePendingAwait(context, out var pendingBranchResult))
+                                {
+                                    return pendingBranchResult;
+                                }
                                 if (context.IsThrow)
                                 {
                                     var thrownBranch = context.FlowValue;
@@ -1279,6 +1280,10 @@ public static partial class TypedAstEvaluator
                                 var returnValue = returnInstruction.ReturnExpression is null
                                     ? JsValue.Undefined
                                     : returnInstruction.ReturnExpression.EvaluateExpression(environment, context);
+                                if (TryHandlePendingAwait(context, out var pendingReturnResult))
+                                {
+                                    return pendingReturnResult;
+                                }
                                 if (context.IsThrow)
                                 {
                                     var pendingThrow = context.FlowValue;
@@ -1320,7 +1325,12 @@ public static partial class TypedAstEvaluator
 
                             case EnterWithInstruction enterWithInstruction:
                             {
-                                var objValue = enterWithInstruction.ObjectExpression.EvaluateExpression(environment, context).ToObject();
+                                var objValueJs = enterWithInstruction.ObjectExpression.EvaluateExpression(environment, context);
+                                if (TryHandlePendingAwait(context, out var pendingWithResult))
+                                {
+                                    return pendingWithResult;
+                                }
+                                var objValue = objValueJs.ToObject();
                                 if (context.IsThrow)
                                 {
                                     var thrownWith = context.FlowValue;
@@ -1412,18 +1422,6 @@ public static partial class TypedAstEvaluator
                                     $"Unsupported generator instruction {instruction.GetType().Name}");
                         }
                     }
-                }
-                catch (PendingAwaitException)
-                {
-                    // A pending await surfaced from within the generator body.
-                    // Async-aware callers translate this into a Pending step so
-                    // the generator can resume once the promise settles.
-                    if (_asyncStepMode)
-                    {
-                        throw;
-                    }
-
-                    return new JsValue(CreateIteratorResult(JsValue.Undefined, false));
                 }
                 catch (ThrowSignal signal)
                 {
@@ -1622,7 +1620,8 @@ public static partial class TypedAstEvaluator
             _pendingAwaitKey = awaitKey;
             _state = GeneratorState.Suspended;
             _programCounter = _currentInstructionIndex;
-            throw new PendingAwaitException();
+            context.SetPendingAwait();
+            return JsValue.Undefined;
 
             // If TryResolvePromiseOrYield reported an error via the context,
             // let the caller observe the pending throw/return.
@@ -1637,6 +1636,24 @@ public static partial class TypedAstEvaluator
             // resolvedObj is already JsValue from the scheduler
             resolvedValue = resolvedObj;
             return result;
+        }
+
+        private bool TryHandlePendingAwait(EvaluationContext context, out JsValue result)
+        {
+            if (!context.IsPendingAwait)
+            {
+                result = JsValue.Undefined;
+                return false;
+            }
+
+            context.Clear();
+            _state = GeneratorState.Suspended;
+            // In async-step mode, surface the pending promise directly to the
+            // caller without allocating an iterator result object.
+            result = _asyncStepMode
+                ? JsValue.Undefined
+                : (JsValue)CreateIteratorResult(JsValue.Undefined, false);
+            return true;
         }
 
         private void RecordYield(EvaluationContext context)
@@ -1886,9 +1903,6 @@ public static partial class TypedAstEvaluator
             iterator = null!;
             return false;
         }
-
-        private sealed class PendingAwaitException : Exception;
-
 
         private sealed class AwaitState
         {

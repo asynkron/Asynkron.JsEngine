@@ -69,11 +69,6 @@ public static partial class StandardLibrary
     internal static ThrowSignal ThrowTypeError(string message, EvaluationContext? context = null,
         RealmState? realm = null)
     {
-        if (message.Contains("Cannot read properties of null or undefined", StringComparison.Ordinal))
-        {
-            Console.WriteLine($"DEBUG ThrowTypeError: {message}\n{Environment.StackTrace}");
-        }
-
         return new ThrowSignal(JsValue.FromObjectUnsafe(CreateTypeError(message, context, realm)));
     }
 
@@ -87,7 +82,6 @@ public static partial class StandardLibrary
         RealmState? realm = null)
     {
         var errorObj = CreateReferenceError(message, context, realm);
-        // DEBUG
         if (errorObj is IJsPropertyAccessor accessor)
         {
             var hasCtor = accessor.TryGetProperty("constructor", out var ctorVal);
@@ -117,11 +111,6 @@ public static partial class StandardLibrary
                     hasCtor = jsObj.TryGetProperty("constructor", out ctorVal);
                 }
             }
-            Console.WriteLine($"DEBUG ThrowReferenceError: {message}, hasCtor={hasCtor}, ctorIsNull={ctorVal.IsNull}, ctorIsUndef={ctorVal.IsUndefined}");
-        }
-        else
-        {
-            Console.WriteLine($"DEBUG ThrowReferenceError: {message}, errorType={errorObj?.GetType().Name}");
         }
         return new ThrowSignal(JsValue.FromObjectUnsafe(errorObj));
     }

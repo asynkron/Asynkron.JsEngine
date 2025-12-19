@@ -11,7 +11,7 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("push", Length = 1d)]
     public JsValue Push(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), "Array.prototype.push", Realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.push", Realm);
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls push
         const string ReentrancyKey = "__inPush__";
@@ -52,7 +52,7 @@ public sealed partial class ArrayPrototype
     public JsValue Pop(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         const string MethodName = "Array.prototype.pop";
-        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), MethodName, Realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
         // Re-entrancy: if sorting in progress, avoid mutating length/elements
         if (accessor.TryGetProperty("__sorting__", out var sortingFlag) && !sortingFlag.IsUndefined)
         {
@@ -96,7 +96,7 @@ public sealed partial class ArrayPrototype
     public JsValue Shift(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         const string MethodName = "Array.prototype.shift";
-        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), MethodName, Realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
         // Re-entrancy: if sorting in progress, avoid mutating length/elements
         if (accessor.TryGetProperty("__sorting__", out var sortingFlag) && !sortingFlag.IsUndefined)
         {
@@ -162,7 +162,7 @@ public sealed partial class ArrayPrototype
     public JsValue Unshift(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         const string MethodName = "Array.prototype.unshift";
-        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), MethodName, Realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls unshift
         const string ReentrancyKey = "__inUnshift__";
@@ -220,7 +220,7 @@ public sealed partial class ArrayPrototype
     public JsValue Splice(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         const string MethodName = "Array.prototype.splice";
-        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), MethodName, Realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls splice
         const string ReentrancyKey = "__inSplice__";
@@ -352,7 +352,7 @@ public sealed partial class ArrayPrototype
     public JsValue Reverse(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         const string MethodName = "Array.prototype.reverse";
-        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), MethodName, Realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls reverse
         const string ReentrancyKey = "__inReverse__";
@@ -425,7 +425,7 @@ public sealed partial class ArrayPrototype
     public JsValue Concat(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         const string MethodName = "Array.prototype.concat";
-        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), MethodName, Realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
         var result = ArraySpeciesCreate(thisValue, 0, Realm);
         long resultIndex = 0;
 
@@ -479,7 +479,7 @@ public sealed partial class ArrayPrototype
     public JsValue Sort(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var realm = Realm;
-        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), "Array.prototype.sort", realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.sort", realm);
         var objectLike = accessor as IJsObjectLike;
 
         // Validate comparefn before touching length (per spec)

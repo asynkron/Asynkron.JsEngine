@@ -35,6 +35,7 @@ public static partial class StandardLibrary
             var valuesIterator = new HostFunction((thisValue, _) =>
             {
                 var typedArray = ValidateTypedArrayReceiver(thisValue, "%TypedArray%.prototype.values", realm);
+                // GetValueForIndex already returns JsValue - no boxing
                 return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(typedArray, idx => typedArray.GetValueForIndex((int)idx), realm));
             }, realm, isConstructor: false);
             valuesIterator.DefineProperty("name",
@@ -45,7 +46,8 @@ public static partial class StandardLibrary
             var keysIterator = new HostFunction((thisValue, _) =>
             {
                 var typedArray = ValidateTypedArrayReceiver(thisValue, "%TypedArray%.prototype.keys", realm);
-                return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(typedArray, idx => (double)idx, realm));
+                // Return JsValue directly - no boxing
+                return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(typedArray, idx => new JsValue((double)idx), realm));
             }, realm, isConstructor: false);
             keysIterator.DefineProperty("name",
                 new PropertyDescriptor { Value = "keys", Writable = false, Enumerable = false, Configurable = true });
@@ -55,6 +57,7 @@ public static partial class StandardLibrary
             var entriesIterator = new HostFunction((thisValue, _) =>
             {
                 var typedArray = ValidateTypedArrayReceiver(thisValue, "%TypedArray%.prototype.entries", realm);
+                // Return JsValue directly - no boxing
                 return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(
                     typedArray,
                     idx =>
@@ -62,7 +65,7 @@ public static partial class StandardLibrary
                         var pair = new JsArray(realm);
                         pair.Push((double)idx);
                         pair.Push(typedArray.GetValueForIndex((int)idx));
-                        return pair;
+                        return JsValue.FromObjectUnsafe(pair);
                     },
                     realm));
             }, realm, isConstructor: false);

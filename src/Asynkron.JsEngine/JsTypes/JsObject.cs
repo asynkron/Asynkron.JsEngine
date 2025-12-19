@@ -20,8 +20,8 @@ namespace Asynkron.JsEngine.JsTypes;
     private const string GetterPrefix = "__getter__";
     private const string SetterPrefix = "__setter__";
 
-    // Backing storage for properties - uses HybridDictionary for better small object performance
-    private readonly HybridDictionary<object?> _storage = new();
+    // Backing storage for properties - uses HybridDictionary with JsValue to avoid boxing
+    private readonly HybridDictionary<JsValue> _storage = new();
 
     private readonly Dictionary<string, PropertyDescriptor> _descriptors = new(StringComparer.Ordinal);
     private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
@@ -80,29 +80,51 @@ namespace Asynkron.JsEngine.JsTypes;
 
     IEnumerable<string> IJsObjectLike.Keys => _storage.Keys;
 
-    // IDictionary<string, object?> implementation
+    // IDictionary<string, object?> implementation - wraps JsValue storage
     public ICollection<string> Keys => _storage.Keys;
-    public ICollection<object?> Values => _storage.Values;
+    public ICollection<object?> Values => _storage.Values.Select(v => v.ToObject()).ToList();
     public int Count => _storage.Count;
     public bool IsReadOnly => false;
 
+    // External API uses object? for compatibility
     public object? this[string key]
     {
-        get => _storage[key];
-        set => _storage[key] = value;
+        get => _storage[key].ToObject();
+        set => _storage[key] = JsValue.FromObjectUnsafe(value);
     }
 
-    public void Add(string key, object? value) => _storage.Add(key, value);
+    // Internal fast path - no boxing
+    internal JsValue GetJsValue(string key) => _storage[key];
+    internal void SetJsValue(string key, JsValue value) => _storage[key] = value;
+    internal bool TryGetJsValue(string key, out JsValue value) => _storage.TryGetValue(key, out value);
+
+    public void Add(string key, object? value) => _storage.Add(key, JsValue.FromObjectUnsafe(value));
     public bool ContainsKey(string key) => _storage.ContainsKey(key);
     public bool Remove(string key) => _storage.Remove(key);
-    public bool TryGetValue(string key, out object? value) => _storage.TryGetValue(key, out value);
-    void ICollection<KeyValuePair<string, object?>>.Add(KeyValuePair<string, object?> item) => _storage.Add(item);
+    public bool TryGetValue(string key, out object? value)
+    {
+        if (_storage.TryGetValue(key, out var jsValue))
+        {
+            value = jsValue.ToObject();
+            return true;
+        }
+        value = null;
+        return false;
+    }
+    void ICollection<KeyValuePair<string, object?>>.Add(KeyValuePair<string, object?> item) => _storage.Add(item.Key, JsValue.FromObjectUnsafe(item.Value));
     public void Clear() => _storage.Clear();
-    bool ICollection<KeyValuePair<string, object?>>.Contains(KeyValuePair<string, object?> item) => _storage.Contains(item);
-    void ICollection<KeyValuePair<string, object?>>.CopyTo(KeyValuePair<string, object?>[] array, int arrayIndex) => _storage.CopyTo(array, arrayIndex);
-    bool ICollection<KeyValuePair<string, object?>>.Remove(KeyValuePair<string, object?> item) => _storage.Remove(item);
-    public IEnumerator<KeyValuePair<string, object?>> GetEnumerator() => _storage.GetEnumerator();
-    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => _storage.GetEnumerator();
+    bool ICollection<KeyValuePair<string, object?>>.Contains(KeyValuePair<string, object?> item) =>
+        _storage.TryGetValue(item.Key, out var v) && Equals(v.ToObject(), item.Value);
+    void ICollection<KeyValuePair<string, object?>>.CopyTo(KeyValuePair<string, object?>[] array, int arrayIndex)
+    {
+        foreach (var kvp in _storage)
+            array[arrayIndex++] = new KeyValuePair<string, object?>(kvp.Key, kvp.Value.ToObject());
+    }
+    bool ICollection<KeyValuePair<string, object?>>.Remove(KeyValuePair<string, object?> item) =>
+        _storage.TryGetValue(item.Key, out var v) && Equals(v.ToObject(), item.Value) && _storage.Remove(item.Key);
+    public IEnumerator<KeyValuePair<string, object?>> GetEnumerator() =>
+        _storage.Select(kvp => new KeyValuePair<string, object?>(kvp.Key, kvp.Value.ToObject())).GetEnumerator();
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
 
     public void SetPrototype(object? candidate)
     {
@@ -176,12 +198,38 @@ namespace Asynkron.JsEngine.JsTypes;
     // IJsPropertyAccessor interface implementation with JsValue
     public void SetProperty(string name, JsValue value)
     {
-        SetPropertyInternal(name, value.ToObject(), this);
+        SetPropertyJsValue(name, value, JsValue.FromObjectUnsafe(this));
     }
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
     {
+        SetPropertyJsValue(name, value, receiver);
+    }
+
+    // Fast path for JsValue that avoids boxing entirely
+    private void SetPropertyJsValue(string name, JsValue value, JsValue receiver)
+    {
+        // Fast path: no descriptors and no private fields - just set the slot
+        if (!name.IsPrivateSlotName() && !_descriptors.ContainsKey(name))
+        {
+            SetJsValue(name, value);
+            TrackArrayWriteJsValue(name, value);
+            return;
+        }
+
+        // Fall back to full implementation for complex cases
         SetPropertyInternal(name, value.ToObject(), receiver.ToObject());
+    }
+
+    private void TrackArrayWriteJsValue(string name, JsValue value)
+    {
+        if (!_trackArrayLength) return;
+        if (!uint.TryParse(name, out var idx)) return;
+        if (idx >= _trackedArrayLength)
+        {
+            _trackedArrayLength = idx + 1;
+            SyncTrackedLengthDescriptor();
+        }
     }
 
     // Internal implementation that uses object? for backward compatibility

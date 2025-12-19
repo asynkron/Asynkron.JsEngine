@@ -22,9 +22,11 @@ public static partial class TypedAstEvaluator
             EvaluationContext? context = null,
             JsEnvironment? callingEnvironment = null)
         {
-            var args = hasSendValue ? new[] { sendValue } : Array.Empty<JsValue>();
-            // Use InvokeCallableJsValue to avoid boxing round-trip
-            var result = InvokeCallableJsValue(nextMethod, args, JsValue.FromObjectUnsafe(iterator), context, callingEnvironment);
+            var thisValue = JsValue.FromObjectUnsafe(iterator);
+            // Use InvokeCallableSingleArg to avoid array allocation for single-arg case
+            var result = hasSendValue
+                ? InvokeCallableSingleArg(nextMethod, sendValue, thisValue, context, callingEnvironment)
+                : InvokeCallableJsValue(nextMethod, Array.Empty<JsValue>(), thisValue, context, callingEnvironment);
 
             // Check if the iterator's next() method threw an error
             if (context?.IsThrow == true)
@@ -89,9 +91,11 @@ public static partial class TypedAstEvaluator
                     context.RealmState)));
             }
 
-            var args = hasArgument ? new[] { argument } : Array.Empty<JsValue>();
-            // Use InvokeCallableJsValue to avoid boxing round-trip
-            result = InvokeCallableJsValue(callable, args, JsValue.FromObjectUnsafe(iterator), context, null);
+            var thisValue = JsValue.FromObjectUnsafe(iterator);
+            // Use InvokeCallableSingleArg to avoid array allocation for single-arg case
+            result = hasArgument
+                ? InvokeCallableSingleArg(callable, argument, thisValue, context, null)
+                : InvokeCallableJsValue(callable, Array.Empty<JsValue>(), thisValue, context, null);
 
             // Check if the method threw an error
             if (context.IsThrow)

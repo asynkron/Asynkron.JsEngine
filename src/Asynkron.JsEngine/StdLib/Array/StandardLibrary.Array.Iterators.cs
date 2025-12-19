@@ -8,14 +8,14 @@ namespace Asynkron.JsEngine.StdLib;
 public static partial class StandardLibrary
 {
     internal static object CreateArrayIterator(JsValue thisValue, string methodName, RealmState? realm,
-        Func<IJsPropertyAccessor, object?, Func<uint, object?>> projectorFactory)
+        Func<IJsPropertyAccessor, JsValue, Func<uint, JsValue>> projectorFactory)
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, methodName, realm);
         var projector = projectorFactory(accessor, thisValue);
         return CreateArrayIteratorObject(accessor, projector, realm);
     }
 
-    private static object CreateArrayIteratorObject(IJsPropertyAccessor accessor, Func<uint, object?> projector,
+    private static object CreateArrayIteratorObject(IJsPropertyAccessor accessor, Func<uint, JsValue> projector,
         RealmState? realm)
     {
         var iterator = new JsObject(realm?.ObjectPrototype);
@@ -36,7 +36,7 @@ public static partial class StandardLibrary
             {
                 var doneResult = new JsObject(realm?.ObjectPrototype);
                 doneResult.SetProperty("value", JsValue.Undefined);
-                doneResult.SetProperty("done", true);
+                doneResult.SetProperty("done", JsValue.True);
                 return new JsValue(doneResult);
             }
 
@@ -45,22 +45,25 @@ public static partial class StandardLibrary
                 throw typedAccessor.CreateOutOfBoundsTypeError();
             }
 
-            var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-            var length = (uint)Math.Min(Math.Max(ToLengthOrZero(lengthValue), 0), uint.MaxValue);
+            // Get length as JsValue, avoiding boxing from ternary expression
+            if (!accessor.TryGetProperty("length", out var lenVal))
+            {
+                lenVal = JsValue.Zero;
+            }
+            var length = (uint)Math.Min(Math.Max(ToLengthOrZero(lenVal), 0), uint.MaxValue);
             var result = new JsObject(realm?.ObjectPrototype);
             if (index < length)
             {
-                // Handle case where projector returns a boxed JsValue
-                var projectedVal = projector(index);
-                var valueJs = projectedVal is JsValue pjv ? pjv : JsValue.FromObjectUnsafe(projectedVal);
+                // Projector now returns JsValue directly - no boxing
+                var valueJs = projector(index);
                 result.SetProperty("value", valueJs);
-                result.SetProperty("done", false);
+                result.SetProperty("done", JsValue.False);
                 index++;
             }
             else
             {
                 result.SetProperty("value", JsValue.Undefined);
-                result.SetProperty("done", true);
+                result.SetProperty("done", JsValue.True);
                 exhausted = true;
             }
 

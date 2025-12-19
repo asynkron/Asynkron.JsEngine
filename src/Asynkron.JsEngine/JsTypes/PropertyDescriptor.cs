@@ -11,15 +11,31 @@ public sealed class PropertyDescriptor
     private bool _enumerable = true;
     private IJsCallable? _get;
     private IJsCallable? _set;
-    private object? _value;
+    private JsValue _jsValue;
     private bool _writable = true;
 
-    public object? Value
+    /// <summary>
+    /// Gets or sets the value as JsValue (preferred, avoids boxing).
+    /// </summary>
+    public JsValue JsValue
     {
-        get => _value;
+        get => _jsValue;
         set
         {
-            _value = value;
+            _jsValue = value;
+            HasValue = true;
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the value as object (for backward compatibility, causes boxing).
+    /// </summary>
+    public object? Value
+    {
+        get => _jsValue.ToObject();
+        set
+        {
+            _jsValue = JsValue.FromObjectUnsafe(value);
             HasValue = true;
         }
     }
@@ -111,7 +127,7 @@ public sealed class PropertyDescriptor
         var clone = new PropertyDescriptor();
         if (HasValue)
         {
-            clone.Value = Value;
+            clone.JsValue = JsValue;
         }
 
         if (HasWritable)
@@ -144,7 +160,7 @@ public sealed class PropertyDescriptor
 
     public void ClearDataAttributes()
     {
-        _value = null;
+        _jsValue = default;
         HasValue = false;
         _writable = true;
         HasWritable = false;

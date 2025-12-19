@@ -85,7 +85,7 @@ public static partial class StandardLibrary
     }
 
     internal static (IJsPropertyAccessor Accessor, long Length, IJsCallable Callback, JsValue ThisArg)
-        PrepareArrayIteration(object? receiver, IReadOnlyList<JsValue> args, RealmState? realm, string methodName)
+        PrepareArrayIteration(JsValue receiver, IReadOnlyList<JsValue> args, RealmState? realm, string methodName)
     {
         var accessor = EnsureArrayLikeReceiver(receiver, methodName, realm);
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
@@ -109,6 +109,32 @@ public static partial class StandardLibrary
     internal static string ToIndexString(long index)
     {
         return index.ToString(CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// JsValue overload that avoids boxing for the common case of numeric lengths.
+    /// </summary>
+    internal static double ToLengthOrZero(JsValue value)
+    {
+        // Fast path: if already a number, skip the conversion
+        double number;
+        if (value.Kind == JsValueKind.Number)
+        {
+            number = value.NumberValue;
+        }
+        else
+        {
+            // Fall back to object-based conversion for non-numbers
+            number = JsOps.ToNumber(value.ToObject());
+        }
+
+        if (double.IsNaN(number) || number <= 0)
+        {
+            return 0;
+        }
+
+        var truncated = Math.Floor(number);
+        return truncated > MaxArrayLength ? MaxArrayLength : truncated;
     }
 
     internal static double ToLengthOrZero(object? value, EvaluationContext? context = null)
@@ -167,7 +193,7 @@ public static partial class StandardLibrary
     internal static object? ReduceLike(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm,
         string methodName, bool fromRight)
     {
-        var accessor = EnsureArrayLikeReceiver(thisValue.ToObject(), methodName, realm);
+        var accessor = EnsureArrayLikeReceiver(thisValue, methodName, realm);
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var lengthContext = realm?.CreateContext();
         var length = (long)ToLengthOrZero(lengthValue, lengthContext);
@@ -220,7 +246,7 @@ public static partial class StandardLibrary
         string methodName)
     {
         var (accessor, length, callback, thisArg) =
-            PrepareArrayIteration(thisValue.ToObject(), args, realm, methodName);
+            PrepareArrayIteration(thisValue, args, realm, methodName);
 
         for (long k = 0; k < length; k++)
         {
@@ -249,14 +275,38 @@ public static partial class StandardLibrary
         return JsOps.StrictEquals(x, y);
     }
 
-    internal static IJsPropertyAccessor EnsureArrayLikeReceiver(object? receiver, string methodName, RealmState? realm)
+    /// <summary>
+    /// JsValue overload that avoids boxing when the receiver is already a JsValue.
+    /// </summary>
+    internal static IJsPropertyAccessor EnsureArrayLikeReceiver(JsValue thisValue, string methodName, RealmState? realm)
     {
-        // Unwrap JsValue first
-        if (receiver is JsValue jsValue)
+        if (thisValue.IsNullOrUndefined)
         {
-            receiver = jsValue.ToObject();
+            throw ThrowTypeError($"{methodName} called on null or undefined", realm: realm);
         }
 
+        if (thisValue.TryGetObject<IJsPropertyAccessor>(out var accessor))
+        {
+            return accessor;
+        }
+
+        // Fall back to object-based path for primitives that need boxing
+        return EnsureArrayLikeReceiverObject(thisValue.ToObject(), methodName, realm);
+    }
+
+    internal static IJsPropertyAccessor EnsureArrayLikeReceiver(object? receiver, string methodName, RealmState? realm)
+    {
+        // Unwrap JsValue first - this path is for callers that pass object?
+        if (receiver is JsValue jsValue)
+        {
+            return EnsureArrayLikeReceiver(jsValue, methodName, realm);
+        }
+
+        return EnsureArrayLikeReceiverObject(receiver, methodName, realm);
+    }
+
+    private static IJsPropertyAccessor EnsureArrayLikeReceiverObject(object? receiver, string methodName, RealmState? realm)
+    {
         if (receiver is null || ReferenceEquals(receiver, Symbol.Undefined))
         {
             throw ThrowTypeError($"{methodName} called on null or undefined", realm: realm);
@@ -406,6 +456,22 @@ public static partial class StandardLibrary
     internal static object? GetElementOrUndefined(IJsPropertyAccessor accessor, string propertyKey)
     {
         return accessor.TryGetProperty(propertyKey, out var value) ? value : Symbol.Undefined;
+    }
+
+    /// <summary>
+    /// Returns the element at the given property key as JsValue, avoiding boxing.
+    /// </summary>
+    internal static JsValue GetElementOrUndefinedJsValue(IJsPropertyAccessor accessor, string propertyKey)
+    {
+        return accessor.TryGetProperty(propertyKey, out var value) ? value : JsValue.Undefined;
+    }
+
+    /// <summary>
+    /// Returns the element at the given index as JsValue, avoiding boxing.
+    /// </summary>
+    internal static JsValue GetElementOrUndefinedJsValue(IJsPropertyAccessor accessor, uint index)
+    {
+        return accessor.TryGetProperty(ToIndexString(index), out var value) ? value : JsValue.Undefined;
     }
 
     internal static object? InvokeDefaultObjectToString(object? target, RealmState? realm)

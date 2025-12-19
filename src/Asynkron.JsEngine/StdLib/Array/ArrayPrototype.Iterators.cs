@@ -13,21 +13,21 @@ public sealed partial class ArrayPrototype
         {
             var pair = new JsArray(Realm);
             pair.Push((double)idx);
-            pair.Push(GetElementOrUndefined(accessor, ToIndexString(idx)));
-            return pair;
+            pair.Push(GetElementOrUndefinedJsValue(accessor, idx));
+            return JsValue.FromObjectUnsafe(pair);
         }));
     }
 
     [JsHostMethod("keys", Length = 0d)]
     public JsValue Keys(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(CreateArrayIterator(thisValue, "Array.prototype.keys", Realm, (_, _) => idx => (double)idx));
+        return JsValue.FromObjectUnsafe(CreateArrayIterator(thisValue, "Array.prototype.keys", Realm, (_, _) => idx => new JsValue((double)idx)));
     }
 
     [JsHostMethod("values", Length = 0d)]
     public JsValue Values(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return JsValue.FromObjectUnsafe(CreateArrayIterator(thisValue, "Array.prototype.values", Realm,
-            (accessor, _) => idx => GetElementOrUndefined(accessor, ToIndexString(idx))));
+            (accessor, _) => idx => GetElementOrUndefinedJsValue(accessor, idx)));
     }
 }

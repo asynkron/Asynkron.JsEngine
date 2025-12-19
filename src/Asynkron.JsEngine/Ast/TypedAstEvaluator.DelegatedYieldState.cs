@@ -58,7 +58,7 @@ public static partial class TypedAstEvaluator
             // because the send value needs to be passed to the inner iterator
             if (!_hasCachedResult || hasSendValue || propagateThrow || propagateReturn)
             {
-                var result = MoveNext(sendValue, hasSendValue, propagateThrow, propagateReturn, context, out awaitedPromise);
+                var result = MoveNext(sendValue, propagateThrow, propagateReturn, context, out awaitedPromise);
                 _cachedResult = result;
                 _hasCachedResult = true;
                 return result;
@@ -80,7 +80,6 @@ public static partial class TypedAstEvaluator
 
         public (JsValue Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, IJsObjectLike? IteratorResultObject) MoveNext(
             JsValue sendValue,
-            bool hasSendValue,
             bool propagateThrow,
             bool propagateReturn,
             EvaluationContext context,

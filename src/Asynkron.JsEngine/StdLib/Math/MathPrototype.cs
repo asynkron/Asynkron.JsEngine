@@ -8,31 +8,31 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 namespace Asynkron.JsEngine.StdLib;
 
 [JsPrototype("Math", ToStringTag = "Math", ObjectKind = PrototypeObjectKind.Object)]
-public sealed partial class MathPrototype : JsPrototype
+public sealed partial class MathPrototype
 {
     [JsHostMethod("abs", Length = 1d)]
-    public JsValue Abs(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Abs(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return double.IsNaN(x) ? double.NaN : Math.Abs(x);
     }
 
     [JsHostMethod("ceil", Length = 1d)]
-    public JsValue Ceil(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Ceil(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return Math.Ceiling(x);
     }
 
     [JsHostMethod("floor", Length = 1d)]
-    public JsValue Floor(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Floor(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return Math.Floor(x);
     }
 
     [JsHostMethod("round", Length = 1d)]
-    public JsValue Round(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Round(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         if (double.IsNaN(x) || double.IsInfinity(x))
@@ -49,14 +49,14 @@ public sealed partial class MathPrototype : JsPrototype
     }
 
     [JsHostMethod("sqrt", Length = 1d)]
-    public JsValue Sqrt(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Sqrt(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return Math.Sqrt(x);
     }
 
     [JsHostMethod("pow", Length = 2d)]
-    public JsValue Pow(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Pow(IReadOnlyList<JsValue> args)
     {
         var baseValue = JsOps.ToNumber(args.GetArgument(0));
         var exponent = JsOps.ToNumber(args.GetArgument(1));
@@ -64,7 +64,7 @@ public sealed partial class MathPrototype : JsPrototype
     }
 
     [JsHostMethod("max", Length = 2d)]
-    public JsValue Max(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Max(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -90,7 +90,7 @@ public sealed partial class MathPrototype : JsPrototype
     }
 
     [JsHostMethod("min", Length = 2d)]
-    public JsValue Min(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Min(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -116,55 +116,55 @@ public sealed partial class MathPrototype : JsPrototype
     }
 
     [JsHostMethod("random", Length = 0d)]
-    public JsValue Random(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Random(JsValue thisValue)
     {
         return System.Random.Shared.NextDouble();
     }
 
     [JsHostMethod("sin", Length = 1d)]
-    public JsValue Sin(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Sin(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return Math.Sin(x);
     }
 
     [JsHostMethod("cos", Length = 1d)]
-    public JsValue Cos(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Cos(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return Math.Cos(x);
     }
 
     [JsHostMethod("tan", Length = 1d)]
-    public JsValue Tan(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Tan(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return Math.Tan(x);
     }
 
     [JsHostMethod("asin", Length = 1d)]
-    public JsValue Asin(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Asin(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return Math.Asin(x);
     }
 
     [JsHostMethod("acos", Length = 1d)]
-    public JsValue Acos(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Acos(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return Math.Acos(x);
     }
 
     [JsHostMethod("atan", Length = 1d)]
-    public JsValue Atan(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Atan(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return Math.Atan(x);
     }
 
     [JsHostMethod("atan2", Length = 2d)]
-    public JsValue Atan2(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Atan2(IReadOnlyList<JsValue> args)
     {
         var y = JsOps.ToNumber(args.GetArgument(0));
         var x = JsOps.ToNumber(args.GetArgument(1));
@@ -172,42 +172,42 @@ public sealed partial class MathPrototype : JsPrototype
     }
 
     [JsHostMethod("exp", Length = 1d)]
-    public JsValue Exp(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Exp(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return Math.Exp(x);
     }
 
     [JsHostMethod("log", Length = 1d)]
-    public JsValue Log(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Log(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return Math.Log(x);
     }
 
     [JsHostMethod("log10", Length = 1d)]
-    public JsValue Log10(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Log10(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return Math.Log10(x);
     }
 
     [JsHostMethod("log2", Length = 1d)]
-    public JsValue Log2(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Log2(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return Math.Log2(x);
     }
 
     [JsHostMethod("trunc", Length = 1d)]
-    public JsValue Trunc(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Trunc(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return double.IsNaN(x) || double.IsInfinity(x) ? x : Math.Truncate(x);
     }
 
     [JsHostMethod("sign", Length = 1d)]
-    public JsValue Sign(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Sign(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         if (double.IsNaN(x))
@@ -219,14 +219,14 @@ public sealed partial class MathPrototype : JsPrototype
     }
 
     [JsHostMethod("cbrt", Length = 1d)]
-    public JsValue Cbrt(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Cbrt(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return Math.Cbrt(x);
     }
 
     [JsHostMethod("clz32", Length = 1d)]
-    public JsValue Clz32(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Clz32(IReadOnlyList<JsValue> args)
     {
         var number = JsOps.ToNumber(args.GetArgument(0));
         var value = JsNumericConversions.ToUInt32(number);
@@ -234,7 +234,7 @@ public sealed partial class MathPrototype : JsPrototype
     }
 
     [JsHostMethod("imul", Length = 2d)]
-    public JsValue Imul(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Imul(IReadOnlyList<JsValue> args)
     {
         var left = JsOps.ToNumber(args.GetArgument(0));
         var right = JsOps.ToNumber(args.GetArgument(1));
@@ -244,14 +244,14 @@ public sealed partial class MathPrototype : JsPrototype
     }
 
     [JsHostMethod("fround", Length = 1d)]
-    public JsValue Fround(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Fround(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return (double)(float)x;
     }
 
     [JsHostMethod("hypot", Length = 2d)]
-    public JsValue Hypot(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Hypot(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -288,56 +288,56 @@ public sealed partial class MathPrototype : JsPrototype
     }
 
     [JsHostMethod("acosh", Length = 1d)]
-    public JsValue Acosh(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Acosh(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return Math.Acosh(x);
     }
 
     [JsHostMethod("asinh", Length = 1d)]
-    public JsValue Asinh(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Asinh(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return Math.Asinh(x);
     }
 
     [JsHostMethod("atanh", Length = 1d)]
-    public JsValue Atanh(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Atanh(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return Math.Atanh(x);
     }
 
     [JsHostMethod("cosh", Length = 1d)]
-    public JsValue Cosh(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Cosh(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return Math.Cosh(x);
     }
 
     [JsHostMethod("sinh", Length = 1d)]
-    public JsValue Sinh(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Sinh(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return Math.Sinh(x);
     }
 
     [JsHostMethod("tanh", Length = 1d)]
-    public JsValue Tanh(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Tanh(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return Math.Tanh(x);
     }
 
     [JsHostMethod("expm1", Length = 1d)]
-    public JsValue Expm1(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Expm1(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return Math.Exp(x) - 1;
     }
 
     [JsHostMethod("log1p", Length = 1d)]
-    public JsValue Log1p(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Log1p(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
         return Math.Log(1 + x);
@@ -345,7 +345,7 @@ public sealed partial class MathPrototype : JsPrototype
 
     protected override void ConfigurePrototype()
     {
-        if (Prototype is JsObject jsObj && jsObj.RealmState is null)
+        if (Prototype is JsObject { RealmState: null } jsObj)
         {
             jsObj.RealmState = Realm;
         }

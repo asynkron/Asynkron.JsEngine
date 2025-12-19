@@ -140,11 +140,6 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
         return PropertyKeyCache.GetOrAdd(hash, h => $"@@symbol:{h}");
     }
 
-    public static string PropertyKey(TypedAstSymbol symbol, RealmState? realm)
-    {
-        return PropertyKey(symbol);
-    }
-
     public static string PropertyKey(string wellKnownName, RealmState? realm = null)
     {
         if (realm is not null && realm.TryGetSymbolPropertyKey(wellKnownName, out var cached))

@@ -4449,7 +4449,8 @@ public sealed class JsEngine : IAsyncDisposable
             if (statement.Value is ExportDefaultExpression { Expression: AwaitExpression awaitExpression })
             {
                 exports["default"] = new LiveExportBinding(() => env.Get(defaultBindingName));
-                return TryAwaitExpression(awaitExpression.Expression, resolved => env.Assign(defaultBindingName, resolved),
+                return TryAwaitExpression(awaitExpression.Expression,
+                    resolved => env.Assign(defaultBindingName, ConvertJsValueToObject(resolved)),
                     env);
             }
 
@@ -4539,13 +4540,13 @@ public sealed class JsEngine : IAsyncDisposable
                 {
                     if (isLexical)
                     {
-                        env.DefineJsValue(identifier.Name, JsValue.FromObjectUnsafe(resolved), isConst: isConst, isLexical: true,
+                        env.DefineJsValue(identifier.Name, resolved, isConst: isConst, isLexical: true,
                             blocksFunctionScopeOverride: false);
                     }
                     else
                     {
                         // For var declarations, assign to the already-hoisted binding
-                        env.Assign(identifier.Name, resolved);
+                        env.Assign(identifier.Name, ConvertJsValueToObject(resolved));
                     }
                 }, env);
             }
@@ -4553,13 +4554,34 @@ public sealed class JsEngine : IAsyncDisposable
             return true;
         }
 
-        private bool TryAwaitExpression(ExpressionNode awaitedExpression, Action<object?> onFulfilled,
+        /// <summary>
+        /// Converts JsValue to object? for compatibility with APIs that haven't been migrated yet.
+        /// This manually expands the logic from ToObject() to avoid calling the obsolete method.
+        /// </summary>
+        private static object? ConvertJsValueToObject(JsValue value)
+        {
+            return value.Kind switch
+            {
+                JsValueKind.Undefined => Symbol.Undefined,
+                JsValueKind.Null => null,
+                JsValueKind.Boolean => JsValueCache.GetBoolean(value.NumberValue != 0.0),
+                JsValueKind.Number => JsValueCache.GetNumber(value.NumberValue),
+                JsValueKind.BigInt => value.ObjectValue,
+                JsValueKind.String => value.ObjectValue,
+                JsValueKind.Symbol => value.ObjectValue,
+                JsValueKind.Object => value.ObjectValue,
+                _ => Symbol.Undefined
+            };
+        }
+
+        private bool TryAwaitExpression(ExpressionNode awaitedExpression, Action<JsValue> onFulfilled,
             JsEnvironment environment)
         {
-            object? awaitedValue;
+            JsValue awaitedValue;
             try
             {
-                awaitedValue = _engine.ExecuteTypedExpression(awaitedExpression, environment, _entry.Program.IsStrict);
+                awaitedValue = JsValue.FromObjectUnsafe(
+                    _engine.ExecuteTypedExpression(awaitedExpression, environment, _entry.Program.IsStrict));
             }
             catch (ThrowSignal signal)
             {
@@ -4635,7 +4657,7 @@ public sealed class JsEngine : IAsyncDisposable
             return false;
         }
 
-        private JsObject? WrapAwaitedValue(object? value)
+        private JsObject? WrapAwaitedValue(JsValue value)
         {
             var promiseCtor = _engine.RealmState.PromiseConstructor;
             var promiseCtorValue = JsValue.FromObjectUnsafe(promiseCtor);
@@ -4647,9 +4669,7 @@ public sealed class JsEngine : IAsyncDisposable
                 {
                     try
                     {
-                        // Handle case where value is already a boxed JsValue
-                        var valueArg = value is JsValue vJs ? vJs : JsValue.FromObjectUnsafe(value);
-                        var result = resolveCallable.Invoke([valueArg], promiseCtorValue);
+                        var result = resolveCallable.Invoke([value], promiseCtorValue);
                         if (result.TryGetObject<JsObject>(out var resolvedPromise))
                         {
                             return resolvedPromise;
@@ -4664,7 +4684,7 @@ public sealed class JsEngine : IAsyncDisposable
             }
 
             var promise = _engine.CreateRealmPromise();
-            promise.Resolve(JsValue.FromObjectUnsafe(value));
+            promise.Resolve(value);
             return promise.JsObject;
         }
 
@@ -4676,7 +4696,7 @@ public sealed class JsEngine : IAsyncDisposable
                 return TryAwaitExpressionWithContinuation(awaitExpr.Expression, resolved =>
                 {
                     // Evaluate the if branch based on the resolved condition
-                    var condition = JsOps.ToBoolean(resolved);
+                    var condition = resolved.IsTruthy;
                     if (condition)
                     {
                         ExecuteStatementWithAwait(ifStatement.Then, env, isStrict);
@@ -4690,10 +4710,10 @@ public sealed class JsEngine : IAsyncDisposable
 
             // Await might be in the branches but not in the condition
             // First evaluate the condition synchronously
-            object? conditionValue;
+            JsValue conditionValue;
             try
             {
-                conditionValue = _engine.ExecuteTypedExpression(ifStatement.Condition, env, isStrict);
+                conditionValue = JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(ifStatement.Condition, env, isStrict));
             }
             catch (ThrowSignal signal)
             {
@@ -4701,7 +4721,7 @@ public sealed class JsEngine : IAsyncDisposable
                 return false;
             }
 
-            var conditionBool = JsOps.ToBoolean(conditionValue);
+            var conditionBool = conditionValue.IsTruthy;
             var branchToExecute = conditionBool ? ifStatement.Then : ifStatement.Else;
 
             if (branchToExecute is null)
@@ -4732,7 +4752,7 @@ public sealed class JsEngine : IAsyncDisposable
             return TryEvaluateExpressionWithAwait(exprStatement.Expression, env, isStrict, _ => { });
         }
 
-        private bool TryEvaluateExpressionWithAwait(ExpressionNode expression, JsEnvironment env, bool isStrict, Action<object?> continuation)
+        private bool TryEvaluateExpressionWithAwait(ExpressionNode expression, JsEnvironment env, bool isStrict, Action<JsValue> continuation)
         {
             switch (expression)
             {
@@ -4762,7 +4782,7 @@ public sealed class JsEngine : IAsyncDisposable
                     // Just evaluate synchronously
                     try
                     {
-                        var result = _engine.ExecuteTypedExpression(expression, env, isStrict);
+                        var result = JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(expression, env, isStrict));
                         continuation(result);
                         return true;
                     }
@@ -4774,26 +4794,23 @@ public sealed class JsEngine : IAsyncDisposable
             }
         }
 
-        private static object? EvaluateUnaryOnValue(UnaryOperator op, object? operand)
+        private static JsValue EvaluateUnaryOnValue(UnaryOperator op, JsValue operand)
         {
             return op switch
             {
-                UnaryOperator.LogicalNot => !JsOps.ToBoolean(operand),
-                UnaryOperator.Plus => JsOps.ToNumber(operand, null),
-                UnaryOperator.Minus => operand switch
-                {
-                    double d => -d,
-                    long l => -l,
-                    _ => -JsOps.ToNumber(operand, null),
-                },
-                UnaryOperator.BitwiseNot => ~(int)JsOps.ToNumber(operand, null),
-                UnaryOperator.Void => Symbol.Undefined,
-                UnaryOperator.TypeOf => JsOps.GetTypeofString(operand),
+                UnaryOperator.LogicalNot => JsValue.FromBoolean(!operand.IsTruthy),
+                UnaryOperator.Plus => JsValue.FromDouble(JsOps.ToNumber(ConvertJsValueToObject(operand), null)),
+                UnaryOperator.Minus => operand.Kind == JsValueKind.Number
+                    ? JsValue.FromDouble(-operand.NumberValue)
+                    : JsValue.FromDouble(-JsOps.ToNumber(ConvertJsValueToObject(operand), null)),
+                UnaryOperator.BitwiseNot => JsValue.FromDouble(~(int)JsOps.ToNumber(ConvertJsValueToObject(operand), null)),
+                UnaryOperator.Void => JsValue.Undefined,
+                UnaryOperator.TypeOf => JsValue.FromObjectUnsafe(JsOps.GetTypeofString(ConvertJsValueToObject(operand))),
                 _ => throw new NotSupportedException($"Unary operator '{op}' is not supported in async module context."),
             };
         }
 
-        private bool TryEvaluateCallExpressionWithAwait(CallExpression callExpr, JsEnvironment env, bool isStrict, Action<object?> continuation)
+        private bool TryEvaluateCallExpressionWithAwait(CallExpression callExpr, JsEnvironment env, bool isStrict, Action<JsValue> continuation)
     {
         // Evaluate callee first (await-aware), then arguments.
         var evaluatedArgs = new List<JsValue>();
@@ -4886,15 +4903,15 @@ public sealed class JsEngine : IAsyncDisposable
         {
             return TryEvaluateExpressionWithAwait(arg.Expression, env, isStrict, resolved =>
             {
-                evaluated.Add(JsValue.FromObjectUnsafe(resolved));
+                evaluated.Add(resolved);
                 TryEvaluateArgumentsWithAwait(args, index + 1, evaluated, env, isStrict, onComplete);
             });
         }
 
         try
         {
-            var value = _engine.ExecuteTypedExpression(arg.Expression, env, isStrict);
-            evaluated.Add(JsValue.FromObjectUnsafe(value));
+            var value = JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(arg.Expression, env, isStrict));
+            evaluated.Add(value);
             return TryEvaluateArgumentsWithAwait(args, index + 1, evaluated, env, isStrict, onComplete);
         }
         catch (ThrowSignal signal)
@@ -4930,14 +4947,14 @@ public sealed class JsEngine : IAsyncDisposable
         {
             return TryEvaluateExpressionWithAwait(calleeExpr, env, isStrict, resolved =>
             {
-                continuation(JsValue.FromObjectUnsafe(resolved), JsValue.Undefined);
+                continuation(resolved, JsValue.Undefined);
             });
         }
 
         try
         {
-            var calleeObj = _engine.ExecuteTypedExpression(calleeExpr, env, isStrict);
-            continuation(JsValue.FromObjectUnsafe(calleeObj), JsValue.Undefined);
+            var calleeObj = JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(calleeExpr, env, isStrict));
+            continuation(calleeObj, JsValue.Undefined);
             return true;
         }
         catch (ThrowSignal signal)
@@ -4958,14 +4975,16 @@ public sealed class JsEngine : IAsyncDisposable
 
         var targetResult = TryEvaluateExpressionWithAwait(memberExpression.Target, env, isStrict, targetResolved =>
         {
-            var thisValue = JsValue.FromObjectUnsafe(targetResolved);
+            var thisValue = targetResolved;
 
-                bool Finish(object? propertyResolved)
+            bool Finish(JsValue propertyResolved)
+            {
+                JsValue calleeValue;
+                try
                 {
-                    JsValue calleeValue;
-                    try
-                    {
-                    calleeValue = JsOps.TryGetPropertyValue(thisValue, propertyResolved, out var val, _engine.RealmState?.CreateContext())
+                    var propertyKey = ConvertJsValueToObject(propertyResolved);
+                    calleeValue = JsOps.TryGetPropertyValue(thisValue, propertyKey, out var val,
+                        _engine.RealmState?.CreateContext())
                         ? JsValue.FromObjectUnsafe(val)
                         : JsValue.Undefined;
                 }
@@ -4979,11 +4998,11 @@ public sealed class JsEngine : IAsyncDisposable
                 return true;
             }
 
-                if (memberExpression.Property is IdentifierExpression identifier)
-                {
-                    propertyCompletedSynchronously = Finish(identifier.Name.Name);
-                    return;
-                }
+            if (memberExpression.Property is IdentifierExpression identifier)
+            {
+                propertyCompletedSynchronously = Finish(JsValue.FromObjectUnsafe(identifier.Name.Name));
+                return;
+            }
 
             if (Ast.ShapeAnalyzer.AstShapeAnalyzer.ContainsAwait(memberExpression.Property))
             {
@@ -4995,7 +5014,7 @@ public sealed class JsEngine : IAsyncDisposable
 
             try
             {
-                var propertyValue = _engine.ExecuteTypedExpression(memberExpression.Property, env, isStrict);
+                var propertyValue = JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(memberExpression.Property, env, isStrict));
                 propertyCompletedSynchronously = Finish(propertyValue);
             }
             catch (ThrowSignal signal)
@@ -5036,7 +5055,7 @@ public sealed class JsEngine : IAsyncDisposable
         NewExpression newExpression,
         JsEnvironment env,
         bool isStrict,
-        Action<object?> continuation)
+        Action<JsValue> continuation)
     {
         var evaluatedArgs = new List<JsValue>();
         var argList = newExpression.Arguments.ToList();
@@ -5080,10 +5099,10 @@ private bool TryEvaluateWhileStatementWithAwait(WhileStatement whileStatement, J
             }
 
             // Condition doesn't have await, but body might
-            object? conditionValue;
+            JsValue conditionValue;
             try
             {
-                conditionValue = _engine.ExecuteTypedExpression(whileStatement.Condition, env, isStrict);
+                conditionValue = JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(whileStatement.Condition, env, isStrict));
             }
             catch (ThrowSignal signal)
             {
@@ -5091,7 +5110,7 @@ private bool TryEvaluateWhileStatementWithAwait(WhileStatement whileStatement, J
                 return false;
             }
 
-            while (JsOps.ToBoolean(conditionValue))
+            while (conditionValue.IsTruthy)
             {
                 if (!ExecuteStatementWithAwait(whileStatement.Body, env, isStrict))
                 {
@@ -5114,7 +5133,7 @@ private bool TryEvaluateWhileStatementWithAwait(WhileStatement whileStatement, J
                 // Re-evaluate condition
                 try
                 {
-                    conditionValue = _engine.ExecuteTypedExpression(whileStatement.Condition, env, isStrict);
+                    conditionValue = JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(whileStatement.Condition, env, isStrict));
                 }
                 catch (ThrowSignal signal)
                 {
@@ -5132,10 +5151,10 @@ private bool TryEvaluateWhileStatementWithAwait(WhileStatement whileStatement, J
             JsEnvironment env,
             bool isStrict)
         {
-            object? awaitedValue;
+            JsValue awaitedValue;
             try
             {
-                awaitedValue = _engine.ExecuteTypedExpression(awaitedExpression, env, isStrict);
+                awaitedValue = JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(awaitedExpression, env, isStrict));
             }
             catch (ThrowSignal signal)
             {
@@ -5170,7 +5189,7 @@ private bool TryEvaluateWhileStatementWithAwait(WhileStatement whileStatement, J
                 try
                 {
                     var resolved = args.GetArgument(0);
-                    var condition = JsOps.ToBoolean(resolved);
+                    var condition = resolved.IsTruthy;
 
                     if (condition)
                     {
@@ -5343,13 +5362,14 @@ private bool TryEvaluateWhileStatementWithAwait(WhileStatement whileStatement, J
 
         private bool TryAwaitExpressionWithContinuation(
             ExpressionNode awaitedExpression,
-            Action<object?> onFulfilled,
+            Action<JsValue> onFulfilled,
             JsEnvironment environment)
         {
-            object? awaitedValue;
+            JsValue awaitedValue;
             try
             {
-                awaitedValue = _engine.ExecuteTypedExpression(awaitedExpression, environment, _entry.Program.IsStrict);
+                awaitedValue = JsValue.FromObjectUnsafe(
+                    _engine.ExecuteTypedExpression(awaitedExpression, environment, _entry.Program.IsStrict));
             }
             catch (ThrowSignal signal)
             {

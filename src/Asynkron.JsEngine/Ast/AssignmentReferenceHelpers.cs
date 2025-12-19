@@ -15,7 +15,7 @@ public static partial class TypedAstEvaluator
     {
         if (!allowPrivate || !propertyName.IsPrivateName())
         {
-            return AssignmentReference.ForDelegate(
+            return AssignmentReference.ForDelegateJsValue(
                 () =>
                 {
                     if (IsNullish(target))
@@ -28,12 +28,12 @@ public static partial class TypedAstEvaluator
                             context,
                             context.RealmState);
                         context.SetThrow(JsValue.FromObjectUnsafe(error));
-                        return Symbol.Undefined;
+                        return JsValue.Undefined;
                     }
 
                     return JsOps.TryGetPropertyValue(target, propertyName, out var directValue, context)
-                        ? directValue
-                        : Symbol.Undefined;
+                        ? JsValue.FromObjectUnsafe(directValue)
+                        : JsValue.Undefined;
                 },
                 value => AssignPropertyValueWithNullCheck(target, propertyName, value, context,
                     context.CurrentScope.IsStrict));
@@ -46,8 +46,8 @@ public static partial class TypedAstEvaluator
             context.CurrentScope.IsStrict,
             allowPrivate);
 
-        return AssignmentReference.ForDelegate(
-            () => handle.GetValue(),
+        return AssignmentReference.ForDelegateJsValue(
+            () => handle.GetJsValue(),
             value => handle.SetValue(value));
     }
 
@@ -57,13 +57,33 @@ public static partial class TypedAstEvaluator
         object? value,
         EvaluationContext context)
     {
-        AssignPropertyValueWithNullCheck(target, propertyName, value, context, context.CurrentScope.IsStrict);
+        AssignPropertyValueWithNullCheck(target, propertyName, JsValue.FromObjectUnsafe(value), context,
+            context.CurrentScope.IsStrict);
     }
 
     private static void AssignPropertyValueWithNullCheck(
         object? target,
         string propertyName,
         object? value,
+        EvaluationContext context,
+        bool isStrict)
+    {
+        AssignPropertyValueWithNullCheck(target, propertyName, JsValue.FromObjectUnsafe(value), context, isStrict);
+    }
+
+    private static void AssignPropertyValueWithNullCheck(
+        object? target,
+        string propertyName,
+        JsValue value,
+        EvaluationContext context)
+    {
+        AssignPropertyValueWithNullCheck(target, propertyName, value, context, context.CurrentScope.IsStrict);
+    }
+
+    private static void AssignPropertyValueWithNullCheck(
+        object? target,
+        string propertyName,
+        JsValue value,
         EvaluationContext context,
         bool isStrict)
     {
@@ -98,7 +118,7 @@ public static partial class TypedAstEvaluator
             AssignmentReferenceResolver.AssignObjectProperty(
                 jsObject,
                 propertyName,
-                JsValue.FromObjectUnsafe(value),
+                value,
                 isStrict,
                 context,
                 context.RealmState,
@@ -135,7 +155,7 @@ public static partial class TypedAstEvaluator
                         return;
                     }
 
-                    descriptor.Set.Invoke([JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(target));
+                    descriptor.Set.Invoke([value], JsValue.FromObjectUnsafe(target));
                     return;
                 }
 
@@ -152,7 +172,7 @@ public static partial class TypedAstEvaluator
                     return;
                 }
 
-                accessor.SetProperty(propertyName, JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(target));
+                accessor.SetProperty(propertyName, value, JsValue.FromObjectUnsafe(target));
                 return;
             }
 
@@ -170,7 +190,7 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        AssignPropertyValue(target, propertyName, value, context);
+        AssignPropertyValue(target, propertyName, ConvertJsValueToObject(value), context);
     }
 
     /// <summary>
@@ -198,7 +218,7 @@ public static partial class TypedAstEvaluator
     private static void AssignPrimitiveProperty(
         object? primitiveTarget,
         string propertyName,
-        object? value,
+        JsValue value,
         bool isStrict,
         EvaluationContext context)
     {
@@ -250,7 +270,7 @@ public static partial class TypedAstEvaluator
     private static bool TrySetPrimitiveProperty(
         JsObject wrapper,
         string propertyName,
-        object? value,
+        JsValue value,
         object? receiver,
         EvaluationContext context)
     {
@@ -262,7 +282,7 @@ public static partial class TypedAstEvaluator
             {
                 if (ownDescriptor.Set is not null)
                 {
-                    InvokeCallable(ownDescriptor.Set, [JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver), context);
+                    InvokeCallable(ownDescriptor.Set, [value], JsValue.FromObjectUnsafe(receiver), context);
                     return true;
                 }
                 // Accessor with only getter - [[Set]] returns false
@@ -290,7 +310,7 @@ public static partial class TypedAstEvaluator
                 // The trap receives (target, propertyName, value, receiver)
                 try
                 {
-                    proxy.SetProperty(propertyName, JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(receiver));
+                    proxy.SetProperty(propertyName, value, JsValue.FromObjectUnsafe(receiver));
                     return true;
                 }
                 catch (ThrowSignal)
@@ -307,7 +327,7 @@ public static partial class TypedAstEvaluator
                 {
                     if (inheritedDescriptor.Set is not null)
                     {
-                        InvokeCallable(inheritedDescriptor.Set, [JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver), context);
+                        InvokeCallable(inheritedDescriptor.Set, [value], JsValue.FromObjectUnsafe(receiver), context);
                         return true;
                     }
                     // Accessor with only getter - [[Set]] returns false
@@ -372,6 +392,26 @@ public static partial class TypedAstEvaluator
             JsBigInt => "bigint",
             double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte => "number",
             _ => "primitive"
+        };
+    }
+
+    /// <summary>
+    /// Converts JsValue to object? for compatibility with methods that haven't been migrated yet.
+    /// This manually expands the logic from ToObject() to avoid calling the obsolete method.
+    /// </summary>
+    private static object? ConvertJsValueToObject(JsValue value)
+    {
+        return value.Kind switch
+        {
+            JsValueKind.Undefined => Symbol.Undefined,
+            JsValueKind.Null => null,
+            JsValueKind.Boolean => JsValueCache.GetBoolean(value.NumberValue != 0.0),
+            JsValueKind.Number => JsValueCache.GetNumber(value.NumberValue),
+            JsValueKind.BigInt => value.ObjectValue,
+            JsValueKind.String => value.ObjectValue,
+            JsValueKind.Symbol => value.ObjectValue,
+            JsValueKind.Object => value.ObjectValue,
+            _ => Symbol.Undefined
         };
     }
 }

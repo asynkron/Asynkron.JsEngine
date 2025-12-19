@@ -224,14 +224,12 @@ public static partial class TypedAstEvaluator
             }
 
             JsEnvironment parameterEnvironment;
-            JsEnvironment functionEnvironment;
             JsEnvironment varEnvironment;
+            var functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
+                description);
+            functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
             if (hasParameterExpressions)
             {
-                functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
-                    description);
-                functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-
                 parameterEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict, _function.Source,
                     description, isParameterEnvironment: true);
                 parameterEnvironment.SetBodyLexicalNames(bodyLexicalNames);
@@ -242,9 +240,6 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
-                    description);
-                functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
                 parameterEnvironment = functionEnvironment;
                 varEnvironment = functionEnvironment;
             }
@@ -352,19 +347,20 @@ public static partial class TypedAstEvaluator
         {
             var iteratorTarget = NormalizeIterableTarget(iterable.ToObject(), context);
 
-            if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
+            if (!TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) || iterator is null)
             {
-                var nextMethod = iterator.GetIteratorNextCallable(context);
-                return new IteratorDriverState
-                {
-                    IteratorObject = iterator,
-                    Enumerator = null,
-                    IsAsyncIterator = kind == IteratorDriverKind.Await,
-                    NextMethod = nextMethod
-                };
+                throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
             }
 
-            throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
+            var nextMethod = iterator.GetIteratorNextCallable(context);
+            return new IteratorDriverState
+            {
+                IteratorObject = iterator,
+                Enumerator = null,
+                IsAsyncIterator = kind == IteratorDriverKind.Await,
+                NextMethod = nextMethod
+            };
+
         }
 
         private static void StoreSymbolValue(JsEnvironment environment, Symbol symbol, object? value)
@@ -433,7 +429,7 @@ public static partial class TypedAstEvaluator
             var environment = EnsureExecutionEnvironment();
             var context = EnsureEvaluationContext();
             StoreSymbolValue(environment, Symbol.YieldTrackerSymbol, new YieldTracker(_consumedYieldIndices));
-            var traceAsync = Environment.GetEnvironmentVariable("JSENGINE_TRACE_ASYNC") == "1";
+
             var traceIterations = 0;
 
             // Restore active with-scopes when resuming
@@ -498,514 +494,638 @@ public static partial class TypedAstEvaluator
                 try
                 {
                     while (_programCounter >= 0 && _programCounter < _plan.Instructions.Length)
-                {
-                    _currentInstructionIndex = _programCounter;
-                    if (traceAsync && traceIterations < 64)
                     {
-                        var instructionName = _plan.Instructions[_programCounter].GetType().Name;
-                        Console.WriteLine($"[AsyncStep-PC] pc={_programCounter} instr={instructionName} state={_state} pendingKind={_pendingResumeKind}");
-                        traceIterations++;
-                    }
-                    var instruction = _plan.Instructions[_programCounter];
-                    switch (instruction)
-                    {
-                        case StatementInstruction statementInstruction:
-                            _ = statementInstruction.Statement.EvaluateStatementJsValue(environment, context);
-                            if (context.IsThrow)
-                            {
-                                var thrown = context.FlowValue;
-                                context.Clear();
-                                if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
-                                {
-                                    if (_programCounter == _currentInstructionIndex)
-                                    {
-                                        _programCounter = statementInstruction.Next;
-                                    }
-                                    continue;
-                                }
-
-                                _tryStack.Clear();
-                                throw new ThrowSignal(thrown);
-                            }
-
-                            if (context.IsReturn)
-                            {
-                                var returnSignalValue = context.FlowValue;
-                                context.ClearReturn();
-                                if (HandleAbruptCompletion(AbruptKind.Return, returnSignalValue, environment))
-                                {
-                                    if (_programCounter == _currentInstructionIndex)
-                                    {
-                                        _programCounter = statementInstruction.Next;
-                                    }
-                                    continue;
-                                }
-
-                                return CompleteReturn(returnSignalValue);
-                            }
-
-                            if (context.IsYield)
-                            {
-                                var yieldedSignalValue = context.FlowValue;
-                                // Check if the yield signal includes an original iterator result object (from yield*)
-                                var iteratorResultObject = (context.CurrentSignal as YieldCompletionSignal)?.IteratorResultObject;
-                                RecordYield(context);
-                                context.Clear();
-                                _state = GeneratorState.Suspended;
-                                // If we have an original iterator result object, return it to preserve done property
-                                return JsValue.FromObjectUnsafe(iteratorResultObject ?? CreateIteratorResult(yieldedSignalValue, false));
-                            }
-
-                            _programCounter = statementInstruction.Next;
-                            continue;
-
-                        case YieldInstruction yieldInstruction:
-                            var yieldedValue = JsValue.Undefined;
-                            var yieldedDuringOperand = false;
-                            if (yieldInstruction.YieldExpression is not null)
-                            {
-                                yieldedValue = yieldInstruction.YieldExpression.EvaluateExpression(environment,
-                                    context);
+                        _currentInstructionIndex = _programCounter;
+                        var instruction = _plan.Instructions[_programCounter];
+                        switch (instruction)
+                        {
+                            case StatementInstruction statementInstruction:
+                                _ = statementInstruction.Statement.EvaluateStatementJsValue(environment, context);
                                 if (context.IsThrow)
                                 {
                                     var thrown = context.FlowValue;
                                     context.Clear();
                                     if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
                                     {
+                                        if (_programCounter == _currentInstructionIndex)
+                                        {
+                                            _programCounter = statementInstruction.Next;
+                                        }
                                         continue;
                                     }
 
                                     _tryStack.Clear();
                                     throw new ThrowSignal(thrown);
+                                }
+
+                                if (context.IsReturn)
+                                {
+                                    var returnSignalValue = context.FlowValue;
+                                    context.ClearReturn();
+                                    if (!HandleAbruptCompletion(AbruptKind.Return, returnSignalValue, environment))
+                                    {
+                                        return CompleteReturn(returnSignalValue);
+                                    }
+
+                                    if (_programCounter == _currentInstructionIndex)
+                                    {
+                                        _programCounter = statementInstruction.Next;
+                                    }
+                                    continue;
+
                                 }
 
                                 if (context.IsYield)
                                 {
-                                    yieldedValue = context.FlowValue;
-                                    // Check if the yield signal includes an original iterator result object (from yield* in operand)
-                                    var nestedIteratorResult = (context.CurrentSignal as YieldCompletionSignal)?.IteratorResultObject;
-                                    context.Clear();
-                                    yieldedDuringOperand = true;
-                                    _programCounter = _currentInstructionIndex;
+                                    var yieldedSignalValue = context.FlowValue;
+                                    // Check if the yield signal includes an original iterator result object (from yield*)
+                                    var iteratorResultObject = (context.CurrentSignal as YieldCompletionSignal)?.IteratorResultObject;
                                     RecordYield(context);
+                                    context.Clear();
                                     _state = GeneratorState.Suspended;
-                                    return JsValue.FromObjectUnsafe(nestedIteratorResult ?? CreateIteratorResult(yieldedValue, false));
+                                    // If we have an original iterator result object, return it to preserve done property
+                                    return JsValue.FromObjectUnsafe(iteratorResultObject ?? CreateIteratorResult(yieldedSignalValue, false));
                                 }
-                            }
 
-                            _programCounter = yieldInstruction.Next;
-                            RecordYield(context);
-                            _state = GeneratorState.Suspended;
-                            return (JsValue)CreateIteratorResult(yieldedValue, false);
+                                _programCounter = statementInstruction.Next;
+                                continue;
 
-                        case YieldStarInstruction yieldStarInstruction:
-                        {
-                            var currentIndex = _programCounter;
-                            if (!TryGetSymbolValue(environment, yieldStarInstruction.StateSlotSymbol,
-                                    out var stateValue) ||
-                                stateValue is not YieldStarState yieldStarState)
-                            {
-                                yieldStarState = new YieldStarState();
-                                StoreSymbolValue(environment, yieldStarInstruction.StateSlotSymbol, yieldStarState);
-                            }
-
-                            if (yieldStarState.PendingAbrupt != AbruptKind.None &&
-                                _pendingResumeKind is not ResumePayloadKind.Throw and not ResumePayloadKind.Return)
-                            {
-                                var pendingKind = yieldStarState.PendingAbrupt;
-                                // PendingValue is now JsValue, no boxing/unboxing needed
-                                var pendingValue = yieldStarState.PendingValue;
-                                yieldStarState.PendingAbrupt = AbruptKind.None;
-                                yieldStarState.PendingValue = JsValue.Undefined;
-                                yieldStarState.State = null;
-                                yieldStarState.AwaitingResume = false;
-                                environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
-
-                                if (pendingKind == AbruptKind.Throw)
+                            case YieldInstruction yieldInstruction:
+                                var yieldedValue = JsValue.Undefined;
+                                if (yieldInstruction.YieldExpression is not null)
                                 {
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, pendingValue, environment))
+                                    yieldedValue = yieldInstruction.YieldExpression.EvaluateExpression(environment,
+                                        context);
+                                    if (context.IsThrow)
                                     {
-                                        continue;
+                                        var thrown = context.FlowValue;
+                                        context.Clear();
+                                        if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
+                                        {
+                                            continue;
+                                        }
+
+                                        _tryStack.Clear();
+                                        throw new ThrowSignal(thrown);
                                     }
 
-                                    _tryStack.Clear();
-                                    // pendingValue is already JsValue
-                                    throw new ThrowSignal(pendingValue);
-                                }
-
-                                if (pendingKind == AbruptKind.Return)
-                                {
-                                    if (HandleAbruptCompletion(AbruptKind.Return, pendingValue, environment))
+                                    if (context.IsYield)
                                     {
-                                        continue;
-                                    }
-
-                                    // pendingValue is already JsValue
-                                    return CompleteReturn(pendingValue);
-                                }
-                            }
-
-                            // Track if this is the first entry to this yield* (State is null means first entry)
-                            var isFirstYieldStarEntry = yieldStarState.State is null;
-
-                            if (yieldStarState.State is null)
-                            {
-                                _realmState.Logger?.LogInformation("YieldStar: Creating new DelegatedState");
-                                var yieldStarIterable = yieldStarInstruction.IterableExpression.EvaluateExpression(environment, context).ToObject();
-                                if (context.IsThrow)
-                                {
-                                    var thrown = context.FlowValue;
-                                    context.Clear();
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
-                                    {
-                                        continue;
-                                    }
-
-                                    _tryStack.Clear();
-                                    throw new ThrowSignal(thrown);
-                                }
-
-                                yieldStarState.State = CreateDelegatedState(yieldStarIterable, context);
-
-                                // Check if CreateDelegatedState resulted in a throw (e.g., from calling @@iterator)
-                                if (context.IsThrow)
-                                {
-                                    var thrown = context.FlowValue;
-                                    context.Clear();
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
-                                    {
-                                        continue;
-                                    }
-
-                                    _tryStack.Clear();
-                                    throw new ThrowSignal(thrown);
-                                }
-
-                                yieldStarState.AwaitingResume = false;
-                            }
-                            else
-                            {
-                                _realmState.Logger?.LogInformation("YieldStar: Reusing existing DelegatedState, AwaitingResume={Awaiting}",
-                                    yieldStarState.AwaitingResume);
-                            }
-
-                            while (true)
-                            {
-                                var sendValue = JsValue.Undefined;
-                                var hasSendValue = false;
-                                var propagateThrow = false;
-                                var propagateReturn = false;
-
-                                // Per ES spec (14.4.14): On first entry to yield*, call iteratorRecord.[[NextMethod]]
-                                // with iteratorRecord.[[Iterator]] as this and no arguments (undefined).
-                                // Node.js V8 confirms: args.length=1, args[0]=undefined
-                                if (isFirstYieldStarEntry)
-                                {
-                                    // On first entry to yield*, we pass undefined as the argument
-                                    // (the outer generator's first next() argument is ignored per spec)
-                                    hasSendValue = true;
-                                    sendValue = JsValue.Undefined;
-                                    // Mark that we're no longer on first entry for subsequent iterations
-                                    isFirstYieldStarEntry = false;
-                                }
-                                else if (yieldStarState.AwaitingResume)
-                                {
-                                    var (delegatedResumeKind, delegatedResumePayload) = ConsumeResumeValue();
-                                    switch (delegatedResumeKind)
-                                    {
-                                        case ResumePayloadKind.Throw:
-                                            propagateThrow = true;
-                                            hasSendValue = true;
-                                            sendValue = delegatedResumePayload;
-                                            break;
-                                        case ResumePayloadKind.Return:
-                                            propagateReturn = true;
-                                            hasSendValue = true;
-                                            sendValue = delegatedResumePayload;
-                                            break;
-                                        default:
-                                            hasSendValue = true;
-                                            sendValue = delegatedResumePayload;
-                                            break;
-                                    }
-                                }
-
-                                var iteratorResult = yieldStarState.State!.MoveNext(
-                                    sendValue,
-                                    hasSendValue,
-                                    propagateThrow,
-                                    propagateReturn,
-                                    context,
-                                    out _);
-
-                                // Check if MoveNext resulted in a throw (e.g., from calling iterator.next())
-                                if (context.IsThrow)
-                                {
-                                    var thrown = context.FlowValue;
-                                    context.Clear();
-                                    yieldStarState.State = null;
-                                    yieldStarState.AwaitingResume = false;
-                                    environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
-                                    {
-                                        break;
-                                    }
-
-                                    _tryStack.Clear();
-                                    throw new ThrowSignal(thrown);
-                                }
-
-                                if (iteratorResult.IsDelegatedCompletion)
-                                {
-                                    // Check PropagateThrow from the result - this is true when MoveNext itself threw
-                                    // (e.g., iterator.next() returned non-object), not just when we called throw()
-                                    var isThrowCompletion = propagateThrow || iteratorResult.PropagateThrow;
-                                    var pendingKind = isThrowCompletion ? AbruptKind.Throw : AbruptKind.Return;
-                                    // The thrown/returned value is in iteratorResult.Value
-                                    var abruptValue = iteratorResult.Value;
-
-                                    if (!iteratorResult.Done)
-                                    {
-                                        yieldStarState.PendingAbrupt = pendingKind;
-                                        // sendValue is already JsValue, no boxing needed
-                                        yieldStarState.PendingValue = sendValue;
-                                        yieldStarState.AwaitingResume = true;
-                                        _programCounter = currentIndex;
+                                        yieldedValue = context.FlowValue;
+                                        // Check if the yield signal includes an original iterator result object (from yield* in operand)
+                                        var nestedIteratorResult = (context.CurrentSignal as YieldCompletionSignal)?.IteratorResultObject;
+                                        context.Clear();
+                                        _programCounter = _currentInstructionIndex;
+                                        RecordYield(context);
                                         _state = GeneratorState.Suspended;
-                                        // Use original iterator result object to preserve done/value properties
-                                        return JsValue.FromObjectUnsafe(iteratorResult.IteratorResultObject ?? CreateIteratorResult(iteratorResult.Value, false));
+                                        return JsValue.FromObjectUnsafe(nestedIteratorResult ?? CreateIteratorResult(yieldedValue, false));
                                     }
+                                }
 
+                                _programCounter = yieldInstruction.Next;
+                                RecordYield(context);
+                                _state = GeneratorState.Suspended;
+                                return (JsValue)CreateIteratorResult(yieldedValue, false);
+
+                            case YieldStarInstruction yieldStarInstruction:
+                            {
+                                var currentIndex = _programCounter;
+                                if (!TryGetSymbolValue(environment, yieldStarInstruction.StateSlotSymbol,
+                                        out var stateValue) ||
+                                    stateValue is not YieldStarState yieldStarState)
+                                {
+                                    yieldStarState = new YieldStarState();
+                                    StoreSymbolValue(environment, yieldStarInstruction.StateSlotSymbol, yieldStarState);
+                                }
+
+                                if (yieldStarState.PendingAbrupt != AbruptKind.None &&
+                                    _pendingResumeKind is not ResumePayloadKind.Throw and not ResumePayloadKind.Return)
+                                {
+                                    var pendingKind = yieldStarState.PendingAbrupt;
+                                    // PendingValue is now JsValue, no boxing/unboxing needed
+                                    var pendingValue = yieldStarState.PendingValue;
+                                    yieldStarState.PendingAbrupt = AbruptKind.None;
+                                    yieldStarState.PendingValue = JsValue.Undefined;
                                     yieldStarState.State = null;
                                     yieldStarState.AwaitingResume = false;
                                     environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
 
                                     if (pendingKind == AbruptKind.Throw)
                                     {
-                                        if (HandleAbruptCompletion(AbruptKind.Throw, abruptValue, environment))
+                                        if (HandleAbruptCompletion(AbruptKind.Throw, pendingValue, environment))
+                                        {
+                                            continue;
+                                        }
+
+                                        _tryStack.Clear();
+                                        // pendingValue is already JsValue
+                                        throw new ThrowSignal(pendingValue);
+                                    }
+
+                                    if (pendingKind == AbruptKind.Return)
+                                    {
+                                        if (HandleAbruptCompletion(AbruptKind.Return, pendingValue, environment))
+                                        {
+                                            continue;
+                                        }
+
+                                        // pendingValue is already JsValue
+                                        return CompleteReturn(pendingValue);
+                                    }
+                                }
+
+                                // Track if this is the first entry to this yield* (State is null means first entry)
+                                var isFirstYieldStarEntry = yieldStarState.State is null;
+
+                                if (yieldStarState.State is null)
+                                {
+                                    _realmState.Logger?.LogInformation("YieldStar: Creating new DelegatedState");
+                                    var yieldStarIterable = yieldStarInstruction.IterableExpression.EvaluateExpression(environment, context).ToObject();
+                                    if (context.IsThrow)
+                                    {
+                                        var thrown = context.FlowValue;
+                                        context.Clear();
+                                        if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
+                                        {
+                                            continue;
+                                        }
+
+                                        _tryStack.Clear();
+                                        throw new ThrowSignal(thrown);
+                                    }
+
+                                    yieldStarState.State = CreateDelegatedState(yieldStarIterable, context);
+
+                                    // Check if CreateDelegatedState resulted in a throw (e.g., from calling @@iterator)
+                                    if (context.IsThrow)
+                                    {
+                                        var thrown = context.FlowValue;
+                                        context.Clear();
+                                        if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
+                                        {
+                                            continue;
+                                        }
+
+                                        _tryStack.Clear();
+                                        throw new ThrowSignal(thrown);
+                                    }
+
+                                    yieldStarState.AwaitingResume = false;
+                                }
+                                else
+                                {
+                                    _realmState.Logger?.LogInformation("YieldStar: Reusing existing DelegatedState, AwaitingResume={Awaiting}",
+                                        yieldStarState.AwaitingResume);
+                                }
+
+                                while (true)
+                                {
+                                    var sendValue = JsValue.Undefined;
+                                    var propagateThrow = false;
+                                    var propagateReturn = false;
+
+                                    // Per ES spec (14.4.14): On first entry to yield*, call iteratorRecord.[[NextMethod]]
+                                    // with iteratorRecord.[[Iterator]] as this and no arguments (undefined).
+                                    // Node.js V8 confirms: args.length=1, args[0]=undefined
+                                    if (isFirstYieldStarEntry)
+                                    {
+                                        // On first entry to yield*, we pass undefined as the argument
+                                        // (the outer generator's first next() argument is ignored per spec)
+                                        sendValue = JsValue.Undefined;
+                                        // Mark that we're no longer on first entry for subsequent iterations
+                                        isFirstYieldStarEntry = false;
+                                    }
+                                    else if (yieldStarState.AwaitingResume)
+                                    {
+                                        var (delegatedResumeKind, delegatedResumePayload) = ConsumeResumeValue();
+                                        switch (delegatedResumeKind)
+                                        {
+                                            case ResumePayloadKind.Throw:
+                                                propagateThrow = true;
+                                                sendValue = delegatedResumePayload;
+                                                break;
+                                            case ResumePayloadKind.Return:
+                                                propagateReturn = true;
+                                                sendValue = delegatedResumePayload;
+                                                break;
+                                            default:
+                                                sendValue = delegatedResumePayload;
+                                                break;
+                                        }
+                                    }
+
+                                    var iteratorResult = yieldStarState.State!.MoveNext(
+                                        sendValue,
+                                        propagateThrow,
+                                        propagateReturn,
+                                        context,
+                                        out _);
+
+                                    // Check if MoveNext resulted in a throw (e.g., from calling iterator.next())
+                                    if (context.IsThrow)
+                                    {
+                                        var thrown = context.FlowValue;
+                                        context.Clear();
+                                        yieldStarState.State = null;
+                                        yieldStarState.AwaitingResume = false;
+                                        environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
+                                        if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
                                         {
                                             break;
                                         }
 
                                         _tryStack.Clear();
-                                        throw new ThrowSignal(abruptValue);
+                                        throw new ThrowSignal(thrown);
                                     }
 
-                                    if (HandleAbruptCompletion(AbruptKind.Return, abruptValue, environment))
+                                    if (iteratorResult.IsDelegatedCompletion)
                                     {
+                                        // Check PropagateThrow from the result - this is true when MoveNext itself threw
+                                        // (e.g., iterator.next() returned non-object), not just when we called throw()
+                                        var isThrowCompletion = propagateThrow || iteratorResult.PropagateThrow;
+                                        var pendingKind = isThrowCompletion ? AbruptKind.Throw : AbruptKind.Return;
+                                        // The thrown/returned value is in iteratorResult.Value
+                                        var abruptValue = iteratorResult.Value;
+
+                                        if (!iteratorResult.Done)
+                                        {
+                                            yieldStarState.PendingAbrupt = pendingKind;
+                                            // sendValue is already JsValue, no boxing needed
+                                            yieldStarState.PendingValue = sendValue;
+                                            yieldStarState.AwaitingResume = true;
+                                            _programCounter = currentIndex;
+                                            _state = GeneratorState.Suspended;
+                                            // Use original iterator result object to preserve done/value properties
+                                            return JsValue.FromObjectUnsafe(iteratorResult.IteratorResultObject ?? CreateIteratorResult(iteratorResult.Value, false));
+                                        }
+
+                                        yieldStarState.State = null;
+                                        yieldStarState.AwaitingResume = false;
+                                        environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
+
+                                        if (pendingKind == AbruptKind.Throw)
+                                        {
+                                            if (HandleAbruptCompletion(AbruptKind.Throw, abruptValue, environment))
+                                            {
+                                                break;
+                                            }
+
+                                            _tryStack.Clear();
+                                            throw new ThrowSignal(abruptValue);
+                                        }
+
+                                        if (HandleAbruptCompletion(AbruptKind.Return, abruptValue, environment))
+                                        {
+                                            break;
+                                        }
+
+                                        return CompleteReturn(abruptValue);
+                                    }
+
+                                    // If the delegated iterator's throw method completed (done=true),
+                                    // the yield* expression completes normally with that value (no further delegation).
+                                    if (propagateThrow && iteratorResult.Done)
+                                    {
+                                        yieldStarState.State = null;
+                                        yieldStarState.AwaitingResume = false;
+                                        environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
+                                        if (yieldStarInstruction.ResultSlotSymbol is { } throwResultSlot)
+                                        {
+                                            StoreSymbolValue(environment, throwResultSlot, iteratorResult.Value);
+                                        }
+
+                                        _programCounter = yieldStarInstruction.Next;
                                         break;
                                     }
 
-                                    return CompleteReturn(abruptValue);
-                                }
-
-                                // If the delegated iterator's throw method completed (done=true),
-                                // the yield* expression completes normally with that value (no further delegation).
-                                if (propagateThrow && iteratorResult.Done)
-                                {
-                                    yieldStarState.State = null;
-                                    yieldStarState.AwaitingResume = false;
-                                    environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
-                                    if (yieldStarInstruction.ResultSlotSymbol is { } throwResultSlot)
+                                    if (iteratorResult.Done && !propagateThrow && !propagateReturn)
                                     {
-                                        StoreSymbolValue(environment, throwResultSlot, iteratorResult.Value);
+                                        yieldStarState.State = null;
+                                        yieldStarState.AwaitingResume = false;
+                                        environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
+                                        if (yieldStarInstruction.ResultSlotSymbol is { } resultSlot)
+                                        {
+                                            StoreSymbolValue(environment, resultSlot, iteratorResult.Value);
+                                        }
+
+                                        _programCounter = yieldStarInstruction.Next;
+                                        break;
                                     }
 
-                                    _programCounter = yieldStarInstruction.Next;
-                                    break;
+                                    yieldStarState.AwaitingResume = true;
+                                    _programCounter = currentIndex;
+                                    _state = GeneratorState.Suspended;
+                                    // Use original iterator result object to preserve done/value properties
+                                    if (iteratorResult.IteratorResultObject is { } originalResult)
+                                    {
+                                        return JsValue.FromObjectUnsafe(originalResult);
+                                    }
+                                    var resultDone = propagateReturn ? iteratorResult.Done : false;
+                                    return (JsValue)CreateIteratorResult(iteratorResult.Value, resultDone);
                                 }
 
-                                if (iteratorResult.Done && !propagateThrow && !propagateReturn)
+                                continue;
+                            }
+
+                            case StoreResumeValueInstruction storeResumeValueInstruction:
+                                var (resumeKind, resumePayload) = ConsumeResumeValue();
+                                if (resumeKind == ResumePayloadKind.Throw)
                                 {
-                                    yieldStarState.State = null;
-                                    yieldStarState.AwaitingResume = false;
-                                    environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
-                                    if (yieldStarInstruction.ResultSlotSymbol is { } resultSlot)
+                                    context.SetThrow(resumePayload);
+                                }
+                                else if (resumeKind == ResumePayloadKind.Return)
+                                {
+                                    context.SetReturn(resumePayload);
+                                }
+                                else if (storeResumeValueInstruction.TargetSymbol is { } resumeSymbol)
+                                {
+                                    if (environment.TryGet(resumeSymbol, out _))
                                     {
-                                        StoreSymbolValue(environment, resultSlot, iteratorResult.Value);
+                                        environment.Assign(resumeSymbol, resumePayload.ToObject());
+                                    }
+                                    else
+                                    {
+                                        environment.DefineJsValue(resumeSymbol, resumePayload);
+                                    }
+                                }
+
+                                if (context.IsThrow)
+                                {
+                                    var thrownPayload = context.FlowValue;
+                                    context.Clear();
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, thrownPayload, environment))
+                                    {
+                                        if (_programCounter == _currentInstructionIndex)
+                                        {
+                                            _programCounter = storeResumeValueInstruction.Next;
+                                        }
+                                        continue;
                                     }
 
-                                    _programCounter = yieldStarInstruction.Next;
-                                    break;
+                                    _tryStack.Clear();
+                                    throw new ThrowSignal(thrownPayload);
                                 }
 
-                                yieldStarState.AwaitingResume = true;
-                                _programCounter = currentIndex;
-                                _state = GeneratorState.Suspended;
-                                // Use original iterator result object to preserve done/value properties
-                                if (iteratorResult.IteratorResultObject is { } originalResult)
+                                if (context.IsReturn)
                                 {
-                                    return JsValue.FromObjectUnsafe(originalResult);
-                                }
-                                var resultDone = propagateReturn ? iteratorResult.Done : false;
-                                return (JsValue)CreateIteratorResult(iteratorResult.Value, resultDone);
-                            }
-
-                            continue;
-                        }
-
-                        case StoreResumeValueInstruction storeResumeValueInstruction:
-                            var (resumeKind, resumePayload) = ConsumeResumeValue();
-                            if (resumeKind == ResumePayloadKind.Throw)
-                            {
-                                context.SetThrow(resumePayload);
-                            }
-                            else if (resumeKind == ResumePayloadKind.Return)
-                            {
-                                context.SetReturn(resumePayload);
-                            }
-                            else if (storeResumeValueInstruction.TargetSymbol is { } resumeSymbol)
-                            {
-                                if (environment.TryGet(resumeSymbol, out _))
-                                {
-                                    environment.Assign(resumeSymbol, resumePayload.ToObject());
-                                }
-                                else
-                                {
-                                    environment.DefineJsValue(resumeSymbol, resumePayload);
-                                }
-                            }
-
-                            if (context.IsThrow)
-                            {
-                                var thrownPayload = context.FlowValue;
-                                context.Clear();
-                                if (HandleAbruptCompletion(AbruptKind.Throw, thrownPayload, environment))
-                                {
-                                    if (_programCounter == _currentInstructionIndex)
+                                    var resumeReturnValue = context.FlowValue;
+                                    context.ClearReturn();
+                                    if (HandleAbruptCompletion(AbruptKind.Return, resumeReturnValue, environment))
                                     {
-                                        _programCounter = storeResumeValueInstruction.Next;
+                                        if (_programCounter == _currentInstructionIndex)
+                                        {
+                                            _programCounter = storeResumeValueInstruction.Next;
+                                        }
+                                        continue;
                                     }
+
+                                    // resumeReturnValue is already a JsValue from context.FlowValue
+                                    return CompleteReturn(resumeReturnValue);
+                                }
+
+                                _programCounter = storeResumeValueInstruction.Next;
+                                continue;
+
+                            case EnterTryInstruction enterTryInstruction:
+                                PushTryFrame(enterTryInstruction, environment);
+                                _programCounter = enterTryInstruction.Next;
+                                continue;
+
+                            case LeaveTryInstruction leaveTryInstruction:
+                                CompleteTryNormally(leaveTryInstruction.Next);
+                                continue;
+
+                            case EndFinallyInstruction endFinallyInstruction:
+                                if (_tryStack.Count == 0)
+                                {
+                                    _programCounter = endFinallyInstruction.Next;
+                                    continue;
+                                }
+
+                                var completedFrame = _tryStack.Pop();
+                                var pending = completedFrame.PendingCompletion;
+                                if (pending.Kind == AbruptKind.None)
+                                {
+                                    var target = pending.ResumeTarget >= 0
+                                        ? pending.ResumeTarget
+                                        : endFinallyInstruction.Next;
+                                    _programCounter = target;
+                                    continue;
+                                }
+
+                                if (pending.Kind == AbruptKind.Return)
+                                {
+                                    if (HandleAbruptCompletion(AbruptKind.Return, pending.Value, environment))
+                                    {
+                                        continue;
+                                    }
+
+                                    // Handle case where pending.Value is already a boxed JsValue
+                                    var pendingJs = pending.Value is JsValue pjs ? pjs : JsValue.FromObjectUnsafe(pending.Value);
+                                    return CompleteReturn(pendingJs);
+                                }
+
+                                if (pending.Kind == AbruptKind.Break || pending.Kind == AbruptKind.Continue)
+                                {
+                                    if (HandleAbruptCompletion(pending.Kind, pending.Value, environment))
+                                    {
+                                        continue;
+                                    }
+
+                                    _programCounter = pending.Value is int idx ? idx : endFinallyInstruction.Next;
+                                    continue;
+                                }
+
+                                if (HandleAbruptCompletion(AbruptKind.Throw, pending.Value, environment))
+                                {
                                     continue;
                                 }
 
                                 _tryStack.Clear();
-                                throw new ThrowSignal(thrownPayload);
-                            }
-
-                            if (context.IsReturn)
-                            {
-                                var resumeReturnValue = context.FlowValue;
-                                context.ClearReturn();
-                                if (HandleAbruptCompletion(AbruptKind.Return, resumeReturnValue, environment))
-                                {
-                                    if (_programCounter == _currentInstructionIndex)
-                                    {
-                                        _programCounter = storeResumeValueInstruction.Next;
-                                    }
-                                    continue;
-                                }
-
-                                // resumeReturnValue is already a JsValue from context.FlowValue
-                                return CompleteReturn(resumeReturnValue);
-                            }
-
-                            _programCounter = storeResumeValueInstruction.Next;
-                            continue;
-
-                        case EnterTryInstruction enterTryInstruction:
-                            PushTryFrame(enterTryInstruction, environment);
-                            _programCounter = enterTryInstruction.Next;
-                            continue;
-
-                        case LeaveTryInstruction leaveTryInstruction:
-                            CompleteTryNormally(leaveTryInstruction.Next);
-                            continue;
-
-                        case EndFinallyInstruction endFinallyInstruction:
-                            if (_tryStack.Count == 0)
-                            {
-                                _programCounter = endFinallyInstruction.Next;
-                                continue;
-                            }
-
-                            var completedFrame = _tryStack.Pop();
-                            var pending = completedFrame.PendingCompletion;
-                            if (pending.Kind == AbruptKind.None)
-                            {
-                                var target = pending.ResumeTarget >= 0
-                                    ? pending.ResumeTarget
-                                    : endFinallyInstruction.Next;
-                                _programCounter = target;
-                                continue;
-                            }
-
-                            if (pending.Kind == AbruptKind.Return)
-                            {
-                                if (HandleAbruptCompletion(AbruptKind.Return, pending.Value, environment))
-                                {
-                                    continue;
-                                }
-
                                 // Handle case where pending.Value is already a boxed JsValue
-                                var pendingJs = pending.Value is JsValue pjs ? pjs : JsValue.FromObjectUnsafe(pending.Value);
-                                return CompleteReturn(pendingJs);
-                            }
+                                var throwJs = pending.Value is JsValue tjs ? tjs : JsValue.FromObjectUnsafe(pending.Value);
+                                throw new ThrowSignal(throwJs);
 
-                            if (pending.Kind == AbruptKind.Break || pending.Kind == AbruptKind.Continue)
-                            {
-                                if (HandleAbruptCompletion(pending.Kind, pending.Value, environment))
+                            case IteratorInitInstruction iteratorInitInstruction:
+                                var iterableValue = iteratorInitInstruction.IterableExpression.EvaluateExpression(environment, context);
+                                if (context.IsThrow)
                                 {
+                                    var initThrown = context.FlowValue;
+                                    context.Clear();
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, initThrown, environment))
+                                    {
+                                        continue;
+                                    }
+
+                                    _tryStack.Clear();
+                                    throw new ThrowSignal(initThrown);
+                                }
+
+                                var iteratorState =
+                                    CreateIteratorDriverState(iterableValue, iteratorInitInstruction.Kind, context);
+                                StoreSymbolValue(environment, iteratorInitInstruction.IteratorSlot, iteratorState);
+                                _programCounter = iteratorInitInstruction.Next;
+                                continue;
+
+                            case IteratorMoveNextInstruction iteratorMoveNextInstruction:
+                                var iteratorIndex = _programCounter;
+                                if (!TryGetSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
+                                        out var iteratorStateValue) ||
+                                    iteratorStateValue is not IteratorDriverState driverState)
+                                {
+                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                     continue;
                                 }
 
-                                _programCounter = pending.Value is int idx ? idx : endFinallyInstruction.Next;
-                                continue;
-                            }
-
-                            if (HandleAbruptCompletion(AbruptKind.Throw, pending.Value, environment))
-                            {
-                                continue;
-                            }
-
-                            _tryStack.Clear();
-                            // Handle case where pending.Value is already a boxed JsValue
-                            var throwJs = pending.Value is JsValue tjs ? tjs : JsValue.FromObjectUnsafe(pending.Value);
-                            throw new ThrowSignal(throwJs);
-
-                        case IteratorInitInstruction iteratorInitInstruction:
-                            var iterableValue = iteratorInitInstruction.IterableExpression.EvaluateExpression(environment, context);
-                            if (context.IsThrow)
-                            {
-                                var initThrown = context.FlowValue;
-                                context.Clear();
-                                if (HandleAbruptCompletion(AbruptKind.Throw, initThrown, environment))
+                                if (!driverState.IsAsyncIterator)
                                 {
+                                    JsValue currentValue;
+                                    if (driverState.IteratorObject is JsObject iteratorObj)
+                                    {
+                                        driverState.NextMethod ??= iteratorObj.GetIteratorNextCallable(context);
+                                        var nextResult = iteratorObj.InvokeIteratorNext(
+                                            driverState.NextMethod!,
+                                            context: context,
+                                            callingEnvironment: environment);
+                                        // Handle case where nextResult is already a boxed JsValue
+                                        if (!nextResult.TryGetObject<JsObject>(out var resultObj))
+                                        {
+                                            // Per ES spec 7.4.2: if result is not an object, throw TypeError
+                                            var typeError = JsValue.FromObjectUnsafe(
+                                                StandardLibrary.CreateTypeError("Iterator result is not an object", context, context.RealmState));
+                                            if (HandleAbruptCompletion(AbruptKind.Throw, typeError, environment))
+                                            {
+                                                continue;
+                                            }
+                                            _tryStack.Clear();
+                                            throw new ThrowSignal(typeError);
+                                        }
+
+                                        var done = resultObj.TryGetProperty("done", out var doneValue) &&
+                                                   JsOps.ToBoolean(doneValue);
+                                        if (done)
+                                        {
+                                            _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                                            continue;
+                                        }
+
+                                        // yielded is already a JsValue from TryGetProperty
+                                        currentValue = resultObj.TryGetProperty("value", out var yielded)
+                                            ? yielded
+                                            : JsValue.Undefined;
+                                    }
+                                    else if (driverState.Enumerator is { } enumerator)
+                                    {
+                                        if (!enumerator.MoveNext())
+                                        {
+                                            _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                                            continue;
+                                        }
+
+                                        currentValue = JsValue.FromObjectUnsafe(enumerator.Current);
+                                    }
+                                    else
+                                    {
+                                        _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                                        continue;
+                                    }
+
+                                    StoreSymbolValue(environment, iteratorMoveNextInstruction.ValueSlot, currentValue.ToObject());
+                                    _programCounter = iteratorMoveNextInstruction.Next;
                                     continue;
                                 }
 
-                                _tryStack.Clear();
-                                throw new ThrowSignal(initThrown);
-                            }
+                                var awaitedValue = JsValue.Undefined;
+                                var awaitedNextResult = JsValue.Undefined;
+                                var hasAwaitedNextResult = false;
 
-                            var iteratorState =
-                                CreateIteratorDriverState(iterableValue, iteratorInitInstruction.Kind, context);
-                            StoreSymbolValue(environment, iteratorInitInstruction.IteratorSlot, iteratorState);
-                            _programCounter = iteratorInitInstruction.Next;
-                            continue;
-
-                        case IteratorMoveNextInstruction iteratorMoveNextInstruction:
-                            var iteratorIndex = _programCounter;
-                            if (!TryGetSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                    out var iteratorStateValue) ||
-                                iteratorStateValue is not IteratorDriverState driverState)
-                            {
-                                _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                continue;
-                            }
-
-                            if (!driverState.IsAsyncIterator)
-                            {
-                                JsValue currentValue;
-                                if (driverState.IteratorObject is JsObject iteratorObj)
+                                // If we're resuming after a pending await from this
+                                // iterator site, consume the resume payload and treat
+                                // it as the awaited result instead of calling into the
+                                // iterator again.
+                                if (driverState.AwaitingNextResult || driverState.AwaitingValue)
                                 {
-                                    driverState.NextMethod ??= iteratorObj.GetIteratorNextCallable(context);
-                                    var nextResult = iteratorObj.InvokeIteratorNext(
-                                        driverState.NextMethod!,
-                                        context: context,
-                                        callingEnvironment: environment);
-                                    // Handle case where nextResult is already a boxed JsValue
-                                    if (!nextResult.TryGetObject<JsObject>(out var resultObj))
+                                    var awaitingValue = driverState.AwaitingValue;
+                                    driverState.AwaitingNextResult = false;
+                                    driverState.AwaitingValue = false;
+                                    var (forAwaitResumeKind, forAwaitResumePayload) = ConsumeResumeValue();
+                                    StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot, driverState);
+
+                                    if (forAwaitResumeKind == ResumePayloadKind.Throw)
+                                    {
+                                        // forAwaitResumePayload is already JsValue, no need to box with .ToObject()
+                                        if (HandleAbruptCompletion(AbruptKind.Throw, forAwaitResumePayload, environment))
+                                        {
+                                            continue;
+                                        }
+
+                                        _tryStack.Clear();
+                                        throw new ThrowSignal(forAwaitResumePayload);
+                                    }
+
+                                    if (forAwaitResumeKind == ResumePayloadKind.Return)
+                                    {
+                                        // forAwaitResumePayload is already JsValue, no need to box with .ToObject()
+                                        if (HandleAbruptCompletion(AbruptKind.Return, forAwaitResumePayload, environment))
+                                        {
+                                            continue;
+                                        }
+
+                                        return CompleteReturn(forAwaitResumePayload);
+                                    }
+
+                                    if (awaitingValue)
+                                    {
+                                        awaitedValue = forAwaitResumePayload;
+                                        goto StoreIteratorValue;
+                                    }
+
+                                    awaitedNextResult = forAwaitResumePayload;
+                                    hasAwaitedNextResult = true;
+                                }
+
+                                if (driverState.IteratorObject is JsObject awaitIteratorObj)
+                                {
+                                    if (!hasAwaitedNextResult)
+                                    {
+                                        driverState.NextMethod ??= awaitIteratorObj.GetIteratorNextCallable(context);
+                                        var nextResult = awaitIteratorObj.InvokeIteratorNext(
+                                            driverState.NextMethod!,
+                                            context: context,
+                                            callingEnvironment: environment);
+                                        if (!TryResolvePromiseOrYield(nextResult, context, out var awaitedNext))
+                                        {
+                                            if (_asyncStepMode && _pendingPromise.TryGetObject<JsObject>(out _))
+                                            {
+                                                driverState.AwaitingNextResult = true;
+                                                StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
+                                                    driverState);
+                                                _state = GeneratorState.Suspended;
+                                                _programCounter = iteratorIndex;
+                                                return (JsValue)CreateIteratorResult(JsValue.Undefined, false);
+                                            }
+
+                                            if (context.IsThrow)
+                                            {
+                                                var thrownAwait = context.FlowValue;
+                                                context.Clear();
+                                                if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwait, environment))
+                                                {
+                                                    continue;
+                                                }
+
+                                                _tryStack.Clear();
+                                                throw new ThrowSignal(thrownAwait);
+                                            }
+
+                                            _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                                            continue;
+                                        }
+
+                                        awaitedNextResult = awaitedNext;
+                                    }
+
+                                    if (!awaitedNextResult.TryGetObject<JsObject>(out var awaitResultObj))
                                     {
                                         // Per ES spec 7.4.2: if result is not an object, throw TypeError
                                         var typeError = JsValue.FromObjectUnsafe(
@@ -1018,28 +1138,88 @@ public static partial class TypedAstEvaluator
                                         throw new ThrowSignal(typeError);
                                     }
 
-                                    var done = resultObj.TryGetProperty("done", out var doneValue) &&
-                                               JsOps.ToBoolean(doneValue);
-                                    if (done)
+                                    var doneAwait = awaitResultObj.TryGetProperty("done", out var awaitDoneValue) &&
+                                                    JsOps.ToBoolean(awaitDoneValue);
+                                    if (doneAwait)
                                     {
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
                                     }
 
-                                    // yielded is already a JsValue from TryGetProperty
-                                    currentValue = resultObj.TryGetProperty("value", out var yielded)
-                                        ? yielded
+                                    var rawValue = awaitResultObj.TryGetProperty("value", out var yieldedAwait)
+                                        ? yieldedAwait
                                         : JsValue.Undefined;
+                                    if (!TryResolvePromiseOrYield(rawValue, context, out var fullyAwaitedValue))
+                                    {
+                                        if (_asyncStepMode && _pendingPromise.TryGetObject<JsObject>(out _))
+                                        {
+                                            driverState.AwaitingValue = true;
+                                            StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
+                                                driverState);
+                                            _state = GeneratorState.Suspended;
+                                            _programCounter = iteratorIndex;
+                                            return new JsValue(CreateIteratorResult(JsValue.Undefined, false));
+                                        }
+
+                                        if (context.IsThrow)
+                                        {
+                                            var thrownAwaitValue = context.FlowValue;
+                                            context.Clear();
+                                            if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwaitValue, environment))
+                                            {
+                                                continue;
+                                            }
+
+                                            _tryStack.Clear();
+                                            throw new ThrowSignal(thrownAwaitValue);
+                                        }
+
+                                        _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                                        continue;
+                                    }
+
+                                    awaitedValue = fullyAwaitedValue;
                                 }
-                                else if (driverState.Enumerator is { } enumerator)
+                                else if (driverState.Enumerator is { } awaitEnumerator)
                                 {
-                                    if (!enumerator.MoveNext())
+                                    if (!awaitEnumerator.MoveNext())
                                     {
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
                                     }
 
-                                    currentValue = JsValue.FromObjectUnsafe(enumerator.Current);
+                                    // enumerated is already JsValue from IEnumerator<JsValue>.Current
+                                    var enumerated = awaitEnumerator.Current;
+                                    if (!TryResolvePromiseOrYield(enumerated, context, out var awaitedEnumerated))
+                                    {
+                                        if (_asyncStepMode && _pendingPromise.TryGetObject<JsObject>(out _))
+                                        {
+                                            driverState.AwaitingValue = true;
+                                            StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
+                                                driverState);
+                                            _state = GeneratorState.Suspended;
+                                            _programCounter = iteratorIndex;
+                                            return new JsValue(CreateIteratorResult(JsValue.Undefined, false));
+                                        }
+
+                                        if (context.IsThrow)
+                                        {
+                                            var thrownAwaitEnum = context.FlowValue;
+                                            context.Clear();
+                                            if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwaitEnum, environment))
+                                            {
+                                                continue;
+                                            }
+
+                                            _tryStack.Clear();
+                                            throw new ThrowSignal(thrownAwaitEnum);
+                                        }
+
+                                        _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                                        continue;
+                                    }
+
+                                    awaitedValue = awaitedEnumerated;
                                 }
                                 else
                                 {
@@ -1047,260 +1227,83 @@ public static partial class TypedAstEvaluator
                                     continue;
                                 }
 
-                                StoreSymbolValue(environment, iteratorMoveNextInstruction.ValueSlot, currentValue.ToObject());
+                                StoreIteratorValue:
+                                StoreSymbolValue(environment, iteratorMoveNextInstruction.ValueSlot, awaitedValue.ToObject());
                                 _programCounter = iteratorMoveNextInstruction.Next;
                                 continue;
-                            }
 
-                            var awaitedValue = JsValue.Undefined;
-                            var awaitedNextResult = JsValue.Undefined;
-                            var hasAwaitedNextResult = false;
+                            case JumpInstruction jumpInstruction:
+                                _programCounter = jumpInstruction.TargetIndex;
+                                continue;
 
-                            // If we're resuming after a pending await from this
-                            // iterator site, consume the resume payload and treat
-                            // it as the awaited result instead of calling into the
-                            // iterator again.
-                            if (driverState.AwaitingNextResult || driverState.AwaitingValue)
-                            {
-                                var awaitingValue = driverState.AwaitingValue;
-                                driverState.AwaitingNextResult = false;
-                                driverState.AwaitingValue = false;
-                                var (forAwaitResumeKind, forAwaitResumePayload) = ConsumeResumeValue();
-                                StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot, driverState);
-
-                                if (forAwaitResumeKind == ResumePayloadKind.Throw)
+                            case BranchInstruction branchInstruction:
+                                var testValue = branchInstruction.Condition.EvaluateExpression(environment, context);
+                                if (context.IsThrow)
                                 {
-                                    // forAwaitResumePayload is already JsValue, no need to box with .ToObject()
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, forAwaitResumePayload, environment))
+                                    var thrownBranch = context.FlowValue;
+                                    context.Clear();
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, thrownBranch, environment))
                                     {
                                         continue;
                                     }
 
                                     _tryStack.Clear();
-                                    throw new ThrowSignal(forAwaitResumePayload);
+                                    throw new ThrowSignal(thrownBranch);
                                 }
 
-                                if (forAwaitResumeKind == ResumePayloadKind.Return)
+                                _programCounter = testValue.IsTruthy
+                                    ? branchInstruction.ConsequentIndex
+                                    : branchInstruction.AlternateIndex;
+                                continue;
+
+                            case BreakInstruction breakInstruction:
+                                if (HandleAbruptCompletion(AbruptKind.Break, breakInstruction.TargetIndex, environment))
                                 {
-                                    // forAwaitResumePayload is already JsValue, no need to box with .ToObject()
-                                    if (HandleAbruptCompletion(AbruptKind.Return, forAwaitResumePayload, environment))
+                                    continue;
+                                }
+
+                                _programCounter = breakInstruction.TargetIndex;
+                                continue;
+
+                            case ContinueInstruction continueInstruction:
+                                if (HandleAbruptCompletion(AbruptKind.Continue, continueInstruction.TargetIndex,
+                                        environment))
+                                {
+                                    continue;
+                                }
+
+                                _programCounter = continueInstruction.TargetIndex;
+                                continue;
+
+                            case ReturnInstruction returnInstruction:
+                                var returnValue = returnInstruction.ReturnExpression is null
+                                    ? JsValue.Undefined
+                                    : returnInstruction.ReturnExpression.EvaluateExpression(environment, context);
+                                if (context.IsThrow)
+                                {
+                                    var pendingThrow = context.FlowValue;
+                                    context.Clear();
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, pendingThrow, environment))
                                     {
-                                        continue;
-                                    }
-
-                                    return CompleteReturn(forAwaitResumePayload);
-                                }
-
-                                if (awaitingValue)
-                                {
-                                    awaitedValue = forAwaitResumePayload;
-                                    goto StoreIteratorValue;
-                                }
-
-                                awaitedNextResult = forAwaitResumePayload;
-                                hasAwaitedNextResult = true;
-                            }
-
-                            if (driverState.IteratorObject is JsObject awaitIteratorObj)
-                            {
-                                if (!hasAwaitedNextResult)
-                                {
-                                    driverState.NextMethod ??= awaitIteratorObj.GetIteratorNextCallable(context);
-                                    var nextResult = awaitIteratorObj.InvokeIteratorNext(
-                                        driverState.NextMethod!,
-                                        context: context,
-                                        callingEnvironment: environment);
-                                    if (!TryResolvePromiseOrYield(nextResult, context, out var awaitedNext))
-                                    {
-                                        if (_asyncStepMode && _pendingPromise.TryGetObject<JsObject>(out _))
+                                        if (_programCounter == _currentInstructionIndex)
                                         {
-                                            driverState.AwaitingNextResult = true;
-                                            StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                                driverState);
-                                            _state = GeneratorState.Suspended;
-                                            _programCounter = iteratorIndex;
-                                            return (JsValue)CreateIteratorResult(JsValue.Undefined, false);
+                                            _programCounter = returnInstruction.Next;
                                         }
-
-                                        if (context.IsThrow)
-                                        {
-                                            var thrownAwait = context.FlowValue;
-                                            context.Clear();
-                                            if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwait, environment))
-                                            {
-                                                continue;
-                                            }
-
-                                            _tryStack.Clear();
-                                            throw new ThrowSignal(thrownAwait);
-                                        }
-
-                                        _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
                                     }
 
-                                    awaitedNextResult = awaitedNext;
-                                }
-
-                                if (!awaitedNextResult.TryGetObject<JsObject>(out var awaitResultObj))
-                                {
-                                    // Per ES spec 7.4.2: if result is not an object, throw TypeError
-                                    var typeError = JsValue.FromObjectUnsafe(
-                                        StandardLibrary.CreateTypeError("Iterator result is not an object", context, context.RealmState));
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, typeError, environment))
-                                    {
-                                        continue;
-                                    }
                                     _tryStack.Clear();
-                                    throw new ThrowSignal(typeError);
+                                    throw new ThrowSignal(pendingThrow);
                                 }
 
-                                var doneAwait = awaitResultObj.TryGetProperty("done", out var awaitDoneValue) &&
-                                                JsOps.ToBoolean(awaitDoneValue);
-                                if (doneAwait)
+                                if (context.IsReturn)
                                 {
-                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                    continue;
+                                    var pendingReturn = context.FlowValue;
+                                    context.ClearReturn();
+                                    returnValue = pendingReturn;
                                 }
 
-                                var rawValue = awaitResultObj.TryGetProperty("value", out var yieldedAwait)
-                                    ? yieldedAwait
-                                    : JsValue.Undefined;
-                                if (!TryResolvePromiseOrYield(rawValue, context, out var fullyAwaitedValue))
-                                {
-                                    if (_asyncStepMode && _pendingPromise.TryGetObject<JsObject>(out _))
-                                    {
-                                        driverState.AwaitingValue = true;
-                                        StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                            driverState);
-                                        _state = GeneratorState.Suspended;
-                                        _programCounter = iteratorIndex;
-                                        return new JsValue(CreateIteratorResult(JsValue.Undefined, false));
-                                    }
-
-                                    if (context.IsThrow)
-                                    {
-                                        var thrownAwaitValue = context.FlowValue;
-                                        context.Clear();
-                                        if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwaitValue, environment))
-                                        {
-                                            continue;
-                                        }
-
-                                        _tryStack.Clear();
-                                        throw new ThrowSignal(thrownAwaitValue);
-                                    }
-
-                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                    continue;
-                                }
-
-                                awaitedValue = fullyAwaitedValue;
-                            }
-                            else if (driverState.Enumerator is { } awaitEnumerator)
-                            {
-                                if (!awaitEnumerator.MoveNext())
-                                {
-                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                    continue;
-                                }
-
-                                // enumerated is already JsValue from IEnumerator<JsValue>.Current
-                                var enumerated = awaitEnumerator.Current;
-                                if (!TryResolvePromiseOrYield(enumerated, context, out var awaitedEnumerated))
-                                {
-                                    if (_asyncStepMode && _pendingPromise.TryGetObject<JsObject>(out _))
-                                    {
-                                        driverState.AwaitingValue = true;
-                                        StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                            driverState);
-                                        _state = GeneratorState.Suspended;
-                                        _programCounter = iteratorIndex;
-                                        return new JsValue(CreateIteratorResult(JsValue.Undefined, false));
-                                    }
-
-                                    if (context.IsThrow)
-                                    {
-                                        var thrownAwaitEnum = context.FlowValue;
-                                        context.Clear();
-                                        if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwaitEnum, environment))
-                                        {
-                                            continue;
-                                        }
-
-                                        _tryStack.Clear();
-                                        throw new ThrowSignal(thrownAwaitEnum);
-                                    }
-
-                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                    continue;
-                                }
-
-                                awaitedValue = awaitedEnumerated;
-                            }
-                            else
-                            {
-                                _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                continue;
-                            }
-
-                            StoreIteratorValue:
-                            StoreSymbolValue(environment, iteratorMoveNextInstruction.ValueSlot, awaitedValue.ToObject());
-                            _programCounter = iteratorMoveNextInstruction.Next;
-                            continue;
-
-                        case JumpInstruction jumpInstruction:
-                            _programCounter = jumpInstruction.TargetIndex;
-                            continue;
-
-                        case BranchInstruction branchInstruction:
-                            var testValue = branchInstruction.Condition.EvaluateExpression(environment, context);
-                            if (context.IsThrow)
-                            {
-                                var thrownBranch = context.FlowValue;
-                                context.Clear();
-                                if (HandleAbruptCompletion(AbruptKind.Throw, thrownBranch, environment))
-                                {
-                                    continue;
-                                }
-
-                                _tryStack.Clear();
-                                throw new ThrowSignal(thrownBranch);
-                            }
-
-                            _programCounter = testValue.IsTruthy
-                                ? branchInstruction.ConsequentIndex
-                                : branchInstruction.AlternateIndex;
-                            continue;
-
-                        case BreakInstruction breakInstruction:
-                            if (HandleAbruptCompletion(AbruptKind.Break, breakInstruction.TargetIndex, environment))
-                            {
-                                continue;
-                            }
-
-                            _programCounter = breakInstruction.TargetIndex;
-                            continue;
-
-                        case ContinueInstruction continueInstruction:
-                            if (HandleAbruptCompletion(AbruptKind.Continue, continueInstruction.TargetIndex,
-                                    environment))
-                            {
-                                continue;
-                            }
-
-                            _programCounter = continueInstruction.TargetIndex;
-                            continue;
-
-                        case ReturnInstruction returnInstruction:
-                            var returnValue = returnInstruction.ReturnExpression is null
-                                ? JsValue.Undefined
-                                : returnInstruction.ReturnExpression.EvaluateExpression(environment, context);
-                            if (context.IsThrow)
-                            {
-                                var pendingThrow = context.FlowValue;
-                                context.Clear();
-                                if (HandleAbruptCompletion(AbruptKind.Throw, pendingThrow, environment))
+                                if (HandleAbruptCompletion(AbruptKind.Return, returnValue.ToObject(), environment))
                                 {
                                     if (_programCounter == _currentInstructionIndex)
                                     {
@@ -1309,124 +1312,104 @@ public static partial class TypedAstEvaluator
                                     continue;
                                 }
 
+                                _programCounter = -1;
+                                _state = GeneratorState.Completed;
+                                _done = true;
                                 _tryStack.Clear();
-                                throw new ThrowSignal(pendingThrow);
-                            }
+                                return (JsValue)CreateIteratorResult(returnValue, true);
 
-                            if (context.IsReturn)
+                            case EnterWithInstruction enterWithInstruction:
                             {
-                                var pendingReturn = context.FlowValue;
-                                context.ClearReturn();
-                                returnValue = pendingReturn;
-                            }
-
-                            if (HandleAbruptCompletion(AbruptKind.Return, returnValue.ToObject(), environment))
-                            {
-                                if (_programCounter == _currentInstructionIndex)
+                                var objValue = enterWithInstruction.ObjectExpression.EvaluateExpression(environment, context).ToObject();
+                                if (context.IsThrow)
                                 {
-                                    _programCounter = returnInstruction.Next;
-                                }
-                                continue;
-                            }
-
-                            _programCounter = -1;
-                            _state = GeneratorState.Completed;
-                            _done = true;
-                            _tryStack.Clear();
-                            return (JsValue)CreateIteratorResult(returnValue, true);
-
-                        case EnterWithInstruction enterWithInstruction:
-                        {
-                            var objValue = enterWithInstruction.ObjectExpression.EvaluateExpression(environment, context).ToObject();
-                            if (context.IsThrow)
-                            {
-                                var thrownWith = context.FlowValue;
-                                context.Clear();
-                                if (HandleAbruptCompletion(AbruptKind.Throw, thrownWith, environment))
-                                {
-                                    continue;
-                                }
-
-                                _tryStack.Clear();
-                                throw new ThrowSignal(thrownWith);
-                            }
-
-                            // Create the with-environment and store it in the slot
-                            if (TryConvertToWithBindingObject(objValue, context, out var withObject))
-                            {
-                                var withEnv = new JsEnvironment(environment, false, context.CurrentScope.IsStrict,
-                                    enterWithInstruction.ObjectExpression.Source, "with", withObject);
-                                // Store the with-environment in the root environment slot so it persists across yields
-                                StoreSymbolValue(_executionEnvironment!, enterWithInstruction.WithScopeSlot, withEnv);
-                                // Track this with-scope as active
-                                _activeWithScopes.Push(enterWithInstruction.WithScopeSlot);
-                                // Update the local environment reference to use the with-environment
-                                environment = withEnv;
-                            }
-                            // If we couldn't create a with-environment, just continue with the same environment
-
-                            _programCounter = enterWithInstruction.Next;
-                            continue;
-                        }
-
-                        case LeaveWithInstruction leaveWithInstruction:
-                        {
-                            // Remove this with-scope from active tracking
-                            if (_activeWithScopes.Count > 0 &&
-                                ReferenceEquals(_activeWithScopes.Peek(), leaveWithInstruction.WithScopeSlot))
-                            {
-                                _activeWithScopes.Pop();
-                            }
-
-                            // Restore the previous environment by getting it from the enclosing scope of the stored with-env
-                            if (TryGetSymbolValue(_executionEnvironment!, leaveWithInstruction.WithScopeSlot, out var storedEnvObj) &&
-                                storedEnvObj is JsEnvironment storedWithEnv)
-                            {
-                                // The with-environment's Enclosing is the original environment
-                                environment = storedWithEnv.Enclosing ?? environment;
-                            }
-
-                            _programCounter = leaveWithInstruction.Next;
-                            continue;
-                        }
-
-                        case IteratorCloseInstruction iteratorCloseInstruction:
-                        {
-                            // Get the iterator state from the slot
-                            if (TryGetSymbolValue(environment, iteratorCloseInstruction.IteratorSlot,
-                                    out var iterStateValue) &&
-                                iterStateValue is IteratorDriverState { IteratorObject: JsObject iteratorObj })
-                            {
-                                try
-                                {
-                                    // Call IteratorClose - we don't preserve existing throws because
-                                    // if IteratorClose throws, that error should replace any pending completion
-                                    iteratorObj.IteratorClose(context, preserveExistingThrow: false);
-                                }
-                                catch (ThrowSignal closeThrown)
-                                {
-                                    // IteratorClose threw - this should replace any pending return/throw
-                                    // per ES spec: if IteratorClose throws, return that throw completion
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, closeThrown.ThrownValue, environment))
+                                    var thrownWith = context.FlowValue;
+                                    context.Clear();
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, thrownWith, environment))
                                     {
-                                        // HandleAbruptCompletion updated the pending completion in the try frame.
-                                        // Continue to the next instruction in the finally block.
-                                        _programCounter = iteratorCloseInstruction.Next;
                                         continue;
                                     }
 
                                     _tryStack.Clear();
-                                    throw;
+                                    throw new ThrowSignal(thrownWith);
                                 }
+
+                                // Create the with-environment and store it in the slot
+                                if (TryConvertToWithBindingObject(objValue, context, out var withObject))
+                                {
+                                    var withEnv = new JsEnvironment(environment, false, context.CurrentScope.IsStrict,
+                                        enterWithInstruction.ObjectExpression.Source, "with", withObject);
+                                    // Store the with-environment in the root environment slot so it persists across yields
+                                    StoreSymbolValue(_executionEnvironment!, enterWithInstruction.WithScopeSlot, withEnv);
+                                    // Track this with-scope as active
+                                    _activeWithScopes.Push(enterWithInstruction.WithScopeSlot);
+                                    // Update the local environment reference to use the with-environment
+                                    environment = withEnv;
+                                }
+                                // If we couldn't create a with-environment, just continue with the same environment
+
+                                _programCounter = enterWithInstruction.Next;
+                                continue;
                             }
 
-                            _programCounter = iteratorCloseInstruction.Next;
-                            continue;
-                        }
+                            case LeaveWithInstruction leaveWithInstruction:
+                            {
+                                // Remove this with-scope from active tracking
+                                if (_activeWithScopes.Count > 0 &&
+                                    ReferenceEquals(_activeWithScopes.Peek(), leaveWithInstruction.WithScopeSlot))
+                                {
+                                    _activeWithScopes.Pop();
+                                }
 
-                        default:
-                            throw new InvalidOperationException(
-                                $"Unsupported generator instruction {instruction.GetType().Name}");
+                                // Restore the previous environment by getting it from the enclosing scope of the stored with-env
+                                if (TryGetSymbolValue(_executionEnvironment!, leaveWithInstruction.WithScopeSlot, out var storedEnvObj) &&
+                                    storedEnvObj is JsEnvironment storedWithEnv)
+                                {
+                                    // The with-environment's Enclosing is the original environment
+                                    environment = storedWithEnv.Enclosing ?? environment;
+                                }
+
+                                _programCounter = leaveWithInstruction.Next;
+                                continue;
+                            }
+
+                            case IteratorCloseInstruction iteratorCloseInstruction:
+                            {
+                                // Get the iterator state from the slot
+                                if (TryGetSymbolValue(environment, iteratorCloseInstruction.IteratorSlot,
+                                        out var iterStateValue) &&
+                                    iterStateValue is IteratorDriverState { IteratorObject: JsObject iteratorObj })
+                                {
+                                    try
+                                    {
+                                        // Call IteratorClose - we don't preserve existing throws because
+                                        // if IteratorClose throws, that error should replace any pending completion
+                                        iteratorObj.IteratorClose(context, preserveExistingThrow: false);
+                                    }
+                                    catch (ThrowSignal closeThrown)
+                                    {
+                                        // IteratorClose threw - this should replace any pending return/throw
+                                        // per ES spec: if IteratorClose throws, return that throw completion
+                                        if (HandleAbruptCompletion(AbruptKind.Throw, closeThrown.ThrownValue, environment))
+                                        {
+                                            // HandleAbruptCompletion updated the pending completion in the try frame.
+                                            // Continue to the next instruction in the finally block.
+                                            _programCounter = iteratorCloseInstruction.Next;
+                                            continue;
+                                        }
+
+                                        _tryStack.Clear();
+                                        throw;
+                                    }
+                                }
+
+                                _programCounter = iteratorCloseInstruction.Next;
+                                continue;
+                            }
+
+                            default:
+                                throw new InvalidOperationException(
+                                    $"Unsupported generator instruction {instruction.GetType().Name}");
                         }
                     }
                 }

@@ -109,7 +109,8 @@ end_of_line = lf
 charset = utf-8-bom
 
 [*.{cs,vb}]
-
+dotnet_diagnostic.MA0051.severity = none
+dotnet_diagnostic.CA2201.severity = none
 # SYSLIB1054: Use 'LibraryImportAttribute' instead of 'DllImportAttribute' to generate P/Invoke marshalling code at compile time
 dotnet_diagnostic.SYSLIB1054.severity = warning
 

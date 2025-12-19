@@ -124,14 +124,13 @@ public static partial class TypedAstEvaluator
                 context,
                 context.CurrentScope.IsStrict,
                 allowPrivate: !expression.IsComputed);
-            var value = handle.GetValue();
+            var value = handle.GetJsValue();
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
             }
 
-            // Handle case where value is already a boxed JsValue
-            return value is JsValue jsv ? jsv : JsValue.FromObjectUnsafe(value);
+            return value;
         }
 
         private (JsValue Value, SuperBinding Binding) ResolveSuperMember(JsEnvironment environment,

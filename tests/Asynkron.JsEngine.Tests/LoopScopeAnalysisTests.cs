@@ -76,7 +76,7 @@ public class LoopScopeAnalysisTests
 
         var keyAfterCps = AstTestHelpers.FindFirst<IdentifierExpression>(
             pipeline.AfterCps,
-            id => id.Name.Name == "key");
+            id => string.Equals(id.Name.Name, "key", StringComparison.Ordinal));
         Assert.Equal(forEach.PerIterationScopeId, keyAfterCps.ScopeId);
         Assert.Equal(0, keyAfterCps.SlotIndex);
     }

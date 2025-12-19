@@ -18,24 +18,14 @@ public static partial class TypedAstEvaluator
             }
 
             // Slow path: identifier not found - create proper error
-            return HandleIdentifierNotFound(identifier.Name, environment, context);
+            return HandleIdentifierNotFound(identifier.Name, context);
         }
     }
 
-    private static JsValue HandleIdentifierNotFound(Symbol name, JsEnvironment environment, EvaluationContext context)
+    private static JsValue HandleIdentifierNotFound(Symbol name, EvaluationContext context)
     {
         var errorObject = StandardLibrary.CreateReferenceError(
             $"{name.Name} is not defined",
-            context,
-            context.RealmState);
-        context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
-        return JsValue.FromObjectUnsafe(errorObject);
-    }
-
-    private static JsValue HandleTdzError(Symbol name, EvaluationContext context)
-    {
-        var errorObject = StandardLibrary.CreateReferenceError(
-            $"Cannot access '{name.Name}' before initialization",
             context,
             context.RealmState);
         context.SetThrow(JsValue.FromObjectUnsafe(errorObject));

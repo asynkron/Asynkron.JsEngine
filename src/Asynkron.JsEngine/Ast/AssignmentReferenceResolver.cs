@@ -36,8 +36,8 @@ internal static class AssignmentReferenceResolver
         }
 
         // Wrap in delegate for strict restricted names (eval/arguments)
-        return AssignmentReference.ForDelegate(
-            reference.GetValue,
+        return AssignmentReference.ForDelegateJsValue(
+            reference.GetJsValue,
             _ => throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateSyntaxError(
                 "Assignment to eval or arguments is not allowed in strict mode.", context,
                 context.RealmState))));
@@ -134,13 +134,13 @@ internal static class AssignmentReferenceResolver
             var superPropertyValue = evaluateExpression(member.Property, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return AssignmentReference.ForDelegate(() => Symbol.Undefined, _ => { });
+                return AssignmentReference.ForDelegateJsValue(() => JsValue.Undefined, _ => { });
             }
 
             var binding = environment.ExpectSuperBinding(context);
             string? propertyNameCache = null;
 
-            return AssignmentReference.ForDelegate(
+            return AssignmentReference.ForDelegateJsValue(
                 () =>
                 {
                     if (binding.Prototype is null)
@@ -153,8 +153,8 @@ internal static class AssignmentReferenceResolver
 
                     var propertyName = GetPropertyName();
                     return binding.TryGetProperty(propertyName, out var value)
-                        ? value.ToObject()
-                        : Symbol.Undefined;
+                        ? value
+                        : JsValue.Undefined;
                 },
                 newValue =>
                 {
@@ -172,7 +172,7 @@ internal static class AssignmentReferenceResolver
                     }
 
                     var propertyName = GetPropertyName();
-                    if (!binding.TrySetProperty(propertyName, JsValue.FromObjectUnsafe(newValue), out _) &&
+                    if (!binding.TrySetProperty(propertyName, newValue, out _) &&
                         context.CurrentScope.IsStrict)
                     {
                         throw StandardLibrary.ThrowTypeError(
@@ -192,13 +192,13 @@ internal static class AssignmentReferenceResolver
         var target = evaluateExpression(member.Target, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return AssignmentReference.ForDelegate(() => Symbol.Undefined, _ => { });
+            return AssignmentReference.ForDelegateJsValue(() => JsValue.Undefined, _ => { });
         }
 
         var propertyValue = evaluateExpression(member.Property, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return AssignmentReference.ForDelegate(() => Symbol.Undefined, _ => { });
+            return AssignmentReference.ForDelegateJsValue(() => JsValue.Undefined, _ => { });
         }
 
         if (target.IsNullish)
@@ -211,11 +211,11 @@ internal static class AssignmentReferenceResolver
         {
             string? propertyNameCache = null;
 
-            return AssignmentReference.ForDelegate(
+            return AssignmentReference.ForDelegateJsValue(
                 () =>
                 {
                     var handle = GetHandle();
-                    return handle.GetValue();
+                    return handle.GetJsValue();
                 },
                 newValue =>
                 {
@@ -233,7 +233,7 @@ internal static class AssignmentReferenceResolver
             {
                 var propertyName = GetPropertyName();
                 return TypedAstEvaluator.PropertyHandle.Resolve(
-                    target.ToObject(),
+                    ConvertJsValueToObject(target),
                     propertyName,
                     context,
                     context.CurrentScope.IsStrict,
@@ -242,29 +242,29 @@ internal static class AssignmentReferenceResolver
         }
 
         if (target.ObjectValue is TypedArrayBase typedArray &&
-            JsOps.TryResolveArrayIndex(propertyValue.ToObject(), out var typedIndex, context))
+            JsOps.TryResolveArrayIndex(ConvertJsValueToObject(propertyValue), out var typedIndex, context))
         {
-            return AssignmentReference.ForDelegate(
+            return AssignmentReference.ForDelegateJsValue(
                 () => typedIndex >= 0 && typedIndex < typedArray.Length
-                    ? typedArray.GetElement(typedIndex)
-                    : Symbol.Undefined,
+                    ? JsValue.FromDouble(typedArray.GetElement(typedIndex))
+                    : JsValue.Undefined,
                 newValue =>
                 {
                     if (typedIndex >= 0 && typedIndex < typedArray.Length)
                     {
-                        typedArray.SetElement(typedIndex, JsOps.ToNumber(newValue));
+                        typedArray.SetElement(typedIndex, JsOps.ToNumber(ConvertJsValueToObject(newValue), context));
                     }
                 });
         }
 
         var handle = TypedAstEvaluator.PropertyHandle.Resolve(
-            target.ToObject(),
+            ConvertJsValueToObject(target),
             propertyValue,
             context,
             context.CurrentScope.IsStrict,
             allowPrivate: !member.IsComputed);
-        return AssignmentReference.ForDelegate(
-            () => handle.GetValue(),
+        return AssignmentReference.ForDelegateJsValue(
+            () => handle.GetJsValue(),
             newValue => handle.SetValue(newValue));
     }
 
@@ -285,6 +285,26 @@ internal static class AssignmentReferenceResolver
     private static bool IsReferenceError(Exception ex)
     {
         return ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Converts JsValue to object? for compatibility with methods that haven't been migrated yet.
+    /// This manually expands the logic from ToObject() to avoid calling the obsolete method.
+    /// </summary>
+    private static object? ConvertJsValueToObject(JsValue value)
+    {
+        return value.Kind switch
+        {
+            JsValueKind.Undefined => Symbol.Undefined,
+            JsValueKind.Null => null,
+            JsValueKind.Boolean => JsValueCache.GetBoolean(value.NumberValue != 0.0),
+            JsValueKind.Number => JsValueCache.GetNumber(value.NumberValue),
+            JsValueKind.BigInt => value.ObjectValue,
+            JsValueKind.String => value.ObjectValue,
+            JsValueKind.Symbol => value.ObjectValue,
+            JsValueKind.Object => value.ObjectValue,
+            _ => Symbol.Undefined
+        };
     }
 
     internal static void AssignObjectProperty(

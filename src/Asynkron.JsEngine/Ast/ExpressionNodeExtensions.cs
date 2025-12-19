@@ -427,13 +427,13 @@ public static partial class TypedAstEvaluator
                     context,
                     context.CurrentScope.IsStrict,
                     allowPrivate: !member.IsComputed);
-                var value = handle.GetValue();
+                var value = handle.GetJsValue();
                 if (context.ShouldStopEvaluation)
                 {
                     return (JsValue.Undefined, JsValue.Undefined, true);
                 }
 
-                return (JsValue.FromObjectUnsafe(value), targetJs, false);
+                return (value, targetJs, false);
             }
 
             if (callee is IdentifierExpression identifier)

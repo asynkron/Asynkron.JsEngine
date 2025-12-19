@@ -106,7 +106,52 @@ public static partial class TypedAstEvaluator
             return Symbol.Undefined;
         }
 
+        public JsValue GetJsValue()
+        {
+            if (_context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
+            EnsurePrivateBrand();
+
+            if (IsNullish(_target))
+            {
+                var errorMessage = _propertyName.Length > 0
+                    ? $"Cannot read property '{_propertyName}' of null or undefined"
+                    : "Cannot read properties of null or undefined";
+                var error = StandardLibrary.CreateTypeError(
+                    errorMessage,
+                    _context,
+                    _context.RealmState);
+                _context.SetThrow(JsValue.FromObjectUnsafe(error));
+                return JsValue.Undefined;
+            }
+
+            if (TryGetPropertyValue(_target, _propertyName, out var value, _context))
+            {
+                return value is JsValue jsVal ? jsVal : JsValue.FromObjectUnsafe(value);
+            }
+
+            if (_context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
+            if (_isPrivate)
+            {
+                throw StandardLibrary.ThrowTypeError("Invalid access of private member", _context, _context.RealmState);
+            }
+
+            return JsValue.Undefined;
+        }
+
         public void SetValue(object? value)
+        {
+            SetValue(JsValue.FromObjectUnsafe(value));
+        }
+
+        public void SetValue(JsValue value)
         {
             if (_context.ShouldStopEvaluation)
             {

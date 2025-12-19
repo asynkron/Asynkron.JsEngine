@@ -9,11 +9,10 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    public sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsPropertyAccessor, IJsObjectLike,
+    public sealed class TypedFunction : IJsEnvironmentAwareCallable, IJsObjectLike,
         ICallableMetadata, IFunctionNameTarget, IPrivateBrandHolder, IPropertyDefinitionHost,
         IExtensibilityControl, IPrototypeAccessorProvider
     {
-        private readonly Symbol[] _bodyLexicalNames;
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
         private readonly bool _hasHoistableDeclarations;
@@ -75,7 +74,7 @@ public static partial class TypedAstEvaluator
             _hasFunctionNameEnvironment = hasFunctionNameEnvironment;
             IsArrowFunction = function.IsArrow;
             _isConstructorEnabled = isConstructorFunction;
-            _bodyLexicalNames = function.Body.CollectLexicalNames().ToArray();
+            var bodyLexicalNames = function.Body.CollectLexicalNames().ToArray();
             _hasHoistableDeclarations = function.Body.HasHoistableDeclarations();
             _hasParameterExpressions = _function.HasParameterExpressions();
             // Allow identifier caching only if the function body has no with/eval AND
@@ -96,7 +95,7 @@ public static partial class TypedAstEvaluator
                                !function.IsAsync &&
                                !_wasAsyncFunction &&
                                !_hasParameterExpressions &&
-                               _bodyLexicalNames.Length == 0 &&
+                               bodyLexicalNames.Length == 0 &&
                                !_hasHoistableDeclarations &&
                                _allowIdentifierCache &&
                                hasSimpleParams;
@@ -111,12 +110,12 @@ public static partial class TypedAstEvaluator
             var parameterNames = new List<Symbol>();
             _function.CollectParameterNamesFromFunction(parameterNames);
             _parameterNames = [..parameterNames];
-            _lexicalTemplate = [.._bodyLexicalNames];
+            _lexicalTemplate = [..bodyLexicalNames];
             var catchParams = _function.Body.CollectCatchParameterNames();
             _catchParameterTemplate = [..catchParams];
             var simpleCatchParams = _function.Body.CollectSimpleCatchParameterNames();
             _simpleCatchParameterTemplate = [..simpleCatchParams];
-            var bodyLexicalSet = new HashSet<Symbol>(_bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
+            var bodyLexicalSet = new HashSet<Symbol>(bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
             bodyLexicalSet.ExceptWith(simpleCatchParams);
             _bodyLexicalTemplate = [..bodyLexicalSet];
 
@@ -404,7 +403,7 @@ public static partial class TypedAstEvaluator
             switch (name)
             {
                 case "call":
-                    value = (JsValue)new HostFunction((thisValue, args) =>
+                    value = (JsValue)new HostFunction((_, args) =>
                     {
                         var thisArg = args.GetArgument(0);
                         var callArgs = args.SliceFrom(1);
@@ -413,7 +412,7 @@ public static partial class TypedAstEvaluator
                     return true;
 
                 case "apply":
-                    value = (JsValue)new HostFunction((thisValue, args) =>
+                    value = (JsValue)new HostFunction((_, args) =>
                     {
                         var thisArg = args.GetArgument(0);
                         IReadOnlyList<JsValue> argList;
@@ -437,7 +436,7 @@ public static partial class TypedAstEvaluator
                     return true;
 
                 case "bind":
-                    value = (JsValue)new HostFunction((thisValue, args) =>
+                    value = (JsValue)new HostFunction((_, args) =>
                     {
                         var boundThis = args.GetArgument(0);
                         var boundArgs = args.SliceFrom(1);

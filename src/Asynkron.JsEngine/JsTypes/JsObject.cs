@@ -417,6 +417,33 @@ namespace Asynkron.JsEngine.JsTypes;
     // IJsPropertyAccessor interface implementation with JsValue
     public bool TryGetProperty(string name, out JsValue value)
     {
+        // Super-fast path: direct storage access for simple data properties
+        // This bypasses descriptors and virtual providers when they don't apply
+        if (_virtualPropertyProvider is null &&
+            !_descriptors.ContainsKey(name) &&
+            !name.IsPrivateSlotName())
+        {
+            if (TryGetJsValue(name, out value))
+            {
+                return true;
+            }
+
+            // Check prototype chain if we have one
+            if (Prototype is JsObject protoObj)
+            {
+                return protoObj.TryGetProperty(name, out value);
+            }
+
+            if (_prototypeAccessor is IJsPropertyAccessor protoAccessor)
+            {
+                return protoAccessor.TryGetProperty(name, out value);
+            }
+
+            value = JsValue.Undefined;
+            return false;
+        }
+
+        // Slow path: full property lookup with descriptors, virtual providers, etc.
         if (TryGetPropertyInternal(name, out var objValue))
         {
             // Handle case where objValue is already a boxed JsValue

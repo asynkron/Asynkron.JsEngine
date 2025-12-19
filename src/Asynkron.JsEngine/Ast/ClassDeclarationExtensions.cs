@@ -15,7 +15,7 @@ public static partial class TypedAstEvaluator
                 return JsValue.Unit;
             }
 
-            environment.DefineJsValue(declaration.Name, JsValue.FromObjectUnsafe(constructorValue), isLexical: true, blocksFunctionScopeOverride: true);
+            environment.DefineJsValue(declaration.Name, constructorValue, isLexical: true, blocksFunctionScopeOverride: true);
             // Per ES spec, ClassDeclaration returns NormalCompletion(empty).
             return JsValue.Unit;
         }

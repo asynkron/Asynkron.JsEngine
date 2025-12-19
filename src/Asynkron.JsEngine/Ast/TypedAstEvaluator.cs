@@ -111,17 +111,18 @@ public static partial class TypedAstEvaluator
             logger?.LogInformation("TryGetIteratorFromProtocols keys={Keys}", keysPreview);
         }
 
-        if (accessor.TryInvokeSymbolMethod(iterable, Symbols.AsyncIterator, context, out var asyncIterator))
+        var iterableValue = JsValue.FromObjectUnsafe(iterable);
+        if (accessor.TryInvokeSymbolMethod(iterableValue, Symbols.AsyncIterator, context, out var asyncIterator))
         {
             logger?.LogInformation("TryGetIteratorFromProtocols asyncIterator invoked stop={Stop} type={IterType}",
                 context.ShouldStopEvaluation,
-                asyncIterator?.GetType().Name ?? "null");
+                asyncIterator.ToObject()?.GetType().Name ?? "null");
             if (context.ShouldStopEvaluation)
             {
                 return false;
             }
 
-            if (asyncIterator is IJsObjectLike asyncObj)
+            if (asyncIterator.TryGetObject<IJsObjectLike>(out var asyncObj))
             {
                 iterator = asyncObj;
                 return true;
@@ -132,17 +133,17 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        if (accessor.TryInvokeSymbolMethod(iterable, Symbols.Iterator, context, out var iteratorValue))
+        if (accessor.TryInvokeSymbolMethod(iterableValue, Symbols.Iterator, context, out var iteratorValue))
         {
             logger?.LogInformation("TryGetIteratorFromProtocols iterator invoked stop={Stop} type={IterType}",
                 context.ShouldStopEvaluation,
-                iteratorValue?.GetType().Name ?? "null");
+                iteratorValue.ToObject()?.GetType().Name ?? "null");
             if (context.ShouldStopEvaluation)
             {
                 return false;
             }
 
-            if (iteratorValue is IJsObjectLike iteratorObj)
+            if (iteratorValue.TryGetObject<IJsObjectLike>(out var iteratorObj))
             {
                 iterator = iteratorObj;
                 return true;
@@ -383,7 +384,7 @@ public static partial class TypedAstEvaluator
             : builder.ToImmutable();
     }
 
-    private static object? CreateRejectedPromise(object? reason, JsEnvironment environment)
+    private static JsValue CreateRejectedPromise(JsValue reason, JsEnvironment environment)
     {
         if (!environment.TryGet(Symbol.PromiseIdentifier, out var promiseCtor) ||
             promiseCtor is not IJsPropertyAccessor accessor ||
@@ -395,17 +396,15 @@ public static partial class TypedAstEvaluator
 
         try
         {
-            // Handle case where reason is already a boxed JsValue
-            var reasonArg = reason is JsValue reasonJs ? reasonJs : JsValue.FromObjectUnsafe(reason);
-            return rejectCallable.Invoke([reasonArg], JsValue.FromObjectUnsafe(promiseCtor)).ToObject();
+            return rejectCallable.Invoke([reason], JsValue.FromObjectUnsafe(promiseCtor));
         }
         catch (ThrowSignal signal)
         {
-            return signal.ThrownValue.ToObject();
+            return signal.ThrownValue;
         }
     }
 
-    private static object? CreateResolvedPromise(object? value, JsEnvironment environment)
+    private static JsValue CreateResolvedPromise(JsValue value, JsEnvironment environment)
     {
         var resolveCandidate = JsValue.Undefined;
         if (!environment.TryGet(Symbol.PromiseIdentifier, out var promiseCtor) ||
@@ -423,13 +422,11 @@ public static partial class TypedAstEvaluator
 
         try
         {
-            // Handle case where value is already a boxed JsValue
-            var valueArg = value is JsValue valJs ? valJs : JsValue.FromObjectUnsafe(value);
-            return resolveCallable.Invoke([valueArg], JsValue.FromObjectUnsafe(promiseCtor)).ToObject();
+            return resolveCallable.Invoke([value], JsValue.FromObjectUnsafe(promiseCtor));
         }
         catch (ThrowSignal signal)
         {
-            return signal.ThrownValue.ToObject();
+            return signal.ThrownValue;
         }
     }
 

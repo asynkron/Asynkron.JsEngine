@@ -999,7 +999,7 @@ public static partial class TypedAstEvaluator
                             callingContext?.Clear();
 
                             var rejectedBindingResult = CreateRejectedPromiseFromRealm(thrownDuringBinding);
-                            return rejectedBindingResult is JsValue rejBindJs ? rejBindJs : JsValue.FromObjectUnsafe(rejectedBindingResult);
+                            return rejectedBindingResult;
                         }
 
                         if (callingContext is not null)
@@ -1152,32 +1152,29 @@ public static partial class TypedAstEvaluator
                     return JsValue.FromObjectUnsafe(valueObj);
                 }
 
-                object? completionValue;
+                var completionValue = JsValue.Undefined;
                 if (context.IsReturn)
                 {
                     completionValue = context.FlowValue;
                     context.ClearReturn();
                 }
-                else
-                {
-                    completionValue = Symbol.Undefined;
-                }
 
+                var completionValueObj = completionValue.ToObject();
                 _realmState.Logger?.LogInformation(
                     "Async completion func={Function} isAsync={IsAsync} wasAsync={WasAsync} completionType={Type}",
                     _function.Name?.Name ?? "<anonymous>",
                     IsAsyncFunction,
                     _wasAsyncFunction,
-                    completionValue?.GetType().Name ?? "null");
+                    completionValueObj?.GetType().Name ?? "null");
                 var resolvedResult = CreateResolvedPromise(completionValue, executionEnvironment);
-                return resolvedResult is JsValue resolvedJs ? resolvedJs : JsValue.FromObjectUnsafe(resolvedResult);
+                return resolvedResult;
             }
             catch (ThrowSignal signal) when (IsAsyncFunction || _wasAsyncFunction)
             {
                 // Use CreateRejectedPromiseFromRealm which uses the RealmState's PromiseConstructor
                 // directly, avoiding environment lookup that might fail during parameter binding.
                 var rejectedResult = CreateRejectedPromiseFromRealm(signal.ThrownValue);
-                return rejectedResult is JsValue rejectedJs ? rejectedJs : JsValue.FromObjectUnsafe(rejectedResult);
+                return rejectedResult;
             }
             finally
             {
@@ -1229,19 +1226,19 @@ public static partial class TypedAstEvaluator
         /// Unlike CreateRejectedPromise which looks up Promise in the environment,
         /// this method uses the RealmState's PromiseConstructor directly.
         /// </summary>
-        private object? CreateRejectedPromiseFromRealm(JsValue reason)
+        private JsValue CreateRejectedPromiseFromRealm(JsValue reason)
         {
             var promiseCtor = _realmState.PromiseConstructor;
             if (promiseCtor is IJsPropertyAccessor accessor &&
                 accessor.TryGetProperty("reject", out var rejectValue) &&
                 rejectValue.TryGetObject<IJsCallable>(out var rejectCallable))
             {
-                return rejectCallable.Invoke([reason], JsValue.FromObjectUnsafe(promiseCtor)).ToObject();
+                return rejectCallable.Invoke([reason], JsValue.FromObjectUnsafe(promiseCtor));
             }
 
             // Fallback if Promise.reject isn't available - return the reason directly
             // This shouldn't happen in normal operation since Promise is always registered
-            return reason.ToObject();
+            return reason;
         }
 
         public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
@@ -1503,16 +1500,19 @@ public static partial class TypedAstEvaluator
                     field.IsComputed,
                     field.IsPrivate);
 
-                object? value = Symbol.Undefined;
+                var valueJs = JsValue.Undefined;
+                object? valueObj = Symbol.Undefined;
                 if (field.Initializer is not null)
                 {
-                    value = field.Initializer.EvaluateExpression(initEnv, context).ToObject();
+                    valueJs = field.Initializer.EvaluateExpression(initEnv, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return;
                     }
 
-                    if (value is TypedFunction typedFunction &&
+                    valueObj = valueJs.ToObject();
+
+                    if (valueJs.ObjectValue is TypedFunction typedFunction &&
                         typedFunction.IsArrowFunction &&
                         fieldSuperBinding is not null)
                     {
@@ -1528,7 +1528,7 @@ public static partial class TypedAstEvaluator
                             displayName = displayName[..atIndex];
                         }
 
-                        SetAnonymousFunctionName(value, displayName);
+                        SetAnonymousFunctionName(valueJs, displayName);
                     }
                 }
 
@@ -1537,12 +1537,12 @@ public static partial class TypedAstEvaluator
                     _function.Name?.Name ?? "<anonymous>",
                     DescribeValue(instance),
                     propertyName,
-                    value?.GetType().Name ?? "null",
-                    value);
+                    valueObj?.GetType().Name ?? "null",
+                    valueObj);
 
                 var descriptor = new PropertyDescriptor
                 {
-                    Value = value,
+                    Value = valueObj,
                     Writable = true,
                     Enumerable = true,
                     Configurable = true
@@ -1572,9 +1572,9 @@ public static partial class TypedAstEvaluator
                 string.Join(",", instance.GetOwnPropertyKeysInOrder().Select(k => k.ToString())));
         }
 
-        private static void SetAnonymousFunctionName(object? value, string displayName)
+        private static void SetAnonymousFunctionName(JsValue value, string displayName)
         {
-            switch (value)
+            switch (value.ObjectValue)
             {
                 case TypedFunction typedFunction:
                     typedFunction.EnsureHasName(displayName, overwriteExisting: true);

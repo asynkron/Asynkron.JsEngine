@@ -9,15 +9,16 @@ public static partial class TypedAstEvaluator
 {
     extension(IJsPropertyAccessor target)
     {
-        private bool TryInvokeSymbolMethod(object? thisArg, TypedAstSymbol symbol,
+        private bool TryInvokeSymbolMethod(JsValue thisArg, TypedAstSymbol symbol,
             EvaluationContext context,
-            out object? result)
+            out JsValue result)
         {
             var symbolName = symbol.Description ?? symbol.ToString();
             var hashedName = SymbolKeys.GetKey(symbol, context.RealmState);
             var realm = context.RealmState;
+            var thisArgObj = thisArg.ToObject();
             realm?.Logger?.LogInformation("TryInvokeSymbolMethod name={Name} thisType={Type}", symbolName,
-                thisArg?.GetType().Name ?? "null");
+                thisArgObj?.GetType().Name ?? "null");
 
             if (TryGetCallable(symbol, out var callable) ||
                 TryGetCallable(hashedName, out callable) ||
@@ -28,21 +29,21 @@ public static partial class TypedAstEvaluator
                 {
                     realm?.Logger?.LogInformation("TryInvokeSymbolMethod stopDuringLookup flowType={FlowType}",
                         context.FlowValue.GetType().Name ?? "null");
-                    result = callable;
+                    result = JsValue.FromObjectUnsafe(callable);
                     return true;
                 }
 
                 realm?.Logger?.LogInformation("TryInvokeSymbolMethod invoking callableType={CallableType}",
                     callable?.GetType().Name ?? "null");
-                result = InvokeCallable(
+                result = InvokeCallableJsValue(
                     callable!,
                     [],
-                    JsValue.FromObjectUnsafe(thisArg),
+                    thisArg,
                     context,
                     context.RealmState?.Engine?.GlobalEnvironment);
                 realm?.Logger?.LogInformation("TryInvokeSymbolMethod completed stop={Stop} resultType={ResultType}",
                     context.ShouldStopEvaluation,
-                    result?.GetType().Name ?? "null");
+                    result.ToObject()?.GetType().Name ?? "null");
                 return true;
             }
 
@@ -56,7 +57,7 @@ public static partial class TypedAstEvaluator
                 return true;
             }
 
-            result = null;
+            result = JsValue.Undefined;
             return false;
 
             bool TryGetCallable(object propertyKey, out IJsCallable? callable)
@@ -66,7 +67,12 @@ public static partial class TypedAstEvaluator
                     // Unwrap JsValue if present
                     if (candidate is JsValue jsVal)
                     {
-                        candidate = jsVal.ToObject();
+                        if (jsVal.TryGetObject<IJsCallable>(out var jsCallable))
+                        {
+                            callable = jsCallable;
+                            return true;
+                        }
+                        candidate = jsVal.ObjectValue;
                     }
 
                     if (candidate is IJsCallable found)

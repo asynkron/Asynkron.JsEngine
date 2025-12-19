@@ -42,17 +42,17 @@ public static partial class TypedAstEvaluator
                 args =>
                 {
                     var argValue = args.Count > 0 ? args[0] : JsValue.Undefined;
-                    return JsValue.FromObjectUnsafe(CreateStepPromise(TypedGeneratorInstance.ResumeMode.Next, argValue));
+                    return CreateStepPromise(TypedGeneratorInstance.ResumeMode.Next, argValue);
                 },
                 args =>
                 {
                     var argValue = args.Count > 0 ? args[0] : JsValue.Undefined;
-                    return JsValue.FromObjectUnsafe(CreateStepPromise(TypedGeneratorInstance.ResumeMode.Return, argValue));
+                    return CreateStepPromise(TypedGeneratorInstance.ResumeMode.Return, argValue);
                 },
                 args =>
                 {
                     var argValue = args.Count > 0 ? args[0] : JsValue.Undefined;
-                    return JsValue.FromObjectUnsafe(CreateStepPromise(TypedGeneratorInstance.ResumeMode.Throw, argValue));
+                    return CreateStepPromise(TypedGeneratorInstance.ResumeMode.Throw, argValue);
                 },
                 prototype);
 
@@ -63,7 +63,7 @@ public static partial class TypedAstEvaluator
             return asyncIterator;
         }
 
-        private object? CreateStepPromise(TypedGeneratorInstance.ResumeMode mode, JsValue argument)
+        private JsValue CreateStepPromise(TypedGeneratorInstance.ResumeMode mode, JsValue argument)
         {
             // Look up the global Promise constructor from the closure environment.
             IJsCallable? promiseCtor = null;
@@ -127,10 +127,10 @@ public static partial class TypedAstEvaluator
 
             if (promiseCtor is HostFunction hostCtor)
             {
-                return hostCtor.InvokeWithContext([(JsValue)executor], JsValue.Undefined, null, (JsValue)hostCtor).ObjectValue;
+                return hostCtor.InvokeWithContext([(JsValue)executor], JsValue.Undefined, null, (JsValue)hostCtor);
             }
 
-            return promiseCtor.Invoke([(JsValue)executor], JsValue.Undefined).ObjectValue;
+            return promiseCtor.Invoke([(JsValue)executor], JsValue.Undefined);
         }
 
         private static JsObject CreateAsyncIteratorResult(JsValue value, bool done)

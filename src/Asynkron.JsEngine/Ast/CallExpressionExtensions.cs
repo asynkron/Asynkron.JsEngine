@@ -318,12 +318,12 @@ public static partial class TypedAstEvaluator
                         var propertyName = propLit.Value.AsString();
                         if (string.Equals(propertyName, "apply", StringComparison.Ordinal))
                         {
-                            return JsValue.FromObjectUnsafe(targetFunction.InvokeWithApply(expression.Arguments, environment, context));
+                            return targetFunction.InvokeWithApply(expression.Arguments, environment, context);
                         }
 
                         if (string.Equals(propertyName, "call", StringComparison.Ordinal))
                         {
-                            return JsValue.FromObjectUnsafe(targetFunction.InvokeWithCall(expression.Arguments, environment, context));
+                            return targetFunction.InvokeWithCall(expression.Arguments, environment, context);
                         }
                     }
 
@@ -349,7 +349,7 @@ public static partial class TypedAstEvaluator
                         if (TryGetPropertyValue(targetJs.ToObject(), "formatArgs", out var innerValue) &&
                             innerValue is IJsCallable innerFunction)
                         {
-                            return JsValue.FromObjectUnsafe(innerFunction.InvokeWithCall(expression.Arguments, environment, context));
+                            return innerFunction.InvokeWithCall(expression.Arguments, environment, context);
                         }
                     }
                 }
@@ -618,7 +618,7 @@ public static partial class TypedAstEvaluator
                 if (isAsyncCallable)
                 {
                     context.Clear();
-                    callResult = JsValue.FromObjectUnsafe(CreateRejectedPromise(signal.ThrownValue.ToObject(), environment));
+                    callResult = CreateRejectedPromise(signal.ThrownValue, environment);
                 }
                 else
                 {
@@ -631,7 +631,7 @@ public static partial class TypedAstEvaluator
                 // Any synchronous failure while invoking an async function should surface
                 // as a rejected promise rather than throwing out of the call.
                 context.Clear();
-                callResult = JsValue.FromObjectUnsafe(CreateRejectedPromise(ex, environment));
+                callResult = CreateRejectedPromise(JsValue.FromObjectUnsafe(ex), environment);
             }
             finally
             {
@@ -669,7 +669,7 @@ public static partial class TypedAstEvaluator
                 {
                     var reason = context.FlowValue;
                     context.Clear();
-                    return JsValue.FromObjectUnsafe(CreateRejectedPromise(reason, environment));
+                    return CreateRejectedPromise(reason, environment);
                 }
                 case true:
                     // Async functions should never propagate a throw signal; ensure the

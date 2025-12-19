@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    private static object? EvaluateStaticFieldExpression(
+    private static JsValue EvaluateStaticFieldExpression(
         ExpressionNode expression,
         IJsPropertyAccessor constructorAccessor,
         JsEnvironment environment,
@@ -15,15 +15,14 @@ public static partial class TypedAstEvaluator
         initEnv.DefineJsValue(EvalHostFunction.FieldInitializerEvalFlag, JsValue.True, isConst: true, isLexical: true,
             blocksFunctionScopeOverride: true);
         var resultValue = expression.EvaluateExpression(initEnv, context);
-        var result = resultValue.ToObject();
-        if (result is TypedFunction typedFunction &&
+        if (resultValue.ObjectValue is TypedFunction typedFunction &&
             typedFunction.IsArrowFunction &&
             superBinding is not null)
         {
             typedFunction.SetSuperBinding(superBinding.Constructor, superBinding.Prototype);
         }
 
-        return result;
+        return resultValue;
     }
 
     private static JsEnvironment CreateStaticInitializationEnvironment(

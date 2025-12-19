@@ -37,7 +37,7 @@ public sealed class TypedAstParser(
         IJsEngineOptions options)
     {
         private readonly Stack<FunctionContext> _functionContexts = new();
-        private readonly string _source = source ?? string.Empty;
+        private readonly string _source = source;
         private readonly Stack<bool> _strictContexts = new();
         private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
 
@@ -768,8 +768,8 @@ public sealed class TypedAstParser(
 
             Consume(TokenType.RightBrace, "Expected '}' after class body.");
             var ctor = constructor ?? CreateDefaultConstructor(className, extendsExpression is not null);
-            var source = CreateSourceReference(classToken);
-            return new ClassDefinition(source, extendsExpression, ctor, members, fields, staticBlocks, staticElements);
+            var sourceReference = CreateSourceReference(classToken);
+            return new ClassDefinition(sourceReference, extendsExpression, ctor, members, fields, staticBlocks, staticElements);
         }
 
         private (FunctionExpression? Constructor,
@@ -1655,7 +1655,7 @@ public sealed class TypedAstParser(
                 // See: for ( [lookahead ∉ { let [ }] Expression
                 if (Check(TokenType.Let) &&
                     (InStrictContext || CheckAhead(TokenType.LeftBracket) || CheckAhead(TokenType.LeftBrace) ||
-                     (CheckAheadBindingIdentifier() && !CheckAhead(TokenType.Let)) &&
+                     CheckAheadBindingIdentifier() && !CheckAhead(TokenType.Let) &&
                      !CheckAhead(TokenType.In)))
                 {
                     Advance(); // consume 'let'
@@ -1771,19 +1771,20 @@ public sealed class TypedAstParser(
                 var forEachStatement = new ForEachStatement(CreateSourceReference(forToken), target, iterable, body,
                     eachKind,
                     declarationKind);
-                if (!InStrictContext &&
-                    declarationKind == VariableKind.Var &&
-                    initializerDeclaration is { Declarators: [{ Initializer: { } varInitializer }] })
+                if (InStrictContext ||
+                    declarationKind != VariableKind.Var ||
+                    initializerDeclaration is not { Declarators: [{ Initializer: { } varInitializer }] })
                 {
-                    var assignment = CreateInitializerAssignment(initializerDeclaration.Declarators[0].Target, varInitializer);
-                    var assignmentStatement = new ExpressionStatement(
-                        assignment.Source ?? varInitializer.Source ?? CreateSourceReference(forToken), assignment);
-                    var isStrict = body is BlockStatement b ? b.IsStrict : InStrictContext;
-                    return new BlockStatement(forEachStatement.Source,
-                        [assignmentStatement, forEachStatement], isStrict);
+                    return forEachStatement;
                 }
 
-                return forEachStatement;
+                var assignment = CreateInitializerAssignment(initializerDeclaration.Declarators[0].Target, varInitializer);
+                var assignmentStatement = new ExpressionStatement(
+                    assignment.Source ?? varInitializer.Source ?? CreateSourceReference(forToken), assignment);
+                var isStrict = body is BlockStatement b ? b.IsStrict : InStrictContext;
+                return new BlockStatement(forEachStatement.Source,
+                    [assignmentStatement, forEachStatement], isStrict);
+
             }
 
             if (!firstClauseTerminated)

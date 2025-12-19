@@ -62,12 +62,12 @@ public sealed record SourceReference
     /// <summary>
     ///     The ending line number (1-based).
     /// </summary>
-    public int EndLine { get; }
+    private int EndLine { get; }
 
     /// <summary>
     ///     The ending column number (1-based).
     /// </summary>
-    public int EndColumn { get; }
+    private int EndColumn { get; }
 
     /// <summary>
     ///     Gets the source text that this reference points to.

@@ -9,7 +9,7 @@ public static partial class TypedAstEvaluator
     {
         public bool TryInitializeStaticField(
             IJsPropertyAccessor constructorAccessor,
-            Func<ExpressionNode, object?> evaluateExpression,
+            Func<ExpressionNode, JsValue> evaluateExpression,
             EvaluationContext context,
             PrivateNameScope? privateNameScope,
             Func<IDisposable?>? privateScopeFactory)
@@ -27,7 +27,7 @@ public static partial class TypedAstEvaluator
                 throw StandardLibrary.ThrowTypeError("Invalid private field receiver", context, context.RealmState);
             }
 
-            object? value = Symbol.Undefined;
+            var valueJs = JsValue.Undefined;
             var displayName = field.IsComputed ? propertyName : field.Name;
             var atIndex = displayName.IndexOf('@', StringComparison.Ordinal);
             if (atIndex > 0)
@@ -37,7 +37,7 @@ public static partial class TypedAstEvaluator
             if (field.Initializer is not null)
             {
                 using var handle = privateScopeFactory?.Invoke();
-                value = evaluateExpression(field.Initializer);
+                valueJs = evaluateExpression(field.Initializer);
                 if (context.ShouldStopEvaluation)
                 {
                     return false;
@@ -45,13 +45,13 @@ public static partial class TypedAstEvaluator
 
                 if (ExpressionNode.IsAnonymousFunctionDefinitionNode(field.Initializer))
                 {
-                    ClassField.SetAnonymousFunctionName(value, displayName);
+                    ClassField.SetAnonymousFunctionName(valueJs, displayName);
                 }
             }
 
             var descriptor = new PropertyDescriptor
             {
-                Value = value,
+                Value = valueJs.ToObject(),
                 Writable = true,
                 Enumerable = true,
                 Configurable = true
@@ -76,9 +76,9 @@ public static partial class TypedAstEvaluator
             return true;
         }
 
-        private static void SetAnonymousFunctionName(object? value, string displayName)
+        private static void SetAnonymousFunctionName(JsValue value, string displayName)
         {
-            switch (value)
+            switch (value.ObjectValue)
             {
                 case TypedFunction typedFunction:
                     typedFunction.EnsureHasName(displayName, overwriteExisting: true);

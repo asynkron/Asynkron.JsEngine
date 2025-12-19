@@ -15,7 +15,7 @@ public static partial class TypedAstEvaluator
         {
             foreach (var member in members)
             {
-                if (!member.TryResolveMemberName(expr => expr.EvaluateExpression(environment, context).ToObject(),
+                if (!member.TryResolveMemberName(expr => expr.EvaluateExpression(environment, context),
                         context,
                         privateNameScope,
                         out var propertyName))

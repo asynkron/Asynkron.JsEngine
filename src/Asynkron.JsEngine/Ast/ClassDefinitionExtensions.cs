@@ -9,7 +9,7 @@ public static partial class TypedAstEvaluator
 {
     extension(ClassDefinition definition)
     {
-        private object? CreateClassValue(JsEnvironment environment,
+        private JsValue CreateClassValue(JsEnvironment environment,
             EvaluationContext context,
             Symbol? className)
         {
@@ -22,7 +22,7 @@ public static partial class TypedAstEvaluator
             var (superConstructor, superPrototype) = definition.Extends.ResolveSuperclass(evaluationEnvironment, context);
             if (context.ShouldStopEvaluation)
             {
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             var privateNameScope = definition.CreatePrivateNameScope();
@@ -35,21 +35,21 @@ public static partial class TypedAstEvaluator
             var resolvedFields = ClassDefinition.ResolveFieldNames(definition.Fields, evaluationEnvironment, context, privateNameScope);
             if (context.ShouldStopEvaluation)
             {
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             var constructorJsValue = definition.Constructor.EvaluateExpression(evaluationEnvironment, context);
             if (context.ShouldStopEvaluation)
             {
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
-            var constructorValue = constructorJsValue.ToObject();
 
-            if (constructorValue is not (IJsEnvironmentAwareCallable and IJsPropertyAccessor constructorAccessor))
+            if (constructorJsValue.ObjectValue is not (IJsEnvironmentAwareCallable and IJsPropertyAccessor constructorAccessor))
             {
                 throw new InvalidOperationException("Class constructor must be callable.");
             }
 
+            var constructorValue = (object)constructorAccessor;
             var realm = context.RealmState;
             var prototype = constructorAccessor.EnsurePrototype(realm);
             if (definition.Extends is not null)
@@ -73,7 +73,7 @@ public static partial class TypedAstEvaluator
                 var resolvedInstanceFields = ClassDefinition.ResolveInstanceFieldNames(instanceFields, evaluationEnvironment, context, privateNameScope);
                 if (context.ShouldStopEvaluation)
                 {
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
 
                 typedFunction.SetInstanceFields(resolvedInstanceFields);
@@ -103,7 +103,7 @@ public static partial class TypedAstEvaluator
                 baseCtor.SetPrototype(realm.FunctionPrototype);
             }
 
-            prototype.SetProperty("constructor", JsValue.FromObjectUnsafe(constructorValue));
+            prototype.SetProperty("constructor", constructorJsValue);
 
             if (constructorAccessor is IPropertyDefinitionHost definitionHost &&
                 constructorValue is TypedFunction { IsClassConstructor: true })
@@ -125,7 +125,7 @@ public static partial class TypedAstEvaluator
                 evaluationEnvironment, context, privateNameScope);
             if (context.ShouldStopEvaluation)
             {
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
             if (constructorValue is IFunctionNameTarget nameTarget && className is not null)
@@ -145,10 +145,10 @@ public static partial class TypedAstEvaluator
                 privateNameScope);
             if (context.ShouldStopEvaluation)
             {
-                return Symbol.Undefined;
+                return JsValue.Undefined;
             }
 
-            return constructorValue;
+            return constructorJsValue;
         }
 
         private PrivateNameScope? CreatePrivateNameScope()
@@ -175,7 +175,7 @@ public static partial class TypedAstEvaluator
             foreach (var field in fields)
             {
                 var propertyName = field.Name;
-                if (!field.TryResolveFieldName(expr => expr.EvaluateExpression(environment, context).ToObject(),
+                if (!field.TryResolveFieldName(expr => expr.EvaluateExpression(environment, context),
                         context,
                         privateNameScope,
                         out propertyName))

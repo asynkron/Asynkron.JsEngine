@@ -1,4 +1,5 @@
 using System.Globalization;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.Ast;
@@ -7,7 +8,7 @@ internal static class ClassPropertyNameResolver
 {
     extension(ClassMember member)
     {
-        public bool TryResolveMemberName(Func<ExpressionNode, object?> evaluator,
+        public bool TryResolveMemberName(Func<ExpressionNode, JsValue> evaluator,
             EvaluationContext context,
             PrivateNameScope? privateNameScope,
             out string propertyName)
@@ -47,7 +48,7 @@ internal static class ClassPropertyNameResolver
 
     extension(ClassField field)
     {
-        public bool TryResolveFieldName(Func<ExpressionNode, object?> evaluator,
+        public bool TryResolveFieldName(Func<ExpressionNode, JsValue> evaluator,
             EvaluationContext context,
             PrivateNameScope? privateNameScope,
             out string propertyName)

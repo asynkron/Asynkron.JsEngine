@@ -7,7 +7,7 @@ public static partial class TypedAstEvaluator
 {
     extension(IJsCallable targetFunction)
     {
-        private object? InvokeWithApply(ImmutableArray<CallArgument> callArguments,
+        private JsValue InvokeWithApply(ImmutableArray<CallArgument> callArguments,
             JsEnvironment environment,
             EvaluationContext context)
         {
@@ -17,7 +17,7 @@ public static partial class TypedAstEvaluator
                 thisArg = callArguments[0].Expression.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
             }
 
@@ -27,7 +27,7 @@ public static partial class TypedAstEvaluator
                 var argsArrayJs = callArguments[1].Expression.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
 
                 foreach (var item in EnumerateSpread(argsArrayJs, context))
@@ -37,7 +37,7 @@ public static partial class TypedAstEvaluator
 
                 if (context.ShouldStopEvaluation)
                 {
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
             }
 
@@ -49,13 +49,13 @@ public static partial class TypedAstEvaluator
             var frozenArguments = FreezeArguments(argsBuilder);
             if (targetFunction is TypedFunction typedFunction)
             {
-                return typedFunction.InvokeWithContext(frozenArguments, thisArg, context).ToObject();
+                return typedFunction.InvokeWithContext(frozenArguments, thisArg, context);
             }
 
-            return targetFunction.Invoke(frozenArguments, thisArg).ToObject();
+            return targetFunction.Invoke(frozenArguments, thisArg);
         }
 
-        private object? InvokeWithCall(ImmutableArray<CallArgument> callArguments,
+        private JsValue InvokeWithCall(ImmutableArray<CallArgument> callArguments,
             JsEnvironment environment,
             EvaluationContext context)
         {
@@ -67,7 +67,7 @@ public static partial class TypedAstEvaluator
                 var argValue = callArguments[i].Expression.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                 {
-                    return Symbol.Undefined;
+                    return JsValue.Undefined;
                 }
 
                 if (i == 0)
@@ -88,10 +88,10 @@ public static partial class TypedAstEvaluator
             var frozenArguments = FreezeArguments(argsBuilder);
             if (targetFunction is TypedFunction typedFunction)
             {
-                return typedFunction.InvokeWithContext(frozenArguments, thisArg, context).ToObject();
+                return typedFunction.InvokeWithContext(frozenArguments, thisArg, context);
             }
 
-            return targetFunction.Invoke(frozenArguments, thisArg).ToObject();
+            return targetFunction.Invoke(frozenArguments, thisArg);
         }
     }
 }

@@ -1108,6 +1108,57 @@ internal static class JsOps
         }
     }
 
+    public static string? ToPropertyName(JsValue value, EvaluationContext? context = null)
+    {
+        switch (value.Kind)
+        {
+            case JsValueKind.Undefined:
+                return JsValueCache.UndefinedString;
+            case JsValueKind.Null:
+                return JsValueCache.NullString;
+            case JsValueKind.Boolean:
+                return value.AsBoolean() ? JsValueCache.TrueString : JsValueCache.FalseString;
+            case JsValueKind.Number:
+                return ToCanonicalNumberString(value.NumberValue);
+            case JsValueKind.BigInt:
+                return value.AsBigInt().Value.ToString(CultureInfo.InvariantCulture);
+            case JsValueKind.String:
+                return value.AsString();
+            case JsValueKind.Symbol:
+                return value.ObjectValue switch
+                {
+                    Symbol sym => sym.Name,
+                    TypedAstSymbol astSym => TypedAstSymbol.PropertyKey(astSym),
+                    _ => value.ObjectValue?.ToString() ?? string.Empty
+                };
+            case JsValueKind.Object:
+            {
+                if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
+                {
+                    var primitive = ToPrimitive(accessor, ToPrimitiveHint.String, context);
+                    if (context?.IsThrow == true)
+                    {
+                        return null;
+                    }
+
+                    return ToPropertyName(primitive, context);
+                }
+
+                if (context?.IsThrow == true)
+                {
+                    return null;
+                }
+
+                return Convert.ToString(value.ObjectValue, CultureInfo.InvariantCulture);
+            }
+            case JsValueKind.Unit:
+            case JsValueKind.Uninitialized:
+                return JsValueCache.UndefinedString;
+            default:
+                return JsValueCache.UndefinedString;
+        }
+    }
+
     // Align numeric property keys with ECMAScript ToString(number) formatting (case-sensitive keys).
     internal static string ToCanonicalNumberString(double value)
     {
@@ -1227,6 +1278,17 @@ internal static class JsOps
     }
 
     public static string GetRequiredPropertyName(object? value, EvaluationContext? context = null)
+    {
+        var name = ToPropertyName(value, context);
+        if (context?.IsThrow == true)
+        {
+            return string.Empty;
+        }
+
+        return name ?? throw new InvalidOperationException("Property name cannot be null.");
+    }
+
+    public static string GetRequiredPropertyName(JsValue value, EvaluationContext? context = null)
     {
         var name = ToPropertyName(value, context);
         if (context?.IsThrow == true)

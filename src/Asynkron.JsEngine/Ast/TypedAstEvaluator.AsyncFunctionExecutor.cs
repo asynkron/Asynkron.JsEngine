@@ -108,12 +108,12 @@ public static partial class TypedAstEvaluator
                 catch (ThrowSignal signal)
                 {
                     // Early error during initialization - reject the promise
-                    reject.Invoke([signal.ThrownValue], JsValue.Undefined);
+                    InvokeWithOneArg(reject, signal.ThrownValue);
                 }
                 catch (Exception ex)
                 {
                     // Non-JS exception during initialization - wrap in error message
-                    reject.Invoke([(JsValue)ex.Message], JsValue.Undefined);
+                    InvokeWithOneArg(reject, (JsValue)ex.Message);
                 }
 
                 return JsValue.Undefined;
@@ -147,7 +147,7 @@ public static partial class TypedAstEvaluator
                 {
                     case TypedGeneratorInstance.AsyncGeneratorStepKind.Completed:
                         // Async function completed - resolve with the return value
-                        resolve.Invoke([step.Value], JsValue.Undefined);
+                        InvokeWithOneArg(resolve, step.Value);
                         break;
 
                     case TypedGeneratorInstance.AsyncGeneratorStepKind.Yield:
@@ -158,7 +158,7 @@ public static partial class TypedAstEvaluator
 
                     case TypedGeneratorInstance.AsyncGeneratorStepKind.Throw:
                         // Async function threw - reject the promise
-                        reject.Invoke([step.Value], JsValue.Undefined);
+                        InvokeWithOneArg(reject, step.Value);
                         break;
 
                     case TypedGeneratorInstance.AsyncGeneratorStepKind.Pending:
@@ -170,12 +170,12 @@ public static partial class TypedAstEvaluator
             catch (ThrowSignal signal)
             {
                 // Uncaught exception - reject the promise
-                reject.Invoke([signal.ThrownValue], JsValue.Undefined);
+                InvokeWithOneArg(reject, signal.ThrownValue);
             }
             catch (Exception ex)
             {
                 // Non-JS exception - wrap in error message
-                reject.Invoke([(JsValue)ex.Message], JsValue.Undefined);
+                InvokeWithOneArg(reject, (JsValue)ex.Message);
             }
         }
 
@@ -186,19 +186,19 @@ public static partial class TypedAstEvaluator
         {
             if (!step.PendingPromise.TryGetObject<JsObject>(out var pendingPromise))
             {
-                reject.Invoke([(JsValue)"Awaited value is not a promise"], JsValue.Undefined);
+                InvokeWithOneArg(reject, (JsValue)"Awaited value is not a promise");
                 return;
             }
 
             if (!pendingPromise.TryGetProperty("then", out var thenValue))
             {
-                reject.Invoke([(JsValue)"Awaited value has no 'then' method"], JsValue.Undefined);
+                InvokeWithOneArg(reject, (JsValue)"Awaited value has no 'then' method");
                 return;
             }
 
             if (!thenValue.TryUnwrap(out IJsCallable? thenCallable))
             {
-                reject.Invoke([(JsValue)"'then' is not callable"], JsValue.Undefined);
+                InvokeWithOneArg(reject, (JsValue)"'then' is not callable");
                 return;
             }
 
@@ -207,7 +207,11 @@ public static partial class TypedAstEvaluator
             var onFulfilled = new AsyncResumeCallback(this, resolve, reject, isRejection: false);
             var onRejected = new AsyncResumeCallback(this, resolve, reject, isRejection: true);
 
-            thenCallable.Invoke([JsValue.FromObjectUnsafe(onFulfilled), JsValue.FromObjectUnsafe(onRejected)], (JsValue)pendingPromise);
+            InvokeWithTwoArgs(
+                thenCallable,
+                JsValue.FromObjectUnsafe(onFulfilled),
+                JsValue.FromObjectUnsafe(onRejected),
+                (JsValue)pendingPromise);
 
             // Don't drain microtasks here - let them drain naturally after synchronous
             // code completes. This ensures proper async semantics where async functions
@@ -239,6 +243,35 @@ public static partial class TypedAstEvaluator
                     : TypedGeneratorInstance.ResumeMode.Next;
                 executor.DriveToCompletion(mode, value, resolve, reject);
                 return JsValue.Undefined;
+            }
+        }
+
+        private static void InvokeWithOneArg(IJsCallable callable, JsValue arg0)
+        {
+            var args = JsValueCache.RentJsValueArray(1);
+            try
+            {
+                args[0] = arg0;
+                callable.Invoke(args, JsValue.Undefined);
+            }
+            finally
+            {
+                JsValueCache.ReturnJsValueArray(args);
+            }
+        }
+
+        private static void InvokeWithTwoArgs(IJsCallable callable, JsValue arg0, JsValue arg1, JsValue thisValue)
+        {
+            var args = JsValueCache.RentJsValueArray(2);
+            try
+            {
+                args[0] = arg0;
+                args[1] = arg1;
+                callable.Invoke(args, thisValue);
+            }
+            finally
+            {
+                JsValueCache.ReturnJsValueArray(args);
             }
         }
     }

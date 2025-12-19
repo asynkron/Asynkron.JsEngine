@@ -25,18 +25,18 @@ public sealed class ParseException : Exception
         var posPattern2 = $"at line {token.Line}, column {token.Column}";
 
         // Remove duplicate position info if present
-        if (message.Contains(posPattern))
+        if (message.Contains(posPattern, StringComparison.Ordinal))
         {
-            message = message.Replace(posPattern + ".", "").Trim();
-            if (message.EndsWith("."))
+            message = message.Replace(posPattern + ".", "", StringComparison.Ordinal).Trim();
+            if (message.EndsWith('.'))
             {
                 message = message[..^1];
             }
         }
-        else if (message.Contains(posPattern2))
+        else if (message.Contains(posPattern2, StringComparison.Ordinal))
         {
-            message = message.Replace(posPattern2, "").Trim();
-            if (message.EndsWith("."))
+            message = message.Replace(posPattern2, "", StringComparison.Ordinal).Trim();
+            if (message.EndsWith('.'))
             {
                 message = message[..^1];
             }

@@ -359,7 +359,7 @@ public static partial class StandardLibrary
             numberBase = 8;
             text = text[2..];
         }
-        else if (text.StartsWith("0", StringComparison.Ordinal) && text.Length > 1 && char.IsDigit(text[1]))
+        else if (text.StartsWith('0') && text.Length > 1 && char.IsDigit(text[1]))
         {
             throw ThrowSyntaxError("Invalid BigInt literal", context, realmState);
         }

@@ -35,7 +35,7 @@ public class JsRegExp
         JsObject = existingObject ?? new JsObject();
 
         ValidateFlags(Flags);
-        var hasUnicodeFlag = Flags.Contains('u');
+        var hasUnicodeFlag = Flags.Contains('u', StringComparison.Ordinal);
         _normalizedPattern = NormalizePattern(pattern, hasUnicodeFlag, IgnoreCase);
 
         // Convert JavaScript regex flags to .NET RegexOptions
@@ -72,12 +72,12 @@ public class JsRegExp
 
     public string Flags { get; }
 
-    public bool Global => Flags.Contains('g');
-    public bool IgnoreCase => Flags.Contains('i');
-    public bool Multiline => Flags.Contains('m');
-    public bool DotAll => Flags.Contains('s');
-    public bool Unicode => Flags.Contains('u');
-    public bool Sticky => Flags.Contains('y');
+    public bool Global => Flags.Contains('g', StringComparison.Ordinal);
+    public bool IgnoreCase => Flags.Contains('i', StringComparison.Ordinal);
+    public bool Multiline => Flags.Contains('m', StringComparison.Ordinal);
+    public bool DotAll => Flags.Contains('s', StringComparison.Ordinal);
+    public bool Unicode => Flags.Contains('u', StringComparison.Ordinal);
+    public bool Sticky => Flags.Contains('y', StringComparison.Ordinal);
     private int LastIndex { get; set; }
 
     public JsObject JsObject { get; }

@@ -13,7 +13,7 @@ public sealed class JsBigInt(BigInteger value) : IEquatable<JsBigInt>
     {
     }
 
-    public JsBigInt(string value) : this(BigInteger.Parse(value.Replace("_", string.Empty),
+    public JsBigInt(string value) : this(BigInteger.Parse(value.Replace("_", string.Empty, StringComparison.Ordinal),
         CultureInfo.InvariantCulture))
     {
     }

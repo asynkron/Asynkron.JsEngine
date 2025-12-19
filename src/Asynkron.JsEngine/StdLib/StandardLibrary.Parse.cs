@@ -30,12 +30,12 @@ public static partial class StandardLibrary
 
             // Handle sign
             var sign = 1;
-            if (str.StartsWith("-"))
+            if (str.StartsWith('-'))
             {
                 sign = -1;
                 str = str[1..].TrimStart();
             }
-            else if (str.StartsWith("+"))
+            else if (str.StartsWith('+'))
             {
                 str = str[1..].TrimStart();
             }

@@ -416,7 +416,7 @@ namespace Asynkron.JsEngine.JsTypes;
         // Update all existing descriptors to be non-configurable
         foreach (var key in Keys.ToArray())
         {
-            if (key.StartsWith(GetterPrefix) || key.StartsWith(SetterPrefix))
+            if (key.StartsWith(GetterPrefix, StringComparison.Ordinal) || key.StartsWith(SetterPrefix, StringComparison.Ordinal))
             {
                 continue;
             }
@@ -1331,7 +1331,7 @@ namespace Asynkron.JsEngine.JsTypes;
         // Update all existing descriptors to be non-writable and non-configurable
         foreach (var key in Keys.ToArray())
         {
-            if (key.StartsWith(GetterPrefix) || key.StartsWith(SetterPrefix))
+            if (key.StartsWith(GetterPrefix, StringComparison.Ordinal) || key.StartsWith(SetterPrefix, StringComparison.Ordinal))
             {
                 continue;
             }

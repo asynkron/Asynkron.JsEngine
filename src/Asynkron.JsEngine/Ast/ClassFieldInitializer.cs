@@ -29,7 +29,7 @@ public static partial class TypedAstEvaluator
 
             object? value = Symbol.Undefined;
             var displayName = field.IsComputed ? propertyName : field.Name;
-            var atIndex = displayName.IndexOf('@');
+            var atIndex = displayName.IndexOf('@', StringComparison.Ordinal);
             if (atIndex > 0)
             {
                 displayName = displayName[..atIndex];

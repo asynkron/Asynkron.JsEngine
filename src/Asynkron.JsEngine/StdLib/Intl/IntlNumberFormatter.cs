@@ -587,7 +587,7 @@ internal static class IntlNumberFormatter
                 raw = raw[..expIndex];
             }
 
-            var decimalIndex = raw.IndexOf('.');
+            var decimalIndex = raw.IndexOf('.', StringComparison.Ordinal);
             var fractionLength = 0;
             if (decimalIndex >= 0)
             {

@@ -1110,7 +1110,7 @@ public static partial class TypedAstEvaluator
                                         driverState.NextMethod!,
                                         context: context,
                                         callingEnvironment: environment);
-                                    if (!TryAwaitPromiseOrSchedule(nextResult, context, out var awaitedNext))
+                                    if (!TryResolvePromiseOrYield(nextResult, context, out var awaitedNext))
                                     {
                                         if (_asyncStepMode && _pendingPromise.TryGetObject<JsObject>(out _))
                                         {
@@ -1166,7 +1166,7 @@ public static partial class TypedAstEvaluator
                                 var rawValue = awaitResultObj.TryGetProperty("value", out var yieldedAwait)
                                     ? yieldedAwait
                                     : JsValue.Undefined;
-                                if (!TryAwaitPromiseOrSchedule(rawValue, context, out var fullyAwaitedValue))
+                                if (!TryResolvePromiseOrYield(rawValue, context, out var fullyAwaitedValue))
                                 {
                                     if (_asyncStepMode && _pendingPromise.TryGetObject<JsObject>(out _))
                                     {
@@ -1207,7 +1207,7 @@ public static partial class TypedAstEvaluator
 
                                 // enumerated is already JsValue from IEnumerator<JsValue>.Current
                                 var enumerated = awaitEnumerator.Current;
-                                if (!TryAwaitPromiseOrSchedule(enumerated, context, out var awaitedEnumerated))
+                                if (!TryResolvePromiseOrYield(enumerated, context, out var awaitedEnumerated))
                                 {
                                     if (_asyncStepMode && _pendingPromise.TryGetObject<JsObject>(out _))
                                     {
@@ -1552,7 +1552,7 @@ public static partial class TypedAstEvaluator
             };
         }
 
-        internal object? EvaluateAwaitInGenerator(AwaitExpression expression, JsEnvironment environment,
+        internal JsValue EvaluateAwaitInGenerator(AwaitExpression expression, JsEnvironment environment,
             EvaluationContext context)
         {
             // When not executing under async-aware stepping, fall back to the
@@ -1594,7 +1594,7 @@ public static partial class TypedAstEvaluator
                 // generator's try-catch can handle it.
                 if (isThrow)
                 {
-                    throw new ThrowSignal(result is JsValue jsVal ? jsVal : JsValue.FromObjectUnsafe(result));
+                    throw new ThrowSignal(result);
                 }
 
                 return result;
@@ -1624,7 +1624,7 @@ public static partial class TypedAstEvaluator
             // Async-aware mode: surface promise-like values as pending steps
             // so AsyncGeneratorInstance can resume via the event queue.
             // awaitedValue is already JsValue
-            if (TryAwaitPromiseOrSchedule(awaitedValue, context, out var resolved))
+            if (TryResolvePromiseOrYield(awaitedValue, context, out var resolved))
             {
                 return resolved;
             }
@@ -1641,14 +1641,14 @@ public static partial class TypedAstEvaluator
             _programCounter = _currentInstructionIndex;
             throw new PendingAwaitException();
 
-            // If TryAwaitPromiseOrSchedule reported an error via the context,
+            // If TryResolvePromiseOrYield reported an error via the context,
             // let the caller observe the pending throw/return.
         }
 
-        private bool TryAwaitPromiseOrSchedule(JsValue candidate, EvaluationContext context, out JsValue resolvedValue)
+        private bool TryResolvePromiseOrYield(JsValue candidate, EvaluationContext context, out JsValue resolvedValue)
         {
             var pendingPromise = _pendingPromise;
-            var result = AwaitScheduler.TryAwaitPromiseOrSchedule(candidate, _asyncStepMode, ref pendingPromise,
+            var result = AwaitScheduler.TryResolvePromiseOrYield(candidate, _asyncStepMode, ref pendingPromise,
                 context, out var resolvedObj);
             _pendingPromise = pendingPromise;
             // resolvedObj is already JsValue from the scheduler
@@ -1910,7 +1910,7 @@ public static partial class TypedAstEvaluator
         {
             public bool HasResult { get; set; }
             public bool IsThrow { get; set; }
-            public object? Result { get; set; }
+            public JsValue Result { get; set; } = JsValue.Undefined;
         }
 
         // Lightweight step result used by async-generator wrappers so they can

@@ -164,7 +164,7 @@ public static partial class StandardLibrary
                     foreach (var kvp in obj)
                     {
                         // Skip functions and internal properties
-                        if (kvp.Value is IJsCallable || kvp.Key.StartsWith("_", StringComparison.Ordinal))
+                        if (kvp.Value is IJsCallable || kvp.Key.StartsWith('_'))
                         {
                             continue;
                         }

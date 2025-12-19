@@ -21,7 +21,7 @@ public sealed class JsPromise
     // Debug helpers for instrumentation
     internal int DebugHandlerCount => _handlers.Count;
     internal string DebugState => _state.ToString();
-    internal int DebugId => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(this);
+    internal int DebugId => RuntimeHelpers.GetHashCode(this);
 
     public JsPromise(JsEngine engine)
     {
@@ -201,12 +201,6 @@ public sealed class JsPromise
 
     private void ProcessHandlersCore()
     {
-        var traceMicrotasks = Environment.GetEnvironmentVariable("JSENGINE_TRACE_MICROTASK") == "1";
-        if (traceMicrotasks)
-        {
-            Console.WriteLine($"[JsPromise] start id={DebugId} state={_state} handlers={_handlers.Count}");
-        }
-
         if (_state == PromiseState.Pending)
         {
             return;
@@ -262,11 +256,6 @@ public sealed class JsPromise
         if (_handlers.Count > 0)
         {
             ScheduleProcessing();
-        }
-
-        if (traceMicrotasks)
-        {
-            Console.WriteLine($"[JsPromise] end id={DebugId} state={_state} handlers={_handlers.Count} spare={_spareHandlers?.Count ?? 0}");
         }
     }
 

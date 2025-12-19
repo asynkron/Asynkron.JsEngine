@@ -164,7 +164,7 @@ public static partial class StandardLibrary
 
     private static string FormatExponentialForJs(string netExponential)
     {
-        var eIndex = netExponential.IndexOf('e');
+        var eIndex = netExponential.IndexOf('e', StringComparison.Ordinal);
         if (eIndex < 0) return netExponential;
         var mantissa = netExponential[..(eIndex + 1)];
         var exponent = netExponential[(eIndex + 1)..];

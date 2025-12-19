@@ -1508,7 +1508,7 @@ public sealed class JsEnvironment
             {
                 return binding.JsValue;
             }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("ReferenceError") || ex.Message.Contains("is not defined"))
+            catch (InvalidOperationException ex) when (ex.Message.Contains("ReferenceError", StringComparison.Ordinal) || ex.Message.Contains("is not defined", StringComparison.Ordinal))
             {
                 throw new ThrowSignal(JsValue.FromObjectUnsafe(
                     StandardLibrary.CreateReferenceError(

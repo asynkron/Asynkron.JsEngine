@@ -300,7 +300,7 @@ internal static class AwaitScheduler
         return TryAwaitPromiseSync(resolvedValue, context, out resolvedValue, drainMicrotasks);
     }
 
-    public static bool TryAwaitPromiseOrSchedule(JsValue candidate, bool asyncStepMode, ref JsValue pendingPromise,
+    public static bool TryResolvePromiseOrYield(JsValue candidate, bool asyncStepMode, ref JsValue pendingPromise,
         EvaluationContext context, out JsValue resolvedValue)
     {
         // Normalize raw JsPromise to its object wrapper so async-generator

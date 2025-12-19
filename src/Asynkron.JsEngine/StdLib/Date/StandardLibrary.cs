@@ -471,7 +471,7 @@ public static partial class StandardLibrary
         var time = localTime.ToString("HH:mm:ss", culture);
         var year = localTime.ToString("yyyy", culture);
 
-        var offset = localTime.ToString("zzz", culture).Replace(":", string.Empty);
+        var offset = localTime.ToString("zzz", culture).Replace(":", string.Empty, StringComparison.Ordinal);
 
         var timeZone = ResolveTimeZone(realmState);
         var timeZoneName = timeZone.IsDaylightSavingTime(localTime.DateTime)

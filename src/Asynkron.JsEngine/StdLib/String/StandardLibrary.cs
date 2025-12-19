@@ -836,7 +836,7 @@ public static partial class StandardLibrary
 
             var searchStr = CoerceToString(searchValue);
             var replaceStrPlain = CoerceToString(replaceValue);
-            return new JsValue(value.Replace(searchStr, replaceStrPlain));
+            return new JsValue(value.Replace(searchStr, replaceStrPlain, StringComparison.Ordinal));
         }
 
         JsValue At(JsValue thisValue, IReadOnlyList<JsValue> args)

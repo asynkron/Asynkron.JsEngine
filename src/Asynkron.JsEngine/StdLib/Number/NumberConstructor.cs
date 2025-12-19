@@ -218,12 +218,12 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
         }
 
         var sign = 1;
-        if (str.StartsWith("-", StringComparison.Ordinal))
+        if (str.StartsWith('-'))
         {
             sign = -1;
             str = str.Substring(1);
         }
-        else if (str.StartsWith("+", StringComparison.Ordinal))
+        else if (str.StartsWith('+'))
         {
             str = str.Substring(1);
         }

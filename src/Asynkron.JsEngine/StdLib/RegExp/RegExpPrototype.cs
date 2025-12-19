@@ -269,7 +269,7 @@ public sealed partial class RegExpPrototype : JsPrototype
 
         var input = JsOps.ToJsString(args.Count > 0 ? args[0].ToObject() : string.Empty);
         var limitValue = args.GetArgument(1);
-        var forcedFlags = resolved.Flags.Contains('g') ? resolved.Flags : resolved.Flags + "g";
+        var forcedFlags = resolved.Flags.Contains('g', StringComparison.Ordinal) ? resolved.Flags : resolved.Flags + "g";
         var splitter = new JsRegExp(resolved.Pattern, forcedFlags, Realm);
         splitter.SetProperty("lastIndex", 0d);
 

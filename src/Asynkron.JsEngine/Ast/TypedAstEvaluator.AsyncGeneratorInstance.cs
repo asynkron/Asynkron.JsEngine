@@ -153,12 +153,12 @@ public static partial class TypedAstEvaluator
                 case TypedGeneratorInstance.AsyncGeneratorStepKind.Completed:
                 {
                     var iteratorResult = CreateAsyncIteratorResult(step.Value, step.Done);
-                    resolve.Invoke([(JsValue)iteratorResult], JsValue.Undefined);
+                    InvokeWithOneArg(resolve, (JsValue)iteratorResult);
                     break;
                 }
                 case TypedGeneratorInstance.AsyncGeneratorStepKind.Throw:
                     // step.Value is already JsValue
-                    reject.Invoke([step.Value], JsValue.Undefined);
+                    InvokeWithOneArg(reject, step.Value);
                     break;
                 case TypedGeneratorInstance.AsyncGeneratorStepKind.Pending:
                     HandlePendingStep(step, resolve, reject);
@@ -173,40 +173,31 @@ public static partial class TypedAstEvaluator
         {
             if (!step.PendingPromise.TryGetObject<JsObject>(out var pendingPromise))
             {
-                reject.Invoke([(JsValue)"Awaited value is not a promise"], JsValue.Undefined);
+                InvokeWithOneArg(reject, (JsValue)"Awaited value is not a promise");
                 return;
             }
 
             if (!pendingPromise.TryGetProperty("then", out var thenValue))
             {
-                reject.Invoke([(JsValue)"Awaited value has no 'then' method"], JsValue.Undefined);
+                InvokeWithOneArg(reject, (JsValue)"Awaited value has no 'then' method");
                 return;
             }
 
             // thenValue is already a JsValue from TryGetProperty
             if (!thenValue.TryUnwrap(out IJsCallable? thenCallable))
             {
-                reject.Invoke([(JsValue)"'then' is not callable"], JsValue.Undefined);
+                InvokeWithOneArg(reject, (JsValue)"'then' is not callable");
                 return;
             }
 
-            var onFulfilled = new HostFunction((_, args) =>
-            {
-                var value = args.GetArgument(0);
-                var resumed = _inner.ExecuteAsyncStep(TypedGeneratorInstance.ResumeMode.Next, value);
-                ResolveFromStep(resumed, resolve, reject);
-                return JsValue.Undefined;
-            });
+            var onFulfilled = new AsyncResumeCallback(this, resolve, reject, isRejection: false);
+            var onRejected = new AsyncResumeCallback(this, resolve, reject, isRejection: true);
 
-            var onRejected = new HostFunction((_, args) =>
-            {
-                var reason = args.GetArgument(0);
-                var resumed = _inner.ExecuteAsyncStep(TypedGeneratorInstance.ResumeMode.Throw, reason);
-                ResolveFromStep(resumed, resolve, reject);
-                return JsValue.Undefined;
-            });
-
-            thenCallable?.Invoke([(JsValue)onFulfilled, (JsValue)onRejected], (JsValue)pendingPromise);
+            InvokeWithTwoArgs(
+                thenCallable,
+                JsValue.FromObjectUnsafe(onFulfilled),
+                JsValue.FromObjectUnsafe(onRejected),
+                (JsValue)pendingPromise);
         }
 
         private JsObject? ResolveGeneratorPrototype()
@@ -219,6 +210,56 @@ public static partial class TypedAstEvaluator
             }
 
             return realmState.AsyncGeneratorPrototype ?? realmState.ObjectPrototype;
+        }
+
+        /// <summary>
+        ///     Lightweight callback for async generator resume - avoids HostFunction allocation.
+        /// </summary>
+        private sealed class AsyncResumeCallback(
+            AsyncGeneratorInstance executor,
+            IJsCallable resolve,
+            IJsCallable reject,
+            bool isRejection) : IJsCallable
+        {
+            public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
+            {
+                var value = args.Count > 0 ? args[0] : JsValue.Undefined;
+                var mode = isRejection
+                    ? TypedGeneratorInstance.ResumeMode.Throw
+                    : TypedGeneratorInstance.ResumeMode.Next;
+                var resumed = executor._inner.ExecuteAsyncStep(mode, value);
+                executor.ResolveFromStep(resumed, resolve, reject);
+                return JsValue.Undefined;
+            }
+        }
+
+        private static void InvokeWithOneArg(IJsCallable callable, JsValue arg0)
+        {
+            var args = JsValueCache.RentJsValueArray(1);
+            try
+            {
+                args[0] = arg0;
+                callable.Invoke(args, JsValue.Undefined);
+            }
+            finally
+            {
+                JsValueCache.ReturnJsValueArray(args);
+            }
+        }
+
+        private static void InvokeWithTwoArgs(IJsCallable callable, JsValue arg0, JsValue arg1, JsValue thisValue)
+        {
+            var args = JsValueCache.RentJsValueArray(2);
+            try
+            {
+                args[0] = arg0;
+                args[1] = arg1;
+                callable.Invoke(args, thisValue);
+            }
+            finally
+            {
+                JsValueCache.ReturnJsValueArray(args);
+            }
         }
     }
 }

@@ -796,7 +796,6 @@ public class AdditionalArrayMethodsTests
                                                        const obj = { foo: 1 };
                                                        delete obj.join;
                                                        Array.prototype.toString.call(obj);
-
                                            """);
         Assert.Equal("[object Object]", result);
     }

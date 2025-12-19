@@ -2069,7 +2069,7 @@ public sealed class TypedAstParser(
             if (_allowInExpressions && Check(TokenType.PrivateIdentifier))
             {
                 var privateToken = Advance();
-                var privateName = privateToken.Lexeme.StartsWith("#", StringComparison.Ordinal)
+                var privateName = privateToken.Lexeme.StartsWith('#')
                     ? privateToken.Lexeme[1..]
                     : privateToken.Lexeme;
 

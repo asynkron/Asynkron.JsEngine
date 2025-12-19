@@ -1492,7 +1492,7 @@ public static partial class TypedAstEvaluator
                         return;
                     }
                 }
-                else if (field.IsPrivate && PrivateNameScope is not null && !propertyName.Contains('@'))
+                else if (field.IsPrivate && PrivateNameScope is not null && !propertyName.Contains('@', StringComparison.Ordinal))
                 {
                     propertyName = PrivateNameScope.GetKey(propertyName);
                 }
@@ -1522,7 +1522,7 @@ public static partial class TypedAstEvaluator
                     if (ExpressionNode.IsAnonymousFunctionDefinitionNode(field.Initializer))
                     {
                         var displayName = field.IsComputed ? propertyName : field.Name;
-                        var atIndex = displayName.IndexOf('@');
+                        var atIndex = displayName.IndexOf('@', StringComparison.Ordinal);
                         if (atIndex > 0)
                         {
                             displayName = displayName[..atIndex];

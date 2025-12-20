@@ -49,6 +49,13 @@ public sealed partial record FunctionExpression
 
     GeneratorPlanCache IAstCacheable<GeneratorPlanCache>.GetOrCreateCache()
     {
-        return AstCache.GetOrCreate(ref _cachedGeneratorPlan, this, static function => GeneratorPlanCache.Build(function));
+        var cache = AstCache.GetOrCreate(ref _cachedGeneratorPlan, this,
+            static function => GeneratorPlanCache.Build(function), out var created);
+        if (!created)
+        {
+            GeneratorIrDiagnostics.ReportResult(this, cache.Succeeded, cache.FailureReason);
+        }
+
+        return cache;
     }
 }

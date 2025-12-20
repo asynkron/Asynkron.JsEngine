@@ -265,7 +265,7 @@ The remaining gap (113 MB vs Jint's 50 MB ≈ 2.3x allocations, 123 ms vs 52 ms 
 
 ## Other Guidelines
 
-(Add additional coding guidelines here as needed)
+- Rider MCP is available for refactoring/renaming and other IDE-aware operations; prefer it when a change benefits from symbol-aware edits.
 
 ## System.Object to JsValue
 

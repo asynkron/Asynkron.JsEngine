@@ -17,19 +17,19 @@ public static partial class StandardLibrary
     internal const double MsPerMinute = 60000d;
     internal const double MsPerSecond = 1000d;
 
-    internal static JsValue DateParse(IReadOnlyList<JsValue> args, RealmState realm)
+    internal static JsValue DateParse(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0 || !args[0].TryGetString(out var dateStr))
         {
             return JsValue.NaN;
         }
 
-        return DateTimeOffset.TryParse(dateStr, out var parsed)
+        return DateTimeOffset.TryParse(dateStr, CultureInfo.InvariantCulture , out var parsed)
             ? new JsValue((double)parsed.ToUnixTimeMilliseconds())
             : JsValue.NaN;
     }
 
-    internal static JsValue DateUtc(IReadOnlyList<JsValue> args, RealmState realm)
+    internal static JsValue DateUtc(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {

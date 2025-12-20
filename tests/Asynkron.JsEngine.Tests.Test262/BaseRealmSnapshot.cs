@@ -72,20 +72,23 @@ internal sealed class BaseRealmSnapshot
 
     private sealed class RealmCloner
     {
-        private static readonly FieldInfo JsObjectDescriptorsField =
-            typeof(JsObject).GetField("_descriptors", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        private static readonly FieldInfo? JsObjectStateField =
+            typeof(JsObject).GetField("_state", BindingFlags.Instance | BindingFlags.NonPublic);
 
-        private static readonly FieldInfo JsObjectPrivateBrandsField =
-            typeof(JsObject).GetField("_privateBrands", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        private static readonly FieldInfo? JsObjectDescriptorsField =
+            typeof(JsObject).GetField("_descriptors", BindingFlags.Instance | BindingFlags.NonPublic);
 
-        private static readonly FieldInfo JsObjectPrivateFieldsField =
-            typeof(JsObject).GetField("_privateFields", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        private static readonly FieldInfo? JsObjectPrivateBrandsField =
+            typeof(JsObject).GetField("_privateBrands", BindingFlags.Instance | BindingFlags.NonPublic);
 
-        private static readonly FieldInfo JsObjectInsertionOrderField =
-            typeof(JsObject).GetField("_propertyInsertionOrder", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        private static readonly FieldInfo? JsObjectPrivateFieldsField =
+            typeof(JsObject).GetField("_privateFields", BindingFlags.Instance | BindingFlags.NonPublic);
 
-        private static readonly FieldInfo JsObjectInsertionNodesField =
-            typeof(JsObject).GetField("_propertyInsertionNodes", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        private static readonly FieldInfo? JsObjectInsertionOrderField =
+            typeof(JsObject).GetField("_propertyInsertionOrder", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        private static readonly FieldInfo? JsObjectInsertionNodesField =
+            typeof(JsObject).GetField("_propertyInsertionNodes", BindingFlags.Instance | BindingFlags.NonPublic);
 
         private static readonly FieldInfo JsObjectTrackArrayLengthField =
             typeof(JsObject).GetField("_trackArrayLength", BindingFlags.Instance | BindingFlags.NonPublic)!;
@@ -93,8 +96,9 @@ internal sealed class BaseRealmSnapshot
         private static readonly FieldInfo JsObjectTrackedArrayLengthField =
             typeof(JsObject).GetField("_trackedArrayLength", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
-        private static readonly FieldInfo JsObjectPrototypeAccessorField =
-            typeof(JsObject).GetField("_prototypeAccessor", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        private static readonly FieldInfo? JsObjectPrototypeAccessorField =
+            typeof(JsObject).GetField("_prototypeAccessor", BindingFlags.Instance | BindingFlags.NonPublic) ??
+            typeof(JsObject).GetField("<PrototypeAccessor>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
 
         private static readonly FieldInfo JsObjectVirtualProviderField =
             typeof(JsObject).GetField("_virtualPropertyProvider", BindingFlags.Instance | BindingFlags.NonPublic)!;
@@ -115,6 +119,13 @@ internal sealed class BaseRealmSnapshot
         private static readonly FieldInfo JsObjectIsConstructingField =
             typeof(JsObject).GetField("<IsConstructing>k__BackingField",
                 BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        private static FieldInfo? JsObjectStateStorageField;
+        private static FieldInfo? JsObjectStateDescriptorsField;
+        private static FieldInfo? JsObjectStatePrivateBrandsField;
+        private static FieldInfo? JsObjectStatePrivateFieldsField;
+        private static FieldInfo? JsObjectStateInsertionOrderField;
+        private static FieldInfo? JsObjectStateInsertionNodesField;
 
         private static readonly FieldInfo HostFunctionHandlerField =
             typeof(HostFunction).GetField("_handler", BindingFlags.Instance | BindingFlags.NonPublic)!;
@@ -381,63 +392,138 @@ internal sealed class BaseRealmSnapshot
             JsObjectIsExtensibleField.SetValue(clone, JsObjectIsExtensibleField.GetValue(original));
             JsObjectIsConstructingField.SetValue(clone, JsObjectIsConstructingField.GetValue(original));
 
-            // Copy descriptors (with deep cloning of values/getters/setters).
-            var baseDescriptors = (Dictionary<string, PropertyDescriptor>)JsObjectDescriptorsField.GetValue(original)!;
-            var cloneDescriptors = (Dictionary<string, PropertyDescriptor>)JsObjectDescriptorsField.GetValue(clone)!;
-            cloneDescriptors.Clear();
-            foreach (var kv in baseDescriptors)
+            if (JsObjectStateField is not null)
             {
-                if (skipExcludedGlobals && _excludedGlobals.Contains(kv.Key))
+                var baseState = JsObjectStateField.GetValue(original);
+                if (baseState is not null)
                 {
-                    continue;
+                    EnsureStateFields(baseState);
+                    var cloneState = JsObjectStateField.GetValue(clone);
+                    if (cloneState is null)
+                    {
+                        cloneState = Activator.CreateInstance(baseState.GetType(), nonPublic: true);
+                        JsObjectStateField.SetValue(clone, cloneState);
+                    }
+
+                    // Copy descriptors (with deep cloning of values/getters/setters).
+                    var baseDescriptors = (Dictionary<string, PropertyDescriptor>)JsObjectStateDescriptorsField!.GetValue(baseState)!;
+                    var cloneDescriptors = (Dictionary<string, PropertyDescriptor>)JsObjectStateDescriptorsField.GetValue(cloneState)!;
+                    cloneDescriptors.Clear();
+                    foreach (var kv in baseDescriptors)
+                    {
+                        if (skipExcludedGlobals && _excludedGlobals.Contains(kv.Key))
+                        {
+                            continue;
+                        }
+
+                        cloneDescriptors[kv.Key] = CloneDescriptor(kv.Value);
+                    }
+
+                    // Copy private fields.
+                    var basePrivateFields = (Dictionary<string, object?>)JsObjectStatePrivateFieldsField!.GetValue(baseState)!;
+                    var clonePrivateFields = (Dictionary<string, object?>)JsObjectStatePrivateFieldsField.GetValue(cloneState)!;
+                    clonePrivateFields.Clear();
+                    foreach (var kv in basePrivateFields)
+                    {
+                        clonePrivateFields[kv.Key] = kv.Value switch
+                        {
+                            PropertyDescriptor desc => CloneDescriptor(desc),
+                            _ => CloneValue(kv.Value)
+                        };
+                    }
+
+                    // Copy private brands.
+                    var baseBrands = (HashSet<object>)JsObjectStatePrivateBrandsField!.GetValue(baseState)!;
+                    var cloneBrands = (HashSet<object>)JsObjectStatePrivateBrandsField.GetValue(cloneState)!;
+                    cloneBrands.Clear();
+                    foreach (var brand in baseBrands)
+                    {
+                        if (CloneValue(brand) is { } clonedBrand)
+                        {
+                            cloneBrands.Add(clonedBrand);
+                        }
+                    }
+
+                    // Copy insertion order using LinkedList + Dictionary structure.
+                    var baseOrder = (LinkedList<string>)JsObjectStateInsertionOrderField!.GetValue(baseState)!;
+                    var cloneOrder = (LinkedList<string>)JsObjectStateInsertionOrderField.GetValue(cloneState)!;
+                    var cloneNodes = (Dictionary<string, LinkedListNode<string>>)JsObjectStateInsertionNodesField!.GetValue(cloneState)!;
+                    cloneOrder.Clear();
+                    cloneNodes.Clear();
+                    foreach (var key in baseOrder)
+                    {
+                        var node = cloneOrder.AddLast(key);
+                        cloneNodes[key] = node;
+                    }
+                }
+            }
+            else if (JsObjectDescriptorsField is not null &&
+                     JsObjectPrivateFieldsField is not null &&
+                     JsObjectPrivateBrandsField is not null &&
+                     JsObjectInsertionOrderField is not null &&
+                     JsObjectInsertionNodesField is not null)
+            {
+                // Copy descriptors (with deep cloning of values/getters/setters).
+                var baseDescriptors = (Dictionary<string, PropertyDescriptor>)JsObjectDescriptorsField.GetValue(original)!;
+                var cloneDescriptors = (Dictionary<string, PropertyDescriptor>)JsObjectDescriptorsField.GetValue(clone)!;
+                cloneDescriptors.Clear();
+                foreach (var kv in baseDescriptors)
+                {
+                    if (skipExcludedGlobals && _excludedGlobals.Contains(kv.Key))
+                    {
+                        continue;
+                    }
+
+                    cloneDescriptors[kv.Key] = CloneDescriptor(kv.Value);
                 }
 
-                cloneDescriptors[kv.Key] = CloneDescriptor(kv.Value);
-            }
-
-            // Copy private fields.
-            var basePrivateFields = (Dictionary<string, object?>)JsObjectPrivateFieldsField.GetValue(original)!;
-            var clonePrivateFields = (Dictionary<string, object?>)JsObjectPrivateFieldsField.GetValue(clone)!;
-            clonePrivateFields.Clear();
-            foreach (var kv in basePrivateFields)
-            {
-                clonePrivateFields[kv.Key] = kv.Value switch
+                // Copy private fields.
+                var basePrivateFields = (Dictionary<string, object?>)JsObjectPrivateFieldsField.GetValue(original)!;
+                var clonePrivateFields = (Dictionary<string, object?>)JsObjectPrivateFieldsField.GetValue(clone)!;
+                clonePrivateFields.Clear();
+                foreach (var kv in basePrivateFields)
                 {
-                    PropertyDescriptor desc => CloneDescriptor(desc),
-                    _ => CloneValue(kv.Value)
-                };
-            }
-
-            // Copy private brands.
-            var baseBrands = (HashSet<object>)JsObjectPrivateBrandsField.GetValue(original)!;
-            var cloneBrands = (HashSet<object>)JsObjectPrivateBrandsField.GetValue(clone)!;
-            cloneBrands.Clear();
-            foreach (var brand in baseBrands)
-            {
-                if (CloneValue(brand) is { } clonedBrand)
-                {
-                    cloneBrands.Add(clonedBrand);
+                    clonePrivateFields[kv.Key] = kv.Value switch
+                    {
+                        PropertyDescriptor desc => CloneDescriptor(desc),
+                        _ => CloneValue(kv.Value)
+                    };
                 }
-            }
 
-            // Copy insertion order using LinkedList + Dictionary structure.
-            var baseOrder = (LinkedList<string>)JsObjectInsertionOrderField.GetValue(original)!;
-            var cloneOrder = (LinkedList<string>)JsObjectInsertionOrderField.GetValue(clone)!;
-            var cloneNodes = (Dictionary<string, LinkedListNode<string>>)JsObjectInsertionNodesField.GetValue(clone)!;
-            cloneOrder.Clear();
-            cloneNodes.Clear();
-            foreach (var key in baseOrder)
-            {
-                var node = cloneOrder.AddLast(key);
-                cloneNodes[key] = node;
+                // Copy private brands.
+                var baseBrands = (HashSet<object>)JsObjectPrivateBrandsField.GetValue(original)!;
+                var cloneBrands = (HashSet<object>)JsObjectPrivateBrandsField.GetValue(clone)!;
+                cloneBrands.Clear();
+                foreach (var brand in baseBrands)
+                {
+                    if (CloneValue(brand) is { } clonedBrand)
+                    {
+                        cloneBrands.Add(clonedBrand);
+                    }
+                }
+
+                // Copy insertion order using LinkedList + Dictionary structure.
+                var baseOrder = (LinkedList<string>)JsObjectInsertionOrderField.GetValue(original)!;
+                var cloneOrder = (LinkedList<string>)JsObjectInsertionOrderField.GetValue(clone)!;
+                var cloneNodes = (Dictionary<string, LinkedListNode<string>>)JsObjectInsertionNodesField.GetValue(clone)!;
+                cloneOrder.Clear();
+                cloneNodes.Clear();
+                foreach (var key in baseOrder)
+                {
+                    var node = cloneOrder.AddLast(key);
+                    cloneNodes[key] = node;
+                }
             }
 
             JsObjectTrackArrayLengthField.SetValue(clone, JsObjectTrackArrayLengthField.GetValue(original));
             JsObjectTrackedArrayLengthField.SetValue(clone, JsObjectTrackedArrayLengthField.GetValue(original));
 
             // Clone prototype links.
-            var protoAccessor = (IJsPropertyAccessor?)JsObjectPrototypeAccessorField.GetValue(original);
-            JsObjectPrototypeAccessorField.SetValue(clone, CloneValue(protoAccessor));
+            if (JsObjectPrototypeAccessorField is not null)
+            {
+                var protoAccessor = (IJsPropertyAccessor?)JsObjectPrototypeAccessorField.GetValue(original);
+                JsObjectPrototypeAccessorField.SetValue(clone, CloneValue(protoAccessor));
+            }
             JsObjectPrototypeBackingField.SetValue(clone, CloneValue(original.Prototype));
 
             // Virtual providers are treated as immutable host helpers.
@@ -447,6 +533,22 @@ internal sealed class BaseRealmSnapshot
             clone.RealmState = original.RealmState is null ? null : _newRealm;
 
             return clone;
+        }
+
+        private static void EnsureStateFields(object state)
+        {
+            if (JsObjectStateStorageField is not null)
+            {
+                return;
+            }
+
+            var stateType = state.GetType();
+            JsObjectStateStorageField = stateType.GetField("Storage", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            JsObjectStateDescriptorsField = stateType.GetField("Descriptors", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            JsObjectStatePrivateBrandsField = stateType.GetField("PrivateBrands", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            JsObjectStatePrivateFieldsField = stateType.GetField("PrivateFields", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            JsObjectStateInsertionOrderField = stateType.GetField("PropertyInsertionOrder", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            JsObjectStateInsertionNodesField = stateType.GetField("PropertyInsertionNodes", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
         }
 
         private HostFunction CloneHostFunction(HostFunction original)

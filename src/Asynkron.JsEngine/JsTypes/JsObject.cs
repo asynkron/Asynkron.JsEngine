@@ -12,7 +12,7 @@ namespace Asynkron.JsEngine.JsTypes;
 /// <summary>
 ///     Simple JavaScript-like object that supports prototype chaining for property lookups.
 /// </summary>
-    public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
+public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         IPrivateBrandHolder,
         IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider
     {
@@ -20,20 +20,34 @@ namespace Asynkron.JsEngine.JsTypes;
     private const string GetterPrefix = "__getter__";
     private const string SetterPrefix = "__setter__";
 
-    // Backing storage for properties - uses HybridDictionary with JsValue to avoid boxing
-    private readonly HybridDictionary<JsValue> _storage = new();
+    private sealed class JsObjectState
+    {
+        internal readonly HybridDictionary<JsValue> Storage = new();
+        internal readonly Dictionary<string, PropertyDescriptor> Descriptors = new(StringComparer.Ordinal);
+        internal readonly HashSet<object> PrivateBrands = new(ReferenceEqualityComparer<object>.Instance);
+        internal readonly Dictionary<string, object?> PrivateFields = new(StringComparer.Ordinal);
+        internal readonly LinkedList<string> PropertyInsertionOrder = [];
+        internal readonly Dictionary<string, LinkedListNode<string>> PropertyInsertionNodes = new(StringComparer.Ordinal);
+    }
 
-    private readonly Dictionary<string, PropertyDescriptor> _descriptors = new(StringComparer.Ordinal);
-    private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
-    private readonly Dictionary<string, object?> _privateFields = new(StringComparer.Ordinal);
-    private readonly LinkedList<string> _propertyInsertionOrder = [];
-    private readonly Dictionary<string, LinkedListNode<string>> _propertyInsertionNodes = new(StringComparer.Ordinal);
+    private JsObjectState? _state;
+
+    internal int MutationVersion { get; private set; }
+
+    private void MarkMutated()
+    {
+        unchecked
+        {
+            MutationVersion++;
+        }
+    }
     private bool _trackArrayLength;
     private double _trackedArrayLength;
 
-    private IJsPropertyAccessor? _prototypeAccessor;
     private IVirtualPropertyProvider? _virtualPropertyProvider;
     private JsPromise? _promiseSlot;
+
+    private JsObjectState State => _state ??= new JsObjectState();
 
     internal RealmState? RealmState { get; set; }
 
@@ -82,40 +96,88 @@ namespace Asynkron.JsEngine.JsTypes;
 
     public void PreventExtensions()
     {
+        MarkMutated();
         IsExtensible = false;
     }
 
     public JsObject? Prototype { get; private set; }
-    public IJsPropertyAccessor? PrototypeAccessor => _prototypeAccessor;
+    public IJsPropertyAccessor? PrototypeAccessor { get; private set; }
 
     public bool IsSealed { get; private set; }
 
-    IEnumerable<string> IJsObjectLike.Keys => _storage.Keys;
+    IEnumerable<string> IJsObjectLike.Keys => _state?.Storage.Keys ?? Array.Empty<string>();
 
     // IDictionary<string, object?> implementation - wraps JsValue storage
-    public ICollection<string> Keys => _storage.Keys;
-    public ICollection<object?> Values => _storage.Values.Select(v => v.ToObject()).ToList();
-    public int Count => _storage.Count;
+    public ICollection<string> Keys => _state?.Storage.Keys ?? Array.Empty<string>();
+    public ICollection<object?> Values => _state?.Storage.Values.Select(v => v.ToObject()).ToList() ?? [];
+    public int Count => _state?.Storage.Count ?? 0;
     public bool IsReadOnly => false;
 
     // External API uses object? for compatibility
     public object? this[string key]
     {
-        get => _storage[key].ToObject();
-        set => _storage[key] = JsValue.FromObjectUnsafe(value);
+        get
+        {
+            if (_state is null || !_state.Storage.TryGetValue(key, out var jsValue))
+            {
+                throw new KeyNotFoundException();
+            }
+            return jsValue.ToObject();
+        }
+        set
+        {
+            MarkMutated();
+            State.Storage[key] = JsValue.FromObjectUnsafe(value);
+        }
     }
 
     // Internal fast path - no boxing
-    internal JsValue GetJsValue(string key) => _storage[key];
-    internal void SetJsValue(string key, JsValue value) => _storage[key] = value;
-    internal bool TryGetJsValue(string key, out JsValue value) => _storage.TryGetValue(key, out value);
+    internal JsValue GetJsValue(string key)
+    {
+        if (_state is null || !_state.Storage.TryGetValue(key, out var jsValue))
+        {
+            throw new KeyNotFoundException();
+        }
+        return jsValue;
+    }
+    internal void SetJsValue(string key, JsValue value)
+    {
+        MarkMutated();
+        State.Storage[key] = value;
+    }
+    internal bool TryGetJsValue(string key, out JsValue value)
+    {
+        if (_state is not null)
+        {
+            return _state.Storage.TryGetValue(key, out value);
+        }
 
-    public void Add(string key, object? value) => _storage.Add(key, JsValue.FromObjectUnsafe(value));
-    public bool ContainsKey(string key) => _storage.ContainsKey(key);
-    public bool Remove(string key) => _storage.Remove(key);
+        value = default;
+        return false;
+    }
+
+    public void Add(string key, object? value)
+    {
+        MarkMutated();
+        State.Storage.Add(key, JsValue.FromObjectUnsafe(value));
+    }
+    public bool ContainsKey(string key) => _state?.Storage.ContainsKey(key) ?? false;
+    public bool Remove(string key)
+    {
+        if (_state is null)
+        {
+            return false;
+        }
+        var removed = _state.Storage.Remove(key);
+        if (removed)
+        {
+            MarkMutated();
+        }
+        return removed;
+    }
     public bool TryGetValue(string key, out object? value)
     {
-        if (_storage.TryGetValue(key, out var jsValue))
+        if (_state is not null && _state.Storage.TryGetValue(key, out var jsValue))
         {
             value = jsValue.ToObject();
             return true;
@@ -123,25 +185,61 @@ namespace Asynkron.JsEngine.JsTypes;
         value = null;
         return false;
     }
-    void ICollection<KeyValuePair<string, object?>>.Add(KeyValuePair<string, object?> item) => _storage.Add(item.Key, JsValue.FromObjectUnsafe(item.Value));
-    public void Clear() => _storage.Clear();
+    void ICollection<KeyValuePair<string, object?>>.Add(KeyValuePair<string, object?> item)
+    {
+        MarkMutated();
+        State.Storage.Add(item.Key, JsValue.FromObjectUnsafe(item.Value));
+    }
+    public void Clear()
+    {
+        if (_state is null)
+        {
+            return;
+        }
+        MarkMutated();
+        _state.Storage.Clear();
+    }
     bool ICollection<KeyValuePair<string, object?>>.Contains(KeyValuePair<string, object?> item) =>
-        _storage.TryGetValue(item.Key, out var v) && Equals(v.ToObject(), item.Value);
+        _state is not null &&
+        _state.Storage.TryGetValue(item.Key, out var v) &&
+        Equals(v.ToObject(), item.Value);
+
     void ICollection<KeyValuePair<string, object?>>.CopyTo(KeyValuePair<string, object?>[] array, int arrayIndex)
     {
-        foreach (var kvp in _storage)
+        if (_state is null)
+        {
+            return;
+        }
+
+        foreach (var kvp in _state.Storage)
+        {
             array[arrayIndex++] = new KeyValuePair<string, object?>(kvp.Key, kvp.Value.ToObject());
+        }
     }
-    bool ICollection<KeyValuePair<string, object?>>.Remove(KeyValuePair<string, object?> item) =>
-        _storage.TryGetValue(item.Key, out var v) && Equals(v.ToObject(), item.Value) && _storage.Remove(item.Key);
+
+    bool ICollection<KeyValuePair<string, object?>>.Remove(KeyValuePair<string, object?> item)
+    {
+        if (_state is null ||
+            !_state.Storage.TryGetValue(item.Key, out var v) ||
+            !Equals(v.ToObject(), item.Value) ||
+            !_state.Storage.Remove(item.Key))
+        {
+            return false;
+        }
+        MarkMutated();
+        return true;
+    }
     public IEnumerator<KeyValuePair<string, object?>> GetEnumerator() =>
-        _storage.Select(kvp => new KeyValuePair<string, object?>(kvp.Key, kvp.Value.ToObject())).GetEnumerator();
+        (_state?.Storage ?? [])
+        .Select(kvp => new KeyValuePair<string, object?>(kvp.Key, kvp.Value.ToObject()))
+        .GetEnumerator();
     System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
 
     public void SetPrototype(object? candidate)
     {
-        var previous = _prototypeAccessor ?? Prototype;
-        _prototypeAccessor = candidate as IJsPropertyAccessor;
+        MarkMutated();
+        var previous = PrototypeAccessor ?? Prototype;
+        PrototypeAccessor = candidate as IJsPropertyAccessor;
         Prototype = candidate as JsObject;
 
         if (!ReferenceEquals(previous, candidate))
@@ -166,13 +264,14 @@ namespace Asynkron.JsEngine.JsTypes;
             return null;
         }
 
-        if (_descriptors.TryGetValue(name, out var descriptor))
+        var state = _state;
+        if (state is not null && state.Descriptors.TryGetValue(name, out var descriptor))
         {
             return descriptor;
         }
 
         if (_virtualPropertyProvider is not null &&
-            !_descriptors.ContainsKey(name) &&
+            (state is null || !state.Descriptors.ContainsKey(name)) &&
             !ContainsKey(name) &&
             _virtualPropertyProvider.TryGetOwnProperty(name, out _, out var virtualDescriptor))
         {
@@ -197,7 +296,12 @@ namespace Asynkron.JsEngine.JsTypes;
     /// </summary>
     internal bool HasNumericDescriptorKeys()
     {
-        foreach (var key in _descriptors.Keys)
+        var state = _state;
+        if (state is null)
+        {
+            return false;
+        }
+        foreach (var key in state.Descriptors.Keys)
         {
             if (uint.TryParse(key, out _))
             {
@@ -221,6 +325,7 @@ namespace Asynkron.JsEngine.JsTypes;
     // Fast path for JsValue that avoids boxing entirely
     private void SetPropertyJsValue(string name, JsValue value, JsValue receiver)
     {
+        MarkMutated();
         // Fast path is only valid when the receiver is this object.
         // When receiver differs (e.g. function objects using an internal property bag, Reflect.set with explicit receiver),
         // we must honor full [[Set]] semantics which may invoke inherited setters instead of creating an own property.
@@ -236,11 +341,11 @@ namespace Asynkron.JsEngine.JsTypes;
         // inherited setters (e.g. poison-pill Function.prototype.caller/arguments) to run.
         if (receiverIsThis &&
             !name.IsPrivateSlotName() &&
-            !_descriptors.ContainsKey(name) &&
-            !(Prototype is null && _prototypeAccessor is not null))
+            !(_state?.Descriptors.ContainsKey(name) ?? false) &&
+            !(Prototype is null && PrototypeAccessor is not null))
         {
             // Track if this is a new property before setting it
-            var isNewProperty = !_storage.ContainsKey(name);
+            var isNewProperty = _state is null || !_state.Storage.ContainsKey(name);
             SetJsValue(name, value);
             TrackArrayWriteJsValue(name);
             if (isNewProperty)
@@ -270,9 +375,11 @@ namespace Asynkron.JsEngine.JsTypes;
     // Internal implementation that uses object? for backward compatibility
     private void SetPropertyInternal(string name, object? value, object? receiver)
     {
+        var state = State;
+        var privateFields = state.PrivateFields;
         if (name.IsPrivateSlotName())
         {
-            if (_privateFields.TryGetValue(name, out var existing) && existing is PropertyDescriptor
+            if (privateFields.TryGetValue(name, out var existing) && existing is PropertyDescriptor
                 {
                     IsAccessorDescriptor: true
                 } desc)
@@ -289,7 +396,7 @@ namespace Asynkron.JsEngine.JsTypes;
                 return;
             }
 
-            if (_privateFields.TryGetValue(name, out existing) && existing is PropertyDescriptor dataDesc)
+            if (privateFields.TryGetValue(name, out existing) && existing is PropertyDescriptor dataDesc)
             {
                 if (!dataDesc.Writable)
                 {
@@ -299,7 +406,7 @@ namespace Asynkron.JsEngine.JsTypes;
                 }
 
                 dataDesc.Value = value;
-                _privateFields[name] = dataDesc;
+                privateFields[name] = dataDesc;
                 return;
             }
 
@@ -308,7 +415,8 @@ namespace Asynkron.JsEngine.JsTypes;
             var prototype = Prototype;
             while (prototype is not null)
             {
-                if (prototype._privateFields.TryGetValue(name, out var inherited))
+                if (prototype._state is { } protoState &&
+                    protoState.PrivateFields.TryGetValue(name, out var inherited))
                 {
                     if (inherited is PropertyDescriptor { IsAccessorDescriptor: true } inheritedDesc)
                     {
@@ -333,7 +441,7 @@ namespace Asynkron.JsEngine.JsTypes;
                         }
 
                         dataDescriptor.Value = value;
-                        prototype._privateFields[name] = dataDescriptor;
+                        protoState.PrivateFields[name] = dataDescriptor;
                         return;
                     }
                 }
@@ -349,7 +457,7 @@ namespace Asynkron.JsEngine.JsTypes;
                 realm: ResolveRealmState(receiver));
         }
 
-        var hasDescriptor = _descriptors.TryGetValue(name, out var descriptor);
+        var hasDescriptor = state.Descriptors.TryGetValue(name, out var descriptor);
         var hasDataSlot = TryGetValue(name, out _);
         var propertyExists = hasDescriptor || hasDataSlot;
 
@@ -392,9 +500,9 @@ namespace Asynkron.JsEngine.JsTypes;
         // recursively traverse the prototype chain looking for a setter.
         // This is needed for class inheritance where SubClass.__proto__ === BaseClass
         // and BaseClass.__proto__ === Function.prototype (which has the restricted setter).
-        if (_prototypeAccessor is not null)
+        if (PrototypeAccessor is not null)
         {
-            var foundSetter = FindSetterInPrototypeChain(_prototypeAccessor, name);
+            var foundSetter = FindSetterInPrototypeChain(PrototypeAccessor, name);
             if (foundSetter != null)
             {
                 foundSetter.Invoke([JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver ?? this));
@@ -424,24 +532,31 @@ namespace Asynkron.JsEngine.JsTypes;
 
     public void Seal()
     {
+        MarkMutated();
         PreventExtensions();
         IsSealed = true;
 
+        var state = _state;
+        if (state is null)
+        {
+            return;
+        }
+
         // Update all existing descriptors to be non-configurable
-        foreach (var key in Keys.ToArray())
+        foreach (var key in state.Storage.Keys.ToArray())
         {
             if (key.StartsWith(GetterPrefix, StringComparison.Ordinal) || key.StartsWith(SetterPrefix, StringComparison.Ordinal))
             {
                 continue;
             }
 
-            if (_descriptors.TryGetValue(key, out var desc))
+            if (state.Descriptors.TryGetValue(key, out var desc))
             {
                 desc.Configurable = false;
             }
             else
             {
-                _descriptors[key] = new PropertyDescriptor
+                state.Descriptors[key] = new PropertyDescriptor
                 {
                     Value = this[key], Writable = true, Enumerable = true, Configurable = false
                 };
@@ -450,12 +565,12 @@ namespace Asynkron.JsEngine.JsTypes;
     }
 
     // IJsPropertyAccessor interface implementation with JsValue
-    public bool TryGetProperty(string name, out JsValue value)
+    public virtual bool TryGetProperty(string name, out JsValue value)
     {
         // Super-fast path: direct storage access for simple data properties
         // This bypasses descriptors and virtual providers when they don't apply
         if (_virtualPropertyProvider is null &&
-            !_descriptors.ContainsKey(name) &&
+            !(_state?.Descriptors.ContainsKey(name) ?? false) &&
             !name.IsPrivateSlotName())
         {
             if (TryGetJsValue(name, out value))
@@ -469,7 +584,7 @@ namespace Asynkron.JsEngine.JsTypes;
                 return protoObj.TryGetProperty(name, out value);
             }
 
-            if (_prototypeAccessor is IJsPropertyAccessor protoAccessor)
+            if (PrototypeAccessor is IJsPropertyAccessor protoAccessor)
             {
                 return protoAccessor.TryGetProperty(name, out value);
             }
@@ -490,7 +605,7 @@ namespace Asynkron.JsEngine.JsTypes;
         return false;
     }
 
-    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
+    public virtual bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
         if (TryGetPropertyInternal(name, receiver.ToObject(), out var objValue))
         {
@@ -517,7 +632,7 @@ namespace Asynkron.JsEngine.JsTypes;
             return true;
 
         // Fast path: no prototype chain to walk
-        if (Prototype is null && _prototypeAccessor is null)
+        if (Prototype is null && PrototypeAccessor is null)
         {
             value = null;
             return false;
@@ -540,7 +655,7 @@ namespace Asynkron.JsEngine.JsTypes;
             return true;
 
         // Fast path: no prototype chain to walk
-        if (Prototype is null && _prototypeAccessor is null)
+        if (Prototype is null && PrototypeAccessor is null)
         {
             value = null;
             return false;
@@ -570,8 +685,9 @@ namespace Asynkron.JsEngine.JsTypes;
 
     internal void SeedIntrinsicConstructorKeys()
     {
-        _propertyInsertionOrder.Clear();
-        _propertyInsertionNodes.Clear();
+        var state = State;
+        state.PropertyInsertionOrder.Clear();
+        state.PropertyInsertionNodes.Clear();
         SeedOwnPropertyInsertion("length");
         SeedOwnPropertyInsertion("name");
         SeedOwnPropertyInsertion("prototype");
@@ -596,13 +712,14 @@ namespace Asynkron.JsEngine.JsTypes;
 
     public void AddPrivateBrand(object brand)
     {
-        _privateBrands.Add(brand);
+        MarkMutated();
+        State.PrivateBrands.Add(brand);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool HasPrivateBrand(object brand)
     {
-        return _privateBrands.Contains(brand);
+        return _state?.PrivateBrands.Contains(brand) ?? false;
     }
 
     public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
@@ -638,9 +755,13 @@ namespace Asynkron.JsEngine.JsTypes;
 
     private bool DefinePropertyInternal(string name, PropertyDescriptor descriptor)
     {
+        MarkMutated();
+        var state = State;
+        var privateFields = state.PrivateFields;
+        var descriptors = state.Descriptors;
         if (name.IsPrivateSlotName())
         {
-            if (_privateFields.TryGetValue(name, out var existing) && existing is PropertyDescriptor existingDescriptor)
+            if (privateFields.TryGetValue(name, out var existing) && existing is PropertyDescriptor existingDescriptor)
             {
                 if (!ValidateDescriptorChange(descriptor, existingDescriptor))
                 {
@@ -648,17 +769,17 @@ namespace Asynkron.JsEngine.JsTypes;
                 }
 
                 ApplyDescriptorChange(descriptor, existingDescriptor);
-                _privateFields[name] = existingDescriptor;
+                privateFields[name] = existingDescriptor;
                 return true;
             }
 
             var newDescriptor = descriptor.Clone();
             CompleteDescriptorForNewProperty(newDescriptor);
-            _privateFields[name] = newDescriptor;
+            privateFields[name] = newDescriptor;
             return true;
         }
 
-        var hadStoredDescriptor = _descriptors.TryGetValue(name, out var storedDescriptor);
+        var hadStoredDescriptor = descriptors.TryGetValue(name, out var storedDescriptor);
         var hadDataSlot = TryGetValue(name, out var existingValue);
         var currentDescriptor = storedDescriptor;
 
@@ -676,7 +797,7 @@ namespace Asynkron.JsEngine.JsTypes;
 
             var newDescriptor = descriptor.Clone();
             CompleteDescriptorForNewProperty(newDescriptor);
-            _descriptors[name] = newDescriptor;
+            descriptors[name] = newDescriptor;
             TrackPropertyInsertion(name);
             AssignDescriptorStorage(name, newDescriptor);
             if (_trackArrayLength)
@@ -702,7 +823,7 @@ namespace Asynkron.JsEngine.JsTypes;
 
         if (!hadStoredDescriptor)
         {
-            _descriptors[name] = currentDescriptor;
+            descriptors[name] = currentDescriptor;
             if (!hadDataSlot)
             {
                 TrackPropertyInsertion(name);
@@ -730,9 +851,13 @@ namespace Asynkron.JsEngine.JsTypes;
     /// </summary>
     private bool DefinePropertyInternalDirect(string name, PropertyDescriptor descriptor)
     {
+        MarkMutated();
+        var state = State;
+        var privateFields = state.PrivateFields;
+        var descriptors = state.Descriptors;
         if (name.IsPrivateSlotName())
         {
-            if (_privateFields.TryGetValue(name, out var existing) && existing is PropertyDescriptor existingDescriptor)
+            if (privateFields.TryGetValue(name, out var existing) && existing is PropertyDescriptor existingDescriptor)
             {
                 if (!ValidateDescriptorChange(descriptor, existingDescriptor))
                 {
@@ -740,17 +865,17 @@ namespace Asynkron.JsEngine.JsTypes;
                 }
 
                 ApplyDescriptorChange(descriptor, existingDescriptor);
-                _privateFields[name] = existingDescriptor;
+                privateFields[name] = existingDescriptor;
                 return true;
             }
 
             // Take ownership directly without cloning
             CompleteDescriptorForNewProperty(descriptor);
-            _privateFields[name] = descriptor;
+            privateFields[name] = descriptor;
             return true;
         }
 
-        var hadStoredDescriptor = _descriptors.TryGetValue(name, out var storedDescriptor);
+        var hadStoredDescriptor = descriptors.TryGetValue(name, out var storedDescriptor);
         var hadDataSlot = TryGetValue(name, out var existingValue);
         var currentDescriptor = storedDescriptor;
 
@@ -768,7 +893,7 @@ namespace Asynkron.JsEngine.JsTypes;
 
             // Take ownership directly without cloning
             CompleteDescriptorForNewProperty(descriptor);
-            _descriptors[name] = descriptor;
+            descriptors[name] = descriptor;
             TrackPropertyInsertion(name);
             AssignDescriptorStorage(name, descriptor);
             if (_trackArrayLength)
@@ -794,7 +919,7 @@ namespace Asynkron.JsEngine.JsTypes;
 
         if (!hadStoredDescriptor)
         {
-            _descriptors[name] = currentDescriptor;
+            descriptors[name] = currentDescriptor;
             if (!hadDataSlot)
             {
                 TrackPropertyInsertion(name);
@@ -982,13 +1107,14 @@ namespace Asynkron.JsEngine.JsTypes;
             return;
         }
 
-        if (_descriptors.TryGetValue("length", out var descriptor))
+        var state = State;
+        if (state.Descriptors.TryGetValue("length", out var descriptor))
         {
             descriptor.Value = _trackedArrayLength;
         }
         else
         {
-            _storage["length"] = _trackedArrayLength;
+            state.Storage["length"] = _trackedArrayLength;
         }
     }
 
@@ -1173,7 +1299,7 @@ namespace Asynkron.JsEngine.JsTypes;
                 return true;
             }
 
-            var prototype = current._prototypeAccessor;
+            var prototype = current.PrototypeAccessor;
             switch (prototype)
             {
                 case null:
@@ -1296,12 +1422,13 @@ namespace Asynkron.JsEngine.JsTypes;
 
     internal bool ForceDeleteOwnProperty(string name)
     {
-        var deletedDescriptor = _descriptors.Remove(name);
+        var deletedDescriptor = _state?.Descriptors.Remove(name) ?? false;
         Remove(GetterPrefix + name);
         Remove(SetterPrefix + name);
         var deletedValue = Remove(name);
         if (deletedDescriptor || deletedValue)
         {
+            MarkMutated();
             RemoveFromInsertionOrder(name);
             return true;
         }
@@ -1311,23 +1438,26 @@ namespace Asynkron.JsEngine.JsTypes;
 
     public bool DeleteOwnProperty(string name)
     {
-        if (_descriptors.TryGetValue(name, out var descriptor))
+        var state = _state;
+        if (state is not null && state.Descriptors.TryGetValue(name, out var descriptor))
         {
             if (!descriptor.Configurable)
             {
                 return false;
             }
 
-            _descriptors.Remove(name);
+            state.Descriptors.Remove(name);
             Remove(GetterPrefix + name);
             Remove(SetterPrefix + name);
             Remove(name);
+            MarkMutated();
             RemoveFromInsertionOrder(name);
             return true;
         }
 
         if (Remove(name))
         {
+            MarkMutated();
             RemoveFromInsertionOrder(name);
             return true;
         }
@@ -1338,26 +1468,33 @@ namespace Asynkron.JsEngine.JsTypes;
 
     public void Freeze()
     {
+        MarkMutated();
         PreventExtensions();
         IsFrozen = true;
         IsSealed = true; // Frozen implies sealed
 
+        var state = _state;
+        if (state is null)
+        {
+            return;
+        }
+
         // Update all existing descriptors to be non-writable and non-configurable
-        foreach (var key in Keys.ToArray())
+        foreach (var key in state.Storage.Keys.ToArray())
         {
             if (key.StartsWith(GetterPrefix, StringComparison.Ordinal) || key.StartsWith(SetterPrefix, StringComparison.Ordinal))
             {
                 continue;
             }
 
-            if (_descriptors.TryGetValue(key, out var desc))
+            if (state.Descriptors.TryGetValue(key, out var desc))
             {
                 desc.Writable = false;
                 desc.Configurable = false;
             }
             else
             {
-                _descriptors[key] = new PropertyDescriptor
+                state.Descriptors[key] = new PropertyDescriptor
                 {
                     Value = this[key], Writable = false, Enumerable = true, Configurable = false
                 };
@@ -1379,7 +1516,7 @@ namespace Asynkron.JsEngine.JsTypes;
             return true;
 
         // Fast path: no prototype chain to walk
-        if (Prototype is null && _prototypeAccessor is null)
+        if (Prototype is null && PrototypeAccessor is null)
         {
             value = null;
             return false;
@@ -1432,7 +1569,7 @@ namespace Asynkron.JsEngine.JsTypes;
 
     private IJsPropertyAccessor? ResolvePrototypeAccessor()
     {
-        var prototype = _prototypeAccessor;
+        var prototype = PrototypeAccessor;
         if (prototype is null && TryGetValue(PrototypeKey, out var protoCandidate) &&
             protoCandidate is IJsPropertyAccessor accessor)
         {
@@ -1497,7 +1634,7 @@ namespace Asynkron.JsEngine.JsTypes;
 
     internal bool HasPrivateField(string name)
     {
-        return _privateFields.ContainsKey(name);
+        return _state?.PrivateFields.ContainsKey(name) ?? false;
     }
 
     private bool TryGetProperty(string name, object? receiver, int depth,
@@ -1513,7 +1650,7 @@ namespace Asynkron.JsEngine.JsTypes;
 
         if (name.IsPrivateSlotName())
         {
-            if (_privateFields.TryGetValue(name, out var slot))
+            if (_state is { } state && state.PrivateFields.TryGetValue(name, out var slot))
             {
                 switch (slot)
                 {
@@ -1574,7 +1711,7 @@ namespace Asynkron.JsEngine.JsTypes;
             return true;
         }
 
-        var prototype = _prototypeAccessor;
+        var prototype = PrototypeAccessor;
         if (prototype is null && TryGetValue(PrototypeKey, out var protoCandidate) &&
             protoCandidate is IJsPropertyAccessor accessor)
         {
@@ -1623,7 +1760,7 @@ namespace Asynkron.JsEngine.JsTypes;
     private bool TryGetOwnProperty(string name, object? receiver, EvaluationContext? context, out object? value)
     {
         if (_virtualPropertyProvider is not null &&
-            !_descriptors.ContainsKey(name) &&
+            (_state is null || !_state.Descriptors.ContainsKey(name)) &&
             !ContainsKey(name) &&
             _virtualPropertyProvider.TryGetOwnProperty(name, out value, out var virtualDescriptor))
         {
@@ -1660,7 +1797,7 @@ namespace Asynkron.JsEngine.JsTypes;
 
         }
 
-        if (_descriptors.TryGetValue(name, out var descriptor))
+        if (_state is not null && _state.Descriptors.TryGetValue(name, out var descriptor))
         {
             if (descriptor.IsAccessorDescriptor)
             {
@@ -1730,19 +1867,21 @@ namespace Asynkron.JsEngine.JsTypes;
             return;
         }
 
-        if (!_propertyInsertionNodes.ContainsKey(name))
+        var state = State;
+        if (!state.PropertyInsertionNodes.ContainsKey(name))
         {
-            var node = _propertyInsertionOrder.AddLast(name);
-            _propertyInsertionNodes[name] = node;
+            var node = state.PropertyInsertionOrder.AddLast(name);
+            state.PropertyInsertionNodes[name] = node;
         }
     }
 
     private void RemoveFromInsertionOrder(string name)
     {
-        if (_propertyInsertionNodes.TryGetValue(name, out var node))
+        var state = _state;
+        if (state is not null && state.PropertyInsertionNodes.TryGetValue(name, out var node))
         {
-            _propertyInsertionOrder.Remove(node);
-            _propertyInsertionNodes.Remove(name);
+            state.PropertyInsertionOrder.Remove(node);
+            state.PropertyInsertionNodes.Remove(name);
         }
     }
 
@@ -1770,7 +1909,7 @@ namespace Asynkron.JsEngine.JsTypes;
         var stringKeys = new List<string>();
         var symbolKeys = new List<string>();
 
-        foreach (var key in _propertyInsertionOrder)
+        foreach (var key in _state?.PropertyInsertionOrder ?? [])
         {
             if (IsInternalKey(key))
             {

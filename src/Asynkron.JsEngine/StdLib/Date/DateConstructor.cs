@@ -70,11 +70,11 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
             new HostFunction(_ => new JsValue((double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()), Realm, isConstructor: false),
             Realm);
 
-        constructor.SetHostedProperty("UTC", new HostFunction(args => DateUtc(args, Realm), Realm, isConstructor: false),
+        constructor.SetHostedProperty("UTC", new HostFunction(args => DateUtc(args), Realm, isConstructor: false),
             Realm);
 
         constructor.SetHostedProperty("parse",
-            new HostFunction(args => DateParse(args, Realm), Realm, isConstructor: false), Realm);
+            new HostFunction(args => DateParse(args), Realm, isConstructor: false), Realm);
     }
 
     private HostFunction ConstructFallback =>

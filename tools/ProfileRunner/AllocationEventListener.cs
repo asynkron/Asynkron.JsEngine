@@ -74,7 +74,21 @@ public sealed class AllocationEventListener : IDisposable
         Stop();
     }
 
-    public void PrintReport(int topN = 50)
+    public IReadOnlyList<AllocationInfo> GetTopAllocations(int topN = 50)
+    {
+        return _allocations.Values
+            .OrderByDescending(a => a.TotalBytes)
+            .Take(topN)
+            .Select(a => new AllocationInfo
+            {
+                TypeName = a.TypeName,
+                Count = a.Count,
+                TotalBytes = a.TotalBytes
+            })
+            .ToList();
+    }
+
+    public void PrintReport(IReadOnlyList<AllocationInfo> topAllocations)
     {
         Console.WriteLine();
         Console.WriteLine("=== ALLOCATION BY TYPE (sampled) ===");
@@ -82,14 +96,10 @@ public sealed class AllocationEventListener : IDisposable
         Console.WriteLine($"{"Type",-70} {"Count",12} {"Total",15}");
         Console.WriteLine(new string('-', 100));
 
-        var sorted = _allocations.Values
-            .OrderByDescending(a => a.TotalBytes)
-            .Take(topN);
-
         long grandTotal = 0;
         long grandCount = 0;
 
-        foreach (var alloc in sorted)
+        foreach (var alloc in topAllocations)
         {
             var displayName = alloc.TypeName.Length > 68
                 ? "..." + alloc.TypeName[^65..]

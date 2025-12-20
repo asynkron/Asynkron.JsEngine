@@ -8,9 +8,11 @@ using ProfileRunner;
 
 const string listCommand = "list";
 const string memoryFlag = "--memory";
+const string jsonOutputFlag = "--json-output";
 
 var argList = new List<string>(args);
 var runMemory = argList.Remove(memoryFlag);
+var jsonOutputPath = ExtractJsonOutput(argList);
 
 var profileKey = argList.Count > 0 ? argList[0] : "fib";
 var repoRoot = FindRepoRoot();
@@ -63,7 +65,7 @@ if (!string.IsNullOrWhiteSpace(profile.Header))
 
 if (runMemory)
 {
-    await RunMemoryProfileAsync(script, isAsync, profile, traceRealm);
+    await RunMemoryProfileAsync(script, isAsync, profile, traceRealm, profileKey, jsonOutputPath);
     return;
 }
 
@@ -180,7 +182,9 @@ async Task RunMemoryProfileAsync(
     string source,
     bool isAsyncRun,
     ProfileDefinition profile,
-    bool traceRealm)
+    bool traceRealm,
+    string profileKey,
+    string? jsonOutputPath)
 {
     var iterations = profile.Iterations > 0 ? profile.Iterations : 100;
     var warmup = profile.Warmup > 0 ? profile.Warmup : 1;
@@ -230,12 +234,14 @@ async Task RunMemoryProfileAsync(
     var gen1Collections = finalGen1 - baselineGen1;
     var gen2Collections = finalGen2 - baselineGen2;
 
+    var perIterationTimeMs = iterations > 0 ? sw.ElapsedMilliseconds / (double)iterations : 0d;
+
     Console.WriteLine("=== ALLOCATION REPORT ===");
     Console.WriteLine();
     Console.WriteLine($"Iterations:           {iterations.ToString(CultureInfo.InvariantCulture)}");
     Console.WriteLine($"Total time:           {sw.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture)} ms");
     Console.WriteLine(
-        $"Per iteration:        {(sw.ElapsedMilliseconds / (double)iterations).ToString("F2", CultureInfo.InvariantCulture)} ms");
+        $"Per iteration:        {perIterationTimeMs.ToString("F2", CultureInfo.InvariantCulture)} ms");
     Console.WriteLine();
     Console.WriteLine($"Total allocated:      {FormatBytes(totalAllocated)}");
     Console.WriteLine($"Per iteration:        {FormatBytes(perIterationBytes)}");
@@ -257,15 +263,40 @@ async Task RunMemoryProfileAsync(
     var parseStart = GC.GetAllocatedBytesForCurrentThread();
     var parsed = phaseEngine.ParseProgram(source);
     var parseEnd = GC.GetAllocatedBytesForCurrentThread();
-    Console.WriteLine($"Parse:                {FormatBytes(parseEnd - parseStart)}");
+    var parseAllocatedBytes = parseEnd - parseStart;
+    Console.WriteLine($"Parse:                {FormatBytes(parseAllocatedBytes)}");
 
     var evalStart = GC.GetAllocatedBytesForCurrentThread();
     await EvaluateAsync(phaseEngine, parsed, isAsyncRun);
     var evalEnd = GC.GetAllocatedBytesForCurrentThread();
-    Console.WriteLine($"Evaluate:             {FormatBytes(evalEnd - evalStart)}");
+    var evalAllocatedBytes = evalEnd - evalStart;
+    Console.WriteLine($"Evaluate:             {FormatBytes(evalAllocatedBytes)}");
     Console.WriteLine();
 
-    allocationListener.PrintReport(50);
+    var topAllocations = allocationListener.GetTopAllocations(50);
+    allocationListener.PrintReport(topAllocations);
+
+    if (!string.IsNullOrWhiteSpace(jsonOutputPath))
+    {
+        WriteMemoryProfileJson(
+            jsonOutputPath,
+            profileKey,
+            profile.Name,
+            profile.Description,
+            iterations,
+            sw.ElapsedMilliseconds,
+            perIterationTimeMs,
+            totalAllocated,
+            perIterationBytes,
+            gen0Collections,
+            gen1Collections,
+            gen2Collections,
+            parseAllocatedBytes,
+            evalAllocatedBytes,
+            baselineTotal,
+            finalTotal,
+            topAllocations);
+    }
 
     Console.WriteLine("=== END REPORT ===");
 }
@@ -381,6 +412,114 @@ static string FindRepoRoot()
     }
 
     throw new InvalidOperationException("Unable to locate profile-manifest.json.");
+}
+
+static string? ExtractJsonOutput(List<string> argList)
+{
+    for (var i = 0; i < argList.Count; i++)
+    {
+        var arg = argList[i];
+        if (string.Equals(arg, jsonOutputFlag, StringComparison.Ordinal))
+        {
+            if (i + 1 < argList.Count)
+            {
+                var value = argList[i + 1];
+                argList.RemoveAt(i + 1);
+                argList.RemoveAt(i);
+                return value;
+            }
+        }
+
+        if (arg.StartsWith(jsonOutputFlag + "=", StringComparison.Ordinal))
+        {
+            var value = arg[(jsonOutputFlag.Length + 1)..];
+            argList.RemoveAt(i);
+            return value;
+        }
+    }
+
+    return null;
+}
+
+static void WriteMemoryProfileJson(
+    string outputPath,
+    string profileKey,
+    string profileName,
+    string description,
+    int iterations,
+    long totalTimeMs,
+    double perIterationTimeMs,
+    long totalAllocatedBytes,
+    long perIterationAllocatedBytes,
+    int gen0Collections,
+    int gen1Collections,
+    int gen2Collections,
+    long parseAllocatedBytes,
+    long evalAllocatedBytes,
+    long heapBeforeBytes,
+    long heapAfterBytes,
+    IReadOnlyList<AllocationEventListener.AllocationInfo> allocations)
+{
+    var allocationEntries = new List<Dictionary<string, object?>>(allocations.Count);
+    long allocationTotalBytes = 0;
+    long allocationTotalCount = 0;
+
+    foreach (var allocation in allocations)
+    {
+        allocationTotalBytes += allocation.TotalBytes;
+        allocationTotalCount += allocation.Count;
+
+        allocationEntries.Add(new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["type"] = allocation.TypeName,
+            ["count"] = allocation.Count,
+            ["total_bytes"] = allocation.TotalBytes,
+            ["total"] = FormatBytes(allocation.TotalBytes)
+        });
+    }
+
+    var payload = new Dictionary<string, object?>(StringComparer.Ordinal)
+    {
+        ["profile_key"] = profileKey,
+        ["profile_name"] = profileName,
+        ["description"] = description,
+        ["iterations"] = iterations,
+        ["total_time"] = totalTimeMs.ToString(CultureInfo.InvariantCulture) + " ms",
+        ["per_iteration_time"] = perIterationTimeMs.ToString("F2", CultureInfo.InvariantCulture) + " ms",
+        ["total_allocated"] = FormatBytes(totalAllocatedBytes),
+        ["per_iteration_allocated"] = FormatBytes(perIterationAllocatedBytes),
+        ["gen0_collections"] = gen0Collections,
+        ["gen1_collections"] = gen1Collections,
+        ["gen2_collections"] = gen2Collections,
+        ["parse_allocated"] = FormatBytes(parseAllocatedBytes),
+        ["evaluate_allocated"] = FormatBytes(evalAllocatedBytes),
+        ["heap_before"] = FormatBytes(heapBeforeBytes),
+        ["heap_after"] = FormatBytes(heapAfterBytes),
+        ["total_allocated_bytes"] = totalAllocatedBytes,
+        ["per_iteration_allocated_bytes"] = perIterationAllocatedBytes,
+        ["parse_allocated_bytes"] = parseAllocatedBytes,
+        ["evaluate_allocated_bytes"] = evalAllocatedBytes,
+        ["heap_before_bytes"] = heapBeforeBytes,
+        ["heap_after_bytes"] = heapAfterBytes,
+        ["allocation_total_count"] = allocationTotalCount,
+        ["allocation_total_bytes"] = allocationTotalBytes,
+        ["allocation_total"] = FormatBytes(allocationTotalBytes),
+        ["allocation_by_type"] = allocationEntries
+    };
+
+    var directory = Path.GetDirectoryName(outputPath);
+    if (!string.IsNullOrWhiteSpace(directory))
+    {
+        Directory.CreateDirectory(directory);
+    }
+
+    var options = new JsonSerializerOptions
+    {
+        WriteIndented = true
+    };
+
+    var json = JsonSerializer.Serialize(payload, options);
+    File.WriteAllText(outputPath, json);
 }
 
 static string FormatBytes(long bytes)

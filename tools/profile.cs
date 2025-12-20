@@ -344,8 +344,11 @@ Dictionary<string, string>? MemoryProfile(string profileKey)
         return null;
     }
 
+    var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
+    var jsonPath = Path.Combine(outputDir, $"{profileKey}_{timestamp}.memory.json");
+
     var (success, stdout, stderr) = RunCommand(
-        $"\"{exePath}\" {profileKey} --memory",
+        $"\"{exePath}\" {profileKey} --memory --json-output \"{jsonPath}\"",
         timeoutMs: 180000);
 
     if (!success)
@@ -354,7 +357,66 @@ Dictionary<string, string>? MemoryProfile(string profileKey)
         return null;
     }
 
+    if (File.Exists(jsonPath))
+    {
+        return ParseMemoryJson(jsonPath);
+    }
+
     return ParseAllocationOutput(stdout);
+}
+
+Dictionary<string, string> ParseMemoryJson(string jsonPath)
+{
+    var json = File.ReadAllText(jsonPath);
+    using var doc = JsonDocument.Parse(json);
+    var root = doc.RootElement;
+
+    var results = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    AddJsonValue(results, root, "iterations");
+    AddJsonValue(results, root, "total_time");
+    AddJsonValue(results, root, "per_iteration_time");
+    AddJsonValue(results, root, "total_allocated");
+    AddJsonValue(results, root, "per_iteration_allocated");
+    AddJsonValue(results, root, "gen0_collections");
+    AddJsonValue(results, root, "gen1_collections");
+    AddJsonValue(results, root, "gen2_collections");
+    AddJsonValue(results, root, "parse_allocated");
+    AddJsonValue(results, root, "evaluate_allocated");
+    AddJsonValue(results, root, "heap_before");
+    AddJsonValue(results, root, "heap_after");
+    AddJsonValue(results, root, "allocation_total");
+    AddJsonValue(results, root, "allocation_total_count");
+
+    if (root.TryGetProperty("allocation_by_type", out var allocations) &&
+        allocations.ValueKind == JsonValueKind.Array)
+    {
+        results["allocation_entries_json"] = allocations.GetRawText();
+    }
+
+    return results;
+}
+
+void AddJsonValue(Dictionary<string, string> results, JsonElement root, string key)
+{
+    if (!root.TryGetProperty(key, out var element))
+    {
+        return;
+    }
+
+    switch (element.ValueKind)
+    {
+        case JsonValueKind.String:
+            results[key] = element.GetString() ?? string.Empty;
+            break;
+        case JsonValueKind.Number:
+            results[key] = element.GetRawText();
+            break;
+        case JsonValueKind.True:
+        case JsonValueKind.False:
+            results[key] = element.GetBoolean().ToString();
+            break;
+    }
 }
 
 Dictionary<string, string> ParseAllocationOutput(string output)
@@ -528,10 +590,61 @@ void PrintMemoryResults(Dictionary<string, string>? results, string profileKey)
         PrintSection("Allocation By Type (Sampled)");
         AnsiConsole.WriteLine(allocationTable);
     }
+    else if (results.TryGetValue("allocation_entries_json", out var allocationJson) &&
+             !string.IsNullOrWhiteSpace(allocationJson))
+    {
+        PrintSection("Allocation By Type (Sampled)");
+        results.TryGetValue("allocation_total", out var allocationTotal);
+        PrintAllocationTable(allocationJson, allocationTotal);
+    }
     else if (!hasRows && results.TryGetValue("raw_output", out var rawOutput))
     {
         AnsiConsole.WriteLine(rawOutput);
     }
+}
+
+void PrintAllocationTable(string allocationJson, string? allocationTotal)
+{
+    using var doc = JsonDocument.Parse(allocationJson);
+    var entries = doc.RootElement;
+    if (entries.ValueKind != JsonValueKind.Array || entries.GetArrayLength() == 0)
+    {
+        return;
+    }
+
+    var table = new Table()
+        .Border(TableBorder.Rounded)
+        .AddColumn(new TableColumn("[yellow]Type[/]"))
+        .AddColumn(new TableColumn("[yellow]Count[/]").RightAligned())
+        .AddColumn(new TableColumn("[yellow]Total[/]").RightAligned());
+
+    long totalCount = 0;
+
+    foreach (var entry in entries.EnumerateArray())
+    {
+        var typeName = entry.TryGetProperty("type", out var typeElement)
+            ? typeElement.GetString() ?? "Unknown"
+            : "Unknown";
+        var count = entry.TryGetProperty("count", out var countElement) && countElement.TryGetInt64(out var countValue)
+            ? countValue
+            : 0;
+        var totalText = entry.TryGetProperty("total", out var totalElement)
+            ? totalElement.GetString() ?? string.Empty
+            : string.Empty;
+
+        totalCount += count;
+
+        var countText = count.ToString("N0", CultureInfo.InvariantCulture);
+        table.AddRow(Markup.Escape(typeName), countText, Markup.Escape(totalText));
+    }
+
+    if (!string.IsNullOrWhiteSpace(allocationTotal))
+    {
+        var countText = totalCount.ToString("N0", CultureInfo.InvariantCulture);
+        table.AddRow("[bold]TOTAL (shown)[/]", $"[bold]{countText}[/]", $"[bold]{Markup.Escape(allocationTotal)}[/]");
+    }
+
+    AnsiConsole.Write(table);
 }
 
 Dictionary<string, object>? HeapProfile(string profileKey)

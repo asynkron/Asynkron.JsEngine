@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    internal static JsValue ReflectApply(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
+    internal static JsValue ReflectApply(JsValue _, IReadOnlyList<JsValue> args)
     {
         if (args.Count < 2 || !args[0].TryGetObject<IJsCallable>(out var callable))
         {

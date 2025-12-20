@@ -58,31 +58,29 @@ JavaScript expects consistent number formatting (US/Invariant style with periods
 
 ### Profiler Script (Recommended)
 
-The easiest way to profile JsEngine is using the unified C# profiler script:
+The easiest way to profile JsEngine is using the unified C# profiler app:
 
 ```bash
-cd tools
-
 # Profile fibonacci (CPU + memory)
-./profile.cs fib
+./tools/profile fib
 
 # Profile forloop (CPU + memory)
-./profile.cs forloop
+./tools/profile forloop
 
 # Profile all benchmarks
-./profile.cs all
+./tools/profile all
 
 # CPU profiling only
-./profile.cs fib --cpu
+./tools/profile fib --cpu
 
 # Memory profiling only
-./profile.cs fib --memory
+./tools/profile fib --memory
 
 # Heap snapshot only
-./profile.cs fib --heap
+./tools/profile fib --heap
 
 # Run Jint comparison benchmarks
-./profile.cs --compare
+./tools/profile --compare
 ```
 
 The script automatically:

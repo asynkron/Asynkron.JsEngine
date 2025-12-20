@@ -1,9 +1,3 @@
-#!/usr/bin/env dotnet run
-#:package System.CommandLine@2.0.0-beta4.22272.1
-#:package Spectre.Console@0.49.1
-
-#pragma warning disable MA0048 // Script file name does not match implicit Program type.
-
 using System.CommandLine;
 using System.Diagnostics;
 using System.Globalization;

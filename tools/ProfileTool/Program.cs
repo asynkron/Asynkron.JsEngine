@@ -248,7 +248,8 @@ void PrintCpuResults(
     int callTreeDepth,
     int callTreeWidth,
     string? callTreeRootMode,
-    bool showSelfTimeTree)
+    bool showSelfTimeTree,
+    int callTreeSiblingCutoffPercent)
 {
     if (results == null)
     {
@@ -377,10 +378,26 @@ void PrintCpuResults(
     if (showCallTree)
     {
         var resolvedRoot = ResolveCallTreeRootFilter(results, rootFilter);
-        AnsiConsole.Write(BuildCallTree(results, useSelfTime: false, resolvedRoot, includeRuntime, callTreeDepth, callTreeWidth, callTreeRootMode));
+        AnsiConsole.Write(BuildCallTree(
+            results,
+            useSelfTime: false,
+            resolvedRoot,
+            includeRuntime,
+            callTreeDepth,
+            callTreeWidth,
+            callTreeRootMode,
+            callTreeSiblingCutoffPercent));
         if (showSelfTimeTree)
         {
-            AnsiConsole.Write(BuildCallTree(results, useSelfTime: true, resolvedRoot, includeRuntime, callTreeDepth, callTreeWidth, callTreeRootMode));
+            AnsiConsole.Write(BuildCallTree(
+                results,
+                useSelfTime: true,
+                resolvedRoot,
+                includeRuntime,
+                callTreeDepth,
+                callTreeWidth,
+                callTreeRootMode,
+                callTreeSiblingCutoffPercent));
         }
     }
 }
@@ -688,13 +705,15 @@ Panel BuildCallTree(
     bool includeRuntime,
     int maxDepth,
     int maxWidth,
-    string? rootMode)
+    string? rootMode,
+    int siblingCutoffPercent)
 {
     var callTreeRoot = results.CallTreeRoot;
     var totalTime = results.CallTreeTotal;
     var title = useSelfTime ? "Call Tree (Self Time)" : "Call Tree (Total Time)";
     maxDepth = Math.Max(1, maxDepth);
     maxWidth = Math.Max(1, maxWidth);
+    siblingCutoffPercent = Math.Max(0, siblingCutoffPercent);
 
     var rootNode = callTreeRoot;
     var rootTotal = totalTime;
@@ -715,15 +734,25 @@ Panel BuildCallTree(
 
     var rootLabel = FormatCallTreeLine(rootNode, rootTotal, useSelfTime, isRoot: true);
     var tree = new Tree(rootLabel).Guide(new CompactTreeGuide());
-    var children = GetVisibleChildren(rootNode, includeRuntime, useSelfTime, maxWidth);
+    var children = GetVisibleChildren(rootNode, includeRuntime, useSelfTime, maxWidth, siblingCutoffPercent);
     foreach (var child in children)
     {
         var isSpecialLeaf = ShouldStopAtLeaf(child);
-        var isLeaf = isSpecialLeaf || maxDepth <= 1 || GetVisibleChildren(child, includeRuntime, useSelfTime, maxWidth).Count == 0;
+        var isLeaf = isSpecialLeaf || maxDepth <= 1 ||
+                     GetVisibleChildren(child, includeRuntime, useSelfTime, maxWidth, siblingCutoffPercent).Count == 0;
         var childNode = tree.AddNode(FormatCallTreeLine(child, rootTotal, useSelfTime, isRoot: false, isLeaf));
         if (!isSpecialLeaf)
         {
-            AddCallTreeChildren(childNode, child, rootTotal, useSelfTime, includeRuntime, 2, maxDepth, maxWidth);
+            AddCallTreeChildren(
+                childNode,
+                child,
+                rootTotal,
+                useSelfTime,
+                includeRuntime,
+                2,
+                maxDepth,
+                maxWidth,
+                siblingCutoffPercent);
         }
     }
 
@@ -741,28 +770,38 @@ void AddCallTreeChildren(
     bool includeRuntime,
     int depth,
     int maxDepth,
-    int maxWidth)
+    int maxWidth,
+    int siblingCutoffPercent)
 {
     if (depth > maxDepth)
     {
         return;
     }
 
-    var children = GetVisibleChildren(node, includeRuntime, useSelfTime, maxWidth);
+    var children = GetVisibleChildren(node, includeRuntime, useSelfTime, maxWidth, siblingCutoffPercent);
 
     foreach (var child in children)
     {
         var nextDepth = depth + 1;
         var isSpecialLeaf = ShouldStopAtLeaf(child);
         var childChildren = !isSpecialLeaf && nextDepth <= maxDepth
-            ? GetVisibleChildren(child, includeRuntime, useSelfTime, maxWidth)
+            ? GetVisibleChildren(child, includeRuntime, useSelfTime, maxWidth, siblingCutoffPercent)
             : Array.Empty<CallTreeNode>();
         var isLeaf = isSpecialLeaf || nextDepth > maxDepth || childChildren.Count == 0;
 
         var childNode = parent.AddNode(FormatCallTreeLine(child, totalTime, useSelfTime, isRoot: false, isLeaf));
         if (!isSpecialLeaf)
         {
-            AddCallTreeChildren(childNode, child, totalTime, useSelfTime, includeRuntime, depth + 1, maxDepth, maxWidth);
+            AddCallTreeChildren(
+                childNode,
+                child,
+                totalTime,
+                useSelfTime,
+                includeRuntime,
+                depth + 1,
+                maxDepth,
+                maxWidth,
+                siblingCutoffPercent);
         }
     }
 }
@@ -1057,10 +1096,32 @@ IReadOnlyList<CallTreeNode> GetVisibleChildren(
     CallTreeNode node,
     bool includeRuntime,
     bool useSelfTime,
-    int maxWidth)
+    int maxWidth,
+    int siblingCutoffPercent)
 {
-    return EnumerateVisibleChildren(node, includeRuntime)
+    var ordered = EnumerateVisibleChildren(node, includeRuntime)
         .OrderByDescending(child => GetCallTreeTime(child, useSelfTime))
+        .ToList();
+
+    if (ordered.Count == 0)
+    {
+        return ordered;
+    }
+
+    if (siblingCutoffPercent <= 0)
+    {
+        return ordered.Take(maxWidth).ToList();
+    }
+
+    var topTime = GetCallTreeTime(ordered[0], useSelfTime);
+    if (topTime <= 0)
+    {
+        return ordered.Take(maxWidth).ToList();
+    }
+
+    var minTime = topTime * siblingCutoffPercent / 100d;
+    return ordered
+        .Where(child => GetCallTreeTime(child, useSelfTime) >= minTime)
         .Take(maxWidth)
         .ToList();
 }
@@ -1445,6 +1506,7 @@ var callTreeDepthOption = new Option<int>("--calltree-depth", () => 8, "Maximum 
 var callTreeWidthOption = new Option<int>("--calltree-width", () => 8, "Maximum children per node (default: 8)");
 var callTreeRootModeOption = new Option<string?>("--root-mode", () => "hottest", "Root selection mode when multiple matches (hottest|shallowest|first)");
 var callTreeSelfOption = new Option<bool>("--calltree-self", "Show self-time call tree in addition to total time");
+var callTreeSiblingCutoffOption = new Option<int>("--calltree-sibling-cutoff", () => 5, "Hide siblings below X% of the top sibling (default: 5)");
 var functionFilterOption = new Option<string?>("--filter", "Filter CPU function tables by substring (case-insensitive)");
 var includeRuntimeOption = new Option<bool>("--include-runtime", "Include runtime/process frames in CPU tables and call tree");
 var compareOption = new Option<bool>("--compare", "Run Jint comparison benchmarks");
@@ -1461,6 +1523,7 @@ var rootCommand = new RootCommand("JsEngine Profiler - CPU and Memory profiling 
     callTreeWidthOption,
     callTreeRootModeOption,
     callTreeSelfOption,
+    callTreeSiblingCutoffOption,
     functionFilterOption,
     includeRuntimeOption,
     compareOption
@@ -1478,6 +1541,7 @@ rootCommand.SetHandler(context =>
     var callTreeWidth = context.ParseResult.GetValueForOption(callTreeWidthOption);
     var callTreeRootMode = context.ParseResult.GetValueForOption(callTreeRootModeOption);
     var callTreeSelf = context.ParseResult.GetValueForOption(callTreeSelfOption);
+    var callTreeSiblingCutoff = context.ParseResult.GetValueForOption(callTreeSiblingCutoffOption);
     var functionFilter = context.ParseResult.GetValueForOption(functionFilterOption);
     var includeRuntime = context.ParseResult.GetValueForOption(includeRuntimeOption);
     var compare = context.ParseResult.GetValueForOption(compareOption);
@@ -1534,7 +1598,8 @@ rootCommand.SetHandler(context =>
                 callTreeDepth,
                 callTreeWidth,
                 callTreeRootMode,
-                callTreeSelf);
+                callTreeSelf,
+                callTreeSiblingCutoff);
         }
 
         if (runMemory)

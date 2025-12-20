@@ -56,30 +56,33 @@ JavaScript expects consistent number formatting (US/Invariant style with periods
 
 ## Profiling
 
-### Python Profiler Script (Recommended)
+### Profiler Script (Recommended)
 
-The easiest way to profile JsEngine is using the unified Python profiler script:
+The easiest way to profile JsEngine is using the unified C# profiler script:
 
 ```bash
 cd tools
 
 # Profile fibonacci (CPU + memory)
-python3 profile.py fib
+./profile.cs fib
 
 # Profile forloop (CPU + memory)
-python3 profile.py forloop
+./profile.cs forloop
 
 # Profile all benchmarks
-python3 profile.py all
+./profile.cs all
 
 # CPU profiling only
-python3 profile.py fib --cpu
+./profile.cs fib --cpu
 
 # Memory profiling only
-python3 profile.py fib --memory
+./profile.cs fib --memory
+
+# Heap snapshot only
+./profile.cs fib --heap
 
 # Run Jint comparison benchmarks
-python3 profile.py --compare
+./profile.cs --compare
 ```
 
 The script automatically:

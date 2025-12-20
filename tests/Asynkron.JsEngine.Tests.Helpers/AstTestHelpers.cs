@@ -17,7 +17,7 @@ public static class AstTestHelpers
     /// Runs the standard lexer/parser/constant-folding/scope-analysis pipeline used in tests.
     /// Optionally applies CPS transformation when required.
     /// </summary>
-    public static AstPipelineResult ParseAndAnalyze(string source, bool applyCps = true)
+    public static AstPipelineResult ParseAndAnalyze(string source)
     {
         var lexer = new Lexer(source);
         var tokens = lexer.Tokenize();

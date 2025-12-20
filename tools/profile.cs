@@ -1,29 +1,26 @@
 #!/usr/bin/env dotnet run
 #:package System.CommandLine@2.0.0-beta4.22272.1
+#:package Spectre.Console@0.49.1
 
 using System.CommandLine;
 using System.Diagnostics;
+using System.Globalization;
 using System.Text.Json;
-
-// Colors for terminal output
-const string ColorGreen = "\u001b[92m";
-const string ColorYellow = "\u001b[93m";
-const string ColorRed = "\u001b[91m";
-const string ColorCyan = "\u001b[96m";
-const string ColorBold = "\u001b[1m";
-const string ColorEnd = "\u001b[0m";
+using System.Text.Json.Serialization;
+using System.Threading;
+using Spectre.Console;
 
 void PrintHeader(string text)
 {
-    Console.WriteLine($"\n{ColorBold}{ColorGreen}{new string('=', 80)}{ColorEnd}");
-    Console.WriteLine($"{ColorBold}{ColorGreen}{text}{ColorEnd}");
-    Console.WriteLine($"{ColorBold}{ColorGreen}{new string('=', 80)}{ColorEnd}\n");
+    AnsiConsole.WriteLine();
+    AnsiConsole.Write(new Rule($"[bold green]{text}[/]").RuleStyle("green").DoubleBorder());
+    AnsiConsole.WriteLine();
 }
 
 void PrintSection(string text)
 {
-    Console.WriteLine($"\n{ColorCyan}{ColorBold}{text}{ColorEnd}");
-    Console.WriteLine(new string('-', 80));
+    AnsiConsole.WriteLine();
+    AnsiConsole.Write(new Rule($"[bold cyan]{text}[/]").RuleStyle("cyan"));
 }
 
 (bool Success, string StdOut, string StdErr) RunCommand(string command, string? workingDir = null, int timeoutMs = 300000)
@@ -57,110 +54,86 @@ void PrintSection(string text)
     }
 }
 
-// Find repo root - start from current directory and walk up
-var repoRoot = Environment.CurrentDirectory;
-while (!Directory.Exists(Path.Combine(repoRoot, "src")) && repoRoot.Length > 1)
-{
-    var parent = Path.GetDirectoryName(repoRoot);
-    if (parent == null || parent == repoRoot) break;
-    repoRoot = parent;
-}
-
+var repoRoot = FindRepoRoot();
 var toolsDir = Path.Combine(repoRoot, "tools");
 var outputDir = Path.Combine(toolsDir, "profile-output");
 Directory.CreateDirectory(outputDir);
 
-var profiles = new Dictionary<string, (string Name, string Dir, string Description)>
+var manifestPath = Path.Combine(toolsDir, "profile-manifest.json");
+var manifest = LoadManifest(manifestPath);
+var profiles = manifest.Profiles;
+
+var runnerDir = Path.Combine(toolsDir, "ProfileRunner");
+var runnerName = "ProfileRunner";
+
+bool BuildRunner()
 {
-    ["fib"] = ("FibonacciProfile", Path.Combine(toolsDir, "FibonacciProfile"), "Recursive fibonacci(25) - tests recursion"),
-    ["forloop"] = ("ForLoopProfile", Path.Combine(toolsDir, "ForLoopProfile"), "For loop with 1M iterations - tests loop performance"),
-    ["simplearithmetic"] = ("SimpleArithmeticProfile", Path.Combine(toolsDir, "SimpleArithmeticProfile"), "Simple math operations - tests arithmetic"),
-    ["whileloop"] = ("WhileLoopProfile", Path.Combine(toolsDir, "WhileLoopProfile"), "While loop with 100K iterations"),
-    ["objectcreation"] = ("ObjectCreationProfile", Path.Combine(toolsDir, "ObjectCreationProfile"), "Create 10K objects with nested properties"),
-    ["arrayops"] = ("ArrayOperationsProfile", Path.Combine(toolsDir, "ArrayOperationsProfile"), "Array map/filter/reduce operations"),
-    ["stringops"] = ("StringOperationsProfile", Path.Combine(toolsDir, "StringOperationsProfile"), "String concat/split/join operations"),
-    ["functioncalls"] = ("FunctionCallsProfile", Path.Combine(toolsDir, "FunctionCallsProfile"), "20K function calls in a loop"),
-    ["closures"] = ("ClosuresProfile", Path.Combine(toolsDir, "ClosuresProfile"), "Closure creation and invocation"),
-    ["recursion"] = ("RecursionProfile", Path.Combine(toolsDir, "RecursionProfile"), "Factorial and sum recursion"),
-    ["propertyaccess"] = ("PropertyAccessProfile", Path.Combine(toolsDir, "PropertyAccessProfile"), "Deep property access in loops"),
-    ["classdef"] = ("ClassDefinitionProfile", Path.Combine(toolsDir, "ClassDefinitionProfile"), "Class definition with inheritance"),
-    ["destructuring"] = ("DestructuringProfile", Path.Combine(toolsDir, "DestructuringProfile"), "Object and array destructuring"),
-    ["spread"] = ("SpreadOperatorProfile", Path.Combine(toolsDir, "SpreadOperatorProfile"), "Spread operator usage"),
-    ["mapset"] = ("MapSetProfile", Path.Combine(toolsDir, "MapSetProfile"), "Map and Set operations"),
-    ["json"] = ("JsonOperationsProfile", Path.Combine(toolsDir, "JsonOperationsProfile"), "JSON.stringify/parse operations"),
-    ["regex"] = ("RegexOperationsProfile", Path.Combine(toolsDir, "RegexOperationsProfile"), "Regex match and replace"),
-    ["promise"] = ("PromiseBasicProfile", Path.Combine(toolsDir, "PromiseBasicProfile"), "Promise.resolve and chaining"),
-    ["asyncawait"] = ("AsyncAwaitProfile", Path.Combine(toolsDir, "AsyncAwaitProfile"), "Async/await with function calls"),
-    ["generator"] = ("GeneratorFunctionProfile", Path.Combine(toolsDir, "GeneratorFunctionProfile"), "Generator function iteration"),
-    ["asyncgen"] = ("AsyncGeneratorFunctionProfile", Path.Combine(toolsDir, "AsyncGeneratorFunctionProfile"), "Async generator function"),
-    ["asyncforof"] = ("AsyncForOfProfile", Path.Combine(toolsDir, "AsyncForOfProfile"), "for await...of iteration"),
-    ["asyncresolved"] = ("AsyncAwaitResolvedProfile", Path.Combine(toolsDir, "AsyncAwaitResolvedProfile"), "Await on resolved promises"),
-    ["asyncpending"] = ("AsyncAwaitPendingProfile", Path.Combine(toolsDir, "AsyncAwaitPendingProfile"), "Await on pending promises"),
-    ["forofiteration"] = ("ForOfIterationProfile", Path.Combine(toolsDir, "ForOfIterationProfile"), "Regular for...of iteration"),
-};
+    return AnsiConsole.Status()
+        .Spinner(Spinner.Known.Dots)
+        .Start($"Building [yellow]{runnerName}[/]...", ctx =>
+        {
+            var (success, _, stderr) = RunCommand("dotnet build -c Release -v q --nologo", runnerDir);
 
-bool Build(string profileDir, string profileName)
-{
-    Console.WriteLine($"Building {profileName}...");
-    var (success, _, stderr) = RunCommand("dotnet build -c Release -v q --nologo", profileDir);
+            if (!success)
+            {
+                AnsiConsole.MarkupLine($"[red]Build failed:[/] {Markup.Escape(stderr)}");
+                return false;
+            }
 
-    if (!success)
-    {
-        Console.WriteLine($"{ColorRed}Build failed: {stderr}{ColorEnd}");
-        return false;
-    }
-
-    Console.WriteLine($"{ColorGreen}Build successful{ColorEnd}");
-    return true;
+            AnsiConsole.MarkupLine($"[green]✓[/] Build successful");
+            return true;
+        });
 }
 
-string? GetExecutable(string profileDir, string profileName)
+string? GetExecutable()
 {
-    var exePath = Path.Combine(profileDir, "bin", "Release", "net10.0", profileName);
-    if (OperatingSystem.IsWindows())
-        exePath += ".exe";
+    var exeName = runnerName + (OperatingSystem.IsWindows() ? ".exe" : "");
+    var exePath = Path.Combine(runnerDir, "bin", "Release", "net10.0", exeName);
     return File.Exists(exePath) ? exePath : null;
 }
 
 Dictionary<string, object>? CpuProfile(string profileKey)
 {
-    var (name, dir, description) = profiles[profileKey];
-    var exePath = GetExecutable(dir, name);
+    var profile = profiles[profileKey];
+    var exePath = GetExecutable();
 
     if (exePath == null)
     {
-        Console.WriteLine($"{ColorRed}Executable not found. Run build first.{ColorEnd}");
+        AnsiConsole.MarkupLine("[red]Executable not found. Run build first.[/]");
         return null;
     }
 
-    var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-    var traceFile = Path.Combine(outputDir, $"{name}_{timestamp}.nettrace");
+    var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss", System.Globalization.CultureInfo.InvariantCulture);
+    var traceFile = Path.Combine(outputDir, $"{profile.Name}_{timestamp}.nettrace");
 
-    Console.WriteLine($"Running CPU profile on {exePath}...");
+    return AnsiConsole.Status()
+        .Spinner(Spinner.Known.Dots)
+        .Start($"Running CPU profile on [yellow]{profile.Name}[/]...", ctx =>
+        {
+            ctx.Status($"Collecting trace data...");
+            var (success, _, stderr) = RunCommand(
+                $"dotnet-trace collect --providers Microsoft-DotNETCore-SampleProfiler --output \"{traceFile}\" -- \"{exePath}\" {profileKey}",
+                timeoutMs: 120000);
 
-    var (success, stdout, stderr) = RunCommand(
-        $"dotnet-trace collect --providers Microsoft-DotNETCore-SampleProfiler --output \"{traceFile}\" -- \"{exePath}\"",
-        timeoutMs: 120000);
+            if (!success || !File.Exists(traceFile))
+            {
+                AnsiConsole.MarkupLine($"[red]Trace collection failed:[/] {Markup.Escape(stderr)}");
+                return null;
+            }
 
-    if (!success || !File.Exists(traceFile))
-    {
-        Console.WriteLine($"{ColorRed}Trace collection failed: {stderr}{ColorEnd}");
-        return null;
-    }
+            ctx.Status("Converting trace to speedscope format...");
+            RunCommand($"dotnet-trace convert \"{traceFile}\" --format Speedscope");
 
-    // Convert to speedscope
-    Console.WriteLine("Converting trace to speedscope format...");
-    RunCommand($"dotnet-trace convert \"{traceFile}\" --format Speedscope");
+            var speedscopeFiles = Directory.GetFiles(outputDir, $"{profile.Name}_{timestamp}*.json");
+            if (speedscopeFiles.Length == 0)
+            {
+                AnsiConsole.MarkupLine("[red]Speedscope conversion failed[/]");
+                return null;
+            }
 
-    // Find the speedscope file
-    var speedscopeFiles = Directory.GetFiles(outputDir, $"{name}_{timestamp}*.json");
-    if (speedscopeFiles.Length == 0)
-    {
-        Console.WriteLine($"{ColorRed}Speedscope conversion failed{ColorEnd}");
-        return null;
-    }
-
-    return AnalyzeSpeedscope(speedscopeFiles[0]);
+            ctx.Status("Analyzing profile data...");
+            return AnalyzeSpeedscope(speedscopeFiles[0]);
+        });
 }
 
 Dictionary<string, object>? AnalyzeSpeedscope(string speedscopePath)
@@ -185,7 +158,7 @@ Dictionary<string, object>? AnalyzeSpeedscope(string speedscopePath)
             var frameIdx = evt.GetProperty("frame").GetInt32();
             var at = evt.GetProperty("at").GetDouble();
 
-            if (eventType == "O") // Open
+            if (string.Equals(eventType, "O", StringComparison.Ordinal)) // Open
             {
                 if (stack.Count > 0)
                 {
@@ -199,7 +172,7 @@ Dictionary<string, object>? AnalyzeSpeedscope(string speedscopePath)
                 frameCounts.TryGetValue(frameIdx, out var count);
                 frameCounts[frameIdx] = count + 1;
             }
-            else if (eventType == "C") // Close
+            else if (string.Equals(eventType, "C", StringComparison.Ordinal)) // Close
             {
                 if (stack.Count > 0 && stack[^1].FrameIdx == frameIdx)
                 {
@@ -263,84 +236,578 @@ void PrintCpuResults(Dictionary<string, object>? results, string profileKey)
 {
     if (results == null)
     {
-        Console.WriteLine($"{ColorRed}No results to display{ColorEnd}");
+        AnsiConsole.MarkupLine("[red]No results to display[/]");
         return;
     }
 
-    var (name, _, description) = profiles[profileKey];
+    var profile = profiles[profileKey];
+    var name = profile.Name;
+    var description = profile.Description;
 
     PrintSection($"CPU PROFILE: {name}");
-    Console.WriteLine($"Description: {description}\n");
+    AnsiConsole.MarkupLine($"[dim]{description}[/]");
 
     var allFunctions = (List<Dictionary<string, object>>)results["all_functions"];
     var jsEngineFunctions = (List<Dictionary<string, object>>)results["jsengine_functions"];
     var totalTime = (double)results["total_time"];
     var jsEngineTime = (double)results["jsengine_time"];
 
-    // Top functions overall
-    Console.WriteLine($"{"Time (ms)",12} {"Calls",10}  {"Function"}");
-    Console.WriteLine(new string('-', 100));
+    // Top functions overall - using Spectre table
+    AnsiConsole.WriteLine();
+    var table = new Table()
+        .Border(TableBorder.Rounded)
+        .Title("[bold]Top Functions (All)[/]")
+        .AddColumn(new TableColumn("[yellow]Time (ms)[/]").RightAligned())
+        .AddColumn(new TableColumn("[yellow]Calls[/]").RightAligned())
+        .AddColumn(new TableColumn("[yellow]Function[/]"));
 
-    foreach (var entry in allFunctions.Take(20))
+    foreach (var entry in allFunctions.Take(15))
     {
         var funcName = (string)entry["name"];
-        if (funcName.Length > 75) funcName = funcName[..72] + "...";
-        Console.WriteLine($"{(double)entry["time_ms"],12:F2} {(int)entry["calls"],10}  {funcName}");
+        if (funcName.Length > 70) funcName = funcName[..67] + "...";
+
+        var timeMs = (double)entry["time_ms"];
+        var calls = (int)entry["calls"];
+        var timeMsText = timeMs.ToString("F2", CultureInfo.InvariantCulture);
+        var callsText = calls.ToString("N0", CultureInfo.InvariantCulture);
+
+        table.AddRow(
+            $"[green]{timeMsText}[/]",
+            $"[blue]{callsText}[/]",
+            Markup.Escape(funcName)
+        );
     }
+
+    AnsiConsole.Write(table);
 
     // JsEngine functions
-    PrintSection("JSENGINE HOT FUNCTIONS");
-    Console.WriteLine($"{"Time (ms)",12} {"Calls",10}  {"Function"}");
-    Console.WriteLine(new string('-', 100));
+    PrintSection("JsEngine Hot Functions");
 
-    foreach (var entry in jsEngineFunctions.Take(25))
+    var jsTable = new Table()
+        .Border(TableBorder.Rounded)
+        .AddColumn(new TableColumn("[yellow]Time (ms)[/]").RightAligned())
+        .AddColumn(new TableColumn("[yellow]Calls[/]").RightAligned())
+        .AddColumn(new TableColumn("[yellow]% Total[/]").RightAligned())
+        .AddColumn(new TableColumn("[yellow]Function[/]"));
+
+    foreach (var entry in jsEngineFunctions.Take(20))
     {
         var funcName = (string)entry["name"];
-        if (funcName.Length > 75) funcName = funcName[..72] + "...";
-        Console.WriteLine($"{(double)entry["time_ms"],12:F2} {(int)entry["calls"],10}  {funcName}");
+        // Extract just the method part for cleaner display
+        if (funcName.Contains('!'))
+            funcName = funcName.Split('!')[^1];
+        if (funcName.Length > 60) funcName = funcName[..57] + "...";
+
+        var timeMs = (double)entry["time_ms"];
+        var calls = (int)entry["calls"];
+        var pct = totalTime > 0 ? 100 * timeMs / totalTime : 0;
+        var timeMsText = timeMs.ToString("F2", CultureInfo.InvariantCulture);
+        var callsText = calls.ToString("N0", CultureInfo.InvariantCulture);
+        var pctText = pct.ToString("F1", CultureInfo.InvariantCulture);
+
+        jsTable.AddRow(
+            $"[green]{timeMsText}[/]",
+            $"[blue]{callsText}[/]",
+            $"[cyan]{pctText}%[/]",
+            $"[white]{Markup.Escape(funcName)}[/]"
+        );
     }
 
-    // Summary
-    Console.WriteLine();
+    AnsiConsole.Write(jsTable);
+
+    // Summary panel
+    AnsiConsole.WriteLine();
     var jsPct = totalTime > 0 ? 100 * jsEngineTime / totalTime : 0;
-    Console.WriteLine($"{ColorBold}JsEngine time: {jsEngineTime:F2} ms ({jsPct:F1}% of total){ColorEnd}");
-    Console.WriteLine($"{ColorBold}Total time: {totalTime:F2} ms{ColorEnd}");
+
+    var summaryTable = new Table()
+        .Border(TableBorder.Double)
+        .Title("[bold yellow]Summary[/]")
+        .HideHeaders()
+        .AddColumn("")
+        .AddColumn("");
+
+    var jsEngineTimeText = jsEngineTime.ToString("F2", CultureInfo.InvariantCulture);
+    var jsPctText = jsPct.ToString("F1", CultureInfo.InvariantCulture);
+    var totalTimeText = totalTime.ToString("F2", CultureInfo.InvariantCulture);
+    var hotCountText = jsEngineFunctions.Count.ToString(CultureInfo.InvariantCulture);
+    summaryTable.AddRow("[bold]JsEngine Time[/]", $"[green]{jsEngineTimeText} ms[/] ([cyan]{jsPctText}%[/] of total)");
+    summaryTable.AddRow("[bold]Total Time[/]", $"[green]{totalTimeText} ms[/]");
+    summaryTable.AddRow("[bold]Hot Functions[/]", $"[blue]{hotCountText}[/] JsEngine functions profiled");
+
+    AnsiConsole.Write(summaryTable);
+}
+
+Dictionary<string, string>? MemoryProfile(string profileKey, int iterations = 50)
+{
+    var allocProfileDir = Path.Combine(toolsDir, "AllocationProfile");
+    var allocProject = Path.Combine(allocProfileDir, "AllocationProfile.csproj");
+
+    if (!File.Exists(allocProject))
+    {
+        AnsiConsole.MarkupLine("[yellow]AllocationProfile project not found, using basic GC stats[/]");
+        return BasicMemoryProfile(profileKey, iterations);
+    }
+
+    var (buildSuccess, _, buildErr) = RunCommand("dotnet build -c Release -v q --nologo", allocProfileDir);
+    if (!buildSuccess)
+    {
+        AnsiConsole.MarkupLine($"[yellow]AllocationProfile build failed, using basic GC stats:[/] {Markup.Escape(buildErr)}");
+        return BasicMemoryProfile(profileKey, iterations);
+    }
+
+    var (success, stdout, stderr) = RunCommand(
+        $"dotnet run -c Release --no-build -- {profileKey}",
+        allocProfileDir,
+        timeoutMs: 180000);
+
+    if (!success)
+    {
+        AnsiConsole.MarkupLine($"[red]Memory profile failed:[/] {Markup.Escape(stderr)}");
+        return null;
+    }
+
+    return ParseAllocationOutput(stdout);
+}
+
+Dictionary<string, string>? BasicMemoryProfile(string profileKey, int iterations)
+{
+    var exePath = GetExecutable();
+    if (exePath == null)
+    {
+        AnsiConsole.MarkupLine("[red]Executable not found. Run build first.[/]");
+        return null;
+    }
+
+    AnsiConsole.MarkupLine($"[dim]Running basic memory profile (iterations: {iterations.ToString(CultureInfo.InvariantCulture)})[/]");
+    var (success, stdout, stderr) = RunCommand($"\"{exePath}\" {profileKey}", timeoutMs: 120000);
+
+    if (!success)
+    {
+        AnsiConsole.MarkupLine($"[red]Basic memory profile failed:[/] {Markup.Escape(stderr)}");
+    }
+
+    return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["raw_output"] = success ? stdout : $"{stdout}\n{stderr}"
+    };
+}
+
+Dictionary<string, string> ParseAllocationOutput(string output)
+{
+    var results = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["raw_output"] = output
+    };
+
+    using var reader = new StringReader(output);
+    string? line;
+    while ((line = reader.ReadLine()) != null)
+    {
+        var trimmed = line.Trim();
+        if (trimmed.Length == 0)
+        {
+            continue;
+        }
+
+        var value = GetValueAfterColon(trimmed);
+        if (value == null)
+        {
+            continue;
+        }
+
+        if (trimmed.StartsWith("Iterations:", StringComparison.Ordinal))
+        {
+            results["iterations"] = value;
+        }
+        else if (trimmed.StartsWith("Total time:", StringComparison.Ordinal))
+        {
+            results["total_time"] = value;
+        }
+        else if (trimmed.StartsWith("Per iteration:", StringComparison.Ordinal))
+        {
+            if (value.EndsWith("ms", StringComparison.OrdinalIgnoreCase))
+            {
+                results["per_iteration_time"] = value;
+            }
+            else
+            {
+                results["per_iteration_allocated"] = value;
+            }
+        }
+        else if (trimmed.StartsWith("Total allocated:", StringComparison.Ordinal))
+        {
+            results["total_allocated"] = value;
+        }
+        else if (trimmed.StartsWith("GC Gen0 collections:", StringComparison.Ordinal))
+        {
+            results["gen0_collections"] = value;
+        }
+        else if (trimmed.StartsWith("GC Gen1 collections:", StringComparison.Ordinal))
+        {
+            results["gen1_collections"] = value;
+        }
+        else if (trimmed.StartsWith("GC Gen2 collections:", StringComparison.Ordinal))
+        {
+            results["gen2_collections"] = value;
+        }
+        else if (trimmed.StartsWith("Heap before:", StringComparison.Ordinal))
+        {
+            results["heap_before"] = value;
+        }
+        else if (trimmed.StartsWith("Heap after:", StringComparison.Ordinal))
+        {
+            results["heap_after"] = value;
+        }
+    }
+
+    return results;
+}
+
+string? GetValueAfterColon(string line)
+{
+    var idx = line.IndexOf(':');
+    if (idx < 0 || idx == line.Length - 1)
+    {
+        return null;
+    }
+
+    return line[(idx + 1)..].Trim();
+}
+
+void PrintMemoryResults(Dictionary<string, string>? results, string profileKey)
+{
+    if (results == null)
+    {
+        AnsiConsole.MarkupLine("[red]No results to display[/]");
+        return;
+    }
+
+    var profile = profiles[profileKey];
+    var name = profile.Name;
+    var description = profile.Description;
+
+    PrintSection($"MEMORY PROFILE: {name}");
+    AnsiConsole.MarkupLine($"[dim]{description}[/]");
+
+    var table = new Table()
+        .Border(TableBorder.Rounded)
+        .AddColumn(new TableColumn("[yellow]Metric[/]"))
+        .AddColumn(new TableColumn("[yellow]Value[/]"));
+
+    var hasRows = false;
+
+    void AddRow(string label, string key)
+    {
+        if (results.TryGetValue(key, out var value))
+        {
+            table.AddRow(label, Markup.Escape(value));
+            hasRows = true;
+        }
+    }
+
+    AddRow("Iterations", "iterations");
+    AddRow("Total time", "total_time");
+    AddRow("Per iteration (time)", "per_iteration_time");
+    AddRow("Total allocated", "total_allocated");
+    AddRow("Per iteration (allocated)", "per_iteration_allocated");
+    AddRow("GC Gen0 collections", "gen0_collections");
+    AddRow("GC Gen1 collections", "gen1_collections");
+    AddRow("GC Gen2 collections", "gen2_collections");
+    AddRow("Heap before", "heap_before");
+    AddRow("Heap after", "heap_after");
+
+    if (hasRows)
+    {
+        AnsiConsole.Write(table);
+    }
+    else if (results.TryGetValue("raw_output", out var rawOutput))
+    {
+        AnsiConsole.WriteLine(rawOutput);
+    }
+}
+
+Dictionary<string, object>? HeapProfile(string profileKey)
+{
+    var profile = profiles[profileKey];
+    var name = profile.Name;
+    var exePath = GetExecutable();
+    if (exePath == null)
+    {
+        AnsiConsole.MarkupLine("[red]Executable not found. Run build first.[/]");
+        return null;
+    }
+
+    var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
+    var gcdumpFile = Path.Combine(outputDir, $"{name}_{timestamp}.gcdump");
+
+    AnsiConsole.MarkupLine("[dim]Capturing heap snapshot...[/]");
+
+    using var proc = Process.Start(new ProcessStartInfo
+    {
+        FileName = exePath,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        UseShellExecute = false,
+        CreateNoWindow = true
+    });
+
+    if (proc == null)
+    {
+        AnsiConsole.MarkupLine("[red]Failed to start process for heap snapshot.[/]");
+        return null;
+    }
+
+    Thread.Sleep(500);
+
+    var (success, stdout, stderr) = RunCommand(
+        $"dotnet-gcdump collect -p {proc.Id.ToString(CultureInfo.InvariantCulture)} -o \"{gcdumpFile}\"",
+        timeoutMs: 60000);
+
+    proc.WaitForExit();
+
+    if (!success || !File.Exists(gcdumpFile))
+    {
+        AnsiConsole.MarkupLine($"[red]GC dump collection failed:[/] {Markup.Escape(stderr)}");
+        return null;
+    }
+
+    var (reportSuccess, reportOut, reportErr) = RunCommand(
+        $"dotnet-gcdump report \"{gcdumpFile}\"",
+        timeoutMs: 60000);
+
+    if (reportSuccess)
+    {
+        return ParseGcdumpReport(reportOut);
+    }
+
+    AnsiConsole.MarkupLine($"[yellow]Could not parse gcdump, showing raw output:[/] {Markup.Escape(reportErr)}");
+    return new Dictionary<string, object>
+    {
+        ["raw_output"] = reportOut
+    };
+}
+
+Dictionary<string, object> ParseGcdumpReport(string output)
+{
+    var results = new Dictionary<string, object>
+    {
+        ["raw_output"] = output
+    };
+
+    var types = new List<HeapTypeEntry>();
+    using var reader = new StringReader(output);
+    var inTable = false;
+
+    string? line;
+    while ((line = reader.ReadLine()) != null)
+    {
+        if (!inTable)
+        {
+            if (line.Contains("Size", StringComparison.Ordinal) &&
+                line.Contains("Count", StringComparison.Ordinal) &&
+                line.Contains("Type", StringComparison.Ordinal))
+            {
+                inTable = true;
+            }
+            continue;
+        }
+
+        if (string.IsNullOrWhiteSpace(line))
+        {
+            continue;
+        }
+
+        var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 3)
+        {
+            continue;
+        }
+
+        if (!TryParseLong(parts[0], out var size) || !TryParseLong(parts[1], out var count))
+        {
+            continue;
+        }
+
+        var typeName = string.Join(' ', parts.Skip(2));
+        types.Add(new HeapTypeEntry(size, count, typeName));
+    }
+
+    results["types"] = types;
+    return results;
+}
+
+bool TryParseLong(string input, out long value)
+{
+    return long.TryParse(
+        input.Replace(",", "", StringComparison.Ordinal),
+        NumberStyles.Integer,
+        CultureInfo.InvariantCulture,
+        out value);
+}
+
+void PrintHeapResults(Dictionary<string, object>? results, string profileKey)
+{
+    if (results == null)
+    {
+        AnsiConsole.MarkupLine("[red]No results to display[/]");
+        return;
+    }
+
+    var profile = profiles[profileKey];
+    var name = profile.Name;
+    var description = profile.Description;
+
+    PrintSection($"HEAP SNAPSHOT: {name}");
+    AnsiConsole.MarkupLine($"[dim]{description}[/]");
+
+    if (results.TryGetValue("types", out var typesObj) &&
+        typesObj is List<HeapTypeEntry> types &&
+        types.Count > 0)
+    {
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn(new TableColumn("[yellow]Size (bytes)[/]").RightAligned())
+            .AddColumn(new TableColumn("[yellow]Count[/]").RightAligned())
+            .AddColumn(new TableColumn("[yellow]Type[/]"));
+
+        foreach (var entry in types.Take(40))
+        {
+            var sizeText = entry.Size.ToString("N0", CultureInfo.InvariantCulture);
+            var countText = entry.Count.ToString("N0", CultureInfo.InvariantCulture);
+            var typeName = entry.Type.Length > 60 ? entry.Type[..57] + "..." : entry.Type;
+            table.AddRow(sizeText, countText, Markup.Escape(typeName));
+        }
+
+        AnsiConsole.Write(table);
+
+        PrintSection("JsEngine Types Only");
+        var jsTypes = types
+            .Where(t => t.Type.Contains("Asynkron", StringComparison.Ordinal) ||
+                        t.Type.Contains("JsEngine", StringComparison.Ordinal))
+            .ToList();
+
+        var jsTable = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn(new TableColumn("[yellow]Size (bytes)[/]").RightAligned())
+            .AddColumn(new TableColumn("[yellow]Count[/]").RightAligned())
+            .AddColumn(new TableColumn("[yellow]Type[/]"));
+
+        long totalSize = 0;
+        long totalCount = 0;
+        foreach (var entry in jsTypes.Take(30))
+        {
+            var sizeText = entry.Size.ToString("N0", CultureInfo.InvariantCulture);
+            var countText = entry.Count.ToString("N0", CultureInfo.InvariantCulture);
+            var typeName = entry.Type.Length > 60 ? entry.Type[..57] + "..." : entry.Type;
+            jsTable.AddRow(sizeText, countText, Markup.Escape(typeName));
+            totalSize += entry.Size;
+            totalCount += entry.Count;
+        }
+
+        AnsiConsole.Write(jsTable);
+        var totalSizeText = totalSize.ToString("N0", CultureInfo.InvariantCulture);
+        var totalCountText = totalCount.ToString("N0", CultureInfo.InvariantCulture);
+        AnsiConsole.MarkupLine($"[bold]Total JsEngine:[/] {totalSizeText} bytes, {totalCountText} instances");
+    }
+    else if (results.TryGetValue("raw_output", out var rawOutput))
+    {
+        AnsiConsole.WriteLine(rawOutput?.ToString() ?? "No output");
+    }
+}
+
+ProfileManifest LoadManifest(string manifestPath)
+{
+    var json = File.ReadAllText(manifestPath);
+    var manifest = JsonSerializer.Deserialize<ProfileManifest>(json, new JsonSerializerOptions
+    {
+        PropertyNameCaseInsensitive = true
+    });
+
+    if (manifest == null)
+    {
+        throw new InvalidOperationException($"Failed to parse manifest: {manifestPath}");
+    }
+
+    return manifest;
+}
+
+string FindRepoRoot()
+{
+    var current = Environment.CurrentDirectory;
+    while (!string.IsNullOrEmpty(current))
+    {
+        var manifestPath = Path.Combine(current, "tools", "profile-manifest.json");
+        if (File.Exists(manifestPath))
+        {
+            return current;
+        }
+
+        var parent = Directory.GetParent(current);
+        if (parent == null)
+        {
+            break;
+        }
+
+        current = parent.FullName;
+    }
+
+    throw new InvalidOperationException("Unable to locate profile-manifest.json.");
 }
 
 void RunBenchmarks()
 {
-    PrintHeader("RUNNING JINT COMPARISON BENCHMARKS");
+    PrintHeader("JINT COMPARISON BENCHMARKS");
 
     var benchmarkDir = Path.Combine(repoRoot, "benchmarks", "Asynkron.JsEngine.Benchmarks");
 
-    Console.WriteLine("This may take several minutes...");
-    var (success, stdout, stderr) = RunCommand(
-        "dotnet run -c Release -- jint --job short",
-        benchmarkDir,
-        600000);
-
-    if (!success)
-    {
-        Console.WriteLine($"{ColorRed}Benchmarks failed: {stderr}{ColorEnd}");
-        return;
-    }
-
-    // Find and display the results file
-    var resultsDir = Path.Combine(benchmarkDir, "BenchmarkDotNet.Artifacts", "results");
-    if (Directory.Exists(resultsDir))
-    {
-        var mdFiles = Directory.GetFiles(resultsDir, "*JintComparison*-github.md");
-        if (mdFiles.Length > 0)
+    AnsiConsole.Status()
+        .Spinner(Spinner.Known.Dots)
+        .Start("[yellow]Running benchmarks (this may take several minutes)...[/]", ctx =>
         {
-            PrintSection("BENCHMARK RESULTS");
-            Console.WriteLine(File.ReadAllText(mdFiles[0]));
-        }
+            var (success, stdout, stderr) = RunCommand(
+                "dotnet run -c Release -- jint --job short",
+                benchmarkDir,
+                600000);
+
+            if (!success)
+            {
+                AnsiConsole.MarkupLine($"[red]Benchmarks failed:[/] {Markup.Escape(stderr)}");
+                return;
+            }
+
+            var resultsDir = Path.Combine(benchmarkDir, "BenchmarkDotNet.Artifacts", "results");
+            if (Directory.Exists(resultsDir))
+            {
+                var mdFiles = Directory.GetFiles(resultsDir, "*JintComparison*-github.md");
+                if (mdFiles.Length > 0)
+                {
+                    PrintSection("BENCHMARK RESULTS");
+                    AnsiConsole.WriteLine(File.ReadAllText(mdFiles[0]));
+                }
+            }
+        });
+}
+
+void ShowAvailableProfiles()
+{
+    var table = new Table()
+        .Border(TableBorder.Rounded)
+        .Title("[bold yellow]Available Profiles[/]")
+        .AddColumn("[green]Key[/]")
+        .AddColumn("[cyan]Name[/]")
+        .AddColumn("[white]Description[/]");
+
+    foreach (var (key, profile) in profiles.OrderBy(p => p.Key, StringComparer.Ordinal))
+    {
+        table.AddRow($"[green]{key}[/]", $"[cyan]{profile.Name}[/]", profile.Description);
     }
+
+    AnsiConsole.Write(table);
 }
 
 // Command-line setup
 var profileArg = new Argument<string>("profile", () => "fib",
-    $"Profile to run. Options: {string.Join(", ", profiles.Keys)}, all");
+    "Profile to run (use 'list' to see all, 'all' to run all)");
 var cpuOption = new Option<bool>("--cpu", "Run CPU profiling only");
 var memoryOption = new Option<bool>("--memory", "Run memory profiling only");
 var heapOption = new Option<bool>("--heap", "Capture heap snapshot");
@@ -357,14 +824,24 @@ var rootCommand = new RootCommand("JsEngine Profiler - CPU and Memory profiling 
 
 rootCommand.SetHandler((string profile, bool cpu, bool memory, bool heap, bool compare) =>
 {
+    // Show banner
+    AnsiConsole.Write(new FigletText("JsEngine Profiler")
+        .Color(Color.Green));
+
     if (compare)
     {
         RunBenchmarks();
         return;
     }
 
+    if (string.Equals(profile, "list", StringComparison.OrdinalIgnoreCase))
+    {
+        ShowAvailableProfiles();
+        return;
+    }
+
     List<string> profilesToRun;
-    if (profile == "all")
+    if (string.Equals(profile, "all", StringComparison.OrdinalIgnoreCase))
     {
         profilesToRun = profiles.Keys.ToList();
     }
@@ -374,28 +851,40 @@ rootCommand.SetHandler((string profile, bool cpu, bool memory, bool heap, bool c
     }
     else
     {
-        Console.WriteLine($"Unknown profile: {profile}");
-        Console.WriteLine($"Available profiles: {string.Join(", ", profiles.Keys)}");
+        AnsiConsole.MarkupLine($"[red]Unknown profile:[/] {profile}");
+        AnsiConsole.MarkupLine("[dim]Use 'list' to see available profiles[/]");
         return;
     }
 
     // If specific flags are set, only run those; otherwise run cpu by default
     var runCpu = cpu || (!cpu && !memory && !heap);
-    var runMemory = memory;
+    var runMemory = memory || (!cpu && !memory && !heap);
     var runHeap = heap;
 
-    PrintHeader("JSENGINE PROFILER (C# File-Based App)");
-    Console.WriteLine($"Profiles: {string.Join(", ", profilesToRun)}");
-    Console.WriteLine($"CPU profiling: {(runCpu ? "Yes" : "No")}");
-    Console.WriteLine($"Memory profiling: {(runMemory ? "Yes" : "No")}");
-    Console.WriteLine($"Heap snapshot: {(runHeap ? "Yes" : "No")}");
+    // Show configuration
+    var configTable = new Table()
+        .Border(TableBorder.Rounded)
+        .Title("[bold]Configuration[/]")
+        .HideHeaders()
+        .AddColumn("")
+        .AddColumn("");
+
+    configTable.AddRow("[bold]Profiles[/]", string.Join(", ", profilesToRun.Select(p => $"[cyan]{p}[/]")));
+    configTable.AddRow("[bold]CPU Profiling[/]", runCpu ? "[green]Yes[/]" : "[dim]No[/]");
+    configTable.AddRow("[bold]Memory Profiling[/]", runMemory ? "[green]Yes[/]" : "[dim]No[/]");
+    configTable.AddRow("[bold]Heap Snapshot[/]", runHeap ? "[green]Yes[/]" : "[dim]No[/]");
+
+    AnsiConsole.Write(configTable);
+    AnsiConsole.WriteLine();
 
     foreach (var profileKey in profilesToRun)
     {
-        var (name, dir, _) = profiles[profileKey];
-        PrintHeader($"PROFILING: {name}");
+        var profile = profiles[profileKey];
+        PrintHeader($"PROFILING: {profile.Name}");
+        AnsiConsole.MarkupLine($"[dim]{profile.Description}[/]");
+        AnsiConsole.WriteLine();
 
-        if (!Build(dir, name))
+        if (!BuildRunner())
             continue;
 
         if (runCpu)
@@ -406,17 +895,38 @@ rootCommand.SetHandler((string profile, bool cpu, bool memory, bool heap, bool c
 
         if (runMemory)
         {
-            Console.WriteLine($"{ColorYellow}Memory profiling not yet implemented in C# version{ColorEnd}");
+            var results = MemoryProfile(profileKey);
+            PrintMemoryResults(results, profileKey);
         }
 
         if (runHeap)
         {
-            Console.WriteLine($"{ColorYellow}Heap profiling not yet implemented in C# version{ColorEnd}");
+            var results = HeapProfile(profileKey);
+            PrintHeapResults(results, profileKey);
         }
     }
 
-    Console.WriteLine($"\n{ColorGreen}Profiling complete!{ColorEnd}");
+    AnsiConsole.WriteLine();
+    AnsiConsole.Write(new Rule("[green]Profiling complete![/]").RuleStyle("green"));
 
 }, profileArg, cpuOption, memoryOption, heapOption, compareOption);
 
 return await rootCommand.InvokeAsync(args);
+
+sealed class ProfileManifest
+{
+    [JsonPropertyName("profiles")]
+    public Dictionary<string, ProfileDefinition> Profiles { get; init; } =
+        new(StringComparer.OrdinalIgnoreCase);
+}
+
+sealed class ProfileDefinition
+{
+    [JsonPropertyName("name")]
+    public string Name { get; init; } = string.Empty;
+
+    [JsonPropertyName("description")]
+    public string Description { get; init; } = string.Empty;
+}
+
+record HeapTypeEntry(long Size, long Count, string Type);

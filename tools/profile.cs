@@ -6,7 +6,6 @@ using System.CommandLine;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Threading;
 using Spectre.Console;
 
@@ -717,18 +716,41 @@ void PrintHeapResults(Dictionary<string, object>? results, string profileKey)
 
 ProfileManifest LoadManifest(string manifestPath)
 {
-    var json = File.ReadAllText(manifestPath);
-    var manifest = JsonSerializer.Deserialize<ProfileManifest>(json, new JsonSerializerOptions
+    using var doc = JsonDocument.Parse(File.ReadAllText(manifestPath));
+    var root = doc.RootElement;
+    if (!root.TryGetProperty("profiles", out var profilesElement))
     {
-        PropertyNameCaseInsensitive = true
-    });
-
-    if (manifest == null)
-    {
-        throw new InvalidOperationException($"Failed to parse manifest: {manifestPath}");
+        throw new InvalidOperationException($"Manifest missing profiles: {manifestPath}");
     }
 
-    return manifest;
+    var profiles = new Dictionary<string, ProfileDefinition>(StringComparer.OrdinalIgnoreCase);
+    foreach (var profileProperty in profilesElement.EnumerateObject())
+    {
+        var profileElement = profileProperty.Value;
+        var name = profileProperty.Name;
+        var description = string.Empty;
+
+        if (profileElement.TryGetProperty("name", out var nameElement))
+        {
+            name = nameElement.GetString() ?? name;
+        }
+
+        if (profileElement.TryGetProperty("description", out var descElement))
+        {
+            description = descElement.GetString() ?? string.Empty;
+        }
+
+        profiles[profileProperty.Name] = new ProfileDefinition
+        {
+            Name = name,
+            Description = description
+        };
+    }
+
+    return new ProfileManifest
+    {
+        Profiles = profiles
+    };
 }
 
 string FindRepoRoot()
@@ -879,9 +901,9 @@ rootCommand.SetHandler((string profile, bool cpu, bool memory, bool heap, bool c
 
     foreach (var profileKey in profilesToRun)
     {
-        var profile = profiles[profileKey];
-        PrintHeader($"PROFILING: {profile.Name}");
-        AnsiConsole.MarkupLine($"[dim]{profile.Description}[/]");
+        var profileInfo = profiles[profileKey];
+        PrintHeader($"PROFILING: {profileInfo.Name}");
+        AnsiConsole.MarkupLine($"[dim]{profileInfo.Description}[/]");
         AnsiConsole.WriteLine();
 
         if (!BuildRunner())
@@ -915,17 +937,14 @@ return await rootCommand.InvokeAsync(args);
 
 sealed class ProfileManifest
 {
-    [JsonPropertyName("profiles")]
     public Dictionary<string, ProfileDefinition> Profiles { get; init; } =
         new(StringComparer.OrdinalIgnoreCase);
 }
 
 sealed class ProfileDefinition
 {
-    [JsonPropertyName("name")]
     public string Name { get; init; } = string.Empty;
 
-    [JsonPropertyName("description")]
     public string Description { get; init; } = string.Empty;
 }
 

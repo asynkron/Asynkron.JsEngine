@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Microsoft.Extensions.Logging;
@@ -108,7 +107,7 @@ async Task RunWithFreshEnginesAsync(
     int iterations,
     int runsForAverage)
 {
-    JsProgram parsed;
+    ProgramNode parsed;
     await using (var setupEngine = CreateEngine(traceRealm))
     {
         parsed = setupEngine.ParseProgram(source);
@@ -135,7 +134,7 @@ async Task RunWithFreshEnginesAsync(
     PrintCompletion(profile, sw?.ElapsedMilliseconds ?? 0, runsForAverage);
 }
 
-async Task EvaluateAsync(JsEngine engine, JsProgram parsed, bool isAsyncRun)
+async Task EvaluateAsync(JsEngine engine, ProgramNode parsed, bool isAsyncRun)
 {
     if (isAsyncRun)
     {
@@ -179,18 +178,73 @@ JsEngine CreateEngine(bool traceRealm)
 
 static ProfileManifest LoadManifest(string manifestPath)
 {
-    var json = File.ReadAllText(manifestPath);
-    var manifest = JsonSerializer.Deserialize<ProfileManifest>(json, new JsonSerializerOptions
+    using var doc = JsonDocument.Parse(File.ReadAllText(manifestPath));
+    var root = doc.RootElement;
+    if (!root.TryGetProperty("profiles", out var profilesElement))
     {
-        PropertyNameCaseInsensitive = true
-    });
-
-    if (manifest == null)
-    {
-        throw new InvalidOperationException($"Failed to parse manifest: {manifestPath}");
+        throw new InvalidOperationException($"Manifest missing profiles: {manifestPath}");
     }
 
-    return manifest;
+    var profiles = new Dictionary<string, ProfileDefinition>(StringComparer.OrdinalIgnoreCase);
+    foreach (var profileProperty in profilesElement.EnumerateObject())
+    {
+        var profileElement = profileProperty.Value;
+        var definition = new ProfileDefinition
+        {
+            Name = GetString(profileElement, "name", profileProperty.Name),
+            Description = GetString(profileElement, "description", string.Empty),
+            Script = GetString(profileElement, "script", string.Empty),
+            Mode = GetString(profileElement, "mode", "sync"),
+            Iterations = GetInt(profileElement, "iterations", 1),
+            Warmup = GetInt(profileElement, "warmup", 1),
+            ShowProgress = GetBool(profileElement, "show_progress", false),
+            ShowTiming = GetBool(profileElement, "show_timing", false),
+            FreshEnginePerIteration = GetBool(profileElement, "fresh_engine_per_iteration", false),
+            Header = GetOptionalString(profileElement, "header"),
+            TraceRealmEnv = GetOptionalString(profileElement, "trace_realm_env"),
+            TraceRealmRuns = GetInt(profileElement, "trace_realm_runs", 0)
+        };
+
+        profiles[profileProperty.Name] = definition;
+    }
+
+    var scriptsDir = "profile-scripts";
+    if (root.TryGetProperty("scripts_dir", out var scriptsDirElement))
+    {
+        scriptsDir = scriptsDirElement.GetString() ?? scriptsDir;
+    }
+
+    return new ProfileManifest
+    {
+        ScriptsDir = scriptsDir,
+        Profiles = profiles
+    };
+}
+
+static string GetString(JsonElement element, string propertyName, string fallback)
+{
+    return element.TryGetProperty(propertyName, out var value) ? value.GetString() ?? fallback : fallback;
+}
+
+static string? GetOptionalString(JsonElement element, string propertyName)
+{
+    return element.TryGetProperty(propertyName, out var value) ? value.GetString() : null;
+}
+
+static int GetInt(JsonElement element, string propertyName, int fallback)
+{
+    return element.TryGetProperty(propertyName, out var value) && value.TryGetInt32(out var result)
+        ? result
+        : fallback;
+}
+
+static bool GetBool(JsonElement element, string propertyName, bool fallback)
+{
+    return element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.True
+        ? true
+        : element.TryGetProperty(propertyName, out value) && value.ValueKind == JsonValueKind.False
+            ? false
+            : fallback;
 }
 
 static void PrintProfiles(ProfileManifest manifest)
@@ -226,50 +280,36 @@ static string FindRepoRoot()
 
 sealed class ProfileManifest
 {
-    [JsonPropertyName("scripts_dir")]
     public string ScriptsDir { get; init; } = "profile-scripts";
 
-    [JsonPropertyName("profiles")]
     public Dictionary<string, ProfileDefinition> Profiles { get; init; } =
         new(StringComparer.OrdinalIgnoreCase);
 }
 
 sealed class ProfileDefinition
 {
-    [JsonPropertyName("name")]
     public string Name { get; init; } = string.Empty;
 
-    [JsonPropertyName("description")]
     public string Description { get; init; } = string.Empty;
 
-    [JsonPropertyName("script")]
     public string Script { get; init; } = string.Empty;
 
-    [JsonPropertyName("mode")]
     public string Mode { get; init; } = "sync";
 
-    [JsonPropertyName("iterations")]
     public int Iterations { get; init; } = 1;
 
-    [JsonPropertyName("warmup")]
     public int Warmup { get; init; } = 1;
 
-    [JsonPropertyName("show_progress")]
     public bool ShowProgress { get; init; }
 
-    [JsonPropertyName("show_timing")]
     public bool ShowTiming { get; init; }
 
-    [JsonPropertyName("fresh_engine_per_iteration")]
     public bool FreshEnginePerIteration { get; init; }
 
-    [JsonPropertyName("header")]
     public string? Header { get; init; }
 
-    [JsonPropertyName("trace_realm_env")]
     public string? TraceRealmEnv { get; init; }
 
-    [JsonPropertyName("trace_realm_runs")]
     public int TraceRealmRuns { get; init; }
 }
 

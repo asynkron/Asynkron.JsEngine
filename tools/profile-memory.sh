@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # Memory profiling script for JsEngine benchmarks
-# Usage: ./profile-memory.sh [fib|forloop]
+# Usage: ./profile-memory.sh [profile]
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
-PROFILE_TYPE="${1:-fib}"
+PROFILE_KEY="${1:-fib}"
 OUTPUT_DIR="$SCRIPT_DIR/profile-output"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
@@ -36,22 +36,9 @@ check_tools() {
 
 # Select profile project
 select_profile() {
-    case "$PROFILE_TYPE" in
-        fib|fibonacci)
-            PROJECT_DIR="$SCRIPT_DIR/FibonacciProfile"
-            PROJECT_NAME="FibonacciProfile"
-            ;;
-        for|forloop|loop)
-            PROJECT_DIR="$SCRIPT_DIR/ForLoopProfile"
-            PROJECT_NAME="ForLoopProfile"
-            ;;
-        *)
-            echo -e "${RED}Unknown profile type: $PROFILE_TYPE${NC}"
-            echo "Usage: $0 [fib|forloop]"
-            exit 1
-            ;;
-    esac
-    echo -e "${GREEN}Selected profile: $PROJECT_NAME${NC}"
+    PROJECT_DIR="$SCRIPT_DIR/ProfileRunner"
+    PROJECT_NAME="ProfileRunner"
+    echo -e "${GREEN}Selected profile: $PROFILE_KEY${NC}"
 }
 
 # Build the project
@@ -74,7 +61,7 @@ run_and_collect() {
 
     # Start the process in background, auto-accepting prompts
     cd "$PROJECT_DIR"
-    (echo ""; sleep 60; echo "") | dotnet run -c Release --no-build &
+    (echo ""; sleep 60; echo "") | dotnet run -c Release --no-build -- "$PROFILE_KEY" &
     APP_PID=$!
 
     # Wait for process to start

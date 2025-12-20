@@ -2,7 +2,6 @@ using System.Diagnostics.Tracing;
 using System.Globalization;
 using System.Runtime;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using AllocationProfile;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
@@ -94,7 +93,7 @@ Console.WriteLine();
 Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Iterations:           {iterations}"));
 Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Total time:           {sw.ElapsedMilliseconds} ms"));
 Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
-    $"Per iteration:        {(sw.ElapsedMilliseconds / (double)iterations).ToString(\"F2\", CultureInfo.InvariantCulture)} ms"));
+    $"Per iteration:        {(sw.ElapsedMilliseconds / (double)iterations).ToString("F2", CultureInfo.InvariantCulture)} ms"));
 Console.WriteLine();
 Console.WriteLine($"Total allocated:      {FormatBytes(totalAllocated)}");
 Console.WriteLine($"Per iteration:        {FormatBytes(perIterationBytes)}");
@@ -144,18 +143,42 @@ static string NormalizeProfileKey(string profileKey)
 
 static ProfileManifest LoadManifest(string manifestPath)
 {
-    var json = File.ReadAllText(manifestPath);
-    var manifest = JsonSerializer.Deserialize<ProfileManifest>(json, new JsonSerializerOptions
+    using var doc = JsonDocument.Parse(File.ReadAllText(manifestPath));
+    var root = doc.RootElement;
+    if (!root.TryGetProperty("profiles", out var profilesElement))
     {
-        PropertyNameCaseInsensitive = true
-    });
-
-    if (manifest == null)
-    {
-        throw new InvalidOperationException($"Failed to parse manifest: {manifestPath}");
+        throw new InvalidOperationException($"Manifest missing profiles: {manifestPath}");
     }
 
-    return manifest;
+    var profiles = new Dictionary<string, ProfileDefinition>(StringComparer.OrdinalIgnoreCase);
+    foreach (var profileProperty in profilesElement.EnumerateObject())
+    {
+        var profileElement = profileProperty.Value;
+        var definition = new ProfileDefinition
+        {
+            Script = GetString(profileElement, "script", string.Empty),
+            Mode = GetString(profileElement, "mode", "sync")
+        };
+
+        profiles[profileProperty.Name] = definition;
+    }
+
+    var scriptsDir = "profile-scripts";
+    if (root.TryGetProperty("scripts_dir", out var scriptsDirElement))
+    {
+        scriptsDir = scriptsDirElement.GetString() ?? scriptsDir;
+    }
+
+    return new ProfileManifest
+    {
+        ScriptsDir = scriptsDir,
+        Profiles = profiles
+    };
+}
+
+static string GetString(JsonElement element, string propertyName, string fallback)
+{
+    return element.TryGetProperty(propertyName, out var value) ? value.GetString() ?? fallback : fallback;
 }
 
 static string FindRepoRoot()
@@ -195,7 +218,7 @@ static string TrimForDisplay(string script, int maxLength)
     return normalized[..maxLength];
 }
 
-static async Task EvaluateAsync(JsEngine engine, JsProgram parsed, bool isAsync)
+static async Task EvaluateAsync(JsEngine engine, ProgramNode parsed, bool isAsync)
 {
     if (isAsync)
     {
@@ -224,19 +247,15 @@ static string FormatBytes(long bytes)
 
 sealed class ProfileManifest
 {
-    [JsonPropertyName("scripts_dir")]
     public string ScriptsDir { get; init; } = "profile-scripts";
 
-    [JsonPropertyName("profiles")]
     public Dictionary<string, ProfileDefinition> Profiles { get; init; } =
         new(StringComparer.OrdinalIgnoreCase);
 }
 
 sealed class ProfileDefinition
 {
-    [JsonPropertyName("script")]
     public string Script { get; init; } = string.Empty;
 
-    [JsonPropertyName("mode")]
     public string Mode { get; init; } = "sync";
 }

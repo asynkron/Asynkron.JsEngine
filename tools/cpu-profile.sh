@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # CPU profiling script for JsEngine
-# Usage: ./cpu-profile.sh [fib|forloop]
+# Usage: ./cpu-profile.sh [profile]
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
-PROFILE_TYPE="${1:-fib}"
+PROFILE_KEY="${1:-fib}"
 OUTPUT_DIR="$SCRIPT_DIR/profile-output"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
@@ -17,23 +17,10 @@ NC='\033[0m'
 
 echo -e "${GREEN}=== JsEngine CPU Profiler ===${NC}"
 
-# Select profile
-case "$PROFILE_TYPE" in
-    fib|fibonacci)
-        PROJECT_DIR="$SCRIPT_DIR/FibonacciProfile"
-        PROJECT_NAME="FibonacciProfile"
-        ;;
-    for|forloop|loop)
-        PROJECT_DIR="$SCRIPT_DIR/ForLoopProfile"
-        PROJECT_NAME="ForLoopProfile"
-        ;;
-    *)
-        echo "Usage: $0 [fib|forloop]"
-        exit 1
-        ;;
-esac
+PROJECT_DIR="$SCRIPT_DIR/ProfileRunner"
+PROJECT_NAME="ProfileRunner"
 
-echo -e "${GREEN}Profile: $PROJECT_NAME${NC}"
+echo -e "${GREEN}Profile: $PROFILE_KEY${NC}"
 
 # Build
 echo -e "${GREEN}Building...${NC}"
@@ -59,7 +46,7 @@ echo -e "${GREEN}Profiling $EXE_PATH...${NC}"
 dotnet-trace collect \
     --providers Microsoft-DotNETCore-SampleProfiler \
     --output "$TRACE_FILE" \
-    -- "$EXE_PATH"
+    -- "$EXE_PATH" "$PROFILE_KEY"
 
 echo -e "${GREEN}Converting to speedscope...${NC}"
 dotnet-trace convert "$TRACE_FILE" --format Speedscope 2>/dev/null || true

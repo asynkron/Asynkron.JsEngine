@@ -238,7 +238,17 @@ CpuProfileResult? AnalyzeSpeedscope(string speedscopePath)
         callTreeTotal);
 }
 
-void PrintCpuResults(CpuProfileResult? results, string profileKey, bool showCallTree, string? rootFilter)
+void PrintCpuResults(
+    CpuProfileResult? results,
+    string profileKey,
+    bool showCallTree,
+    string? rootFilter,
+    string? functionFilter,
+    bool includeRuntime,
+    int callTreeDepth,
+    int callTreeWidth,
+    string? callTreeRootMode,
+    bool showSelfTimeTree)
 {
     if (results == null)
     {
@@ -260,15 +270,25 @@ void PrintCpuResults(CpuProfileResult? results, string profileKey, bool showCall
 
     // Top functions overall - using Spectre table
     AnsiConsole.WriteLine();
+    var filteredAll = allFunctions.Where(entry => MatchesFunctionFilter(entry.Name, functionFilter));
+    if (!includeRuntime)
+    {
+        filteredAll = filteredAll.Where(entry => !IsRuntimeNoise(entry.Name));
+    }
+    var filteredList = filteredAll.ToList();
+
+    var topTitle = includeRuntime && string.IsNullOrWhiteSpace(functionFilter)
+        ? "Top Functions (All)"
+        : "Top Functions (Filtered)";
     var table = new Table()
         .Border(TableBorder.Rounded)
         .Expand()
-        .Title("[bold]Top Functions (All)[/]")
+        .Title($"[bold]{topTitle}[/]")
         .AddColumn(new TableColumn("[yellow]Time (ms)[/]").RightAligned())
         .AddColumn(new TableColumn("[yellow]Calls[/]").RightAligned())
         .AddColumn(new TableColumn("[yellow]Function[/]"));
 
-    foreach (var entry in allFunctions.Take(15))
+    foreach (var entry in filteredList.Take(15))
     {
         var funcName = FormatMethodDisplayName(entry.Name);
         if (funcName.Length > 70) funcName = funcName[..67] + "...";
@@ -286,6 +306,18 @@ void PrintCpuResults(CpuProfileResult? results, string profileKey, bool showCall
     }
 
     AnsiConsole.Write(table);
+    var filteredOut = allFunctions.Count - filteredList.Count;
+    if (filteredOut > 0)
+    {
+        var filteredOutText = filteredOut.ToString("N0", CultureInfo.InvariantCulture);
+        AnsiConsole.MarkupLine(
+            $"[dim]Filtered out {filteredOutText} runtime frames. Use --include-runtime to show all.[/]");
+    }
+    if (!string.IsNullOrWhiteSpace(functionFilter))
+    {
+        AnsiConsole.MarkupLine(
+            $"[dim]Filter: {Markup.Escape(functionFilter)} (use --filter to change).[/]");
+    }
 
     // JsEngine functions
     PrintSection("JsEngine Hot Functions");
@@ -344,8 +376,12 @@ void PrintCpuResults(CpuProfileResult? results, string profileKey, bool showCall
 
     if (showCallTree)
     {
-        AnsiConsole.Write(BuildCallTree(results, useSelfTime: false, rootFilter));
-        AnsiConsole.Write(BuildCallTree(results, useSelfTime: true, rootFilter));
+        var resolvedRoot = ResolveCallTreeRootFilter(results, rootFilter);
+        AnsiConsole.Write(BuildCallTree(results, useSelfTime: false, resolvedRoot, includeRuntime, callTreeDepth, callTreeWidth, callTreeRootMode));
+        if (showSelfTimeTree)
+        {
+            AnsiConsole.Write(BuildCallTree(results, useSelfTime: true, resolvedRoot, includeRuntime, callTreeDepth, callTreeWidth, callTreeRootMode));
+        }
     }
 }
 
@@ -645,11 +681,20 @@ void PrintMemoryResults(MemoryProfileResult? results, string profileKey)
     }
 }
 
-Panel BuildCallTree(CpuProfileResult results, bool useSelfTime, string? rootFilter)
+Panel BuildCallTree(
+    CpuProfileResult results,
+    bool useSelfTime,
+    string? rootFilter,
+    bool includeRuntime,
+    int maxDepth,
+    int maxWidth,
+    string? rootMode)
 {
     var callTreeRoot = results.CallTreeRoot;
     var totalTime = results.CallTreeTotal;
     var title = useSelfTime ? "Call Tree (Self Time)" : "Call Tree (Total Time)";
+    maxDepth = Math.Max(1, maxDepth);
+    maxWidth = Math.Max(1, maxWidth);
 
     var rootNode = callTreeRoot;
     var rootTotal = totalTime;
@@ -658,9 +703,7 @@ Panel BuildCallTree(CpuProfileResult results, bool useSelfTime, string? rootFilt
         var matches = FindCallTreeMatches(callTreeRoot, rootFilter);
         if (matches.Count > 0)
         {
-            rootNode = matches
-                .OrderByDescending(node => GetCallTreeTime(node, useSelfTime: false))
-                .First();
+            rootNode = SelectRootMatch(matches, includeRuntime, rootMode);
             rootTotal = GetCallTreeTime(rootNode, useSelfTime: false);
             title = $"{title} - root: {Markup.Escape(rootFilter)}";
         }
@@ -671,19 +714,23 @@ Panel BuildCallTree(CpuProfileResult results, bool useSelfTime, string? rootFilt
     }
 
     var rootLabel = FormatCallTreeLine(rootNode, rootTotal, useSelfTime, isRoot: true);
-    var tree = new Tree(rootLabel).Guide(TreeGuide.Line);
-    var children = rootNode.Children.Values
-        .OrderByDescending(child => GetCallTreeTime(child, useSelfTime))
-        .Take(5);
+    var tree = new Tree(rootLabel).Guide(new CompactTreeGuide());
+    var children = GetVisibleChildren(rootNode, includeRuntime, useSelfTime, maxWidth);
     foreach (var child in children)
     {
-        var childNode = tree.AddNode(FormatCallTreeLine(child, rootTotal, useSelfTime, isRoot: false));
-        AddCallTreeChildren(childNode, child, rootTotal, useSelfTime, 2, 4);
+        var isSpecialLeaf = ShouldStopAtLeaf(child);
+        var isLeaf = isSpecialLeaf || maxDepth <= 1 || GetVisibleChildren(child, includeRuntime, useSelfTime, maxWidth).Count == 0;
+        var childNode = tree.AddNode(FormatCallTreeLine(child, rootTotal, useSelfTime, isRoot: false, isLeaf));
+        if (!isSpecialLeaf)
+        {
+            AddCallTreeChildren(childNode, child, rootTotal, useSelfTime, includeRuntime, 2, maxDepth, maxWidth);
+        }
     }
 
     return new Panel(tree)
         .Header($"[bold yellow]{title}[/]")
-        .Border(BoxBorder.Rounded);
+        .Border(BoxBorder.Rounded)
+        .Expand();
 }
 
 void AddCallTreeChildren(
@@ -691,22 +738,32 @@ void AddCallTreeChildren(
     CallTreeNode node,
     double totalTime,
     bool useSelfTime,
+    bool includeRuntime,
     int depth,
-    int maxDepth)
+    int maxDepth,
+    int maxWidth)
 {
     if (depth > maxDepth)
     {
         return;
     }
 
-    var children = node.Children.Values
-        .OrderByDescending(child => GetCallTreeTime(child, useSelfTime))
-        .Take(5);
+    var children = GetVisibleChildren(node, includeRuntime, useSelfTime, maxWidth);
 
     foreach (var child in children)
     {
-        var childNode = parent.AddNode(FormatCallTreeLine(child, totalTime, useSelfTime, isRoot: false));
-        AddCallTreeChildren(childNode, child, totalTime, useSelfTime, depth + 1, maxDepth);
+        var nextDepth = depth + 1;
+        var isSpecialLeaf = ShouldStopAtLeaf(child);
+        var childChildren = !isSpecialLeaf && nextDepth <= maxDepth
+            ? GetVisibleChildren(child, includeRuntime, useSelfTime, maxWidth)
+            : Array.Empty<CallTreeNode>();
+        var isLeaf = isSpecialLeaf || nextDepth > maxDepth || childChildren.Count == 0;
+
+        var childNode = parent.AddNode(FormatCallTreeLine(child, totalTime, useSelfTime, isRoot: false, isLeaf));
+        if (!isSpecialLeaf)
+        {
+            AddCallTreeChildren(childNode, child, totalTime, useSelfTime, includeRuntime, depth + 1, maxDepth, maxWidth);
+        }
     }
 }
 
@@ -714,12 +771,14 @@ string FormatCallTreeLine(
     CallTreeNode node,
     double totalTime,
     bool useSelfTime,
-    bool isRoot)
+    bool isRoot,
+    bool isLeaf = false)
 {
-    var name = FormatMethodDisplayName(node.Name);
-    if (name.Length > 80)
+    var matchName = GetCallTreeMatchName(node);
+    var displayName = matchName;
+    if (displayName.Length > 80)
     {
-        name = name[..77] + "...";
+        displayName = displayName[..77] + "...";
     }
 
     var timeSpent = isRoot && useSelfTime
@@ -731,9 +790,9 @@ string FormatCallTreeLine(
     var timeText = timeSpent.ToString("F2", CultureInfo.InvariantCulture);
     var pctText = pct.ToString("F1", CultureInfo.InvariantCulture);
     var callsText = calls.ToString("N0", CultureInfo.InvariantCulture);
-    var nameText = Markup.Escape(name);
+    var nameText = FormatCallTreeName(displayName, matchName, isLeaf);
 
-    return $"[green]{timeText} ms[/] [cyan]{pctText}%[/] [blue]{callsText}x[/] [white]{nameText}[/]";
+    return $"[green]{timeText} ms[/] [cyan]{pctText}%[/] [blue]{callsText}x[/] {nameText}";
 }
 
 CallTreeNode GetOrCreateCallTreeChild(
@@ -776,34 +835,105 @@ int SumCallTreeCalls(CallTreeNode node)
     return sum;
 }
 
-List<CallTreeNode> FindCallTreeMatches(CallTreeNode node, string filter)
+List<CallTreeMatch> FindCallTreeMatches(CallTreeNode node, string filter)
 {
-    var matches = new List<CallTreeNode>();
+    var matches = new List<CallTreeMatch>();
     var normalizedFilter = filter.Trim();
     if (normalizedFilter.Length == 0)
     {
         return matches;
     }
 
-    void Visit(CallTreeNode current)
+    var order = 0;
+    void Visit(CallTreeNode current, int depth)
     {
         if (current.FrameIdx >= 0)
         {
             var displayName = FormatMethodDisplayName(current.Name);
-            if (displayName.Contains(normalizedFilter, StringComparison.OrdinalIgnoreCase))
+            if (displayName.Contains(normalizedFilter, StringComparison.OrdinalIgnoreCase) ||
+                current.Name.Contains(normalizedFilter, StringComparison.OrdinalIgnoreCase))
             {
-                matches.Add(current);
+                matches.Add(new CallTreeMatch(current, depth, order++));
             }
         }
 
         foreach (var child in current.Children.Values)
         {
-            Visit(child);
+            Visit(child, depth + 1);
         }
     }
 
-    Visit(node);
+    Visit(node, 0);
     return matches;
+}
+
+string? ResolveCallTreeRootFilter(CpuProfileResult results, string? rootFilter)
+{
+    if (!string.IsNullOrWhiteSpace(rootFilter))
+    {
+        return rootFilter;
+    }
+
+    const string defaultNamespace = "Asynkron.JsEngine";
+    var matches = FindCallTreeMatches(results.CallTreeRoot, defaultNamespace);
+    return matches.Count > 0 ? defaultNamespace : null;
+}
+
+CallTreeNode SelectRootMatch(List<CallTreeMatch> matches, bool includeRuntime, string? rootMode)
+{
+    if (matches.Count == 0)
+    {
+        throw new InvalidOperationException("No call tree matches available.");
+    }
+
+    var mode = NormalizeRootMode(rootMode);
+    var candidates = includeRuntime
+        ? matches
+        : matches.Where(match => !IsRuntimeNoise(match.Node.Name)).ToList();
+    if (candidates.Count == 0)
+    {
+        candidates = matches;
+    }
+
+    return mode switch
+    {
+        "first" or "shallowest" => candidates
+            .OrderBy(match => match.Depth)
+            .ThenBy(match => match.Order)
+            .Select(match => match.Node)
+            .First(),
+        _ => candidates
+            .OrderByDescending(match => GetCallTreeTime(match.Node, useSelfTime: false))
+            .Select(match => match.Node)
+            .First()
+    };
+}
+
+string NormalizeRootMode(string? rootMode)
+{
+    if (string.IsNullOrWhiteSpace(rootMode))
+    {
+        return "hottest";
+    }
+
+    return rootMode.Trim().ToLowerInvariant();
+}
+
+IEnumerable<CallTreeNode> EnumerateVisibleChildren(CallTreeNode node, bool includeRuntime)
+{
+    foreach (var child in node.Children.Values)
+    {
+        if (includeRuntime || !IsRuntimeNoise(child.Name))
+        {
+            yield return child;
+            continue;
+        }
+
+        foreach (var grandChild in EnumerateVisibleChildren(child, includeRuntime))
+        {
+            yield return grandChild;
+        }
+    }
 }
 
 void PrintAllocationTable(IReadOnlyList<AllocationEntry> entries, string? allocationTotal)
@@ -921,6 +1051,100 @@ string CleanTypeName(string name)
     normalized = normalized.Replace(arrayToken, "[]", StringComparison.Ordinal);
 
     return normalized;
+}
+
+IReadOnlyList<CallTreeNode> GetVisibleChildren(
+    CallTreeNode node,
+    bool includeRuntime,
+    bool useSelfTime,
+    int maxWidth)
+{
+    return EnumerateVisibleChildren(node, includeRuntime)
+        .OrderByDescending(child => GetCallTreeTime(child, useSelfTime))
+        .Take(maxWidth)
+        .ToList();
+}
+
+string FormatCallTreeName(string displayName, string matchName, bool isLeaf)
+{
+    var escaped = Markup.Escape(displayName);
+    if (!isLeaf)
+    {
+        return $"[white]{escaped}[/]";
+    }
+
+    const string leafHighlightColor = "plum1";
+    if (matchName.Contains("CastHelpers.Box", StringComparison.Ordinal))
+    {
+        return $"[{leafHighlightColor}]{escaped}[/]";
+    }
+
+    if (matchName.Contains("Array.Copy", StringComparison.Ordinal) ||
+        matchName.Contains("Dictionary<__Canon,__Canon>.Resize", StringComparison.Ordinal) ||
+        matchName.Contains("Buffer.BulkMoveWithWriteBarrier", StringComparison.Ordinal))
+    {
+        return $"[{leafHighlightColor}]{escaped}[/]";
+    }
+
+    if (matchName.Contains("List<", StringComparison.Ordinal) &&
+        matchName.EndsWith(".ToArray", StringComparison.Ordinal))
+    {
+        return $"[{leafHighlightColor}]{escaped}[/]";
+    }
+
+    return $"[white]{escaped}[/]";
+}
+
+string GetCallTreeMatchName(CallTreeNode node)
+{
+    return FormatMethodDisplayName(node.Name);
+}
+
+bool ShouldStopAtLeaf(CallTreeNode node)
+{
+    var matchName = GetCallTreeMatchName(node);
+    return matchName.Contains("CastHelpers.Box", StringComparison.Ordinal) ||
+           matchName.Contains("Array.Copy", StringComparison.Ordinal) ||
+           matchName.Contains("Dictionary<__Canon,__Canon>.Resize", StringComparison.Ordinal) ||
+           matchName.Contains("Buffer.BulkMoveWithWriteBarrier", StringComparison.Ordinal) ||
+           (matchName.Contains("List<", StringComparison.Ordinal) &&
+            matchName.EndsWith(".ToArray", StringComparison.Ordinal));
+}
+
+bool MatchesFunctionFilter(string name, string? filter)
+{
+    if (string.IsNullOrWhiteSpace(filter))
+    {
+        return true;
+    }
+
+    return name.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+           FormatMethodDisplayName(name).Contains(filter, StringComparison.OrdinalIgnoreCase);
+}
+
+bool IsRuntimeNoise(string name)
+{
+    var trimmed = name.TrimStart();
+    var formatted = FormatMethodDisplayName(trimmed);
+    return trimmed.Contains("UNMANAGED_CODE_TIME", StringComparison.Ordinal) ||
+           trimmed.Contains("(Non-Activities)", StringComparison.Ordinal) ||
+           trimmed.Contains("Thread", StringComparison.Ordinal) ||
+           trimmed.Contains("Threads", StringComparison.Ordinal) ||
+           trimmed.Contains("Process", StringComparison.Ordinal) ||
+           StartsWithDigits(trimmed) ||
+           StartsWithDigits(formatted) ||
+           trimmed.StartsWith("Program.", StringComparison.Ordinal);
+}
+
+bool StartsWithDigits(string name)
+{
+    if (string.IsNullOrWhiteSpace(name))
+    {
+        return false;
+    }
+
+    var trimmed = name.TrimStart();
+    return trimmed.Length > 0 && char.IsDigit(trimmed[0]);
 }
 
 HeapProfileResult? HeapProfile(string profileKey)
@@ -1217,6 +1441,12 @@ var memoryOption = new Option<bool>("--memory", "Run memory profiling only");
 var heapOption = new Option<bool>("--heap", "Capture heap snapshot");
 var callTreeOption = new Option<bool>("--calltree", "Show call tree for CPU hotspots");
 var callTreeRootOption = new Option<string?>("--root", "Filter call tree to a root method (substring match)");
+var callTreeDepthOption = new Option<int>("--calltree-depth", () => 8, "Maximum call tree depth (default: 8)");
+var callTreeWidthOption = new Option<int>("--calltree-width", () => 8, "Maximum children per node (default: 8)");
+var callTreeRootModeOption = new Option<string?>("--root-mode", () => "hottest", "Root selection mode when multiple matches (hottest|shallowest|first)");
+var callTreeSelfOption = new Option<bool>("--calltree-self", "Show self-time call tree in addition to total time");
+var functionFilterOption = new Option<string?>("--filter", "Filter CPU function tables by substring (case-insensitive)");
+var includeRuntimeOption = new Option<bool>("--include-runtime", "Include runtime/process frames in CPU tables and call tree");
 var compareOption = new Option<bool>("--compare", "Run Jint comparison benchmarks");
 
 var rootCommand = new RootCommand("JsEngine Profiler - CPU and Memory profiling for JsEngine benchmarks")
@@ -1227,11 +1457,31 @@ var rootCommand = new RootCommand("JsEngine Profiler - CPU and Memory profiling 
     heapOption,
     callTreeOption,
     callTreeRootOption,
+    callTreeDepthOption,
+    callTreeWidthOption,
+    callTreeRootModeOption,
+    callTreeSelfOption,
+    functionFilterOption,
+    includeRuntimeOption,
     compareOption
 };
 
-rootCommand.SetHandler((string profile, bool cpu, bool memory, bool heap, bool calltree, string? callTreeRoot, bool compare) =>
+rootCommand.SetHandler(context =>
 {
+    var profile = context.ParseResult.GetValueForArgument(profileArg);
+    var cpu = context.ParseResult.GetValueForOption(cpuOption);
+    var memory = context.ParseResult.GetValueForOption(memoryOption);
+    var heap = context.ParseResult.GetValueForOption(heapOption);
+    var calltree = context.ParseResult.GetValueForOption(callTreeOption);
+    var callTreeRoot = context.ParseResult.GetValueForOption(callTreeRootOption);
+    var callTreeDepth = context.ParseResult.GetValueForOption(callTreeDepthOption);
+    var callTreeWidth = context.ParseResult.GetValueForOption(callTreeWidthOption);
+    var callTreeRootMode = context.ParseResult.GetValueForOption(callTreeRootModeOption);
+    var callTreeSelf = context.ParseResult.GetValueForOption(callTreeSelfOption);
+    var functionFilter = context.ParseResult.GetValueForOption(functionFilterOption);
+    var includeRuntime = context.ParseResult.GetValueForOption(includeRuntimeOption);
+    var compare = context.ParseResult.GetValueForOption(compareOption);
+
     if (compare)
     {
         RunBenchmarks();
@@ -1274,7 +1524,17 @@ rootCommand.SetHandler((string profile, bool cpu, bool memory, bool heap, bool c
         {
             Console.WriteLine($"{profileKey} - cpu");
             var results = CpuProfile(profileKey);
-            PrintCpuResults(results, profileKey, calltree, callTreeRoot);
+            PrintCpuResults(
+                results,
+                profileKey,
+                calltree,
+                callTreeRoot,
+                functionFilter,
+                includeRuntime,
+                callTreeDepth,
+                callTreeWidth,
+                callTreeRootMode,
+                callTreeSelf);
         }
 
         if (runMemory)
@@ -1292,6 +1552,6 @@ rootCommand.SetHandler((string profile, bool cpu, bool memory, bool heap, bool c
         }
     }
 
-}, profileArg, cpuOption, memoryOption, heapOption, callTreeOption, callTreeRootOption, compareOption);
+});
 
 return await rootCommand.InvokeAsync(args);

@@ -35,12 +35,13 @@ public class JintComparisonBenchmarks
         ["jsonOperations"] = 100000.0,          // 10x
         ["regexOperations"] = 2600000.0,        // 10x
         ["promiseBasic"] = 49995000.0,          // 10x: sum 0..9999
-        ["asyncAwait"] = 12497500.0,            // 10x: sum 0..4999
+        ["asyncAwait"] = 4999950000.0,          // 10x: sum 0..99999
         ["generatorFunction"] = 4950000.0,      // 10x: Jint throws - unsupported
         ["asyncGeneratorFunction"] = 10.0,      // No change - just verifies code ran
         ["asyncForOf"] = 275000.0,              // 5000 * 55 (but bug: Asynkron returns 0)
-        ["asyncAwaitResolved"] = 420000.0,      // 10x: 10000 * 42
-        ["asyncAwaitPending"] = 5000.0,         // 10x: 5000 * 1
+        ["asyncAwaitResolved"] = 6300000.0,     // 10x: 150000 * 42
+        ["asyncAwaitResolvedReused"] = 105000000.0, // 10x: 2500000 * 42 (reused promise)
+        ["asyncAwaitPending"] = 100000.0,       // 10x: 100000 * 1
         ["forOfIteration"] = 2750000.0 // 10x: 50000 * 55
     };
 
@@ -79,6 +80,7 @@ public class JintComparisonBenchmarks
             ("asyncGeneratorFunction", benchmark.Asynkron_AsyncGeneratorFunction, () => benchmark._jintEngine.Evaluate(benchmark._asyncGeneratorFunction).ToObject()),
             ("asyncForOf", benchmark.Asynkron_AsyncForOf, () => benchmark._jintEngine.Evaluate(benchmark._asyncForOf).ToObject()),
             ("asyncAwaitResolved", benchmark.Asynkron_AsyncAwaitResolved, () => benchmark._jintEngine.Evaluate(benchmark._asyncAwaitResolved).ToObject()),
+            ("asyncAwaitResolvedReused", benchmark.Asynkron_AsyncAwaitResolvedReused, () => benchmark._jintEngine.Evaluate(benchmark._asyncAwaitResolvedReused).ToObject()),
             ("asyncAwaitPending", benchmark.Asynkron_AsyncAwaitPending, () => benchmark._jintEngine.Evaluate(benchmark._asyncAwaitPending).ToObject()),
             ("forOfIteration", benchmark.Asynkron_ForOfIteration, () => benchmark._jintEngine.Evaluate(benchmark._forOfIteration).ToObject())
         };
@@ -175,6 +177,7 @@ public class JintComparisonBenchmarks
     private string _asyncGeneratorFunction = null!;
     private string _asyncForOf = null!;
     private string _asyncAwaitResolved = null!;
+    private string _asyncAwaitResolvedReused = null!;
     private string _asyncAwaitPending = null!;
     private string _forOfIteration = null!;
 
@@ -491,7 +494,7 @@ public class JintComparisonBenchmarks
             }
             (async function() {
                 let result = 0;
-                for (let i = 0; i < 5000; i++) {
+                for (let i = 0; i < 100000; i++) {
                     result = await asyncAdd(result, i);
                 }
                 finalResult = result;
@@ -561,8 +564,22 @@ public class JintComparisonBenchmarks
             let finalSum = 0;
             (async function() {
                 let sum = 0;
-                for (let i = 0; i < 10000; i++) {
+                for (let i = 0; i < 150000; i++) {
                     sum += await Promise.resolve(42);
+                }
+                finalSum = sum;
+            })();
+            finalSum;
+            """;
+
+        // Async/await with reused resolved promise - isolates Promise.resolve allocation cost
+        _asyncAwaitResolvedReused = """
+            let finalSum = 0;
+            const resolved = Promise.resolve(42);
+            (async function() {
+                let sum = 0;
+                for (let i = 0; i < 2500000; i++) {
+                    sum += await resolved;
                 }
                 finalSum = sum;
             })();
@@ -578,7 +595,7 @@ public class JintComparisonBenchmarks
             }
             (async function() {
                 let sum = 0;
-                for (let i = 0; i < 5000; i++) {
+                for (let i = 0; i < 100000; i++) {
                     sum += await makePromise(1);
                 }
                 finalSum = sum;
@@ -621,6 +638,7 @@ public class JintComparisonBenchmarks
         CacheParsed("asyncGeneratorFunction", _asyncGeneratorFunction);
         CacheParsed("asyncForOf", _asyncForOf);
         CacheParsed("asyncAwaitResolved", _asyncAwaitResolved);
+        CacheParsed("asyncAwaitResolvedReused", _asyncAwaitResolvedReused);
         CacheParsed("asyncAwaitPending", _asyncAwaitPending);
         CacheParsed("forOfIteration", _forOfIteration);
     }
@@ -986,6 +1004,21 @@ public class JintComparisonBenchmarks
     public object Jint_AsyncAwaitResolved()
     {
         return _jintEngine.Evaluate(_asyncAwaitResolved).ToObject()!;
+    }
+
+    // ==================== Async/Await Resolved (reused promise) ====================
+    [Benchmark]
+    [BenchmarkCategory("Async")]
+    public async Task<object?> Asynkron_AsyncAwaitResolvedReused()
+    {
+        return await _asynkronEngine.EvaluateAndAwait(_parsedPrograms["asyncAwaitResolvedReused"]);
+    }
+
+    [Benchmark]
+    [BenchmarkCategory("Async")]
+    public object Jint_AsyncAwaitResolvedReused()
+    {
+        return _jintEngine.Evaluate(_asyncAwaitResolvedReused).ToObject()!;
     }
 
     // ==================== Async/Await Pending (promises needing microtask) ====================

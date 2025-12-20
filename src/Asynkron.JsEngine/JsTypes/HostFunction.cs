@@ -11,10 +11,9 @@ namespace Asynkron.JsEngine.JsTypes;
         IPrototypeAccessorProvider,
         IJsEnvironmentAwareCallable
     {
-        private readonly Func<JsValue, IReadOnlyList<JsValue>, JsValue> _handler;
+        private Func<JsValue, IReadOnlyList<JsValue>, JsValue> _handler;
         private Func<IReadOnlyList<JsValue>, JsValue, EvaluationContext?, JsValue, JsValue>? _invokeWithContext;
         private bool _isConstructor = true;
-        private RealmState? _realmState;
         internal bool IsBoundFunction { get; set; }
 
     public HostFunction(Func<IReadOnlyList<JsValue>, JsValue> handler, RealmState? realmState = null,
@@ -22,6 +21,7 @@ namespace Asynkron.JsEngine.JsTypes;
     {
         ArgumentNullException.ThrowIfNull(handler);
 
+        Properties = new JsObject();
         _handler = (_, args) => handler(args);
         RealmState = realmState;
         _isConstructor = isConstructor;
@@ -32,6 +32,7 @@ namespace Asynkron.JsEngine.JsTypes;
         bool isConstructor = true)
     {
         _handler = handler ?? throw new ArgumentNullException(nameof(handler));
+        Properties = new JsObject();
         RealmState = realmState;
         _isConstructor = isConstructor;
         InitializePrototype();
@@ -44,10 +45,28 @@ namespace Asynkron.JsEngine.JsTypes;
     {
         ArgumentNullException.ThrowIfNull(handler);
 
+        Properties = new JsObject();
         RealmState = realmState;
         _isConstructor = isConstructor;
         _handler = (thisValue, args) => handler(thisValue, args, realmState);
         InitializePrototype();
+    }
+
+    internal HostFunction(
+        Func<JsValue, IReadOnlyList<JsValue>, JsValue> handler,
+        JsObject properties,
+        RealmState? realmState,
+        bool isConstructor,
+        bool initializePrototype)
+    {
+        _handler = handler ?? throw new ArgumentNullException(nameof(handler));
+        Properties = properties ?? throw new ArgumentNullException(nameof(properties));
+        _isConstructor = isConstructor;
+        RealmState = realmState;
+        if (initializePrototype)
+        {
+            InitializePrototype();
+        }
     }
 
     /// <summary>
@@ -61,17 +80,17 @@ namespace Asynkron.JsEngine.JsTypes;
     /// </summary>
     public RealmState? RealmState
     {
-        get => _realmState;
+        get;
         set
         {
-            if (ReferenceEquals(_realmState, value))
+            if (ReferenceEquals(field, value))
             {
                 return;
             }
 
-            _realmState = value;
+            field = value;
             Properties.RealmState ??= value;
-            if (_realmState?.FunctionPrototype is { } functionPrototype &&
+            if (field?.FunctionPrototype is { } functionPrototype &&
                 Properties.Prototype is null)
             {
                 Properties.SetPrototype(functionPrototype);
@@ -115,7 +134,7 @@ namespace Asynkron.JsEngine.JsTypes;
     /// </summary>
     public string? ConstructErrorMessage { get; set; }
 
-    internal JsObject Properties { get; } = new();
+    internal JsObject Properties { get; }
 
     internal JsObject PropertiesObject => Properties;
     public bool IsExtensible => Properties.IsExtensible;
@@ -148,6 +167,27 @@ namespace Asynkron.JsEngine.JsTypes;
             Func<IReadOnlyList<JsValue>, JsValue, EvaluationContext?, JsValue, JsValue> handler)
         {
             _invokeWithContext = handler ?? throw new ArgumentNullException(nameof(handler));
+        }
+
+        internal Func<JsValue, IReadOnlyList<JsValue>, JsValue> HandlerForSnapshot => _handler;
+
+        internal Func<IReadOnlyList<JsValue>, JsValue, EvaluationContext?, JsValue, JsValue>? InvokeWithContextForSnapshot =>
+            _invokeWithContext;
+
+        internal void SetInvokeWithContextForSnapshot(
+            Func<IReadOnlyList<JsValue>, JsValue, EvaluationContext?, JsValue, JsValue>? handler)
+        {
+            _invokeWithContext = handler;
+        }
+
+        internal void SetHandlerForSnapshot(Func<JsValue, IReadOnlyList<JsValue>, JsValue> handler)
+        {
+            _handler = handler ?? throw new ArgumentNullException(nameof(handler));
+        }
+
+        internal void SetConstructorFlagForSnapshot(bool isConstructor)
+        {
+            _isConstructor = isConstructor;
         }
 
     /// <summary>

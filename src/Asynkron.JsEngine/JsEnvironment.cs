@@ -2114,6 +2114,7 @@ public sealed class JsEnvironment
                     {
                         var jsVal = value is JsValue jv ? jv : JsValue.FromObjectUnsafe(value);
                         binding.JsValue = jsVal;
+                        current.TrySetSlot(name, jsVal);
                         if (!binding.IsLexical)
                         {
                             globalObject?.SetProperty(name.Name, jsVal);

@@ -73,14 +73,15 @@ public static partial class TypedAstEvaluator
             _isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
             _allowIdentifierCache = AllowsIdentifierCaching(function);
 
-            if (!GeneratorIrBuilder.TryBuild(function, out var plan, out var failureReason))
+            var planCache = ((IAstCacheable<GeneratorPlanCache>)function).GetOrCreateCache();
+            if (!planCache.Succeeded || planCache.Plan is null)
             {
-                var reason = failureReason ?? "Generator contains unsupported construct for IR.";
+                var reason = planCache.FailureReason ?? "Generator contains unsupported construct for IR.";
                 throw new NotSupportedException($"Generator IR not implemented for this function: {reason}");
             }
 
-            _plan = plan;
-            _programCounter = plan.EntryPoint;
+            _plan = planCache.Plan;
+            _programCounter = _plan.EntryPoint;
         }
 
         public JsObject CreateGeneratorObject()

@@ -6,15 +6,10 @@ This document describes how to run the Jint comparison benchmarks and the expect
 
 ```bash
 # Run full comparison with short job (recommended for quick iteration)
-dotnet run -c Release --project benchmarks/Asynkron.JsEngine.Benchmarks -- \
-  --filter "*JintComparison*" \
-  --job short \
-  --exporters github markdown html
+dotnet run -c Release --project benchmarks/Asynkron.JsEngine.Benchmarks/Asynkron.JsEngine.Benchmarks.csproj -- jint --job short
 
 # Run full comparison with default job (more accurate, takes longer)
-dotnet run -c Release --project benchmarks/Asynkron.JsEngine.Benchmarks -- \
-  --filter "*JintComparison*" \
-  --exporters github markdown html
+dotnet run -c Release --project benchmarks/Asynkron.JsEngine.Benchmarks/Asynkron.JsEngine.Benchmarks.csproj -- jint
 ```
 
 ## Output Files
@@ -36,88 +31,34 @@ cat BenchmarkDotNet.Artifacts/results/Asynkron.JsEngine.Benchmarks.JintCompariso
 
 ## Latest Results (2025-12-18)
 
-| Benchmark              | Asynkron Time | Jint Time | Speedup        | Asynkron Mem | Jint Mem | Mem Ratio        |
-|------------------------|---------------|-----------|----------------|--------------|----------|------------------|
-| SimpleArithmetic       | 94.36 μs      | 96.22 μs  | ~same          | 0 B          | 23 KB    | ∞                |
-| AsyncGeneratorFunction | 162.47 μs     | NA        | -              | 48 KB        | NA       | -                |
-| GeneratorFunction      | 119 ms        | NA        | -              | 243 MB       | NA       | -                |
-| WhileLoop              | 3.93 ms       | 175.73 ms | **45x faster** | 15 KB        | 64 MB    | **4,253x less**  |
-| ForLoop                | 3.72 ms       | 210.30 ms | **57x faster** | 17 KB        | 256 MB   | **15,046x less** |
-| StringOperations       | 7.89 ms       | 5.66 ms   | 1.4x slower    | 968 KB       | 446 KB   | 2.2x more        |
-| AsyncAwait             | 226.51 ms     | 13.37 ms  | 17x slower     | 218 MB       | 9.8 MB   | 22x more         |
-| ClassDefinition        | 105.10 ms     | 14.12 ms  | 7.4x slower    | 39 MB        | 3.3 MB   | 12x more         |
-| AsyncAwaitPending      | 300.29 ms     | 15.27 ms  | 20x slower     | 174 MB       | 9 MB     | 19x more         |
-| AsyncAwaitResolved     | 332.04 ms     | 17.32 ms  | 19x slower     | 289 MB       | 16 MB    | 18x more         |
-| AsyncForOf             | 1,932.51 ms   | 50.70 ms  | 38x slower     | 1.99 GB      | 26 MB    | 76x more         |
-| ArrayOperations        | 75.13 ms      | 20.67 ms  | 3.6x slower    | 15 MB        | 9 MB     | 1.6x more        |
-| PromiseBasic           | 76.16 ms      | 23.35 ms  | 3.3x slower    | 25 MB        | 18 MB    | 1.4x more        |
-| Closures               | 112.81 ms     | 28.65 ms  | 3.9x slower    | 17 MB        | 17 MB    | ~same            |
-| ObjectCreation         | 90.63 ms      | 24.96 ms  | 3.6x slower    | 43 MB        | 11 MB    | 3.9x more        |
-| SpreadOperator         | 93.13 ms      | 30.30 ms  | 3.1x slower    | 142 MB       | 11 MB    | 13x more         |
-| JsonOperations         | 90.20 ms      | 49.85 ms  | 1.8x slower    | 37 MB        | 16 MB    | 2.3x more        |
-| Fibonacci              | 113.27 ms     | 51.68 ms  | 2.2x slower    | 17 MB        | 52 MB    | **3x less**      |
-| MapSet                 | 78.84 ms      | 68.15 ms  | 1.2x slower    | 4 MB         | 9.6 MB   | **2.4x less**    |
-| Destructuring          | 125.87 ms     | 28.85 ms  | 4.4x slower    | 118 MB       | 18 MB    | 6.5x more        |
-| ForOfIteration         | 248 ms        | 96.54 ms  | 2.6x slower    | 602 MB       | 265 MB   | 2.3x more        |
-| RegexOperations        | 192.46 ms     | 94.07 ms  | 2x slower      | 319 MB       | 41 MB    | 7.8x more        |
-| FunctionCalls          | 216.62 ms     | 127.14 ms | 1.7x slower    | 57 MB        | 143 MB   | **2.5x less**    |
-| Recursion              | 346.29 ms     | 169.31 ms | 2x slower      | 46 MB        | 173 MB   | **3.8x less**    |
-| PropertyAccess         | 677.91 ms     | 233.09 ms | 2.9x slower    | 24 KB        | 144 MB   | **5,890x less**  |
-
-## Summary
-
-### Where Asynkron Wins
-
-| Benchmark        | Speedup        | Notes                                    |
-|------------------|----------------|------------------------------------------|
-| ForLoop          | **57x faster** | Fast path optimization for numeric loops |
-| WhileLoop        | **45x faster** | Fast path optimization for numeric loops |
-| SimpleArithmetic | ~same          | Basic operations                         |
-
-### Where Jint Wins
-
-| Benchmark          | Slowdown    | Notes                                        |
-|--------------------|-------------|----------------------------------------------|
-| AsyncForOf         | 38x slower  | Async iteration overhead (improved from 91x) |
-| AsyncAwaitPending  | 20x slower  | Pending promise handling                     |
-| AsyncAwaitResolved | 19x slower  | Promise resolution overhead                  |
-| AsyncAwait         | 17x slower  | Async/await overhead                         |
-| ClassDefinition    | 7.4x slower | Class instantiation                          |
-| ForOfIteration     | 4.7x slower | Iterator protocol overhead                   |
-
-### Memory Efficiency (Asynkron)
-
-| Benchmark      | Memory Ratio     | Notes                         |
-|----------------|------------------|-------------------------------|
-| ForLoop        | **15,046x less** | Zero GC during fast path      |
-| PropertyAccess | **5,890x less**  | Minimal allocations           |
-| WhileLoop      | **4,253x less**  | Zero GC during fast path      |
-| Recursion      | **3.8x less**    | Efficient call stack          |
-| Fibonacci      | **3x less**      | Efficient recursion           |
-| FunctionCalls  | **2.5x less**    | Lower per-call overhead       |
-| MapSet         | **2.4x less**    | Efficient collection handling |
-
-### Notable Improvement: StringOperations
-
-The `JsRopeString` optimization reduced memory usage from **4.6 MB → 968 KB** (4.8x improvement) by deferring string concatenation until the final value is needed.
-
-## Optimization Opportunities
-
-The following areas could benefit from similar patterns to `JsRopeString`:
-
-### 1. ✅ Fast Enumerator Path for For-Of (COMPLETE)
-
-**Problem**: Every iterator `next()` call creates a new `JsObject` for `{done, value}`.
-
-**Solution Implemented**:
-- Created `TryGetFastEnumeratorForIteration()` to bypass iterator protocol
-- String enumeration uses the fast path with proper Unicode code point handling (surrogate pairs)
-- JsArray uses the fast path when no custom indexed properties (getters/setters on numeric indices)
-- TypedArray falls back to iterator protocol for spec compliance (resizable buffer error propagation)
-
-**Detection mechanism**:
-- `JsArray.HasCustomIndexedProperties` checks `JsObject.HasNumericDescriptorKeys()` to detect arrays with custom property descriptors on numeric indices
-- Arrays with `Object.defineProperty` on indices use full iterator protocol to invoke custom getters
+| Benchmark | Asynkron Time | Jint Time | Asynkron/Jint | Asynkron Mem | Jint Mem | Asynkron/Jint |
+|---|---:|---:|---:|---:|---:|---:|
+| ArrayOperations | 79,954.6 μs | 33,483.8 μs | 2.39x | 15012200 B | 9178840 B | 1.64x |
+| AsyncAwait | 1,445,276.4 μs | 175,538.9 μs | 8.23x | 1602477848 B | 199686064 B | 8.02x |
+| AsyncAwaitPending | 1,234,920.9 μs | 389,243.8 μs | 3.17x | 497692984 B | 185766336 B | 2.68x |
+| AsyncAwaitResolved | 659,917.6 μs | 186,792.1 μs | 3.53x | 171647336 B | 243283496 B | 0.71x |
+| AsyncAwaitResolvedReused | 405.1 μs | 1,208,840.7 μs | <0.01x | 27840 B | 639686480 B | <0.01x |
+| AsyncForOf | 851,771.2 μs | 107,803.7 μs | 7.90x | 286716456 B | 26325256 B | 10.9x |
+| AsyncGeneratorFunction | 479.8 μs | NA | NA | 45016 B | NA | NA |
+| ClassDefinition | 196,735.1 μs | 101,993.6 μs | 1.93x | 37882344 B | 3252392 B | 11.6x |
+| Closures | 207,906.6 μs | 43,499.6 μs | 4.78x | 14728600 B | 17009560 B | 0.87x |
+| Destructuring | 365,311.5 μs | 155,451.3 μs | 2.35x | 110097208 B | 18445000 B | 5.97x |
+| Fibonacci | 305,026.0 μs | 140,785.7 μs | 2.17x | 17489592 B | 52538600 B | 0.33x |
+| ForLoop | 6,721.2 μs | 627,840.6 μs | 0.01x | 16248 B | 255678424 B | <0.01x |
+| ForOfIteration | 651,883.9 μs | 386,106.9 μs | 1.69x | 602012760 B | 264830944 B | 2.27x |
+| FunctionCalls | 640,387.5 μs | 403,991.7 μs | 1.59x | 56834320 B | 143205304 B | 0.40x |
+| GeneratorFunction | 480,591.5 μs | NA | NA | 250160768 B | NA | NA |
+| JsonOperations | 189,294.1 μs | 133,108.9 μs | 1.42x | 41016152 B | 16281824 B | 2.52x |
+| MapSet | 134,371.4 μs | 78,622.2 μs | 1.71x | 4073808 B | 9664280 B | 0.42x |
+| ObjectCreation | 205,942.4 μs | 96,915.3 μs | 2.12x | 48454840 B | 11040208 B | 4.39x |
+| PromiseBasic | 85,924.4 μs | 38,945.9 μs | 2.21x | 13743792 B | 17867632 B | 0.77x |
+| PropertyAccess | 2,199,883.0 μs | 719,306.9 μs | 3.06x | 23944 B | 143683032 B | <0.01x |
+| Recursion | 838,061.8 μs | 504,593.6 μs | 1.66x | 46185680 B | 173074664 B | 0.27x |
+| RegexOperations | 403,286.8 μs | 117,334.7 μs | 3.44x | 343942864 B | 41065648 B | 8.38x |
+| SimpleArithmetic | 136.7 μs | 221.9 μs | 0.62x | 0 B | 23176 B | 0.00x |
+| SpreadOperator | 224,097.2 μs | 39,551.8 μs | 5.67x | 128718736 B | 11115776 B | 11.6x |
+| StringOperations | 16,833.1 μs | 20,302.7 μs | 0.83x | 983272 B | 446256 B | 2.20x |
+| WhileLoop | 7,805.2 μs | 577,979.2 μs | 0.01x | 13512 B | 63678736 B | <0.01x |
 
 **Enumerator behavior**:
 - JsArray: checks `_length` on each iteration (handles array modification during iteration)

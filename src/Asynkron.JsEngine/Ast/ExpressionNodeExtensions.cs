@@ -403,6 +403,22 @@ public static partial class TypedAstEvaluator
 
                 if (member.IsComputed || !propertyName.IsPrivateName())
                 {
+                    if (targetJs.TryGetObject<IJsPropertyAccessor>(out var accessor))
+                    {
+                        try
+                        {
+                            if (accessor.TryGetProperty(propertyName, targetJs, out var directJsValue))
+                            {
+                                return (directJsValue, targetJs, false);
+                            }
+                        }
+                        catch (ThrowSignal signal)
+                        {
+                            context.SetThrow(signal.ThrownValue);
+                            return (JsValue.Undefined, JsValue.Undefined, true);
+                        }
+                    }
+
                     if (JsOps.TryGetPropertyValue(target, propertyName, out var directValue, context))
                     {
                         if (context.ShouldStopEvaluation)

@@ -51,8 +51,8 @@ internal static class AwaitScheduler
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsPromiseLike(JsValue candidate)
     {
-        // Unwrapped JsPromise instances should still count as promise-like
-        if (candidate.ObjectValue is JsPromise)
+        // Fast path: check internal promise slot/marker without property lookups
+        if (JsPromise.TryGetInternalPromise(candidate, out _))
         {
             return true;
         }

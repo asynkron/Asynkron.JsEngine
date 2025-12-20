@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using Asynkron.JsEngine.Tools.ProfileTool;
 using Spectre.Console;
+using Spectre.Console.Rendering;
 
 void PrintHeader(string text)
 {
@@ -53,6 +54,17 @@ var repoRoot = FindRepoRoot();
 var toolsDir = Path.Combine(repoRoot, "tools");
 var outputDir = Path.Combine(toolsDir, "profile-output");
 Directory.CreateDirectory(outputDir);
+
+if (Console.IsOutputRedirected)
+{
+    var capabilities = AnsiConsole.Profile.Capabilities;
+    capabilities.Ansi = false;
+    capabilities.Unicode = false;
+    capabilities.Links = false;
+    capabilities.Interactive = false;
+    AnsiConsole.Profile.Capabilities = capabilities;
+    AnsiConsole.Profile.Width = 200;
+}
 
 var manifestPath = Path.Combine(toolsDir, "profile-manifest.json");
 var profiles = LoadManifest(manifestPath);
@@ -241,7 +253,6 @@ CpuProfileResult? AnalyzeSpeedscope(string speedscopePath)
 void PrintCpuResults(
     CpuProfileResult? results,
     string profileKey,
-    bool showCallTree,
     string? rootFilter,
     string? functionFilter,
     bool includeRuntime,
@@ -282,8 +293,7 @@ void PrintCpuResults(
         ? "Top Functions (All)"
         : "Top Functions (Filtered)";
     var table = new Table()
-        .Border(TableBorder.Rounded)
-        .Expand()
+        .Border(TableBorder.None)
         .Title($"[bold]{topTitle}[/]")
         .AddColumn(new TableColumn("[yellow]Time (ms)[/]").RightAligned())
         .AddColumn(new TableColumn("[yellow]Calls[/]").RightAligned())
@@ -324,8 +334,7 @@ void PrintCpuResults(
     PrintSection("JsEngine Hot Functions");
 
     var jsTable = new Table()
-        .Border(TableBorder.Rounded)
-        .Expand()
+        .Border(TableBorder.None)
         .AddColumn(new TableColumn("[yellow]Time (ms)[/]").RightAligned())
         .AddColumn(new TableColumn("[yellow]Calls[/]").RightAligned())
         .AddColumn(new TableColumn("[yellow]% Total[/]").RightAligned())
@@ -358,8 +367,7 @@ void PrintCpuResults(
     var jsPct = totalTime > 0 ? 100 * jsEngineTime / totalTime : 0;
 
     var summaryTable = new Table()
-        .Border(TableBorder.Double)
-        .Expand()
+        .Border(TableBorder.None)
         .Title("[bold yellow]Summary[/]")
         .HideHeaders()
         .AddColumn("")
@@ -375,30 +383,27 @@ void PrintCpuResults(
 
     AnsiConsole.Write(summaryTable);
 
-    if (showCallTree)
+    var resolvedRoot = ResolveCallTreeRootFilter(results, rootFilter);
+    AnsiConsole.Write(BuildCallTree(
+        results,
+        useSelfTime: false,
+        resolvedRoot,
+        includeRuntime,
+        callTreeDepth,
+        callTreeWidth,
+        callTreeRootMode,
+        callTreeSiblingCutoffPercent));
+    if (showSelfTimeTree)
     {
-        var resolvedRoot = ResolveCallTreeRootFilter(results, rootFilter);
         AnsiConsole.Write(BuildCallTree(
             results,
-            useSelfTime: false,
+            useSelfTime: true,
             resolvedRoot,
             includeRuntime,
             callTreeDepth,
             callTreeWidth,
             callTreeRootMode,
             callTreeSiblingCutoffPercent));
-        if (showSelfTimeTree)
-        {
-            AnsiConsole.Write(BuildCallTree(
-                results,
-                useSelfTime: true,
-                resolvedRoot,
-                includeRuntime,
-                callTreeDepth,
-                callTreeWidth,
-                callTreeRootMode,
-                callTreeSiblingCutoffPercent));
-        }
     }
 }
 
@@ -648,8 +653,7 @@ void PrintMemoryResults(MemoryProfileResult? results, string profileKey)
     AnsiConsole.MarkupLine($"[dim]{description}[/]");
 
     var table = new Table()
-        .Border(TableBorder.Rounded)
-        .Expand()
+        .Border(TableBorder.None)
         .AddColumn(new TableColumn("[yellow]Metric[/]"))
         .AddColumn(new TableColumn("[yellow]Value[/]"));
 
@@ -698,7 +702,7 @@ void PrintMemoryResults(MemoryProfileResult? results, string profileKey)
     }
 }
 
-Panel BuildCallTree(
+IRenderable BuildCallTree(
     CpuProfileResult results,
     bool useSelfTime,
     string? rootFilter,
@@ -756,10 +760,9 @@ Panel BuildCallTree(
         }
     }
 
-    return new Panel(tree)
-        .Header($"[bold yellow]{title}[/]")
-        .Border(BoxBorder.Rounded)
-        .Expand();
+    return new Rows(
+        new Markup($"[bold yellow]{title}[/]"),
+        tree);
 }
 
 void AddCallTreeChildren(
@@ -983,8 +986,7 @@ void PrintAllocationTable(IReadOnlyList<AllocationEntry> entries, string? alloca
     }
 
     var table = new Table()
-        .Border(TableBorder.Rounded)
-        .Expand()
+        .Border(TableBorder.None)
         .AddColumn(new TableColumn("[yellow]Type[/]"))
         .AddColumn(new TableColumn("[yellow]Count[/]").RightAligned())
         .AddColumn(new TableColumn("[yellow]Total[/]").RightAligned());
@@ -1135,14 +1137,20 @@ string FormatCallTreeName(string displayName, string matchName, bool isLeaf)
     }
 
     const string leafHighlightColor = "plum1";
-    if (matchName.Contains("CastHelpers.Box", StringComparison.Ordinal))
+    if (matchName.Contains("CastHelpers.", StringComparison.Ordinal))
     {
         return $"[{leafHighlightColor}]{escaped}[/]";
     }
 
     if (matchName.Contains("Array.Copy", StringComparison.Ordinal) ||
         matchName.Contains("Dictionary<__Canon,__Canon>.Resize", StringComparison.Ordinal) ||
-        matchName.Contains("Buffer.BulkMoveWithWriteBarrier", StringComparison.Ordinal))
+        matchName.Contains("Buffer.BulkMoveWithWriteBarrier", StringComparison.Ordinal) ||
+        matchName.Contains("SpanHelpers.SequenceEqual", StringComparison.Ordinal) ||
+        matchName.Contains("HashSet<", StringComparison.Ordinal) ||
+        matchName.Contains("Enumerable+ArrayWhereSelectIterator<", StringComparison.Ordinal) ||
+        matchName.Contains("ImmutableDictionary<", StringComparison.Ordinal) ||
+        matchName.Contains("SegmentedArrayBuilder<__Canon>.ToArray", StringComparison.Ordinal) ||
+        matchName.Contains("__Canon", StringComparison.Ordinal))
     {
         return $"[{leafHighlightColor}]{escaped}[/]";
     }
@@ -1164,10 +1172,16 @@ string GetCallTreeMatchName(CallTreeNode node)
 bool ShouldStopAtLeaf(CallTreeNode node)
 {
     var matchName = GetCallTreeMatchName(node);
-    return matchName.Contains("CastHelpers.Box", StringComparison.Ordinal) ||
+    return matchName.Contains("CastHelpers.", StringComparison.Ordinal) ||
            matchName.Contains("Array.Copy", StringComparison.Ordinal) ||
            matchName.Contains("Dictionary<__Canon,__Canon>.Resize", StringComparison.Ordinal) ||
            matchName.Contains("Buffer.BulkMoveWithWriteBarrier", StringComparison.Ordinal) ||
+           matchName.Contains("SpanHelpers.SequenceEqual", StringComparison.Ordinal) ||
+           matchName.Contains("HashSet<", StringComparison.Ordinal) ||
+           matchName.Contains("Enumerable+ArrayWhereSelectIterator<", StringComparison.Ordinal) ||
+           matchName.Contains("ImmutableDictionary<", StringComparison.Ordinal) ||
+           matchName.Contains("SegmentedArrayBuilder<__Canon>.ToArray", StringComparison.Ordinal) ||
+           matchName.Contains("__Canon", StringComparison.Ordinal) ||
            (matchName.Contains("List<", StringComparison.Ordinal) &&
             matchName.EndsWith(".ToArray", StringComparison.Ordinal));
 }
@@ -1336,8 +1350,7 @@ void PrintHeapResults(HeapProfileResult? results, string profileKey)
     if (results.Types.Count > 0)
     {
         var table = new Table()
-            .Border(TableBorder.Rounded)
-            .Expand()
+            .Border(TableBorder.None)
             .AddColumn(new TableColumn("[yellow]Size (bytes)[/]").RightAligned())
             .AddColumn(new TableColumn("[yellow]Count[/]").RightAligned())
             .AddColumn(new TableColumn("[yellow]Type[/]"));
@@ -1359,8 +1372,7 @@ void PrintHeapResults(HeapProfileResult? results, string profileKey)
             .ToList();
 
         var jsTable = new Table()
-            .Border(TableBorder.Rounded)
-            .Expand()
+            .Border(TableBorder.None)
             .AddColumn(new TableColumn("[yellow]Size (bytes)[/]").RightAligned())
             .AddColumn(new TableColumn("[yellow]Count[/]").RightAligned())
             .AddColumn(new TableColumn("[yellow]Type[/]"));
@@ -1479,8 +1491,7 @@ void RunBenchmarks()
 void ShowAvailableProfiles()
 {
     var table = new Table()
-        .Border(TableBorder.Rounded)
-        .Expand()
+        .Border(TableBorder.None)
         .Title("[bold yellow]Available Profiles[/]")
         .AddColumn("[green]Key[/]")
         .AddColumn("[cyan]Name[/]")
@@ -1500,10 +1511,9 @@ var profileArg = new Argument<string>("profile", () => "fib",
 var cpuOption = new Option<bool>("--cpu", "Run CPU profiling only");
 var memoryOption = new Option<bool>("--memory", "Run memory profiling only");
 var heapOption = new Option<bool>("--heap", "Capture heap snapshot");
-var callTreeOption = new Option<bool>("--calltree", "Show call tree for CPU hotspots");
 var callTreeRootOption = new Option<string?>("--root", "Filter call tree to a root method (substring match)");
-var callTreeDepthOption = new Option<int>("--calltree-depth", () => 8, "Maximum call tree depth (default: 8)");
-var callTreeWidthOption = new Option<int>("--calltree-width", () => 8, "Maximum children per node (default: 8)");
+var callTreeDepthOption = new Option<int>("--calltree-depth", () => 30, "Maximum call tree depth (default: 30)");
+var callTreeWidthOption = new Option<int>("--calltree-width", () => 4, "Maximum children per node (default: 4)");
 var callTreeRootModeOption = new Option<string?>("--root-mode", () => "hottest", "Root selection mode when multiple matches (hottest|shallowest|first)");
 var callTreeSelfOption = new Option<bool>("--calltree-self", "Show self-time call tree in addition to total time");
 var callTreeSiblingCutoffOption = new Option<int>("--calltree-sibling-cutoff", () => 5, "Hide siblings below X% of the top sibling (default: 5)");
@@ -1517,7 +1527,6 @@ var rootCommand = new RootCommand("JsEngine Profiler - CPU and Memory profiling 
     cpuOption,
     memoryOption,
     heapOption,
-    callTreeOption,
     callTreeRootOption,
     callTreeDepthOption,
     callTreeWidthOption,
@@ -1535,7 +1544,6 @@ rootCommand.SetHandler(context =>
     var cpu = context.ParseResult.GetValueForOption(cpuOption);
     var memory = context.ParseResult.GetValueForOption(memoryOption);
     var heap = context.ParseResult.GetValueForOption(heapOption);
-    var calltree = context.ParseResult.GetValueForOption(callTreeOption);
     var callTreeRoot = context.ParseResult.GetValueForOption(callTreeRootOption);
     var callTreeDepth = context.ParseResult.GetValueForOption(callTreeDepthOption);
     var callTreeWidth = context.ParseResult.GetValueForOption(callTreeWidthOption);
@@ -1591,7 +1599,6 @@ rootCommand.SetHandler(context =>
             PrintCpuResults(
                 results,
                 profileKey,
-                calltree,
                 callTreeRoot,
                 functionFilter,
                 includeRuntime,

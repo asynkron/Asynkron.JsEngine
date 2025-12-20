@@ -199,6 +199,96 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         MarkMutated();
         _state.Storage.Clear();
     }
+
+    internal void CloneFromSnapshot(
+        JsObject original,
+        Func<object?, object?> cloneValue,
+        Func<PropertyDescriptor, PropertyDescriptor> cloneDescriptor,
+        Func<string, bool>? shouldSkipKey,
+        RealmState? newRealm)
+    {
+        ArgumentNullException.ThrowIfNull(original);
+        ArgumentNullException.ThrowIfNull(cloneValue);
+        ArgumentNullException.ThrowIfNull(cloneDescriptor);
+
+        if (ReferenceEquals(this, original))
+        {
+            return;
+        }
+
+        if (original._state is null)
+        {
+            _state = null;
+        }
+        else
+        {
+            _state ??= new JsObjectState();
+            _state.Storage.Clear();
+            _state.Descriptors.Clear();
+            _state.PrivateBrands.Clear();
+            _state.PrivateFields.Clear();
+            _state.PropertyInsertionOrder.Clear();
+            _state.PropertyInsertionNodes.Clear();
+
+            foreach (var kv in original._state.Storage)
+            {
+                if (shouldSkipKey?.Invoke(kv.Key) == true)
+                {
+                    continue;
+                }
+
+                var clonedValue = cloneValue(kv.Value.ToObject());
+                _state.Storage[kv.Key] = JsValue.FromObjectUnsafe(clonedValue);
+            }
+
+            foreach (var kv in original._state.Descriptors)
+            {
+                if (shouldSkipKey?.Invoke(kv.Key) == true)
+                {
+                    continue;
+                }
+
+                _state.Descriptors[kv.Key] = cloneDescriptor(kv.Value);
+            }
+
+            foreach (var kv in original._state.PrivateFields)
+            {
+                _state.PrivateFields[kv.Key] = kv.Value switch
+                {
+                    PropertyDescriptor desc => cloneDescriptor(desc),
+                    _ => cloneValue(kv.Value)
+                };
+            }
+
+            foreach (var brand in original._state.PrivateBrands)
+            {
+                if (cloneValue(brand) is { } clonedBrand)
+                {
+                    _state.PrivateBrands.Add(clonedBrand);
+                }
+            }
+
+            foreach (var key in original._state.PropertyInsertionOrder)
+            {
+                var node = _state.PropertyInsertionOrder.AddLast(key);
+                _state.PropertyInsertionNodes[key] = node;
+            }
+        }
+
+        _trackArrayLength = original._trackArrayLength;
+        _trackedArrayLength = original._trackedArrayLength;
+        IsFrozen = original.IsFrozen;
+        IsSealed = original.IsSealed;
+        IsExtensible = original.IsExtensible;
+        IsConstructing = original.IsConstructing;
+        _virtualPropertyProvider = original._virtualPropertyProvider;
+        _promiseSlot = cloneValue(original._promiseSlot) as JsPromise;
+        PrototypeAccessor = cloneValue(original.PrototypeAccessor) as IJsPropertyAccessor;
+        Prototype = cloneValue(original.Prototype) as JsObject;
+        Origin = original.Origin;
+        RealmState = original.RealmState is null ? null : newRealm;
+        MutationVersion = original.MutationVersion;
+    }
     bool ICollection<KeyValuePair<string, object?>>.Contains(KeyValuePair<string, object?> item) =>
         _state is not null &&
         _state.Storage.TryGetValue(item.Key, out var v) &&
